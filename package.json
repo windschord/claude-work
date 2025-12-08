@@ -1,0 +1,20 @@
+{
+  "name": "claude-work-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "frontend"
+  ],
+  "scripts": {
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "build:frontend": "npm run build --workspace=frontend",
+    "dev:backend": "cd backend && uv run uvicorn main:app --reload",
+    "dev": "npm run dev:frontend & npm run dev:backend"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "overrides": {
+    "glob": "^10.5.0"
+  }
+}
