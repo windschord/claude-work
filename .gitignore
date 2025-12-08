@@ -250,3 +250,6 @@ next-env.d.ts
 # Temporary files
 tmp/
 .tmp/
+
+# Database
+data/

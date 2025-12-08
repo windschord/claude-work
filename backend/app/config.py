@@ -21,5 +21,8 @@ class Settings(BaseSettings):
     # ログ設定
     log_level: str = "INFO"
 
+    # データベース設定
+    database_url: str = "sqlite+aiosqlite:////home/tsk/sync/git/claude-work/data/claudework.db"
+
 
 settings = Settings()
