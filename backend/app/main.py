@@ -1,11 +1,14 @@
 """FastAPIアプリケーション"""
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api import auth
 from app.config import settings
 from app.logging_config import configure_logging, get_logger
+from app.middleware.auth import verify_session
+from app.models.auth_session import AuthSession
 
 
 @asynccontextmanager
@@ -37,6 +40,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ルーターの登録
+app.include_router(auth.router)
+
 
 @app.get("/")
 async def root():
@@ -50,3 +56,9 @@ async def health():
     logger = get_logger(__name__)
     logger.debug("health_check_called")
     return {"status": "ok"}
+
+
+@app.get("/api/protected")
+async def protected(session: AuthSession = Depends(verify_session)):
+    """認証が必要なエンドポイント（テスト用）"""
+    return {"message": "You are authenticated", "session_id": str(session.id)}

@@ -24,5 +24,10 @@ class Settings(BaseSettings):
     # データベース設定
     database_url: str = "sqlite+aiosqlite:////home/tsk/sync/git/claude-work/data/claudework.db"
 
+    # 認証設定
+    auth_token: str = "development_token_change_in_production"
+    session_cookie_name: str = "session_id"
+    session_expires_hours: int = 24
+
 
 settings = Settings()
