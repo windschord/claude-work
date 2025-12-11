@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, projects, sessions
+from app.api import auth, git_ops, projects, sessions
 from app.config import settings
 from app.logging_config import configure_logging, get_logger
 from app.middleware.auth import verify_session
@@ -44,6 +44,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(projects.router)
 app.include_router(sessions.router)
+app.include_router(git_ops.router)
 
 
 @app.get("/")
