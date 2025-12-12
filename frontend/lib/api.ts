@@ -106,6 +106,13 @@ export interface RunScript {
   updated_at: string;
 }
 
+export interface ScriptExecutionResult {
+  success: boolean;
+  output: string;
+  exit_code: number;
+  execution_time: number;
+}
+
 // WebSocket message types
 export type WebSocketMessage =
   | { type: 'assistant_output'; content: string }
@@ -526,5 +533,19 @@ export const api = {
       const errorData = await response.json().catch(() => ({ detail: 'ランスクリプトの削除に失敗しました' }));
       throw new ApiError(response.status, errorData.detail || 'ランスクリプトの削除に失敗しました');
     }
+  },
+
+  async executeRunScript(sessionId: string, scriptId: number): Promise<ScriptExecutionResult> {
+    const response = await fetch(`${API_URL}/api/execute-script/${sessionId}/${scriptId}`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'スクリプトの実行に失敗しました' }));
+      throw new ApiError(response.status, errorData.detail || 'スクリプトの実行に失敗しました');
+    }
+
+    return await response.json();
   },
 };

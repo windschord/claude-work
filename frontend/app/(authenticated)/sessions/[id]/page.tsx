@@ -19,8 +19,9 @@ import MergeModal from '@/components/git/MergeModal';
 import ConflictDialog from '@/components/git/ConflictDialog';
 import { CommitHistory } from '@/components/git/CommitHistory';
 import { Session } from '@/lib/api';
+import RunScriptPanel from '@/components/session/RunScriptPanel';
 
-type TabType = 'chat' | 'changes' | 'history';
+type TabType = 'chat' | 'changes' | 'history' | 'scripts';
 
 // ユニークIDを生成するヘルパー関数
 function generateId(): string {
@@ -321,6 +322,16 @@ export default function SessionDetailPage() {
           >
             履歴
           </button>
+          <button
+            onClick={() => setActiveTab('scripts')}
+            className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'scripts'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            スクリプト
+          </button>
         </div>
       </div>
 
@@ -355,6 +366,10 @@ export default function SessionDetailPage() {
               <FileList className="w-80 flex-shrink-0" />
               <DiffViewer className="flex-1" />
             </div>
+          </div>
+        ) : activeTab === 'scripts' ? (
+          <div className="h-full">
+            <RunScriptPanel sessionId={sessionId} projectId={session.project_id} />
           </div>
         ) : (
           <div className="h-full overflow-y-auto px-6 py-4">
