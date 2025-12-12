@@ -38,6 +38,7 @@ class Session(Base):
         nullable=False,
         default=SessionStatus.INITIALIZING,
     )
+    model: Mapped[str | None] = mapped_column(String(64), nullable=True)
     worktree_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

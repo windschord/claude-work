@@ -890,14 +890,68 @@ Claude Codeモデル選択機能を実装する
 - プロジェクトデフォルトモデル設定
 - Claude Code起動時のモデル指定
 
+**技術的文脈**:
+- 利用可能なモデル:
+  - claude-sonnet-4-20250514 (default)
+  - claude-opus-4-20250514
+  - claude-3-5-haiku-20241022
+- `claude --model {model}` オプションを使用
+
+**実装手順（TDD）**:
+
+バックエンド:
+1. `backend/app/models/project.py` 更新
+   - default_model フィールド追加（デフォルト: claude-sonnet-4-20250514）
+2. `backend/app/models/session.py` 更新
+   - model フィールド追加
+3. マイグレーション作成
+   - projects テーブルに default_model カラム追加
+   - sessions テーブルに model カラム追加
+4. `backend/app/services/project_service.py` 更新
+   - default_modelパラメータ追加
+5. `backend/app/services/session_service.py` 更新
+   - モデル未指定時はプロジェクトのdefault_modelを使用
+6. `backend/app/services/process_manager.py` 更新
+   - start_claude_code にmodelパラメータ追加
+   - コマンドライン引数に `--model {model}` を追加
+7. `backend/app/api/projects.py` 更新
+   - ProjectResponse, ProjectCreateRequest, ProjectUpdateRequest にdefault_modelフィールド追加
+8. `backend/app/api/sessions.py` 更新
+   - SessionResponse にmodelフィールド追加
+   - SessionCreateRequest にmodelフィールド追加（オプション）
+9. バックエンドテスト更新
+
+フロントエンド:
+10. `frontend/lib/api.ts` 更新
+    - Project型にdefault_modelフィールド追加
+    - Session型にmodelフィールド追加
+    - API関数にmodelパラメータ追加
+11. `frontend/lib/constants.ts` 作成
+    - CLAUDE_MODELSの定義
+12. `frontend/components/sessions/CreateSessionForm.tsx` 更新
+    - モデル選択セレクトボックス追加
+    - プロジェクトのdefault_modelをデフォルト値として使用
+13. `frontend/components/sessions/SessionList.tsx` 更新
+    - モデル名表示追加
+14. `frontend/components/projects/ProjectSettings.tsx` 作成
+    - プロジェクトのデフォルトモデル設定UI
+15. `frontend/components/projects/AddProjectModal.tsx` 更新
+    - デフォルトモデル選択追加
+16. `frontend/app/(authenticated)/projects/[id]/page.tsx` 更新
+    - ProjectSettingsコンポーネント配置
+17. フロントエンドビルド確認
+
 **受入基準**:
 - [ ] セッション作成時にモデルを選択できる
 - [ ] プロジェクト設定でデフォルトモデルを設定できる
 - [ ] 選択したモデルでClaude Codeが起動する
+- [ ] バックエンドテストが通過する
+- [ ] フロントエンドビルドが成功する
+- [ ] TypeScript strict modeでエラーがない
 
 **依存関係**: タスク5.2
 **推定工数**: 30分
-**ステータス**: `TODO`
+**ステータス**: `IN_PROGRESS`
 
 ---
 

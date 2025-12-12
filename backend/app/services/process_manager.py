@@ -32,7 +32,11 @@ class ProcessManager:
         self._tasks: list[asyncio.Task] = []
 
     async def start_claude_code(
-        self, working_dir: str, message: str, additional_args: Optional[list[str]] = None
+        self,
+        working_dir: str,
+        message: str,
+        model: Optional[str] = None,
+        additional_args: Optional[list[str]] = None
     ) -> None:
         """
         Claude Codeプロセスを起動する
@@ -40,6 +44,7 @@ class ProcessManager:
         Args:
             working_dir: 作業ディレクトリ
             message: Claudeに送信するメッセージ
+            model: 使用するモデル（指定された場合は--modelオプションを追加）
             additional_args: 追加のコマンドライン引数
         """
         if self.is_running:
@@ -47,6 +52,11 @@ class ProcessManager:
 
         # コマンドライン引数を構築
         args = ["claude", "--print"]
+
+        # モデルが指定されている場合は--modelオプションを追加
+        if model:
+            args.extend(["--model", model])
+
         if additional_args:
             args.extend(additional_args)
         args.append(message)

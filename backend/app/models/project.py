@@ -19,6 +19,11 @@ class Project(Base):
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     path: Mapped[str] = mapped_column(String(512), nullable=False)
+    default_model: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default="claude-sonnet-4-20250514",
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

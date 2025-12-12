@@ -99,6 +99,7 @@ class ProjectService:
     async def create_project(
         db: AsyncSession,
         path: str,
+        default_model: str | None = None,
     ) -> Project:
         """
         プロジェクトを作成
@@ -106,6 +107,7 @@ class ProjectService:
         Args:
             db: データベースセッション
             path: プロジェクトパス
+            default_model: デフォルトモデル（指定されない場合はclaude-sonnet-4-20250514）
 
         Returns:
             作成されたプロジェクト
@@ -124,6 +126,7 @@ class ProjectService:
         project = Project(
             name=name,
             path=path,
+            default_model=default_model or "claude-sonnet-4-20250514",
         )
         db.add(project)
         await db.commit()
@@ -135,6 +138,7 @@ class ProjectService:
         db: AsyncSession,
         project_id: uuid.UUID,
         name: str | None = None,
+        default_model: str | None = None,
     ) -> Project | None:
         """
         プロジェクトを更新
@@ -143,6 +147,7 @@ class ProjectService:
             db: データベースセッション
             project_id: プロジェクトID
             name: 更新する名前（指定された場合のみ更新）
+            default_model: 更新するデフォルトモデル（指定された場合のみ更新）
 
         Returns:
             更新されたプロジェクト、存在しない場合はNone
@@ -155,6 +160,10 @@ class ProjectService:
         # 名前を更新
         if name is not None:
             project.name = name
+
+        # デフォルトモデルを更新
+        if default_model is not None:
+            project.default_model = default_model
 
         await db.commit()
         await db.refresh(project)

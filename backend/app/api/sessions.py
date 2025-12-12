@@ -19,6 +19,7 @@ class SessionCreateRequest(BaseModel):
     name: str
     message: str
     count: int | None = None
+    model: str | None = None
 
     @field_validator('count')
     @classmethod
@@ -36,6 +37,7 @@ class SessionResponse(BaseModel):
     project_id: str
     name: str
     status: str
+    model: str | None
     worktree_path: str | None
     created_at: str
     updated_at: str
@@ -72,6 +74,7 @@ async def get_sessions(
                 project_id=str(s.project_id),
                 name=s.name,
                 status=s.status.value,
+                model=s.model,
                 worktree_path=s.worktree_path,
                 created_at=s.created_at.isoformat(),
                 updated_at=s.updated_at.isoformat(),
@@ -125,6 +128,7 @@ async def create_session(
                 project_id,
                 session_name,
                 request.message,
+                request.model,
             )
             sessions.append(
                 SessionResponse(
@@ -132,6 +136,7 @@ async def create_session(
                     project_id=str(new_session.project_id),
                     name=new_session.name,
                     status=new_session.status.value,
+                    model=new_session.model,
                     worktree_path=new_session.worktree_path,
                     created_at=new_session.created_at.isoformat(),
                     updated_at=new_session.updated_at.isoformat(),
@@ -183,6 +188,7 @@ async def get_session(
         project_id=str(session_obj.project_id),
         name=session_obj.name,
         status=session_obj.status.value,
+        model=session_obj.model,
         worktree_path=session_obj.worktree_path,
         created_at=session_obj.created_at.isoformat(),
         updated_at=session_obj.updated_at.isoformat(),
@@ -222,6 +228,7 @@ async def stop_session(
             project_id=str(stopped_session.project_id),
             name=stopped_session.name,
             status=stopped_session.status.value,
+            model=stopped_session.model,
             worktree_path=stopped_session.worktree_path,
             created_at=stopped_session.created_at.isoformat(),
             updated_at=stopped_session.updated_at.isoformat(),

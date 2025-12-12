@@ -17,12 +17,14 @@ class ProjectCreateRequest(BaseModel):
     """プロジェクト作成リクエスト"""
 
     path: str
+    default_model: str | None = None
 
 
 class ProjectUpdateRequest(BaseModel):
     """プロジェクト更新リクエスト"""
 
-    name: str
+    name: str | None = None
+    default_model: str | None = None
 
 
 class ProjectResponse(BaseModel):
@@ -31,6 +33,7 @@ class ProjectResponse(BaseModel):
     id: str
     name: str
     path: str
+    default_model: str
     created_at: str
     updated_at: str
 
@@ -59,6 +62,7 @@ async def get_projects(
             id=str(project.id),
             name=project.name,
             path=project.path,
+            default_model=project.default_model,
             created_at=project.created_at.isoformat(),
             updated_at=project.updated_at.isoformat(),
         )
@@ -87,11 +91,12 @@ async def create_project(
         HTTPException: プロジェクト作成に失敗した場合
     """
     try:
-        project = await ProjectService.create_project(db, request.path)
+        project = await ProjectService.create_project(db, request.path, request.default_model)
         return ProjectResponse(
             id=str(project.id),
             name=project.name,
             path=project.path,
+            default_model=project.default_model,
             created_at=project.created_at.isoformat(),
             updated_at=project.updated_at.isoformat(),
         )
@@ -128,6 +133,7 @@ async def update_project(
         db,
         project_id,
         name=request.name,
+        default_model=request.default_model,
     )
     if not project:
         raise HTTPException(
@@ -139,6 +145,7 @@ async def update_project(
         id=str(project.id),
         name=project.name,
         path=project.path,
+        default_model=project.default_model,
         created_at=project.created_at.isoformat(),
         updated_at=project.updated_at.isoformat(),
     )

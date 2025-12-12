@@ -77,6 +77,7 @@ class SessionService:
         project_id: uuid.UUID,
         name: str,
         message: str,
+        model: str | None = None,
     ) -> Session:
         """
         セッションを作成
@@ -86,6 +87,7 @@ class SessionService:
             project_id: プロジェクトID
             name: セッション名
             message: Claude Codeに送信するメッセージ
+            model: 使用するモデル（指定されない場合はプロジェクトのdefault_modelを使用）
 
         Returns:
             作成されたセッション
@@ -101,11 +103,15 @@ class SessionService:
         if not project:
             raise ValueError("Project not found")
 
+        # モデルが指定されていない場合はプロジェクトのdefault_modelを使用
+        session_model = model or project.default_model
+
         # セッションを作成
         session = Session(
             project_id=project_id,
             name=name,
             status=SessionStatus.INITIALIZING,
+            model=session_model,
         )
         db.add(session)
         await db.commit()
@@ -127,10 +133,11 @@ class SessionService:
             # ProcessManagerを初期化
             process_manager = ProcessManager()
 
-            # Claude Codeプロセスを起動
+            # Claude Codeプロセスを起動（モデル指定）
             await process_manager.start_claude_code(
                 working_dir=worktree_path,
                 message=message,
+                model=session_model,
             )
 
             # プロセスマネージャーを保持
