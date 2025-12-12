@@ -124,13 +124,16 @@ class TestSessionCreate:
         )
         assert response.status_code == 201
         data = response.json()
-        assert "id" in data
-        assert data["name"] == "test-session"
-        assert data["project_id"] == project_id
-        assert data["status"] == "running"
-        assert data["worktree_path"] == "/home/tsk/sync/git/claude-work/.worktrees/test-session"
-        assert "created_at" in data
-        assert "updated_at" in data
+        assert isinstance(data, list)
+        assert len(data) == 1
+        session = data[0]
+        assert "id" in session
+        assert session["name"] == "test-session"
+        assert session["project_id"] == project_id
+        assert session["status"] == "running"
+        assert session["worktree_path"] == "/home/tsk/sync/git/claude-work/.worktrees/test-session"
+        assert "created_at" in session
+        assert "updated_at" in session
 
         # GitServiceとProcessManagerが呼ばれたことを確認
         mock_git_service.create_worktree.assert_called_once()
@@ -236,7 +239,10 @@ class TestSessionDetail:
             json={"name": "test-session", "message": "test message"},
         )
         assert create_response.status_code == 201
-        session_id = create_response.json()["id"]
+        sessions = create_response.json()
+        assert isinstance(sessions, list)
+        assert len(sessions) == 1
+        session_id = sessions[0]["id"]
 
         # セッション詳細取得
         response = client.get(f"/api/sessions/{session_id}")
@@ -308,7 +314,10 @@ class TestSessionStop:
             json={"name": "test-session", "message": "test message"},
         )
         assert create_response.status_code == 201
-        session_id = create_response.json()["id"]
+        sessions = create_response.json()
+        assert isinstance(sessions, list)
+        assert len(sessions) == 1
+        session_id = sessions[0]["id"]
 
         # セッション停止
         response = client.post(f"/api/sessions/{session_id}/stop")
@@ -383,7 +392,10 @@ class TestSessionDelete:
             json={"name": "test-session", "message": "test message"},
         )
         assert create_response.status_code == 201
-        session_id = create_response.json()["id"]
+        sessions = create_response.json()
+        assert isinstance(sessions, list)
+        assert len(sessions) == 1
+        session_id = sessions[0]["id"]
 
         # セッション削除
         response = client.delete(f"/api/sessions/{session_id}")
@@ -410,3 +422,193 @@ class TestSessionDelete:
         response = client.delete("/api/sessions/00000000-0000-0000-0000-000000000000")
         assert response.status_code == 404
         assert "detail" in response.json()
+
+
+class TestBulkSessionCreate:
+    """複数セッション作成のテスト"""
+
+    @patch("app.services.session_service.GitService")
+    @patch("app.services.session_service.ProcessManager")
+    def test_create_multiple_sessions_success(
+        self,
+        mock_process_manager_class,
+        mock_git_service_class,
+        client: TestClient,
+    ):
+        """複数セッションの一括作成が成功する"""
+        # モックの設定
+        mock_git_service = AsyncMock()
+        mock_git_service.create_worktree.side_effect = lambda name, branch: f"/home/tsk/sync/git/claude-work/.worktrees/{name}"
+        mock_git_service_class.return_value = mock_git_service
+
+        mock_process_manager = AsyncMock()
+        mock_process_manager_class.return_value = mock_process_manager
+
+        # ログイン
+        login_response = client.post(
+            "/api/auth/login",
+            data={"token": "development_token_change_in_production"},
+        )
+        assert login_response.status_code == 200
+
+        # プロジェクト作成
+        project_response = client.post(
+            "/api/projects",
+            json={"path": "/home/tsk/sync/git/claude-work"},
+        )
+        assert project_response.status_code == 201
+        project_id = project_response.json()["id"]
+
+        # 複数セッション作成（count=3）
+        response = client.post(
+            f"/api/projects/{project_id}/sessions",
+            json={"name": "test-session", "message": "test message", "count": 3},
+        )
+        assert response.status_code == 201
+        data = response.json()
+
+        # レスポンスが配列であることを確認
+        assert isinstance(data, list)
+        assert len(data) == 3
+
+        # 各セッションの内容を確認
+        for i, session in enumerate(data, start=1):
+            assert "id" in session
+            assert session["name"] == f"test-session-{i}"
+            assert session["project_id"] == project_id
+            assert session["status"] == "running"
+            assert session["worktree_path"] == f"/home/tsk/sync/git/claude-work/.worktrees/test-session-{i}"
+            assert "created_at" in session
+            assert "updated_at" in session
+
+        # GitServiceとProcessManagerが3回呼ばれたことを確認
+        assert mock_git_service.create_worktree.call_count == 3
+        assert mock_process_manager.start_claude_code.call_count == 3
+
+    @patch("app.services.session_service.GitService")
+    @patch("app.services.session_service.ProcessManager")
+    def test_create_single_session_with_count_1(
+        self,
+        mock_process_manager_class,
+        mock_git_service_class,
+        client: TestClient,
+    ):
+        """count=1の場合は単一セッションとして作成される"""
+        # モックの設定
+        mock_git_service = AsyncMock()
+        mock_git_service.create_worktree.return_value = "/home/tsk/sync/git/claude-work/.worktrees/test-session"
+        mock_git_service_class.return_value = mock_git_service
+
+        mock_process_manager = AsyncMock()
+        mock_process_manager_class.return_value = mock_process_manager
+
+        # ログイン
+        login_response = client.post(
+            "/api/auth/login",
+            data={"token": "development_token_change_in_production"},
+        )
+        assert login_response.status_code == 200
+
+        # プロジェクト作成
+        project_response = client.post(
+            "/api/projects",
+            json={"path": "/home/tsk/sync/git/claude-work"},
+        )
+        assert project_response.status_code == 201
+        project_id = project_response.json()["id"]
+
+        # セッション作成（count=1）
+        response = client.post(
+            f"/api/projects/{project_id}/sessions",
+            json={"name": "test-session", "message": "test message", "count": 1},
+        )
+        assert response.status_code == 201
+        data = response.json()
+
+        # レスポンスが配列であることを確認
+        assert isinstance(data, list)
+        assert len(data) == 1
+
+        # セッション名に番号が付かないことを確認
+        session = data[0]
+        assert session["name"] == "test-session"
+        assert session["worktree_path"] == "/home/tsk/sync/git/claude-work/.worktrees/test-session"
+
+    @patch("app.services.session_service.GitService")
+    @patch("app.services.session_service.ProcessManager")
+    def test_create_sessions_without_count(
+        self,
+        mock_process_manager_class,
+        mock_git_service_class,
+        client: TestClient,
+    ):
+        """countを指定しない場合は単一セッションとして作成される"""
+        # モックの設定
+        mock_git_service = AsyncMock()
+        mock_git_service.create_worktree.return_value = "/home/tsk/sync/git/claude-work/.worktrees/test-session"
+        mock_git_service_class.return_value = mock_git_service
+
+        mock_process_manager = AsyncMock()
+        mock_process_manager_class.return_value = mock_process_manager
+
+        # ログイン
+        login_response = client.post(
+            "/api/auth/login",
+            data={"token": "development_token_change_in_production"},
+        )
+        assert login_response.status_code == 200
+
+        # プロジェクト作成
+        project_response = client.post(
+            "/api/projects",
+            json={"path": "/home/tsk/sync/git/claude-work"},
+        )
+        assert project_response.status_code == 201
+        project_id = project_response.json()["id"]
+
+        # セッション作成（countなし）
+        response = client.post(
+            f"/api/projects/{project_id}/sessions",
+            json={"name": "test-session", "message": "test message"},
+        )
+        assert response.status_code == 201
+        data = response.json()
+
+        # レスポンスが配列であることを確認
+        assert isinstance(data, list)
+        assert len(data) == 1
+
+        # セッション名に番号が付かないことを確認
+        session = data[0]
+        assert session["name"] == "test-session"
+
+    def test_create_sessions_with_invalid_count(self, client: TestClient):
+        """不正なcount値でセッション作成が失敗する"""
+        # ログイン
+        login_response = client.post(
+            "/api/auth/login",
+            data={"token": "development_token_change_in_production"},
+        )
+        assert login_response.status_code == 200
+
+        # プロジェクト作成
+        project_response = client.post(
+            "/api/projects",
+            json={"path": "/home/tsk/sync/git/claude-work"},
+        )
+        assert project_response.status_code == 201
+        project_id = project_response.json()["id"]
+
+        # count=0でセッション作成
+        response = client.post(
+            f"/api/projects/{project_id}/sessions",
+            json={"name": "test-session", "message": "test message", "count": 0},
+        )
+        assert response.status_code == 422
+
+        # count=11でセッション作成（上限超過）
+        response = client.post(
+            f"/api/projects/{project_id}/sessions",
+            json={"name": "test-session", "message": "test message", "count": 11},
+        )
+        assert response.status_code == 422

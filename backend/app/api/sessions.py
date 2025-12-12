@@ -2,7 +2,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -18,6 +18,15 @@ class SessionCreateRequest(BaseModel):
 
     name: str
     message: str
+    count: int | None = None
+
+    @field_validator('count')
+    @classmethod
+    def validate_count(cls, v):
+        """countの値を検証"""
+        if v is not None and (v < 1 or v > 10):
+            raise ValueError("count must be between 1 and 10")
+        return v
 
 
 class SessionResponse(BaseModel):
@@ -78,7 +87,7 @@ async def get_sessions(
 
 @router.post(
     "/projects/{project_id}/sessions",
-    response_model=SessionResponse,
+    response_model=list[SessionResponse],
     status_code=status.HTTP_201_CREATED,
 )
 async def create_session(
@@ -88,7 +97,7 @@ async def create_session(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    セッションを作成
+    セッションを作成（単一または複数）
 
     Args:
         project_id: プロジェクトID
@@ -97,27 +106,39 @@ async def create_session(
         db: データベースセッション
 
     Returns:
-        作成されたセッション
+        作成されたセッションのリスト
 
     Raises:
         HTTPException: プロジェクトが存在しない場合、またはセッション作成に失敗した場合
     """
     try:
-        new_session = await SessionService.create_session(
-            db,
-            project_id,
-            request.name,
-            request.message,
-        )
-        return SessionResponse(
-            id=str(new_session.id),
-            project_id=str(new_session.project_id),
-            name=new_session.name,
-            status=new_session.status.value,
-            worktree_path=new_session.worktree_path,
-            created_at=new_session.created_at.isoformat(),
-            updated_at=new_session.updated_at.isoformat(),
-        )
+        # countが指定されている場合は複数セッション作成
+        count = request.count if request.count is not None else 1
+        sessions = []
+
+        for i in range(count):
+            # セッション名を生成（count > 1の場合は番号を付与）
+            session_name = f"{request.name}-{i + 1}" if count > 1 else request.name
+
+            new_session = await SessionService.create_session(
+                db,
+                project_id,
+                session_name,
+                request.message,
+            )
+            sessions.append(
+                SessionResponse(
+                    id=str(new_session.id),
+                    project_id=str(new_session.project_id),
+                    name=new_session.name,
+                    status=new_session.status.value,
+                    worktree_path=new_session.worktree_path,
+                    created_at=new_session.created_at.isoformat(),
+                    updated_at=new_session.updated_at.isoformat(),
+                )
+            )
+
+        return sessions
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

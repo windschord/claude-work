@@ -27,8 +27,8 @@ export default function ProjectDetailPage() {
 
   const project = projects.find((p) => p.id === projectId);
 
-  const handleCreateSession = async (name: string, initialPrompt?: string) => {
-    await createSession(projectId, name, initialPrompt);
+  const handleCreateSession = async (name: string, initialPrompt?: string, count?: number) => {
+    await createSession(projectId, name, initialPrompt, count);
   };
 
   if (projectsLoading) {

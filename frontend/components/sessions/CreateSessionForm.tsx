@@ -5,27 +5,45 @@ import { useForm } from 'react-hook-form';
 
 interface CreateSessionFormProps {
   projectId: string;
-  onSubmit: (name: string, initialPrompt?: string) => Promise<void>;
+  onSubmit: (name: string, initialPrompt?: string, count?: number) => Promise<void>;
   isLoading: boolean;
 }
 
 interface FormData {
   name: string;
   initialPrompt: string;
+  count: number;
 }
 
 export default function CreateSessionForm({ projectId, onSubmit, isLoading }: CreateSessionFormProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const { register, handleSubmit, formState: { errors }, reset } = useForm<FormData>();
+  const { register, handleSubmit, formState: { errors }, reset, watch } = useForm<FormData>({
+    defaultValues: {
+      name: '',
+      initialPrompt: '',
+      count: 1,
+    },
+  });
+
+  const count = watch('count');
+  const sessionName = watch('name');
 
   const handleFormSubmit = async (data: FormData) => {
     try {
-      await onSubmit(data.name, data.initialPrompt || undefined);
+      await onSubmit(data.name, data.initialPrompt || undefined, data.count);
       reset();
       setIsExpanded(false);
     } catch (error) {
       // エラーはストアで処理される
     }
+  };
+
+  // プレビュー用のセッション名リストを生成
+  const getPreviewNames = (): string[] => {
+    if (!sessionName || count <= 1) {
+      return [sessionName || ''];
+    }
+    return Array.from({ length: Math.min(count, 10) }, (_, i) => `${sessionName}-${i + 1}`);
   };
 
   return (
@@ -64,6 +82,42 @@ export default function CreateSessionForm({ projectId, onSubmit, isLoading }: Cr
               <p className="mt-1 text-sm text-red-600">{errors.name.message}</p>
             )}
           </div>
+
+          <div>
+            <label htmlFor="count" className="block text-sm font-medium text-gray-700 mb-1">
+              セッション数
+            </label>
+            <select
+              id="count"
+              {...register('count', {
+                valueAsNumber: true,
+                min: { value: 1, message: 'セッション数は1以上である必要があります' },
+                max: { value: 10, message: 'セッション数は10以下である必要があります' }
+              })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
+              disabled={isLoading}
+            >
+              {Array.from({ length: 10 }, (_, i) => i + 1).map((num) => (
+                <option key={num} value={num}>
+                  {num}
+                </option>
+              ))}
+            </select>
+            {errors.count && (
+              <p className="mt-1 text-sm text-red-600">{errors.count.message}</p>
+            )}
+          </div>
+
+          {count > 1 && sessionName && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                作成されるセッション名（プレビュー）
+              </label>
+              <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-md border border-gray-200">
+                {getPreviewNames().join(', ')}
+              </div>
+            </div>
+          )}
 
           <div>
             <label htmlFor="initialPrompt" className="block text-sm font-medium text-gray-700 mb-1">

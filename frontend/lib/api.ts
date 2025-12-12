@@ -198,13 +198,13 @@ export const api = {
     return await response.json();
   },
 
-  async createSession(projectId: string, name: string, initialPrompt?: string): Promise<Session> {
+  async createSession(projectId: string, name: string, initialPrompt?: string, count?: number): Promise<Session[]> {
     const response = await fetch(`${API_URL}/api/projects/${projectId}/sessions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ name, initial_prompt: initialPrompt }),
+      body: JSON.stringify({ name, message: initialPrompt || '', count }),
       credentials: 'include',
     });
 
