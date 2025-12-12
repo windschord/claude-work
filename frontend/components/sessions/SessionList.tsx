@@ -1,6 +1,7 @@
 import { useRouter } from 'next/navigation';
 import { Session } from '@/lib/api';
 import SessionStatusIcon from './SessionStatusIcon';
+import GitStatusIndicator from './GitStatusIndicator';
 
 interface SessionListProps {
   sessions: Session[];
@@ -46,8 +47,12 @@ export default function SessionList({ sessions, isLoading }: SessionListProps) {
                 作成日時: {new Date(session.created_at).toLocaleString('ja-JP')}
               </p>
             </div>
-            <div className="ml-4 flex-shrink-0">
+            <div className="ml-4 flex-shrink-0 flex flex-col items-end gap-2">
               <SessionStatusIcon status={session.status} />
+              <GitStatusIndicator
+                hasUncommittedChanges={session.has_uncommitted_changes}
+                changedFilesCount={session.changed_files_count}
+              />
             </div>
           </div>
         </div>

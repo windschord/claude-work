@@ -8,6 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.middleware.auth import verify_session
 from app.models.auth_session import AuthSession
+from app.models.project import Project
+from app.services.git_service import GitService
 from app.services.session_service import SessionService
 
 router = APIRouter(prefix="/api", tags=["sessions"])
@@ -41,6 +43,8 @@ class SessionResponse(BaseModel):
     worktree_path: str | None
     created_at: str
     updated_at: str
+    has_uncommitted_changes: bool = False
+    changed_files_count: int = 0
 
     class Config:
         from_attributes = True
@@ -68,19 +72,49 @@ async def get_sessions(
     """
     try:
         sessions = await SessionService.get_sessions_by_project(db, project_id)
-        return [
-            SessionResponse(
-                id=str(s.id),
-                project_id=str(s.project_id),
-                name=s.name,
-                status=s.status.value,
-                model=s.model,
-                worktree_path=s.worktree_path,
-                created_at=s.created_at.isoformat(),
-                updated_at=s.updated_at.isoformat(),
+
+        # プロジェクトを取得
+        from sqlalchemy import select
+        stmt = select(Project).where(Project.id == project_id)
+        result = await db.execute(stmt)
+        project = result.scalar_one_or_none()
+
+        if not project:
+            raise ValueError("Project not found")
+
+        # GitServiceを初期化
+        git_service = GitService(project.path)
+
+        responses = []
+        for s in sessions:
+            # Git状態を取得
+            has_uncommitted_changes = False
+            changed_files_count = 0
+            if s.worktree_path:
+                try:
+                    git_status = await git_service.get_git_status(s.name)
+                    has_uncommitted_changes = git_status["has_uncommitted_changes"]
+                    changed_files_count = git_status["changed_files_count"]
+                except Exception:
+                    # worktreeが存在しない場合などはデフォルト値を使用
+                    pass
+
+            responses.append(
+                SessionResponse(
+                    id=str(s.id),
+                    project_id=str(s.project_id),
+                    name=s.name,
+                    status=s.status.value,
+                    model=s.model,
+                    worktree_path=s.worktree_path,
+                    created_at=s.created_at.isoformat(),
+                    updated_at=s.updated_at.isoformat(),
+                    has_uncommitted_changes=has_uncommitted_changes,
+                    changed_files_count=changed_files_count,
+                )
             )
-            for s in sessions
-        ]
+
+        return responses
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -119,6 +153,17 @@ async def create_session(
         count = request.count if request.count is not None else 1
         sessions = []
 
+        # プロジェクトを取得してGitServiceを初期化
+        from sqlalchemy import select
+        stmt = select(Project).where(Project.id == project_id)
+        result = await db.execute(stmt)
+        project = result.scalar_one_or_none()
+
+        if not project:
+            raise ValueError("Project not found")
+
+        git_service = GitService(project.path)
+
         for i in range(count):
             # セッション名を生成（count > 1の場合は番号を付与）
             session_name = f"{request.name}-{i + 1}" if count > 1 else request.name
@@ -130,6 +175,18 @@ async def create_session(
                 request.message,
                 request.model,
             )
+
+            # Git状態を取得
+            has_uncommitted_changes = False
+            changed_files_count = 0
+            if new_session.worktree_path:
+                try:
+                    git_status = await git_service.get_git_status(new_session.name)
+                    has_uncommitted_changes = git_status["has_uncommitted_changes"]
+                    changed_files_count = git_status["changed_files_count"]
+                except Exception:
+                    pass
+
             sessions.append(
                 SessionResponse(
                     id=str(new_session.id),
@@ -140,6 +197,8 @@ async def create_session(
                     worktree_path=new_session.worktree_path,
                     created_at=new_session.created_at.isoformat(),
                     updated_at=new_session.updated_at.isoformat(),
+                    has_uncommitted_changes=has_uncommitted_changes,
+                    changed_files_count=changed_files_count,
                 )
             )
 
@@ -183,6 +242,24 @@ async def get_session(
             detail="Session not found",
         )
 
+    # プロジェクトを取得
+    from sqlalchemy import select
+    stmt = select(Project).where(Project.id == session_obj.project_id)
+    result = await db.execute(stmt)
+    project = result.scalar_one_or_none()
+
+    # Git状態を取得
+    has_uncommitted_changes = False
+    changed_files_count = 0
+    if project and session_obj.worktree_path:
+        git_service = GitService(project.path)
+        try:
+            git_status = await git_service.get_git_status(session_obj.name)
+            has_uncommitted_changes = git_status["has_uncommitted_changes"]
+            changed_files_count = git_status["changed_files_count"]
+        except Exception:
+            pass
+
     return SessionResponse(
         id=str(session_obj.id),
         project_id=str(session_obj.project_id),
@@ -192,6 +269,8 @@ async def get_session(
         worktree_path=session_obj.worktree_path,
         created_at=session_obj.created_at.isoformat(),
         updated_at=session_obj.updated_at.isoformat(),
+        has_uncommitted_changes=has_uncommitted_changes,
+        changed_files_count=changed_files_count,
     )
 
 
@@ -223,6 +302,24 @@ async def stop_session(
                 detail="Session not found",
             )
 
+        # プロジェクトを取得
+        from sqlalchemy import select
+        stmt = select(Project).where(Project.id == stopped_session.project_id)
+        result = await db.execute(stmt)
+        project = result.scalar_one_or_none()
+
+        # Git状態を取得
+        has_uncommitted_changes = False
+        changed_files_count = 0
+        if project and stopped_session.worktree_path:
+            git_service = GitService(project.path)
+            try:
+                git_status = await git_service.get_git_status(stopped_session.name)
+                has_uncommitted_changes = git_status["has_uncommitted_changes"]
+                changed_files_count = git_status["changed_files_count"]
+            except Exception:
+                pass
+
         return SessionResponse(
             id=str(stopped_session.id),
             project_id=str(stopped_session.project_id),
@@ -232,6 +329,8 @@ async def stop_session(
             worktree_path=stopped_session.worktree_path,
             created_at=stopped_session.created_at.isoformat(),
             updated_at=stopped_session.updated_at.isoformat(),
+            has_uncommitted_changes=has_uncommitted_changes,
+            changed_files_count=changed_files_count,
         )
     except RuntimeError as e:
         raise HTTPException(

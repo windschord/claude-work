@@ -373,3 +373,39 @@ class GitService:
         )
 
         return {"success": True}
+
+    async def get_git_status(self, session_name: str) -> Dict[str, any]:
+        """
+        worktreeのGit状態を取得
+
+        Args:
+            session_name: セッション名
+
+        Returns:
+            Git状態を含む辞書
+            - has_uncommitted_changes: 未コミット変更があるかどうか
+            - changed_files_count: 変更されたファイル数
+
+        Raises:
+            RuntimeError: worktreeが存在しない場合
+        """
+        worktree_path = self.repo_path / ".worktrees" / session_name
+
+        if not worktree_path.exists():
+            raise RuntimeError(f"Worktree does not exist: {worktree_path}")
+
+        # git status --porcelain で変更ファイルを取得
+        stdout, _, _ = await self._run_command(
+            "git", "status", "--porcelain",
+            cwd=str(worktree_path)
+        )
+
+        # 出力が空ならクリーン、そうでなければ変更あり
+        lines = [line for line in stdout.strip().split("\n") if line]
+        has_changes = len(lines) > 0
+        changed_count = len(lines)
+
+        return {
+            "has_uncommitted_changes": has_changes,
+            "changed_files_count": changed_count,
+        }

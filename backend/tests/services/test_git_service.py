@@ -363,3 +363,80 @@ class TestGitService:
         # 存在しないworktreeを削除
         with pytest.raises(Exception):
             await git_service.delete_worktree(session_name, branch_name)
+
+    @pytest.mark.asyncio
+    async def test_get_git_status_clean(self, git_service, temp_git_repo):
+        """クリーンなworktreeのGit状態取得が成功すること"""
+        session_name = "test-session"
+        branch_name = "feature/test-branch"
+
+        # worktreeを作成
+        await git_service.create_worktree(session_name, branch_name)
+
+        # Git状態を取得
+        status = await git_service.get_git_status(session_name)
+
+        # クリーンな状態であることを確認
+        assert status["has_uncommitted_changes"] is False
+        assert status["changed_files_count"] == 0
+
+    @pytest.mark.asyncio
+    async def test_get_git_status_with_changes(self, git_service, temp_git_repo):
+        """変更があるworktreeのGit状態取得が成功すること"""
+        session_name = "test-session"
+        branch_name = "feature/test-branch"
+
+        # worktreeを作成
+        worktree_path = await git_service.create_worktree(session_name, branch_name)
+
+        # 新しいファイルを追加（ステージングなし）
+        new_file1 = Path(worktree_path) / "new_file1.txt"
+        new_file1.write_text("New content 1\n")
+
+        # ファイルを変更（ステージングなし）
+        readme_file = Path(worktree_path) / "README.md"
+        readme_file.write_text("# Updated Repository\n")
+
+        # Git状態を取得
+        status = await git_service.get_git_status(session_name)
+
+        # 変更があることを確認
+        assert status["has_uncommitted_changes"] is True
+        assert status["changed_files_count"] == 2
+
+    @pytest.mark.asyncio
+    async def test_get_git_status_with_staged_changes(self, git_service, temp_git_repo):
+        """ステージングされた変更があるworktreeのGit状態取得が成功すること"""
+        session_name = "test-session"
+        branch_name = "feature/test-branch"
+
+        # worktreeを作成
+        worktree_path = await git_service.create_worktree(session_name, branch_name)
+
+        # 新しいファイルを追加してステージング
+        new_file = Path(worktree_path) / "new_file.txt"
+        new_file.write_text("New content\n")
+
+        process = await asyncio.create_subprocess_exec(
+            "git", "add", "new_file.txt",
+            cwd=worktree_path,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        await process.communicate()
+
+        # Git状態を取得
+        status = await git_service.get_git_status(session_name)
+
+        # 変更があることを確認
+        assert status["has_uncommitted_changes"] is True
+        assert status["changed_files_count"] == 1
+
+    @pytest.mark.asyncio
+    async def test_get_git_status_nonexistent_worktree(self, git_service, temp_git_repo):
+        """存在しないworktreeのGit状態取得がエラーになること"""
+        session_name = "nonexistent-session"
+
+        # 存在しないworktreeのGit状態を取得
+        with pytest.raises(RuntimeError):
+            await git_service.get_git_status(session_name)

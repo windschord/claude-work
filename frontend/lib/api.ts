@@ -28,6 +28,8 @@ export interface Session {
   worktree_path: string;
   created_at: string;
   updated_at: string;
+  has_uncommitted_changes: boolean;
+  changed_files_count: number;
 }
 
 export type MessageRole = 'user' | 'assistant' | 'system';

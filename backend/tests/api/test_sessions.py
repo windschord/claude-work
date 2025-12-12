@@ -97,6 +97,10 @@ class TestSessionCreate:
         # モックの設定
         mock_git_service = AsyncMock()
         mock_git_service.create_worktree.return_value = "/home/tsk/sync/git/claude-work/.worktrees/test-session"
+        mock_git_service.get_git_status.return_value = {
+            "has_uncommitted_changes": False,
+            "changed_files_count": 0,
+        }
         mock_git_service_class.return_value = mock_git_service
 
         mock_process_manager = AsyncMock()
@@ -134,6 +138,10 @@ class TestSessionCreate:
         assert session["worktree_path"] == "/home/tsk/sync/git/claude-work/.worktrees/test-session"
         assert "created_at" in session
         assert "updated_at" in session
+        assert "has_uncommitted_changes" in session
+        assert session["has_uncommitted_changes"] is False
+        assert "changed_files_count" in session
+        assert session["changed_files_count"] == 0
 
         # GitServiceとProcessManagerが呼ばれたことを確認
         mock_git_service.create_worktree.assert_called_once()
