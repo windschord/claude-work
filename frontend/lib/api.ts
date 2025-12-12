@@ -28,6 +28,22 @@ export interface Session {
   updated_at: string;
 }
 
+export type MessageRole = 'user' | 'assistant' | 'system';
+
+export interface Message {
+  id: string;
+  session_id: string;
+  role: MessageRole;
+  content: string;
+  created_at: string;
+}
+
+export interface PermissionRequest {
+  id: string;
+  type: string;
+  description: string;
+}
+
 export const api = {
   async login(token: string): Promise<void> {
     const formData = new FormData();
@@ -198,6 +214,54 @@ export const api = {
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ detail: 'セッションの削除に失敗しました' }));
       throw new ApiError(response.status, errorData.detail || 'セッションの削除に失敗しました');
+    }
+  },
+
+  async getMessages(sessionId: string): Promise<Message[]> {
+    const response = await fetch(`${API_URL}/api/sessions/${sessionId}/messages`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'メッセージ一覧の取得に失敗しました' }));
+      throw new ApiError(response.status, errorData.detail || 'メッセージ一覧の取得に失敗しました');
+    }
+
+    return await response.json();
+  },
+
+  async sendMessage(sessionId: string, content: string): Promise<Message> {
+    const response = await fetch(`${API_URL}/api/sessions/${sessionId}/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ content }),
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'メッセージの送信に失敗しました' }));
+      throw new ApiError(response.status, errorData.detail || 'メッセージの送信に失敗しました');
+    }
+
+    return await response.json();
+  },
+
+  async respondToPermission(sessionId: string, permissionId: string, approved: boolean): Promise<void> {
+    const response = await fetch(`${API_URL}/api/sessions/${sessionId}/permissions/${permissionId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ approved }),
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: '権限確認の応答に失敗しました' }));
+      throw new ApiError(response.status, errorData.detail || '権限確認の応答に失敗しました');
     }
   },
 };
