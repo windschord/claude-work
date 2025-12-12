@@ -39,33 +39,35 @@ MVP後に実装:
 ### タスク1.1: プロジェクト初期化
 
 **説明**:
-monorepoとしてプロジェクトを初期化する
-- ルートディレクトリに`package.json`作成（workspaces設定）
-- `frontend/`ディレクトリにNext.js 14プロジェクト作成
-- `backend/`ディレクトリにPython/FastAPIプロジェクト作成
-- 共通の`.gitignore`、`README.md`作成
+Next.js統合プロジェクトを初期化する
+- `npx create-next-app@latest`でプロジェクト作成
+- TypeScript、Tailwind CSS、App Router有効化
+- `src/`ディレクトリ構造作成（app/, services/, lib/）
+- `.gitignore`、`README.md`作成
+- `package.json`にbin設定追加（npx実行用）
 
 **技術的文脈**:
-- Node.js 20+、Python 3.11+を前提
-- Next.js: App Router使用
-- パッケージマネージャ: npm（frontend）、uv（backend）
+- Node.js 20+を前提
+- Next.js 14: App Router使用
+- パッケージマネージャ: npm
 
 **実装手順（TDD）**:
-1. ルートディレクトリ構造を作成
-2. frontend: `npx create-next-app@latest`で初期化（TypeScript、Tailwind CSS、App Router）
-3. backend: `uv init`で初期化、FastAPI/uvicorn追加
-4. 動作確認スクリプト作成
+1. `npx create-next-app@latest claude-work`で初期化（TypeScript、Tailwind CSS、App Router、src/使用）
+2. `src/services/`、`src/lib/`ディレクトリ作成
+3. `package.json`に`"bin": { "claude-work": "./dist/bin/cli.js" }`追加
+4. `src/bin/cli.ts`作成（エントリーポイント）
+5. `npm run dev`で動作確認
 
 **受入基準**:
-- [ ] `package.json`がルートに存在し、workspaces設定がある
-- [ ] `frontend/package.json`が存在する
-- [ ] `frontend/`で`npm run dev`が起動する
-- [ ] `backend/pyproject.toml`が存在する
-- [ ] `backend/`で`uv run uvicorn main:app`が起動する
+- [ ] `package.json`が存在し、bin設定がある
+- [ ] `src/app/`ディレクトリが存在する
+- [ ] `src/services/`、`src/lib/`ディレクトリが存在する
+- [ ] `src/bin/cli.ts`が存在する
+- [ ] `npm run dev`でNext.jsが起動する
 - [ ] `.gitignore`が適切に設定されている
 
 **依存関係**: なし
-**推定工数**: 30分
+**推定工数**: 25分
 **ステータス**: `TODO`
 
 ---
@@ -105,36 +107,37 @@ Next.jsプロジェクトの基本設定を行う
 
 ---
 
-### タスク1.3: バックエンド基本設定
+### タスク1.3: API Routes基本設定
 
 **説明**:
-FastAPIプロジェクトの基本設定を行う
-- ディレクトリ構造作成（`app/`、`app/api/`、`app/models/`、`app/services/`）
-- FastAPI基本設定とCORS設定
-- Pydantic設定とベースモデル作成
-- ロギング設定（JSON形式）
-- pytest設定
+Next.js API Routesの基本設定を行う
+- API Routesディレクトリ構造作成（`src/app/api/`）
+- CORS設定（middleware）
+- エラーハンドリング設定
+- ロギング設定（winston for JSON logging）
+- Jest/Vitestテスト設定
 
 **技術的文脈**:
-- FastAPI 0.100+
-- Pydantic v2
-- structlog for JSON logging
-- pytest + pytest-asyncio
+- Next.js 14 API Routes
+- TypeScript strict mode
+- winston for JSON logging
+- Vitest for testing
 
 **実装手順（TDD）**:
-1. ディレクトリ構造作成
-2. `backend/app/main.py`にFastAPIアプリ作成
-3. `backend/app/config.py`に設定クラス作成
-4. `backend/app/logging_config.py`にロギング設定
-5. `backend/tests/`にpytest設定
-6. ヘルスチェックエンドポイントのテスト作成・実装
+1. テスト作成: `src/app/api/health/__tests__/route.test.ts`
+   - ヘルスチェックが200を返す
+2. `src/app/api/health/route.ts`にヘルスチェックエンドポイント作成
+3. `src/middleware.ts`にCORS設定作成
+4. `src/lib/logger.ts`にロギング設定作成（winston）
+5. `vitest.config.ts`作成
+6. テスト通過確認
 
 **受入基準**:
-- [ ] `backend/app/main.py`が存在する
-- [ ] `GET /health`エンドポイントが200を返す
-- [ ] CORSが設定されている
-- [ ] ログがJSON形式で出力される
-- [ ] `uv run pytest`が通過する
+- [ ] `src/app/api/health/route.ts`が存在する
+- [ ] `GET /api/health`エンドポイントが200を返す
+- [ ] `src/middleware.ts`でCORSが設定されている
+- [ ] `src/lib/logger.ts`でログがJSON形式で出力される
+- [ ] `npm test`が通過する
 
 **依存関係**: タスク1.1
 **推定工数**: 30分
@@ -145,34 +148,36 @@ FastAPIプロジェクトの基本設定を行う
 ### タスク1.4: データベース設定
 
 **説明**:
-SQLiteデータベースとSQLAlchemyの設定を行う
-- SQLAlchemy 2.0設定
-- データベースモデル定義（projects、sessions、messages、auth_sessions）
-- Alembicマイグレーション設定
-- 初期マイグレーション作成
+SQLiteデータベースとPrismaの設定を行う
+- Prisma設定
+- スキーマ定義（projects、sessions、messages、auth_sessions）
+- Prismaマイグレーション実行
+- Prisma Clientセットアップ
 
 **技術的文脈**:
-- SQLAlchemy 2.0（async対応）
-- aiosqlite
-- Alembic for migrations
+- Prisma 5.x
+- better-sqlite3（高速同期API）
 - データベースファイル: `data/claudework.db`
+- Prismaスキーマ: `prisma/schema.prisma`
 
 **実装手順（TDD）**:
-1. SQLAlchemy、aiosqlite、Alembicインストール
-2. `backend/app/database.py`にDB接続設定
-3. `backend/app/models/`にORMモデル作成
-4. Alembic初期化
-5. 初期マイグレーション作成・実行
-6. モデルのテスト作成
+1. Prisma、better-sqlite3インストール: `npm install prisma @prisma/client better-sqlite3`
+2. Prisma初期化: `npx prisma init --datasource-provider sqlite`
+3. `prisma/schema.prisma`にモデル定義（Project、Session、Message、AuthSession）
+4. テスト作成: `src/lib/__tests__/db.test.ts`
+   - Project CRUDテスト
+   - Session CRUDテスト
+5. `src/lib/db.ts`にPrisma Client初期化
+6. マイグレーション実行: `npx prisma migrate dev --name init`
+7. テスト通過確認
 
 **受入基準**:
-- [ ] `backend/app/database.py`が存在する
-- [ ] `backend/app/models/project.py`が存在する
-- [ ] `backend/app/models/session.py`が存在する
-- [ ] `backend/alembic/`ディレクトリが存在する
-- [ ] `alembic upgrade head`が成功する
-- [ ] データベースファイルが作成される
-- [ ] モデルのCRUDテストが通過する
+- [ ] `prisma/schema.prisma`が存在し、4つのモデルが定義されている
+- [ ] `src/lib/db.ts`が存在する
+- [ ] `npx prisma migrate dev`が成功する
+- [ ] `data/claudework.db`ファイルが作成される
+- [ ] `npx prisma studio`でデータベースが閲覧できる
+- [ ] CRUDテストが通過する（`npm test`）
 
 **依存関係**: タスク1.3
 **推定工数**: 35分
@@ -187,34 +192,35 @@ SQLiteデータベースとSQLAlchemyの設定を行う
 ### タスク2.1: 認証API実装
 
 **説明**:
-トークンベース認証のAPIを実装する
+トークンベース認証のAPI Routesを実装する
 - 環境変数`AUTH_TOKEN`からトークン読み込み
 - ログインエンドポイント（トークン検証、セッション作成）
 - ログアウトエンドポイント
 - 認証ミドルウェア（セッションクッキー検証）
 
 **技術的文脈**:
-- bcryptでトークンハッシュ比較
-- HTTPOnlyクッキーでセッションID管理
+- bcryptjsでトークンハッシュ比較
+- HTTPOnlyクッキーでセッションID管理（iron-session使用）
 - セッション有効期限: 24時間
 
 **実装手順（TDD）**:
-1. テスト作成: `backend/tests/api/test_auth.py`
+1. テスト作成: `src/app/api/auth/__tests__/route.test.ts`
    - 正しいトークンでログイン成功
    - 誤ったトークンでログイン失敗
    - ログアウト成功
    - 認証なしでprotected endpointアクセス拒否
-2. `backend/app/api/auth.py`にエンドポイント実装
-3. `backend/app/middleware/auth.py`に認証ミドルウェア実装
-4. テスト通過確認
+2. `src/app/api/auth/login/route.ts`にログインエンドポイント実装
+3. `src/app/api/auth/logout/route.ts`にログアウトエンドポイント実装
+4. `src/lib/auth.ts`に認証ヘルパー関数実装
+5. テスト通過確認
 
 **受入基準**:
 - [ ] `POST /api/auth/login`が実装されている
 - [ ] `POST /api/auth/logout`が実装されている
 - [ ] 正しいトークンでログイン時、セッションクッキーが設定される
 - [ ] 誤ったトークンで401が返る
-- [ ] 認証ミドルウェアが機能する
-- [ ] 全テストが通過する
+- [ ] `src/lib/auth.ts`で認証ヘルパーが機能する
+- [ ] 全テストが通過する（`npm test`）
 
 **依存関係**: タスク1.4
 **推定工数**: 40分
@@ -225,27 +231,28 @@ SQLiteデータベースとSQLAlchemyの設定を行う
 ### タスク2.2: プロジェクトAPI実装
 
 **説明**:
-プロジェクト管理のCRUD APIを実装する
+プロジェクト管理のCRUD API Routesを実装する
 - プロジェクト一覧取得
 - プロジェクト追加（Gitリポジトリ検証含む）
 - プロジェクト更新
 - プロジェクト削除
 
 **技術的文脈**:
-- Gitリポジトリ検証: `git rev-parse --git-dir`
-- プロジェクト名はディレクトリ名から自動取得
+- Gitリポジトリ検証: `git rev-parse --git-dir`（child_process.execSync使用）
+- プロジェクト名はディレクトリ名（path.basename）から自動取得
 - 全エンドポイントは認証必須
 
 **実装手順（TDD）**:
-1. テスト作成: `backend/tests/api/test_projects.py`
+1. テスト作成: `src/app/api/projects/__tests__/route.test.ts`
    - プロジェクト一覧取得
    - 有効なGitリポジトリでプロジェクト追加成功
    - 無効なパスでプロジェクト追加失敗
    - プロジェクト更新
    - プロジェクト削除
-2. `backend/app/api/projects.py`にエンドポイント実装
-3. `backend/app/services/project_service.py`にビジネスロジック実装
-4. テスト通過確認
+2. `src/app/api/projects/route.ts`にGET/POSTエンドポイント実装
+3. `src/app/api/projects/[id]/route.ts`にPUT/DELETEエンドポイント実装
+4. `src/services/project-service.ts`にビジネスロジック実装
+5. テスト通過確認
 
 **受入基準**:
 - [ ] `GET /api/projects`が実装されている
@@ -253,7 +260,7 @@ SQLiteデータベースとSQLAlchemyの設定を行う
 - [ ] `PUT /api/projects/{id}`が実装されている
 - [ ] `DELETE /api/projects/{id}`が実装されている
 - [ ] Gitリポジトリでないパスは400エラー
-- [ ] 全テストが通過する
+- [ ] 全テストが通過する（`npm test`）
 
 **依存関係**: タスク2.1
 **推定工数**: 35分
@@ -272,29 +279,29 @@ Git操作を行うサービスクラスを実装する
 - squash merge実行
 
 **技術的文脈**:
-- asyncio.subprocess使用
+- child_process.exec/execSync使用
 - worktreeパス: `{repo_path}/.worktrees/{session_name}`
 - コマンド実行はタイムアウト設定
 
 **実装手順（TDD）**:
-1. テスト作成: `backend/tests/services/test_git_service.py`
+1. テスト作成: `src/services/__tests__/git-service.test.ts`
    - worktree作成成功
    - worktree削除成功
    - diff取得（追加/削除/変更ファイル）
    - rebase成功
    - rebaseコンフリクト検出
    - squash merge成功
-2. `backend/app/services/git_service.py`に実装
+2. `src/services/git-service.ts`に実装
 3. テスト通過確認
 
 **受入基準**:
-- [ ] `GitService.create_worktree()`が実装されている
-- [ ] `GitService.delete_worktree()`が実装されている
-- [ ] `GitService.get_diff()`が実装されている
-- [ ] `GitService.rebase_from_main()`が実装されている
-- [ ] `GitService.squash_merge()`が実装されている
+- [ ] `GitService.createWorktree()`が実装されている
+- [ ] `GitService.deleteWorktree()`が実装されている
+- [ ] `GitService.getDiff()`が実装されている
+- [ ] `GitService.rebaseFromMain()`が実装されている
+- [ ] `GitService.squashMerge()`が実装されている
 - [ ] コンフリクト発生時に適切なエラーを返す
-- [ ] 全テストが通過する
+- [ ] 全テストが通過する（`npm test`）
 
 **依存関係**: タスク1.3
 **推定工数**: 50分
@@ -306,7 +313,7 @@ Git操作を行うサービスクラスを実装する
 
 **説明**:
 Claude Codeプロセスを管理するサービスを実装する
-- Claude Code起動（asyncio subprocess）
+- Claude Code起動（child_process.spawn）
 - プロセス出力の非同期読み取り
 - プロセスへの入力送信
 - プロセス終了検知
@@ -314,26 +321,26 @@ Claude Codeプロセスを管理するサービスを実装する
 
 **技術的文脈**:
 - `claude --print`でJSON出力モード
-- stdout/stderrをasyncioで非同期読み取り
+- child_process.spawnでstdout/stderrをストリーム読み取り
 - 権限確認は特定のJSON形式で検出
 
 **実装手順（TDD）**:
-1. テスト作成: `backend/tests/services/test_process_manager.py`
+1. テスト作成: `src/services/__tests__/process-manager.test.ts`
    - プロセス起動
    - 出力読み取り
    - 入力送信
    - プロセス終了検知
    - 権限確認検出（モック使用）
-2. `backend/app/services/process_manager.py`に実装
+2. `src/services/process-manager.ts`に実装
 3. テスト通過確認
 
 **受入基準**:
-- [ ] `ProcessManager.start_claude_code()`が実装されている
-- [ ] `ProcessManager.send_input()`が実装されている
+- [ ] `ProcessManager.startClaudeCode()`が実装されている
+- [ ] `ProcessManager.sendInput()`が実装されている
 - [ ] `ProcessManager.stop()`が実装されている
 - [ ] 非同期で出力を読み取れる
 - [ ] プロセス終了を検知できる
-- [ ] 全テストが通過する
+- [ ] 全テストが通過する（`npm test`）
 
 **依存関係**: タスク1.3
 **推定工数**: 45分
@@ -344,7 +351,7 @@ Claude Codeプロセスを管理するサービスを実装する
 ### タスク2.5: セッションAPI実装
 
 **説明**:
-セッション管理のAPIを実装する
+セッション管理のAPI Routesを実装する
 - セッション一覧取得
 - セッション作成（worktree作成、Claude Code起動）
 - セッション詳細取得
@@ -352,20 +359,21 @@ Claude Codeプロセスを管理するサービスを実装する
 - セッション削除
 
 **技術的文脈**:
-- セッション作成時にGitService.create_worktree()呼び出し
-- セッション作成時にProcessManager.start_claude_code()呼び出し
+- セッション作成時にGitService.createWorktree()呼び出し
+- セッション作成時にProcessManager.startClaudeCode()呼び出し
 - セッションステータス: initializing, running, waiting_input, completed, error
 
 **実装手順（TDD）**:
-1. テスト作成: `backend/tests/api/test_sessions.py`
+1. テスト作成: `src/app/api/sessions/__tests__/route.test.ts`
    - セッション一覧取得
    - セッション作成成功
    - セッション詳細取得
    - セッション停止
    - セッション削除
-2. `backend/app/api/sessions.py`にエンドポイント実装
-3. `backend/app/services/session_service.py`にビジネスロジック実装
-4. テスト通過確認
+2. `src/app/api/projects/[project_id]/sessions/route.ts`にエンドポイント実装
+3. `src/app/api/sessions/[id]/route.ts`にエンドポイント実装
+4. `src/services/session-service.ts`にビジネスロジック実装
+5. テスト通過確認
 
 **受入基準**:
 - [ ] `GET /api/projects/{project_id}/sessions`が実装されている
@@ -374,7 +382,7 @@ Claude Codeプロセスを管理するサービスを実装する
 - [ ] `POST /api/sessions/{id}/stop`が実装されている
 - [ ] `DELETE /api/sessions/{id}`が実装されている
 - [ ] セッション作成時にworktreeが作成される
-- [ ] 全テストが通過する
+- [ ] 全テストが通過する（`npm test`）
 
 **依存関係**: タスク2.2, タスク2.3, タスク2.4
 **推定工数**: 45分
@@ -385,7 +393,7 @@ Claude Codeプロセスを管理するサービスを実装する
 ### タスク2.6: Git操作API実装
 
 **説明**:
-Git操作のAPIエンドポイントを実装する
+Git操作のAPI Routesエンドポイントを実装する
 - diff取得
 - rebase実行
 - squash merge実行
@@ -395,20 +403,22 @@ Git操作のAPIエンドポイントを実装する
 - エラー時は適切なHTTPステータスコードを返す
 
 **実装手順（TDD）**:
-1. テスト作成: `backend/tests/api/test_git_ops.py`
+1. テスト作成: `src/app/api/sessions/[id]/git/__tests__/route.test.ts`
    - diff取得
    - rebase成功
    - rebaseコンフリクト（409返却）
    - merge成功
-2. `backend/app/api/git_ops.py`にエンドポイント実装
-3. テスト通過確認
+2. `src/app/api/sessions/[id]/diff/route.ts`にエンドポイント実装
+3. `src/app/api/sessions/[id]/rebase/route.ts`にエンドポイント実装
+4. `src/app/api/sessions/[id]/merge/route.ts`にエンドポイント実装
+5. テスト通過確認
 
 **受入基準**:
 - [ ] `GET /api/sessions/{id}/diff`が実装されている
 - [ ] `POST /api/sessions/{id}/rebase`が実装されている
 - [ ] `POST /api/sessions/{id}/merge`が実装されている
 - [ ] コンフリクト時に409とコンフリクトファイル一覧を返す
-- [ ] 全テストが通過する
+- [ ] 全テストが通過する（`npm test`）
 
 **依存関係**: タスク2.5
 **推定工数**: 25分
@@ -671,7 +681,7 @@ Git操作（rebase、merge）のUIを実装する
 ### タスク4.1: WebSocketサーバー実装
 
 **説明**:
-バックエンドにWebSocketエンドポイントを実装する
+Next.jsカスタムサーバーにWebSocketサーバーを実装する
 - セッション用WebSocket（/ws/sessions/{id}）
 - 認証済みセッションのみ接続許可
 - Claude Code出力のブロードキャスト
@@ -679,28 +689,30 @@ Git操作（rebase、merge）のUIを実装する
 - 権限確認リクエストの送信
 
 **技術的文脈**:
-- FastAPI WebSocket
+- Next.jsカスタムサーバー（server.ts）
+- wsライブラリまたはsocket.io使用
 - 接続管理クラス（ConnectionManager）
 
 **実装手順（TDD）**:
-1. テスト作成: `backend/tests/test_websocket.py`
+1. テスト作成: `src/lib/__tests__/websocket.test.ts`
    - 認証済み接続成功
    - 未認証接続拒否
    - メッセージ送受信
-2. `backend/app/websocket/connection_manager.py`作成
-3. `backend/app/websocket/session_ws.py`作成
-4. `backend/app/main.py`にWebSocketルート追加
+2. `server.ts`作成（Next.jsカスタムサーバー）
+3. `src/lib/websocket/connection-manager.ts`作成
+4. `src/lib/websocket/session-ws.ts`作成
 5. テスト通過確認
 
 **受入基準**:
+- [ ] `server.ts`が存在し、WebSocketサーバーが起動する
 - [ ] `/ws/sessions/{id}`エンドポイントが存在する
 - [ ] 認証済みクライアントのみ接続できる
 - [ ] Claude Code出力がクライアントに送信される
 - [ ] クライアントからの入力がClaude Codeに転送される
-- [ ] 全テストが通過する
+- [ ] 全テストが通過する（`npm test`）
 
 **依存関係**: タスク2.5
-**推定工数**: 45分
+**推定工数**: 50分
 **ステータス**: `TODO`
 
 ---
@@ -769,39 +781,48 @@ WebSocketを使用したリアルタイム更新を統合する
 
 ---
 
-### タスク4.4: Docker Compose設定
+### タスク4.4: npxパッケージ設定
 
 **説明**:
-Docker Composeによるデプロイ設定を作成する
-- Dockerfile（frontend、backend）
-- docker-compose.yml
+`npx claude-work`で起動できるCLIパッケージを設定する
+- package.jsonにbin設定追加
+- CLIエントリーポイント作成
+- ビルド設定（TypeScript → JavaScript）
 - 環境変数設定
-- ボリュームマウント（データ永続化、Gitリポジトリアクセス）
+- 起動スクリプト作成
 
 **技術的文脈**:
-- frontend: Node.js 20 Alpine
-- backend: Python 3.11 slim
-- SQLiteデータベースはボリュームで永続化
-- ホストのGitリポジトリをマウント
+- package.json bin設定
+- TypeScriptビルド（tsup/tsc）
+- shebang（#!/usr/bin/env node）
+- Node.js 20以上必須
 
 **実装手順（TDD）**:
-1. `frontend/Dockerfile`作成
-2. `backend/Dockerfile`作成
-3. `docker-compose.yml`作成
-4. `.env.example`作成
-5. `docker compose up`で起動確認
+1. `package.json`に以下を追加:
+   ```json
+   {
+     "bin": {
+       "claude-work": "./dist/bin/cli.js"
+     }
+   }
+   ```
+2. `src/bin/cli.ts`作成（カスタムサーバー起動）
+3. `tsconfig.json`のoutDirを`dist/`に設定
+4. ビルドスクリプト作成: `"build": "tsc && cp -r public dist/"`
+5. `.env.example`作成
+6. `npm run build && npx . `でローカルテスト
 
 **受入基準**:
-- [ ] `frontend/Dockerfile`が存在する
-- [ ] `backend/Dockerfile`が存在する
-- [ ] `docker-compose.yml`が存在する
-- [ ] `docker compose up`で起動する
-- [ ] frontend、backendが正常に通信する
-- [ ] 環境変数で設定変更可能
-- [ ] データベースが永続化される
+- [ ] `package.json`にbin設定が存在する
+- [ ] `src/bin/cli.ts`が存在し、shebangが含まれる
+- [ ] `npm run build`でビルドが成功する
+- [ ] `npx .`でサーバーが起動する
+- [ ] `.env.example`が存在する
+- [ ] 環境変数`AUTH_TOKEN`、`PORT`で設定変更可能
+- [ ] SQLiteデータベースが`data/`ディレクトリに作成される
 
 **依存関係**: タスク4.3
-**推定工数**: 35分
+**推定工数**: 40分
 **ステータス**: `TODO`
 
 ---
@@ -1200,22 +1221,25 @@ README、セットアップガイドを作成する
 - XTerm.js（フェーズ6）
 - Playwright（E2E）
 
-**バックエンド**:
-- Python 3.11+
-- FastAPI
-- SQLAlchemy 2.0 + aiosqlite
-- Alembic
-- structlog
-- pytest + pytest-asyncio
+**バックエンド（Next.js統合）**:
+- Next.js 14 API Routes
+- Next.jsカスタムサーバー（WebSocket統合）
+- TypeScript
+- Prisma 5.x
+- better-sqlite3
+- ws / socket.io（WebSocket）
+- winston（ロギング）
+- Vitest（テスト）
 
 **インフラ**:
-- Docker / Docker Compose
+- Node.js 20+
 - SQLite
-- リバースプロキシ（Caddy推奨）
+- npxで実行可能（グローバルインストール不要）
+- リバースプロキシ（Caddy/nginx推奨、本番環境のみ）
 
 ### コーディング規約
 
 - TypeScript: strict mode有効
-- Python: Ruff for linting/formatting
+- ESLint + Prettier for linting/formatting
 - コミットメッセージ: Conventional Commits
 - ブランチ戦略: GitHub Flow

@@ -223,7 +223,7 @@ ClaudeWorkは、stravu/crystalのWeb版として、ブラウザからClaude Code
 
 ### 運用性
 
-- NFR-009: システムはDocker Composeで簡単にデプロイできなければならない
+- NFR-009: システムは`npx claude-work`コマンドで簡単に起動できなければならない
 - NFR-010: システムは環境変数で主要な設定を変更できなければならない
 - NFR-011: システムはログをJSON形式で出力しなければならない
 
@@ -246,6 +246,7 @@ ClaudeWorkは、stravu/crystalのWeb版として、ブラウザからClaude Code
 
 ## 制約事項
 
-- Claude Code CLIがサーバーにインストールされ、認証済みであること
-- サーバーにGitがインストールされていること
-- HTTPS終端はリバースプロキシ（Caddy、nginx等）で行う想定
+- Claude Code CLIがローカル環境にインストールされ、認証済みであること
+- Gitがインストールされていること
+- Node.js 20以上がインストールされていること
+- `npx claude-work`コマンドで起動できること

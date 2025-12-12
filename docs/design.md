@@ -2,7 +2,7 @@
 
 ## アーキテクチャ概要
 
-ClaudeWorkは、フロントエンド（Next.js）とバックエンド（FastAPI）の2層アーキテクチャを採用する。バックエンドはClaude Code CLIプロセスを管理し、WebSocket経由でリアルタイム通信を行う。
+ClaudeWorkは、Next.js統合アーキテクチャを採用する。フロントエンド（Pages/Components）、バックエンド（API Routes）、WebSocketサーバー（カスタムサーバー）を1つのNext.jsプロジェクトに統合し、`npx claude-work`コマンドで起動する。バックエンドはClaude Code CLIプロセスを管理し、WebSocket経由でリアルタイム通信を行う。
 
 ```mermaid
 graph TD
@@ -11,19 +11,24 @@ graph TD
         XTerm[XTerm.js]
     end
 
-    subgraph "フロントエンド（Next.js）"
-        Pages[Pages/Components]
-        WSClient[WebSocket Client]
-        State[Zustand Store]
-    end
+    subgraph "Next.js統合サーバー"
+        subgraph "フロントエンド"
+            Pages[Pages/Components]
+            State[Zustand Store]
+        end
 
-    subgraph "バックエンド（FastAPI）"
-        API[REST API]
-        WSServer[WebSocket Server]
-        SessionMgr[Session Manager]
-        ProcessMgr[Process Manager]
-        GitOps[Git Operations]
-        PTYMgr[PTY Manager]
+        subgraph "バックエンド"
+            APIRoutes[API Routes]
+            CustomServer[カスタムサーバー]
+            WSServer[WebSocket Server]
+        end
+
+        subgraph "サービス層"
+            SessionMgr[Session Manager]
+            ProcessMgr[Process Manager]
+            GitOps[Git Operations]
+            PTYMgr[PTY Manager]
+        end
     end
 
     subgraph "外部プロセス"
@@ -38,14 +43,13 @@ graph TD
     end
 
     Browser --> Pages
-    XTerm --> WSClient
-    Pages --> WSClient
+    XTerm --> WSServer
     Pages --> State
-    WSClient --> WSServer
-    Pages --> API
+    Pages --> APIRoutes
+    Browser --> WSServer
 
-    API --> SessionMgr
-    API --> GitOps
+    APIRoutes --> SessionMgr
+    APIRoutes --> GitOps
     WSServer --> SessionMgr
     WSServer --> PTYMgr
 
@@ -124,16 +128,18 @@ interface AppState {
 
 ### バックエンド
 
-#### コンポーネント: REST API
+#### コンポーネント: API Routes
 
 **目的**: CRUD操作とGit操作のエンドポイント提供
 
 **責務**:
-- プロジェクト管理API
-- セッション管理API
+- プロジェクト管理API（Next.js API Routes）
+- セッション管理API（Next.js API Routes）
 - Git操作API（diff、rebase、merge）
-- 認証API
+- 認証API（Next.js API Routes）
 - プロンプト履歴API
+
+**実装場所**: `src/app/api/`配下
 
 #### コンポーネント: WebSocket Server
 
@@ -144,6 +150,8 @@ interface AppState {
 - ユーザー入力のClaude Codeへの転送
 - ターミナル入出力の中継
 - 権限確認リクエストの送信
+
+**実装場所**: カスタムサーバー（`server.ts`）にws/socket.ioで実装
 
 #### コンポーネント: Session Manager
 
@@ -166,6 +174,8 @@ interface AppState {
 - サブエージェント出力の検出
 - プロセス異常終了の検出
 
+**実装場所**: `src/services/process-manager.ts`（Node.js child_process使用）
+
 #### コンポーネント: Git Operations
 
 **目的**: Git操作の実行
@@ -178,6 +188,8 @@ interface AppState {
 - コミット履歴取得
 - コミットへのリセット
 
+**実装場所**: `src/services/git-operations.ts`（Node.js child_process使用）
+
 #### コンポーネント: PTY Manager
 
 **目的**: ターミナルセッションの管理
@@ -188,6 +200,8 @@ interface AppState {
 - セッションごとのPTY管理
 - ANSIエスケープシーケンスの透過的転送
 
+**実装場所**: `src/services/pty-manager.ts`（node-ptyライブラリ使用）
+
 ## データフロー
 
 ### シーケンス: セッション作成
@@ -196,7 +210,7 @@ interface AppState {
 sequenceDiagram
     participant U as ユーザー
     participant F as Frontend
-    participant API as REST API
+    participant API as API Routes
     participant SM as Session Manager
     participant PM as Process Manager
     participant Git as Git Ops
@@ -208,7 +222,7 @@ sequenceDiagram
     SM->>Git: createWorktree()
     Git-->>SM: worktree path
     SM->>PM: startClaudeCode(path, prompt)
-    PM->>CC: claude --print (subprocess)
+    PM->>CC: claude --print (child_process)
     CC-->>PM: プロセス開始
     PM-->>SM: process info
     SM->>SM: セッション情報をDB保存
@@ -736,21 +750,35 @@ ws://host/ws/terminal/{session_id}
 
 ## 技術的決定事項
 
-### 決定1: データベースにSQLiteを採用
+### 決定1: Next.js統合アーキテクチャを採用
+
+**検討した選択肢**:
+1. Next.js統合構成 - フロントエンドとバックエンドを1つのプロジェクトに統合
+2. Monorepo構成 - フロントエンド(Next.js) + バックエンド(Fastify)を別プロセスで実行
+
+**決定**: Next.js統合構成
+
+**根拠**:
+- `npx claude-work`1コマンドで起動できるシンプルさ
+- 技術スタックがTypeScriptに統一され、型共有が容易
+- デプロイが容易（単一プロセス）
+- Next.jsカスタムサーバーでWebSocket統合が可能
+
+### 決定2: データベースにSQLiteを採用
 
 **検討した選択肢**:
 1. SQLite - シンプル、ファイルベース、セットアップ不要
 2. PostgreSQL - 高機能、スケーラブル、複雑なクエリ対応
 
-**決定**: SQLite
+**決定**: SQLite（better-sqlite3）
 
-**根拠**: 
-- 単一ユーザー向けホームラボ環境では十分な性能
-- Docker Composeでの構成がシンプル
+**根拠**:
+- 単一ユーザー向けローカル環境では十分な性能
+- セットアップ不要でnpmインストールのみで完結
 - バックアップがファイルコピーで完了
-- 将来的にPostgreSQLへの移行も容易
+- better-sqlite3は高速で同期APIが使いやすい
 
-### 決定2: 状態管理にZustandを採用
+### 決定3: 状態管理にZustandを採用
 
 **検討した選択肢**:
 1. Zustand - シンプル、軽量、TypeScript親和性
@@ -764,20 +792,21 @@ ws://host/ws/terminal/{session_id}
 - TypeScriptとの相性が良い
 - 中規模アプリケーションに適切なサイズ
 
-### 決定3: プロセス管理にasyncio subprocessを採用
+### 決定4: プロセス管理にNode.js child_processを採用
 
 **検討した選択肢**:
-1. asyncio subprocess - Python標準、非同期I/O対応
-2. pty + select - 低レベル制御、複雑
+1. child_process - Node.js標準、非同期I/O対応
+2. node-pty - PTY制御、ターミナルエミュレーション
 
-**決定**: asyncio subprocess（Claude Code用）+ pty（ターミナル用）
+**決定**: child_process（Claude Code用）+ node-pty（ターミナル用）
 
 **根拠**:
 - Claude Codeはパイプベースで十分
-- ターミナル機能はPTYが必須
+- ターミナル機能はPTY（node-pty）が必須
 - 用途に応じた適切な選択
+- Node.js標準APIで追加依存が少ない
 
-### 決定4: 認証方式にトークンベース認証を採用
+### 決定5: 認証方式にトークンベース認証を採用
 
 **検討した選択肢**:
 1. トークンベース認証 - シンプル、環境変数で設定
@@ -802,7 +831,7 @@ ws://host/ws/terminal/{session_id}
 
 ### 通信
 
-- HTTPS終端はリバースプロキシ（Caddy推奨）で実施
+- 開発環境はHTTP、本番環境ではリバースプロキシ（Caddy/nginx推奨）でHTTPS化
 - WebSocket接続も認証済みセッションでのみ許可
 - CORS設定で許可オリジンを制限
 
