@@ -4,11 +4,16 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useMessagesStore } from '@/store/messages';
+import { useDiffStore } from '@/store/diff';
 import MessageList from '@/components/session/MessageList';
 import InputForm from '@/components/session/InputForm';
 import PermissionDialog from '@/components/session/PermissionDialog';
 import SessionHeader from '@/components/session/SessionHeader';
+import FileList from '@/components/git/FileList';
+import DiffViewer from '@/components/git/DiffViewer';
 import { Session } from '@/lib/api';
+
+type TabType = 'chat' | 'changes';
 
 export default function SessionDetailPage() {
   const params = useParams();
@@ -31,8 +36,11 @@ export default function SessionDetailPage() {
   const [sessionLoading, setSessionLoading] = useState(true);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [stopLoading, setStopLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabType>('chat');
 
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  const { fetchDiff, clearDiff } = useDiffStore();
 
   useEffect(() => {
     const loadSession = async () => {
@@ -51,8 +59,9 @@ export default function SessionDetailPage() {
 
     return () => {
       clearMessages();
+      clearDiff();
     };
-  }, [sessionId, clearMessages]);
+  }, [sessionId, clearMessages, clearDiff]);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -69,6 +78,12 @@ export default function SessionDetailPage() {
       }
     };
   }, [sessionId, fetchMessages]);
+
+  useEffect(() => {
+    if (activeTab === 'changes' && sessionId) {
+      fetchDiff(sessionId);
+    }
+  }, [activeTab, sessionId, fetchDiff]);
 
   const handleSendMessage = async (content: string) => {
     await sendMessage(sessionId, content);
@@ -151,13 +166,49 @@ export default function SessionDetailPage() {
         </div>
       )}
 
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <MessageList messages={messages} isLoading={isLoading} />
-        <InputForm
-          onSubmit={handleSendMessage}
-          isLoading={isLoading}
-          disabled={session.status !== 'waiting_input' && session.status !== 'running'}
-        />
+      {/* タブナビゲーション */}
+      <div className="border-b border-gray-200 bg-white">
+        <div className="flex">
+          <button
+            onClick={() => setActiveTab('chat')}
+            className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'chat'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            チャット
+          </button>
+          <button
+            onClick={() => setActiveTab('changes')}
+            className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'changes'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            変更
+          </button>
+        </div>
+      </div>
+
+      {/* タブコンテンツ */}
+      <div className="flex-1 overflow-hidden">
+        {activeTab === 'chat' ? (
+          <div className="flex flex-col h-full">
+            <MessageList messages={messages} isLoading={isLoading} />
+            <InputForm
+              onSubmit={handleSendMessage}
+              isLoading={isLoading}
+              disabled={session.status !== 'waiting_input' && session.status !== 'running'}
+            />
+          </div>
+        ) : (
+          <div className="flex h-full">
+            <FileList className="w-80 flex-shrink-0" />
+            <DiffViewer className="flex-1" />
+          </div>
+        )}
       </div>
 
       <PermissionDialog
