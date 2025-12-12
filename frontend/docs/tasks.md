@@ -224,16 +224,18 @@
 - エラーハンドリングを実装
 
 **受入基準**:
-- [ ] FileChangeStatus型が定義されている（'added' | 'modified' | 'deleted'）
-- [ ] FileChange型が定義されている（path, status, additions, deletions）
-- [ ] DiffResult型が定義されている（files, diff_content, has_changes）
-- [ ] getDiff関数が実装されている
-- [ ] エラー時にApiErrorをthrowする
-- [ ] TypeScriptのstrict modeでエラーが出ない
+- [x] FileChangeStatus型が定義されている（'added' | 'modified' | 'deleted'）
+- [x] FileChange型が定義されている（path, status, additions, deletions）
+- [x] DiffResult型が定義されている（files, diff_content, has_changes）
+- [x] getDiff関数が実装されている
+- [x] エラー時にApiErrorをthrowする
+- [x] TypeScriptのstrict modeでエラーが出ない
 
 **依存関係**: なし
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
+
+**完了サマリー**: lib/api.tsにFileChangeStatus、FileChange、DiffResult型を定義し、getDiff関数を実装
 
 **推定工数**: 20分
 
@@ -251,14 +253,16 @@
 - clearDiff()関数を実装
 
 **受入基準**:
-- [ ] `store/diff.ts`が存在する
-- [ ] useDiffStoreフックが正しく動作する
-- [ ] すべての状態管理関数が実装されている
-- [ ] TypeScriptのstrict modeでエラーが出ない
+- [x] `store/diff.ts`が存在する
+- [x] useDiffStoreフックが正しく動作する
+- [x] すべての状態管理関数が実装されている
+- [x] TypeScriptのstrict modeでエラーが出ない
 
 **依存関係**: Task 4.1
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
+
+**完了サマリー**: Zustandでstore/diff.tsを実装し、fetchDiff、selectFile、clearDiff、clearError関数を追加
 
 **推定工数**: 30分
 
@@ -277,16 +281,18 @@
 - 選択中のファイルをハイライト表示
 
 **受入基準**:
-- [ ] `components/git/FileList.tsx`が存在する
-- [ ] 'use client'ディレクティブが設定されている
-- [ ] ファイルステータスに応じた色分けが実装されている
-- [ ] additions/deletionsが表示される
-- [ ] ファイルクリックで選択状態が変更される
-- [ ] TypeScriptのstrict modeでエラーが出ない
+- [x] `components/git/FileList.tsx`が存在する
+- [x] 'use client'ディレクティブが設定されている
+- [x] ファイルステータスに応じた色分けが実装されている
+- [x] additions/deletionsが表示される
+- [x] ファイルクリックで選択状態が変更される
+- [x] TypeScriptのstrict modeでエラーが出ない
 
 **依存関係**: Task 4.2
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
+
+**完了サマリー**: components/git/FileList.tsxに変更ファイル一覧コンポーネントを実装し、色分け、additions/deletions表示、ファイル選択機能を追加
 
 **推定工数**: 40分
 
@@ -305,17 +311,19 @@
 - ローディング状態とエラー表示
 
 **受入基準**:
-- [ ] `components/git/DiffViewer.tsx`が存在する
-- [ ] 'use client'ディレクティブが設定されている
-- [ ] react-diff-viewer-continuedが使用されている
-- [ ] unified diff形式が正しくパースされる
-- [ ] ファイル選択状態に応じて表示が変わる
-- [ ] ローディング状態とエラー状態を適切に表示
-- [ ] TypeScriptのstrict modeでエラーが出ない
+- [x] `components/git/DiffViewer.tsx`が存在する
+- [x] 'use client'ディレクティブが設定されている
+- [x] react-diff-viewer-continuedが使用されている
+- [x] unified diff形式が正しくパースされる
+- [x] ファイル選択状態に応じて表示が変わる
+- [x] ローディング状態とエラー状態を適切に表示
+- [x] TypeScriptのstrict modeでエラーが出ない
 
 **依存関係**: Task 4.2
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
+
+**完了サマリー**: components/git/DiffViewer.tsxにreact-diff-viewer-continuedを使用したdiff表示コンポーネントを実装し、unified diff形式のパース処理、ファイル選択機能を追加
 
 **推定工数**: 50分
 
@@ -333,16 +341,18 @@
 - タブ切り替え時にDiffデータを自動取得
 
 **受入基準**:
-- [ ] タブUIが実装されている
-- [ ] タブ切り替えが正しく動作する
-- [ ] 「チャット」タブで既存機能が動作する
-- [ ] 「変更」タブでFileListとDiffViewerが表示される
-- [ ] タブ切り替え時にDiffデータが取得される
-- [ ] TypeScriptのstrict modeでエラーが出ない
+- [x] タブUIが実装されている
+- [x] タブ切り替えが正しく動作する
+- [x] 「チャット」タブで既存機能が動作する
+- [x] 「変更」タブでFileListとDiffViewerが表示される
+- [x] タブ切り替え時にDiffデータが取得される
+- [x] TypeScriptのstrict modeでエラーが出ない
 
 **依存関係**: Task 4.3, Task 4.4
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
+
+**完了サマリー**: セッション詳細ページにチャットと変更のタブUIを実装し、タブ切り替え時にDiffデータを自動取得する機能を追加
 
 **推定工数**: 40分
 
@@ -358,13 +368,15 @@
 - TypeScriptエラーがあれば修正
 
 **受入基準**:
-- [ ] `npm run build`が成功する
-- [ ] TypeScriptエラーがゼロ
-- [ ] ESLintエラーがゼロ
+- [x] `npm run build`が成功する
+- [x] TypeScriptエラーがゼロ
+- [x] ESLintエラーがゼロ
 
 **依存関係**: Task 4.5
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
+
+**完了サマリー**: npm run buildを実行し、TypeScriptとESLintのエラーがゼロであることを確認、ビルドが正常に完了
 
 **推定工数**: 20分
 
