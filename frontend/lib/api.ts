@@ -44,6 +44,21 @@ export interface PermissionRequest {
   description: string;
 }
 
+export type FileChangeStatus = 'added' | 'modified' | 'deleted';
+
+export interface FileChange {
+  path: string;
+  status: FileChangeStatus;
+  additions: number;
+  deletions: number;
+}
+
+export interface DiffResult {
+  files: FileChange[];
+  diff_content: string;
+  has_changes: boolean;
+}
+
 export const api = {
   async login(token: string): Promise<void> {
     const formData = new FormData();
@@ -263,5 +278,19 @@ export const api = {
       const errorData = await response.json().catch(() => ({ detail: '権限確認の応答に失敗しました' }));
       throw new ApiError(response.status, errorData.detail || '権限確認の応答に失敗しました');
     }
+  },
+
+  async getDiff(sessionId: string): Promise<DiffResult> {
+    const response = await fetch(`${API_URL}/api/sessions/${sessionId}/diff`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'Diff情報の取得に失敗しました' }));
+      throw new ApiError(response.status, errorData.detail || 'Diff情報の取得に失敗しました');
+    }
+
+    return await response.json();
   },
 };

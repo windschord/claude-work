@@ -212,6 +212,164 @@
 
 ---
 
+## Diff表示画面の実装
+
+### タスク4.1: Diff型定義とAPIクライアントの拡張
+
+**説明**: バックエンドのDiff APIと連携するための型定義とAPIクライアント関数を追加します。
+
+**実装内容**:
+- `lib/api.ts`にFileChangeStatus型、FileChange型、DiffResult型を定義
+- getDiff(sessionId: string)関数を追加
+- エラーハンドリングを実装
+
+**受入基準**:
+- [ ] FileChangeStatus型が定義されている（'added' | 'modified' | 'deleted'）
+- [ ] FileChange型が定義されている（path, status, additions, deletions）
+- [ ] DiffResult型が定義されている（files, diff_content, has_changes）
+- [ ] getDiff関数が実装されている
+- [ ] エラー時にApiErrorをthrowする
+- [ ] TypeScriptのstrict modeでエラーが出ない
+
+**依存関係**: なし
+
+**ステータス**: `TODO`
+
+**推定工数**: 20分
+
+---
+
+### タスク4.2: Diffストアの実装
+
+**説明**: Zustandを使用してDiff状態管理ストアを実装します。
+
+**実装内容**:
+- `store/diff.ts`を作成
+- diffResult、isLoading、error、selectedFile状態を管理
+- fetchDiff(sessionId: string)関数を実装
+- selectFile(path: string | null)関数を実装
+- clearDiff()関数を実装
+
+**受入基準**:
+- [ ] `store/diff.ts`が存在する
+- [ ] useDiffStoreフックが正しく動作する
+- [ ] すべての状態管理関数が実装されている
+- [ ] TypeScriptのstrict modeでエラーが出ない
+
+**依存関係**: Task 4.1
+
+**ステータス**: `TODO`
+
+**推定工数**: 30分
+
+---
+
+### タスク4.3: FileListコンポーネントの実装
+
+**説明**: 変更ファイル一覧を表示し、ファイル選択ができるコンポーネントを実装します。
+
+**実装内容**:
+- `components/git/FileList.tsx`を作成
+- ファイル一覧表示（ファイルパス、ステータス、additions/deletions）
+- ファイルステータスに応じた色分け（added: 緑、modified: 黄色、deleted: 赤）
+- additions/deletionsの表示（+5 -3形式）
+- ファイルクリックで選択状態を変更
+- 選択中のファイルをハイライト表示
+
+**受入基準**:
+- [ ] `components/git/FileList.tsx`が存在する
+- [ ] 'use client'ディレクティブが設定されている
+- [ ] ファイルステータスに応じた色分けが実装されている
+- [ ] additions/deletionsが表示される
+- [ ] ファイルクリックで選択状態が変更される
+- [ ] TypeScriptのstrict modeでエラーが出ない
+
+**依存関係**: Task 4.2
+
+**ステータス**: `TODO`
+
+**推定工数**: 40分
+
+---
+
+### タスク4.4: DiffViewerコンポーネントの実装
+
+**説明**: react-diff-viewer-continuedを使用してdiff表示を行うコンポーネントを実装します。
+
+**実装内容**:
+- `components/git/DiffViewer.tsx`を作成
+- react-diff-viewer-continuedを使用
+- unified diff形式のパース処理を実装
+- 選択されたファイルのdiffのみ表示
+- ファイル未選択時は全ファイルのdiffを表示
+- ローディング状態とエラー表示
+
+**受入基準**:
+- [ ] `components/git/DiffViewer.tsx`が存在する
+- [ ] 'use client'ディレクティブが設定されている
+- [ ] react-diff-viewer-continuedが使用されている
+- [ ] unified diff形式が正しくパースされる
+- [ ] ファイル選択状態に応じて表示が変わる
+- [ ] ローディング状態とエラー状態を適切に表示
+- [ ] TypeScriptのstrict modeでエラーが出ない
+
+**依存関係**: Task 4.2
+
+**ステータス**: `TODO`
+
+**推定工数**: 50分
+
+---
+
+### タスク4.5: セッション詳細ページへのタブ統合
+
+**説明**: セッション詳細ページにタブ機能を追加し、「チャット」タブと「変更」タブを切り替えられるようにします。
+
+**実装内容**:
+- `app/(authenticated)/sessions/[id]/page.tsx`を更新
+- タブUIを実装（チャット / 変更）
+- 「チャット」タブでは既存のMessageListとInputFormを表示
+- 「変更」タブではFileListとDiffViewerを表示
+- タブ切り替え時にDiffデータを自動取得
+
+**受入基準**:
+- [ ] タブUIが実装されている
+- [ ] タブ切り替えが正しく動作する
+- [ ] 「チャット」タブで既存機能が動作する
+- [ ] 「変更」タブでFileListとDiffViewerが表示される
+- [ ] タブ切り替え時にDiffデータが取得される
+- [ ] TypeScriptのstrict modeでエラーが出ない
+
+**依存関係**: Task 4.3, Task 4.4
+
+**ステータス**: `TODO`
+
+**推定工数**: 40分
+
+---
+
+### タスク4.6: ビルドテストと動作確認
+
+**説明**: すべての実装が完了した後、ビルドテストを実行し、エラーがないことを確認します。
+
+**実装内容**:
+- `npm run build`を実行
+- ビルドエラーがあれば修正
+- TypeScriptエラーがあれば修正
+
+**受入基準**:
+- [ ] `npm run build`が成功する
+- [ ] TypeScriptエラーがゼロ
+- [ ] ESLintエラーがゼロ
+
+**依存関係**: Task 4.5
+
+**ステータス**: `TODO`
+
+**推定工数**: 20分
+
+---
+
 ## 技術的文脈
 
 - **フレームワーク**: Next.js 14 App Router
@@ -220,10 +378,38 @@
 - **フォーム管理**: react-hook-form
 - **UIコンポーネント**: @headlessui/react (Dialog)
 - **スタイリング**: Tailwind CSS
+- **Diff表示**: react-diff-viewer-continued
 - **バックエンドAPI**: http://localhost:8000
+
+## バックエンドAPI仕様（Diff表示関連）
+
+### GET /api/sessions/{id}/diff
+
+Diff情報を取得するエンドポイント
+
+**レスポンス型**:
+```typescript
+type FileChangeStatus = 'added' | 'modified' | 'deleted';
+
+interface FileChange {
+  path: string;
+  status: FileChangeStatus;
+  additions: number;
+  deletions: number;
+}
+
+interface DiffResult {
+  files: FileChange[];
+  diff_content: string;  // unified diff形式のテキスト
+  has_changes: boolean;
+}
+```
 
 ## 既存ファイルの参考
 
 - **APIクライアント**: `/home/tsk/sync/git/claude-work/frontend/lib/api.ts`
 - **認証ストア**: `/home/tsk/sync/git/claude-work/frontend/store/auth.ts`
+- **セッションストア**: `/home/tsk/sync/git/claude-work/frontend/store/sessions.ts`
+- **メッセージストア**: `/home/tsk/sync/git/claude-work/frontend/store/messages.ts`
 - **既存Sidebar**: `/home/tsk/sync/git/claude-work/frontend/components/layout/Sidebar.tsx`
+- **セッション詳細ページ**: `/home/tsk/sync/git/claude-work/frontend/app/(authenticated)/sessions/[id]/page.tsx`
