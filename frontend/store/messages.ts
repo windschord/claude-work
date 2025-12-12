@@ -1,15 +1,19 @@
 import { create } from 'zustand';
-import { api, Message, PermissionRequest } from '@/lib/api';
+import { api, Message, PermissionRequest, SessionStatus } from '@/lib/api';
 
 interface MessagesState {
   messages: Message[];
   isLoading: boolean;
   error: string | null;
   pendingPermission: PermissionRequest | null;
+  sessionStatus: SessionStatus | null;
   fetchMessages: (sessionId: string) => Promise<void>;
   sendMessage: (sessionId: string, content: string) => Promise<void>;
   respondToPermission: (sessionId: string, permissionId: string, approved: boolean) => Promise<void>;
   setPendingPermission: (permission: PermissionRequest | null) => void;
+  addMessage: (message: Message) => void;
+  setSessionStatus: (status: SessionStatus) => void;
+  setError: (error: string | null) => void;
   clearError: () => void;
   clearMessages: () => void;
 }
@@ -19,6 +23,7 @@ export const useMessagesStore = create<MessagesState>((set) => ({
   isLoading: false,
   error: null,
   pendingPermission: null,
+  sessionStatus: null,
 
   fetchMessages: async (sessionId: string) => {
     set({ isLoading: true, error: null });
@@ -62,7 +67,21 @@ export const useMessagesStore = create<MessagesState>((set) => ({
     set({ pendingPermission: permission });
   },
 
+  addMessage: (message: Message) => {
+    set((state) => ({
+      messages: [...state.messages, message],
+    }));
+  },
+
+  setSessionStatus: (status: SessionStatus) => {
+    set({ sessionStatus: status });
+  },
+
+  setError: (error: string | null) => {
+    set({ error });
+  },
+
   clearError: () => set({ error: null }),
 
-  clearMessages: () => set({ messages: [], error: null, pendingPermission: null }),
+  clearMessages: () => set({ messages: [], error: null, pendingPermission: null, sessionStatus: null }),
 }));

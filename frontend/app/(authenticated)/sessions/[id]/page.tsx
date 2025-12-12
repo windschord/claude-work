@@ -1,15 +1,17 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { api } from '@/lib/api';
+import { api, WebSocketMessage, Message } from '@/lib/api';
 import { useMessagesStore } from '@/store/messages';
 import { useDiffStore } from '@/store/diff';
 import { useGitOpsStore } from '@/store/gitOps';
+import { useWebSocket } from '@/hooks/useWebSocket';
 import MessageList from '@/components/session/MessageList';
 import InputForm from '@/components/session/InputForm';
 import PermissionDialog from '@/components/session/PermissionDialog';
 import SessionHeader from '@/components/session/SessionHeader';
+import ConnectionStatus from '@/components/session/ConnectionStatus';
 import FileList from '@/components/git/FileList';
 import DiffViewer from '@/components/git/DiffViewer';
 import RebaseButton from '@/components/git/RebaseButton';
@@ -18,6 +20,11 @@ import ConflictDialog from '@/components/git/ConflictDialog';
 import { Session } from '@/lib/api';
 
 type TabType = 'chat' | 'changes';
+
+// ユニークIDを生成するヘルパー関数
+function generateId(): string {
+  return `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+}
 
 export default function SessionDetailPage() {
   const params = useParams();
@@ -29,11 +36,16 @@ export default function SessionDetailPage() {
     isLoading,
     error,
     pendingPermission,
+    sessionStatus,
     fetchMessages,
     sendMessage,
     respondToPermission,
     clearError,
     clearMessages,
+    addMessage,
+    setSessionStatus,
+    setPendingPermission,
+    setError,
   } = useMessagesStore();
 
   const [session, setSession] = useState<Session | null>(null);
@@ -43,16 +55,57 @@ export default function SessionDetailPage() {
   const [activeTab, setActiveTab] = useState<TabType>('chat');
   const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
 
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-
   const { fetchDiff, clearDiff } = useDiffStore();
   const { error: gitOpsError, clearError: clearGitOpsError } = useGitOpsStore();
 
+  // WebSocketメッセージハンドラ
+  const handleWebSocketMessage = useCallback((message: WebSocketMessage) => {
+    switch (message.type) {
+      case 'assistant_output':
+        addMessage({
+          id: generateId(),
+          session_id: sessionId,
+          role: 'assistant',
+          content: message.content,
+          created_at: new Date().toISOString(),
+        });
+        break;
+      case 'permission_request':
+        setPendingPermission({
+          id: message.permission_id,
+          type: 'permission',
+          description: message.description,
+        });
+        break;
+      case 'session_status':
+        setSessionStatus(message.status);
+        setSession((prev) => prev ? { ...prev, status: message.status } : null);
+        break;
+      case 'error':
+        setError(message.message);
+        break;
+    }
+  }, [sessionId, addMessage, setPendingPermission, setSessionStatus, setError]);
+
+  // WebSocket接続
+  const {
+    isConnected,
+    isConnecting,
+    reconnectAttempts,
+    sendMessage: wsSendMessage,
+  } = useWebSocket({
+    sessionId,
+    onMessage: handleWebSocketMessage,
+    enabled: !!sessionId,
+  });
+
+  // セッションデータとメッセージの初期読み込み
   useEffect(() => {
     const loadSession = async () => {
       try {
         const sessionData = await api.getSession(sessionId);
         setSession(sessionData);
+        setSessionStatus(sessionData.status);
         setSessionLoading(false);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'セッションの取得に失敗しました';
@@ -62,28 +115,14 @@ export default function SessionDetailPage() {
     };
 
     loadSession();
+    // 初期メッセージの取得（WebSocketが接続される前の履歴を取得）
+    fetchMessages(sessionId);
 
     return () => {
       clearMessages();
       clearDiff();
     };
-  }, [sessionId, clearMessages, clearDiff]);
-
-  useEffect(() => {
-    if (!sessionId) return;
-
-    fetchMessages(sessionId);
-
-    pollingIntervalRef.current = setInterval(() => {
-      fetchMessages(sessionId);
-    }, 5000);
-
-    return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-      }
-    };
-  }, [sessionId, fetchMessages]);
+  }, [sessionId, clearMessages, clearDiff, fetchMessages, setSessionStatus]);
 
   useEffect(() => {
     if (activeTab === 'changes' && sessionId) {
@@ -92,7 +131,25 @@ export default function SessionDetailPage() {
   }, [activeTab, sessionId, fetchDiff]);
 
   const handleSendMessage = async (content: string) => {
-    await sendMessage(sessionId, content);
+    // WebSocket経由で送信
+    if (isConnected) {
+      // ユーザーメッセージをローカルに追加
+      addMessage({
+        id: generateId(),
+        session_id: sessionId,
+        role: 'user',
+        content,
+        created_at: new Date().toISOString(),
+      });
+
+      wsSendMessage({
+        type: 'user_input',
+        content,
+      });
+    } else {
+      // フォールバック: REST API経由で送信
+      await sendMessage(sessionId, content);
+    }
   };
 
   const handleStopSession = async () => {
@@ -101,6 +158,7 @@ export default function SessionDetailPage() {
       await api.stopSession(sessionId);
       const updatedSession = await api.getSession(sessionId);
       setSession(updatedSession);
+      setSessionStatus(updatedSession.status);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'セッションの停止に失敗しました';
       setSessionError(errorMessage);
@@ -111,19 +169,43 @@ export default function SessionDetailPage() {
 
   const handleApprovePermission = async () => {
     if (!pendingPermission) return;
-    try {
-      await respondToPermission(sessionId, pendingPermission.id, true);
-    } catch (error) {
-      console.error('権限承認エラー:', error);
+
+    // WebSocket経由で送信
+    if (isConnected) {
+      wsSendMessage({
+        type: 'permission_response',
+        permission_id: pendingPermission.id,
+        approved: true,
+      });
+      setPendingPermission(null);
+    } else {
+      // フォールバック: REST API経由で送信
+      try {
+        await respondToPermission(sessionId, pendingPermission.id, true);
+      } catch (error) {
+        console.error('権限承認エラー:', error);
+      }
     }
   };
 
   const handleRejectPermission = async () => {
     if (!pendingPermission) return;
-    try {
-      await respondToPermission(sessionId, pendingPermission.id, false);
-    } catch (error) {
-      console.error('権限拒否エラー:', error);
+
+    // WebSocket経由で送信
+    if (isConnected) {
+      wsSendMessage({
+        type: 'permission_response',
+        permission_id: pendingPermission.id,
+        approved: false,
+      });
+      setPendingPermission(null);
+    } else {
+      // フォールバック: REST API経由で送信
+      try {
+        await respondToPermission(sessionId, pendingPermission.id, false);
+      } catch (error) {
+        console.error('権限拒否エラー:', error);
+      }
     }
   };
 
@@ -167,6 +249,15 @@ export default function SessionDetailPage() {
         onStop={handleStopSession}
         isLoading={stopLoading}
       />
+
+      {/* 接続状態インジケーター */}
+      <div className="border-b border-gray-200 bg-white px-6 py-3">
+        <ConnectionStatus
+          isConnected={isConnected}
+          isConnecting={isConnecting}
+          reconnectAttempts={reconnectAttempts}
+        />
+      </div>
 
       {error && (
         <div className="bg-red-50 border-b border-red-200 px-6 py-3">
@@ -230,7 +321,10 @@ export default function SessionDetailPage() {
             <InputForm
               onSubmit={handleSendMessage}
               isLoading={isLoading}
-              disabled={session.status !== 'waiting_input' && session.status !== 'running'}
+              disabled={
+                !isConnected ||
+                (sessionStatus !== 'waiting_input' && sessionStatus !== 'running')
+              }
             />
           </div>
         ) : (
