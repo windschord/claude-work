@@ -17,9 +17,10 @@ import DiffViewer from '@/components/git/DiffViewer';
 import RebaseButton from '@/components/git/RebaseButton';
 import MergeModal from '@/components/git/MergeModal';
 import ConflictDialog from '@/components/git/ConflictDialog';
+import { CommitHistory } from '@/components/git/CommitHistory';
 import { Session } from '@/lib/api';
 
-type TabType = 'chat' | 'changes';
+type TabType = 'chat' | 'changes' | 'history';
 
 // ユニークIDを生成するヘルパー関数
 function generateId(): string {
@@ -310,6 +311,16 @@ export default function SessionDetailPage() {
           >
             変更
           </button>
+          <button
+            onClick={() => setActiveTab('history')}
+            className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'history'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            履歴
+          </button>
         </div>
       </div>
 
@@ -327,7 +338,7 @@ export default function SessionDetailPage() {
               }
             />
           </div>
-        ) : (
+        ) : activeTab === 'changes' ? (
           <div className="flex flex-col h-full">
             <div className="border-b border-gray-200 bg-white px-6 py-4">
               <div className="flex gap-3">
@@ -344,6 +355,10 @@ export default function SessionDetailPage() {
               <FileList className="w-80 flex-shrink-0" />
               <DiffViewer className="flex-1" />
             </div>
+          </div>
+        ) : (
+          <div className="h-full overflow-y-auto px-6 py-4">
+            <CommitHistory sessionId={sessionId} />
           </div>
         )}
       </div>

@@ -79,6 +79,22 @@ export interface PromptHistory {
   created_at: string;
 }
 
+export interface Commit {
+  hash: string;
+  message: string;
+  author_name: string;
+  author_email: string;
+  date: string;
+}
+
+export interface CommitDiff {
+  diff: string;
+}
+
+export interface ResetResult {
+  success: boolean;
+}
+
 // WebSocket message types
 export type WebSocketMessage =
   | { type: 'assistant_output'; content: string }
@@ -399,5 +415,47 @@ export const api = {
       const errorData = await response.json().catch(() => ({ detail: 'プロンプト履歴の削除に失敗しました' }));
       throw new ApiError(response.status, errorData.detail || 'プロンプト履歴の削除に失敗しました');
     }
+  },
+
+  async getCommitHistory(sessionId: string, limit: number = 20): Promise<Commit[]> {
+    const response = await fetch(`${API_URL}/api/sessions/${sessionId}/commits?limit=${limit}`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'コミット履歴の取得に失敗しました' }));
+      throw new ApiError(response.status, errorData.detail || 'コミット履歴の取得に失敗しました');
+    }
+
+    return await response.json();
+  },
+
+  async getCommitDiff(sessionId: string, commitHash: string): Promise<CommitDiff> {
+    const response = await fetch(`${API_URL}/api/sessions/${sessionId}/commits/${commitHash}/diff`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'コミットのdiff取得に失敗しました' }));
+      throw new ApiError(response.status, errorData.detail || 'コミットのdiff取得に失敗しました');
+    }
+
+    return await response.json();
+  },
+
+  async resetToCommit(sessionId: string, commitHash: string): Promise<ResetResult> {
+    const response = await fetch(`${API_URL}/api/sessions/${sessionId}/commits/${commitHash}/reset`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'コミットへのリセットに失敗しました' }));
+      throw new ApiError(response.status, errorData.detail || 'コミットへのリセットに失敗しました');
+    }
+
+    return await response.json();
   },
 };
