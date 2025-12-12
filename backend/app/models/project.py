@@ -47,6 +47,11 @@ class Project(Base):
         back_populates="project",
         cascade="all, delete-orphan",
     )
+    run_scripts: Mapped[list["RunScript"]] = relationship(
+        "RunScript",
+        back_populates="project",
+        cascade="all, delete-orphan",
+    )
 
     def __repr__(self) -> str:
         return f"<Project(id={self.id}, name={self.name})>"

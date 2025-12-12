@@ -97,6 +97,15 @@ export interface ResetResult {
   success: boolean;
 }
 
+export interface RunScript {
+  id: number;
+  project_id: string;
+  name: string;
+  command: string;
+  created_at: string;
+  updated_at: string;
+}
+
 // WebSocket message types
 export type WebSocketMessage =
   | { type: 'assistant_output'; content: string }
@@ -459,5 +468,63 @@ export const api = {
     }
 
     return await response.json();
+  },
+
+  // Run Scripts
+  async getRunScripts(projectId: string): Promise<RunScript[]> {
+    const response = await fetch(`${API_URL}/api/projects/${projectId}/run-scripts`, {
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'ランスクリプト一覧の取得に失敗しました' }));
+      throw new ApiError(response.status, errorData.detail || 'ランスクリプト一覧の取得に失敗しました');
+    }
+
+    return await response.json();
+  },
+
+  async createRunScript(projectId: string, name: string, command: string): Promise<RunScript> {
+    const response = await fetch(`${API_URL}/api/projects/${projectId}/run-scripts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, command }),
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'ランスクリプトの作成に失敗しました' }));
+      throw new ApiError(response.status, errorData.detail || 'ランスクリプトの作成に失敗しました');
+    }
+
+    return await response.json();
+  },
+
+  async updateRunScript(projectId: string, scriptId: number, name: string, command: string): Promise<RunScript> {
+    const response = await fetch(`${API_URL}/api/projects/${projectId}/run-scripts/${scriptId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, command }),
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'ランスクリプトの更新に失敗しました' }));
+      throw new ApiError(response.status, errorData.detail || 'ランスクリプトの更新に失敗しました');
+    }
+
+    return await response.json();
+  },
+
+  async deleteRunScript(projectId: string, scriptId: number): Promise<void> {
+    const response = await fetch(`${API_URL}/api/projects/${projectId}/run-scripts/${scriptId}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'ランスクリプトの削除に失敗しました' }));
+      throw new ApiError(response.status, errorData.detail || 'ランスクリプトの削除に失敗しました');
+    }
   },
 };
