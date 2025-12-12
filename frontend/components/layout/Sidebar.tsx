@@ -1,11 +1,29 @@
 'use client';
 
+import { useState } from 'react';
+import { ProjectList } from '@/components/projects/ProjectList';
+import { AddProjectModal } from '@/components/projects/AddProjectModal';
+import { DeleteProjectDialog } from '@/components/projects/DeleteProjectDialog';
+
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+
+  const handleDeleteClick = (id: string, name: string) => {
+    setDeleteTarget({ id, name });
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleDeleteDialogClose = () => {
+    setIsDeleteDialogOpen(false);
+    setDeleteTarget(null);
+  };
   return (
     <>
       {/* モバイル用オーバーレイ */}
@@ -57,6 +75,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               {/* プロジェクト追加ボタン */}
               <button
                 type="button"
+                onClick={() => setIsAddModalOpen(true)}
                 className="w-full flex items-center justify-center gap-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
               >
                 <svg
@@ -75,22 +94,31 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                 プロジェクト追加
               </button>
 
-              {/* プロジェクト一覧エリア（後で実装） */}
+              {/* プロジェクト一覧エリア */}
               <div className="mt-6">
                 <h3 className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                   プロジェクト
                 </h3>
                 <div className="mt-2 space-y-1">
-                  {/* プロジェクト一覧は後で実装 */}
-                  <p className="px-3 py-2 text-sm text-gray-500">
-                    プロジェクトがありません
-                  </p>
+                  <ProjectList onDeleteClick={handleDeleteClick} />
                 </div>
               </div>
             </div>
           </div>
         </div>
       </aside>
+
+      {/* モーダルとダイアログ */}
+      <AddProjectModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+      />
+      <DeleteProjectDialog
+        isOpen={isDeleteDialogOpen}
+        onClose={handleDeleteDialogClose}
+        projectId={deleteTarget?.id ?? null}
+        projectName={deleteTarget?.name ?? null}
+      />
     </>
   );
 }
