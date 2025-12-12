@@ -59,6 +59,17 @@ export interface DiffResult {
   has_changes: boolean;
 }
 
+export interface RebaseResult {
+  success: boolean;
+  message: string;
+  conflict_files?: string[];
+}
+
+export interface MergeResult {
+  success: boolean;
+  message: string;
+}
+
 export const api = {
   async login(token: string): Promise<void> {
     const formData = new FormData();
@@ -289,6 +300,38 @@ export const api = {
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ detail: 'Diff情報の取得に失敗しました' }));
       throw new ApiError(response.status, errorData.detail || 'Diff情報の取得に失敗しました');
+    }
+
+    return await response.json();
+  },
+
+  async rebaseFromMain(sessionId: string): Promise<RebaseResult> {
+    const response = await fetch(`${API_URL}/api/sessions/${sessionId}/rebase`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'rebaseに失敗しました' }));
+      throw new ApiError(response.status, errorData.detail || 'rebaseに失敗しました');
+    }
+
+    return await response.json();
+  },
+
+  async squashMerge(sessionId: string, message: string): Promise<MergeResult> {
+    const response = await fetch(`${API_URL}/api/sessions/${sessionId}/merge`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ message }),
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'マージに失敗しました' }));
+      throw new ApiError(response.status, errorData.detail || 'マージに失敗しました');
     }
 
     return await response.json();

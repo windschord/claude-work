@@ -382,6 +382,201 @@
 
 ---
 
+## Git操作UIの実装
+
+### タスク5.1: Git操作API型定義とAPIクライアントの拡張
+
+**説明**: バックエンドのGit操作API（rebase, merge）と連携するための型定義とAPIクライアント関数を追加します。
+
+**実装内容**:
+- `lib/api.ts`にRebaseResult型、MergeResult型を定義
+- rebaseFromMain(sessionId: string)関数を追加
+- squashMerge(sessionId: string, message: string)関数を追加
+- エラーハンドリングを実装
+
+**受入基準**:
+- [x] RebaseResult型が定義されている（success, message, conflict_files?）
+- [x] MergeResult型が定義されている（success, message）
+- [x] rebaseFromMain関数が実装されている
+- [x] squashMerge関数が実装されている
+- [x] エラー時にApiErrorをthrowする
+- [x] TypeScriptのstrict modeでエラーが出ない
+
+**依存関係**: なし
+
+**ステータス**: `DONE`
+
+**完了サマリー**: lib/api.tsにRebaseResult型とMergeResult型を定義し、rebaseFromMain関数とsquashMerge関数を実装
+
+**推定工数**: 20分
+
+---
+
+### タスク5.2: Git操作ストアの実装
+
+**説明**: Zustandを使用してGit操作の状態管理ストアを実装します。
+
+**実装内容**:
+- `store/gitOps.ts`を作成
+- isLoading、error、conflictFiles状態を管理
+- rebaseFromMain(sessionId: string)関数を実装
+- squashMerge(sessionId: string, message: string)関数を実装
+- clearConflict()関数を実装
+- clearError()関数を実装
+
+**受入基準**:
+- [x] `store/gitOps.ts`が存在する
+- [x] useGitOpsStoreフックが正しく動作する
+- [x] すべての状態管理関数が実装されている
+- [x] TypeScriptのstrict modeでエラーが出ない
+
+**依存関係**: Task 5.1
+
+**ステータス**: `DONE`
+
+**完了サマリー**: Zustandでstore/gitOps.tsを実装し、rebaseFromMain、squashMerge、clearConflict、clearError関数を追加
+
+**推定工数**: 30分
+
+---
+
+### タスク5.3: RebaseButtonコンポーネントの実装
+
+**説明**: 「mainから取り込み」ボタンコンポーネントを実装します。
+
+**実装内容**:
+- `components/git/RebaseButton.tsx`を作成
+- ローディング中はスピナー表示
+- 成功時はトーストまたは成功メッセージ表示
+- エラー時はエラーメッセージ表示
+- コンフリクト発生時はConflictDialogを表示
+
+**受入基準**:
+- [x] `components/git/RebaseButton.tsx`が存在する
+- [x] 'use client'ディレクティブが設定されている
+- [x] ローディング状態が適切に表示される
+- [x] 成功時とエラー時の表示が実装されている
+- [x] TypeScriptのstrict modeでエラーが出ない
+
+**依存関係**: Task 5.2
+
+**ステータス**: `DONE`
+
+**完了サマリー**: components/git/RebaseButton.tsxにrebaseボタンコンポーネントを実装し、ローディング状態とスピナー表示、成功メッセージを追加
+
+**推定工数**: 30分
+
+---
+
+### タスク5.4: MergeModalコンポーネントの実装
+
+**説明**: スカッシュマージのためのコミットメッセージ入力モーダルを実装します。
+
+**実装内容**:
+- `components/git/MergeModal.tsx`を作成
+- @headlessui/reactのDialogを使用
+- react-hook-formでコミットメッセージフォーム管理
+- キャンセルとマージボタン
+- ローディング状態とエラー表示
+
+**受入基準**:
+- [x] `components/git/MergeModal.tsx`が存在する
+- [x] 'use client'ディレクティブが設定されている
+- [x] DialogとTransitionを使用している
+- [x] react-hook-formでバリデーションが動作する
+- [x] ローディング状態とエラー状態を適切に表示
+- [x] TypeScriptのstrict modeでエラーが出ない
+
+**依存関係**: Task 5.2
+
+**ステータス**: `DONE`
+
+**完了サマリー**: components/git/MergeModal.tsxにスカッシュマージモーダルを実装し、react-hook-formでコミットメッセージフォーム管理を追加
+
+**推定工数**: 40分
+
+---
+
+### タスク5.5: ConflictDialogコンポーネントの実装
+
+**説明**: コンフリクト発生時にファイル一覧を表示するダイアログを実装します。
+
+**実装内容**:
+- `components/git/ConflictDialog.tsx`を作成
+- @headlessui/reactのDialogを使用
+- コンフリクトファイル一覧を表示
+- 「手動で解決してください」メッセージを表示
+- OKボタンで閉じる
+
+**受入基準**:
+- [x] `components/git/ConflictDialog.tsx`が存在する
+- [x] 'use client'ディレクティブが設定されている
+- [x] DialogとTransitionを使用している
+- [x] コンフリクトファイル一覧が表示される
+- [x] TypeScriptのstrict modeでエラーが出ない
+
+**依存関係**: Task 5.2
+
+**ステータス**: `DONE`
+
+**完了サマリー**: components/git/ConflictDialog.tsxにコンフリクト通知ダイアログを実装し、コンフリクトファイル一覧表示を追加
+
+**推定工数**: 30分
+
+---
+
+### タスク5.6: セッション詳細ページへのGit操作UI統合
+
+**説明**: セッション詳細ページの「変更」タブにGit操作ボタンを追加します。
+
+**実装内容**:
+- `app/(authenticated)/sessions/[id]/page.tsx`を更新
+- 「変更」タブにRebaseButton、MergeModalを追加
+- ConflictDialogを配置
+- マージ成功後にプロジェクトページへリダイレクト
+
+**受入基準**:
+- [x] 「変更」タブにGit操作ボタンが表示される
+- [x] RebaseButtonが正しく動作する
+- [x] MergeModalが正しく動作する
+- [x] ConflictDialogが正しく動作する
+- [x] マージ成功後にリダイレクトされる
+- [x] TypeScriptのstrict modeでエラーが出ない
+
+**依存関係**: Task 5.3, Task 5.4, Task 5.5
+
+**ステータス**: `DONE`
+
+**完了サマリー**: セッション詳細ページの変更タブにRebaseButton、MergeModal、ConflictDialogを統合し、マージ成功時のリダイレクト処理を追加
+
+**推定工数**: 40分
+
+---
+
+### タスク5.7: ビルドテストと動作確認
+
+**説明**: すべての実装が完了した後、ビルドテストを実行し、エラーがないことを確認します。
+
+**実装内容**:
+- `npm run build`を実行
+- ビルドエラーがあれば修正
+- TypeScriptエラーがあれば修正
+
+**受入基準**:
+- [x] `npm run build`が成功する
+- [x] TypeScriptエラーがゼロ
+- [x] ESLintエラーがゼロ
+
+**依存関係**: Task 5.6
+
+**ステータス**: `DONE`
+
+**完了サマリー**: npm run buildを実行し、TypeScriptとESLintのエラーがゼロであることを確認、ビルドが正常に完了
+
+**推定工数**: 20分
+
+---
+
 ## 技術的文脈
 
 - **フレームワーク**: Next.js 14 App Router
@@ -414,6 +609,40 @@ interface DiffResult {
   files: FileChange[];
   diff_content: string;  // unified diff形式のテキスト
   has_changes: boolean;
+}
+```
+
+## バックエンドAPI仕様（Git操作関連）
+
+### POST /api/sessions/{id}/rebase
+
+mainブランチからrebaseを実行するエンドポイント
+
+**レスポンス型**:
+```typescript
+interface RebaseResult {
+  success: boolean;
+  message: string;
+  conflict_files?: string[];  // コンフリクトが発生した場合のみ
+}
+```
+
+### POST /api/sessions/{id}/merge
+
+スカッシュマージを実行するエンドポイント
+
+**リクエストボディ**:
+```typescript
+{
+  message: string;  // コミットメッセージ
+}
+```
+
+**レスポンス型**:
+```typescript
+interface MergeResult {
+  success: boolean;
+  message: string;
 }
 ```
 
