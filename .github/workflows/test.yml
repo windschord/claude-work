@@ -10,6 +10,9 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    env:
+      DATABASE_URL: file:./data/test.db
+
     steps:
     - uses: actions/checkout@v4
 
