@@ -267,3 +267,109 @@ class GitService:
         await self._run_command("git", "commit", "-m", commit_message)
 
         return {"success": True}
+
+    async def get_commit_history(self, session_name: str, limit: int = 20) -> List[Dict[str, str]]:
+        """
+        コミット履歴を取得
+
+        Args:
+            session_name: セッション名
+            limit: 取得するコミット数（デフォルト: 20）
+
+        Returns:
+            コミット情報のリスト
+            各コミットは以下のフィールドを持つ:
+            - hash: コミットハッシュ
+            - message: コミットメッセージ
+            - author_name: 作者名
+            - author_email: 作者メールアドレス
+            - date: コミット日時（ISO 8601形式）
+
+        Raises:
+            RuntimeError: worktreeが存在しない場合、またはコミット履歴取得に失敗した場合
+        """
+        worktree_path = self.repo_path / ".worktrees" / session_name
+
+        if not worktree_path.exists():
+            raise RuntimeError(f"Worktree does not exist: {worktree_path}")
+
+        # git log --format="%H|%s|%an|%ae|%ai" -n {limit}
+        stdout, _, _ = await self._run_command(
+            "git", "log", f"--format=%H|%s|%an|%ae|%ai", f"-n{limit}",
+            cwd=str(worktree_path)
+        )
+
+        commits: List[Dict[str, str]] = []
+        for line in stdout.strip().split("\n"):
+            if not line:
+                continue
+
+            parts = line.split("|", 4)
+            if len(parts) != 5:
+                continue
+
+            hash_value, message, author_name, author_email, date = parts
+            commits.append({
+                "hash": hash_value,
+                "message": message,
+                "author_name": author_name,
+                "author_email": author_email,
+                "date": date,
+            })
+
+        return commits
+
+    async def get_commit_diff(self, session_name: str, commit_hash: str) -> str:
+        """
+        コミットのdiffを取得
+
+        Args:
+            session_name: セッション名
+            commit_hash: コミットハッシュ
+
+        Returns:
+            コミットのdiff（統計情報）
+
+        Raises:
+            RuntimeError: worktreeが存在しない場合、またはdiff取得に失敗した場合
+        """
+        worktree_path = self.repo_path / ".worktrees" / session_name
+
+        if not worktree_path.exists():
+            raise RuntimeError(f"Worktree does not exist: {worktree_path}")
+
+        # git show {commit_hash} --stat
+        stdout, _, _ = await self._run_command(
+            "git", "show", commit_hash, "--stat",
+            cwd=str(worktree_path)
+        )
+
+        return stdout
+
+    async def reset_to_commit(self, session_name: str, commit_hash: str) -> Dict[str, any]:
+        """
+        コミットへリセット
+
+        Args:
+            session_name: セッション名
+            commit_hash: コミットハッシュ
+
+        Returns:
+            リセット結果を含む辞書
+            - success: リセットが成功したかどうか
+
+        Raises:
+            RuntimeError: worktreeが存在しない場合、またはリセットに失敗した場合
+        """
+        worktree_path = self.repo_path / ".worktrees" / session_name
+
+        if not worktree_path.exists():
+            raise RuntimeError(f"Worktree does not exist: {worktree_path}")
+
+        # git reset --hard {commit_hash}
+        await self._run_command(
+            "git", "reset", "--hard", commit_hash,
+            cwd=str(worktree_path)
+        )
+
+        return {"success": True}

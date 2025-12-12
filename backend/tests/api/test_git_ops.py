@@ -64,7 +64,7 @@ class TestDiffEndpoint:
             json={"name": "test-session", "message": "test message"},
         )
         assert create_response.status_code == 201
-        session_id = create_response.json()["id"]
+        session_id = create_response.json()[0]["id"]
 
         # diff取得
         response = client.get(f"/api/sessions/{session_id}/diff")
@@ -137,7 +137,7 @@ class TestDiffEndpoint:
             json={"name": "test-session", "message": "test message"},
         )
         assert create_response.status_code == 201
-        session_id = create_response.json()["id"]
+        session_id = create_response.json()[0]["id"]
 
         # diff取得
         response = client.get(f"/api/sessions/{session_id}/diff")
@@ -199,7 +199,7 @@ class TestRebaseEndpoint:
             json={"name": "test-session", "message": "test message"},
         )
         assert create_response.status_code == 201
-        session_id = create_response.json()["id"]
+        session_id = create_response.json()[0]["id"]
 
         # rebase実行
         response = client.post(f"/api/sessions/{session_id}/rebase")
@@ -258,7 +258,7 @@ class TestRebaseEndpoint:
             json={"name": "test-session", "message": "test message"},
         )
         assert create_response.status_code == 201
-        session_id = create_response.json()["id"]
+        session_id = create_response.json()[0]["id"]
 
         # rebase実行
         response = client.post(f"/api/sessions/{session_id}/rebase")
@@ -326,7 +326,7 @@ class TestRebaseEndpoint:
             json={"name": "test-session", "message": "test message"},
         )
         assert create_response.status_code == 201
-        session_id = create_response.json()["id"]
+        session_id = create_response.json()[0]["id"]
 
         # rebase実行
         response = client.post(f"/api/sessions/{session_id}/rebase")
@@ -391,7 +391,7 @@ class TestMergeEndpoint:
             json={"name": "test-session", "message": "test message"},
         )
         assert create_response.status_code == 201
-        session_id = create_response.json()["id"]
+        session_id = create_response.json()[0]["id"]
 
         # merge実行
         response = client.post(
@@ -470,7 +470,7 @@ class TestMergeEndpoint:
             json={"name": "test-session", "message": "test message"},
         )
         assert create_response.status_code == 201
-        session_id = create_response.json()["id"]
+        session_id = create_response.json()[0]["id"]
 
         # merge実行
         response = client.post(
@@ -520,7 +520,7 @@ class TestMergeEndpoint:
             json={"name": "test-session", "message": "test message"},
         )
         assert create_response.status_code == 201
-        session_id = create_response.json()["id"]
+        session_id = create_response.json()[0]["id"]
 
         # merge実行（メッセージなし）
         response = client.post(
@@ -599,7 +599,7 @@ class TestCommitHistoryEndpoint:
             json={"name": "test-session", "message": "test message"},
         )
         assert create_response.status_code == 201
-        session_id = create_response.json()["id"]
+        session_id = create_response.json()[0]["id"]
 
         # コミット履歴取得
         response = client.get(f"/api/sessions/{session_id}/commits")
@@ -671,7 +671,7 @@ class TestCommitHistoryEndpoint:
             json={"name": "test-session", "message": "test message"},
         )
         assert create_response.status_code == 201
-        session_id = create_response.json()["id"]
+        session_id = create_response.json()[0]["id"]
 
         # コミット履歴取得（limit=5）
         response = client.get(f"/api/sessions/{session_id}/commits?limit=5")
@@ -744,7 +744,7 @@ class TestCommitHistoryEndpoint:
             json={"name": "test-session", "message": "test message"},
         )
         assert create_response.status_code == 201
-        session_id = create_response.json()["id"]
+        session_id = create_response.json()[0]["id"]
 
         # コミット履歴取得
         response = client.get(f"/api/sessions/{session_id}/commits")
@@ -806,7 +806,7 @@ class TestCommitDiffEndpoint:
             json={"name": "test-session", "message": "test message"},
         )
         assert create_response.status_code == 201
-        session_id = create_response.json()["id"]
+        session_id = create_response.json()[0]["id"]
 
         # コミットのdiff取得
         response = client.get(f"/api/sessions/{session_id}/commits/abc123def456/diff")
@@ -876,7 +876,7 @@ class TestCommitDiffEndpoint:
             json={"name": "test-session", "message": "test message"},
         )
         assert create_response.status_code == 201
-        session_id = create_response.json()["id"]
+        session_id = create_response.json()[0]["id"]
 
         # コミットのdiff取得
         response = client.get(f"/api/sessions/{session_id}/commits/abc123/diff")
@@ -938,7 +938,7 @@ class TestResetToCommitEndpoint:
             json={"name": "test-session", "message": "test message"},
         )
         assert create_response.status_code == 201
-        session_id = create_response.json()["id"]
+        session_id = create_response.json()[0]["id"]
 
         # コミットへのリセット
         response = client.post(f"/api/sessions/{session_id}/commits/abc123def456/reset")
@@ -1008,7 +1008,7 @@ class TestResetToCommitEndpoint:
             json={"name": "test-session", "message": "test message"},
         )
         assert create_response.status_code == 201
-        session_id = create_response.json()["id"]
+        session_id = create_response.json()[0]["id"]
 
         # コミットへのリセット
         response = client.post(f"/api/sessions/{session_id}/commits/abc123/reset")

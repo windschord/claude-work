@@ -45,6 +45,28 @@ class MergeResponse(BaseModel):
     success: bool
 
 
+class CommitInfo(BaseModel):
+    """コミット情報"""
+
+    hash: str
+    message: str
+    author_name: str
+    author_email: str
+    date: str
+
+
+class CommitDiffResponse(BaseModel):
+    """コミットのdiff取得レスポンス"""
+
+    diff: str
+
+
+class ResetResponse(BaseModel):
+    """リセット実行レスポンス"""
+
+    success: bool
+
+
 @router.get("/sessions/{id}/diff", response_model=DiffResponse)
 async def get_diff(
     id: uuid.UUID,
@@ -225,6 +247,177 @@ async def squash_merge(
         merge_result = await git_service.squash_merge(branch_name, request.message)
 
         return MergeResponse(success=merge_result["success"])
+
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
+@router.get("/sessions/{id}/commits", response_model=list[CommitInfo])
+async def get_commits(
+    id: uuid.UUID,
+    limit: int = 20,
+    auth_session: AuthSession = Depends(verify_session),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    コミット履歴を取得
+
+    Args:
+        id: セッションID
+        limit: 取得するコミット数（デフォルト: 20）
+        auth_session: 認証セッション
+        db: データベースセッション
+
+    Returns:
+        コミット履歴
+
+    Raises:
+        HTTPException: セッションが存在しない場合、またはコミット履歴取得に失敗した場合
+    """
+    # セッションを取得
+    session = await SessionService.get_session_by_id(db, id)
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found",
+        )
+
+    try:
+        # プロジェクトを取得
+        stmt = select(Project).where(Project.id == session.project_id)
+        result = await db.execute(stmt)
+        project = result.scalar_one_or_none()
+
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found",
+            )
+
+        # GitServiceを初期化
+        git_service = GitService(project.path)
+
+        # コミット履歴を取得
+        commits = await git_service.get_commit_history(session.name, limit)
+
+        return [CommitInfo(**commit) for commit in commits]
+
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
+@router.get("/sessions/{id}/commits/{commit_hash}/diff", response_model=CommitDiffResponse)
+async def get_commit_diff(
+    id: uuid.UUID,
+    commit_hash: str,
+    auth_session: AuthSession = Depends(verify_session),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    コミットのdiffを取得
+
+    Args:
+        id: セッションID
+        commit_hash: コミットハッシュ
+        auth_session: 認証セッション
+        db: データベースセッション
+
+    Returns:
+        コミットのdiff
+
+    Raises:
+        HTTPException: セッションが存在しない場合、またはdiff取得に失敗した場合
+    """
+    # セッションを取得
+    session = await SessionService.get_session_by_id(db, id)
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found",
+        )
+
+    try:
+        # プロジェクトを取得
+        stmt = select(Project).where(Project.id == session.project_id)
+        result = await db.execute(stmt)
+        project = result.scalar_one_or_none()
+
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found",
+            )
+
+        # GitServiceを初期化
+        git_service = GitService(project.path)
+
+        # コミットのdiffを取得
+        diff = await git_service.get_commit_diff(session.name, commit_hash)
+
+        return CommitDiffResponse(diff=diff)
+
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
+@router.post("/sessions/{id}/commits/{commit_hash}/reset", response_model=ResetResponse)
+async def reset_to_commit(
+    id: uuid.UUID,
+    commit_hash: str,
+    auth_session: AuthSession = Depends(verify_session),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    コミットへリセット
+
+    Args:
+        id: セッションID
+        commit_hash: コミットハッシュ
+        auth_session: 認証セッション
+        db: データベースセッション
+
+    Returns:
+        リセット結果
+
+    Raises:
+        HTTPException: セッションが存在しない場合、またはリセットに失敗した場合
+    """
+    # セッションを取得
+    session = await SessionService.get_session_by_id(db, id)
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found",
+        )
+
+    try:
+        # プロジェクトを取得
+        stmt = select(Project).where(Project.id == session.project_id)
+        result = await db.execute(stmt)
+        project = result.scalar_one_or_none()
+
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found",
+            )
+
+        # GitServiceを初期化
+        git_service = GitService(project.path)
+
+        # コミットへリセット
+        reset_result = await git_service.reset_to_commit(session.name, commit_hash)
+
+        return ResetResponse(success=reset_result["success"])
 
     except RuntimeError as e:
         raise HTTPException(
