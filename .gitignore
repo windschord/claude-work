@@ -240,3 +240,5 @@ next-env.d.ts
 
 # testing
 /coverage
+
+/src/generated/prisma
