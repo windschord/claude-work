@@ -14,7 +14,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@prisma/adapter-libsql": "^7.1.0",
+    "@prisma/client": "^7.1.0",
     "next": "^14.2.35",
     "react": "^18",
     "react-dom": "^18",
@@ -22,15 +22,12 @@
     "zustand": "^5.0.9"
   },
   "devDependencies": {
-    "@prisma/client": "^7.1.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.0",
-    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "@vitejs/plugin-react": "^5.1.2",
-    "better-sqlite3": "^12.5.0",
     "eslint": "^8",
     "eslint-config-next": "^14.2.35",
     "jsdom": "^27.3.0",
