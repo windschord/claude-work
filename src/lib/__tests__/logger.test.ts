@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { logger } from '../logger';
-import * as winston from 'winston';
 
 describe('Logger', () => {
   let originalEnv: NodeJS.ProcessEnv;

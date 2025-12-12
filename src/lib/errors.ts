@@ -7,8 +7,46 @@ export interface ErrorResponse {
   stack?: string;
 }
 
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public code: string,
+    public statusCode: number = 500
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+export function createErrorResponse(
+  error: ApiError,
+  isDevelopment: boolean = process.env.NODE_ENV !== 'production'
+): NextResponse<ErrorResponse> {
+  const response: ErrorResponse = {
+    error: error.message,
+    code: error.code,
+  };
+
+  if (isDevelopment && error.stack) {
+    response.stack = error.stack;
+  }
+
+  return NextResponse.json(response, { status: error.statusCode });
+}
+
 export function handleApiError(error: unknown, context?: string): NextResponse<ErrorResponse> {
   const isDevelopment = process.env.NODE_ENV !== 'production';
+
+  // ApiError instances should use their statusCode
+  if (error instanceof ApiError) {
+    logger.error(`API Error${context ? ` in ${context}` : ''}`, {
+      message: error.message,
+      code: error.code,
+      statusCode: error.statusCode,
+      stack: error.stack,
+    });
+    return createErrorResponse(error, isDevelopment);
+  }
 
   if (error instanceof Error) {
     logger.error(`API Error${context ? ` in ${context}` : ''}`, {
@@ -37,31 +75,4 @@ export function handleApiError(error: unknown, context?: string): NextResponse<E
   };
 
   return NextResponse.json(response, { status: 500 });
-}
-
-export class ApiError extends Error {
-  constructor(
-    message: string,
-    public code: string,
-    public statusCode: number = 500
-  ) {
-    super(message);
-    this.name = 'ApiError';
-  }
-}
-
-export function createErrorResponse(
-  error: ApiError,
-  isDevelopment: boolean = process.env.NODE_ENV !== 'production'
-): NextResponse<ErrorResponse> {
-  const response: ErrorResponse = {
-    error: error.message,
-    code: error.code,
-  };
-
-  if (isDevelopment && error.stack) {
-    response.stack = error.stack;
-  }
-
-  return NextResponse.json(response, { status: error.statusCode });
 }

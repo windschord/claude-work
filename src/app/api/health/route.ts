@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   const timestamp = new Date().toISOString();
 
   logger.debug('Health check requested', { timestamp });
