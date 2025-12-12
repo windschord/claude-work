@@ -1,5 +1,6 @@
 """ランスクリプトAPIのテスト"""
 import uuid
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -188,3 +189,149 @@ class TestRunScripts:
 
         assert response.status_code == 404
         assert response.json()["detail"] == "Run script not found"
+
+
+class TestExecuteRunScript:
+    """ランスクリプト実行APIのテスト"""
+
+    def _login(self, client: TestClient) -> None:
+        """ログイン処理"""
+        response = client.post(
+            "/api/auth/login",
+            data={"token": "development_token_change_in_production"},
+        )
+        assert response.status_code == 200
+
+    def _create_project(self, client: TestClient, path: str = "/home/tsk/sync/git/claude-work") -> str:
+        """テスト用プロジェクトを作成"""
+        response = client.post(
+            "/api/projects",
+            json={"path": path},
+        )
+        assert response.status_code == 201
+        return response.json()["id"]
+
+    def _create_session(self, client: TestClient, project_id: str) -> str:
+        """テスト用セッションを作成"""
+        with patch("app.services.session_service.GitService") as mock_git_service_class, \
+             patch("app.services.session_service.ProcessManager") as mock_process_manager_class:
+
+            mock_git_service = AsyncMock()
+            mock_git_service.create_worktree.return_value = "/home/tsk/sync/git/claude-work/.worktrees/test-session"
+            mock_git_service.get_git_status.return_value = {
+                "has_changes": False,
+                "files": [],
+            }
+            mock_git_service_class.return_value = mock_git_service
+
+            mock_process_manager = AsyncMock()
+            mock_process_manager.start_claude_code = AsyncMock()
+            mock_process_manager_class.return_value = mock_process_manager
+
+            response = client.post(
+                f"/api/projects/{project_id}/sessions",
+                json={"name": "test-session", "message": "test message"},
+            )
+            assert response.status_code == 201
+            return response.json()["id"]
+
+    def _create_run_script(self, client: TestClient, project_id: str) -> int:
+        """テスト用ランスクリプトを作成"""
+        response = client.post(
+            f"/api/projects/{project_id}/run-scripts",
+            json={
+                "name": "Test Script",
+                "command": "echo 'test'",
+            },
+        )
+        assert response.status_code == 201
+        return response.json()["id"]
+
+    @patch("app.api.run_scripts.ScriptRunner")
+    def test_execute_run_script_success(self, mock_script_runner_class, client: TestClient):
+        """ランスクリプトを実行できる"""
+        self._login(client)
+        project_id = self._create_project(client)
+        session_id = self._create_session(client, project_id)
+        script_id = self._create_run_script(client, project_id)
+
+        # ScriptRunnerのモック設定
+        mock_script_runner = AsyncMock()
+        mock_script_runner.run_script = AsyncMock(return_value={
+            "success": True,
+            "output": "test output\nline 2",
+            "exit_code": 0,
+            "execution_time": 1.23,
+        })
+        mock_script_runner_class.return_value = mock_script_runner
+
+        # スクリプト実行
+        response = client.post(f"/api/execute-script/{session_id}/{script_id}")
+
+        # 結果を確認
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["output"] == "test output\nline 2"
+        assert data["exit_code"] == 0
+        assert data["execution_time"] == 1.23
+
+        # ScriptRunnerが正しく呼ばれたことを確認
+        mock_script_runner.run_script.assert_called_once()
+
+    @patch("app.api.run_scripts.ScriptRunner")
+    def test_execute_run_script_failure(self, mock_script_runner_class, client: TestClient):
+        """スクリプト実行が失敗した場合の動作"""
+        self._login(client)
+        project_id = self._create_project(client)
+        session_id = self._create_session(client, project_id)
+        script_id = self._create_run_script(client, project_id)
+
+        # ScriptRunnerのモック設定（失敗）
+        mock_script_runner = AsyncMock()
+        mock_script_runner.run_script = AsyncMock(return_value={
+            "success": False,
+            "output": "error message",
+            "exit_code": 1,
+            "execution_time": 0.5,
+        })
+        mock_script_runner_class.return_value = mock_script_runner
+
+        # スクリプト実行
+        response = client.post(f"/api/execute-script/{session_id}/{script_id}")
+
+        # 結果を確認
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
+        assert data["exit_code"] == 1
+        assert "error" in data["output"].lower()
+
+    def test_execute_run_script_session_not_found(self, client: TestClient):
+        """存在しないセッションの場合、404エラーを返す"""
+        self._login(client)
+        project_id = self._create_project(client)
+        script_id = self._create_run_script(client, project_id)
+        fake_session_id = str(uuid.uuid4())
+
+        response = client.post(f"/api/execute-script/{fake_session_id}/{script_id}")
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Session not found"
+
+    def test_execute_run_script_script_not_found(self, client: TestClient):
+        """存在しないスクリプトの場合、404エラーを返す"""
+        self._login(client)
+        project_id = self._create_project(client)
+        session_id = self._create_session(client, project_id)
+
+        response = client.post(f"/api/execute-script/{session_id}/99999")
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Run script not found"
+
+    def test_execute_run_script_without_authentication(self, client: TestClient):
+        """認証なしでスクリプト実行が拒否される"""
+        response = client.post(f"/api/execute-script/{uuid.uuid4()}/1")
+        assert response.status_code == 401
+

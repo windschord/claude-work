@@ -11,6 +11,8 @@ from app.middleware.auth import verify_session
 from app.models.auth_session import AuthSession
 from app.models.project import Project
 from app.models.run_script import RunScript
+from app.models.session import Session
+from app.services.script_runner import ScriptRunner
 
 router = APIRouter(prefix="/api/projects/{project_id}/run-scripts", tags=["run_scripts"])
 
@@ -290,3 +292,86 @@ async def delete_run_script(
     # ランスクリプトを削除
     await db.delete(run_script)
     await db.commit()
+
+
+# スクリプト実行用のルーター（セッションベース）
+execution_router = APIRouter(tags=["run_scripts"])
+
+
+class ScriptExecutionResult(BaseModel):
+    """スクリプト実行結果"""
+
+    success: bool
+    output: str
+    exit_code: int
+    execution_time: float
+
+
+@execution_router.post("/api/execute-script/{target_session_id}/{script_id}", response_model=ScriptExecutionResult)
+async def execute_run_script(
+    target_session_id: str,
+    script_id: int,
+    auth_session: AuthSession = Depends(verify_session),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    セッションのworktree内でランスクリプトを実行
+
+    Args:
+        target_session_id: セッションID
+        script_id: ランスクリプトID
+        auth_session: 認証セッション
+        db: データベースセッション
+
+    Returns:
+        スクリプト実行結果
+
+    Raises:
+        HTTPException: セッションまたはスクリプトが見つからない場合
+    """
+    # セッションの存在確認
+    try:
+        session_uuid = uuid.UUID(target_session_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid session_id format",
+        )
+
+    result = await db.execute(select(Session).where(Session.id == session_uuid))
+    session = result.scalar_one_or_none()
+
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found",
+        )
+
+    # ランスクリプトの存在確認
+    result = await db.execute(
+        select(RunScript).where(
+            RunScript.id == script_id,
+            RunScript.project_id == session.project_id,
+        )
+    )
+    run_script = result.scalar_one_or_none()
+
+    if not run_script:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Run script not found",
+        )
+
+    # スクリプトを実行
+    script_runner = ScriptRunner()
+    execution_result = await script_runner.run_script(
+        worktree_path=session.worktree_path,
+        command=run_script.command,
+    )
+
+    return ScriptExecutionResult(
+        success=execution_result["success"],
+        output=execution_result["output"],
+        exit_code=execution_result["exit_code"],
+        execution_time=execution_result["execution_time"],
+    )
