@@ -93,6 +93,53 @@ npm run dev
 - `GET /`: ウェルカムメッセージ
 - `GET /health`: ヘルスチェック
 
+## テスト
+
+### E2Eテスト（Playwright）
+
+E2Eテストはフロントエンドとバックエンドの統合テストを提供します。
+
+#### テストの実行
+
+```bash
+# フロントエンドディレクトリに移動
+cd frontend
+
+# E2Eテストを実行（ヘッドレスモード）
+npm run e2e
+
+# UIモードで実行（対話的）
+npm run e2e:ui
+
+# ヘッドモードで実行（ブラウザが表示される）
+npm run e2e:headed
+
+# デバッグモード
+npm run e2e:debug
+```
+
+#### 前提条件
+
+E2Eテストを実行するには、以下の環境変数を設定してください：
+
+```bash
+# .env ファイルに以下を設定
+AUTH_TOKEN=test-token-for-e2e
+```
+
+テストはフロントエンドとバックエンドを自動的に起動します（playwright.config.tsのwebServer設定）。
+
+#### テストファイル
+
+- `e2e/login.spec.ts`: ログインフローのテスト
+- `e2e/projects.spec.ts`: プロジェクト管理のテスト
+- `e2e/sessions.spec.ts`: セッション管理のテスト
+
+#### テスト用フィクスチャ
+
+- `e2e/fixtures/auth.ts`: 認証ヘルパー
+- `e2e/fixtures/git-repo.ts`: テスト用Gitリポジトリ管理
+
 ## 開発ガイドライン
 
 - コミットは親エージェントが行います
