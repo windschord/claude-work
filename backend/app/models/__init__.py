@@ -3,6 +3,7 @@ from app.models.auth_session import AuthSession
 from app.models.base import Base
 from app.models.message import Message, MessageRole
 from app.models.project import Project
+from app.models.prompt_history import PromptHistory
 from app.models.session import Session, SessionStatus
 
 __all__ = [
@@ -13,4 +14,5 @@ __all__ = [
     "Message",
     "MessageRole",
     "AuthSession",
+    "PromptHistory",
 ]

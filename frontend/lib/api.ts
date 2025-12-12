@@ -70,6 +70,13 @@ export interface MergeResult {
   message: string;
 }
 
+export interface PromptHistory {
+  id: number;
+  project_id: string;
+  prompt_text: string;
+  created_at: string;
+}
+
 // WebSocket message types
 export type WebSocketMessage =
   | { type: 'assistant_output'; content: string }
@@ -346,5 +353,49 @@ export const api = {
     }
 
     return await response.json();
+  },
+
+  async getPromptHistory(projectId: string): Promise<PromptHistory[]> {
+    const response = await fetch(`${API_URL}/api/projects/${projectId}/prompt-history`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'プロンプト履歴の取得に失敗しました' }));
+      throw new ApiError(response.status, errorData.detail || 'プロンプト履歴の取得に失敗しました');
+    }
+
+    return await response.json();
+  },
+
+  async savePromptHistory(projectId: string, promptText: string): Promise<PromptHistory> {
+    const response = await fetch(`${API_URL}/api/projects/${projectId}/prompt-history`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ prompt_text: promptText }),
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'プロンプト履歴の保存に失敗しました' }));
+      throw new ApiError(response.status, errorData.detail || 'プロンプト履歴の保存に失敗しました');
+    }
+
+    return await response.json();
+  },
+
+  async deletePromptHistory(projectId: string, historyId: number): Promise<void> {
+    const response = await fetch(`${API_URL}/api/projects/${projectId}/prompt-history/${historyId}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'プロンプト履歴の削除に失敗しました' }));
+      throw new ApiError(response.status, errorData.detail || 'プロンプト履歴の削除に失敗しました');
+    }
   },
 };

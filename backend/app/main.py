@@ -6,7 +6,7 @@ from fastapi import Cookie, Depends, FastAPI, Query, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api import auth, git_ops, projects, sessions
+from app.api import auth, git_ops, projects, prompt_history, sessions
 from app.config import settings
 from app.database import get_db
 from app.logging_config import configure_logging, get_logger
@@ -49,6 +49,7 @@ app.include_router(auth.router)
 app.include_router(projects.router)
 app.include_router(sessions.router)
 app.include_router(git_ops.router)
+app.include_router(prompt_history.router)
 
 
 @app.get("/")

@@ -37,6 +37,11 @@ class Project(Base):
         back_populates="project",
         cascade="all, delete-orphan",
     )
+    prompt_history: Mapped[list["PromptHistory"]] = relationship(
+        "PromptHistory",
+        back_populates="project",
+        cascade="all, delete-orphan",
+    )
 
     def __repr__(self) -> str:
         return f"<Project(id={self.id}, name={self.name})>"

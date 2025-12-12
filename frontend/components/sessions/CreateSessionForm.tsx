@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { usePromptHistoryStore } from '@/store/promptHistory';
+import PromptHistoryDropdown from './PromptHistoryDropdown';
 
 interface CreateSessionFormProps {
   projectId: string;
@@ -17,13 +19,14 @@ interface FormData {
 
 export default function CreateSessionForm({ projectId, onSubmit, isLoading }: CreateSessionFormProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const { register, handleSubmit, formState: { errors }, reset, watch } = useForm<FormData>({
+  const { register, handleSubmit, formState: { errors }, reset, watch, setValue } = useForm<FormData>({
     defaultValues: {
       name: '',
       initialPrompt: '',
       count: 1,
     },
   });
+  const { saveToHistory } = usePromptHistoryStore();
 
   const count = watch('count');
   const sessionName = watch('name');
@@ -31,11 +34,25 @@ export default function CreateSessionForm({ projectId, onSubmit, isLoading }: Cr
   const handleFormSubmit = async (data: FormData) => {
     try {
       await onSubmit(data.name, data.initialPrompt || undefined, data.count);
+
+      // プロンプトが入力されていれば履歴に保存
+      if (data.initialPrompt && data.initialPrompt.trim()) {
+        try {
+          await saveToHistory(projectId, data.initialPrompt.trim());
+        } catch (error) {
+          console.error('Failed to save prompt history:', error);
+        }
+      }
+
       reset();
       setIsExpanded(false);
     } catch (error) {
       // エラーはストアで処理される
     }
+  };
+
+  const handleHistorySelect = (promptText: string) => {
+    setValue('initialPrompt', promptText);
   };
 
   // プレビュー用のセッション名リストを生成
@@ -120,9 +137,12 @@ export default function CreateSessionForm({ projectId, onSubmit, isLoading }: Cr
           )}
 
           <div>
-            <label htmlFor="initialPrompt" className="block text-sm font-medium text-gray-700 mb-1">
-              初期プロンプト（任意）
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label htmlFor="initialPrompt" className="block text-sm font-medium text-gray-700">
+                初期プロンプト（任意）
+              </label>
+              <PromptHistoryDropdown projectId={projectId} onSelect={handleHistorySelect} />
+            </div>
             <textarea
               id="initialPrompt"
               {...register('initialPrompt')}
