@@ -68,7 +68,8 @@ Next.js統合プロジェクトを初期化する
 
 **依存関係**: なし
 **推定工数**: 25分
-**ステータス**: `TODO`
+**ステータス**: `DONE`
+**完了サマリー**: Next.js 14統合プロジェクト初期化完了。TypeScript、Tailwind CSS、App Router設定済み。npx claude-work用のbin設定とCLIエントリーポイント作成済み。
 
 ---
 
