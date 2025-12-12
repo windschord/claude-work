@@ -1,0 +1,51 @@
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: claudework-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      - NEXT_PUBLIC_WS_URL=${NEXT_PUBLIC_WS_URL:-ws://localhost:8000}
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - claudework-network
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: claudework-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ${GIT_REPOS_PATH:-/home}:/repos:ro
+    environment:
+      - AUTH_TOKEN=${AUTH_TOKEN}
+      - DATABASE_URL=${DATABASE_URL:-sqlite+aiosqlite:///./data/claudework.db}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    networks:
+      - claudework-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+networks:
+  claudework-network:
+    driver: bridge
+
+volumes:
+  data:
+    driver: local
