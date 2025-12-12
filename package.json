@@ -9,21 +9,30 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
+    "next": "14.2.21",
     "react": "^18",
     "react-dom": "^18",
-    "next": "14.2.21"
+    "winston": "^3.19.0",
+    "zustand": "^5.0.9"
   },
   "devDependencies": {
-    "typescript": "^5",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.0",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "@vitejs/plugin-react": "^5.1.2",
+    "eslint": "^8",
+    "eslint-config-next": "14.2.21",
+    "jsdom": "^27.3.0",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
-    "eslint": "^8",
-    "eslint-config-next": "14.2.21"
+    "typescript": "^5",
+    "vitest": "^4.0.15"
   }
 }
