@@ -1,14 +1,18 @@
 """FastAPIアプリケーション"""
 from contextlib import asynccontextmanager
+from typing import Optional
 
-from fastapi import Depends, FastAPI
+from fastapi import Cookie, Depends, FastAPI, Query, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api import auth, git_ops, projects, sessions
 from app.config import settings
+from app.database import get_db
 from app.logging_config import configure_logging, get_logger
 from app.middleware.auth import verify_session
 from app.models.auth_session import AuthSession
+from app.websocket.session_ws import websocket_endpoint
 
 
 @asynccontextmanager
@@ -65,4 +69,22 @@ async def health():
 async def protected(session: AuthSession = Depends(verify_session)):
     """認証が必要なエンドポイント（テスト用）"""
     return {"message": "You are authenticated", "session_id": str(session.id)}
+
+
+@app.websocket("/ws/sessions/{session_id}")
+async def websocket_session(
+    websocket: WebSocket,
+    session_id: str,
+    db: AsyncSession = Depends(get_db),
+    auth_session_id: Optional[str] = Cookie(None, alias=settings.session_cookie_name),
+    query_session_id: Optional[str] = Query(None, alias="session_id"),
+):
+    """セッション用WebSocketエンドポイント"""
+    await websocket_endpoint(
+        websocket=websocket,
+        session_id=session_id,
+        db=db,
+        auth_session_id=auth_session_id,
+        query_session_id=query_session_id,
+    )
 
