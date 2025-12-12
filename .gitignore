@@ -14,7 +14,7 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+# lib/ is commented out for Node.js projects (src/lib/ should be tracked)
 lib64/
 parts/
 sdist/
