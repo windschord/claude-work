@@ -4,10 +4,13 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { usePromptHistoryStore } from '@/store/promptHistory';
 import PromptHistoryDropdown from './PromptHistoryDropdown';
+import { CLAUDE_MODELS } from '@/lib/constants';
+import type { Project } from '@/lib/api';
 
 interface CreateSessionFormProps {
   projectId: string;
-  onSubmit: (name: string, initialPrompt?: string, count?: number) => Promise<void>;
+  project: Project;
+  onSubmit: (name: string, initialPrompt?: string, count?: number, model?: string) => Promise<void>;
   isLoading: boolean;
 }
 
@@ -15,15 +18,17 @@ interface FormData {
   name: string;
   initialPrompt: string;
   count: number;
+  model: string;
 }
 
-export default function CreateSessionForm({ projectId, onSubmit, isLoading }: CreateSessionFormProps) {
+export default function CreateSessionForm({ projectId, project, onSubmit, isLoading }: CreateSessionFormProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const { register, handleSubmit, formState: { errors }, reset, watch, setValue } = useForm<FormData>({
     defaultValues: {
       name: '',
       initialPrompt: '',
       count: 1,
+      model: project.default_model,
     },
   });
   const { saveToHistory } = usePromptHistoryStore();
@@ -33,7 +38,7 @@ export default function CreateSessionForm({ projectId, onSubmit, isLoading }: Cr
 
   const handleFormSubmit = async (data: FormData) => {
     try {
-      await onSubmit(data.name, data.initialPrompt || undefined, data.count);
+      await onSubmit(data.name, data.initialPrompt || undefined, data.count, data.model);
 
       // プロンプトが入力されていれば履歴に保存
       if (data.initialPrompt && data.initialPrompt.trim()) {
@@ -123,6 +128,24 @@ export default function CreateSessionForm({ projectId, onSubmit, isLoading }: Cr
             {errors.count && (
               <p className="mt-1 text-sm text-red-600">{errors.count.message}</p>
             )}
+          </div>
+
+          <div>
+            <label htmlFor="model" className="block text-sm font-medium text-gray-700 mb-1">
+              モデル
+            </label>
+            <select
+              id="model"
+              {...register('model')}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
+              disabled={isLoading}
+            >
+              {CLAUDE_MODELS.map((model) => (
+                <option key={model.value} value={model.value}>
+                  {model.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           {count > 1 && sessionName && (

@@ -6,7 +6,7 @@ interface SessionsState {
   isLoading: boolean;
   error: string | null;
   fetchSessions: (projectId: string) => Promise<void>;
-  createSession: (projectId: string, name: string, initialPrompt?: string, count?: number) => Promise<Session[]>;
+  createSession: (projectId: string, name: string, initialPrompt?: string, count?: number, model?: string) => Promise<Session[]>;
   stopSession: (id: string) => Promise<void>;
   deleteSession: (id: string) => Promise<void>;
   clearError: () => void;
@@ -28,10 +28,10 @@ export const useSessionsStore = create<SessionsState>((set) => ({
     }
   },
 
-  createSession: async (projectId: string, name: string, initialPrompt?: string, count?: number) => {
+  createSession: async (projectId: string, name: string, initialPrompt?: string, count?: number, model?: string) => {
     set({ isLoading: true, error: null });
     try {
-      const newSessions = await api.createSession(projectId, name, initialPrompt, count);
+      const newSessions = await api.createSession(projectId, name, initialPrompt, count, model);
       set((state) => ({
         sessions: [...state.sessions, ...newSessions],
         isLoading: false,

@@ -11,6 +11,7 @@ export interface Project {
   id: string;
   name: string;
   path: string;
+  default_model: string;
   created_at: string;
   updated_at: string;
 }
@@ -22,6 +23,7 @@ export interface Session {
   project_id: string;
   name: string;
   status: SessionStatus;
+  model: string | null;
   branch_name: string;
   worktree_path: string;
   created_at: string;
@@ -143,13 +145,13 @@ export const api = {
     return await response.json();
   },
 
-  async createProject(path: string): Promise<Project> {
+  async createProject(path: string, defaultModel?: string): Promise<Project> {
     const response = await fetch(`${API_URL}/api/projects`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ path }),
+      body: JSON.stringify({ path, default_model: defaultModel }),
       credentials: 'include',
     });
 
@@ -161,13 +163,13 @@ export const api = {
     return await response.json();
   },
 
-  async updateProject(id: string, name: string): Promise<Project> {
+  async updateProject(id: string, name?: string, defaultModel?: string): Promise<Project> {
     const response = await fetch(`${API_URL}/api/projects/${id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, default_model: defaultModel }),
       credentials: 'include',
     });
 
@@ -205,13 +207,13 @@ export const api = {
     return await response.json();
   },
 
-  async createSession(projectId: string, name: string, initialPrompt?: string, count?: number): Promise<Session[]> {
+  async createSession(projectId: string, name: string, initialPrompt?: string, count?: number, model?: string): Promise<Session[]> {
     const response = await fetch(`${API_URL}/api/projects/${projectId}/sessions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ name, message: initialPrompt || '', count }),
+      body: JSON.stringify({ name, message: initialPrompt || '', count, model }),
       credentials: 'include',
     });
 

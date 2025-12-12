@@ -27,8 +27,8 @@ export default function ProjectDetailPage() {
 
   const project = projects.find((p) => p.id === projectId);
 
-  const handleCreateSession = async (name: string, initialPrompt?: string, count?: number) => {
-    await createSession(projectId, name, initialPrompt, count);
+  const handleCreateSession = async (name: string, initialPrompt?: string, count?: number, model?: string) => {
+    await createSession(projectId, name, initialPrompt, count, model);
   };
 
   if (projectsLoading) {
@@ -63,6 +63,7 @@ export default function ProjectDetailPage() {
       <div className="space-y-6">
         <CreateSessionForm
           projectId={projectId}
+          project={project}
           onSubmit={handleCreateSession}
           isLoading={sessionsLoading}
         />
