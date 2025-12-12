@@ -70,6 +70,17 @@ export interface MergeResult {
   message: string;
 }
 
+// WebSocket message types
+export type WebSocketMessage =
+  | { type: 'assistant_output'; content: string }
+  | { type: 'permission_request'; permission_id: string; description: string }
+  | { type: 'session_status'; status: SessionStatus }
+  | { type: 'error'; message: string };
+
+export type WebSocketClientMessage =
+  | { type: 'user_input'; content: string }
+  | { type: 'permission_response'; permission_id: string; approved: boolean };
+
 export const api = {
   async login(token: string): Promise<void> {
     const formData = new FormData();
