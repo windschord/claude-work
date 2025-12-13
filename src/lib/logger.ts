@@ -1,7 +1,19 @@
 import winston from 'winston';
 
+/**
+ * ログレベルの設定
+ *
+ * 環境変数LOG_LEVELが設定されていればそれを使用し、
+ * 未設定の場合は本番環境では'info'、それ以外では'debug'を使用します。
+ */
 const LOG_LEVEL = process.env.LOG_LEVEL || (process.env.NODE_ENV === 'production' ? 'info' : 'debug');
 
+/**
+ * Winstonロガーインスタンス
+ *
+ * タイムスタンプ、エラースタック、JSON形式のログを出力します。
+ * コンソールにはカラー付きで人間が読みやすい形式で出力されます。
+ */
 const logger = winston.createLogger({
   level: LOG_LEVEL,
   format: winston.format.combine(
