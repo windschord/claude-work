@@ -144,7 +144,10 @@ describe('GitService', () => {
       execSync('git add . && git commit -m "feature commit 2"', { cwd: worktreePath, shell: true });
 
       const commitMessage = 'Squashed feature commits';
-      gitService.squashMerge(sessionName, commitMessage);
+      const result = gitService.squashMerge(sessionName, commitMessage);
+
+      expect(result.success).toBe(true);
+      expect(result.conflicts).toBeUndefined();
 
       const log = execSync('git log --oneline -1', { cwd: testRepoPath }).toString();
       expect(log).toContain(commitMessage);

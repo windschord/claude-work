@@ -3,7 +3,6 @@ import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { GitService } from '@/services/git-service';
 import { logger } from '@/lib/logger';
-import { spawnSync } from 'child_process';
 import { basename } from 'path';
 
 /**
@@ -81,42 +80,18 @@ export async function POST(
     const sessionName = basename(targetSession.worktree_path);
     const gitService = new GitService(targetSession.project.path, logger);
 
-    try {
-      gitService.squashMerge(sessionName, commitMessage);
-      logger.info('Merged session successfully', { id, commitMessage });
-      return NextResponse.json({ success: true });
-    } catch (error: unknown) {
-      const err = error as { message?: string; toString?: () => string };
-      const errorMessage = err?.message || err?.toString?.() || '';
+    const result = gitService.squashMerge(sessionName, commitMessage);
 
-      if (errorMessage.includes('CONFLICT') || errorMessage.includes('conflict')) {
-        try {
-          const conflictsResult = spawnSync('git', ['diff', '--name-only', '--diff-filter=U'], {
-            cwd: targetSession.project.path,
-            encoding: 'utf-8',
-          });
-
-          const conflicts = (conflictsResult.stdout || '')
-            .split('\n')
-            .filter((file) => file.length > 0);
-
-          spawnSync('git', ['reset', '--merge'], {
-            cwd: targetSession.project.path,
-          });
-
-          logger.warn('Merge failed with conflicts', { id, conflicts });
-          return NextResponse.json(
-            { success: false, conflicts },
-            { status: 409 }
-          );
-        } catch (abortError) {
-          logger.error('Failed to handle merge conflict', { id, error: abortError });
-          throw abortError;
-        }
-      }
-
-      throw error;
+    if (!result.success && result.conflicts) {
+      logger.warn('Merge failed with conflicts', { id, conflicts: result.conflicts });
+      return NextResponse.json(
+        { success: false, conflicts: result.conflicts },
+        { status: 409 }
+      );
     }
+
+    logger.info('Merged session successfully', { id, commitMessage });
+    return NextResponse.json({ success: true });
   } catch (error) {
     const { id: errorId } = await params;
     logger.error('Failed to merge session', { error, session_id: errorId });

@@ -184,9 +184,10 @@ export class GitService {
    *
    * @param sessionName - マージするセッション名
    * @param commitMessage - マージコミットのメッセージ
-   * @throws マージやコミットが失敗した場合にエラーをスロー
+   * @returns マージの成功/失敗とコンフリクトファイルのリスト（失敗時のみ）
+   * @throws マージの中止に失敗した場合にエラーをスロー
    */
-  squashMerge(sessionName: string, commitMessage: string): void {
+  squashMerge(sessionName: string, commitMessage: string): { success: boolean; conflicts?: string[] } {
     const worktreePath = join(this.repoPath, '.worktrees', sessionName);
     const gitignorePath = join(this.repoPath, '.gitignore');
 
@@ -219,6 +220,25 @@ export class GitService {
       });
 
       if (mergeResult.error || mergeResult.status !== 0) {
+        // Check for conflicts
+        const conflictsResult = spawnSync('git', ['diff', '--name-only', '--diff-filter=U'], {
+          cwd: this.repoPath,
+          encoding: 'utf-8',
+        });
+
+        const conflicts = (conflictsResult.stdout || '')
+          .split('\n')
+          .filter((file) => file.length > 0);
+
+        if (conflicts.length > 0) {
+          spawnSync('git', ['reset', '--merge'], {
+            cwd: this.repoPath,
+          });
+
+          this.logger.warn('Squash merge conflicts detected', { sessionName, conflicts });
+          return { success: false, conflicts };
+        }
+
         const errorMsg = mergeResult.stderr || mergeResult.stdout || 'Failed to squash merge';
         throw new Error(errorMsg);
       }
@@ -240,6 +260,7 @@ export class GitService {
       }
 
       this.logger.info('Successfully squash merged', { sessionName, commitMessage });
+      return { success: true };
     } catch (error) {
       this.logger.error('Failed to squash merge', { sessionName, error });
       throw error;
