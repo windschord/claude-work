@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { api, ScriptExecutionResult } from '@/lib/api';
 import { useRunScriptsStore } from '@/store/runScripts';
+import LogViewer from './LogViewer';
 
 interface RunScriptPanelProps {
   sessionId: string;
@@ -122,10 +123,8 @@ export default function RunScriptPanel({ sessionId, projectId }: RunScriptPanelP
             </div>
 
             {/* 出力 */}
-            <div className="bg-gray-900 rounded-md p-4 overflow-x-auto">
-              <pre className="text-sm text-gray-100 font-mono whitespace-pre-wrap">
-                {result.output || '(出力なし)'}
-              </pre>
+            <div className="bg-gray-900 rounded-md overflow-hidden" style={{ height: '500px' }}>
+              <LogViewer output={result.output || ''} />
             </div>
           </div>
         )}
