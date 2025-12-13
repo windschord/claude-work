@@ -1,5 +1,5 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import LoginPage from '../login/page';
 import { useAppStore } from '@/store';
 
@@ -9,10 +9,11 @@ vi.mock('@/store', () => ({
 }));
 
 // Next.jsのナビゲーションモック
+const mockPush = vi.fn();
 vi.mock('next/navigation', () => ({
   redirect: vi.fn(),
   useRouter: () => ({
-    push: vi.fn(),
+    push: mockPush,
     replace: vi.fn(),
   }),
 }));
@@ -23,6 +24,7 @@ describe('LoginPage', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPush.mockClear();
     (useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       isAuthenticated: false,
       login: mockLogin,
@@ -30,11 +32,15 @@ describe('LoginPage', () => {
     });
   });
 
+  afterEach(() => {
+    cleanup();
+  });
+
   it('ログインフォームが表示される', () => {
     render(<LoginPage />);
 
     expect(screen.getByText('ClaudeWork')).toBeInTheDocument();
-    expect(screen.getByText('ログイン')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'ログイン' })).toBeInTheDocument();
     expect(screen.getByPlaceholderText('認証トークンを入力')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'ログイン' })).toBeInTheDocument();
   });
@@ -98,7 +104,7 @@ describe('LoginPage', () => {
   });
 
   it('ネットワークエラーで適切なエラーメッセージが表示される', async () => {
-    mockLogin.mockRejectedValueOnce(new Error('Network error'));
+    mockLogin.mockRejectedValueOnce(new Error('ネットワークエラーが発生しました'));
 
     render(<LoginPage />);
 
@@ -109,7 +115,7 @@ describe('LoginPage', () => {
     fireEvent.click(button);
 
     await waitFor(() => {
-      expect(screen.getByText(/ネットワークエラー|エラー/)).toBeInTheDocument();
+      expect(screen.getByText('ネットワークエラーが発生しました')).toBeInTheDocument();
     });
   });
 

@@ -1,5 +1,5 @@
-import { render, screen, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, waitFor, cleanup } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import AuthGuard from '../AuthGuard';
 import { useAppStore } from '@/store';
 
@@ -24,6 +24,10 @@ describe('AuthGuard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockRedirect.mockClear();
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   it('認証済みの場合は子コンポーネントを表示する', async () => {
@@ -79,38 +83,27 @@ describe('AuthGuard', () => {
   });
 
   it('認証状態が変化した場合に適切に処理される', async () => {
-    let isAuthenticated = false;
-    const mockCheckAuthWithStateChange = vi.fn().mockImplementation(() => {
-      isAuthenticated = true;
-    });
+    const mockCheckAuthWithStateChange = vi.fn();
 
-    (useAppStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => ({
-      isAuthenticated,
-      checkAuth: mockCheckAuthWithStateChange,
-    }));
-
-    const { rerender } = render(
-      <AuthGuard>
-        <div>Protected Content</div>
-      </AuthGuard>
-    );
-
-    // 認証状態が変化した後にリレンダリング
-    isAuthenticated = true;
+    // 認証済み状態で開始
     (useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       isAuthenticated: true,
       checkAuth: mockCheckAuthWithStateChange,
     });
 
-    rerender(
+    render(
       <AuthGuard>
         <div>Protected Content</div>
       </AuthGuard>
     );
 
+    // 認証済み状態では子コンポーネントが表示される
     await waitFor(() => {
       expect(screen.getByText('Protected Content')).toBeInTheDocument();
     });
+
+    // checkAuthが呼ばれたことを確認
+    expect(mockCheckAuthWithStateChange).toHaveBeenCalled();
   });
 
   it('checkAuthがエラーになっても適切に処理される', async () => {
