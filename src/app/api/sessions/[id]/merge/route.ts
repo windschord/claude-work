@@ -70,9 +70,19 @@ export async function POST(
     const body = await request.json();
     const { commitMessage } = body;
 
-    if (!commitMessage) {
+    if (!commitMessage || typeof commitMessage !== 'string') {
       return NextResponse.json(
-        { error: 'commitMessage is required' },
+        { error: 'commitMessage is required and must be a string' },
+        { status: 400 }
+      );
+    }
+
+    // コミットメッセージから制御文字を除去（コマンドインジェクション対策の追加層）
+    const sanitizedMessage = commitMessage.replace(/[\x00-\x1F\x7F]/g, ' ').trim();
+
+    if (!sanitizedMessage) {
+      return NextResponse.json(
+        { error: 'commitMessage cannot be empty after sanitization' },
         { status: 400 }
       );
     }
@@ -80,7 +90,7 @@ export async function POST(
     const sessionName = basename(targetSession.worktree_path);
     const gitService = new GitService(targetSession.project.path, logger);
 
-    const result = gitService.squashMerge(sessionName, commitMessage);
+    const result = gitService.squashMerge(sessionName, sanitizedMessage);
 
     if (!result.success && result.conflicts) {
       logger.warn('Merge failed with conflicts', { id, conflicts: result.conflicts });
@@ -90,7 +100,7 @@ export async function POST(
       );
     }
 
-    logger.info('Merged session successfully', { id, commitMessage });
+    logger.info('Merged session successfully', { id, commitMessage: sanitizedMessage });
     return NextResponse.json({ success: true });
   } catch (error) {
     const { id: errorId } = await params;

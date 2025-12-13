@@ -4,6 +4,7 @@ import { getSession } from '@/lib/auth';
 import { spawnSync } from 'child_process';
 import { basename, resolve } from 'path';
 import { logger } from '@/lib/logger';
+import { parseRunScripts } from '@/lib/run-scripts';
 
 /**
  * GET /api/projects - プロジェクト一覧取得
@@ -53,8 +54,14 @@ export async function GET(request: NextRequest) {
       orderBy: { created_at: 'desc' },
     });
 
+    // run_scriptsをパースして配列に変換
+    const projectsWithParsedScripts = projects.map((project) => ({
+      ...project,
+      run_scripts: parseRunScripts(project.run_scripts),
+    }));
+
     logger.debug('Projects retrieved', { count: projects.length });
-    return NextResponse.json(projects);
+    return NextResponse.json(projectsWithParsedScripts);
   } catch (error) {
     logger.error('Failed to get projects', { error });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -137,8 +144,14 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // run_scriptsをパースして配列に変換
+    const projectWithParsedScripts = {
+      ...project,
+      run_scripts: parseRunScripts(project.run_scripts),
+    };
+
     logger.info('Project created', { id: project.id, name, path: absolutePath });
-    return NextResponse.json(project, { status: 201 });
+    return NextResponse.json(projectWithParsedScripts, { status: 201 });
   } catch (error) {
     logger.error('Failed to create project', { error });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

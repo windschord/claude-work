@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { logger } from '@/lib/logger';
+import { parseRunScripts, serializeRunScripts } from '@/lib/run-scripts';
 
 /**
  * PUT /api/projects/[project_id] - プロジェクト更新
@@ -57,17 +58,28 @@ export async function PUT(
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
+    // run_scriptsの処理：bodyから来た配列をシリアライズ、未指定時はexistingを維持
+    const runScriptsToStore = body.run_scripts !== undefined
+      ? serializeRunScripts(body.run_scripts)
+      : existing.run_scripts;
+
     const project = await prisma.project.update({
       where: { id: project_id },
       data: {
         name: body.name ?? existing.name,
         default_model: body.default_model ?? existing.default_model,
-        run_scripts: body.run_scripts ?? existing.run_scripts,
+        run_scripts: runScriptsToStore,
       },
     });
 
+    // レスポンスではrun_scriptsをパースして配列に変換
+    const projectWithParsedScripts = {
+      ...project,
+      run_scripts: parseRunScripts(project.run_scripts),
+    };
+
     logger.info('Project updated', { id: project_id, name: project.name });
-    return NextResponse.json(project);
+    return NextResponse.json(projectWithParsedScripts);
   } catch (error) {
     const { project_id: errorProjectId } = await params;
     logger.error('Failed to update project', { error, id: errorProjectId });
