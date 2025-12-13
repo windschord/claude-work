@@ -69,14 +69,14 @@ export default function CreateSessionForm({ projectId, project, onSubmit, isLoad
   };
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
+    <div className="bg-white rounded-lg shadow p-4 md:p-6">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-gray-900">新しいセッション</h2>
+        <h2 className="text-base md:text-lg font-semibold text-gray-900">新しいセッション</h2>
         {!isExpanded && (
           <button
             type="button"
             onClick={() => setIsExpanded(true)}
-            className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            className="min-h-[44px] px-4 md:px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 active:bg-blue-800"
           >
             作成
           </button>
@@ -84,9 +84,9 @@ export default function CreateSessionForm({ projectId, project, onSubmit, isLoad
       </div>
 
       {isExpanded && (
-        <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
+        <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4 md:space-y-4">
           <div>
-            <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="name" className="block text-sm md:text-sm font-medium text-gray-700 mb-1">
               セッション名 <span className="text-red-500">*</span>
             </label>
             <input
@@ -96,7 +96,7 @@ export default function CreateSessionForm({ projectId, project, onSubmit, isLoad
                 required: 'セッション名は必須です',
                 minLength: { value: 1, message: 'セッション名を入力してください' }
               })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
+              className="w-full min-h-[44px] px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-base md:text-sm"
               placeholder="例: feature-implementation"
               disabled={isLoading}
             />
@@ -106,7 +106,7 @@ export default function CreateSessionForm({ projectId, project, onSubmit, isLoad
           </div>
 
           <div>
-            <label htmlFor="count" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="count" className="block text-sm md:text-sm font-medium text-gray-700 mb-1">
               セッション数
             </label>
             <select
@@ -116,7 +116,7 @@ export default function CreateSessionForm({ projectId, project, onSubmit, isLoad
                 min: { value: 1, message: 'セッション数は1以上である必要があります' },
                 max: { value: 10, message: 'セッション数は10以下である必要があります' }
               })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
+              className="w-full min-h-[44px] px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-base md:text-sm"
               disabled={isLoading}
             >
               {Array.from({ length: 10 }, (_, i) => i + 1).map((num) => (
@@ -131,13 +131,13 @@ export default function CreateSessionForm({ projectId, project, onSubmit, isLoad
           </div>
 
           <div>
-            <label htmlFor="model" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="model" className="block text-sm md:text-sm font-medium text-gray-700 mb-1">
               モデル
             </label>
             <select
               id="model"
               {...register('model')}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
+              className="w-full min-h-[44px] px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-base md:text-sm"
               disabled={isLoading}
             >
               {CLAUDE_MODELS.map((model) => (
@@ -161,7 +161,7 @@ export default function CreateSessionForm({ projectId, project, onSubmit, isLoad
 
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label htmlFor="initialPrompt" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="initialPrompt" className="block text-sm md:text-sm font-medium text-gray-700">
                 初期プロンプト（任意）
               </label>
               <PromptHistoryDropdown projectId={projectId} onSelect={handleHistorySelect} />
@@ -170,17 +170,17 @@ export default function CreateSessionForm({ projectId, project, onSubmit, isLoad
               id="initialPrompt"
               {...register('initialPrompt')}
               rows={4}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-base md:text-sm"
               placeholder="Claude Codeに最初に送信するプロンプトを入力してください"
               disabled={isLoading}
             />
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex flex-col md:flex-row gap-3">
             <button
               type="submit"
               disabled={isLoading}
-              className="flex-1 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 min-h-[44px] px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed active:bg-blue-800"
             >
               {isLoading ? '作成中...' : '作成'}
             </button>
@@ -191,7 +191,7 @@ export default function CreateSessionForm({ projectId, project, onSubmit, isLoad
                 setIsExpanded(false);
               }}
               disabled={isLoading}
-              className="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="min-h-[44px] px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed active:bg-gray-400"
             >
               キャンセル
             </button>
