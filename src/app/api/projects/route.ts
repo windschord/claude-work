@@ -5,6 +5,38 @@ import { execSync } from 'child_process';
 import { basename } from 'path';
 import { logger } from '@/lib/logger';
 
+/**
+ * GET /api/projects - プロジェクト一覧取得
+ *
+ * 登録されているすべてのプロジェクトを作成日時の降順で取得します。
+ * 認証が必要です。
+ *
+ * @param request - sessionIdクッキーを含むリクエスト
+ *
+ * @returns
+ * - 200: プロジェクト一覧（配列）
+ * - 401: 認証されていない
+ * - 500: サーバーエラー
+ *
+ * @example
+ * ```typescript
+ * // リクエスト
+ * GET /api/projects
+ * Cookie: sessionId=<uuid>
+ *
+ * // レスポンス
+ * [
+ *   {
+ *     "id": "uuid",
+ *     "name": "my-project",
+ *     "path": "/path/to/repo",
+ *     "default_model": "auto",
+ *     "run_scripts": true,
+ *     "created_at": "2025-12-13T09:00:00.000Z"
+ *   }
+ * ]
+ * ```
+ */
 export async function GET(request: NextRequest) {
   try {
     const sessionId = request.cookies.get('sessionId')?.value;
@@ -29,6 +61,40 @@ export async function GET(request: NextRequest) {
   }
 }
 
+/**
+ * POST /api/projects - 新規プロジェクト登録
+ *
+ * 指定されたパスのGitリポジトリをプロジェクトとして登録します。
+ * パスは有効なGitリポジトリである必要があります。
+ * 認証が必要です。
+ *
+ * @param request - リクエストボディに`path`フィールドを含むJSON、sessionIdクッキー
+ *
+ * @returns
+ * - 201: プロジェクト作成成功
+ * - 400: pathが指定されていない、または有効なGitリポジトリではない
+ * - 401: 認証されていない
+ * - 500: サーバーエラー
+ *
+ * @example
+ * ```typescript
+ * // リクエスト
+ * POST /api/projects
+ * Cookie: sessionId=<uuid>
+ * Content-Type: application/json
+ * { "path": "/path/to/git/repo" }
+ *
+ * // レスポンス
+ * {
+ *   "id": "uuid",
+ *   "name": "repo",
+ *   "path": "/path/to/git/repo",
+ *   "default_model": "auto",
+ *   "run_scripts": true,
+ *   "created_at": "2025-12-13T09:00:00.000Z"
+ * }
+ * ```
+ */
 export async function POST(request: NextRequest) {
   try {
     const sessionId = request.cookies.get('sessionId')?.value;

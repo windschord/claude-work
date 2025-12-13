@@ -3,6 +3,34 @@ import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 
+/**
+ * PUT /api/projects/[project_id] - プロジェクト更新
+ *
+ * 指定されたプロジェクトの設定を更新します。
+ * 認証が必要です。
+ *
+ * @param request - リクエストボディに更新フィールドを含むJSON、sessionIdクッキー
+ * @param params - project_idを含むパスパラメータ
+ *
+ * @returns
+ * - 200: プロジェクト更新成功
+ * - 401: 認証されていない
+ * - 404: プロジェクトが見つからない
+ * - 500: サーバーエラー
+ *
+ * @example
+ * ```typescript
+ * // リクエスト
+ * PUT /api/projects/uuid-123
+ * Cookie: sessionId=<uuid>
+ * Content-Type: application/json
+ * {
+ *   "name": "Updated Project",
+ *   "default_model": "opus",
+ *   "run_scripts": false
+ * }
+ * ```
+ */
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ project_id: string }> }
@@ -47,6 +75,31 @@ export async function PUT(
   }
 }
 
+/**
+ * DELETE /api/projects/[project_id] - プロジェクト削除
+ *
+ * 指定されたプロジェクトを削除します。
+ * 認証が必要です。
+ *
+ * @param request - sessionIdクッキーを含むリクエスト
+ * @param params - project_idを含むパスパラメータ
+ *
+ * @returns
+ * - 204: プロジェクト削除成功（レスポンスボディなし）
+ * - 401: 認証されていない
+ * - 404: プロジェクトが見つからない
+ * - 500: サーバーエラー
+ *
+ * @example
+ * ```typescript
+ * // リクエスト
+ * DELETE /api/projects/uuid-123
+ * Cookie: sessionId=<uuid>
+ *
+ * // レスポンス
+ * 204 No Content
+ * ```
+ */
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ project_id: string }> }

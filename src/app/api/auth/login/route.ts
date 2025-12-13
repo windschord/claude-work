@@ -2,6 +2,32 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSession } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 
+/**
+ * POST /api/auth/login - ユーザーログイン
+ *
+ * トークンベースの認証を行い、セッションを作成します。
+ * 成功時にはHttpOnlyクッキーでセッションIDを設定します。
+ *
+ * @param request - リクエストボディに`token`フィールドを含むJSONを期待
+ *
+ * @returns
+ * - 200: ログイン成功、セッションIDをクッキーに設定
+ * - 400: トークンが指定されていない
+ * - 401: トークンが無効
+ * - 500: サーバーエラー（AUTH_TOKEN未設定を含む）
+ *
+ * @example
+ * ```typescript
+ * // リクエスト
+ * POST /api/auth/login
+ * Content-Type: application/json
+ * { "token": "your-secret-token" }
+ *
+ * // レスポンス
+ * { "message": "Login successful" }
+ * Set-Cookie: sessionId=<uuid>; HttpOnly; Path=/; Max-Age=86400
+ * ```
+ */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();

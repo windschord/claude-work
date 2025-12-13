@@ -7,6 +7,40 @@ import { logger } from '@/lib/logger';
 
 const processManager = new ProcessManager();
 
+/**
+ * GET /api/sessions/[id] - セッション詳細取得
+ *
+ * 指定されたIDのセッション情報を取得します。
+ * 認証が必要です。
+ *
+ * @param request - sessionIdクッキーを含むリクエスト
+ * @param params.id - セッションID
+ *
+ * @returns
+ * - 200: セッション情報
+ * - 401: 認証されていない
+ * - 404: セッションが見つからない
+ * - 500: サーバーエラー
+ *
+ * @example
+ * ```typescript
+ * // リクエスト
+ * GET /api/sessions/session-uuid
+ * Cookie: sessionId=<uuid>
+ *
+ * // レスポンス
+ * {
+ *   "id": "session-uuid",
+ *   "project_id": "uuid-1234",
+ *   "name": "新機能実装",
+ *   "status": "running",
+ *   "model": "claude-3-5-sonnet-20241022",
+ *   "worktree_path": "/path/to/worktrees/session-1234567890",
+ *   "branch_name": "session/session-1234567890",
+ *   "created_at": "2025-12-13T09:00:00.000Z"
+ * }
+ * ```
+ */
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -41,6 +75,32 @@ export async function GET(
   }
 }
 
+/**
+ * DELETE /api/sessions/[id] - セッション削除
+ *
+ * 指定されたIDのセッションを削除します。
+ * 実行中のプロセスは停止され、Git worktreeが削除され、データベースからセッションが削除されます。
+ * 認証が必要です。
+ *
+ * @param request - sessionIdクッキーを含むリクエスト
+ * @param params.id - セッションID
+ *
+ * @returns
+ * - 204: 削除成功（レスポンスボディなし）
+ * - 401: 認証されていない
+ * - 404: セッションが見つからない
+ * - 500: サーバーエラー
+ *
+ * @example
+ * ```typescript
+ * // リクエスト
+ * DELETE /api/sessions/session-uuid
+ * Cookie: sessionId=<uuid>
+ *
+ * // レスポンス
+ * 204 No Content
+ * ```
+ */
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

@@ -7,6 +7,41 @@ import { logger } from '@/lib/logger';
 
 const processManager = new ProcessManager();
 
+/**
+ * GET /api/projects/[project_id]/sessions - プロジェクトのセッション一覧取得
+ *
+ * 指定されたプロジェクトに属するすべてのセッションを作成日時の降順で取得します。
+ * 認証が必要です。
+ *
+ * @param request - sessionIdクッキーを含むリクエスト
+ * @param params.project_id - プロジェクトID
+ *
+ * @returns
+ * - 200: セッション一覧（配列）
+ * - 401: 認証されていない
+ * - 500: サーバーエラー
+ *
+ * @example
+ * ```typescript
+ * // リクエスト
+ * GET /api/projects/uuid-1234/sessions
+ * Cookie: sessionId=<uuid>
+ *
+ * // レスポンス
+ * [
+ *   {
+ *     "id": "session-uuid",
+ *     "project_id": "uuid-1234",
+ *     "name": "新機能実装",
+ *     "status": "running",
+ *     "model": "claude-3-5-sonnet-20241022",
+ *     "worktree_path": "/path/to/worktrees/session-1234567890",
+ *     "branch_name": "session/session-1234567890",
+ *     "created_at": "2025-12-13T09:00:00.000Z"
+ *   }
+ * ]
+ * ```
+ */
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ project_id: string }> }
@@ -38,6 +73,48 @@ export async function GET(
   }
 }
 
+/**
+ * POST /api/projects/[project_id]/sessions - 新規セッション作成
+ *
+ * 指定されたプロジェクトに新しいセッションを作成します。
+ * Git worktreeとブランチが自動的に作成され、Claude Codeプロセスが起動されます。
+ * 認証が必要です。
+ *
+ * @param request - リクエストボディに`name`、`prompt`、`model`（オプション）を含むJSON、sessionIdクッキー
+ * @param params.project_id - プロジェクトID
+ *
+ * @returns
+ * - 201: セッション作成成功
+ * - 400: nameまたはpromptが指定されていない
+ * - 401: 認証されていない
+ * - 404: プロジェクトが見つからない
+ * - 500: サーバーエラー
+ *
+ * @example
+ * ```typescript
+ * // リクエスト
+ * POST /api/projects/uuid-1234/sessions
+ * Cookie: sessionId=<uuid>
+ * Content-Type: application/json
+ * {
+ *   "name": "新機能実装",
+ *   "prompt": "ユーザー認証機能を実装してください",
+ *   "model": "claude-3-5-sonnet-20241022"
+ * }
+ *
+ * // レスポンス
+ * {
+ *   "id": "session-uuid",
+ *   "project_id": "uuid-1234",
+ *   "name": "新機能実装",
+ *   "status": "running",
+ *   "model": "claude-3-5-sonnet-20241022",
+ *   "worktree_path": "/path/to/worktrees/session-1234567890",
+ *   "branch_name": "session/session-1234567890",
+ *   "created_at": "2025-12-13T09:00:00.000Z"
+ * }
+ * ```
+ */
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ project_id: string }> }

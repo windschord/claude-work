@@ -5,6 +5,31 @@ import { GitService } from '@/services/git-service';
 import { logger } from '@/lib/logger';
 import { basename } from 'path';
 
+/**
+ * GET /api/sessions/[id]/diff - セッションの差分取得
+ *
+ * 指定されたセッションのGit差分（mainブランチとの比較）を取得します。
+ * 認証が必要です。
+ *
+ * @param request - sessionIdクッキーを含むリクエスト
+ * @param params.id - セッションID
+ *
+ * @returns
+ * - 200: 差分情報（テキスト形式のdiff）
+ * - 401: 認証されていない
+ * - 404: セッションが見つからない
+ * - 500: サーバーエラー
+ *
+ * @example
+ * ```typescript
+ * // リクエスト
+ * GET /api/sessions/session-uuid/diff
+ * Cookie: sessionId=<uuid>
+ *
+ * // レスポンス
+ * "diff --git a/file.ts b/file.ts\nindex 1234567..abcdefg 100644\n--- a/file.ts\n+++ b/file.ts\n@@ -1,3 +1,4 @@\n+export const newFeature = true;\n export const existingFeature = true;"
+ * ```
+ */
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

@@ -5,6 +5,39 @@ import { GitService } from '@/services/git-service';
 import { logger } from '@/lib/logger';
 import { basename } from 'path';
 
+/**
+ * POST /api/sessions/[id]/rebase - セッションのリベース
+ *
+ * 指定されたセッションのブランチをmainブランチからリベースします。
+ * コンフリクトが発生した場合は409を返し、コンフリクトファイルのリストを含めます。
+ * 認証が必要です。
+ *
+ * @param request - sessionIdクッキーを含むリクエスト
+ * @param params.id - セッションID
+ *
+ * @returns
+ * - 200: リベース成功
+ * - 401: 認証されていない
+ * - 404: セッションが見つからない
+ * - 409: コンフリクトが発生（コンフリクトファイルのリストを含む）
+ * - 500: サーバーエラー
+ *
+ * @example
+ * ```typescript
+ * // リクエスト
+ * POST /api/sessions/session-uuid/rebase
+ * Cookie: sessionId=<uuid>
+ *
+ * // レスポンス（成功時）
+ * { "success": true }
+ *
+ * // レスポンス（コンフリクト時）
+ * {
+ *   "success": false,
+ *   "conflicts": ["src/app/component.tsx", "src/lib/utils.ts"]
+ * }
+ * ```
+ */
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

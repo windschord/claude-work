@@ -6,6 +6,42 @@ import { logger } from '@/lib/logger';
 import { execSync } from 'child_process';
 import { basename } from 'path';
 
+/**
+ * POST /api/sessions/[id]/merge - セッションのマージ
+ *
+ * 指定されたセッションのブランチをmainブランチにスカッシュマージします。
+ * コンフリクトが発生した場合は409を返し、コンフリクトファイルのリストを含めます。
+ * 認証が必要です。
+ *
+ * @param request - リクエストボディに`commitMessage`を含むJSON、sessionIdクッキー
+ * @param params.id - セッションID
+ *
+ * @returns
+ * - 200: マージ成功
+ * - 400: commitMessageが指定されていない
+ * - 401: 認証されていない
+ * - 404: セッションが見つからない
+ * - 409: コンフリクトが発生（コンフリクトファイルのリストを含む）
+ * - 500: サーバーエラー
+ *
+ * @example
+ * ```typescript
+ * // リクエスト（成功時）
+ * POST /api/sessions/session-uuid/merge
+ * Cookie: sessionId=<uuid>
+ * Content-Type: application/json
+ * { "commitMessage": "新機能を実装" }
+ *
+ * // レスポンス（成功時）
+ * { "success": true }
+ *
+ * // レスポンス（コンフリクト時）
+ * {
+ *   "success": false,
+ *   "conflicts": ["src/app/component.tsx", "src/lib/utils.ts"]
+ * }
+ * ```
+ */
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
