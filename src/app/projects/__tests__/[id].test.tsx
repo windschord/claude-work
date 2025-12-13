@@ -149,6 +149,8 @@ describe('ProjectDetailPage', () => {
         name: 'New Session',
         prompt: 'Test prompt',
       });
+      // セッション作成後、fetchSessionsが再度呼ばれることを確認
+      expect(mockFetchSessions).toHaveBeenCalledTimes(2); // 初回+作成後
     });
   });
 

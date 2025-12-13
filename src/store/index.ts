@@ -43,6 +43,18 @@ export interface Session {
 }
 
 /**
+ * セッション作成時のデータ型定義
+ */
+export interface CreateSessionData {
+  /** セッション名 */
+  name: string;
+  /** プロンプト */
+  prompt: string;
+  /** 使用するClaudeモデル（デフォルト: 'auto'） */
+  model?: string;
+}
+
+/**
  * アプリケーション全体の状態管理インターフェース
  *
  * Zustandを使用したグローバルステート管理の型定義です。
@@ -95,6 +107,10 @@ export interface AppState {
   deleteProject: (id: string) => Promise<void>;
   /** 選択中のプロジェクトIDを設定 */
   setSelectedProjectId: (projectId: string | null) => void;
+  /** セッション一覧を取得 */
+  fetchSessions: (projectId: string) => Promise<void>;
+  /** セッションを作成 */
+  createSession: (projectId: string, data: CreateSessionData) => Promise<void>;
   /** セッション一覧を設定 */
   setSessions: (sessions: Session[]) => void;
   /** 選択中のセッションIDを設定 */
@@ -391,6 +407,62 @@ export const useAppStore = create<AppState>((set) => ({
         throw error;
       }
       throw new Error('プロジェクトの削除に失敗しました');
+    }
+  },
+
+  fetchSessions: async (projectId: string) => {
+    try {
+      const response = await fetch(`/api/projects/${projectId}/sessions`);
+
+      if (!response.ok) {
+        throw new Error('セッション一覧の取得に失敗しました');
+      }
+
+      const data = await response.json();
+      set({ sessions: data.sessions || [] });
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.includes('Failed to fetch') || error.message.includes('Network')) {
+          throw new Error('ネットワークエラーが発生しました');
+        }
+        throw error;
+      }
+      throw new Error('セッション一覧の取得に失敗しました');
+    }
+  },
+
+  createSession: async (projectId: string, data: CreateSessionData) => {
+    try {
+      const response = await fetch(`/api/projects/${projectId}/sessions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        if (response.status === 400) {
+          throw new Error('セッションの作成に失敗しました');
+        }
+        if (response.status === 500) {
+          throw new Error('セッションの作成に失敗しました');
+        }
+        throw new Error('セッションの作成に失敗しました');
+      }
+
+      const responseData = await response.json();
+      set((state) => ({
+        sessions: [...state.sessions, responseData.session],
+      }));
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.includes('Failed to fetch') || error.message.includes('Network')) {
+          throw new Error('ネットワークエラーが発生しました');
+        }
+        throw error;
+      }
+      throw new Error('セッションの作成に失敗しました');
     }
   },
 

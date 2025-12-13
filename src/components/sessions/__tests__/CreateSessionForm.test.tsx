@@ -1,13 +1,24 @@
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { CreateSessionForm } from '../CreateSessionForm';
+import { useAppStore } from '@/store';
+
+// Zustandストアのモック
+vi.mock('@/store', () => ({
+  useAppStore: vi.fn(),
+}));
 
 describe('CreateSessionForm', () => {
   const mockOnCreate = vi.fn();
   const mockOnError = vi.fn();
+  const mockCreateSession = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockCreateSession.mockResolvedValue(undefined);
+    (useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+      createSession: mockCreateSession,
+    });
   });
 
   afterEach(() => {
@@ -77,6 +88,10 @@ describe('CreateSessionForm', () => {
     fireEvent.click(createButton);
 
     await waitFor(() => {
+      expect(mockCreateSession).toHaveBeenCalledWith('project-1', {
+        name: 'New Session',
+        prompt: 'Test prompt',
+      });
       expect(mockOnCreate).toHaveBeenCalled();
     });
   });
@@ -99,6 +114,9 @@ describe('CreateSessionForm', () => {
   });
 
   it('セッション作成失敗時にエラーメッセージが表示される', async () => {
+    // createSessionがエラーを返すようにモック
+    mockCreateSession.mockRejectedValueOnce(new Error('セッションの作成に失敗しました'));
+
     render(
       <CreateSessionForm
         projectId="project-1"
@@ -111,28 +129,24 @@ describe('CreateSessionForm', () => {
     const promptInput = screen.getByPlaceholderText(/プロンプト/);
     const createButton = screen.getByRole('button', { name: /作成|セッション作成/ });
 
-    // エラーをシミュレート
-    mockOnError.mockImplementation(() => {
-      throw new Error('セッションの作成に失敗しました');
-    });
-
     fireEvent.change(nameInput, { target: { value: 'New Session' } });
     fireEvent.change(promptInput, { target: { value: 'Test prompt' } });
     fireEvent.click(createButton);
 
     await waitFor(() => {
-      const errorMessage = screen.queryByText(/セッションの作成に失敗しました|エラー/);
-      if (errorMessage) {
-        expect(errorMessage).toBeInTheDocument();
-      }
+      expect(screen.getByText('セッションの作成に失敗しました')).toBeInTheDocument();
     });
   });
 
   it('ローディング中は作成ボタンが無効化される', async () => {
     // 長時間かかる処理をシミュレート
-    const slowOnCreate = vi.fn(() => new Promise(() => {}));
+    let resolveCreateSession: () => void;
+    const createSessionPromise = new Promise<void>((resolve) => {
+      resolveCreateSession = resolve;
+    });
+    mockCreateSession.mockReturnValue(createSessionPromise);
 
-    render(<CreateSessionForm projectId="project-1" onSuccess={slowOnCreate} />);
+    render(<CreateSessionForm projectId="project-1" onSuccess={mockOnCreate} />);
 
     const nameInput = screen.getByPlaceholderText(/セッション名/);
     const promptInput = screen.getByPlaceholderText(/プロンプト/);
@@ -140,8 +154,13 @@ describe('CreateSessionForm', () => {
 
     fireEvent.change(nameInput, { target: { value: 'New Session' } });
     fireEvent.change(promptInput, { target: { value: 'Test prompt' } });
+
+    // クリック前はボタンは有効
+    expect(createButton).not.toBeDisabled();
+
     fireEvent.click(createButton);
 
+    // クリック後はボタンが無効化される
     await waitFor(() => {
       expect(createButton).toBeDisabled();
     });
