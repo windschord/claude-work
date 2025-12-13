@@ -9,7 +9,7 @@ const processManager = new ProcessManager();
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const sessionId = request.cookies.get('sessionId')?.value;
@@ -22,7 +22,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id } = params;
+    const { id } = await params;
 
     const targetSession = await prisma.session.findUnique({
       where: { id },
@@ -35,14 +35,15 @@ export async function GET(
     logger.debug('Session retrieved', { id });
     return NextResponse.json(targetSession);
   } catch (error) {
-    logger.error('Failed to get session', { error, session_id: params.id });
+    const { id: errorId } = await params;
+    logger.error('Failed to get session', { error, session_id: errorId });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const sessionId = request.cookies.get('sessionId')?.value;
@@ -55,7 +56,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id } = params;
+    const { id } = await params;
 
     const targetSession = await prisma.session.findUnique({
       where: { id },
@@ -82,7 +83,8 @@ export async function DELETE(
     // Remove worktree
     try {
       const gitService = new GitService(targetSession.project.path, logger);
-      gitService.removeWorktree(targetSession.worktree_path);
+      const sessionName = targetSession.worktree_path.split('/').pop() || '';
+      gitService.deleteWorktree(sessionName);
       logger.debug('Worktree removed', { worktree_path: targetSession.worktree_path });
     } catch (error) {
       logger.warn('Failed to remove worktree', {
@@ -99,7 +101,8 @@ export async function DELETE(
     logger.info('Session deleted', { id });
     return new NextResponse(null, { status: 204 });
   } catch (error) {
-    logger.error('Failed to delete session', { error, session_id: params.id });
+    const { id: errorId } = await params;
+    logger.error('Failed to delete session', { error, session_id: errorId });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

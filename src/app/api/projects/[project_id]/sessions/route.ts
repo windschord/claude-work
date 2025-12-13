@@ -9,7 +9,7 @@ const processManager = new ProcessManager();
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { project_id: string } }
+  { params }: { params: Promise<{ project_id: string }> }
 ) {
   try {
     const sessionId = request.cookies.get('sessionId')?.value;
@@ -22,7 +22,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { project_id } = params;
+    const { project_id } = await params;
 
     const sessions = await prisma.session.findMany({
       where: { project_id },
@@ -32,14 +32,15 @@ export async function GET(
     logger.debug('Sessions retrieved', { project_id, count: sessions.length });
     return NextResponse.json(sessions);
   } catch (error) {
-    logger.error('Failed to get sessions', { error, project_id: params.project_id });
+    const { project_id: errorProjectId } = await params;
+    logger.error('Failed to get sessions', { error, project_id: errorProjectId });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { project_id: string } }
+  { params }: { params: Promise<{ project_id: string }> }
 ) {
   try {
     const sessionId = request.cookies.get('sessionId')?.value;
@@ -52,7 +53,7 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { project_id } = params;
+    const { project_id } = await params;
     const body = await request.json();
     const { name, prompt, model = 'auto' } = body;
 
@@ -119,7 +120,8 @@ export async function POST(
       throw processError;
     }
   } catch (error) {
-    logger.error('Failed to create session', { error, project_id: params.project_id });
+    const { project_id: errorProjectId } = await params;
+    logger.error('Failed to create session', { error, project_id: errorProjectId });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

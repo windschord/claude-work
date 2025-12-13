@@ -15,11 +15,8 @@ export default defineConfig({
       DATABASE_URL: 'file:./prisma/data/test.db',
     },
     pool: 'forks',
-    poolOptions: {
-      forks: {
-        singleFork: true,
-      },
-    },
+    maxWorkers: 1,
+    isolate: false,
     server: {
       deps: {
         inline: [],

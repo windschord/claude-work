@@ -112,6 +112,10 @@ export class ProcessManager extends EventEmitter {
       throw new Error(`Session ${sessionId} not found`);
     }
 
+    if (!processData.process.stdin) {
+      throw new Error(`Session ${sessionId} stdin is not available`);
+    }
+
     processData.process.stdin.write(`${input}\n`);
   }
 

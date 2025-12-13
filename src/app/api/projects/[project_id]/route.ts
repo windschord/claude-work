@@ -5,7 +5,7 @@ import { logger } from '@/lib/logger';
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ project_id: string }> }
 ) {
   try {
     const sessionId = request.cookies.get('sessionId')?.value;
@@ -18,11 +18,11 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id } = params;
+    const { project_id } = await params;
     const body = await request.json();
 
     const existing = await prisma.project.findUnique({
-      where: { id },
+      where: { id: project_id },
     });
 
     if (!existing) {
@@ -30,7 +30,7 @@ export async function PUT(
     }
 
     const project = await prisma.project.update({
-      where: { id },
+      where: { id: project_id },
       data: {
         name: body.name ?? existing.name,
         default_model: body.default_model ?? existing.default_model,
@@ -38,17 +38,18 @@ export async function PUT(
       },
     });
 
-    logger.info('Project updated', { id, name: project.name });
+    logger.info('Project updated', { id: project_id, name: project.name });
     return NextResponse.json(project);
   } catch (error) {
-    logger.error('Failed to update project', { error, id: params.id });
+    const { project_id: errorProjectId } = await params;
+    logger.error('Failed to update project', { error, id: errorProjectId });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ project_id: string }> }
 ) {
   try {
     const sessionId = request.cookies.get('sessionId')?.value;
@@ -61,10 +62,10 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id } = params;
+    const { project_id } = await params;
 
     const existing = await prisma.project.findUnique({
-      where: { id },
+      where: { id: project_id },
     });
 
     if (!existing) {
@@ -72,13 +73,14 @@ export async function DELETE(
     }
 
     await prisma.project.delete({
-      where: { id },
+      where: { id: project_id },
     });
 
-    logger.info('Project deleted', { id });
+    logger.info('Project deleted', { id: project_id });
     return new NextResponse(null, { status: 204 });
   } catch (error) {
-    logger.error('Failed to delete project', { error, id: params.id });
+    const { project_id: errorProjectId } = await params;
+    logger.error('Failed to delete project', { error, id: errorProjectId });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

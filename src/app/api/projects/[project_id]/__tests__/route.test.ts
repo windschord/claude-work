@@ -9,7 +9,7 @@ import { execSync } from 'child_process';
 import { randomUUID } from 'crypto';
 import type { AuthSession, Project } from '@prisma/client';
 
-describe('PUT /api/projects/[id]', () => {
+describe('PUT /api/projects/[project_id]', () => {
   let testRepoPath: string;
   let authSession: AuthSession;
   let project: Project;
@@ -65,7 +65,7 @@ describe('PUT /api/projects/[id]', () => {
       }),
     });
 
-    const response = await PUT(request, { params: { id: project.id } });
+    const response = await PUT(request, { params: { project_id: project.id } });
     expect(response.status).toBe(200);
 
     const data = await response.json();
@@ -91,7 +91,7 @@ describe('PUT /api/projects/[id]', () => {
       }),
     });
 
-    const response = await PUT(request, { params: { id: 'non-existent-id' } });
+    const response = await PUT(request, { params: { project_id: 'non-existent-id' } });
     expect(response.status).toBe(404);
   });
 
@@ -106,12 +106,12 @@ describe('PUT /api/projects/[id]', () => {
       }),
     });
 
-    const response = await PUT(request, { params: { id: project.id } });
+    const response = await PUT(request, { params: { project_id: project.id } });
     expect(response.status).toBe(401);
   });
 });
 
-describe('DELETE /api/projects/[id]', () => {
+describe('DELETE /api/projects/[project_id]', () => {
   let testRepoPath: string;
   let authSession: AuthSession;
   let project: Project;
@@ -162,7 +162,7 @@ describe('DELETE /api/projects/[id]', () => {
       },
     });
 
-    const response = await DELETE(request, { params: { id: project.id } });
+    const response = await DELETE(request, { params: { project_id: project.id } });
     expect(response.status).toBe(204);
 
     const deleted = await prisma.project.findUnique({
@@ -179,7 +179,7 @@ describe('DELETE /api/projects/[id]', () => {
       },
     });
 
-    const response = await DELETE(request, { params: { id: 'non-existent-id' } });
+    const response = await DELETE(request, { params: { project_id: 'non-existent-id' } });
     expect(response.status).toBe(404);
   });
 
@@ -188,7 +188,7 @@ describe('DELETE /api/projects/[id]', () => {
       method: 'DELETE',
     });
 
-    const response = await DELETE(request, { params: { id: project.id } });
+    const response = await DELETE(request, { params: { project_id: project.id } });
     expect(response.status).toBe(401);
   });
 });

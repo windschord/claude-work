@@ -8,7 +8,7 @@ const processManager = new ProcessManager();
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const sessionId = request.cookies.get('sessionId')?.value;
@@ -21,7 +21,7 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id } = params;
+    const { id } = await params;
 
     const targetSession = await prisma.session.findUnique({
       where: { id },
@@ -51,7 +51,8 @@ export async function POST(
     logger.info('Session stopped', { id });
     return NextResponse.json(updatedSession);
   } catch (error) {
-    logger.error('Failed to stop session', { error, session_id: params.id });
+    const { id: errorId } = await params;
+    logger.error('Failed to stop session', { error, session_id: errorId });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
