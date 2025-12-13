@@ -5,12 +5,80 @@ import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/cjs/styles/prism';
 import { ComponentPropsWithoutRef } from 'react';
+import CollapsibleSection from './CollapsibleSection';
 
 interface MarkdownRendererProps {
   content: string;
 }
 
+// サブエージェント出力を検出して折りたたみ表示する
+function processSubAgentOutput(content: string): React.ReactNode[] {
+  const lines = content.split('\n');
+  const result: React.ReactNode[] = [];
+  let currentSection: { title: string; content: string[] } | null = null;
+  let normalContent: string[] = [];
+  let key = 0;
+
+  const flushNormalContent = () => {
+    if (normalContent.length > 0) {
+      const text = normalContent.join('\n').trim();
+      if (text) {
+        result.push(
+          <div key={`normal-${key++}`} className="markdown-content prose prose-sm max-w-none">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+          </div>
+        );
+      }
+      normalContent = [];
+    }
+  };
+
+  const flushSection = () => {
+    if (currentSection) {
+      flushNormalContent();
+      const sectionContent = currentSection.content.join('\n').trim();
+      result.push(
+        <CollapsibleSection key={`section-${key++}`} title={currentSection.title} defaultOpen={false}>
+          <div className="markdown-content prose prose-sm max-w-none">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{sectionContent}</ReactMarkdown>
+          </div>
+        </CollapsibleSection>
+      );
+      currentSection = null;
+    }
+  };
+
+  for (const line of lines) {
+    // サブエージェント出力のパターンを検出
+    const taskMatch = line.match(/^\[Task\]\s*(.*)/);
+    const agentMatch = line.match(/^\[Agent\]\s*(.*)/);
+
+    if (taskMatch || agentMatch) {
+      flushSection();
+      const title = taskMatch ? `Task: ${taskMatch[1]}` : `Agent: ${agentMatch![1]}`;
+      currentSection = { title, content: [] };
+    } else if (currentSection) {
+      currentSection.content.push(line);
+    } else {
+      normalContent.push(line);
+    }
+  }
+
+  flushSection();
+  flushNormalContent();
+
+  return result.length > 0 ? result : [content];
+}
+
 export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
+  // サブエージェント出力パターンが含まれているかチェック
+  const hasSubAgentOutput = /^\[(Task|Agent)\]/m.test(content);
+
+  if (hasSubAgentOutput) {
+    const processedContent = processSubAgentOutput(content);
+    return <div className="space-y-2">{processedContent}</div>;
+  }
+
   return (
     <div className="markdown-content prose prose-sm max-w-none">
       <ReactMarkdown
