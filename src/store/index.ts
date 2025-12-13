@@ -72,6 +72,8 @@ export interface AppState {
   theme: 'light' | 'dark' | 'system';
   /** モバイル表示かどうか */
   isMobile: boolean;
+  /** サイドバーが開いているか（モバイル時） */
+  isSidebarOpen: boolean;
 
   /** 認証状態を設定 */
   setAuthenticated: (isAuthenticated: boolean, token?: string) => void;
@@ -81,6 +83,8 @@ export interface AppState {
   logout: () => Promise<void>;
   /** 認証状態確認 */
   checkAuth: () => Promise<void>;
+  /** プロジェクト一覧を取得 */
+  fetchProjects: () => Promise<void>;
   /** プロジェクト一覧を設定 */
   setProjects: (projects: Project[]) => void;
   /** 選択中のプロジェクトIDを設定 */
@@ -93,6 +97,8 @@ export interface AppState {
   setTheme: (theme: 'light' | 'dark' | 'system') => void;
   /** モバイル表示フラグを設定 */
   setIsMobile: (isMobile: boolean) => void;
+  /** サイドバーの開閉を設定 */
+  setIsSidebarOpen: (isOpen: boolean) => void;
   /** 状態をリセット */
   reset: () => void;
 }
@@ -111,6 +117,7 @@ const initialState = {
   selectedSessionId: null,
   theme: 'system' as const,
   isMobile: false,
+  isSidebarOpen: false,
 };
 
 /**
@@ -252,6 +259,30 @@ export const useAppStore = create<AppState>((set) => ({
 
   setIsMobile: (isMobile) =>
     set({ isMobile }),
+
+  setIsSidebarOpen: (isOpen) =>
+    set({ isSidebarOpen: isOpen }),
+
+  fetchProjects: async () => {
+    try {
+      const response = await fetch('/api/projects');
+
+      if (!response.ok) {
+        throw new Error('プロジェクト一覧の取得に失敗しました');
+      }
+
+      const data = await response.json();
+      set({ projects: data.projects || [] });
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.includes('Failed to fetch') || error.message.includes('Network')) {
+          throw new Error('ネットワークエラーが発生しました');
+        }
+        throw error;
+      }
+      throw new Error('プロジェクト一覧の取得に失敗しました');
+    }
+  },
 
   reset: () =>
     set(initialState),

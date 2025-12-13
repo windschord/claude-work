@@ -10,9 +10,10 @@ vi.mock('@/store', () => ({
 }));
 
 // Next.js routerをモック
+const mockPush = vi.fn();
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
-    push: vi.fn(),
+    push: mockPush,
   }),
 }));
 
@@ -62,53 +63,65 @@ describe('Sidebar', () => {
   it('プロジェクト一覧が表示される', () => {
     render(<Sidebar />);
 
-    expect(screen.getByText('プロジェクトA')).toBeInTheDocument();
-    expect(screen.getByText('プロジェクトB')).toBeInTheDocument();
+    const projectAElements = screen.getAllByText('プロジェクトA');
+    const projectBElements = screen.getAllByText('プロジェクトB');
+
+    expect(projectAElements.length).toBeGreaterThan(0);
+    expect(projectBElements.length).toBeGreaterThan(0);
   });
 
   it('セッション数が表示される', () => {
-    render(<Sidebar />);
+    const { container } = render(<Sidebar />);
 
-    expect(screen.getByText('3セッション')).toBeInTheDocument();
-    expect(screen.getByText('1セッション')).toBeInTheDocument();
+    const sessionCounts = container.querySelectorAll('.text-xs.text-gray-500');
+    const sessionTexts = Array.from(sessionCounts).map(el => el.textContent);
+
+    expect(sessionTexts).toContain('3セッション');
+    expect(sessionTexts).toContain('1セッション');
   });
 
   it('プロジェクトをクリックすると選択状態が変わる', () => {
     render(<Sidebar />);
 
-    const projectA = screen.getByText('プロジェクトA');
-    fireEvent.click(projectA);
+    const buttons = screen.getAllByRole('button');
+    const projectAButton = buttons.find(button => button.textContent?.includes('プロジェクトA'));
+
+    expect(projectAButton).toBeDefined();
+    fireEvent.click(projectAButton!);
 
     expect(mockSetSelectedProjectId).toHaveBeenCalledWith('project-1');
   });
 
   it('プロジェクトをクリックすると詳細ページに遷移する', () => {
-    const mockPush = vi.fn();
-    vi.mocked(require('next/navigation').useRouter).mockReturnValue({
-      push: mockPush,
-    });
+    mockPush.mockClear();
 
     render(<Sidebar />);
 
-    const projectA = screen.getByText('プロジェクトA');
-    fireEvent.click(projectA);
+    const buttons = screen.getAllByRole('button');
+    const projectAButton = buttons.find(button => button.textContent?.includes('プロジェクトA'));
+
+    expect(projectAButton).toBeDefined();
+    fireEvent.click(projectAButton!);
 
     expect(mockPush).toHaveBeenCalledWith('/projects/project-1');
   });
 
   it('選択中のプロジェクトがハイライトされる', () => {
-    (useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+    // selectedProjectIdを設定した新しいモックを作成
+    (useAppStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => ({
       projects: mockProjects,
       selectedProjectId: 'project-1',
       setSelectedProjectId: mockSetSelectedProjectId,
       isSidebarOpen: false,
       setIsSidebarOpen: mockSetIsSidebarOpen,
-    });
+    }));
 
-    render(<Sidebar />);
+    const { container } = render(<Sidebar />);
 
-    const projectA = screen.getByText('プロジェクトA').closest('button');
-    expect(projectA).toHaveClass('bg-blue-100');
+    // bg-blue-100クラスを持つボタンを探す
+    const highlightedButton = container.querySelector('button.bg-blue-100');
+    expect(highlightedButton).toBeInTheDocument();
+    expect(highlightedButton?.textContent).toContain('プロジェクトA');
   });
 
   it('プロジェクトが0件の場合、メッセージが表示される', () => {
@@ -168,8 +181,11 @@ describe('Sidebar', () => {
 
     render(<Sidebar />);
 
-    const projectA = screen.getByText('プロジェクトA');
-    fireEvent.click(projectA);
+    const buttons = screen.getAllByRole('button');
+    const projectAButton = buttons.find(button => button.textContent?.includes('プロジェクトA'));
+
+    expect(projectAButton).toBeDefined();
+    fireEvent.click(projectAButton!);
 
     expect(mockSetIsSidebarOpen).toHaveBeenCalledWith(false);
   });

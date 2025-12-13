@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import { Header } from '../Header';
 import { useAppStore } from '@/store';
 
@@ -9,9 +9,10 @@ vi.mock('@/store', () => ({
 }));
 
 // Next.js routerをモック
+const mockPush = vi.fn();
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
-    push: vi.fn(),
+    push: mockPush,
   }),
 }));
 
@@ -21,11 +22,16 @@ describe('Header', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPush.mockClear();
     (useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       logout: mockLogout,
       isSidebarOpen: false,
       setIsSidebarOpen: mockSetIsSidebarOpen,
     });
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   it('ヘッダーが正しくレンダリングされる', () => {
@@ -42,15 +48,16 @@ describe('Header', () => {
     render(<Header />);
 
     // ハンバーガーメニューボタンが表示される（アイコン）
-    const hamburgerButton = screen.getByLabelText('メニュー');
-    expect(hamburgerButton).toBeInTheDocument();
+    const hamburgerButtons = screen.getAllByLabelText('メニュー');
+    expect(hamburgerButtons.length).toBeGreaterThan(0);
+    expect(hamburgerButtons[0]).toBeInTheDocument();
   });
 
   it('ハンバーガーメニューをクリックするとサイドバーがトグルされる', () => {
     render(<Header />);
 
-    const hamburgerButton = screen.getByLabelText('メニュー');
-    fireEvent.click(hamburgerButton);
+    const hamburgerButtons = screen.getAllByLabelText('メニュー');
+    fireEvent.click(hamburgerButtons[0]);
 
     expect(mockSetIsSidebarOpen).toHaveBeenCalledWith(true);
   });
@@ -64,8 +71,8 @@ describe('Header', () => {
 
     render(<Header />);
 
-    const hamburgerButton = screen.getByLabelText('メニュー');
-    fireEvent.click(hamburgerButton);
+    const hamburgerButtons = screen.getAllByLabelText('メニュー');
+    fireEvent.click(hamburgerButtons[0]);
 
     expect(mockSetIsSidebarOpen).toHaveBeenCalledWith(false);
   });
@@ -75,8 +82,8 @@ describe('Header', () => {
 
     render(<Header />);
 
-    const logoutButton = screen.getByRole('button', { name: /ログアウト/i });
-    fireEvent.click(logoutButton);
+    const logoutButtons = screen.getAllByRole('button', { name: /ログアウト/i });
+    fireEvent.click(logoutButtons[0]);
 
     await waitFor(() => {
       expect(mockLogout).toHaveBeenCalled();
@@ -84,16 +91,17 @@ describe('Header', () => {
   });
 
   it('ログアウト成功後にログインページにリダイレクトされる', async () => {
-    const mockPush = vi.fn();
-    vi.mocked(require('next/navigation').useRouter).mockReturnValue({
-      push: mockPush,
-    });
+    mockPush.mockClear();
     mockLogout.mockResolvedValue(undefined);
 
     render(<Header />);
 
-    const logoutButton = screen.getByRole('button', { name: /ログアウト/i });
-    fireEvent.click(logoutButton);
+    const logoutButtons = screen.getAllByRole('button', { name: /ログアウト/i });
+    fireEvent.click(logoutButtons[0]);
+
+    await waitFor(() => {
+      expect(mockLogout).toHaveBeenCalled();
+    });
 
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith('/login');
@@ -101,15 +109,12 @@ describe('Header', () => {
   });
 
   it('ロゴをクリックするとダッシュボードに遷移する', () => {
-    const mockPush = vi.fn();
-    vi.mocked(require('next/navigation').useRouter).mockReturnValue({
-      push: mockPush,
-    });
+    mockPush.mockClear();
 
     render(<Header />);
 
-    const logo = screen.getByText('ClaudeWork');
-    fireEvent.click(logo);
+    const logos = screen.getAllByText('ClaudeWork');
+    fireEvent.click(logos[0]);
 
     expect(mockPush).toHaveBeenCalledWith('/');
   });

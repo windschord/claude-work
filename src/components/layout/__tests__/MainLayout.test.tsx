@@ -27,9 +27,14 @@ vi.mock('../Sidebar', () => ({
 describe('MainLayout', () => {
   const mockFetchProjects = vi.fn();
   const mockSetIsMobile = vi.fn();
+  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     vi.clearAllMocks();
+
+    // console.errorをモック（エラーログを抑制）
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
     (useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       fetchProjects: mockFetchProjects,
       setIsMobile: mockSetIsMobile,
@@ -49,6 +54,11 @@ describe('MainLayout', () => {
         dispatchEvent: vi.fn(),
       })),
     });
+  });
+
+  afterEach(() => {
+    // console.errorのモックを復元
+    consoleErrorSpy.mockRestore();
   });
 
   it('MainLayoutが正しくレンダリングされる', () => {
@@ -82,7 +92,7 @@ describe('MainLayout', () => {
 
     render(
       <MainLayout>
-        <div>テストコンテンツ</div>
+        <div data-testid="error-test-content">テストコンテンツ</div>
       </MainLayout>
     );
 
@@ -91,7 +101,13 @@ describe('MainLayout', () => {
     });
 
     // エラーが発生してもコンテンツは表示される
-    expect(screen.getByText('テストコンテンツ')).toBeInTheDocument();
+    expect(screen.getByTestId('error-test-content')).toBeInTheDocument();
+
+    // console.errorが呼ばれたことを確認
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      'プロジェクト一覧の取得エラー:',
+      expect.any(Error)
+    );
   });
 
   it('画面サイズに応じてisMobileが更新される', async () => {
