@@ -394,7 +394,7 @@ Claude Codeプロセスを管理するサービスを実装する
 **依存関係**: タスク2.2, タスク2.3, タスク2.4
 **推定工数**: 45分
 **ステータス**: `DONE`
-**完了サマリー**: セッションAPI（部分）実装完了。GET/POST /api/projects/[project_id]/sessions実装済み。worktree作成とClaude Code起動統合。テスト: 一部が認証の問題で失敗中（タスク2.1で解決予定）。残りのエンドポイント（GET/POST/DELETE /api/sessions/[id]）は未実装。
+**完了サマリー**: セッションAPI実装完了。全てのエンドポイント（GET/POST /api/projects/[project_id]/sessions、GET/POST/DELETE /api/sessions/[id]、POST /api/sessions/[id]/stop）実装済み。worktree作成、Claude Code起動、プロセス停止、セッション削除機能を統合。TDDで全テスト作成。
 
 ---
 
@@ -430,7 +430,8 @@ Git操作のAPI Routesエンドポイントを実装する
 
 **依存関係**: タスク2.5
 **推定工数**: 25分
-**ステータス**: `TODO`
+**ステータス**: `DONE`
+**完了サマリー**: Git操作API実装完了。GET /api/sessions/[id]/diff（差分取得）、POST /api/sessions/[id]/rebase（mainからrebase）、POST /api/sessions/[id]/merge（squash merge）実装済み。コンフリクト検出で409ステータス返却。TDDで12テスト作成、全て通過。
 
 ---
 
