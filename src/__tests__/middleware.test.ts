@@ -26,7 +26,9 @@ describe('Middleware', () => {
 
       const response = middleware(request);
 
-      expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*');
+      // 開発環境ではオリジンをエコーバック（認証情報対応のため）
+      expect(response.headers.get('Access-Control-Allow-Origin')).toBe('http://localhost:3001');
+      expect(response.headers.get('Access-Control-Allow-Credentials')).toBe('true');
     });
 
     it('should restrict origins in production mode', () => {

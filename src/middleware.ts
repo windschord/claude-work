@@ -21,14 +21,18 @@ export function middleware(request: NextRequest) {
     ? process.env.ALLOWED_ORIGINS.split(',').map((origin) => origin.trim())
     : (process.env.NODE_ENV === 'production' ? [] : ['*']);
 
+  // 本番環境でのワイルドカード使用を検証
+  if (process.env.NODE_ENV === 'production' && allowedOrigins.includes('*')) {
+    throw new Error('Security error: CORS wildcard (*) is not allowed in production. Please set explicit origins in ALLOWED_ORIGINS.');
+  }
+
   const origin = request.headers.get('origin');
   const response = NextResponse.next();
 
-  // CORS設定
-  if (allowedOrigins.includes('*')) {
-    response.headers.set('Access-Control-Allow-Origin', '*');
-  } else if (origin && allowedOrigins.includes(origin)) {
+  // CORS設定 - 認証情報を使用する場合は特定のオリジンをエコーバック
+  if (origin && (allowedOrigins.includes('*') || allowedOrigins.includes(origin))) {
     response.headers.set('Access-Control-Allow-Origin', origin);
+    response.headers.set('Access-Control-Allow-Credentials', 'true');
   }
 
   response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');

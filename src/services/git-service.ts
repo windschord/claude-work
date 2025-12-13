@@ -1,5 +1,5 @@
 import { spawnSync } from 'child_process';
-import { join } from 'path';
+import { join, resolve } from 'path';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import type { Logger } from 'winston';
 
@@ -11,6 +11,9 @@ import type { Logger } from 'winston';
  * 複数のClaude Codeセッションを並行して実行できるようにします。
  */
 export class GitService {
+  // セッション名とブランチ名の許可文字パターン
+  private static readonly SAFE_NAME_PATTERN = /^[a-zA-Z0-9._-]+$/;
+
   /**
    * GitServiceのインスタンスを作成
    *
@@ -21,6 +24,70 @@ export class GitService {
     private repoPath: string,
     private logger: Logger
   ) {}
+
+  /**
+   * セッション名のバリデーション
+   *
+   * パストラバーサル攻撃を防ぐため、セッション名とブランチ名を検証します。
+   *
+   * @param name - 検証する名前
+   * @param type - 名前の種類（エラーメッセージ用）
+   * @throws 不正な文字が含まれる場合にエラーをスロー
+   */
+  private validateName(name: string, type: 'session' | 'branch'): void {
+    // ブランチ名の場合はスラッシュを許可（例: feature/xxx）
+    const pattern = type === 'branch'
+      ? /^[a-zA-Z0-9._/-]+$/
+      : GitService.SAFE_NAME_PATTERN;
+
+    if (!pattern.test(name)) {
+      const allowedChars = type === 'branch'
+        ? 'alphanumeric characters, dots, hyphens, underscores, and forward slashes'
+        : 'alphanumeric characters, dots, hyphens, and underscores';
+      throw new Error(
+        `Invalid ${type} name: "${name}". Only ${allowedChars} are allowed.`
+      );
+    }
+
+    // セッション名の場合はパス区切り文字を含む場合は拒否
+    if (type === 'session' && (name.includes('/') || name.includes('\\'))) {
+      throw new Error(`Invalid ${type} name: "${name}". Path separators are not allowed.`);
+    }
+
+    // バックスラッシュは両方とも拒否（Windowsパス区切りを防ぐ）
+    if (name.includes('\\')) {
+      throw new Error(`Invalid ${type} name: "${name}". Backslashes are not allowed.`);
+    }
+
+    // 相対パス表記を拒否
+    if (name === '.' || name === '..' || name.startsWith('.')) {
+      throw new Error(`Invalid ${type} name: "${name}". Relative path notation is not allowed.`);
+    }
+
+    // ブランチ名でのダブルドット（..）を拒否（パストラバーサル）
+    if (name.includes('..')) {
+      throw new Error(`Invalid ${type} name: "${name}". Double dots (..) are not allowed.`);
+    }
+  }
+
+  /**
+   * Worktreeパスの検証
+   *
+   * worktreeパスがリポジトリの.worktrees配下にあることを確認します。
+   *
+   * @param worktreePath - 検証するworktreeパス
+   * @throws パスがリポジトリ外の場合にエラーをスロー
+   */
+  private validateWorktreePath(worktreePath: string): void {
+    const expectedBasePath = resolve(this.repoPath, '.worktrees');
+    const actualPath = resolve(worktreePath);
+
+    if (!actualPath.startsWith(expectedBasePath + '/') && actualPath !== expectedBasePath) {
+      throw new Error(
+        `Security error: Worktree path "${worktreePath}" is outside the repository's .worktrees directory.`
+      );
+    }
+  }
 
   /**
    * 新しいGit worktreeを作成
@@ -34,7 +101,11 @@ export class GitService {
    * @throws Git操作が失敗した場合にエラーをスロー
    */
   createWorktree(sessionName: string, branchName: string): string {
+    this.validateName(sessionName, 'session');
+    this.validateName(branchName, 'branch');
+
     const worktreePath = join(this.repoPath, '.worktrees', sessionName);
+    this.validateWorktreePath(worktreePath);
 
     try {
       const result = spawnSync('git', ['worktree', 'add', '-b', branchName, worktreePath], {
@@ -63,7 +134,10 @@ export class GitService {
    * @param sessionName - 削除するセッション名
    */
   deleteWorktree(sessionName: string): void {
+    this.validateName(sessionName, 'session');
+
     const worktreePath = join(this.repoPath, '.worktrees', sessionName);
+    this.validateWorktreePath(worktreePath);
 
     try {
       const result = spawnSync('git', ['worktree', 'remove', worktreePath, '--force'], {
@@ -72,12 +146,25 @@ export class GitService {
       });
 
       if (result.error || result.status !== 0) {
-        throw new Error(result.stderr || result.error?.message || 'Failed to remove worktree');
+        const errorMsg = result.stderr || result.error?.message || '';
+
+        // "存在しない"系のエラーは警告として握りつぶす
+        if (errorMsg.includes('not found') ||
+            errorMsg.includes('does not exist') ||
+            errorMsg.includes('no such file or directory') ||
+            errorMsg.includes('is not a working tree')) {
+          this.logger.warn('Worktree does not exist (already removed)', { sessionName });
+          return;
+        }
+
+        // その他のエラー（権限、ロック等）はthrow
+        throw new Error(errorMsg || 'Failed to remove worktree');
       }
 
       this.logger.info('Deleted worktree', { sessionName });
     } catch (error) {
-      this.logger.warn('Failed to delete worktree (may not exist)', { sessionName, error });
+      this.logger.error('Failed to delete worktree', { sessionName, error });
+      throw error;
     }
   }
 
@@ -92,7 +179,10 @@ export class GitService {
    * @throws Git操作が失敗した場合にエラーをスロー
    */
   getDiff(sessionName: string): { added: string[]; modified: string[]; deleted: string[] } {
+    this.validateName(sessionName, 'session');
+
     const worktreePath = join(this.repoPath, '.worktrees', sessionName);
+    this.validateWorktreePath(worktreePath);
 
     try {
       const result = spawnSync('git', ['diff', '--name-status', 'main...HEAD'], {
@@ -140,7 +230,10 @@ export class GitService {
    * @throws リベースの中止に失敗した場合にエラーをスロー
    */
   rebaseFromMain(sessionName: string): { success: boolean; conflicts?: string[] } {
+    this.validateName(sessionName, 'session');
+
     const worktreePath = join(this.repoPath, '.worktrees', sessionName);
+    this.validateWorktreePath(worktreePath);
 
     try {
       const result = spawnSync('git', ['rebase', 'main'], {
@@ -188,10 +281,29 @@ export class GitService {
    * @throws マージの中止に失敗した場合にエラーをスロー
    */
   squashMerge(sessionName: string, commitMessage: string): { success: boolean; conflicts?: string[] } {
+    this.validateName(sessionName, 'session');
+
     const worktreePath = join(this.repoPath, '.worktrees', sessionName);
+    this.validateWorktreePath(worktreePath);
     const gitignorePath = join(this.repoPath, '.gitignore');
 
     try {
+      // mainブランチにいることを確認
+      const currentBranchResult = spawnSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+        cwd: this.repoPath,
+        encoding: 'utf-8',
+      });
+
+      if (currentBranchResult.error || currentBranchResult.status !== 0) {
+        throw new Error(currentBranchResult.stderr || 'Failed to get current branch');
+      }
+
+      const currentBranch = currentBranchResult.stdout.trim();
+      if (currentBranch !== 'main') {
+        throw new Error(`Cannot squash merge: currently on branch "${currentBranch}", but must be on "main"`);
+      }
+
+      // worktreeのブランチ名を取得
       const branchResult = spawnSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
         cwd: worktreePath,
         encoding: 'utf-8',
