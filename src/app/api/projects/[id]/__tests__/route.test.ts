@@ -6,6 +6,7 @@ import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { execSync } from 'child_process';
+import { randomUUID } from 'crypto';
 
 describe('PUT /api/projects/[id]', () => {
   let testRepoPath: string;
@@ -18,7 +19,7 @@ describe('PUT /api/projects/[id]', () => {
 
     authSession = await prisma.authSession.create({
       data: {
-        id: 'test-session-id',
+        id: randomUUID(),
         token_hash: 'test-hash',
         expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000),
       },
@@ -120,7 +121,7 @@ describe('DELETE /api/projects/[id]', () => {
 
     authSession = await prisma.authSession.create({
       data: {
-        id: 'test-session-id',
+        id: randomUUID(),
         token_hash: 'test-hash',
         expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000),
       },

@@ -6,6 +6,7 @@ import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { execSync } from 'child_process';
+import { randomUUID } from 'crypto';
 
 vi.mock('@/services/process-manager', () => ({
   ProcessManager: class {
@@ -35,7 +36,7 @@ describe('GET /api/projects/[project_id]/sessions', () => {
 
     authSession = await prisma.authSession.create({
       data: {
-        id: 'test-session-id',
+        id: randomUUID(),
         token_hash: 'test-hash',
         expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000),
       },
@@ -120,7 +121,7 @@ describe('POST /api/projects/[project_id]/sessions', () => {
 
     authSession = await prisma.authSession.create({
       data: {
-        id: 'test-session-id',
+        id: randomUUID(),
         token_hash: 'test-hash',
         expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000),
       },
