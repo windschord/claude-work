@@ -1141,7 +1141,8 @@ interface CollapsibleSectionProps {
 
 **依存関係**: タスク6.4
 **推定工数**: 30分
-**ステータス**: `IN_PROGRESS`
+**ステータス**: `DONE`
+**完了サマリー**: CollapsibleSectionコンポーネントを作成し、MarkdownRendererでサブエージェント出力（[Task]/[Agent]パターン）を検出して折りたたみ表示する機能を実装。キーボード操作とARIA属性でアクセシビリティにも対応。
 
 ---
 
