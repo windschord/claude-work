@@ -1091,13 +1091,57 @@ Claude Codeのサブエージェント出力を折りたたみ表示する
 - サブエージェント検出
 - 折りたたみUI
 
+**技術的文脈**:
+- プロジェクトディレクトリ: /home/tsk/sync/git/claude-work/frontend
+- TypeScript strict mode
+- Tailwind CSS
+- Next.js App Router
+
+**実装手順**:
+
+1. `frontend/components/session/CollapsibleSection.tsx` 作成
+   - 折りたたみ可能なセクションコンポーネント
+   - ヘッダー（タイトル + 展開/折りたたみアイコン）
+   - コンテンツ領域
+   - アニメーション付き展開/折りたたみ
+   - キーボード操作サポート（Enterキー、Spaceキー）
+   - ARIA属性でアクセシビリティ対応
+
+2. `frontend/components/session/MarkdownRenderer.tsx` 更新
+   - サブエージェント出力パターンを検出
+     - `[Task]` または `[Agent]` で始まる行
+     - ネストされた出力ブロック
+   - 検出したブロックを CollapsibleSection でラップ
+   - デフォルトで折りたたみ状態
+
+**CollapsibleSectionコンポーネント仕様**:
+
+```typescript
+interface CollapsibleSectionProps {
+  title: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}
+
+// UI例:
+// [▼] サブエージェント: ファイル検索
+// │  検索結果...
+// │  ...
+// [▶] サブエージェント: コード分析 (折りたたみ状態)
+```
+
 **受入基準**:
+- [ ] CollapsibleSectionコンポーネントが作成されている
 - [ ] サブエージェント出力が検出される
 - [ ] 折りたたみ可能なセクションで表示される
+- [ ] キーボード操作で展開/折りたたみができる
+- [ ] ARIA属性が設定されている
+- [ ] `npm run build`が成功する
+- [ ] TypeScript strict modeでエラーがない
 
 **依存関係**: タスク6.4
 **推定工数**: 30分
-**ステータス**: `TODO`
+**ステータス**: `IN_PROGRESS`
 
 ---
 
