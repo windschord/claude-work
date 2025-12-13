@@ -1,5 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+/**
+ * Next.js ミドルウェア - CORS設定とプリフライトリクエスト処理
+ *
+ * すべてのAPIリクエストに対してCORSヘッダーを設定します。
+ * 許可されたオリジンは環境変数ALLOWED_ORIGINSで指定できます。
+ * 開発環境ではすべてのオリジンを許可します。
+ *
+ * @param request - Next.jsリクエストオブジェクト
+ * @returns レスポンスオブジェクト（CORSヘッダー付き）
+ *
+ * @example
+ * 環境変数設定:
+ * ```
+ * ALLOWED_ORIGINS=https://example.com,https://app.example.com
+ * ```
+ */
 export function middleware(request: NextRequest) {
   const allowedOrigins = process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(',')
@@ -30,6 +46,12 @@ export function middleware(request: NextRequest) {
   return response;
 }
 
+/**
+ * ミドルウェア設定
+ *
+ * このミドルウェアを適用するパスパターンを指定します。
+ * '/api/:path*'にマッチするすべてのリクエストに適用されます。
+ */
 export const config = {
   matcher: '/api/:path*',
 };
