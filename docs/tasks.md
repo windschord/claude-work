@@ -186,3 +186,106 @@ MVP後に実装:
 - ESLint + Prettier for linting/formatting
 - コミットメッセージ: Conventional Commits
 - ブランチ戦略: GitHub Flow
+
+---
+
+## セキュリティ・品質改善タスク
+
+以下はCodeRabbitレビュー（#3574391877）で指摘された技術的負債・改善項目です。
+優先度に応じて別PRで対応してください。
+
+### タスク: パストラバーサル対策の強化
+**優先度**: 高
+**ファイル**: `src/app/api/projects/route.ts` (124-145行)
+
+**問題**:
+現在は`resolve()`で絶対パス化しているが、許可ベースディレクトリの検証がない。
+任意のディレクトリをプロジェクトとして登録できる状態。
+
+**実装内容**:
+1. 環境変数`ALLOWED_PROJECT_BASE_DIRS`を追加（カンマ区切り）
+2. リクエストされたパスが許可ディレクトリ配下にあることを検証
+3. 許可外のパスの場合は403エラーを返す
+
+**受入基準**:
+- 許可ディレクトリ外のパスでプロジェクト作成を試みると403エラー
+- 許可ディレクトリ内のパスでは正常に作成できる
+- テストケースを追加
+
+### タスク: Git操作の非同期化とタイムアウト設定
+**優先度**: 中
+**ファイル**: `src/app/api/projects/route.ts` (127-136行), `src/services/git-service.ts`
+
+**問題**:
+`spawnSync`はイベントループをブロックし、大規模リポジトリで応答が遅延する。
+
+**実装内容**:
+1. GitServiceの全メソッドを非同期化（`spawn` + Promise化）
+2. タイムアウト設定を追加（デフォルト30秒、環境変数で調整可能）
+3. API Routeを`async/await`に対応
+
+**受入基準**:
+- 全てのGit操作がノンブロッキングで実行される
+- タイムアウト時にエラーが返される
+- 既存テストが全て通る
+
+### タスク: プロジェクトpath重複登録の防止
+**優先度**: 中
+**ファイル**: `prisma/schema.prisma`, `src/app/api/projects/route.ts` (138-145行)
+
+**問題**:
+同一pathで複数のプロジェクトを登録できる。
+
+**実装内容**:
+1. Prismaスキーマで`path`フィールドに`@unique`制約を追加
+2. マイグレーション実行
+3. POST /api/projectsでUniqueConstraintErrorをハンドリング（409 Conflict）
+
+**受入基準**:
+- 同一pathで2回目の登録を試みると409エラー
+- エラーメッセージが明確（"Project already exists at this path"）
+- テストケースを追加
+
+### タスク: プロジェクト所有権チェックの実装
+**優先度**: 高
+**ファイル**: `src/app/api/projects/[project_id]/route.ts` (53-60, 132-138行)
+
+**問題**:
+認証済みユーザーなら誰でも全てのプロジェクトを更新・削除できる。
+マルチユーザー環境でセキュリティリスク。
+
+**実装内容**:
+1. Prismaスキーマで`Project`モデルに`owner_id`フィールドを追加
+2. `AuthSession`と`Project`の関連を定義
+3. PUT/DELETEハンドラーで所有権チェックを実装（所有者のみ許可）
+4. プロジェクト作成時に`owner_id`を自動設定
+
+**受入基準**:
+- 他人のプロジェクトを更新/削除しようとすると403エラー
+- 自分のプロジェクトは正常に更新/削除できる
+- GET /api/projectsは自分のプロジェクトのみ返す
+- テストケースを追加
+
+### タスク: ログ出力の機密情報対策
+**優先度**: 低
+**ファイル**: `src/app/api/sessions/[id]/merge/route.ts` (103-109行)
+
+**問題**:
+`commitMessage`全体をログ出力しており、意図せず機密情報が含まれる可能性。
+
+**実装内容**:
+1. ログ出力時にcommitMessageを先頭80文字に制限
+2. 全体の文字数も記録（デバッグ用）
+
+**実装例**:
+```typescript
+logger.info('Merged session successfully', {
+  id,
+  commitMessagePreview: sanitizedMessage.slice(0, 80),
+  commitMessageLength: sanitizedMessage.length,
+});
+```
+
+**受入基準**:
+- ログに出力されるcommitMessageが80文字以内
+- 文字数情報が記録される
