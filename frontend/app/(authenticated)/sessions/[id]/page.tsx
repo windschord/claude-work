@@ -20,8 +20,9 @@ import ConflictDialog from '@/components/git/ConflictDialog';
 import { CommitHistory } from '@/components/git/CommitHistory';
 import { Session } from '@/lib/api';
 import RunScriptPanel from '@/components/session/RunScriptPanel';
+import Terminal from '@/components/session/Terminal';
 
-type TabType = 'chat' | 'changes' | 'history' | 'scripts';
+type TabType = 'chat' | 'changes' | 'history' | 'scripts' | 'terminal';
 
 // ユニークIDを生成するヘルパー関数
 function generateId(): string {
@@ -332,6 +333,16 @@ export default function SessionDetailPage() {
           >
             スクリプト
           </button>
+          <button
+            onClick={() => setActiveTab('terminal')}
+            className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'terminal'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            ターミナル
+          </button>
         </div>
       </div>
 
@@ -370,6 +381,10 @@ export default function SessionDetailPage() {
         ) : activeTab === 'scripts' ? (
           <div className="h-full">
             <RunScriptPanel sessionId={sessionId} projectId={session.project_id} />
+          </div>
+        ) : activeTab === 'terminal' ? (
+          <div className="h-full">
+            <Terminal sessionId={sessionId} />
           </div>
         ) : (
           <div className="h-full overflow-y-auto px-6 py-4">
