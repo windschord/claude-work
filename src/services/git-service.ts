@@ -3,12 +3,36 @@ import { join } from 'path';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import type { Logger } from 'winston';
 
+/**
+ * Git操作を管理するサービスクラス
+ *
+ * このクラスは、worktreeの作成・削除、差分取得、リベース、スカッシュマージなどの
+ * Git操作を提供します。各セッションごとに独立したworktreeを作成することで、
+ * 複数のClaude Codeセッションを並行して実行できるようにします。
+ */
 export class GitService {
+  /**
+   * GitServiceのインスタンスを作成
+   *
+   * @param repoPath - Gitリポジトリのルートパス
+   * @param logger - ログ出力用のWinstonロガー
+   */
   constructor(
     private repoPath: string,
     private logger: Logger
   ) {}
 
+  /**
+   * 新しいGit worktreeを作成
+   *
+   * 指定されたセッション名とブランチ名で新しいworktreeを作成します。
+   * worktreeは `.worktrees/[sessionName]` ディレクトリに作成されます。
+   *
+   * @param sessionName - セッション名（worktreeディレクトリ名として使用）
+   * @param branchName - 作成するブランチ名
+   * @returns 作成されたworktreeのパス
+   * @throws Git操作が失敗した場合にエラーをスロー
+   */
   createWorktree(sessionName: string, branchName: string): string {
     const worktreePath = join(this.repoPath, '.worktrees', sessionName);
 
@@ -24,6 +48,14 @@ export class GitService {
     }
   }
 
+  /**
+   * Git worktreeを削除
+   *
+   * 指定されたセッション名のworktreeを削除します。
+   * worktreeが存在しない場合は警告をログに記録しますが、エラーをスローしません。
+   *
+   * @param sessionName - 削除するセッション名
+   */
   deleteWorktree(sessionName: string): void {
     const worktreePath = join(this.repoPath, '.worktrees', sessionName);
 
@@ -37,6 +69,16 @@ export class GitService {
     }
   }
 
+  /**
+   * mainブランチとの差分を取得
+   *
+   * 指定されたセッションのworktreeで、mainブランチとの差分を取得します。
+   * 追加、変更、削除されたファイルのリストを返します。
+   *
+   * @param sessionName - 差分を取得するセッション名
+   * @returns 追加、変更、削除されたファイルのパスを含むオブジェクト
+   * @throws Git操作が失敗した場合にエラーをスロー
+   */
   getDiff(sessionName: string): { added: string[]; modified: string[]; deleted: string[] } {
     const worktreePath = join(this.repoPath, '.worktrees', sessionName);
 
@@ -70,6 +112,16 @@ export class GitService {
     }
   }
 
+  /**
+   * mainブランチからリベースを実行
+   *
+   * 指定されたセッションのworktreeで、mainブランチからのリベースを試みます。
+   * コンフリクトが発生した場合は、リベースを中止してコンフリクトファイルのリストを返します。
+   *
+   * @param sessionName - リベースを実行するセッション名
+   * @returns リベースの成功/失敗とコンフリクトファイルのリスト（失敗時のみ）
+   * @throws リベースの中止に失敗した場合にエラーをスロー
+   */
   rebaseFromMain(sessionName: string): { success: boolean; conflicts?: string[] } {
     const worktreePath = join(this.repoPath, '.worktrees', sessionName);
 
@@ -105,6 +157,17 @@ export class GitService {
     }
   }
 
+  /**
+   * セッションブランチをmainにスカッシュマージ
+   *
+   * 指定されたセッションのworktreeのブランチを、mainブランチにスカッシュマージします。
+   * すべてのコミットを1つにまとめて、指定されたコミットメッセージでコミットします。
+   * また、.gitignoreに.worktrees/が含まれていない場合は自動的に追加します。
+   *
+   * @param sessionName - マージするセッション名
+   * @param commitMessage - マージコミットのメッセージ
+   * @throws マージやコミットが失敗した場合にエラーをスロー
+   */
   squashMerge(sessionName: string, commitMessage: string): void {
     const worktreePath = join(this.repoPath, '.worktrees', sessionName);
     const gitignorePath = join(this.repoPath, '.gitignore');
