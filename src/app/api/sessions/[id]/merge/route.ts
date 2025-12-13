@@ -3,7 +3,7 @@ import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { GitService } from '@/services/git-service';
 import { logger } from '@/lib/logger';
-import { execSync } from 'child_process';
+import { spawnSync } from 'child_process';
 import { basename } from 'path';
 
 /**
@@ -86,22 +86,21 @@ export async function POST(
       logger.info('Merged session successfully', { id, commitMessage });
       return NextResponse.json({ success: true });
     } catch (error: unknown) {
-      const err = error as { message?: string; stdout?: Buffer; toString?: () => string };
+      const err = error as { message?: string; toString?: () => string };
       const errorMessage = err?.message || err?.toString?.() || '';
-      const errorStdout = err?.stdout?.toString() || '';
 
-      if (errorMessage.includes('CONFLICT') || errorStdout.includes('CONFLICT')) {
+      if (errorMessage.includes('CONFLICT') || errorMessage.includes('conflict')) {
         try {
-          const conflictsOutput = execSync('git diff --name-only --diff-filter=U', {
+          const conflictsResult = spawnSync('git', ['diff', '--name-only', '--diff-filter=U'], {
             cwd: targetSession.project.path,
             encoding: 'utf-8',
           });
 
-          const conflicts = conflictsOutput
+          const conflicts = (conflictsResult.stdout || '')
             .split('\n')
             .filter((file) => file.length > 0);
 
-          execSync('git reset --merge', {
+          spawnSync('git', ['reset', '--merge'], {
             cwd: targetSession.project.path,
           });
 

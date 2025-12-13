@@ -79,9 +79,13 @@ export class ProcessManager extends EventEmitter {
       stdio: ['pipe', 'pipe', 'pipe'],
     });
 
+    if (!childProc.pid) {
+      throw new Error(`Failed to spawn Claude Code process for session ${sessionId}`);
+    }
+
     const info: ProcessInfo = {
       sessionId,
-      pid: childProc.pid!,
+      pid: childProc.pid,
       status: 'running',
     };
 
@@ -146,6 +150,8 @@ export class ProcessManager extends EventEmitter {
       const processData = this.processes.get(sessionId);
       if (processData) {
         processData.info.status = 'stopped';
+        // メモリリークを防ぐため、終了したプロセスをMapから削除
+        this.processes.delete(sessionId);
       }
 
       this.emit('exit', {

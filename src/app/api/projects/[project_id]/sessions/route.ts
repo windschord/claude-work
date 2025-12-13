@@ -154,7 +154,18 @@ export async function POST(
     const branchName = `session/${sessionName}`;
 
     const gitService = new GitService(project.path, logger);
-    const worktreePath = gitService.createWorktree(sessionName, branchName);
+    let worktreePath: string;
+
+    try {
+      worktreePath = gitService.createWorktree(sessionName, branchName);
+    } catch (worktreeError) {
+      logger.error('Failed to create worktree', {
+        error: worktreeError,
+        project_id,
+        sessionName,
+      });
+      throw worktreeError;
+    }
 
     const newSession = await prisma.session.create({
       data: {
@@ -184,6 +195,9 @@ export async function POST(
 
       return NextResponse.json(newSession, { status: 201 });
     } catch (processError) {
+      // プロセス起動失敗時はworktreeをクリーンアップ
+      gitService.deleteWorktree(sessionName);
+
       await prisma.session.update({
         where: { id: newSession.id },
         data: { status: 'error' },

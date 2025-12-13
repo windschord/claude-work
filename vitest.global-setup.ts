@@ -1,6 +1,7 @@
-import { execSync } from 'child_process';
+import { spawnSync } from 'child_process';
 import path from 'path';
 import fs from 'fs';
+import { pathToFileURL } from 'url';
 
 export default function setup() {
   // Create a temporary test database file
@@ -17,18 +18,23 @@ export default function setup() {
     fs.unlinkSync(testDbPath);
   }
 
+  // Convert to file URL (handles Windows backslashes correctly)
+  const testDbUrl = pathToFileURL(testDbPath).href;
+
   // Initialize database schema using prisma db push
-  try {
-    execSync(`DATABASE_URL="file:${testDbPath}" npx prisma db push --skip-generate --accept-data-loss`, {
-      encoding: 'utf-8',
-      cwd: process.cwd(),
-    });
-    console.log(`Test database initialized at ${testDbPath}`);
-  } catch (error: any) {
+  const result = spawnSync('npx', ['prisma', 'db', 'push', '--skip-generate', '--accept-data-loss'], {
+    env: { ...process.env, DATABASE_URL: testDbUrl },
+    encoding: 'utf-8',
+    cwd: process.cwd(),
+  });
+
+  if (result.error || result.status !== 0) {
     console.error('Failed to initialize test database:');
-    console.error('Error message:', error.message);
-    if (error.stdout) console.error('stdout:', error.stdout);
-    if (error.stderr) console.error('stderr:', error.stderr);
-    throw error;
+    if (result.error) console.error('Error:', result.error.message);
+    if (result.stdout) console.error('stdout:', result.stdout);
+    if (result.stderr) console.error('stderr:', result.stderr);
+    throw new Error(result.stderr || result.error?.message || 'Failed to initialize test database');
   }
+
+  console.log(`Test database initialized at ${testDbPath}`);
 }

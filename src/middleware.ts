@@ -18,7 +18,7 @@ import { NextRequest, NextResponse } from 'next/server';
  */
 export function middleware(request: NextRequest) {
   const allowedOrigins = process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(',')
+    ? process.env.ALLOWED_ORIGINS.split(',').map((origin) => origin.trim())
     : (process.env.NODE_ENV === 'production' ? [] : ['*']);
 
   const origin = request.headers.get('origin');

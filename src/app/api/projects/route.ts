@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
-import { execSync } from 'child_process';
-import { basename } from 'path';
+import { spawnSync } from 'child_process';
+import { basename, resolve } from 'path';
 import { logger } from '@/lib/logger';
 
 /**
@@ -114,23 +114,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Path is required' }, { status: 400 });
     }
 
-    try {
-      execSync('git rev-parse --git-dir', { cwd: projectPath, stdio: 'pipe' });
-    } catch {
-      logger.warn('Invalid git repository', { path: projectPath });
+    // パストラバーサル攻撃を防ぐため、絶対パスに正規化
+    const absolutePath = resolve(projectPath);
+
+    // Gitリポジトリの検証
+    const result = spawnSync('git', ['rev-parse', '--git-dir'], {
+      cwd: absolutePath,
+      encoding: 'utf-8',
+    });
+
+    if (result.error || result.status !== 0) {
+      logger.warn('Invalid git repository', { path: absolutePath });
       return NextResponse.json({ error: 'Not a valid git repository' }, { status: 400 });
     }
 
-    const name = basename(projectPath);
+    const name = basename(absolutePath);
 
     const project = await prisma.project.create({
       data: {
         name,
-        path: projectPath,
+        path: absolutePath,
       },
     });
 
-    logger.info('Project created', { id: project.id, name, path: projectPath });
+    logger.info('Project created', { id: project.id, name, path: absolutePath });
     return NextResponse.json(project, { status: 201 });
   } catch (error) {
     logger.error('Failed to create project', { error });

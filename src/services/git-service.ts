@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+import { spawnSync } from 'child_process';
 import { join } from 'path';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import type { Logger } from 'winston';
@@ -37,9 +37,15 @@ export class GitService {
     const worktreePath = join(this.repoPath, '.worktrees', sessionName);
 
     try {
-      execSync(`git worktree add -b ${branchName} ${worktreePath}`, {
+      const result = spawnSync('git', ['worktree', 'add', '-b', branchName, worktreePath], {
         cwd: this.repoPath,
+        encoding: 'utf-8',
       });
+
+      if (result.error || result.status !== 0) {
+        throw new Error(result.stderr || result.error?.message || 'Failed to create worktree');
+      }
+
       this.logger.info('Created worktree', { sessionName, branchName, worktreePath });
       return worktreePath;
     } catch (error) {
@@ -60,9 +66,15 @@ export class GitService {
     const worktreePath = join(this.repoPath, '.worktrees', sessionName);
 
     try {
-      execSync(`git worktree remove ${worktreePath} --force`, {
+      const result = spawnSync('git', ['worktree', 'remove', worktreePath, '--force'], {
         cwd: this.repoPath,
+        encoding: 'utf-8',
       });
+
+      if (result.error || result.status !== 0) {
+        throw new Error(result.stderr || result.error?.message || 'Failed to remove worktree');
+      }
+
       this.logger.info('Deleted worktree', { sessionName });
     } catch (error) {
       this.logger.warn('Failed to delete worktree (may not exist)', { sessionName, error });
@@ -83,11 +95,16 @@ export class GitService {
     const worktreePath = join(this.repoPath, '.worktrees', sessionName);
 
     try {
-      const diffOutput = execSync('git diff --name-status main...HEAD', {
+      const result = spawnSync('git', ['diff', '--name-status', 'main...HEAD'], {
         cwd: worktreePath,
         encoding: 'utf-8',
       });
 
+      if (result.error) {
+        throw new Error(result.error.message);
+      }
+
+      const diffOutput = result.stdout || '';
       const added: string[] = [];
       const modified: string[] = [];
       const deleted: string[] = [];
@@ -126,34 +143,35 @@ export class GitService {
     const worktreePath = join(this.repoPath, '.worktrees', sessionName);
 
     try {
-      execSync('git rebase main', {
+      const result = spawnSync('git', ['rebase', 'main'], {
         cwd: worktreePath,
-        stdio: 'pipe',
+        encoding: 'utf-8',
       });
 
-      this.logger.info('Successfully rebased from main', { sessionName });
-      return { success: true };
-    } catch {
-      try {
-        const conflictsOutput = execSync('git diff --name-only --diff-filter=U', {
-          cwd: worktreePath,
-          encoding: 'utf-8',
-        });
-
-        const conflicts = conflictsOutput
-          .split('\n')
-          .filter((file) => file.length > 0);
-
-        execSync('git rebase --abort', {
-          cwd: worktreePath,
-        });
-
-        this.logger.warn('Rebase conflicts detected', { sessionName, conflicts });
-        return { success: false, conflicts };
-      } catch (abortError) {
-        this.logger.error('Failed to handle rebase conflict', { sessionName, error: abortError });
-        throw abortError;
+      if (result.status === 0) {
+        this.logger.info('Successfully rebased from main', { sessionName });
+        return { success: true };
       }
+
+      // Rebase failed, likely due to conflicts
+      const conflictsResult = spawnSync('git', ['diff', '--name-only', '--diff-filter=U'], {
+        cwd: worktreePath,
+        encoding: 'utf-8',
+      });
+
+      const conflicts = (conflictsResult.stdout || '')
+        .split('\n')
+        .filter((file) => file.length > 0);
+
+      spawnSync('git', ['rebase', '--abort'], {
+        cwd: worktreePath,
+      });
+
+      this.logger.warn('Rebase conflicts detected', { sessionName, conflicts });
+      return { success: false, conflicts };
+    } catch (error) {
+      this.logger.error('Failed to rebase', { sessionName, error });
+      throw error;
     }
   }
 
@@ -173,10 +191,16 @@ export class GitService {
     const gitignorePath = join(this.repoPath, '.gitignore');
 
     try {
-      const branchName = execSync('git rev-parse --abbrev-ref HEAD', {
+      const branchResult = spawnSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
         cwd: worktreePath,
         encoding: 'utf-8',
-      }).trim();
+      });
+
+      if (branchResult.error || branchResult.status !== 0) {
+        throw new Error(branchResult.stderr || 'Failed to get branch name');
+      }
+
+      const branchName = branchResult.stdout.trim();
 
       // Ensure .gitignore exists and contains .worktrees/
       let gitignoreContent = '';
@@ -189,23 +213,31 @@ export class GitService {
         gitignoreUpdated = true;
       }
 
-      execSync(`git merge --squash ${branchName}`, {
+      const mergeResult = spawnSync('git', ['merge', '--squash', branchName], {
         cwd: this.repoPath,
-        stdio: 'pipe',
+        encoding: 'utf-8',
       });
+
+      if (mergeResult.error || mergeResult.status !== 0) {
+        const errorMsg = mergeResult.stderr || mergeResult.stdout || 'Failed to squash merge';
+        throw new Error(errorMsg);
+      }
 
       // Add .gitignore if it was updated
       if (gitignoreUpdated) {
-        execSync('git add .gitignore', {
+        spawnSync('git', ['add', '.gitignore'], {
           cwd: this.repoPath,
-          stdio: 'pipe',
         });
       }
 
-      execSync(`git commit -m "${commitMessage}"`, {
+      const commitResult = spawnSync('git', ['commit', '-m', commitMessage], {
         cwd: this.repoPath,
-        stdio: 'pipe',
+        encoding: 'utf-8',
       });
+
+      if (commitResult.error || commitResult.status !== 0) {
+        throw new Error(commitResult.stderr || 'Failed to commit');
+      }
 
       this.logger.info('Successfully squash merged', { sessionName, commitMessage });
     } catch (error) {
