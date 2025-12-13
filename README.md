@@ -1,6 +1,21 @@
 # ClaudeWork
 
-ClaudeWorkプロジェクトのmonorepo構成
+Claude Codeを使用した複数セッション並列作業管理のためのWebアプリケーション
+
+## プロジェクト概要
+
+ClaudeWorkは、Claude Codeのセッションを複数同時に実行し、Git worktreeを活用した独立した作業環境で並列作業を実現するWebアプリケーションです。リアルタイムのClaude Code出力表示、ターミナル統合、差分表示などの機能を提供します。
+
+## 主な機能
+
+- **プロジェクト管理**: Gitリポジトリベースのプロジェクト管理（CRUD操作）
+- **セッション管理**: 複数のClaude Codeセッションの並列実行
+- **Claude Codeとの対話**: リアルタイムでの入力と出力表示
+- **Git操作**: worktree管理、rebase、squash merge対応
+- **差分表示**: react-diff-viewerによる変更の可視化
+- **ターミナル統合**: XTerm.jsによるブラウザ内ターミナル
+- **テーマ切替**: ライト/ダークモード対応
+- **レスポンシブUI**: モバイル端末にも対応
 
 ## プロジェクト構造
 
@@ -9,6 +24,7 @@ ClaudeWorkプロジェクトのmonorepo構成
 ├── frontend/          # Next.js 14フロントエンド
 ├── backend/           # Python FastAPIバックエンド
 ├── docs/              # プロジェクトドキュメント
+├── data/              # データベースファイル
 └── package.json       # ルートパッケージ設定（workspaces）
 ```
 
@@ -19,34 +35,81 @@ ClaudeWorkプロジェクトのmonorepo構成
 - React 18
 - TypeScript 5
 - Tailwind CSS 3
+- Zustand (状態管理)
+- React Hook Form
+- XTerm.js (ターミナル)
+- react-diff-viewer-continued (差分表示)
+- react-markdown (マークダウン表示)
 
 ### Backend
 - Python 3.11+
 - FastAPI
-- uvicorn
-- uv (パッケージマネージャ)
+- SQLAlchemy 2.0 (ORM)
+- Alembic (マイグレーション)
+- aiosqlite (非同期SQLite)
+- WebSocket (リアルタイム通信)
+- structlog (構造化ログ)
 
 ## セットアップ
 
 ### 前提条件
-- Node.js 20+
-- Python 3.11+
-- uv (Python パッケージマネージャ)
+- Node.js 20以上
+- Python 3.11以上
+- Git 2.30以上
+- uv (Pythonパッケージマネージャ)
 
-### インストール
+### リポジトリのクローン
 
 ```bash
-# フロントエンドの依存関係をインストール
-npm install
+git clone <repository-url>
+cd claude-work
+```
 
-# バックエンドの依存関係をインストール
+### 依存関係のインストール
+
+#### フロントエンド
+```bash
+npm install
+```
+
+#### バックエンド
+```bash
 cd backend
 uv sync
 ```
 
-## 開発サーバーの起動
+### 環境変数の設定
 
-### フロントエンド
+プロジェクトルートに`.env`ファイルを作成し、以下の環境変数を設定してください：
+
+```bash
+# .env.exampleをコピー
+cp .env.example .env
+
+# 必要に応じて編集
+nano .env
+```
+
+#### 必須の環境変数
+
+| 変数名 | 説明 | デフォルト値 | 例 |
+|--------|------|------------|-----|
+| `AUTH_TOKEN` | 認証トークン（セキュアなランダム文字列） | - | `openssl rand -hex 32`で生成 |
+| `DATABASE_URL` | データベース接続URL | `sqlite+aiosqlite:///./data/claudework.db` | SQLiteファイルパス |
+| `CORS_ORIGINS` | CORSで許可するオリジン | `http://localhost:3000` | カンマ区切りで複数指定可 |
+| `NEXT_PUBLIC_API_URL` | バックエンドAPIのURL | `http://localhost:8000` | - |
+| `NEXT_PUBLIC_WS_URL` | WebSocketのURL | `ws://localhost:8000` | - |
+| `GIT_REPOS_PATH` | Gitリポジトリのベースパス | `/home` | `/home/username/projects` |
+
+#### オプションの環境変数
+
+| 変数名 | 説明 | デフォルト値 |
+|--------|------|------------|
+| `LOG_LEVEL` | ログレベル (debug/info/warning/error) | `info` |
+
+### 開発サーバーの起動
+
+#### フロントエンドのみ
 ```bash
 # ルートディレクトリから
 npm run dev:frontend
@@ -58,40 +121,80 @@ npm run dev
 
 開発サーバーは http://localhost:3000 で起動します
 
-### バックエンド
+#### バックエンドのみ
 ```bash
 # ルートディレクトリから
 npm run dev:backend
 
 # または backend ディレクトリで
 cd backend
-uv run uvicorn main:app --reload
+uv run uvicorn app.main:app --reload
 ```
 
 APIサーバーは http://localhost:8000 で起動します
 APIドキュメント: http://localhost:8000/docs
 
-### 両方を同時起動
+#### フロントエンドとバックエンドを同時起動
 ```bash
 npm run dev
 ```
 
-## プロジェクト初期化の確認
+### Docker Composeでの起動
 
-以下の受入基準を満たしています:
+```bash
+# 環境変数を設定
+cp .env.example .env
+nano .env
 
-- [x] `package.json`がルートに存在し、workspaces設定がある
-- [x] `frontend/package.json`が存在する
-- [x] `frontend/`で`npm run dev`が起動する（依存関係インストール後）
-- [x] `backend/pyproject.toml`が存在する
-- [x] `backend/`で`uv run uvicorn main:app`が起動する
-- [x] `.gitignore`が適切に設定されている
+# コンテナをビルドして起動
+docker-compose up -d
 
-## APIエンドポイント
+# ログを確認
+docker-compose logs -f
 
-### バックエンド
-- `GET /`: ウェルカムメッセージ
+# 停止
+docker-compose down
+```
+
+アクセス先:
+- フロントエンド: http://localhost:3000
+- バックエンドAPI: http://localhost:8000
+- APIドキュメント: http://localhost:8000/docs
+
+## API仕様概要
+
+### 認証エンドポイント
+- `POST /api/auth/login`: ログイン
+- `POST /api/auth/logout`: ログアウト
+
+### プロジェクト管理
+- `GET /api/projects`: プロジェクト一覧取得
+- `POST /api/projects`: プロジェクト作成
+- `GET /api/projects/{id}`: プロジェクト詳細取得
+- `PUT /api/projects/{id}`: プロジェクト更新
+- `DELETE /api/projects/{id}`: プロジェクト削除
+
+### セッション管理
+- `GET /api/sessions`: セッション一覧取得
+- `POST /api/sessions`: セッション作成
+- `GET /api/sessions/{id}`: セッション詳細取得
+- `PUT /api/sessions/{id}`: セッション更新
+- `DELETE /api/sessions/{id}`: セッション削除
+- `POST /api/sessions/{id}/start`: セッション開始
+- `POST /api/sessions/{id}/stop`: セッション停止
+
+### Git操作
+- `GET /api/git/diff`: 差分取得
+- `POST /api/git/rebase`: rebase実行
+- `POST /api/git/squash-merge`: squash merge実行
+
+### WebSocket
+- `WS /ws/sessions/{id}`: セッション用WebSocket（Claude Code通信）
+- `WS /ws/sessions/{id}/terminal`: ターミナル用WebSocket
+
+### その他
 - `GET /health`: ヘルスチェック
+- `GET /`: APIルート情報
 
 ## テスト
 
@@ -145,3 +248,48 @@ AUTH_TOKEN=test-token-for-e2e
 - コミットは親エージェントが行います
 - 絵文字は使用しません
 - TDD（テスト駆動開発）を推奨します
+
+## トラブルシューティング
+
+### データベースの初期化
+
+データベースに問題がある場合は、以下のコマンドで再初期化できます：
+
+```bash
+cd backend
+rm -f data/claudework.db
+uv run alembic upgrade head
+```
+
+### ポートが既に使用されている場合
+
+別のプロセスがポートを使用している場合は、プロセスを終了するか、別のポートを使用してください：
+
+```bash
+# 使用中のプロセスを確認
+lsof -i :3000  # フロントエンド
+lsof -i :8000  # バックエンド
+
+# プロセスを終了
+kill -9 <PID>
+```
+
+### Docker Composeでボリュームエラーが発生する場合
+
+```bash
+# ボリュームを削除して再作成
+docker-compose down -v
+docker-compose up -d
+```
+
+## ライセンス
+
+このプロジェクトのライセンスについては、プロジェクトオーナーにお問い合わせください。
+
+## 貢献
+
+貢献を歓迎します。プルリクエストを送信する前に、以下を確認してください：
+
+1. コードがリンターを通過すること
+2. テストが全て成功すること
+3. コミットメッセージが明確であること
