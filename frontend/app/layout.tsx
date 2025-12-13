@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AuthGuard } from "@/components/AuthGuard";
+import { ThemeProvider } from "@/components/ThemeProvider";
 
 export const metadata: Metadata = {
   title: "Claude Work",
@@ -15,7 +16,9 @@ export default function RootLayout({
   return (
     <html lang="ja">
       <body>
-        <AuthGuard>{children}</AuthGuard>
+        <ThemeProvider>
+          <AuthGuard>{children}</AuthGuard>
+        </ThemeProvider>
       </body>
     </html>
   );

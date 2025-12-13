@@ -19,7 +19,7 @@ export function ProjectList({ onDeleteClick }: ProjectListProps) {
   if (isLoading) {
     return (
       <div className="px-3 py-2">
-        <p className="text-sm text-gray-500">読み込み中...</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400">読み込み中...</p>
       </div>
     );
   }
@@ -27,7 +27,7 @@ export function ProjectList({ onDeleteClick }: ProjectListProps) {
   if (error) {
     return (
       <div className="px-3 py-2">
-        <p className="text-sm text-red-600">{error}</p>
+        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
       </div>
     );
   }
@@ -35,7 +35,7 @@ export function ProjectList({ onDeleteClick }: ProjectListProps) {
   if (projects.length === 0) {
     return (
       <div className="px-3 py-2">
-        <p className="text-sm text-gray-500">プロジェクトがありません</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400">プロジェクトがありません</p>
       </div>
     );
   }
@@ -50,14 +50,14 @@ export function ProjectList({ onDeleteClick }: ProjectListProps) {
       {projects.map((project) => (
         <div
           key={project.id}
-          className="group flex items-center justify-between rounded-md px-3 py-2 text-sm hover:bg-gray-100 cursor-pointer"
+          className="group flex items-center justify-between rounded-md px-3 py-2 md:py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer active:bg-gray-200 dark:active:bg-gray-600"
         >
           <div
-            className="flex-1 truncate"
+            className="flex-1 truncate min-h-[44px] flex flex-col justify-center"
             onClick={() => handleProjectClick(project.id)}
           >
-            <p className="font-medium text-gray-900">{project.name}</p>
-            <p className="text-xs text-gray-500 truncate">{project.path}</p>
+            <p className="font-medium text-gray-900 dark:text-white">{project.name}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{project.path}</p>
           </div>
           <button
             type="button"
@@ -65,11 +65,11 @@ export function ProjectList({ onDeleteClick }: ProjectListProps) {
               e.stopPropagation();
               onDeleteClick(project.id, project.name);
             }}
-            className="ml-2 opacity-0 group-hover:opacity-100 p-1 rounded-md text-gray-400 hover:text-red-600 hover:bg-red-50 transition-opacity"
+            className="ml-2 min-w-[44px] min-h-[44px] md:opacity-0 md:group-hover:opacity-100 p-1 rounded-md text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-opacity active:bg-red-100 dark:active:bg-red-900/50"
           >
             <span className="sr-only">削除</span>
             <svg
-              className="h-4 w-4"
+              className="h-5 w-5 md:h-4 md:w-4"
               fill="none"
               viewBox="0 0 24 24"
               strokeWidth="1.5"

@@ -35,13 +35,13 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12 sm:px-6 lg:px-8">
+    <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-900 px-4 py-12 sm:px-6 lg:px-8">
       <div className="w-full max-w-md space-y-8">
         <div>
-          <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-gray-900">
+          <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
             Claude Work
           </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
+          <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
             トークンを入力してログインしてください
           </p>
         </div>
@@ -56,7 +56,7 @@ export default function LoginPage() {
                 id="token"
                 type="password"
                 autoComplete="current-password"
-                className="relative block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:z-10 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
+                className="relative block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white bg-white dark:bg-gray-800 ring-1 ring-inset ring-gray-300 dark:ring-gray-700 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:z-10 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
                 placeholder="トークン"
                 {...register('token', {
                   required: 'トークンを入力してください',
@@ -70,14 +70,14 @@ export default function LoginPage() {
           </div>
 
           {errors.token && (
-            <div className="rounded-md bg-red-50 p-4">
-              <div className="text-sm text-red-800">{errors.token.message}</div>
+            <div className="rounded-md bg-red-50 dark:bg-red-900/30 p-4">
+              <div className="text-sm text-red-800 dark:text-red-400">{errors.token.message}</div>
             </div>
           )}
 
           {error && (
-            <div className="rounded-md bg-red-50 p-4">
-              <div className="text-sm text-red-800">{error}</div>
+            <div className="rounded-md bg-red-50 dark:bg-red-900/30 p-4">
+              <div className="text-sm text-red-800 dark:text-red-400">{error}</div>
             </div>
           )}
 
