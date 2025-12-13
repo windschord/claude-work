@@ -10,6 +10,7 @@ vi.mock('@/store', () => ({
 
 describe('DeleteProjectDialog', () => {
   const mockDeleteProject = vi.fn();
+  const mockFetchProjects = vi.fn();
   const mockOnClose = vi.fn();
 
   const mockProject = {
@@ -24,8 +25,11 @@ describe('DeleteProjectDialog', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockDeleteProject.mockResolvedValue(undefined);
+    mockFetchProjects.mockResolvedValue(undefined);
     (useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       deleteProject: mockDeleteProject,
+      fetchProjects: mockFetchProjects,
     });
   });
 
@@ -114,14 +118,18 @@ describe('DeleteProjectDialog', () => {
   });
 
   it('ローディング中は「削除」ボタンが無効化される', async () => {
-    mockDeleteProject.mockImplementation(() => new Promise(resolve => setTimeout(resolve, 1000)));
+    mockDeleteProject.mockImplementation(() => new Promise(() => {
+      // Promise is never resolved to keep loading state
+    }));
 
     render(<DeleteProjectDialog isOpen={true} onClose={mockOnClose} project={mockProject} />);
 
     const deleteButton = screen.getByRole('button', { name: '削除' });
     fireEvent.click(deleteButton);
 
-    expect(deleteButton).toBeDisabled();
+    await waitFor(() => {
+      expect(deleteButton).toBeDisabled();
+    });
   });
 
   it('projectがnullの場合、何も表示されない', () => {

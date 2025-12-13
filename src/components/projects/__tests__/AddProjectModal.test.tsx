@@ -10,12 +10,16 @@ vi.mock('@/store', () => ({
 
 describe('AddProjectModal', () => {
   const mockAddProject = vi.fn();
+  const mockFetchProjects = vi.fn();
   const mockOnClose = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockAddProject.mockResolvedValue(undefined);
+    mockFetchProjects.mockResolvedValue(undefined);
     (useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       addProject: mockAddProject,
+      fetchProjects: mockFetchProjects,
     });
   });
 
@@ -147,7 +151,9 @@ describe('AddProjectModal', () => {
   });
 
   it('ローディング中は「追加」ボタンが無効化される', async () => {
-    mockAddProject.mockImplementation(() => new Promise(resolve => setTimeout(resolve, 1000)));
+    mockAddProject.mockImplementation(() => new Promise(() => {
+      // Promise is never resolved to keep loading state
+    }));
 
     render(<AddProjectModal isOpen={true} onClose={mockOnClose} />);
 
@@ -157,6 +163,8 @@ describe('AddProjectModal', () => {
     fireEvent.change(input, { target: { value: '/valid/path' } });
     fireEvent.click(addButton);
 
-    expect(addButton).toBeDisabled();
+    await waitFor(() => {
+      expect(addButton).toBeDisabled();
+    });
   });
 });

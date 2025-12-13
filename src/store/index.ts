@@ -87,6 +87,12 @@ export interface AppState {
   fetchProjects: () => Promise<void>;
   /** プロジェクト一覧を設定 */
   setProjects: (projects: Project[]) => void;
+  /** プロジェクトを追加 */
+  addProject: (path: string) => Promise<void>;
+  /** プロジェクトを更新 */
+  updateProject: (id: string, data: Partial<Project>) => Promise<void>;
+  /** プロジェクトを削除 */
+  deleteProject: (id: string) => Promise<void>;
   /** 選択中のプロジェクトIDを設定 */
   setSelectedProjectId: (projectId: string | null) => void;
   /** セッション一覧を設定 */
@@ -281,6 +287,110 @@ export const useAppStore = create<AppState>((set) => ({
         throw error;
       }
       throw new Error('プロジェクト一覧の取得に失敗しました');
+    }
+  },
+
+  addProject: async (path: string) => {
+    try {
+      const response = await fetch('/api/projects', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ path }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+
+        if (response.status === 400) {
+          if (errorData.error?.includes('Git') || errorData.error?.includes('リポジトリ')) {
+            throw new Error('指定されたパスはGitリポジトリではありません');
+          }
+          throw new Error('有効なパスを入力してください');
+        }
+
+        if (response.status === 500) {
+          throw new Error('プロジェクトの追加に失敗しました');
+        }
+
+        throw new Error(errorData.error || 'プロジェクトの追加に失敗しました');
+      }
+
+      const data = await response.json();
+      set((state) => ({
+        projects: [...state.projects, data.project],
+      }));
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.includes('Failed to fetch') || error.message.includes('Network')) {
+          throw new Error('ネットワークエラーが発生しました');
+        }
+        throw error;
+      }
+      throw new Error('プロジェクトの追加に失敗しました');
+    }
+  },
+
+  updateProject: async (id: string, data: Partial<Project>) => {
+    try {
+      const response = await fetch(`/api/projects/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error('プロジェクトが見つかりません');
+        }
+        throw new Error('プロジェクトの更新に失敗しました');
+      }
+
+      const responseData = await response.json();
+      set((state) => ({
+        projects: state.projects.map((p) =>
+          p.id === id ? responseData.project : p
+        ),
+      }));
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.includes('Failed to fetch') || error.message.includes('Network')) {
+          throw new Error('ネットワークエラーが発生しました');
+        }
+        throw error;
+      }
+      throw new Error('プロジェクトの更新に失敗しました');
+    }
+  },
+
+  deleteProject: async (id: string) => {
+    try {
+      const response = await fetch(`/api/projects/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error('プロジェクトが見つかりません');
+        }
+        throw new Error('プロジェクトの削除に失敗しました');
+      }
+
+      set((state) => ({
+        projects: state.projects.filter((p) => p.id !== id),
+        selectedProjectId: state.selectedProjectId === id ? null : state.selectedProjectId,
+      }));
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.includes('Failed to fetch') || error.message.includes('Network')) {
+          throw new Error('ネットワークエラーが発生しました');
+        }
+        throw error;
+      }
+      throw new Error('プロジェクトの削除に失敗しました');
     }
   },
 

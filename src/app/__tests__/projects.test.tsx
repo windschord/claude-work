@@ -18,6 +18,15 @@ vi.mock('next/navigation', () => ({
   }),
 }));
 
+// コンポーネントのモック
+vi.mock('@/components/layout/MainLayout', () => ({
+  MainLayout: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}));
+
+vi.mock('@/components/AuthGuard', () => ({
+  AuthGuard: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}));
+
 describe('HomePage (Projects)', () => {
   const mockFetchProjects = vi.fn();
   const mockSetSelectedProjectId = vi.fn();
@@ -47,6 +56,8 @@ describe('HomePage (Projects)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockPush.mockClear();
+    mockFetchProjects.mockResolvedValue(undefined);
+    mockCheckAuth.mockResolvedValue(undefined);
     (useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       isAuthenticated: true,
       projects: mockProjects,
