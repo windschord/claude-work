@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { Message } from '@/lib/api';
+import MarkdownRenderer from './MarkdownRenderer';
 
 interface MessageListProps {
   messages: Message[];
@@ -61,8 +62,8 @@ export default function MessageList({ messages, isLoading }: MessageListProps) {
         if (message.role === 'assistant') {
           return (
             <div key={message.id} className="flex justify-start">
-              <div className="bg-gray-200 text-gray-900 px-4 py-2 rounded-lg max-w-xl break-words">
-                {message.content}
+              <div className="bg-gray-200 text-gray-900 px-4 py-2 rounded-lg max-w-3xl">
+                <MarkdownRenderer content={message.content} />
               </div>
             </div>
           );
