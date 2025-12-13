@@ -55,6 +55,38 @@ export interface CreateSessionData {
 }
 
 /**
+ * メッセージの型定義
+ */
+export interface Message {
+  /** メッセージID */
+  id: string;
+  /** 所属するセッションのID */
+  session_id: string;
+  /** メッセージの役割 */
+  role: 'user' | 'assistant';
+  /** メッセージ内容 */
+  content: string;
+  /** サブエージェント情報（JSON形式） */
+  sub_agents: string | null;
+  /** 作成日時 */
+  created_at: string;
+}
+
+/**
+ * 権限リクエストの型定義
+ */
+export interface PermissionRequest {
+  /** 権限リクエストID */
+  id: string;
+  /** 権限タイプ */
+  type: string;
+  /** 説明 */
+  description: string;
+  /** 詳細 */
+  details: string;
+}
+
+/**
  * アプリケーション全体の状態管理インターフェース
  *
  * Zustandを使用したグローバルステート管理の型定義です。
@@ -79,6 +111,13 @@ export interface AppState {
   sessions: Session[];
   /** 選択中のセッションID */
   selectedSessionId: string | null;
+
+  /** 現在表示中のセッション詳細 */
+  currentSession: Session | null;
+  /** メッセージ一覧 */
+  messages: Message[];
+  /** 権限リクエスト */
+  permissionRequest: PermissionRequest | null;
 
   /** テーマ設定 */
   theme: 'light' | 'dark' | 'system';
@@ -115,6 +154,14 @@ export interface AppState {
   setSessions: (sessions: Session[]) => void;
   /** 選択中のセッションIDを設定 */
   setSelectedSessionId: (sessionId: string | null) => void;
+  /** セッション詳細を取得 */
+  fetchSessionDetail: (sessionId: string) => Promise<void>;
+  /** メッセージを送信 */
+  sendMessage: (sessionId: string, content: string) => Promise<void>;
+  /** 権限リクエストを承認 */
+  approvePermission: (sessionId: string, permissionId: string, action: 'approve' | 'reject') => Promise<void>;
+  /** セッションを停止 */
+  stopSession: (sessionId: string) => Promise<void>;
   /** テーマを設定 */
   setTheme: (theme: 'light' | 'dark' | 'system') => void;
   /** モバイル表示フラグを設定 */
@@ -137,6 +184,9 @@ const initialState = {
   selectedProjectId: null,
   sessions: [],
   selectedSessionId: null,
+  currentSession: null,
+  messages: [],
+  permissionRequest: null,
   theme: 'system' as const,
   isMobile: false,
   isSidebarOpen: false,
@@ -463,6 +513,118 @@ export const useAppStore = create<AppState>((set) => ({
         throw error;
       }
       throw new Error('セッションの作成に失敗しました');
+    }
+  },
+
+  fetchSessionDetail: async (sessionId: string) => {
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}`);
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error('セッションが見つかりません');
+        }
+        throw new Error('セッション詳細の取得に失敗しました');
+      }
+
+      const session = await response.json();
+
+      // Fetch messages for this session
+      const messagesResponse = await fetch(`/api/sessions/${sessionId}/messages`);
+      let messages = [];
+      if (messagesResponse.ok) {
+        const messagesData = await messagesResponse.json();
+        messages = messagesData.messages || [];
+      }
+
+      set({ currentSession: session, messages });
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.includes('Failed to fetch') || error.message.includes('Network')) {
+          throw new Error('ネットワークエラーが発生しました');
+        }
+        throw error;
+      }
+      throw new Error('セッション詳細の取得に失敗しました');
+    }
+  },
+
+  sendMessage: async (sessionId: string, content: string) => {
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}/input`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ content }),
+      });
+
+      if (!response.ok) {
+        throw new Error('メッセージの送信に失敗しました');
+      }
+
+      const message = await response.json();
+      set((state) => ({
+        messages: [...state.messages, message],
+      }));
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.includes('Failed to fetch') || error.message.includes('Network')) {
+          throw new Error('ネットワークエラーが発生しました');
+        }
+        throw error;
+      }
+      throw new Error('メッセージの送信に失敗しました');
+    }
+  },
+
+  approvePermission: async (sessionId: string, permissionId: string, action: 'approve' | 'reject') => {
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}/approve`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ permission_id: permissionId, action }),
+      });
+
+      if (!response.ok) {
+        throw new Error('権限リクエストの処理に失敗しました');
+      }
+
+      // Clear permission request after handling
+      set({ permissionRequest: null });
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.includes('Failed to fetch') || error.message.includes('Network')) {
+          throw new Error('ネットワークエラーが発生しました');
+        }
+        throw error;
+      }
+      throw new Error('権限リクエストの処理に失敗しました');
+    }
+  },
+
+  stopSession: async (sessionId: string) => {
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}/stop`, {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        throw new Error('セッションの停止に失敗しました');
+      }
+
+      const updatedSession = await response.json();
+      set({ currentSession: updatedSession });
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.includes('Failed to fetch') || error.message.includes('Network')) {
+          throw new Error('ネットワークエラーが発生しました');
+        }
+        throw error;
+      }
+      throw new Error('セッションの停止に失敗しました');
     }
   },
 
