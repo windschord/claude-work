@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { POST } from '../route';
 import { prisma } from '@/lib/db';
 import { NextRequest } from 'next/server';
@@ -7,12 +7,13 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { execSync } from 'child_process';
 import { randomUUID } from 'crypto';
+import type { AuthSession, Project, Session } from '@prisma/client';
 
 describe('POST /api/sessions/[id]/rebase', () => {
   let testRepoPath: string;
-  let authSession: any;
-  let project: any;
-  let session: any;
+  let authSession: AuthSession;
+  let project: Project;
+  let session: Session;
 
   beforeEach(async () => {
     await prisma.session.deleteMany();

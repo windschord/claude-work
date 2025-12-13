@@ -1,13 +1,21 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { EventEmitter } from 'events';
 import { ProcessManager, StartOptions } from '../process-manager';
-import { spawn } from 'child_process';
+import { spawn, ChildProcess } from 'child_process';
 
 vi.mock('child_process');
 
+type MockChildProcess = {
+  stdin: { write: ReturnType<typeof vi.fn>; end: ReturnType<typeof vi.fn> };
+  stdout: EventEmitter;
+  stderr: EventEmitter;
+  kill: ReturnType<typeof vi.fn>;
+  pid: number;
+};
+
 describe('ProcessManager', () => {
   let processManager: ProcessManager;
-  let mockChildProcess: any;
+  let mockChildProcess: MockChildProcess;
 
   beforeEach(() => {
     mockChildProcess = {
@@ -21,7 +29,7 @@ describe('ProcessManager', () => {
       pid: 12345,
     };
 
-    vi.mocked(spawn).mockReturnValue(mockChildProcess as any);
+    vi.mocked(spawn).mockReturnValue(mockChildProcess as unknown as ChildProcess);
     processManager = new ProcessManager();
   });
 

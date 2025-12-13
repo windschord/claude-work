@@ -49,9 +49,10 @@ export async function POST(
       gitService.squashMerge(sessionName, commitMessage);
       logger.info('Merged session successfully', { id, commitMessage });
       return NextResponse.json({ success: true });
-    } catch (error: any) {
-      const errorMessage = error?.message || error?.toString() || '';
-      const errorStdout = error?.stdout?.toString() || '';
+    } catch (error: unknown) {
+      const err = error as { message?: string; stdout?: Buffer; toString?: () => string };
+      const errorMessage = err?.message || err?.toString?.() || '';
+      const errorStdout = err?.stdout?.toString() || '';
 
       if (errorMessage.includes('CONFLICT') || errorStdout.includes('CONFLICT')) {
         try {

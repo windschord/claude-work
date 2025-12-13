@@ -81,7 +81,7 @@ export class GitService {
 
       this.logger.info('Successfully rebased from main', { sessionName });
       return { success: true };
-    } catch (error) {
+    } catch {
       try {
         const conflictsOutput = execSync('git diff --name-only --diff-filter=U', {
           cwd: worktreePath,

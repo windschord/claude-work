@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 
 // Set default DATABASE_URL for tests if not set
 if (!process.env.DATABASE_URL) {
@@ -11,7 +11,7 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function createPrismaClient() {
-  const options: any = {
+  const options: Prisma.PrismaClientOptions = {
     log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
   };
 

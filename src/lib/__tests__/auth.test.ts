@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { createSession, getSession, deleteSession, requireAuth } from '../auth';
+import { createSession, getSession, deleteSession } from '../auth';
 import { prisma } from '../db';
-import { NextRequest } from 'next/server';
 
 describe('Auth', () => {
   beforeEach(async () => {

@@ -39,8 +39,9 @@ export async function deleteSession(sessionId: string): Promise<void> {
   });
 }
 
-export function requireAuth(request: NextRequest) {
+export function requireAuth(_request?: NextRequest) {
   // This function is referenced in the test import but not tested
   // Implementation placeholder for future use
+  // TODO: Implement proper authentication check
   return true;
 }

@@ -7,6 +7,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { execSync } from 'child_process';
 import { randomUUID } from 'crypto';
+import type { AuthSession, Project, Session } from '@prisma/client';
 
 vi.mock('@/services/process-manager', () => ({
   ProcessManager: class {
@@ -26,9 +27,9 @@ vi.mock('@/services/process-manager', () => ({
 
 describe('GET /api/sessions/[id]', () => {
   let testRepoPath: string;
-  let authSession: any;
-  let project: any;
-  let session: any;
+  let authSession: AuthSession;
+  let project: Project;
+  let session: Session;
 
   beforeEach(async () => {
     await prisma.session.deleteMany();
@@ -119,9 +120,9 @@ describe('GET /api/sessions/[id]', () => {
 
 describe('DELETE /api/sessions/[id]', () => {
   let testRepoPath: string;
-  let authSession: any;
-  let project: any;
-  let session: any;
+  let authSession: AuthSession;
+  let project: Project;
+  let session: Session;
 
   beforeEach(async () => {
     await prisma.session.deleteMany();

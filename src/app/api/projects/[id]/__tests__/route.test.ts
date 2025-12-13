@@ -7,11 +7,12 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { execSync } from 'child_process';
 import { randomUUID } from 'crypto';
+import type { AuthSession, Project } from '@prisma/client';
 
 describe('PUT /api/projects/[id]', () => {
   let testRepoPath: string;
-  let authSession: any;
-  let project: any;
+  let authSession: AuthSession;
+  let project: Project;
 
   beforeEach(async () => {
     await prisma.project.deleteMany();
@@ -112,8 +113,8 @@ describe('PUT /api/projects/[id]', () => {
 
 describe('DELETE /api/projects/[id]', () => {
   let testRepoPath: string;
-  let authSession: any;
-  let project: any;
+  let authSession: AuthSession;
+  let project: Project;
 
   beforeEach(async () => {
     await prisma.project.deleteMany();

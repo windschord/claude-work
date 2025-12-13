@@ -3,9 +3,10 @@ import { POST } from '../route';
 import { prisma } from '@/lib/db';
 import { NextRequest } from 'next/server';
 import { randomUUID } from 'crypto';
+import type { AuthSession } from '@prisma/client';
 
 describe('POST /api/auth/logout', () => {
-  let authSession: any;
+  let authSession: AuthSession;
 
   beforeEach(async () => {
     await prisma.authSession.deleteMany();
