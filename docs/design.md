@@ -188,7 +188,7 @@ interface AppState {
 - コミット履歴取得
 - コミットへのリセット
 
-**実装場所**: `src/services/git-operations.ts`（Node.js child_process使用）
+**実装場所**: `src/services/git-service.ts`（Node.js child_process使用）
 
 #### コンポーネント: PTY Manager
 

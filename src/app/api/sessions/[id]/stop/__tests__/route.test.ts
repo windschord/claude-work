@@ -50,7 +50,7 @@ describe('POST /api/sessions/[id]/stop', () => {
     execSync('git config user.email "test@example.com"', { cwd: testRepoPath });
     execSync('echo "test" > README.md && git add . && git commit -m "initial"', {
       cwd: testRepoPath,
-      shell: '/bin/bash',
+      shell: true,
     });
     execSync('git branch -M main', { cwd: testRepoPath });
 

@@ -34,7 +34,7 @@ describe('GET /api/sessions/[id]/diff', () => {
     execSync('git config user.email "test@example.com"', { cwd: testRepoPath });
     execSync('echo "test" > README.md && git add . && git commit -m "initial"', {
       cwd: testRepoPath,
-      shell: '/bin/bash',
+      shell: true,
     });
     execSync('git branch -M main', { cwd: testRepoPath });
 
@@ -65,7 +65,7 @@ describe('GET /api/sessions/[id]/diff', () => {
     writeFileSync(join(session.worktree_path, 'README.md'), 'modified content');
     execSync('git add . && git commit -m "test changes"', {
       cwd: session.worktree_path,
-      shell: '/bin/bash',
+      shell: true,
     });
   });
 

@@ -34,7 +34,7 @@ describe('POST /api/sessions/[id]/merge', () => {
     execSync('git config user.email "test@example.com"', { cwd: testRepoPath });
     execSync('echo "test" > README.md && git add . && git commit -m "initial"', {
       cwd: testRepoPath,
-      shell: '/bin/bash',
+      shell: true,
     });
     execSync('git branch -M main', { cwd: testRepoPath });
 
@@ -75,7 +75,7 @@ describe('POST /api/sessions/[id]/merge', () => {
     writeFileSync(join(session.worktree_path, 'new-file.txt'), 'new content');
     execSync('git add . && git commit -m "add new file"', {
       cwd: session.worktree_path,
-      shell: '/bin/bash',
+      shell: true,
     });
 
     const request = new NextRequest(
@@ -110,14 +110,14 @@ describe('POST /api/sessions/[id]/merge', () => {
     writeFileSync(join(session.worktree_path, 'README.md'), 'branch content');
     execSync('git add . && git commit -m "modify README in branch"', {
       cwd: session.worktree_path,
-      shell: '/bin/bash',
+      shell: true,
     });
 
     // Make conflicting change in main
     writeFileSync(join(testRepoPath, 'README.md'), 'main content');
     execSync('git add . && git commit -m "modify README in main"', {
       cwd: testRepoPath,
-      shell: '/bin/bash',
+      shell: true,
     });
 
     const request = new NextRequest(

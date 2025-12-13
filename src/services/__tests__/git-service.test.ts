@@ -15,7 +15,7 @@ describe('GitService', () => {
     execSync('git init', { cwd: testRepoPath });
     execSync('git config user.name "Test"', { cwd: testRepoPath });
     execSync('git config user.email "test@example.com"', { cwd: testRepoPath });
-    execSync('echo "test" > README.md && git add . && git commit -m "initial"', { cwd: testRepoPath, shell: '/bin/bash' });
+    execSync('echo "test" > README.md && git add . && git commit -m "initial"', { cwd: testRepoPath, shell: true });
     execSync('git branch -M main', { cwd: testRepoPath });
 
     gitService = new GitService(testRepoPath, logger);
@@ -97,10 +97,10 @@ describe('GitService', () => {
       const worktreePath = gitService.createWorktree(sessionName, branchName);
 
       writeFileSync(join(worktreePath, 'branch-file.txt'), 'branch content');
-      execSync('git add . && git commit -m "branch commit"', { cwd: worktreePath, shell: '/bin/bash' });
+      execSync('git add . && git commit -m "branch commit"', { cwd: worktreePath, shell: true });
 
       writeFileSync(join(testRepoPath, 'main-file.txt'), 'main content');
-      execSync('git add . && git commit -m "main commit"', { cwd: testRepoPath, shell: '/bin/bash' });
+      execSync('git add . && git commit -m "main commit"', { cwd: testRepoPath, shell: true });
 
       const result = gitService.rebaseFromMain(sessionName);
 
@@ -118,10 +118,10 @@ describe('GitService', () => {
       const worktreePath = gitService.createWorktree(sessionName, branchName);
 
       writeFileSync(join(worktreePath, 'conflict.txt'), 'branch content');
-      execSync('git add . && git commit -m "branch commit"', { cwd: worktreePath, shell: '/bin/bash' });
+      execSync('git add . && git commit -m "branch commit"', { cwd: worktreePath, shell: true });
 
       writeFileSync(join(testRepoPath, 'conflict.txt'), 'main content');
-      execSync('git add . && git commit -m "main commit"', { cwd: testRepoPath, shell: '/bin/bash' });
+      execSync('git add . && git commit -m "main commit"', { cwd: testRepoPath, shell: true });
 
       const result = gitService.rebaseFromMain(sessionName);
 
@@ -138,10 +138,10 @@ describe('GitService', () => {
       const worktreePath = gitService.createWorktree(sessionName, branchName);
 
       writeFileSync(join(worktreePath, 'feature.txt'), 'feature content');
-      execSync('git add . && git commit -m "feature commit 1"', { cwd: worktreePath, shell: '/bin/bash' });
+      execSync('git add . && git commit -m "feature commit 1"', { cwd: worktreePath, shell: true });
 
       writeFileSync(join(worktreePath, 'feature2.txt'), 'feature content 2');
-      execSync('git add . && git commit -m "feature commit 2"', { cwd: worktreePath, shell: '/bin/bash' });
+      execSync('git add . && git commit -m "feature commit 2"', { cwd: worktreePath, shell: true });
 
       const commitMessage = 'Squashed feature commits';
       gitService.squashMerge(sessionName, commitMessage);
