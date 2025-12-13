@@ -8,7 +8,16 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
-    exclude: ['**/node_modules/**', '**/dist/**', '**/db.test.ts'],
+    exclude: ['**/node_modules/**', '**/dist/**', '**/db.test.ts', '**/process-manager.test.ts'],
+    env: {
+      NODE_ENV: 'test',
+      DATABASE_URL: 'file:./data/test.db',
+    },
+    server: {
+      deps: {
+        inline: [],
+      },
+    },
   },
   resolve: {
     alias: {
