@@ -60,11 +60,16 @@ export class GitService {
     }
 
     // 相対パス表記を拒否
-    if (name === '.' || name === '..' || name.startsWith('.')) {
+    if (name === '.' || name === '..') {
       throw new Error(`Invalid ${type} name: "${name}". Relative path notation is not allowed.`);
     }
 
-    // ブランチ名でのダブルドット（..）を拒否（パストラバーサル）
+    // セッション名の場合はドット始まりも拒否
+    if (type === 'session' && name.startsWith('.')) {
+      throw new Error(`Invalid ${type} name: "${name}". Names starting with a dot are not allowed for sessions.`);
+    }
+
+    // ダブルドット（..）を拒否（パストラバーサル）
     if (name.includes('..')) {
       throw new Error(`Invalid ${type} name: "${name}". Double dots (..) are not allowed.`);
     }
@@ -190,8 +195,8 @@ export class GitService {
         encoding: 'utf-8',
       });
 
-      if (result.error) {
-        throw new Error(result.error.message);
+      if (result.error || result.status !== 0) {
+        throw new Error(result.stderr || result.error?.message || 'Failed to get diff');
       }
 
       const diffOutput = result.stdout || '';
@@ -256,9 +261,16 @@ export class GitService {
         .split('\n')
         .filter((file) => file.length > 0);
 
-      spawnSync('git', ['rebase', '--abort'], {
+      const abortResult = spawnSync('git', ['rebase', '--abort'], {
         cwd: worktreePath,
+        encoding: 'utf-8',
       });
+
+      if (abortResult.error || abortResult.status !== 0) {
+        throw new Error(
+          `Failed to abort rebase: ${abortResult.stderr || abortResult.error?.message || 'Unknown error'}`
+        );
+      }
 
       this.logger.warn('Rebase conflicts detected', { sessionName, conflicts });
       return { success: false, conflicts };
@@ -321,7 +333,8 @@ export class GitService {
       if (existsSync(gitignorePath)) {
         gitignoreContent = readFileSync(gitignorePath, 'utf-8');
       }
-      if (!gitignoreContent.includes('.worktrees/')) {
+      const lines = gitignoreContent.split('\n');
+      if (!lines.some((line) => line.trim() === '.worktrees/')) {
         writeFileSync(gitignorePath, gitignoreContent + (gitignoreContent ? '\n' : '') + '.worktrees/\n');
         gitignoreUpdated = true;
       }
