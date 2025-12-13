@@ -13,6 +13,7 @@ from app.logging_config import configure_logging, get_logger
 from app.middleware.auth import verify_session
 from app.models.auth_session import AuthSession
 from app.websocket.session_ws import websocket_endpoint
+from app.websocket.terminal_ws import terminal_websocket_endpoint
 
 
 @asynccontextmanager
@@ -84,6 +85,24 @@ async def websocket_session(
 ):
     """セッション用WebSocketエンドポイント"""
     await websocket_endpoint(
+        websocket=websocket,
+        session_id=ws_session_id,
+        db=db,
+        auth_session_id=auth_session_id,
+        query_session_id=query_session_id,
+    )
+
+
+@app.websocket("/ws/sessions/{ws_session_id}/terminal")
+async def websocket_terminal(
+    websocket: WebSocket,
+    ws_session_id: str,
+    db: AsyncSession = Depends(get_db),
+    auth_session_id: Optional[str] = Cookie(None, alias=settings.session_cookie_name),
+    query_session_id: Optional[str] = Query(None, alias="session_id"),
+):
+    """ターミナル用WebSocketエンドポイント"""
+    await terminal_websocket_endpoint(
         websocket=websocket,
         session_id=ws_session_id,
         db=db,
