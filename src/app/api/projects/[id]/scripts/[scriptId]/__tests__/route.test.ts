@@ -2,12 +2,9 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { PUT, DELETE } from '../route';
 import { prisma } from '@/lib/db';
 import { NextRequest } from 'next/server';
-import { mkdtempSync, rmSync } from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'path';
-import { execSync } from 'child_process';
 import { randomUUID } from 'crypto';
 import type { AuthSession, Project, RunScript } from '@prisma/client';
+import { setupTestEnvironment, cleanupTestEnvironment } from '../../__tests__/test-helpers';
 
 // 共通テストセットアップ
 let testRepoPath: string;
@@ -16,35 +13,10 @@ let project: Project;
 let script: RunScript;
 
 beforeEach(async () => {
-  await prisma.runScript.deleteMany();
-  await prisma.project.deleteMany();
-  await prisma.authSession.deleteMany();
-
-  authSession = await prisma.authSession.create({
-    data: {
-      id: randomUUID(),
-      token_hash: 'test-hash',
-      expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000),
-    },
-  });
-
-  testRepoPath = mkdtempSync(join(tmpdir(), 'project-test-'));
-  execSync('git init', { cwd: testRepoPath, timeout: 10000 });
-  execSync('git config user.name "Test"', { cwd: testRepoPath, timeout: 10000 });
-  execSync('git config user.email "test@example.com"', { cwd: testRepoPath, timeout: 10000 });
-  execSync('echo "test" > README.md && git add . && git commit -m "initial"', {
-    cwd: testRepoPath,
-    shell: true,
-    timeout: 10000,
-  });
-  execSync('git branch -M main', { cwd: testRepoPath, timeout: 10000 });
-
-  project = await prisma.project.create({
-    data: {
-      name: 'Test Project',
-      path: testRepoPath,
-    },
-  });
+  const env = await setupTestEnvironment();
+  testRepoPath = env.testRepoPath;
+  authSession = env.authSession;
+  project = env.project;
 
   script = await prisma.runScript.create({
     data: {
@@ -57,12 +29,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  await prisma.runScript.deleteMany();
-  await prisma.project.deleteMany();
-  await prisma.authSession.deleteMany();
-  if (testRepoPath) {
-    rmSync(testRepoPath, { recursive: true, force: true });
-  }
+  await cleanupTestEnvironment(testRepoPath);
 });
 
 describe('PUT /api/projects/[id]/scripts/[scriptId]', () => {
