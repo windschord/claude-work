@@ -28,14 +28,15 @@ describe('GET /api/projects/[id]/scripts', () => {
     });
 
     testRepoPath = mkdtempSync(join(tmpdir(), 'project-test-'));
-    execSync('git init', { cwd: testRepoPath });
-    execSync('git config user.name "Test"', { cwd: testRepoPath });
-    execSync('git config user.email "test@example.com"', { cwd: testRepoPath });
+    execSync('git init', { cwd: testRepoPath, timeout: 10000 });
+    execSync('git config user.name "Test"', { cwd: testRepoPath, timeout: 10000 });
+    execSync('git config user.email "test@example.com"', { cwd: testRepoPath, timeout: 10000 });
     execSync('echo "test" > README.md && git add . && git commit -m "initial"', {
       cwd: testRepoPath,
       shell: true,
+      timeout: 10000,
     });
-    execSync('git branch -M main', { cwd: testRepoPath });
+    execSync('git branch -M main', { cwd: testRepoPath, timeout: 10000 });
 
     project = await prisma.project.create({
       data: {
@@ -137,14 +138,15 @@ describe('POST /api/projects/[id]/scripts', () => {
     });
 
     testRepoPath = mkdtempSync(join(tmpdir(), 'project-test-'));
-    execSync('git init', { cwd: testRepoPath });
-    execSync('git config user.name "Test"', { cwd: testRepoPath });
-    execSync('git config user.email "test@example.com"', { cwd: testRepoPath });
+    execSync('git init', { cwd: testRepoPath, timeout: 10000 });
+    execSync('git config user.name "Test"', { cwd: testRepoPath, timeout: 10000 });
+    execSync('git config user.email "test@example.com"', { cwd: testRepoPath, timeout: 10000 });
     execSync('echo "test" > README.md && git add . && git commit -m "initial"', {
       cwd: testRepoPath,
       shell: true,
+      timeout: 10000,
     });
-    execSync('git branch -M main', { cwd: testRepoPath });
+    execSync('git branch -M main', { cwd: testRepoPath, timeout: 10000 });
 
     project = await prisma.project.create({
       data: {

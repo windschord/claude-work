@@ -40,18 +40,23 @@ class MockWebSocket {
 
 describe('useTerminal', () => {
   let mockWebSocketInstance: MockWebSocket | null = null;
+  let originalWebSocket: typeof WebSocket;
 
   beforeEach(() => {
-    // WebSocketのグローバルモック
-    class MockWebSocketConstructor {
+    // 元のWebSocketを保存
+    originalWebSocket = global.WebSocket;
+
+    // WebSocketのグローバルモック（classとして定義）
+    class MockWebSocketConstructor extends EventTarget {
       static CONNECTING = MockWebSocket.CONNECTING;
       static OPEN = MockWebSocket.OPEN;
       static CLOSING = MockWebSocket.CLOSING;
       static CLOSED = MockWebSocket.CLOSED;
 
       constructor(url: string) {
+        super();
         mockWebSocketInstance = new MockWebSocket(url);
-        return mockWebSocketInstance as any;
+        Object.assign(this, mockWebSocketInstance);
       }
     }
 
@@ -61,6 +66,8 @@ describe('useTerminal', () => {
   afterEach(() => {
     vi.clearAllMocks();
     mockWebSocketInstance = null;
+    // WebSocketを元に戻す
+    global.WebSocket = originalWebSocket;
   });
 
   it('WebSocket接続が成功する', async () => {
@@ -83,7 +90,7 @@ describe('useTerminal', () => {
     await waitFor(() => {
       // WebSocketインスタンスが作成され、正しいURLが使用されることを確認
       expect(mockWebSocketInstance).toBeTruthy();
-      expect(mockWebSocketInstance?.url).toContain(`/ws/sessions/${sessionId}/terminal`);
+      expect(mockWebSocketInstance?.url).toContain(`/ws/terminal/${sessionId}`);
     });
   });
 

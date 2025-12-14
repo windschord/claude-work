@@ -53,7 +53,7 @@ export function AddRunScriptModal({
     try {
       await addScript(projectId, {
         name: name.trim(),
-        description: description.trim(),
+        description: description.trim() || undefined,
         command: command.trim(),
       });
       setName('');

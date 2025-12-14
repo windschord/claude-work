@@ -15,7 +15,6 @@ model Project {
   name          String
   path          String   @unique
   default_model String   @default("auto")
-  run_scripts   String?  // JSON format
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
 
