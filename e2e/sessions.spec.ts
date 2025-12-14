@@ -18,12 +18,12 @@ test.describe('セッション機能', () => {
 
     // プロジェクトを追加
     await page.click('text=プロジェクト追加');
-    await page.fill('input[placeholder*="パス"]', repoPath);
+    await page.fill('input#project-path', repoPath);
     await page.click('button:has-text("追加")');
     await expect(page.locator('text=test-repo')).toBeVisible();
 
     // プロジェクトをクリックして詳細ページに移動
-    await page.click('text=test-repo');
+    await page.click('button:has-text("開く")');
     await expect(page).toHaveURL(/\/projects\/.+/);
 
     // URLからプロジェクトIDを取得
@@ -42,16 +42,13 @@ test.describe('セッション機能', () => {
 
   test('セッションを作成できる', async ({ page }) => {
     // セッション作成フォームが表示される
-    await expect(page.locator('input[placeholder*="名前"]')).toBeVisible();
+    await expect(page.locator('input#session-name')).toBeVisible();
 
     // セッション名を入力
-    await page.fill('input[placeholder*="名前"]', 'テストセッション');
-
-    // モデルを選択
-    await page.selectOption('select', 'claude-sonnet-4-5');
+    await page.fill('input#session-name', 'テストセッション');
 
     // 初期プロンプトを入力
-    await page.fill('textarea[placeholder*="プロンプト"]', 'テスト用の初期プロンプト');
+    await page.fill('textarea#session-prompt', 'テスト用の初期プロンプト');
 
     // 作成ボタンをクリック
     await page.click('button:has-text("セッション作成")');
@@ -63,9 +60,8 @@ test.describe('セッション機能', () => {
 
   test('セッションにメッセージを送信できる', async ({ page }) => {
     // セッションを作成
-    await page.fill('input[placeholder*="名前"]', 'メッセージテスト');
-    await page.selectOption('select', 'claude-sonnet-4-5');
-    await page.fill('textarea[placeholder*="プロンプト"]', 'こんにちは');
+    await page.fill('input#session-name', 'メッセージテスト');
+    await page.fill('textarea#session-prompt', 'こんにちは');
     await page.click('button:has-text("セッション作成")');
 
     // セッション詳細ページに遷移
@@ -89,9 +85,8 @@ test.describe('セッション機能', () => {
 
   test('セッションを停止できる', async ({ page }) => {
     // セッションを作成
-    await page.fill('input[placeholder*="名前"]', '停止テスト');
-    await page.selectOption('select', 'claude-sonnet-4-5');
-    await page.fill('textarea[placeholder*="プロンプト"]', '停止テスト');
+    await page.fill('input#session-name', '停止テスト');
+    await page.fill('textarea#session-prompt', '停止テスト');
     await page.click('button:has-text("セッション作成")');
 
     // セッション詳細ページに遷移

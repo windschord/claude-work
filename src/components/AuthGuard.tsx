@@ -20,7 +20,7 @@ import { useAppStore } from '@/store';
  * </AuthGuard>
  * ```
  */
-export default function AuthGuard({ children }: { children: React.ReactNode }) {
+export function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { isAuthenticated, checkAuth } = useAppStore();
   const [isChecking, setIsChecking] = useState(true);
@@ -54,3 +54,5 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   // 認証済みの場合は子コンポーネントを表示
   return <>{children}</>;
 }
+
+export default AuthGuard;

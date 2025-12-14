@@ -17,18 +17,17 @@ test.describe('Git操作機能', () => {
 
     // プロジェクトを追加
     await page.click('text=プロジェクト追加');
-    await page.fill('input[placeholder*="パス"]', repoPath);
+    await page.fill('input#project-path', repoPath);
     await page.click('button:has-text("追加")');
     await expect(page.locator('text=test-repo')).toBeVisible();
 
     // プロジェクトをクリックして詳細ページに移動
-    await page.click('text=test-repo');
+    await page.click('button:has-text("開く")');
     await expect(page).toHaveURL(/\/projects\/.+/);
 
     // セッションを作成
-    await page.fill('input[placeholder*="名前"]', 'Git操作テスト');
-    await page.selectOption('select', 'claude-sonnet-4-5');
-    await page.fill('textarea[placeholder*="プロンプト"]', 'Git操作テスト');
+    await page.fill('input#session-name', 'Git操作テスト');
+    await page.fill('textarea#session-prompt', 'Git操作テスト');
     await page.click('button:has-text("セッション作成")');
 
     // セッション詳細ページに遷移

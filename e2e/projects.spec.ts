@@ -25,10 +25,10 @@ test.describe('プロジェクト管理機能', () => {
     await page.click('text=プロジェクト追加');
 
     // モーダルが表示される
-    await expect(page.locator('input[placeholder*="パス"]')).toBeVisible();
+    await expect(page.locator('input#project-path')).toBeVisible();
 
     // リポジトリパスを入力
-    await page.fill('input[placeholder*="パス"]', repoPath);
+    await page.fill('input#project-path', repoPath);
 
     // 追加ボタンをクリック
     await page.click('button:has-text("追加")');
@@ -44,20 +44,20 @@ test.describe('プロジェクト管理機能', () => {
 
     // まずプロジェクトを追加
     await page.click('text=プロジェクト追加');
-    await page.fill('input[placeholder*="パス"]', repoPath);
+    await page.fill('input#project-path', repoPath);
     await page.click('button:has-text("追加")');
 
     // プロジェクトが表示されるのを待つ
     await expect(page.locator('text=test-repo')).toBeVisible();
 
     // 削除ボタンをクリック（プロジェクトカードの削除ボタン）
-    await page.click('button[aria-label="削除"]');
+    await page.locator('button:has-text("削除")').first().click();
 
     // 確認ダイアログが表示される
     await expect(page.locator('text=削除しますか')).toBeVisible();
 
     // 削除確認
-    await page.click('button:has-text("削除")');
+    await page.locator('button:has-text("削除")').last().click();
 
     // プロジェクトが一覧から消える
     await expect(page.locator('text=test-repo')).not.toBeVisible();
@@ -70,14 +70,14 @@ test.describe('プロジェクト管理機能', () => {
 
     // プロジェクトを追加
     await page.click('text=プロジェクト追加');
-    await page.fill('input[placeholder*="パス"]', repoPath);
+    await page.fill('input#project-path', repoPath);
     await page.click('button:has-text("追加")');
 
     // プロジェクトが表示されるのを待つ
     await expect(page.locator('text=test-repo')).toBeVisible();
 
-    // プロジェクトカードをクリック
-    await page.click('text=test-repo');
+    // プロジェクトカードの「開く」ボタンをクリック
+    await page.click('button:has-text("開く")');
 
     // プロジェクト詳細ページに遷移
     await expect(page).toHaveURL(/\/projects\/.+/);
