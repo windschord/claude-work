@@ -13,6 +13,17 @@ describe('CreateSessionForm - Bulk Create', () => {
   const mockOnError = vi.fn();
   const mockCreateSession = vi.fn();
   const mockCreateBulkSessions = vi.fn();
+  const mockProjects = [
+    {
+      id: 'project-1',
+      name: 'Test Project',
+      path: '/path/to/project',
+      default_model: 'sonnet',
+      run_scripts: [],
+      session_count: 0,
+      created_at: '2024-01-01T00:00:00.000Z',
+    },
+  ];
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -21,6 +32,7 @@ describe('CreateSessionForm - Bulk Create', () => {
     (useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       createSession: mockCreateSession,
       createBulkSessions: mockCreateBulkSessions,
+      projects: mockProjects,
     });
   });
 

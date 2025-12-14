@@ -161,7 +161,7 @@ describe('PromptHistoryDropdown', () => {
     });
   });
 
-  it('ローディング中はローディング表示される', () => {
+  it('ローディング中はローディングが表示される', () => {
     (useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       prompts: [],
       isLoading: true,

@@ -57,7 +57,7 @@ model AuthSession {
 
 model Prompt {
   id           String   @id @default(uuid())
-  content      String
+  content      String   @unique
   used_count   Int      @default(1)
   last_used_at DateTime @default(now())
   created_at   DateTime @default(now())

@@ -84,10 +84,11 @@ describe('GET /api/prompts', () => {
   });
 
   it('最大50件までのプロンプトを返す', async () => {
+    const baseDate = new Date('2025-12-01T10:00:00Z');
     const prompts = Array.from({ length: 60 }, (_, i) => ({
       content: `Prompt ${i + 1}`,
       used_count: 60 - i,
-      last_used_at: new Date(`2025-12-${String(i + 1).padStart(2, '0')}T10:00:00Z`),
+      last_used_at: new Date(baseDate.getTime() + i * 24 * 60 * 60 * 1000),
     }));
 
     await prisma.prompt.createMany({ data: prompts });

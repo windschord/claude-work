@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { POST } from '../route';
 import { prisma } from '@/lib/db';
 import { NextRequest } from 'next/server';
-import { mkdtempSync, rmSync, writeFileSync, readFileSync } from 'fs';
+import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { execSync } from 'child_process';
