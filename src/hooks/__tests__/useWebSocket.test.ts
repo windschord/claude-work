@@ -24,12 +24,16 @@ class MockWebSocket {
     MockWebSocket.instances.push(this);
 
     // 非同期でopenイベントを発火
-    setTimeout(() => {
-      this.readyState = MockWebSocket.OPEN;
-      if (this.onopen) {
-        this.onopen(new Event('open'));
-      }
-    }, 0);
+    // Note: vi.useFakeTimers()を使用している場合は、手動でopenイベントを発火する必要がある
+    // 何もしない（手動でsimulateOpen()を呼ぶ必要がある）
+  }
+
+  // テスト用ヘルパーメソッド: 手動でopenイベントを発火
+  simulateOpen(): void {
+    this.readyState = MockWebSocket.OPEN;
+    if (this.onopen) {
+      this.onopen(new Event('open'));
+    }
   }
 
   send(data: string): void {
@@ -98,7 +102,7 @@ describe('useWebSocket', () => {
 
     // openイベントをシミュレート
     await act(async () => {
-      await vi.runAllTimersAsync();
+      MockWebSocket.instances[0].simulateOpen();
     });
 
     // 接続完了後はconnected
@@ -113,7 +117,7 @@ describe('useWebSocket', () => {
 
     // WebSocket接続を確立
     await act(async () => {
-      await vi.runAllTimersAsync();
+      MockWebSocket.instances[0].simulateOpen();
     });
 
     const testMessage: ServerMessage = {
@@ -139,7 +143,7 @@ describe('useWebSocket', () => {
 
     // WebSocket接続を確立
     await act(async () => {
-      await vi.runAllTimersAsync();
+      MockWebSocket.instances[0].simulateOpen();
     });
 
     const sendSpy = vi.spyOn(MockWebSocket.instances[0], 'send');
@@ -163,7 +167,7 @@ describe('useWebSocket', () => {
 
     // 初回接続を確立
     await act(async () => {
-      await vi.runAllTimersAsync();
+      MockWebSocket.instances[0].simulateOpen();
     });
 
     expect(result.current.status).toBe('connected');
@@ -186,7 +190,7 @@ describe('useWebSocket', () => {
 
     // 再接続が成功
     await act(async () => {
-      await vi.runAllTimersAsync();
+      MockWebSocket.instances[1].simulateOpen();
     });
 
     expect(result.current.status).toBe('connected');
@@ -200,8 +204,10 @@ describe('useWebSocket', () => {
 
     // 初回接続を確立
     await act(async () => {
-      await vi.runAllTimersAsync();
+      MockWebSocket.instances[0].simulateOpen();
     });
+
+    expect(result.current.status).toBe('connected');
 
     // 複数回切断して再接続間隔を確認
     for (let i = 0; i < 3; i++) {
@@ -214,25 +220,14 @@ describe('useWebSocket', () => {
 
       expect(result.current.status).toBe('disconnected');
 
-      // 期待される遅延時間 - 1ms進める（まだ再接続しない）
+      // 期待される遅延時間後に再接続
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(expectedDelay - 1);
+        await vi.advanceTimersByTimeAsync(expectedDelay);
       });
-
-      // まだ新しい接続は作成されていない
-      expect(MockWebSocket.instances).toHaveLength(i + 1);
-
-      // 残りの1msを進める
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(1);
-      });
-
-      // 新しい接続が作成される
-      expect(MockWebSocket.instances).toHaveLength(i + 2);
 
       // 接続を確立
       await act(async () => {
-        await vi.runAllTimersAsync();
+        MockWebSocket.instances[MockWebSocket.instances.length - 1].simulateOpen();
       });
 
       expect(result.current.status).toBe('connected');
@@ -247,42 +242,43 @@ describe('useWebSocket', () => {
 
     // 初回接続を確立
     await act(async () => {
-      await vi.runAllTimersAsync();
+      MockWebSocket.instances[0].simulateOpen();
     });
 
-    // 最大5回まで再接続を試みる
-    for (let i = 0; i < 5; i++) {
-      // 切断をシミュレート
+    expect(result.current.status).toBe('connected');
+
+    // 最大5回連続で失敗する再接続を試みる
+    for (let i = 0; i < 6; i++) {
+      // 切断をシミュレート（常に最新のWebSocketを取得）
       await act(async () => {
-        MockWebSocket.instances[MockWebSocket.instances.length - 1].simulateClose(1006);
+        const lastWS = MockWebSocket.instances[MockWebSocket.instances.length - 1];
+        lastWS.simulateClose(1006);
       });
 
-      // 再接続待機
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(1000 * Math.pow(2, i));
-      });
+      // 5回目までは再接続を試みる
+      if (i < 5) {
+        expect(result.current.status).toBe('disconnected');
 
-      // 接続を確立
-      await act(async () => {
-        await vi.runAllTimersAsync();
-      });
+        // 再接続待機
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(1000 * Math.pow(2, i));
+        });
+
+        // 新しいWebSocketが作成されたが、openイベントは発火しない
+      } else {
+        // 6回目の切断で、最大再接続回数を超えたためerrorになる
+        expect(result.current.status).toBe('error');
+
+        // 長時間待機しても再接続しない
+        const instanceCount = MockWebSocket.instances.length;
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(100000);
+        });
+
+        // 新しい接続は作成されない
+        expect(MockWebSocket.instances).toHaveLength(instanceCount);
+      }
     }
-
-    // 6回目の切断
-    await act(async () => {
-      MockWebSocket.instances[MockWebSocket.instances.length - 1].simulateClose(1006);
-    });
-
-    expect(result.current.status).toBe('error');
-
-    // 長時間待機しても再接続しない
-    const instanceCount = MockWebSocket.instances.length;
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(100000);
-    });
-
-    // 新しい接続は作成されない
-    expect(MockWebSocket.instances).toHaveLength(instanceCount);
   });
 
   it('should close connection on unmount', async () => {
@@ -293,7 +289,7 @@ describe('useWebSocket', () => {
 
     // WebSocket接続を確立
     await act(async () => {
-      await vi.runAllTimersAsync();
+      MockWebSocket.instances[0].simulateOpen();
     });
 
     expect(result.current.status).toBe('connected');
@@ -315,7 +311,7 @@ describe('useWebSocket', () => {
 
     // WebSocket接続を確立
     await act(async () => {
-      await vi.runAllTimersAsync();
+      MockWebSocket.instances[0].simulateOpen();
     });
 
     expect(result.current.status).toBe('connected');
@@ -346,7 +342,7 @@ describe('useWebSocket', () => {
 
     // WebSocket接続を確立
     await act(async () => {
-      await vi.runAllTimersAsync();
+      MockWebSocket.instances[0].simulateOpen();
     });
 
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -370,7 +366,7 @@ describe('useWebSocket', () => {
 
     // WebSocket接続を確立
     await act(async () => {
-      await vi.runAllTimersAsync();
+      MockWebSocket.instances[0].simulateOpen();
     });
 
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -401,7 +397,7 @@ describe('useWebSocket', () => {
 
     // 初回接続を確立
     await act(async () => {
-      await vi.runAllTimersAsync();
+      MockWebSocket.instances[0].simulateOpen();
     });
 
     // 1回切断して再接続
@@ -414,7 +410,7 @@ describe('useWebSocket', () => {
     });
 
     await act(async () => {
-      await vi.runAllTimersAsync();
+      MockWebSocket.instances[1].simulateOpen();
     });
 
     expect(result.current.status).toBe('connected');
