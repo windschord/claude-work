@@ -5,7 +5,7 @@ import { GitService } from '@/services/git-service';
 import { ProcessManager } from '@/services/process-manager';
 import { logger } from '@/lib/logger';
 
-const processManager = new ProcessManager();
+const processManager = ProcessManager.getInstance();
 
 /**
  * GET /api/projects/[project_id]/sessions - プロジェクトのセッション一覧取得
@@ -131,7 +131,15 @@ export async function POST(
     }
 
     const { project_id } = await params;
-    const body = await request.json();
+
+    let body;
+    try {
+      body = await request.json();
+    } catch (error) {
+      logger.warn('Invalid JSON in request body', { error, project_id });
+      return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
+    }
+
     const { name, prompt, model = 'auto' } = body;
 
     if (!name || !prompt) {

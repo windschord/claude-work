@@ -5,7 +5,7 @@ import { GitService } from '@/services/git-service';
 import { ProcessManager } from '@/services/process-manager';
 import { logger } from '@/lib/logger';
 
-const processManager = new ProcessManager();
+const processManager = ProcessManager.getInstance();
 
 /**
  * GET /api/sessions/[id] - セッション詳細取得
