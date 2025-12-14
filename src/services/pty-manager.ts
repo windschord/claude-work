@@ -32,6 +32,11 @@ class PTYManager extends EventEmitter {
    * @param workingDir - 作業ディレクトリ（worktreeパス）
    */
   createPTY(sessionId: string, workingDir: string): void {
+    // 既存のセッションがあればクリーンアップ
+    if (this.sessions.has(sessionId)) {
+      this.kill(sessionId);
+    }
+
     // プラットフォームに応じたシェルを選択
     const shell = os.platform() === 'win32' ? 'powershell.exe' : 'bash';
 

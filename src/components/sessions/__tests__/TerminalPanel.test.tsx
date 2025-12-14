@@ -40,7 +40,7 @@ describe('TerminalPanel', () => {
   });
 
   it('接続状態インジケーターが表示される', () => {
-    const { container } = render(<TerminalPanel sessionId="test-session-456" />);
+    render(<TerminalPanel sessionId="test-session-456" />);
 
     // 接続状態が表示される（複数存在する可能性があるためgetAllByTextを使用）
     const connectedElements = screen.getAllByText('Connected');
