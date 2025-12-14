@@ -40,28 +40,40 @@ class PTYManager extends EventEmitter {
     // プラットフォームに応じたシェルを選択
     const shell = os.platform() === 'win32' ? 'powershell.exe' : 'bash';
 
-    // PTYプロセスを生成
-    const ptyProcess = pty.spawn(shell, [], {
-      name: 'xterm-256color',
-      cols: 80,
-      rows: 24,
-      cwd: workingDir,
-      env: process.env as { [key: string]: string },
-    });
+    try {
+      // PTYプロセスを生成
+      const ptyProcess = pty.spawn(shell, [], {
+        name: 'xterm-256color',
+        cols: 80,
+        rows: 24,
+        cwd: workingDir,
+        env: process.env as { [key: string]: string },
+      });
 
-    // セッションを登録
-    this.sessions.set(sessionId, { ptyProcess, sessionId, workingDir });
+      // セッションを登録
+      this.sessions.set(sessionId, { ptyProcess, sessionId, workingDir });
 
-    // PTY出力をイベントとして発火
-    ptyProcess.onData((data: string) => {
-      this.emit('data', sessionId, data);
-    });
+      // PTY出力をイベントとして発火
+      ptyProcess.onData((data: string) => {
+        this.emit('data', sessionId, data);
+      });
 
-    // PTY終了時の処理
-    ptyProcess.onExit(({ exitCode, signal }) => {
-      this.emit('exit', sessionId, { exitCode, signal });
-      this.sessions.delete(sessionId);
-    });
+      // PTY終了時の処理
+      ptyProcess.onExit(({ exitCode, signal }) => {
+        this.emit('exit', sessionId, { exitCode, signal });
+        this.sessions.delete(sessionId);
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.emit('error', sessionId, {
+        message: `Failed to spawn PTY process: ${errorMessage}`,
+        shell,
+        workingDir,
+      });
+      throw new Error(
+        `Failed to spawn PTY process for session ${sessionId}: ${errorMessage} (shell: ${shell}, cwd: ${workingDir})`
+      );
+    }
   }
 
   /**

@@ -53,8 +53,11 @@ export function setupTerminalWebSocket(
   wss.on('connection', async (ws: WebSocket, req) => {
     // URLからセッションIDを取得
     const url = new URL(req.url!, `http://${req.headers.host}`);
-    const pathParts = url.pathname.split('/');
-    const sessionId = pathParts[pathParts.length - 1];
+    const pathParts = url.pathname.split('/').filter(Boolean);
+    const last = pathParts[pathParts.length - 1];
+    const sessionId = last === 'terminal'
+      ? pathParts[pathParts.length - 2]
+      : last;
 
     // セッションID検証
     if (!sessionId || sessionId === '') {
@@ -113,12 +116,50 @@ export function setupTerminalWebSocket(
       // WebSocket入力 → PTY
       ws.on('message', (message: Buffer) => {
         try {
-          const data = JSON.parse(message.toString()) as TerminalClientMessage;
+          const data = JSON.parse(message.toString());
+
+          // メッセージ型の検証
+          if (!data || typeof data !== 'object' || !data.type) {
+            logger.warn('Terminal WebSocket: Invalid message format', {
+              sessionId,
+            });
+            return;
+          }
 
           if (data.type === 'input') {
+            if (typeof data.data !== 'string') {
+              logger.warn('Terminal WebSocket: Invalid input data type', {
+                sessionId,
+              });
+              return;
+            }
             ptyManager.write(sessionId, data.data);
           } else if (data.type === 'resize') {
+            // resize データの検証
+            if (
+              !data.data ||
+              typeof data.data.cols !== 'number' ||
+              typeof data.data.rows !== 'number' ||
+              !Number.isFinite(data.data.cols) ||
+              !Number.isFinite(data.data.rows) ||
+              data.data.cols <= 0 ||
+              data.data.rows <= 0 ||
+              data.data.cols > 1000 ||
+              data.data.rows > 1000
+            ) {
+              logger.warn('Terminal WebSocket: Invalid resize dimensions', {
+                sessionId,
+                cols: data.data?.cols,
+                rows: data.data?.rows,
+              });
+              return;
+            }
             ptyManager.resize(sessionId, data.data.cols, data.data.rows);
+          } else {
+            logger.warn('Terminal WebSocket: Unknown message type', {
+              sessionId,
+              type: data.type,
+            });
           }
         } catch (error) {
           logger.error('Terminal WebSocket: Failed to parse message', {

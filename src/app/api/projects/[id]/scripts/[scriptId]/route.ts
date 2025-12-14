@@ -75,6 +75,43 @@ export async function PUT(
       );
     }
 
+    // 型検証
+    if (body.name !== undefined && typeof body.name !== 'string') {
+      return NextResponse.json(
+        { error: 'Name must be a string' },
+        { status: 400 }
+      );
+    }
+
+    if (body.description !== undefined && typeof body.description !== 'string') {
+      return NextResponse.json(
+        { error: 'Description must be a string' },
+        { status: 400 }
+      );
+    }
+
+    if (body.command !== undefined && typeof body.command !== 'string') {
+      return NextResponse.json(
+        { error: 'Command must be a string' },
+        { status: 400 }
+      );
+    }
+
+    // 空文字列チェック
+    if (body.name !== undefined && !body.name.trim()) {
+      return NextResponse.json(
+        { error: 'Name cannot be empty' },
+        { status: 400 }
+      );
+    }
+
+    if (body.command !== undefined && !body.command.trim()) {
+      return NextResponse.json(
+        { error: 'Command cannot be empty' },
+        { status: 400 }
+      );
+    }
+
     const existing = await prisma.runScript.findFirst({
       where: { id: scriptId, project_id: projectId },
     });
@@ -86,9 +123,9 @@ export async function PUT(
     const script = await prisma.runScript.update({
       where: { id: existing.id },
       data: {
-        name: body.name ?? existing.name,
-        description: body.description !== undefined ? body.description : existing.description,
-        command: body.command ?? existing.command,
+        name: body.name ? body.name.trim() : existing.name,
+        description: body.description !== undefined ? body.description.trim() || null : existing.description,
+        command: body.command ? body.command.trim() : existing.command,
       },
     });
 

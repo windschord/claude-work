@@ -145,19 +145,46 @@ export async function POST(
 
     const { name, description, command } = body;
 
-    if (!name || !command) {
+    // 型検証
+    if (typeof name !== 'string' || typeof command !== 'string') {
       return NextResponse.json(
-        { error: 'Name and command are required' },
+        { error: 'Name and command must be strings' },
         { status: 400 }
+      );
+    }
+
+    if (description !== undefined && typeof description !== 'string') {
+      return NextResponse.json(
+        { error: 'Description must be a string' },
+        { status: 400 }
+      );
+    }
+
+    if (!name.trim() || !command.trim()) {
+      return NextResponse.json(
+        { error: 'Name and command cannot be empty' },
+        { status: 400 }
+      );
+    }
+
+    // プロジェクト存在確認
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+    });
+
+    if (!project) {
+      return NextResponse.json(
+        { error: 'Project not found' },
+        { status: 404 }
       );
     }
 
     const script = await prisma.runScript.create({
       data: {
         project_id: projectId,
-        name,
-        description: description || null,
-        command,
+        name: name.trim(),
+        description: description?.trim() || null,
+        command: command.trim(),
       },
     });
 
