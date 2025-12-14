@@ -36,6 +36,9 @@
     "react-diff-viewer-continued": "^3.4.0",
     "react-dom": "^19.0.0",
     "react-hot-toast": "^2.6.0",
+    "react-markdown": "^10.1.0",
+    "react-syntax-highlighter": "^16.1.0",
+    "remark-gfm": "^4.0.1",
     "winston": "^3.19.0",
     "ws": "^8.18.3",
     "zustand": "^5.0.9"
@@ -48,6 +51,7 @@
     "@types/node": "^20",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
+    "@types/react-syntax-highlighter": "^15.5.13",
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^5.1.2",
     "eslint": "^8",
