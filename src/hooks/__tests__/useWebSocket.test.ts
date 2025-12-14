@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { renderHook, act, waitFor } from '@testing-library/react';
+import { renderHook, act } from '@testing-library/react';
 import { useWebSocket } from '../useWebSocket';
 import type { ServerMessage } from '@/types/websocket';
 
@@ -36,7 +36,7 @@ class MockWebSocket {
     }
   }
 
-  send(data: string): void {
+  send(_data: string): void {
     if (this.readyState !== MockWebSocket.OPEN) {
       throw new Error('WebSocket is not open');
     }
@@ -77,6 +77,7 @@ describe('useWebSocket', () => {
   beforeEach(() => {
     MockWebSocket.instances = [];
     // グローバルなWebSocketをモックで置き換え
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     global.WebSocket = MockWebSocket as any;
     vi.useFakeTimers();
   });
@@ -113,7 +114,7 @@ describe('useWebSocket', () => {
     const onMessage = vi.fn();
     const sessionId = 'test-session-id';
 
-    const { result } = renderHook(() => useWebSocket(sessionId, onMessage));
+    renderHook(() => useWebSocket(sessionId, onMessage));
 
     // WebSocket接続を確立
     await act(async () => {
@@ -338,7 +339,7 @@ describe('useWebSocket', () => {
     const onMessage = vi.fn();
     const sessionId = 'test-session-id';
 
-    const { result } = renderHook(() => useWebSocket(sessionId, onMessage));
+    renderHook(() => useWebSocket(sessionId, onMessage));
 
     // WebSocket接続を確立
     await act(async () => {
@@ -362,7 +363,7 @@ describe('useWebSocket', () => {
     const onMessage = vi.fn();
     const sessionId = 'test-session-id';
 
-    const { result } = renderHook(() => useWebSocket(sessionId, onMessage));
+    renderHook(() => useWebSocket(sessionId, onMessage));
 
     // WebSocket接続を確立
     await act(async () => {

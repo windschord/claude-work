@@ -74,7 +74,7 @@ export function useWebSocket(
       };
 
       // 接続切断時
-      ws.onclose = (event: CloseEvent) => {
+      ws.onclose = (_event: CloseEvent) => {
         wsRef.current = null;
 
         // 手動切断の場合は再接続しない

@@ -245,23 +245,14 @@ export class ProcessManager extends EventEmitter {
 }
 
 /**
- * ProcessManagerのシングルトンインスタンス
+ * ProcessManagerのシングルトンインスタンスを取得
  *
  * アプリケーション全体で単一のProcessManagerインスタンスを共有します。
  * これにより、WebSocketハンドラーやAPIルートから同じプロセス管理にアクセスできます。
- */
-let processManagerInstance: ProcessManager | null = null;
-
-/**
- * ProcessManagerのシングルトンインスタンスを取得
- *
  * 初回呼び出し時にインスタンスを作成し、以降は同じインスタンスを返します。
  *
  * @returns ProcessManagerのシングルトンインスタンス
  */
 export function getProcessManager(): ProcessManager {
-  if (!processManagerInstance) {
-    processManagerInstance = new ProcessManager();
-  }
-  return processManagerInstance;
+  return ProcessManager.getInstance();
 }
