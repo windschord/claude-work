@@ -20,6 +20,7 @@ model Project {
   updated_at    DateTime @updatedAt
 
   sessions      Session[]
+  scripts       RunScript[]
 }
 
 model Session {
@@ -62,4 +63,18 @@ model Prompt {
   last_used_at DateTime @default(now())
   created_at   DateTime @default(now())
   updated_at   DateTime @updatedAt
+}
+
+model RunScript {
+  id          String   @id @default(uuid())
+  project_id  String
+  name        String
+  description String?
+  command     String
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  project     Project  @relation(fields: [project_id], references: [id], onDelete: Cascade)
+
+  @@index([project_id])
 }
