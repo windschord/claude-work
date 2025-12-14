@@ -4,7 +4,7 @@ import { getSession } from '@/lib/auth';
 import { ProcessManager } from '@/services/process-manager';
 import { logger } from '@/lib/logger';
 
-const processManager = new ProcessManager();
+const processManager = ProcessManager.getInstance();
 
 /**
  * POST /api/sessions/[id]/stop - セッションの停止

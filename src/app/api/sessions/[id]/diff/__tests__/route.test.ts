@@ -93,11 +93,23 @@ describe('GET /api/sessions/[id]/diff', () => {
     expect(response.status).toBe(200);
 
     const data = await response.json();
-    expect(data).toHaveProperty('added');
-    expect(data).toHaveProperty('modified');
-    expect(data).toHaveProperty('deleted');
-    expect(data.added).toContain('new-file.txt');
-    expect(data.modified).toContain('README.md');
+    expect(data).toHaveProperty('files');
+    expect(data).toHaveProperty('totalAdditions');
+    expect(data).toHaveProperty('totalDeletions');
+    expect(Array.isArray(data.files)).toBe(true);
+
+    // 追加されたファイルを確認
+    const addedFile = data.files.find((f: { path: string; status: string }) => f.path === 'new-file.txt');
+    expect(addedFile).toBeDefined();
+    expect(addedFile.status).toBe('added');
+    expect(addedFile.newContent).toContain('new content');
+
+    // 変更されたファイルを確認
+    const modifiedFile = data.files.find((f: { path: string; status: string }) => f.path === 'README.md');
+    expect(modifiedFile).toBeDefined();
+    expect(modifiedFile.status).toBe('modified');
+    expect(modifiedFile.oldContent).toContain('test');
+    expect(modifiedFile.newContent).toContain('modified content');
   });
 
   it('should return 404 for non-existent session', async () => {

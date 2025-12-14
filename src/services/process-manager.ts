@@ -48,9 +48,31 @@ interface ProcessData {
  * - 'error': プロセスの標準エラー出力
  * - 'permission': 権限リクエスト
  * - 'exit': プロセスの終了
+ *
+ * シングルトンパターンを使用して、アプリケーション全体で単一のインスタンスを共有します。
  */
 export class ProcessManager extends EventEmitter {
+  private static instance: ProcessManager | null = null;
   private processes: Map<string, ProcessData> = new Map();
+
+  /**
+   * コンストラクタをプライベートにして、外部からのインスタンス化を防ぐ
+   */
+  private constructor() {
+    super();
+  }
+
+  /**
+   * ProcessManagerのシングルトンインスタンスを取得
+   *
+   * @returns ProcessManagerのインスタンス
+   */
+  static getInstance(): ProcessManager {
+    if (!ProcessManager.instance) {
+      ProcessManager.instance = new ProcessManager();
+    }
+    return ProcessManager.instance;
+  }
 
   /**
    * Claude Codeプロセスを起動
