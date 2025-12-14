@@ -62,7 +62,7 @@ export function EditRunScriptModal({
     try {
       await updateScript(projectId, script.id, {
         name: name.trim(),
-        description: description.trim() || undefined,
+        description: description.trim() || null,
         command: command.trim(),
       });
       onClose();

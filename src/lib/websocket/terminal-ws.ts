@@ -1,5 +1,5 @@
 import { WebSocket, WebSocketServer } from 'ws';
-import { ptyManager } from '@/services/pty-manager';
+import { ptyManager, type PTYExitInfo } from '@/services/pty-manager';
 import { prisma } from '@/lib/db';
 import { logger } from '@/lib/logger';
 
@@ -97,7 +97,7 @@ export function setupTerminalWebSocket(
 
       const exitHandler = (
         sid: string,
-        { exitCode, signal }: { exitCode: number; signal?: number }
+        { exitCode, signal }: PTYExitInfo
       ) => {
         if (sid === sessionId && ws.readyState === WebSocket.OPEN) {
           const message: TerminalExitMessage = {

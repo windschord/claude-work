@@ -14,6 +14,16 @@ interface PTYSession {
 }
 
 /**
+ * PTYプロセス終了情報
+ */
+export interface PTYExitInfo {
+  /** 終了コード */
+  exitCode: number;
+  /** シグナル番号（シグナルで終了した場合） */
+  signal?: number;
+}
+
+/**
  * PTY用の安全な環境変数を構築
  */
 function buildPtyEnv(): Record<string, string> {
