@@ -8,6 +8,18 @@ interface DeleteWorktreeDialogProps {
   onKeep: () => void;
 }
 
+/**
+ * Worktree削除確認ダイアログコンポーネント
+ *
+ * マージ成功後にworktreeを削除するかどうかを確認するダイアログです。
+ * ユーザーはworktreeを削除または保持を選択できます。
+ *
+ * @param props - コンポーネントのプロパティ
+ * @param props.isOpen - ダイアログの開閉状態
+ * @param props.onDelete - worktreeを削除するときのコールバック関数
+ * @param props.onKeep - worktreeを保持するときのコールバック関数
+ * @returns Worktree削除確認ダイアログのJSX要素
+ */
 export function DeleteWorktreeDialog({ isOpen, onDelete, onKeep }: DeleteWorktreeDialogProps) {
   return (
     <Dialog open={isOpen} onClose={onKeep} className="relative z-50">

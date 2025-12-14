@@ -6,6 +6,16 @@ interface SessionStatusIconProps {
   status: 'initializing' | 'running' | 'waiting_input' | 'completed' | 'error';
 }
 
+/**
+ * セッションステータスアイコンコンポーネント
+ *
+ * セッションの現在の状態を視覚的に表示するアイコンを提供します。
+ * 各ステータスに応じた適切なアイコンと色を表示します。
+ *
+ * @param props - コンポーネントのプロパティ
+ * @param props.status - セッションの現在のステータス
+ * @returns ステータスアイコンのJSX要素
+ */
 export function SessionStatusIcon({ status }: SessionStatusIconProps) {
   const iconMap = {
     initializing: {

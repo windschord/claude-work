@@ -8,6 +8,15 @@ interface MessageListProps {
   messages: Message[];
 }
 
+/**
+ * メッセージリストコンポーネント
+ *
+ * メッセージの一覧を表示し、新しいメッセージが追加されたときに自動的にスクロールします。
+ *
+ * @param props - コンポーネントのプロパティ
+ * @param props.messages - 表示するメッセージの配列
+ * @returns メッセージリストのJSX要素
+ */
 export default function MessageList({ messages }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 

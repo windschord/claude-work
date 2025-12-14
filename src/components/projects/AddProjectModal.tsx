@@ -9,6 +9,17 @@ interface AddProjectModalProps {
   onClose: () => void;
 }
 
+/**
+ * プロジェクト追加モーダルコンポーネント
+ *
+ * 新しいGitリポジトリパスを入力してプロジェクトを追加するモーダルダイアログです。
+ * バリデーション、エラーハンドリング、ローディング状態の管理を行います。
+ *
+ * @param props - コンポーネントのプロパティ
+ * @param props.isOpen - モーダルの開閉状態
+ * @param props.onClose - モーダルを閉じるときのコールバック関数
+ * @returns プロジェクト追加モーダルのJSX要素
+ */
 export function AddProjectModal({ isOpen, onClose }: AddProjectModalProps) {
   const { addProject, fetchProjects } = useAppStore();
   const [path, setPath] = useState('');

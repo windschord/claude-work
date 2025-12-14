@@ -8,6 +8,17 @@ interface SessionListProps {
   onSessionClick: (sessionId: string) => void;
 }
 
+/**
+ * セッション一覧コンポーネント
+ *
+ * セッションのリストを表示します。
+ * セッションがない場合は空の状態を表示します。
+ *
+ * @param props - コンポーネントのプロパティ
+ * @param props.sessions - 表示するセッションの配列
+ * @param props.onSessionClick - セッションがクリックされたときのコールバック関数
+ * @returns セッション一覧のJSX要素
+ */
 export function SessionList({ sessions, onSessionClick }: SessionListProps) {
   if (sessions.length === 0) {
     return (

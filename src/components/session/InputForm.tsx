@@ -7,6 +7,17 @@ interface InputFormProps {
   disabled?: boolean;
 }
 
+/**
+ * メッセージ入力フォームコンポーネント
+ *
+ * ユーザーがメッセージを入力して送信するためのフォームです。
+ * Enterキーで送信、Shift+Enterで改行する機能を持ちます。
+ *
+ * @param props - コンポーネントのプロパティ
+ * @param props.onSubmit - メッセージ送信時のコールバック関数
+ * @param props.disabled - 入力を無効化するかどうか（オプション、デフォルト: false）
+ * @returns メッセージ入力フォームのJSX要素
+ */
 export default function InputForm({ onSubmit, disabled = false }: InputFormProps) {
   const [content, setContent] = useState('');
 

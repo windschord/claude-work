@@ -11,6 +11,19 @@ interface MergeModalProps {
   onSuccess: () => void;
 }
 
+/**
+ * マージモーダルコンポーネント
+ *
+ * セッションのブランチをmainブランチにスカッシュしてマージするためのモーダルです。
+ * コミットメッセージを入力してマージを実行します。
+ *
+ * @param props - コンポーネントのプロパティ
+ * @param props.isOpen - モーダルの開閉状態
+ * @param props.sessionId - 対象のセッションID
+ * @param props.onClose - モーダルを閉じるときのコールバック関数
+ * @param props.onSuccess - マージ成功時のコールバック関数
+ * @returns マージモーダルのJSX要素
+ */
 export function MergeModal({ isOpen, sessionId, onClose, onSuccess }: MergeModalProps) {
   const { isGitOperationLoading, merge } = useAppStore();
   const [commitMessage, setCommitMessage] = useState('');

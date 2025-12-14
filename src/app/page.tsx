@@ -6,6 +6,14 @@ import { AuthGuard } from '@/components/AuthGuard';
 import { ProjectList } from '@/components/projects/ProjectList';
 import { useAppStore } from '@/store';
 
+/**
+ * ホームページ
+ *
+ * アプリケーションのメインページで、プロジェクト一覧を表示します。
+ * 認証ガードとメインレイアウトで保護されています。
+ *
+ * @returns ホームページのJSX要素
+ */
 export default function Home() {
   const { fetchProjects } = useAppStore();
 

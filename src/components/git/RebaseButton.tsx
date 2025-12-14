@@ -7,6 +7,16 @@ interface RebaseButtonProps {
   sessionId: string;
 }
 
+/**
+ * Rebaseボタンコンポーネント
+ *
+ * mainブランチから変更を取り込むためのボタンです。
+ * 成功時はトースト通知を表示し、失敗時はエラーメッセージを表示します。
+ *
+ * @param props - コンポーネントのプロパティ
+ * @param props.sessionId - 対象のセッションID
+ * @returns RebaseボタンのJSX要素
+ */
 export function RebaseButton({ sessionId }: RebaseButtonProps) {
   const { isGitOperationLoading, rebase } = useAppStore();
 

@@ -8,6 +8,17 @@ interface SessionCardProps {
   onClick: (sessionId: string) => void;
 }
 
+/**
+ * セッションカードコンポーネント
+ *
+ * セッションの概要情報を表示するカードです。
+ * セッション名、ステータス、モデル、ブランチ名、作成日時を表示します。
+ *
+ * @param props - コンポーネントのプロパティ
+ * @param props.session - 表示するセッション情報
+ * @param props.onClick - カードがクリックされたときのコールバック関数
+ * @returns セッションカードのJSX要素
+ */
 export function SessionCard({ session, onClick }: SessionCardProps) {
   return (
     <div

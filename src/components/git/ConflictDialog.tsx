@@ -8,6 +8,18 @@ interface ConflictDialogProps {
   onClose: () => void;
 }
 
+/**
+ * コンフリクト通知ダイアログコンポーネント
+ *
+ * Git操作でコンフリクトが発生したときに、コンフリクトが発生したファイルの一覧を表示します。
+ * ユーザーに手動での解決を促します。
+ *
+ * @param props - コンポーネントのプロパティ
+ * @param props.isOpen - ダイアログの開閉状態
+ * @param props.conflictFiles - コンフリクトが発生したファイルのパス配列
+ * @param props.onClose - ダイアログを閉じるときのコールバック関数
+ * @returns コンフリクト通知ダイアログのJSX要素
+ */
 export function ConflictDialog({ isOpen, conflictFiles, onClose }: ConflictDialogProps) {
   return (
     <Dialog open={isOpen} onClose={onClose} className="relative z-50">

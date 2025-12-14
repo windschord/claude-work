@@ -8,6 +8,14 @@ import { AuthGuard } from '@/components/AuthGuard';
 import { SessionList } from '@/components/sessions/SessionList';
 import { CreateSessionForm } from '@/components/sessions/CreateSessionForm';
 
+/**
+ * プロジェクト詳細ページ
+ *
+ * 特定のプロジェクトのセッション一覧と新しいセッションを作成するフォームを表示します。
+ * URLパラメータからプロジェクトIDを取得し、そのプロジェクトに関連するセッションを表示します。
+ *
+ * @returns プロジェクト詳細ページのJSX要素
+ */
 export default function ProjectDetailPage() {
   const params = useParams();
   const router = useRouter();

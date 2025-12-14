@@ -2,6 +2,14 @@
 
 import { useAppStore } from '@/store';
 
+/**
+ * ファイルリストコンポーネント
+ *
+ * Git差分から変更されたファイルの一覧を表示します。
+ * 各ファイルのステータス（追加、変更、削除）と変更行数を表示します。
+ *
+ * @returns ファイルリストのJSX要素
+ */
 export function FileList() {
   const { diff, selectedFile, selectFile } = useAppStore();
 

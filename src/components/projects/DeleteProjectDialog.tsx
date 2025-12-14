@@ -10,6 +10,18 @@ interface DeleteProjectDialogProps {
   project: Project | null;
 }
 
+/**
+ * プロジェクト削除確認ダイアログコンポーネント
+ *
+ * プロジェクトを削除する前に確認を求めるダイアログです。
+ * worktreeは削除されないことをユーザーに通知します。
+ *
+ * @param props - コンポーネントのプロパティ
+ * @param props.isOpen - ダイアログの開閉状態
+ * @param props.onClose - ダイアログを閉じるときのコールバック関数
+ * @param props.project - 削除対象のプロジェクト情報
+ * @returns プロジェクト削除確認ダイアログのJSX要素
+ */
 export function DeleteProjectDialog({
   isOpen,
   onClose,

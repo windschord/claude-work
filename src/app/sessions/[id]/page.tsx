@@ -16,6 +16,15 @@ import { ConflictDialog } from '@/components/git/ConflictDialog';
 import { DeleteWorktreeDialog } from '@/components/git/DeleteWorktreeDialog';
 import { Toaster } from 'react-hot-toast';
 
+/**
+ * セッション詳細ページ
+ *
+ * セッションの対話履歴、Git差分、操作ボタンを含む詳細ビューを提供します。
+ * 対話タブとDiffタブを切り替えて表示でき、セッションのポーリング更新を行います。
+ * 権限リクエスト、コンフリクト通知、マージ、worktree削除の機能を含みます。
+ *
+ * @returns セッション詳細ページのJSX要素
+ */
 export default function SessionDetailPage() {
   const params = useParams();
   const router = useRouter();

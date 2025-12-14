@@ -9,6 +9,18 @@ interface CreateSessionFormProps {
   onError?: (error: Error) => void;
 }
 
+/**
+ * セッション作成フォームコンポーネント
+ *
+ * 新しいセッションを作成するためのフォームです。
+ * セッション名とプロンプトを入力し、バリデーションとエラーハンドリングを行います。
+ *
+ * @param props - コンポーネントのプロパティ
+ * @param props.projectId - セッションを作成するプロジェクトのID
+ * @param props.onSuccess - セッション作成成功時のコールバック関数（オプション）
+ * @param props.onError - セッション作成失敗時のコールバック関数（オプション）
+ * @returns セッション作成フォームのJSX要素
+ */
 export function CreateSessionForm({ projectId, onSuccess, onError }: CreateSessionFormProps) {
   const [name, setName] = useState('');
   const [prompt, setPrompt] = useState('');

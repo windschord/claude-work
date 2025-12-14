@@ -6,6 +6,14 @@ import { ProjectCard } from './ProjectCard';
 import { AddProjectModal } from './AddProjectModal';
 import { DeleteProjectDialog } from './DeleteProjectDialog';
 
+/**
+ * プロジェクト一覧コンポーネント
+ *
+ * プロジェクトの一覧表示、追加、削除の機能を提供します。
+ * プロジェクトがない場合は空の状態を表示します。
+ *
+ * @returns プロジェクト一覧のJSX要素
+ */
 export function ProjectList() {
   const { projects, setSelectedProjectId } = useAppStore();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);

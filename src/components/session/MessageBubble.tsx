@@ -6,6 +6,16 @@ interface MessageBubbleProps {
   message: Message;
 }
 
+/**
+ * メッセージバブルコンポーネント
+ *
+ * チャットメッセージを表示するバブルコンポーネントです。
+ * ユーザーメッセージとアシスタントメッセージで異なるスタイルを適用します。
+ *
+ * @param props - コンポーネントのプロパティ
+ * @param props.message - 表示するメッセージ情報
+ * @returns メッセージバブルのJSX要素
+ */
 export default function MessageBubble({ message }: MessageBubbleProps) {
   const isUser = message.role === 'user';
 

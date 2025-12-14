@@ -9,6 +9,14 @@ const ReactDiffViewer = dynamic(() => import('react-diff-viewer-continued'), {
   ssr: false,
 });
 
+/**
+ * Diffビューアコンポーネント
+ *
+ * 選択されたファイルのGit差分を視覚的に表示します。
+ * react-diff-viewer-continuedを使用して、行ごとの変更を色分けして表示します。
+ *
+ * @returns Diffビューアのジェーエスエックス要素
+ */
 export function DiffViewer() {
   const { diff, selectedFile } = useAppStore();
 

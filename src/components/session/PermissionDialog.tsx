@@ -11,6 +11,20 @@ interface PermissionDialogProps {
   onClose: () => void;
 }
 
+/**
+ * 権限確認ダイアログコンポーネント
+ *
+ * セッション実行中に必要な権限を確認するダイアログです。
+ * ユーザーは権限を承認または拒否できます。
+ *
+ * @param props - コンポーネントのプロパティ
+ * @param props.isOpen - ダイアログの開閉状態
+ * @param props.permission - 確認する権限リクエスト情報
+ * @param props.onApprove - 権限を承認するときのコールバック関数
+ * @param props.onReject - 権限を拒否するときのコールバック関数
+ * @param props.onClose - ダイアログを閉じるときのコールバック関数
+ * @returns 権限確認ダイアログのJSX要素
+ */
 export default function PermissionDialog({
   isOpen,
   permission,

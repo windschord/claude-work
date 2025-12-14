@@ -8,6 +8,17 @@ interface ProjectCardProps {
   onDelete: (project: Project) => void;
 }
 
+/**
+ * プロジェクトカードコンポーネント
+ *
+ * プロジェクトの情報を表示し、開くまたは削除のアクションを提供します。
+ *
+ * @param props - コンポーネントのプロパティ
+ * @param props.project - 表示するプロジェクト情報
+ * @param props.onOpen - プロジェクトを開くときのコールバック関数
+ * @param props.onDelete - プロジェクトを削除するときのコールバック関数
+ * @returns プロジェクトカードのJSX要素
+ */
 export function ProjectCard({ project, onOpen, onDelete }: ProjectCardProps) {
   return (
     <div className="border rounded-lg p-4 hover:shadow-md transition-shadow">
