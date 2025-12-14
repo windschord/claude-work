@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAppStore } from '@/store';
+import { useWebSocket } from '@/hooks/useWebSocket';
 import { AuthGuard } from '@/components/AuthGuard';
 import { MainLayout } from '@/components/layout/MainLayout';
 import MessageList from '@/components/session/MessageList';
@@ -15,12 +16,13 @@ import { MergeModal } from '@/components/git/MergeModal';
 import { ConflictDialog } from '@/components/git/ConflictDialog';
 import { DeleteWorktreeDialog } from '@/components/git/DeleteWorktreeDialog';
 import { Toaster } from 'react-hot-toast';
+import type { ServerMessage } from '@/types/websocket';
 
 /**
  * セッション詳細ページ
  *
  * セッションの対話履歴、Git差分、操作ボタンを含む詳細ビューを提供します。
- * 対話タブとDiffタブを切り替えて表示でき、セッションのポーリング更新を行います。
+ * 対話タブとDiffタブを切り替えて表示でき、WebSocketでリアルタイム更新を受信します。
  * 権限リクエスト、コンフリクト通知、マージ、worktree削除の機能を含みます。
  *
  * @returns セッション詳細ページのJSX要素
@@ -37,11 +39,10 @@ export default function SessionDetailPage() {
     conflictFiles,
     fetchSessionDetail,
     fetchDiff,
-    sendMessage,
-    approvePermission,
     stopSession,
     deleteSession,
     checkAuth,
+    handleWebSocketMessage,
   } = useAppStore();
 
   const [isPermissionDialogOpen, setIsPermissionDialogOpen] = useState(false);
@@ -50,10 +51,19 @@ export default function SessionDetailPage() {
   const [isConflictDialogOpen, setIsConflictDialogOpen] = useState(false);
   const [isDeleteWorktreeDialogOpen, setIsDeleteWorktreeDialogOpen] = useState(false);
 
-  // Initial fetch and polling setup
-  useEffect(() => {
-    let intervalId: NodeJS.Timeout | null = null;
+  // WebSocketメッセージハンドラ（useCallbackで最適化）
+  const onMessage = useCallback(
+    (message: ServerMessage) => {
+      handleWebSocketMessage(message);
+    },
+    [handleWebSocketMessage]
+  );
 
+  // WebSocket接続
+  const { send, status: wsStatus } = useWebSocket(sessionId, onMessage);
+
+  // 初回データ取得
+  useEffect(() => {
     const fetchData = async () => {
       try {
         await fetchSessionDetail(sessionId);
@@ -62,28 +72,8 @@ export default function SessionDetailPage() {
       }
     };
 
-    // Initial fetch
     fetchData();
-
-    // Setup polling if session is running or waiting for input
-    const setupPolling = () => {
-      if (currentSession?.status === 'running' || currentSession?.status === 'waiting_input') {
-        intervalId = setInterval(fetchData, 3000);
-      } else if (intervalId) {
-        clearInterval(intervalId);
-        intervalId = null;
-      }
-    };
-
-    setupPolling();
-
-    // Cleanup on unmount
-    return () => {
-      if (intervalId) {
-        clearInterval(intervalId);
-      }
-    };
-  }, [sessionId, fetchSessionDetail, currentSession?.status]);
+  }, [sessionId, fetchSessionDetail]);
 
   // Show permission dialog when permission request is available
   useEffect(() => {
@@ -117,29 +107,45 @@ export default function SessionDetailPage() {
     }
   }, [activeTab, sessionId, fetchDiff]);
 
-  const handleSendMessage = async (content: string) => {
-    try {
-      await sendMessage(sessionId, content);
-    } catch (error) {
-      console.error('Failed to send message:', error);
-    }
-  };
+  const handleSendMessage = useCallback(
+    (content: string) => {
+      try {
+        // WebSocket経由でメッセージ送信
+        send({ type: 'input', content });
+      } catch (error) {
+        console.error('Failed to send message:', error);
+      }
+    },
+    [send]
+  );
 
-  const handleApprove = async (permissionId: string) => {
-    try {
-      await approvePermission(sessionId, permissionId, 'approve');
-    } catch (error) {
-      console.error('Failed to approve permission:', error);
-    }
-  };
+  const handleApprove = useCallback(
+    (permissionId: string) => {
+      try {
+        // WebSocket経由で権限承認を送信
+        send({ type: 'approve', requestId: permissionId });
+        // ダイアログを閉じる
+        setIsPermissionDialogOpen(false);
+      } catch (error) {
+        console.error('Failed to approve permission:', error);
+      }
+    },
+    [send]
+  );
 
-  const handleReject = async (permissionId: string) => {
-    try {
-      await approvePermission(sessionId, permissionId, 'reject');
-    } catch (error) {
-      console.error('Failed to reject permission:', error);
-    }
-  };
+  const handleReject = useCallback(
+    (permissionId: string) => {
+      try {
+        // WebSocket経由で権限拒否を送信
+        send({ type: 'deny', requestId: permissionId });
+        // ダイアログを閉じる
+        setIsPermissionDialogOpen(false);
+      } catch (error) {
+        console.error('Failed to reject permission:', error);
+      }
+    },
+    [send]
+  );
 
   const handleStopSession = async () => {
     try {
@@ -192,6 +198,18 @@ export default function SessionDetailPage() {
               </h1>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                 ステータス: {currentSession.status} | モデル: {currentSession.model}
+                {' | '}
+                <span
+                  className={`${
+                    wsStatus === 'connected'
+                      ? 'text-green-500'
+                      : wsStatus === 'connecting'
+                      ? 'text-yellow-500'
+                      : 'text-red-500'
+                  }`}
+                >
+                  WebSocket: {wsStatus}
+                </span>
               </p>
             </div>
             <div className="flex gap-2">

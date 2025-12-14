@@ -159,6 +159,9 @@ export interface AppState {
   /** コンフリクトファイル一覧 */
   conflictFiles: string[] | null;
 
+  /** エラーメッセージ */
+  error: string | null;
+
   /** テーマ設定 */
   theme: 'light' | 'dark' | 'system';
   /** モバイル表示かどうか */
@@ -212,6 +215,8 @@ export interface AppState {
   merge: (sessionId: string, commitMessage: string) => Promise<void>;
   /** セッションを削除 */
   deleteSession: (sessionId: string) => Promise<void>;
+  /** WebSocketメッセージを処理 */
+  handleWebSocketMessage: (message: import('@/types/websocket').ServerMessage) => void;
   /** テーマを設定 */
   setTheme: (theme: 'light' | 'dark' | 'system') => void;
   /** モバイル表示フラグを設定 */
@@ -241,6 +246,7 @@ const initialState = {
   selectedFile: null,
   isGitOperationLoading: false,
   conflictFiles: null,
+  error: null,
   theme: 'system' as const,
   isMobile: false,
   isSidebarOpen: false,
@@ -798,6 +804,66 @@ export const useAppStore = create<AppState>((set) => ({
         throw error;
       }
       throw new Error('セッションの削除に失敗しました');
+    }
+  },
+
+  handleWebSocketMessage: (message) => {
+    const MAX_MESSAGES = 1000;
+
+    switch (message.type) {
+      case 'output':
+        set((state) => {
+          const newMessage: Message = {
+            id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+            session_id: state.selectedSessionId || '',
+            role: 'assistant',
+            content: message.content,
+            sub_agents: message.subAgent ? JSON.stringify(message.subAgent) : null,
+            created_at: new Date().toISOString(),
+          };
+
+          const updatedMessages = [...state.messages, newMessage];
+
+          // メッセージが1000件を超えたら古いメッセージを削除
+          if (updatedMessages.length > MAX_MESSAGES) {
+            return {
+              messages: updatedMessages.slice(updatedMessages.length - MAX_MESSAGES),
+            };
+          }
+
+          return { messages: updatedMessages };
+        });
+        break;
+
+      case 'permission_request':
+        set({
+          permissionRequest: {
+            id: message.permission.requestId,
+            type: message.permission.action,
+            description: message.permission.action,
+            details: message.permission.details,
+          },
+        });
+        break;
+
+      case 'status_change':
+        set((state) => ({
+          // セッション一覧のステータスを更新
+          sessions: state.sessions.map((s) =>
+            s.id === state.selectedSessionId
+              ? { ...s, status: message.status }
+              : s
+          ),
+          // currentSessionのステータスも更新
+          currentSession: state.currentSession
+            ? { ...state.currentSession, status: message.status }
+            : null,
+        }));
+        break;
+
+      case 'error':
+        set({ error: message.content });
+        break;
     }
   },
 
