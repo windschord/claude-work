@@ -1,0 +1,128 @@
+import { createServer, IncomingMessage } from 'http';
+import { parse } from 'url';
+import next from 'next';
+import { WebSocketServer, WebSocket } from 'ws';
+import { authenticateWebSocket } from './src/lib/websocket/auth-middleware';
+import { ConnectionManager } from './src/lib/websocket/connection-manager';
+import { SessionWebSocketHandler } from './src/lib/websocket/session-ws';
+import { logger } from './src/lib/logger';
+
+const dev = process.env.NODE_ENV !== 'production';
+const hostname = 'localhost';
+const port = parseInt(process.env.PORT || '3000', 10);
+
+// Next.jsアプリを初期化
+const app = next({ dev, hostname, port });
+const handle = app.getRequestHandler();
+
+// WebSocket関連のインスタンス
+const connectionManager = new ConnectionManager();
+const wsHandler = new SessionWebSocketHandler(connectionManager);
+
+/**
+ * WebSocketパスからセッションIDを抽出
+ *
+ * @param pathname - リクエストパス（例: /ws/sessions/abc123）
+ * @returns セッションID、または抽出失敗時はnull
+ */
+function extractSessionId(pathname: string): string | null {
+  const match = pathname.match(/^\/ws\/sessions\/([^/]+)$/);
+  return match ? match[1] : null;
+}
+
+/**
+ * サーバーを起動
+ */
+app.prepare().then(() => {
+  const server = createServer((req, res) => {
+    try {
+      const parsedUrl = parse(req.url!, true);
+      handle(req, res, parsedUrl);
+    } catch (err) {
+      logger.error('Error handling request', { error: err });
+      res.statusCode = 500;
+      res.end('Internal Server Error');
+    }
+  });
+
+  // WebSocketサーバーを初期化
+  const wss = new WebSocketServer({ noServer: true });
+
+  // WebSocketアップグレード処理
+  server.on('upgrade', async (request: IncomingMessage, socket, head) => {
+    const { pathname } = parse(request.url || '', true);
+
+    logger.info('WebSocket upgrade request', { pathname });
+
+    // WebSocketパスの検証
+    if (!pathname || !pathname.startsWith('/ws/sessions/')) {
+      logger.warn('Invalid WebSocket path', { pathname });
+      socket.write('HTTP/1.1 404 Not Found\r\n\r\n');
+      socket.destroy();
+      return;
+    }
+
+    // セッションIDを抽出
+    const sessionId = extractSessionId(pathname);
+    if (!sessionId) {
+      logger.warn('Invalid session ID in path', { pathname });
+      socket.write('HTTP/1.1 400 Bad Request\r\n\r\n');
+      socket.destroy();
+      return;
+    }
+
+    // 認証チェック
+    const authenticatedSessionId = await authenticateWebSocket(request);
+    if (!authenticatedSessionId) {
+      logger.warn('WebSocket authentication failed', { sessionId });
+      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+      socket.destroy();
+      return;
+    }
+
+    // WebSocketアップグレードを実行
+    wss.handleUpgrade(request, socket, head, (ws: WebSocket) => {
+      wss.emit('connection', ws, request, sessionId);
+    });
+  });
+
+  // WebSocket接続ハンドラー
+  wss.on('connection', (ws: WebSocket, request: IncomingMessage, sessionId: string) => {
+    logger.info('WebSocket connection established', { sessionId });
+
+    // セッションハンドラーに接続を渡す
+    wsHandler.handleConnection(ws, sessionId);
+  });
+
+  // サーバー起動
+  server.listen(port, () => {
+    logger.info('Server started', {
+      url: `http://${hostname}:${port}`,
+      environment: dev ? 'development' : 'production',
+    });
+    console.log(`> Ready on http://${hostname}:${port}`);
+  });
+
+  // エラーハンドリング
+  server.on('error', (error: Error) => {
+    logger.error('Server error', { error });
+    process.exit(1);
+  });
+
+  // グレースフルシャットダウン
+  process.on('SIGTERM', () => {
+    logger.info('SIGTERM signal received: closing HTTP server');
+    server.close(() => {
+      logger.info('HTTP server closed');
+      process.exit(0);
+    });
+  });
+
+  process.on('SIGINT', () => {
+    logger.info('SIGINT signal received: closing HTTP server');
+    server.close(() => {
+      logger.info('HTTP server closed');
+      process.exit(0);
+    });
+  });
+});
