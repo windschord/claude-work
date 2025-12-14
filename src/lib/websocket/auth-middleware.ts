@@ -3,6 +3,7 @@ import { getIronSession } from 'iron-session';
 import { sessionOptions, SessionData } from '../session';
 import { getSession } from '../auth';
 import { logger } from '../logger';
+import { prisma } from '../db';
 
 /**
  * WebSocket接続の認証ミドルウェア
@@ -45,8 +46,31 @@ export async function authenticateWebSocket(
       return null;
     }
 
-    logger.info('WebSocket authentication successful', { sessionId });
-    return sessionId;
+    // セッションの所有者確認（認可チェック）
+    try {
+      const sessionDetails = await prisma.session.findUnique({
+        where: { id: sessionId },
+        select: { project: { select: { id: true } } },
+      });
+
+      if (!sessionDetails) {
+        logger.warn('WebSocket authorization failed: Session not found', { sessionId });
+        return null;
+      }
+
+      // 注: 現在のスキーマではuser_idフィールドがないため、セッションの存在確認のみ実施
+      // 将来的にuser_idフィールドが追加された場合は、以下のような所有者チェックを追加
+      // if (sessionDetails.user_id !== session.user_id) {
+      //   logger.warn('WebSocket authorization failed: User not authorized', { sessionId });
+      //   return null;
+      // }
+
+      logger.info('WebSocket authentication successful', { sessionId });
+      return sessionId;
+    } catch (error) {
+      logger.error('WebSocket authorization error', { error });
+      return null;
+    }
   } catch (error) {
     logger.error('WebSocket authentication error', { error });
     return null;

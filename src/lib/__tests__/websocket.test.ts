@@ -5,6 +5,7 @@ import { ConnectionManager } from '../websocket/connection-manager';
 import { SessionWebSocketHandler } from '../websocket/session-ws';
 import { authenticateWebSocket } from '../websocket/auth-middleware';
 import { IncomingMessage } from 'http';
+import type { ServerMessage } from '@/types/websocket';
 
 describe('WebSocket Server', () => {
   describe('ConnectionManager', () => {
@@ -41,7 +42,7 @@ describe('WebSocket Server', () => {
       manager.addConnection('session-1', mockWs1 as any);
       manager.addConnection('session-1', mockWs2 as any);
 
-      const message = { type: 'output', content: 'test message' };
+      const message: ServerMessage = { type: 'output', content: 'test message' };
       manager.broadcast('session-1', message);
 
       expect(mockWs1.send).toHaveBeenCalledWith(JSON.stringify(message));
@@ -52,7 +53,7 @@ describe('WebSocket Server', () => {
       manager.addConnection('session-1', mockWs1 as any);
       manager.addConnection('session-2', mockWs2 as any);
 
-      const message = { type: 'output', content: 'test' };
+      const message: ServerMessage = { type: 'output', content: 'test' };
       manager.broadcast('session-1', message);
 
       expect(mockWs1.send).toHaveBeenCalledWith(JSON.stringify(message));
@@ -77,7 +78,7 @@ describe('WebSocket Server', () => {
       };
 
       manager.addConnection('session-1', closedWs as any);
-      manager.broadcast('session-1', { type: 'test' });
+      manager.broadcast('session-1', { type: 'output', content: 'test' });
 
       expect(manager.getConnectionCount('session-1')).toBe(0);
     });
@@ -117,8 +118,8 @@ describe('WebSocket Server', () => {
       };
     });
 
-    it('WebSocket接続を処理できる', () => {
-      handler.handleConnection(mockWs as any, 'test-session');
+    it('WebSocket接続を処理できる', async () => {
+      await handler.handleConnection(mockWs as any, 'test-session');
 
       expect(mockWs.on).toHaveBeenCalledWith('message', expect.any(Function));
       expect(mockWs.on).toHaveBeenCalledWith('close', expect.any(Function));
@@ -126,8 +127,8 @@ describe('WebSocket Server', () => {
       expect(manager.getConnectionCount('test-session')).toBe(1);
     });
 
-    it('接続成功メッセージを送信する', () => {
-      handler.handleConnection(mockWs as any, 'test-session');
+    it('接続成功メッセージを送信する', async () => {
+      await handler.handleConnection(mockWs as any, 'test-session');
 
       expect(mockWs.send).toHaveBeenCalledWith(
         expect.stringContaining('status_change')

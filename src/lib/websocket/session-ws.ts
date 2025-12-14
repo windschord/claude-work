@@ -2,6 +2,7 @@ import { WebSocket } from 'ws';
 import { ConnectionManager } from './connection-manager';
 import { getProcessManager } from '../../services/process-manager';
 import { logger } from '../logger';
+import { prisma } from '../db';
 import type {
   ClientMessage,
   ServerMessage,
@@ -9,6 +10,7 @@ import type {
   ProcessManagerPermissionEvent,
   ProcessManagerErrorEvent,
   ProcessManagerExitEvent,
+  SessionStatus,
 } from '@/types/websocket';
 
 /**
@@ -85,7 +87,7 @@ export class SessionWebSocketHandler {
    * @param ws - WebSocketインスタンス
    * @param sessionId - セッションID
    */
-  handleConnection(ws: WebSocket, sessionId: string): void {
+  async handleConnection(ws: WebSocket, sessionId: string): Promise<void> {
     // 接続を登録
     this.connectionManager.addConnection(sessionId, ws);
 
@@ -108,12 +110,28 @@ export class SessionWebSocketHandler {
       this.connectionManager.removeConnection(sessionId, ws);
     });
 
-    // 接続成功メッセージを送信
-    const welcomeMessage: ServerMessage = {
-      type: 'status_change',
-      status: 'running',
-    };
-    ws.send(JSON.stringify(welcomeMessage));
+    // データベースから実際のセッションステータスを取得
+    try {
+      const session = await prisma.session.findUnique({
+        where: { id: sessionId },
+        select: { status: true },
+      });
+
+      const status = session?.status || 'error';
+
+      const welcomeMessage: ServerMessage = {
+        type: 'status_change',
+        status: status as SessionStatus,
+      };
+      ws.send(JSON.stringify(welcomeMessage));
+    } catch (error) {
+      logger.error('Failed to fetch session status', { sessionId, error });
+      const welcomeMessage: ServerMessage = {
+        type: 'status_change',
+        status: 'error',
+      };
+      ws.send(JSON.stringify(welcomeMessage));
+    }
   }
 
   /**
