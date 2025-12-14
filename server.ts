@@ -27,7 +27,18 @@ const wsHandler = new SessionWebSocketHandler(connectionManager);
  */
 function extractSessionId(pathname: string): string | null {
   const match = pathname.match(/^\/ws\/sessions\/([^/]+)$/);
-  return match ? match[1] : null;
+  if (!match) {
+    return null;
+  }
+
+  const sessionId = match[1];
+  // UUID形式のバリデーション（ハイフン区切りの形式）
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidPattern.test(sessionId)) {
+    return null;
+  }
+
+  return sessionId;
 }
 
 /**

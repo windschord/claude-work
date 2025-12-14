@@ -814,8 +814,10 @@ export const useAppStore = create<AppState>((set) => ({
       case 'output':
         set((state) => {
           const newMessage: Message = {
-            id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-            session_id: state.selectedSessionId || '',
+            id: typeof crypto !== 'undefined' && crypto.randomUUID
+              ? crypto.randomUUID()
+              : `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+            session_id: state.currentSession?.id || state.selectedSessionId || '',
             role: 'assistant',
             content: message.content,
             sub_agents: message.subAgent ? JSON.stringify(message.subAgent) : null,

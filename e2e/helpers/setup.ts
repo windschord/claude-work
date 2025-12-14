@@ -28,6 +28,6 @@ export async function createTestGitRepo(): Promise<string> {
  */
 export async function cleanupTestGitRepo(repoPath: string): Promise<void> {
   if (fs.existsSync(repoPath)) {
-    fs.rmSync(repoPath, { recursive: true });
+    fs.rmSync(repoPath, { recursive: true, force: true });
   }
 }

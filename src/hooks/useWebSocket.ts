@@ -33,6 +33,12 @@ export function useWebSocket(
   const reconnectCountRef = useRef(0);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const shouldReconnectRef = useRef(true);
+  const onMessageRef = useRef(onMessage);
+
+  // onMessageの最新の参照を保持
+  useEffect(() => {
+    onMessageRef.current = onMessage;
+  }, [onMessage]);
 
   // WebSocket接続を確立する関数
   const connect = useCallback(() => {
@@ -67,7 +73,7 @@ export function useWebSocket(
       ws.onmessage = (event: MessageEvent) => {
         try {
           const message: ServerMessage = JSON.parse(event.data);
-          onMessage(message);
+          onMessageRef.current(message);
         } catch (error) {
           console.error('Failed to parse WebSocket message:', error);
         }

@@ -130,10 +130,10 @@ export class ConnectionManager {
   /**
    * 全セッションの接続を取得（デバッグ用）
    *
-   * @returns 全セッションのマップ
+   * @returns 全セッションのマップのコピー
    */
   getAllConnections(): Map<string, Set<WebSocket>> {
-    return this.connections;
+    return new Map(this.connections);
   }
 
   /**

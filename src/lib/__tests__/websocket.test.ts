@@ -1,8 +1,6 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { WebSocket } from 'ws';
 import { ConnectionManager } from '../websocket/connection-manager';
 import { SessionWebSocketHandler } from '../websocket/session-ws';
 import { authenticateWebSocket } from '../websocket/auth-middleware';

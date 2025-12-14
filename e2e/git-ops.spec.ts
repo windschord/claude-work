@@ -35,7 +35,9 @@ test.describe('Git操作機能', () => {
   });
 
   test.afterEach(async () => {
-    await cleanupTestGitRepo(repoPath);
+    if (repoPath) {
+      await cleanupTestGitRepo(repoPath);
+    }
   });
 
   test('Diffタブが表示される', async ({ page }) => {

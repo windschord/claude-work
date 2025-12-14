@@ -13,6 +13,13 @@ test.describe('プロジェクト管理機能', () => {
     await page.waitForURL('/');
   });
 
+  // 各テスト後のクリーンアップ
+  test.afterEach(async () => {
+    if (repoPath) {
+      await cleanupTestGitRepo(repoPath);
+    }
+  });
+
   test('プロジェクト一覧ページが表示される', async ({ page }) => {
     await expect(page.locator('h1')).toContainText('プロジェクト一覧');
     await expect(page.locator('button')).toContainText('プロジェクト追加');
@@ -35,8 +42,6 @@ test.describe('プロジェクト管理機能', () => {
 
     // プロジェクトが一覧に表示される
     await expect(page.locator('text=test-repo')).toBeVisible();
-
-    await cleanupTestGitRepo(repoPath);
   });
 
   test('プロジェクトを削除できる', async ({ page }) => {
@@ -61,8 +66,6 @@ test.describe('プロジェクト管理機能', () => {
 
     // プロジェクトが一覧から消える
     await expect(page.locator('text=test-repo')).not.toBeVisible();
-
-    await cleanupTestGitRepo(repoPath);
   });
 
   test('プロジェクトをクリックすると詳細ページに遷移する', async ({ page }) => {
@@ -82,7 +85,5 @@ test.describe('プロジェクト管理機能', () => {
     // プロジェクト詳細ページに遷移
     await expect(page).toHaveURL(/\/projects\/.+/);
     await expect(page.locator('h1')).toContainText('セッション管理');
-
-    await cleanupTestGitRepo(repoPath);
   });
 });
