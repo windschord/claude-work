@@ -62,7 +62,14 @@ export async function POST(
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });
     }
 
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch (error) {
+      logger.warn('Invalid JSON in request body', { error, session_id: id });
+      return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
+    }
+
     const { action, permission_id } = body;
 
     if (!action || !permission_id) {

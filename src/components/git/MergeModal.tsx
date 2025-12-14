@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Dialog, DialogPanel, DialogTitle } from '@headlessui/react';
+import toast from 'react-hot-toast';
 import { useAppStore } from '@/store';
 
 interface MergeModalProps {
@@ -35,6 +36,9 @@ export function MergeModal({ isOpen, sessionId, onClose, onSuccess }: MergeModal
       onSuccess();
     } catch (error) {
       console.error('Merge failed:', error);
+      toast.error(
+        error instanceof Error ? error.message : 'マージに失敗しました'
+      );
     }
   };
 

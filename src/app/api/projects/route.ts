@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { spawnSync } from 'child_process';
 import { basename, resolve } from 'path';
+import { realpathSync } from 'fs';
 import { logger } from '@/lib/logger';
 import { parseRunScripts } from '@/lib/run-scripts';
 
@@ -114,7 +115,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch (error) {
+      logger.warn('Invalid JSON in request body', { error });
+      return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
+    }
+
     const { path: projectPath } = body;
 
     if (!projectPath) {
@@ -122,7 +130,40 @@ export async function POST(request: NextRequest) {
     }
 
     // パストラバーサル攻撃を防ぐため、絶対パスに正規化
-    const absolutePath = resolve(projectPath);
+    let absolutePath: string;
+    try {
+      absolutePath = realpathSync(resolve(projectPath));
+    } catch (error) {
+      logger.warn('Invalid path', { path: projectPath, error });
+      return NextResponse.json({ error: 'Invalid path' }, { status: 400 });
+    }
+
+    // 許可されたディレクトリのチェック
+    const allowedDirs = process.env.ALLOWED_PROJECT_DIRS?.split(',').map((dir) =>
+      dir.trim()
+    );
+    if (allowedDirs && allowedDirs.length > 0) {
+      const isAllowed = allowedDirs.some((allowedDir) => {
+        if (!allowedDir) return false;
+        try {
+          const normalizedAllowedDir = realpathSync(allowedDir);
+          return absolutePath.startsWith(normalizedAllowedDir);
+        } catch {
+          return false;
+        }
+      });
+
+      if (!isAllowed) {
+        logger.warn('Path not in allowed directories', {
+          path: absolutePath,
+          allowedDirs,
+        });
+        return NextResponse.json(
+          { error: 'Path is not in allowed directories' },
+          { status: 403 }
+        );
+      }
+    }
 
     // Gitリポジトリの検証
     const result = spawnSync('git', ['rev-parse', '--git-dir'], {

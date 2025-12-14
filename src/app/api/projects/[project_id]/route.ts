@@ -48,7 +48,14 @@ export async function PUT(
     }
 
     const { project_id } = await params;
-    const body = await request.json();
+
+    let body;
+    try {
+      body = await request.json();
+    } catch (error) {
+      logger.warn('Invalid JSON in request body', { error, project_id });
+      return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
+    }
 
     const existing = await prisma.project.findUnique({
       where: { id: project_id },
