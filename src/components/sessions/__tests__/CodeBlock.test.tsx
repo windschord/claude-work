@@ -1,9 +1,10 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { vi } from 'vitest';
 import { CodeBlock } from '../CodeBlock';
 
 // navigator.clipboard.writeText のモック
-const mockWriteText = jest.fn();
+const mockWriteText = vi.fn();
 Object.assign(navigator, {
   clipboard: {
     writeText: mockWriteText,
@@ -15,12 +16,19 @@ describe('CodeBlock', () => {
     mockWriteText.mockClear();
   });
 
+  afterEach(() => {
+    cleanup();
+  });
+
   it('コードブロックが正しくレンダリングされる', () => {
     const code = 'const x = 10;\nconsole.log(x);';
-    render(<CodeBlock language="javascript">{code}</CodeBlock>);
+    const { container } = render(<CodeBlock language="javascript">{code}</CodeBlock>);
 
-    expect(screen.getByText(/const x = 10/)).toBeInTheDocument();
-    expect(screen.getByText(/console.log\(x\)/)).toBeInTheDocument();
+    // シンタックスハイライトにより複数の要素に分割されるため、containerで確認
+    const codeElement = container.querySelector('code');
+    expect(codeElement).toBeInTheDocument();
+    expect(codeElement).toHaveTextContent('const x = 10;');
+    expect(codeElement).toHaveTextContent('console.log(x);');
   });
 
   it('言語指定でシンタックスハイライトが適用される', () => {
@@ -80,7 +88,7 @@ describe('CodeBlock', () => {
 
     const codeElement = container.querySelector('code');
     expect(codeElement).toBeInTheDocument();
-    expect(screen.getByText('plain text')).toBeInTheDocument();
+    expect(codeElement).toHaveTextContent('plain text');
   });
 
   it('TypeScriptコードのシンタックスハイライト', () => {
@@ -89,7 +97,8 @@ describe('CodeBlock', () => {
 
     const codeElement = container.querySelector('code');
     expect(codeElement).toBeInTheDocument();
-    expect(screen.getByText(/interface User/)).toBeInTheDocument();
+    expect(codeElement).toHaveTextContent('interface User');
+    expect(codeElement).toHaveTextContent('name: string;');
   });
 
   it('Bashコードのシンタックスハイライト', () => {
@@ -98,6 +107,6 @@ describe('CodeBlock', () => {
 
     const codeElement = container.querySelector('code');
     expect(codeElement).toBeInTheDocument();
-    expect(screen.getByText(/npm install react/)).toBeInTheDocument();
+    expect(codeElement).toHaveTextContent('npm install react');
   });
 });

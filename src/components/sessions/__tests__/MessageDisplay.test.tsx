@@ -1,8 +1,12 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, cleanup } from '@testing-library/react';
 import { MessageDisplay } from '../MessageDisplay';
 
 describe('MessageDisplay', () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   it('マークダウンテキストが正しくレンダリングされる', () => {
     const content = '# Hello World\n\nThis is a **bold** text.';
     render(<MessageDisplay content={content} />);
@@ -51,18 +55,24 @@ describe('MessageDisplay', () => {
 
   it('インラインコードが正しくスタイリングされる', () => {
     const content = 'This is `inline code` in text.';
-    render(<MessageDisplay content={content} />);
+    const { container } = render(<MessageDisplay content={content} />);
 
     const inlineCode = screen.getByText('inline code');
     expect(inlineCode).toBeInTheDocument();
-    expect(inlineCode.tagName).toBe('CODE');
+    // インラインコードがCODEタグを含むことを確認
+    const codeElement = container.querySelector('code');
+    expect(codeElement).toBeInTheDocument();
+    expect(codeElement).toHaveTextContent('inline code');
   });
 
   it('コードブロックが正しくレンダリングされる', () => {
     const content = '```javascript\nconst x = 10;\n```';
-    render(<MessageDisplay content={content} />);
+    const { container } = render(<MessageDisplay content={content} />);
 
-    expect(screen.getByText(/const x = 10/)).toBeInTheDocument();
+    // コードブロック内のテキストを確認（シンタックスハイライトにより複数の要素に分割されるため、containerで確認）
+    const codeElement = container.querySelector('code.language-javascript');
+    expect(codeElement).toBeInTheDocument();
+    expect(codeElement).toHaveTextContent('const x = 10;');
   });
 
   it('GitHub Flavored Markdownが正しく処理される', () => {
