@@ -5,6 +5,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { authenticateWebSocket } from './src/lib/websocket/auth-middleware';
 import { ConnectionManager } from './src/lib/websocket/connection-manager';
 import { SessionWebSocketHandler } from './src/lib/websocket/session-ws';
+import { setupTerminalWebSocket } from './src/lib/websocket/terminal-ws';
 import { logger } from './src/lib/logger';
 
 const dev = process.env.NODE_ENV !== 'production';
@@ -58,6 +59,10 @@ app.prepare().then(() => {
 
   // WebSocketサーバーを初期化
   const wss = new WebSocketServer({ noServer: true });
+  const terminalWss = new WebSocketServer({ noServer: true });
+
+  // ターミナルWebSocketをセットアップ
+  setupTerminalWebSocket(terminalWss, '/ws/terminal');
 
   // WebSocketアップグレード処理
   server.on('upgrade', async (request: IncomingMessage, socket, head) => {
@@ -65,6 +70,33 @@ app.prepare().then(() => {
       const { pathname } = parse(request.url || '', true);
 
       logger.info('WebSocket upgrade request', { pathname });
+
+      // ターミナルWebSocketのパス
+      if (pathname && pathname.startsWith('/ws/terminal/')) {
+        const sessionIdMatch = pathname.match(/^\/ws\/terminal\/([^/]+)$/);
+        if (!sessionIdMatch) {
+          logger.warn('Invalid terminal WebSocket path', { pathname });
+          socket.write('HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n');
+          socket.destroy();
+          return;
+        }
+
+        const sessionId = sessionIdMatch[1];
+        // 認証チェック
+        const authenticatedSessionId = await authenticateWebSocket(request, sessionId);
+        if (!authenticatedSessionId) {
+          logger.warn('Terminal WebSocket authentication failed', { sessionId });
+          socket.write('HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\n\r\n');
+          socket.destroy();
+          return;
+        }
+
+        // ターミナルWebSocketアップグレード
+        terminalWss.handleUpgrade(request, socket, head, (ws: WebSocket) => {
+          terminalWss.emit('connection', ws, request);
+        });
+        return;
+      }
 
       // WebSocketパスの検証
       if (!pathname || !pathname.startsWith('/ws/sessions/')) {

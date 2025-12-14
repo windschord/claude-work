@@ -8,23 +8,27 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { TerminalPanel } from '../TerminalPanel';
 
 // useTerminalフックのモック
+const mockUseTerminal = vi.fn();
+
 vi.mock('@/hooks/useTerminal', () => ({
-  useTerminal: vi.fn(() => ({
-    terminal: {
-      open: vi.fn(),
-      write: vi.fn(),
-      onData: vi.fn(),
-      dispose: vi.fn(),
-      cols: 80,
-      rows: 24,
-    },
-    isConnected: true,
-    fit: vi.fn(),
-  })),
+  useTerminal: (...args: any[]) => mockUseTerminal(...args),
 }));
 
 describe('TerminalPanel', () => {
   beforeEach(() => {
+    // デフォルトのモック実装
+    mockUseTerminal.mockReturnValue({
+      terminal: {
+        open: vi.fn(),
+        write: vi.fn(),
+        onData: vi.fn(),
+        dispose: vi.fn(),
+        cols: 80,
+        rows: 24,
+      },
+      isConnected: true,
+      fit: vi.fn(),
+    });
     vi.clearAllMocks();
   });
 
@@ -36,15 +40,17 @@ describe('TerminalPanel', () => {
   });
 
   it('接続状態インジケーターが表示される', () => {
-    render(<TerminalPanel sessionId="test-session-456" />);
+    const { container } = render(<TerminalPanel sessionId="test-session-456" />);
 
-    // 接続状態が表示される
-    expect(screen.getByText('Connected')).toBeInTheDocument();
+    // 接続状態が表示される（複数存在する可能性があるためgetAllByTextを使用）
+    const connectedElements = screen.getAllByText('Connected');
+    expect(connectedElements.length).toBeGreaterThan(0);
+    expect(connectedElements[0]).toBeInTheDocument();
   });
 
   it('切断状態が正しく表示される', () => {
     // useTerminalフックを再モック（切断状態）
-    vi.mocked(require('@/hooks/useTerminal').useTerminal).mockReturnValue({
+    mockUseTerminal.mockReturnValue({
       terminal: null,
       isConnected: false,
       fit: vi.fn(),
@@ -66,7 +72,6 @@ describe('TerminalPanel', () => {
 
   it('useTerminalフックが正しいsessionIdで呼ばれる', () => {
     const sessionId = 'test-session-hook';
-    const mockUseTerminal = vi.mocked(require('@/hooks/useTerminal').useTerminal);
 
     render(<TerminalPanel sessionId={sessionId} />);
 
@@ -76,7 +81,7 @@ describe('TerminalPanel', () => {
 
   it('ターミナルのopenメソッドが呼ばれる', async () => {
     const mockOpen = vi.fn();
-    vi.mocked(require('@/hooks/useTerminal').useTerminal).mockReturnValue({
+    mockUseTerminal.mockReturnValue({
       terminal: {
         open: mockOpen,
         write: vi.fn(),
@@ -99,7 +104,7 @@ describe('TerminalPanel', () => {
 
   it('fitメソッドが呼ばれる', async () => {
     const mockFit = vi.fn();
-    vi.mocked(require('@/hooks/useTerminal').useTerminal).mockReturnValue({
+    mockUseTerminal.mockReturnValue({
       terminal: {
         open: vi.fn(),
         write: vi.fn(),
@@ -122,25 +127,27 @@ describe('TerminalPanel', () => {
 
   it('接続状態によって適切なスタイルが適用される', () => {
     // 接続状態
-    const { rerender, container: connectedContainer } = render(
-      <TerminalPanel sessionId="test-session-style" />
+    const { container } = render(
+      <TerminalPanel sessionId="test-session-style-connected" />
     );
 
     // 緑色のドットが表示される
-    const greenDot = connectedContainer.querySelector('.bg-green-500');
+    const greenDot = container.querySelector('.bg-green-500');
     expect(greenDot).toBeInTheDocument();
 
     // 切断状態に変更
-    vi.mocked(require('@/hooks/useTerminal').useTerminal).mockReturnValue({
+    mockUseTerminal.mockReturnValue({
       terminal: null,
       isConnected: false,
       fit: vi.fn(),
     });
 
-    rerender(<TerminalPanel sessionId="test-session-style" />);
+    const { container: disconnectedContainer } = render(
+      <TerminalPanel sessionId="test-session-style-disconnected" />
+    );
 
     // 赤色のドットが表示される
-    const redDot = connectedContainer.querySelector('.bg-red-500');
+    const redDot = disconnectedContainer.querySelector('.bg-red-500');
     expect(redDot).toBeInTheDocument();
   });
 });

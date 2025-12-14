@@ -39,15 +39,28 @@ class MockWebSocket {
 }
 
 describe('useTerminal', () => {
-  let mockWebSocket: MockWebSocket;
+  let mockWebSocketInstance: MockWebSocket | null = null;
 
   beforeEach(() => {
     // WebSocketのグローバルモック
-    global.WebSocket = MockWebSocket as any;
+    class MockWebSocketConstructor {
+      static CONNECTING = MockWebSocket.CONNECTING;
+      static OPEN = MockWebSocket.OPEN;
+      static CLOSING = MockWebSocket.CLOSING;
+      static CLOSED = MockWebSocket.CLOSED;
+
+      constructor(url: string) {
+        mockWebSocketInstance = new MockWebSocket(url);
+        return mockWebSocketInstance as any;
+      }
+    }
+
+    global.WebSocket = MockWebSocketConstructor as any;
   });
 
   afterEach(() => {
     vi.clearAllMocks();
+    mockWebSocketInstance = null;
   });
 
   it('WebSocket接続が成功する', async () => {
@@ -68,9 +81,9 @@ describe('useTerminal', () => {
     renderHook(() => useTerminal(sessionId));
 
     await waitFor(() => {
-      expect(global.WebSocket).toHaveBeenCalledWith(
-        expect.stringContaining(`/ws/sessions/${sessionId}/terminal`)
-      );
+      // WebSocketインスタンスが作成され、正しいURLが使用されることを確認
+      expect(mockWebSocketInstance).toBeTruthy();
+      expect(mockWebSocketInstance?.url).toContain(`/ws/sessions/${sessionId}/terminal`);
     });
   });
 
@@ -89,14 +102,12 @@ describe('useTerminal', () => {
       data: 'Hello from terminal\n',
     };
 
-    // @ts-ignore - テスト用のモックアクセス
-    const ws = global.WebSocket.mock.results[0].value as MockWebSocket;
-    if (ws.onmessage) {
-      ws.onmessage(new MessageEvent('message', { data: JSON.stringify(message) }));
+    if (mockWebSocketInstance?.onmessage) {
+      mockWebSocketInstance.onmessage(new MessageEvent('message', { data: JSON.stringify(message) }));
     }
 
-    // terminalオブジェクトが存在し、writeメソッドが呼ばれることを確認
-    // 実際のXTerm.jsは使用しないため、ここではモックの動作確認のみ
+    // terminalオブジェクトが存在することを確認
+    expect(result.current.terminal).toBeTruthy();
   });
 
   it('ターミナル入力を送信できる', async () => {
@@ -108,19 +119,11 @@ describe('useTerminal', () => {
       expect(result.current.isConnected).toBe(true);
     });
 
-    // @ts-ignore - テスト用のモックアクセス
-    const ws = global.WebSocket.mock.results[0].value as MockWebSocket;
+    // WebSocketのsendメソッドが定義されていることを確認
+    expect(mockWebSocketInstance?.send).toBeDefined();
 
-    // ターミナル入力データをシミュレート
-    // 実際のXTerm.jsのonDataイベントをシミュレート
-    const inputData = 'ls -la\r';
-
-    // WebSocketのsendメソッドが呼ばれることを確認
-    // 実際の実装では、terminal.onData()がWebSocket.send()を呼ぶ
-    if (result.current.terminal) {
-      // モックのため、直接WebSocketのsendをチェック
-      expect(ws.send).toBeDefined();
-    }
+    // terminalオブジェクトが存在することを確認
+    expect(result.current.terminal).toBeTruthy();
   });
 
   it('リサイズメッセージを送信できる', async () => {
@@ -137,12 +140,9 @@ describe('useTerminal', () => {
       result.current.fit();
     }
 
-    // @ts-ignore - テスト用のモックアクセス
-    const ws = global.WebSocket.mock.results[0].value as MockWebSocket;
-
     // リサイズメッセージが送信されることを確認
     await waitFor(() => {
-      expect(ws.send).toHaveBeenCalledWith(
+      expect(mockWebSocketInstance?.send).toHaveBeenCalledWith(
         expect.stringContaining('"type":"resize"')
       );
     });
@@ -158,10 +158,8 @@ describe('useTerminal', () => {
     });
 
     // WebSocketを切断
-    // @ts-ignore - テスト用のモックアクセス
-    const ws = global.WebSocket.mock.results[0].value as MockWebSocket;
-    if (ws.onclose) {
-      ws.onclose(new CloseEvent('close'));
+    if (mockWebSocketInstance?.onclose) {
+      mockWebSocketInstance.onclose(new CloseEvent('close'));
     }
 
     // 接続状態が更新されることを確認
@@ -179,14 +177,13 @@ describe('useTerminal', () => {
       expect(result.current.isConnected).toBe(true);
     });
 
-    // @ts-ignore - テスト用のモックアクセス
-    const ws = global.WebSocket.mock.results[0].value as MockWebSocket;
+    const ws = mockWebSocketInstance;
 
     // アンマウント
     unmount();
 
     // WebSocketのcloseメソッドが呼ばれることを確認
-    expect(ws.close).toHaveBeenCalled();
+    expect(ws?.close).toHaveBeenCalled();
   });
 
   it('プロセス終了メッセージを受信できる', async () => {
@@ -204,16 +201,13 @@ describe('useTerminal', () => {
       code: 0,
     };
 
-    // @ts-ignore - テスト用のモックアクセス
-    const ws = global.WebSocket.mock.results[0].value as MockWebSocket;
-    if (ws.onmessage) {
-      ws.onmessage(new MessageEvent('message', { data: JSON.stringify(exitMessage) }));
+    if (mockWebSocketInstance?.onmessage) {
+      mockWebSocketInstance.onmessage(new MessageEvent('message', { data: JSON.stringify(exitMessage) }));
     }
 
-    // 終了メッセージが処理されることを確認（実装で処理される）
     // WebSocketが切断されることを確認
     await waitFor(() => {
-      expect(ws.close).toHaveBeenCalled();
+      expect(mockWebSocketInstance?.close).toHaveBeenCalled();
     });
   });
 });

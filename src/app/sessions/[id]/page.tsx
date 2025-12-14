@@ -15,6 +15,7 @@ import { RebaseButton } from '@/components/git/RebaseButton';
 import { MergeModal } from '@/components/git/MergeModal';
 import { ConflictDialog } from '@/components/git/ConflictDialog';
 import { DeleteWorktreeDialog } from '@/components/git/DeleteWorktreeDialog';
+import { TerminalPanel } from '@/components/sessions/TerminalPanel';
 import { Toaster } from 'react-hot-toast';
 import type { ServerMessage } from '@/types/websocket';
 
@@ -46,7 +47,7 @@ export default function SessionDetailPage() {
   } = useAppStore();
 
   const [isPermissionDialogOpen, setIsPermissionDialogOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'chat' | 'diff'>('chat');
+  const [activeTab, setActiveTab] = useState<'chat' | 'diff' | 'terminal'>('chat');
   const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
   const [isConflictDialogOpen, setIsConflictDialogOpen] = useState(false);
   const [isDeleteWorktreeDialogOpen, setIsDeleteWorktreeDialogOpen] = useState(false);
@@ -253,6 +254,16 @@ export default function SessionDetailPage() {
               >
                 Diff
               </button>
+              <button
+                onClick={() => setActiveTab('terminal')}
+                className={`px-6 py-3 font-medium transition-colors ${
+                  activeTab === 'terminal'
+                    ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                }`}
+              >
+                Terminal
+              </button>
             </div>
           </div>
 
@@ -268,7 +279,7 @@ export default function SessionDetailPage() {
                 disabled={currentSession.status !== 'running' && currentSession.status !== 'waiting_input'}
               />
             </>
-          ) : (
+          ) : activeTab === 'diff' ? (
             <div className="flex-1 flex flex-col overflow-hidden">
               {/* Git Operations Buttons */}
               <div className="border-b border-gray-200 dark:border-gray-700 p-4 flex gap-3">
@@ -285,6 +296,11 @@ export default function SessionDetailPage() {
                 <FileList />
                 <DiffViewer />
               </div>
+            </div>
+          ) : (
+            <div className="flex-1 overflow-hidden">
+              {/* Terminal */}
+              <TerminalPanel sessionId={sessionId} />
             </div>
           )}
 
