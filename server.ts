@@ -82,6 +82,15 @@ app.prepare().then(() => {
         }
 
         const sessionId = sessionIdMatch[1];
+        // UUID形式のバリデーション
+        const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!uuidPattern.test(sessionId)) {
+          logger.warn('Invalid terminal session ID format', { pathname, sessionId });
+          socket.write('HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n');
+          socket.destroy();
+          return;
+        }
+
         // 認証チェック
         const authenticatedSessionId = await authenticateWebSocket(request, sessionId);
         if (!authenticatedSessionId) {

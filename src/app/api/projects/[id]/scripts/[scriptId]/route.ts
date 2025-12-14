@@ -62,21 +62,21 @@ export async function PUT(
     }
 
     const resolvedParams = await params;
-    const { scriptId } = resolvedParams;
+    const { id: projectId, scriptId } = resolvedParams;
 
     let body;
     try {
       body = await request.json();
     } catch (error) {
-      logger.warn('Invalid JSON in request body', { error, scriptId });
+      logger.warn('Invalid JSON in request body', { error, projectId, scriptId });
       return NextResponse.json(
         { error: 'Invalid JSON in request body' },
         { status: 400 }
       );
     }
 
-    const existing = await prisma.runScript.findUnique({
-      where: { id: scriptId },
+    const existing = await prisma.runScript.findFirst({
+      where: { id: scriptId, project_id: projectId },
     });
 
     if (!existing) {
@@ -84,7 +84,7 @@ export async function PUT(
     }
 
     const script = await prisma.runScript.update({
-      where: { id: scriptId },
+      where: { id: existing.id },
       data: {
         name: body.name ?? existing.name,
         description: body.description !== undefined ? body.description : existing.description,
@@ -152,10 +152,10 @@ export async function DELETE(
     }
 
     const resolvedParams = await params;
-    const { scriptId } = resolvedParams;
+    const { id: projectId, scriptId } = resolvedParams;
 
-    const existing = await prisma.runScript.findUnique({
-      where: { id: scriptId },
+    const existing = await prisma.runScript.findFirst({
+      where: { id: scriptId, project_id: projectId },
     });
 
     if (!existing) {
@@ -163,7 +163,7 @@ export async function DELETE(
     }
 
     await prisma.runScript.delete({
-      where: { id: scriptId },
+      where: { id: existing.id },
     });
 
     logger.info('Script deleted', { scriptId });

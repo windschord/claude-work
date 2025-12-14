@@ -11,14 +11,25 @@ interface CodeBlockProps {
 
 export function CodeBlock({ language, children }: CodeBlockProps) {
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState(false);
 
   const copyToClipboard = async () => {
+    if (!navigator.clipboard) {
+      console.warn('Clipboard API not available');
+      setCopyError(true);
+      setTimeout(() => setCopyError(false), 2000);
+      return;
+    }
+
     try {
       await navigator.clipboard.writeText(children);
       setCopied(true);
+      setCopyError(false);
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
       console.error('Failed to copy to clipboard:', error);
+      setCopyError(true);
+      setTimeout(() => setCopyError(false), 2000);
     }
   };
 
@@ -28,7 +39,7 @@ export function CodeBlock({ language, children }: CodeBlockProps) {
         onClick={copyToClipboard}
         className="absolute top-2 right-2 px-2 py-1 text-xs bg-gray-700 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity"
       >
-        {copied ? 'Copied!' : 'Copy'}
+        {copied ? 'Copied!' : copyError ? 'Failed' : 'Copy'}
       </button>
       <SyntaxHighlighter
         language={language || 'text'}
