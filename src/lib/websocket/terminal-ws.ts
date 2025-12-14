@@ -173,6 +173,10 @@ export function setupTerminalWebSocket(
       ws.on('close', () => {
         ptyManager.off('data', dataHandler);
         ptyManager.off('exit', exitHandler);
+        // PTYプロセスを終了
+        if (ptyManager.hasSession(sessionId)) {
+          ptyManager.kill(sessionId);
+        }
         logger.info('Terminal WebSocket connection closed', { sessionId });
       });
 

@@ -1,6 +1,8 @@
 import * as pty from 'node-pty';
 import { EventEmitter } from 'events';
 import * as os from 'os';
+import * as path from 'path';
+import * as fs from 'fs';
 
 /**
  * PTYセッション情報
@@ -9,6 +11,33 @@ interface PTYSession {
   ptyProcess: pty.IPty;
   sessionId: string;
   workingDir: string;
+}
+
+/**
+ * PTY用の安全な環境変数を構築
+ */
+function buildPtyEnv(): Record<string, string> {
+  const allow = new Set([
+    'PATH',
+    'HOME',
+    'USER',
+    'SHELL',
+    'LANG',
+    'LC_ALL',
+    'TERM',
+    'COLORTERM',
+    'TMPDIR',
+    'TEMP',
+    'TMP',
+    'NODE_ENV',
+  ]);
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(process.env)) {
+    if (!v) continue; // undefined/empty を除外
+    if (!allow.has(k)) continue;
+    out[k] = v;
+  }
+  return out;
 }
 
 
@@ -24,6 +53,7 @@ interface PTYSession {
  */
 class PTYManager extends EventEmitter {
   private sessions: Map<string, PTYSession> = new Map();
+  private creating: Set<string> = new Set();
 
   /**
    * PTYプロセスを作成
@@ -32,9 +62,36 @@ class PTYManager extends EventEmitter {
    * @param workingDir - 作業ディレクトリ（worktreeパス）
    */
   createPTY(sessionId: string, workingDir: string): void {
+    // 作成中のセッションがある場合はエラー
+    if (this.creating.has(sessionId)) {
+      throw new Error(`PTY creation already in progress for session ${sessionId}`);
+    }
+
     // 既存のセッションがあればクリーンアップ
     if (this.sessions.has(sessionId)) {
       this.kill(sessionId);
+    }
+
+    // 作成中フラグを立てる
+    this.creating.add(sessionId);
+
+    // workingDirの検証
+    const resolvedCwd = path.resolve(workingDir);
+    const resolvedRoot = path.resolve(process.cwd());
+    if (!resolvedCwd.startsWith(resolvedRoot + path.sep) && resolvedCwd !== resolvedRoot) {
+      this.creating.delete(sessionId);
+      throw new Error(`workingDir is outside allowed root: ${resolvedCwd}`);
+    }
+    let st: fs.Stats;
+    try {
+      st = fs.statSync(resolvedCwd);
+    } catch {
+      this.creating.delete(sessionId);
+      throw new Error(`workingDir does not exist: ${resolvedCwd}`);
+    }
+    if (!st.isDirectory()) {
+      this.creating.delete(sessionId);
+      throw new Error(`workingDir is not a directory: ${resolvedCwd}`);
     }
 
     // プラットフォームに応じたシェルを選択
@@ -46,12 +103,14 @@ class PTYManager extends EventEmitter {
         name: 'xterm-256color',
         cols: 80,
         rows: 24,
-        cwd: workingDir,
-        env: process.env as { [key: string]: string },
+        cwd: resolvedCwd,
+        env: buildPtyEnv(),
       });
 
       // セッションを登録
-      this.sessions.set(sessionId, { ptyProcess, sessionId, workingDir });
+      this.sessions.set(sessionId, { ptyProcess, sessionId, workingDir: resolvedCwd });
+      // 作成完了フラグをクリア
+      this.creating.delete(sessionId);
 
       // PTY出力をイベントとして発火
       ptyProcess.onData((data: string) => {
@@ -64,14 +123,17 @@ class PTYManager extends EventEmitter {
         this.sessions.delete(sessionId);
       });
     } catch (error) {
+      // エラー時も作成中フラグをクリア
+      this.creating.delete(sessionId);
+
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       this.emit('error', sessionId, {
         message: `Failed to spawn PTY process: ${errorMessage}`,
         shell,
-        workingDir,
+        workingDir: resolvedCwd,
       });
       throw new Error(
-        `Failed to spawn PTY process for session ${sessionId}: ${errorMessage} (shell: ${shell}, cwd: ${workingDir})`
+        `Failed to spawn PTY process for session ${sessionId}: ${errorMessage} (shell: ${shell}, cwd: ${resolvedCwd})`
       );
     }
   }
