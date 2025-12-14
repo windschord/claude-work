@@ -26,8 +26,8 @@ export interface RunScript {
 export interface AddScriptData {
   /** スクリプト名 */
   name: string;
-  /** 説明（オプション） */
-  description?: string;
+  /** 説明（オプション、nullで説明をクリア可能） */
+  description?: string | null;
   /** 実行コマンド */
   command: string;
 }
@@ -38,8 +38,8 @@ export interface AddScriptData {
 export interface UpdateScriptData {
   /** スクリプト名 */
   name?: string;
-  /** 説明 */
-  description?: string;
+  /** 説明（nullで説明をクリア可能） */
+  description?: string | null;
   /** 実行コマンド */
   command?: string;
 }

@@ -95,7 +95,22 @@ class PTYManager extends EventEmitter {
     }
 
     // プラットフォームに応じたシェルを選択
-    const shell = os.platform() === 'win32' ? 'powershell.exe' : 'bash';
+    // 環境変数SHELLが利用可能ならそれを使用、そうでなければプラットフォームのデフォルトを使用
+    let shell: string;
+    if (os.platform() === 'win32') {
+      shell = 'powershell.exe';
+    } else {
+      // Unix系システムでは環境変数SHELLを優先、なければmacOSはzsh、それ以外はbashをデフォルトに
+      const envShell = buildPtyEnv().SHELL;
+      if (envShell) {
+        shell = envShell;
+      } else if (os.platform() === 'darwin') {
+        // macOS Catalina (10.15) 以降はzshがデフォルト
+        shell = '/bin/zsh';
+      } else {
+        shell = '/bin/bash';
+      }
+    }
 
     try {
       // PTYプロセスを生成
