@@ -15,7 +15,7 @@ import { basename } from 'path';
  * @param params.id - セッションID
  *
  * @returns
- * - 200: 差分情報（テキスト形式のdiff）
+ * - 200: 差分情報（ファイルごとの詳細情報を含む）
  * - 401: 認証されていない
  * - 404: セッションが見つからない
  * - 500: サーバーエラー
@@ -27,7 +27,20 @@ import { basename } from 'path';
  * Cookie: sessionId=<uuid>
  *
  * // レスポンス
- * "diff --git a/file.ts b/file.ts\nindex 1234567..abcdefg 100644\n--- a/file.ts\n+++ b/file.ts\n@@ -1,3 +1,4 @@\n+export const newFeature = true;\n export const existingFeature = true;"
+ * {
+ *   files: [
+ *     {
+ *       path: "file.ts",
+ *       status: "modified",
+ *       additions: 5,
+ *       deletions: 3,
+ *       oldContent: "const old = true;",
+ *       newContent: "const new = true;"
+ *     }
+ *   ],
+ *   totalAdditions: 5,
+ *   totalDeletions: 3
+ * }
  * ```
  */
 export async function GET(
@@ -58,7 +71,7 @@ export async function GET(
 
     const sessionName = basename(targetSession.worktree_path);
     const gitService = new GitService(targetSession.project.path, logger);
-    const diff = gitService.getDiff(sessionName);
+    const diff = gitService.getDiffDetails(sessionName);
 
     logger.info('Got diff for session', { id });
     return NextResponse.json(diff);

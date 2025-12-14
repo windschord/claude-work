@@ -8,6 +8,8 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import MessageList from '@/components/session/MessageList';
 import InputForm from '@/components/session/InputForm';
 import PermissionDialog from '@/components/session/PermissionDialog';
+import { FileList } from '@/components/git/FileList';
+import { DiffViewer } from '@/components/git/DiffViewer';
 
 export default function SessionDetailPage() {
   const params = useParams();
@@ -19,6 +21,7 @@ export default function SessionDetailPage() {
     messages,
     permissionRequest,
     fetchSessionDetail,
+    fetchDiff,
     sendMessage,
     approvePermission,
     stopSession,
@@ -26,6 +29,7 @@ export default function SessionDetailPage() {
   } = useAppStore();
 
   const [isPermissionDialogOpen, setIsPermissionDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'chat' | 'diff'>('chat');
 
   // Initial fetch and polling setup
   useEffect(() => {
@@ -72,6 +76,20 @@ export default function SessionDetailPage() {
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
+
+  // Fetch diff when diff tab is selected
+  useEffect(() => {
+    if (activeTab === 'diff') {
+      const fetchDiffData = async () => {
+        try {
+          await fetchDiff(sessionId);
+        } catch (error) {
+          console.error('Failed to fetch diff:', error);
+        }
+      };
+      fetchDiffData();
+    }
+  }, [activeTab, sessionId, fetchDiff]);
 
   const handleSendMessage = async (content: string) => {
     try {
@@ -149,14 +167,50 @@ export default function SessionDetailPage() {
             </div>
           </div>
 
-          {/* Messages */}
-          <MessageList messages={messages} />
+          {/* Tabs */}
+          <div className="border-b border-gray-200 dark:border-gray-700">
+            <div className="flex">
+              <button
+                onClick={() => setActiveTab('chat')}
+                className={`px-6 py-3 font-medium transition-colors ${
+                  activeTab === 'chat'
+                    ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                }`}
+              >
+                対話
+              </button>
+              <button
+                onClick={() => setActiveTab('diff')}
+                className={`px-6 py-3 font-medium transition-colors ${
+                  activeTab === 'diff'
+                    ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                }`}
+              >
+                Diff
+              </button>
+            </div>
+          </div>
 
-          {/* Input Form */}
-          <InputForm
-            onSubmit={handleSendMessage}
-            disabled={currentSession.status !== 'running' && currentSession.status !== 'waiting_input'}
-          />
+          {/* Tab Content */}
+          {activeTab === 'chat' ? (
+            <>
+              {/* Messages */}
+              <MessageList messages={messages} />
+
+              {/* Input Form */}
+              <InputForm
+                onSubmit={handleSendMessage}
+                disabled={currentSession.status !== 'running' && currentSession.status !== 'waiting_input'}
+              />
+            </>
+          ) : (
+            <div className="flex-1 flex overflow-hidden">
+              <FileList />
+              <DiffViewer />
+            </div>
+          )}
 
           {/* Permission Dialog */}
           <PermissionDialog

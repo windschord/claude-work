@@ -225,6 +225,129 @@ export class GitService {
   }
 
   /**
+   * ファイルごとの詳細なdiff情報を取得
+   *
+   * 指定されたセッションのworktreeで、mainブランチとの差分を取得します。
+   * 各ファイルの内容、追加行数、削除行数を含む詳細な情報を返します。
+   *
+   * @param sessionName - 差分を取得するセッション名
+   * @returns ファイルごとの詳細なdiff情報を含む配列
+   * @throws Git操作が失敗した場合にエラーをスロー
+   */
+  getDiffDetails(sessionName: string): {
+    files: Array<{
+      path: string;
+      status: 'added' | 'modified' | 'deleted';
+      additions: number;
+      deletions: number;
+      oldContent: string;
+      newContent: string;
+    }>;
+    totalAdditions: number;
+    totalDeletions: number;
+  } {
+    this.validateName(sessionName, 'session');
+
+    const worktreePath = join(this.repoPath, '.worktrees', sessionName);
+    this.validateWorktreePath(worktreePath);
+
+    try {
+      // まず変更されたファイルのリストを取得
+      const statusResult = spawnSync('git', ['diff', '--name-status', 'main...HEAD'], {
+        cwd: worktreePath,
+        encoding: 'utf-8',
+      });
+
+      if (statusResult.error || statusResult.status !== 0) {
+        throw new Error(statusResult.stderr || statusResult.error?.message || 'Failed to get diff status');
+      }
+
+      const files: Array<{
+        path: string;
+        status: 'added' | 'modified' | 'deleted';
+        additions: number;
+        deletions: number;
+        oldContent: string;
+        newContent: string;
+      }> = [];
+
+      let totalAdditions = 0;
+      let totalDeletions = 0;
+
+      const statusOutput = statusResult.stdout || '';
+      statusOutput.split('\n').forEach((line) => {
+        if (!line) return;
+
+        const [statusCode, filePath] = line.split('\t');
+        let status: 'added' | 'modified' | 'deleted';
+
+        if (statusCode === 'A') {
+          status = 'added';
+        } else if (statusCode === 'M') {
+          status = 'modified';
+        } else if (statusCode === 'D') {
+          status = 'deleted';
+        } else {
+          return; // Unknown status
+        }
+
+        // ファイルの旧内容を取得（mainブランチから）
+        let oldContent = '';
+        if (status !== 'added') {
+          const oldContentResult = spawnSync('git', ['show', `main:${filePath}`], {
+            cwd: worktreePath,
+            encoding: 'utf-8',
+          });
+          oldContent = oldContentResult.status === 0 ? oldContentResult.stdout : '';
+        }
+
+        // ファイルの新内容を取得（HEADから）
+        let newContent = '';
+        if (status !== 'deleted') {
+          const newContentResult = spawnSync('git', ['show', `HEAD:${filePath}`], {
+            cwd: worktreePath,
+            encoding: 'utf-8',
+          });
+          newContent = newContentResult.status === 0 ? newContentResult.stdout : '';
+        }
+
+        // 追加行数と削除行数を計算
+        const numstatResult = spawnSync('git', ['diff', '--numstat', 'main...HEAD', '--', filePath], {
+          cwd: worktreePath,
+          encoding: 'utf-8',
+        });
+
+        let additions = 0;
+        let deletions = 0;
+
+        if (numstatResult.status === 0 && numstatResult.stdout) {
+          const numstatLine = numstatResult.stdout.trim();
+          const [addStr, delStr] = numstatLine.split('\t');
+          additions = addStr === '-' ? 0 : parseInt(addStr, 10) || 0;
+          deletions = delStr === '-' ? 0 : parseInt(delStr, 10) || 0;
+        }
+
+        totalAdditions += additions;
+        totalDeletions += deletions;
+
+        files.push({
+          path: filePath,
+          status,
+          additions,
+          deletions,
+          oldContent,
+          newContent,
+        });
+      });
+
+      return { files, totalAdditions, totalDeletions };
+    } catch (error) {
+      this.logger.error('Failed to get diff details', { sessionName, error });
+      throw error;
+    }
+  }
+
+  /**
    * mainブランチからリベースを実行
    *
    * 指定されたセッションのworktreeで、mainブランチからのリベースを試みます。

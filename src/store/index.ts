@@ -87,6 +87,36 @@ export interface PermissionRequest {
 }
 
 /**
+ * Diffファイルの型定義
+ */
+export interface DiffFile {
+  /** ファイルパス */
+  path: string;
+  /** ファイルのステータス */
+  status: 'added' | 'modified' | 'deleted';
+  /** 追加行数 */
+  additions: number;
+  /** 削除行数 */
+  deletions: number;
+  /** 変更前の内容 */
+  oldContent: string;
+  /** 変更後の内容 */
+  newContent: string;
+}
+
+/**
+ * Diffデータの型定義
+ */
+export interface DiffData {
+  /** ファイルのリスト */
+  files: DiffFile[];
+  /** 合計追加行数 */
+  totalAdditions: number;
+  /** 合計削除行数 */
+  totalDeletions: number;
+}
+
+/**
  * アプリケーション全体の状態管理インターフェース
  *
  * Zustandを使用したグローバルステート管理の型定義です。
@@ -118,6 +148,11 @@ export interface AppState {
   messages: Message[];
   /** 権限リクエスト */
   permissionRequest: PermissionRequest | null;
+
+  /** Diff情報 */
+  diff: DiffData | null;
+  /** 選択中のファイル */
+  selectedFile: string | null;
 
   /** テーマ設定 */
   theme: 'light' | 'dark' | 'system';
@@ -162,6 +197,10 @@ export interface AppState {
   approvePermission: (sessionId: string, permissionId: string, action: 'approve' | 'reject') => Promise<void>;
   /** セッションを停止 */
   stopSession: (sessionId: string) => Promise<void>;
+  /** Diffを取得 */
+  fetchDiff: (sessionId: string) => Promise<void>;
+  /** ファイルを選択 */
+  selectFile: (path: string | null) => void;
   /** テーマを設定 */
   setTheme: (theme: 'light' | 'dark' | 'system') => void;
   /** モバイル表示フラグを設定 */
@@ -187,6 +226,8 @@ const initialState = {
   currentSession: null,
   messages: [],
   permissionRequest: null,
+  diff: null,
+  selectedFile: null,
   theme: 'system' as const,
   isMobile: false,
   isSidebarOpen: false,
@@ -627,6 +668,33 @@ export const useAppStore = create<AppState>((set) => ({
       throw new Error('セッションの停止に失敗しました');
     }
   },
+
+  fetchDiff: async (sessionId: string) => {
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}/diff`);
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error('セッションが見つかりません');
+        }
+        throw new Error('差分の取得に失敗しました');
+      }
+
+      const diff: DiffData = await response.json();
+      set({ diff });
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.includes('Failed to fetch') || error.message.includes('Network')) {
+          throw new Error('ネットワークエラーが発生しました');
+        }
+        throw error;
+      }
+      throw new Error('差分の取得に失敗しました');
+    }
+  },
+
+  selectFile: (path: string | null) =>
+    set({ selectedFile: path }),
 
   reset: () =>
     set(initialState),

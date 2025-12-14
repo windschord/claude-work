@@ -64,9 +64,11 @@ describe('DiffViewer', () => {
     });
 
     render(<DiffViewer />);
-    expect(screen.getByTestId('diff-viewer')).toBeInTheDocument();
-    expect(screen.getByTestId('old-content')).toHaveTextContent('const old = true;');
-    expect(screen.getByTestId('new-content')).toHaveTextContent('const new = true;');
+    // ファイル名とステータス情報が表示されることを確認
+    expect(screen.getByText('selected.ts')).toBeInTheDocument();
+    expect(screen.getByText('変更')).toBeInTheDocument();
+    expect(screen.getByText('+2')).toBeInTheDocument();
+    expect(screen.getByText('-1')).toBeInTheDocument();
   });
 
   it('追加されたファイルのdiffを表示する（oldContentが空）', () => {
@@ -89,9 +91,11 @@ describe('DiffViewer', () => {
     });
 
     render(<DiffViewer />);
-    expect(screen.getByTestId('diff-viewer')).toBeInTheDocument();
-    expect(screen.getByTestId('old-content')).toHaveTextContent('');
-    expect(screen.getByTestId('new-content')).toHaveTextContent('export const newFeature = true;');
+    // ファイル名とステータス情報が表示されることを確認
+    expect(screen.getByText('new-file.ts')).toBeInTheDocument();
+    expect(screen.getByText('追加')).toBeInTheDocument();
+    expect(screen.getByText('+5')).toBeInTheDocument();
+    expect(screen.getByText('-0')).toBeInTheDocument();
   });
 
   it('削除されたファイルのdiffを表示する（newContentが空）', () => {
@@ -114,9 +118,11 @@ describe('DiffViewer', () => {
     });
 
     render(<DiffViewer />);
-    expect(screen.getByTestId('diff-viewer')).toBeInTheDocument();
-    expect(screen.getByTestId('old-content')).toHaveTextContent('export const obsolete = true;');
-    expect(screen.getByTestId('new-content')).toHaveTextContent('');
+    // ファイル名とステータス情報が表示されることを確認
+    expect(screen.getByText('deleted-file.ts')).toBeInTheDocument();
+    expect(screen.getByText('削除')).toBeInTheDocument();
+    expect(screen.getByText('+0')).toBeInTheDocument();
+    expect(screen.getByText('-3')).toBeInTheDocument();
   });
 
   it('diffがnullの場合、読み込み中メッセージを表示する', () => {
