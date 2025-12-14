@@ -9,60 +9,62 @@ import { execSync } from 'child_process';
 import { randomUUID } from 'crypto';
 import type { AuthSession, Project, RunScript } from '@prisma/client';
 
+// 共通テストセットアップ
+let testRepoPath: string;
+let authSession: AuthSession;
+let project: Project;
+let script: RunScript;
+
+beforeEach(async () => {
+  await prisma.runScript.deleteMany();
+  await prisma.project.deleteMany();
+  await prisma.authSession.deleteMany();
+
+  authSession = await prisma.authSession.create({
+    data: {
+      id: randomUUID(),
+      token_hash: 'test-hash',
+      expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    },
+  });
+
+  testRepoPath = mkdtempSync(join(tmpdir(), 'project-test-'));
+  execSync('git init', { cwd: testRepoPath });
+  execSync('git config user.name "Test"', { cwd: testRepoPath });
+  execSync('git config user.email "test@example.com"', { cwd: testRepoPath });
+  execSync('echo "test" > README.md && git add . && git commit -m "initial"', {
+    cwd: testRepoPath,
+    shell: true,
+  });
+  execSync('git branch -M main', { cwd: testRepoPath });
+
+  project = await prisma.project.create({
+    data: {
+      name: 'Test Project',
+      path: testRepoPath,
+    },
+  });
+
+  script = await prisma.runScript.create({
+    data: {
+      project_id: project.id,
+      name: 'Test',
+      description: 'Run unit tests',
+      command: 'npm test',
+    },
+  });
+});
+
+afterEach(async () => {
+  await prisma.runScript.deleteMany();
+  await prisma.project.deleteMany();
+  await prisma.authSession.deleteMany();
+  if (testRepoPath) {
+    rmSync(testRepoPath, { recursive: true, force: true });
+  }
+});
+
 describe('PUT /api/projects/[id]/scripts/[scriptId]', () => {
-  let testRepoPath: string;
-  let authSession: AuthSession;
-  let project: Project;
-  let script: RunScript;
-
-  beforeEach(async () => {
-    await prisma.runScript.deleteMany();
-    await prisma.project.deleteMany();
-    await prisma.authSession.deleteMany();
-
-    authSession = await prisma.authSession.create({
-      data: {
-        id: randomUUID(),
-        token_hash: 'test-hash',
-        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      },
-    });
-
-    testRepoPath = mkdtempSync(join(tmpdir(), 'project-test-'));
-    execSync('git init', { cwd: testRepoPath });
-    execSync('git config user.name "Test"', { cwd: testRepoPath });
-    execSync('git config user.email "test@example.com"', { cwd: testRepoPath });
-    execSync('echo "test" > README.md && git add . && git commit -m "initial"', {
-      cwd: testRepoPath,
-      shell: true,
-    });
-    execSync('git branch -M main', { cwd: testRepoPath });
-
-    project = await prisma.project.create({
-      data: {
-        name: 'Test Project',
-        path: testRepoPath,
-      },
-    });
-
-    script = await prisma.runScript.create({
-      data: {
-        project_id: project.id,
-        name: 'Test',
-        description: 'Run unit tests',
-        command: 'npm test',
-      },
-    });
-  });
-
-  afterEach(async () => {
-    await prisma.runScript.deleteMany();
-    await prisma.project.deleteMany();
-    await prisma.authSession.deleteMany();
-    if (testRepoPath) {
-      rmSync(testRepoPath, { recursive: true, force: true });
-    }
-  });
 
   it('should update run script successfully', async () => {
     const request = new NextRequest(
@@ -167,59 +169,6 @@ describe('PUT /api/projects/[id]/scripts/[scriptId]', () => {
 });
 
 describe('DELETE /api/projects/[id]/scripts/[scriptId]', () => {
-  let testRepoPath: string;
-  let authSession: AuthSession;
-  let project: Project;
-  let script: RunScript;
-
-  beforeEach(async () => {
-    await prisma.runScript.deleteMany();
-    await prisma.project.deleteMany();
-    await prisma.authSession.deleteMany();
-
-    authSession = await prisma.authSession.create({
-      data: {
-        id: randomUUID(),
-        token_hash: 'test-hash',
-        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      },
-    });
-
-    testRepoPath = mkdtempSync(join(tmpdir(), 'project-test-'));
-    execSync('git init', { cwd: testRepoPath });
-    execSync('git config user.name "Test"', { cwd: testRepoPath });
-    execSync('git config user.email "test@example.com"', { cwd: testRepoPath });
-    execSync('echo "test" > README.md && git add . && git commit -m "initial"', {
-      cwd: testRepoPath,
-      shell: true,
-    });
-    execSync('git branch -M main', { cwd: testRepoPath });
-
-    project = await prisma.project.create({
-      data: {
-        name: 'Test Project',
-        path: testRepoPath,
-      },
-    });
-
-    script = await prisma.runScript.create({
-      data: {
-        project_id: project.id,
-        name: 'Test',
-        description: 'Run unit tests',
-        command: 'npm test',
-      },
-    });
-  });
-
-  afterEach(async () => {
-    await prisma.runScript.deleteMany();
-    await prisma.project.deleteMany();
-    await prisma.authSession.deleteMany();
-    if (testRepoPath) {
-      rmSync(testRepoPath, { recursive: true, force: true });
-    }
-  });
 
   it('should delete run script successfully', async () => {
     const request = new NextRequest(
