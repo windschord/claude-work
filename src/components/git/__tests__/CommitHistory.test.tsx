@@ -141,7 +141,7 @@ describe('CommitHistory', () => {
 
     (global.fetch as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
       if (url.includes('/reset')) {
-        return mockResetFetch(url);
+        return mockResetFetch();
       }
       return Promise.resolve({
         ok: true,
@@ -166,7 +166,7 @@ describe('CommitHistory', () => {
     fireEvent.click(confirmButton);
 
     await waitFor(() => {
-      expect(mockResetFetch).toHaveBeenCalledWith(
+      expect(global.fetch).toHaveBeenCalledWith(
         expect.stringContaining('/reset'),
         expect.objectContaining({
           method: 'POST',

@@ -77,6 +77,7 @@ describe('CreateSessionForm - Bulk Create', () => {
       expect(mockCreateSession).toHaveBeenCalledWith('project-1', {
         name: 'Test Session',
         prompt: 'Test prompt',
+        model: expect.any(String),
       });
       expect(mockCreateBulkSessions).not.toHaveBeenCalled();
       expect(mockOnCreate).toHaveBeenCalled();
@@ -101,7 +102,8 @@ describe('CreateSessionForm - Bulk Create', () => {
         'project-1',
         'Feature',
         'Test prompt',
-        3
+        3,
+        expect.any(String)
       );
       expect(mockCreateSession).not.toHaveBeenCalled();
       expect(mockOnCreate).toHaveBeenCalled();
@@ -126,7 +128,8 @@ describe('CreateSessionForm - Bulk Create', () => {
         'project-1',
         'Feature',
         'Test prompt',
-        10
+        10,
+        expect.any(String)
       );
     });
   });

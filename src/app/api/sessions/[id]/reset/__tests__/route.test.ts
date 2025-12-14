@@ -160,14 +160,14 @@ describe('POST /api/sessions/[id]/reset', () => {
 
     // file1.txt should exist (added in commit 1)
     const file1Path = join(session.worktree_path, 'file1.txt');
-    const file1Exists = require('fs').existsSync(file1Path);
+    const file1Exists = existsSync(file1Path);
     expect(file1Exists).toBe(true);
 
     // file2.txt and file3.txt should not exist (added in commits 2 and 3)
     const file2Path = join(session.worktree_path, 'file2.txt');
     const file3Path = join(session.worktree_path, 'file3.txt');
-    const file2Exists = require('fs').existsSync(file2Path);
-    const file3Exists = require('fs').existsSync(file3Path);
+    const file2Exists = existsSync(file2Path);
+    const file3Exists = existsSync(file3Path);
     expect(file2Exists).toBe(false);
     expect(file3Exists).toBe(false);
   });
@@ -193,14 +193,14 @@ describe('POST /api/sessions/[id]/reset', () => {
     // file1.txt and file2.txt should exist
     const file1Path = join(session.worktree_path, 'file1.txt');
     const file2Path = join(session.worktree_path, 'file2.txt');
-    const file1Exists = require('fs').existsSync(file1Path);
-    const file2Exists = require('fs').existsSync(file2Path);
+    const file1Exists = existsSync(file1Path);
+    const file2Exists = existsSync(file2Path);
     expect(file1Exists).toBe(true);
     expect(file2Exists).toBe(true);
 
     // file3.txt should not exist
     const file3Path = join(session.worktree_path, 'file3.txt');
-    const file3Exists = require('fs').existsSync(file3Path);
+    const file3Exists = existsSync(file3Path);
     expect(file3Exists).toBe(false);
   });
 
