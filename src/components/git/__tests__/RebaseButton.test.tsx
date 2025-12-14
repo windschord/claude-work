@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import { RebaseButton } from '../RebaseButton';
 import { useAppStore } from '@/store';
 import toast from 'react-hot-toast';
@@ -8,12 +8,16 @@ vi.mock('@/store', () => ({
   useAppStore: vi.fn(),
 }));
 
-vi.mock('react-hot-toast', () => ({
-  default: {
+vi.mock('react-hot-toast', () => {
+  const toast = {
     success: vi.fn(),
     error: vi.fn(),
-  },
-}));
+  };
+  return {
+    default: toast,
+    Toaster: () => null,
+  };
+});
 
 describe('RebaseButton', () => {
   const mockRebase = vi.fn();
@@ -21,6 +25,10 @@ describe('RebaseButton', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   it('「mainから取り込み」ボタンが表示される', () => {

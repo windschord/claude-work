@@ -10,6 +10,11 @@ import InputForm from '@/components/session/InputForm';
 import PermissionDialog from '@/components/session/PermissionDialog';
 import { FileList } from '@/components/git/FileList';
 import { DiffViewer } from '@/components/git/DiffViewer';
+import { RebaseButton } from '@/components/git/RebaseButton';
+import { MergeModal } from '@/components/git/MergeModal';
+import { ConflictDialog } from '@/components/git/ConflictDialog';
+import { DeleteWorktreeDialog } from '@/components/git/DeleteWorktreeDialog';
+import { Toaster } from 'react-hot-toast';
 
 export default function SessionDetailPage() {
   const params = useParams();
@@ -20,16 +25,21 @@ export default function SessionDetailPage() {
     currentSession,
     messages,
     permissionRequest,
+    conflictFiles,
     fetchSessionDetail,
     fetchDiff,
     sendMessage,
     approvePermission,
     stopSession,
+    deleteSession,
     checkAuth,
   } = useAppStore();
 
   const [isPermissionDialogOpen, setIsPermissionDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'chat' | 'diff'>('chat');
+  const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
+  const [isConflictDialogOpen, setIsConflictDialogOpen] = useState(false);
+  const [isDeleteWorktreeDialogOpen, setIsDeleteWorktreeDialogOpen] = useState(false);
 
   // Initial fetch and polling setup
   useEffect(() => {
@@ -77,6 +87,13 @@ export default function SessionDetailPage() {
     checkAuth();
   }, [checkAuth]);
 
+  // Show conflict dialog when conflict files are detected
+  useEffect(() => {
+    if (conflictFiles && conflictFiles.length > 0) {
+      setIsConflictDialogOpen(true);
+    }
+  }, [conflictFiles]);
+
   // Fetch diff when diff tab is selected
   useEffect(() => {
     if (activeTab === 'diff') {
@@ -121,6 +138,25 @@ export default function SessionDetailPage() {
     } catch (error) {
       console.error('Failed to stop session:', error);
     }
+  };
+
+  const handleMergeSuccess = () => {
+    setIsMergeModalOpen(false);
+    setIsDeleteWorktreeDialogOpen(true);
+  };
+
+  const handleDeleteWorktree = async () => {
+    try {
+      await deleteSession(sessionId);
+      setIsDeleteWorktreeDialogOpen(false);
+      router.push('/');
+    } catch (error) {
+      console.error('Failed to delete worktree:', error);
+    }
+  };
+
+  const handleKeepWorktree = () => {
+    setIsDeleteWorktreeDialogOpen(false);
   };
 
   if (!currentSession) {
@@ -206,9 +242,22 @@ export default function SessionDetailPage() {
               />
             </>
           ) : (
-            <div className="flex-1 flex overflow-hidden">
-              <FileList />
-              <DiffViewer />
+            <div className="flex-1 flex flex-col overflow-hidden">
+              {/* Git Operations Buttons */}
+              <div className="border-b border-gray-200 dark:border-gray-700 p-4 flex gap-3">
+                <RebaseButton sessionId={sessionId} />
+                <button
+                  onClick={() => setIsMergeModalOpen(true)}
+                  className="bg-green-500 text-white rounded px-4 py-2 hover:bg-green-600 transition-colors"
+                >
+                  スカッシュしてマージ
+                </button>
+              </div>
+              {/* Diff Display */}
+              <div className="flex-1 flex overflow-hidden">
+                <FileList />
+                <DiffViewer />
+              </div>
             </div>
           )}
 
@@ -220,6 +269,31 @@ export default function SessionDetailPage() {
             onReject={handleReject}
             onClose={() => setIsPermissionDialogOpen(false)}
           />
+
+          {/* Merge Modal */}
+          <MergeModal
+            isOpen={isMergeModalOpen}
+            sessionId={sessionId}
+            onClose={() => setIsMergeModalOpen(false)}
+            onSuccess={handleMergeSuccess}
+          />
+
+          {/* Conflict Dialog */}
+          <ConflictDialog
+            isOpen={isConflictDialogOpen}
+            conflictFiles={conflictFiles || []}
+            onClose={() => setIsConflictDialogOpen(false)}
+          />
+
+          {/* Delete Worktree Dialog */}
+          <DeleteWorktreeDialog
+            isOpen={isDeleteWorktreeDialogOpen}
+            onDelete={handleDeleteWorktree}
+            onKeep={handleKeepWorktree}
+          />
+
+          {/* Toast Notifications */}
+          <Toaster position="top-right" />
         </div>
       </MainLayout>
     </AuthGuard>

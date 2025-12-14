@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, cleanup } from '@testing-library/react';
 import { DiffViewer } from '../DiffViewer';
 import { useAppStore } from '@/store';
 
@@ -19,6 +19,10 @@ vi.mock('react-diff-viewer-continued', () => ({
 describe('DiffViewer', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   it('ファイルが選択されていない場合、メッセージを表示する', () => {

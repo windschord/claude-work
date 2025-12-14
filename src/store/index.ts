@@ -154,6 +154,11 @@ export interface AppState {
   /** 選択中のファイル */
   selectedFile: string | null;
 
+  /** Git操作のローディング状態 */
+  isGitOperationLoading: boolean;
+  /** コンフリクトファイル一覧 */
+  conflictFiles: string[] | null;
+
   /** テーマ設定 */
   theme: 'light' | 'dark' | 'system';
   /** モバイル表示かどうか */
@@ -201,6 +206,12 @@ export interface AppState {
   fetchDiff: (sessionId: string) => Promise<void>;
   /** ファイルを選択 */
   selectFile: (path: string | null) => void;
+  /** rebase実行 */
+  rebase: (sessionId: string) => Promise<void>;
+  /** merge実行 */
+  merge: (sessionId: string, commitMessage: string) => Promise<void>;
+  /** セッションを削除 */
+  deleteSession: (sessionId: string) => Promise<void>;
   /** テーマを設定 */
   setTheme: (theme: 'light' | 'dark' | 'system') => void;
   /** モバイル表示フラグを設定 */
@@ -228,6 +239,8 @@ const initialState = {
   permissionRequest: null,
   diff: null,
   selectedFile: null,
+  isGitOperationLoading: false,
+  conflictFiles: null,
   theme: 'system' as const,
   isMobile: false,
   isSidebarOpen: false,
@@ -695,6 +708,98 @@ export const useAppStore = create<AppState>((set) => ({
 
   selectFile: (path: string | null) =>
     set({ selectedFile: path }),
+
+  rebase: async (sessionId: string) => {
+    try {
+      set({ isGitOperationLoading: true, conflictFiles: null });
+
+      const response = await fetch(`/api/sessions/${sessionId}/rebase`, {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        if (response.status === 409) {
+          const data = await response.json();
+          set({ conflictFiles: data.conflicts || [] });
+          throw new Error('コンフリクトが発生しました');
+        }
+        throw new Error('rebaseに失敗しました');
+      }
+
+      set({ conflictFiles: null });
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.includes('Failed to fetch') || error.message.includes('Network')) {
+          throw new Error('ネットワークエラーが発生しました');
+        }
+        throw error;
+      }
+      throw new Error('rebaseに失敗しました');
+    } finally {
+      set({ isGitOperationLoading: false });
+    }
+  },
+
+  merge: async (sessionId: string, commitMessage: string) => {
+    try {
+      set({ isGitOperationLoading: true, conflictFiles: null });
+
+      const response = await fetch(`/api/sessions/${sessionId}/merge`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ commitMessage }),
+      });
+
+      if (!response.ok) {
+        if (response.status === 409) {
+          const data = await response.json();
+          set({ conflictFiles: data.conflicts || [] });
+          throw new Error('コンフリクトが発生しました');
+        }
+        if (response.status === 400) {
+          throw new Error('コミットメッセージが無効です');
+        }
+        throw new Error('マージに失敗しました');
+      }
+
+      set({ conflictFiles: null });
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.includes('Failed to fetch') || error.message.includes('Network')) {
+          throw new Error('ネットワークエラーが発生しました');
+        }
+        throw error;
+      }
+      throw new Error('マージに失敗しました');
+    } finally {
+      set({ isGitOperationLoading: false });
+    }
+  },
+
+  deleteSession: async (sessionId: string) => {
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error('セッションが見つかりません');
+        }
+        throw new Error('セッションの削除に失敗しました');
+      }
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.includes('Failed to fetch') || error.message.includes('Network')) {
+          throw new Error('ネットワークエラーが発生しました');
+        }
+        throw error;
+      }
+      throw new Error('セッションの削除に失敗しました');
+    }
+  },
 
   reset: () =>
     set(initialState),
