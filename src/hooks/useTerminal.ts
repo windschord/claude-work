@@ -53,7 +53,7 @@ export function useTerminal(sessionId: string): UseTerminalReturn {
     // WebSocket URLを構築
     const protocol = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = typeof window !== 'undefined' ? window.location.host : 'localhost:3000';
-    const wsUrl = `${protocol}//${host}/ws/sessions/${sessionId}/terminal`;
+    const wsUrl = `${protocol}//${host}/ws/terminal/${sessionId}`;
 
     // WebSocket接続を作成
     const ws = new WebSocket(wsUrl);
@@ -67,8 +67,10 @@ export function useTerminal(sessionId: string): UseTerminalReturn {
         ws.send(
           JSON.stringify({
             type: 'resize',
-            rows: terminal.rows,
-            cols: terminal.cols,
+            data: {
+              cols: terminal.cols,
+              rows: terminal.rows,
+            },
           })
         );
       }
@@ -79,12 +81,12 @@ export function useTerminal(sessionId: string): UseTerminalReturn {
       try {
         const message = JSON.parse(event.data);
 
-        if (message.type === 'output') {
+        if (message.type === 'data') {
           // ターミナルに出力を書き込む
-          terminal.write(message.data);
+          terminal.write(message.content);
         } else if (message.type === 'exit') {
           // プロセス終了メッセージを表示
-          terminal.write(`\r\n[Process exited with code ${message.code}]\r\n`);
+          terminal.write(`\r\n[Process exited with code ${message.exitCode}]\r\n`);
           // WebSocketを切断
           ws.close();
         }
@@ -133,8 +135,10 @@ export function useTerminal(sessionId: string): UseTerminalReturn {
       wsRef.current.send(
         JSON.stringify({
           type: 'resize',
-          rows: terminal.rows,
-          cols: terminal.cols,
+          data: {
+            cols: terminal.cols,
+            rows: terminal.rows,
+          },
         })
       );
     }

@@ -34,7 +34,6 @@ export function RunScriptList({ projectId }: RunScriptListProps) {
     if (deletingScript) {
       await deleteScript(projectId, deletingScript.id);
       setDeletingScript(null);
-      await fetchScripts(projectId);
     }
   };
 

@@ -30,7 +30,7 @@ export function EditRunScriptModal({
   projectId,
   script,
 }: EditRunScriptModalProps) {
-  const { updateScript, fetchScripts } = useRunScriptStore();
+  const { updateScript } = useRunScriptStore();
   const [name, setName] = useState(script.name);
   const [description, setDescription] = useState(script.description || '');
   const [command, setCommand] = useState(script.command);
@@ -65,7 +65,6 @@ export function EditRunScriptModal({
         description: description.trim(),
         command: command.trim(),
       });
-      await fetchScripts(projectId);
       onClose();
     } catch (err) {
       if (err instanceof Error) {

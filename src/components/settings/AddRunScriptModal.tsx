@@ -27,7 +27,7 @@ export function AddRunScriptModal({
   onClose,
   projectId,
 }: AddRunScriptModalProps) {
-  const { addScript, fetchScripts } = useRunScriptStore();
+  const { addScript } = useRunScriptStore();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [command, setCommand] = useState('');
@@ -56,7 +56,6 @@ export function AddRunScriptModal({
         description: description.trim(),
         command: command.trim(),
       });
-      await fetchScripts(projectId);
       setName('');
       setDescription('');
       setCommand('');

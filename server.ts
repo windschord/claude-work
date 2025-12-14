@@ -169,7 +169,13 @@ app.prepare().then(() => {
 
   // グレースフルシャットダウン
   process.on('SIGTERM', () => {
-    logger.info('SIGTERM signal received: closing HTTP server');
+    logger.info('SIGTERM signal received: closing servers');
+    wss.close(() => {
+      logger.info('WebSocket server closed');
+    });
+    terminalWss.close(() => {
+      logger.info('Terminal WebSocket server closed');
+    });
     server.close(() => {
       logger.info('HTTP server closed');
       process.exit(0);
@@ -177,7 +183,13 @@ app.prepare().then(() => {
   });
 
   process.on('SIGINT', () => {
-    logger.info('SIGINT signal received: closing HTTP server');
+    logger.info('SIGINT signal received: closing servers');
+    wss.close(() => {
+      logger.info('WebSocket server closed');
+    });
+    terminalWss.close(() => {
+      logger.info('Terminal WebSocket server closed');
+    });
     server.close(() => {
       logger.info('HTTP server closed');
       process.exit(0);
