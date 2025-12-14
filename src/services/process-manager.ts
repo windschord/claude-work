@@ -243,3 +243,16 @@ export class ProcessManager extends EventEmitter {
     return processData.info;
   }
 }
+
+/**
+ * ProcessManagerのシングルトンインスタンスを取得
+ *
+ * アプリケーション全体で単一のProcessManagerインスタンスを共有します。
+ * これにより、WebSocketハンドラーやAPIルートから同じプロセス管理にアクセスできます。
+ * 初回呼び出し時にインスタンスを作成し、以降は同じインスタンスを返します。
+ *
+ * @returns ProcessManagerのシングルトンインスタンス
+ */
+export function getProcessManager(): ProcessManager {
+  return ProcessManager.getInstance();
+}

@@ -140,9 +140,9 @@ describe('CreateSessionForm', () => {
 
   it('ローディング中は作成ボタンが無効化される', async () => {
     // 長時間かかる処理をシミュレート
-    let resolveCreateSession: () => void;
+    let _resolveCreateSession: () => void;
     const createSessionPromise = new Promise<void>((resolve) => {
-      resolveCreateSession = resolve;
+      _resolveCreateSession = resolve;
     });
     mockCreateSession.mockReturnValue(createSessionPromise);
 
