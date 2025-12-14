@@ -61,40 +61,46 @@ app.prepare().then(() => {
 
   // WebSocketアップグレード処理
   server.on('upgrade', async (request: IncomingMessage, socket, head) => {
-    const { pathname } = parse(request.url || '', true);
+    try {
+      const { pathname } = parse(request.url || '', true);
 
-    logger.info('WebSocket upgrade request', { pathname });
+      logger.info('WebSocket upgrade request', { pathname });
 
-    // WebSocketパスの検証
-    if (!pathname || !pathname.startsWith('/ws/sessions/')) {
-      logger.warn('Invalid WebSocket path', { pathname });
-      socket.write('HTTP/1.1 404 Not Found\r\n\r\n');
+      // WebSocketパスの検証
+      if (!pathname || !pathname.startsWith('/ws/sessions/')) {
+        logger.warn('Invalid WebSocket path', { pathname });
+        socket.write('HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n');
+        socket.destroy();
+        return;
+      }
+
+      // セッションIDを抽出
+      const sessionId = extractSessionId(pathname);
+      if (!sessionId) {
+        logger.warn('Invalid session ID in path', { pathname });
+        socket.write('HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n');
+        socket.destroy();
+        return;
+      }
+
+      // 認証チェック（URLパスのsessionIdを渡して照合）
+      const authenticatedSessionId = await authenticateWebSocket(request, sessionId);
+      if (!authenticatedSessionId) {
+        logger.warn('WebSocket authentication failed', { sessionId });
+        socket.write('HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\n\r\n');
+        socket.destroy();
+        return;
+      }
+
+      // WebSocketアップグレードを実行
+      wss.handleUpgrade(request, socket, head, (ws: WebSocket) => {
+        wss.emit('connection', ws, request, sessionId);
+      });
+    } catch (error) {
+      logger.error('WebSocket upgrade error', { error });
+      socket.write('HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\n\r\n');
       socket.destroy();
-      return;
     }
-
-    // セッションIDを抽出
-    const sessionId = extractSessionId(pathname);
-    if (!sessionId) {
-      logger.warn('Invalid session ID in path', { pathname });
-      socket.write('HTTP/1.1 400 Bad Request\r\n\r\n');
-      socket.destroy();
-      return;
-    }
-
-    // 認証チェック（URLパスのsessionIdを渡して照合）
-    const authenticatedSessionId = await authenticateWebSocket(request, sessionId);
-    if (!authenticatedSessionId) {
-      logger.warn('WebSocket authentication failed', { sessionId });
-      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-      socket.destroy();
-      return;
-    }
-
-    // WebSocketアップグレードを実行
-    wss.handleUpgrade(request, socket, head, (ws: WebSocket) => {
-      wss.emit('connection', ws, request, sessionId);
-    });
   });
 
   // WebSocket接続ハンドラー

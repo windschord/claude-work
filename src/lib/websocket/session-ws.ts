@@ -151,13 +151,15 @@ export class SessionWebSocketHandler {
           await this.handleDenyMessage(sessionId, message.requestId);
           break;
 
-        default:
+        default: {
           logger.warn('Unknown message type', { sessionId, message });
           const errorMessage: ServerMessage = {
             type: 'error',
             content: 'Unknown message type',
           };
           ws.send(JSON.stringify(errorMessage));
+          break;
+        }
       }
     } catch (error) {
       logger.error('Failed to parse WebSocket message', { sessionId, error });

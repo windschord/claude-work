@@ -92,13 +92,11 @@ test.describe('セッション機能', () => {
     // セッション詳細ページに遷移
     await expect(page).toHaveURL(/\/sessions\/.+/);
 
-    // 停止ボタンが表示される（セッションのステータスによる）
+    // セッションが実行中になるまで待機
     const stopButton = page.locator('button:has-text("停止")');
-    if (await stopButton.isVisible()) {
-      await stopButton.click();
+    await expect(stopButton).toBeVisible({ timeout: 10000 });
 
-      // セッションが停止される（ステータスが変わる）
-      // 注: 実際のWebSocket接続がないため、UIの確認のみ
-    }
+    await stopButton.click();
+    await expect(page.locator('text=停止しました')).toBeVisible();
   });
 });

@@ -141,7 +141,7 @@ describe('WebSocket Server', () => {
         headers: {},
       } as IncomingMessage;
 
-      const result = await authenticateWebSocket(mockRequest);
+      const result = await authenticateWebSocket(mockRequest, 'test-session-id');
       expect(result).toBeNull();
     });
 
@@ -153,7 +153,7 @@ describe('WebSocket Server', () => {
       } as IncomingMessage;
 
       // getSessionがモックされていないため、nullが返される
-      const result = await authenticateWebSocket(mockRequest);
+      const result = await authenticateWebSocket(mockRequest, 'test-session-id');
       // 実際のデータベースチェックが必要なため、テスト環境ではnullが返される
       expect(result).toBeNull();
     });

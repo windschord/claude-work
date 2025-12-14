@@ -83,8 +83,11 @@ test.describe('Git操作機能', () => {
     // Diffタブに移動
     await page.click('button:has-text("Diff")');
 
-    // ファイルリストエリアが表示される
-    // 注: 実際の変更がない場合は空になる可能性がある
-    // UI要素の存在確認のみ
+    // ファイルリストコンポーネントが表示される
+    const fileListContainer = page.locator('.w-64.border-r');
+    await expect(fileListContainer).toBeVisible();
+
+    // ファイルリストのヘッダーが表示される
+    await expect(page.locator('text=変更されたファイル')).toBeVisible();
   });
 });

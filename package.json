@@ -5,6 +5,9 @@
   "bin": {
     "claude-work": "./dist/src/bin/cli.js"
   },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "ts-node --project tsconfig.server.json server.ts",
     "build": "npm run build:next && npm run build:server",

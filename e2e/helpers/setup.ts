@@ -1,16 +1,13 @@
 import { execSync } from 'child_process';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 
 /**
  * テスト用のGitリポジトリを作成
  */
 export async function createTestGitRepo(): Promise<string> {
-  const tmpDir = path.join(__dirname, '../../tmp/test-repo');
-  if (fs.existsSync(tmpDir)) {
-    fs.rmSync(tmpDir, { recursive: true });
-  }
-  fs.mkdirSync(tmpDir, { recursive: true });
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'test-repo-'));
 
   execSync('git init', { cwd: tmpDir });
   execSync('git config user.name "Test User"', { cwd: tmpDir });
