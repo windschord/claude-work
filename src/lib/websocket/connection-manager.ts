@@ -1,5 +1,6 @@
 import { WebSocket } from 'ws';
 import { logger } from '../logger';
+import { ServerMessage } from '@/types/websocket';
 
 /**
  * WebSocket接続を管理するクラス
@@ -72,10 +73,9 @@ export class ConnectionManager {
    * メッセージを送信します。送信失敗した接続は自動的に削除されます。
    *
    * @param sessionId - セッションID
-   * @param message - 送信するメッセージ（オブジェクト）
+   * @param message - 送信するメッセージ（ServerMessage型）
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  broadcast(sessionId: string, message: any): void {
+  broadcast(sessionId: string, message: ServerMessage): void {
     const sessionConnections = this.connections.get(sessionId);
     if (!sessionConnections || sessionConnections.size === 0) {
       logger.debug('No connections to broadcast', { sessionId });

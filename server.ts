@@ -71,8 +71,8 @@ app.prepare().then(() => {
       return;
     }
 
-    // 認証チェック
-    const authenticatedSessionId = await authenticateWebSocket(request);
+    // 認証チェック（URLパスのsessionIdを渡して照合）
+    const authenticatedSessionId = await authenticateWebSocket(request, sessionId);
     if (!authenticatedSessionId) {
       logger.warn('WebSocket authentication failed', { sessionId });
       socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');

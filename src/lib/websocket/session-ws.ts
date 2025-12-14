@@ -2,6 +2,12 @@ import { WebSocket } from 'ws';
 import { ConnectionManager } from './connection-manager';
 import { getProcessManager } from '../../services/process-manager';
 import { logger } from '../logger';
+import type {
+  ProcessManagerOutputEvent,
+  ProcessManagerPermissionEvent,
+  ProcessManagerErrorEvent,
+  ProcessManagerExitEvent,
+} from '@/types/websocket';
 
 /**
  * クライアントからサーバーへのメッセージ型定義
@@ -71,8 +77,7 @@ export class SessionWebSocketHandler {
    */
   private setupProcessManagerListeners(): void {
     // Claude Codeの出力をブロードキャスト
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    this.processManager.on('output', (data: any) => {
+    this.processManager.on('output', (data: ProcessManagerOutputEvent) => {
       const message: ServerMessage = {
         type: 'output',
         content: data.content,
@@ -82,8 +87,7 @@ export class SessionWebSocketHandler {
     });
 
     // 権限確認リクエストをブロードキャスト
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    this.processManager.on('permission', (data: any) => {
+    this.processManager.on('permission', (data: ProcessManagerPermissionEvent) => {
       const message: ServerMessage = {
         type: 'permission_request',
         permission: {
@@ -96,8 +100,7 @@ export class SessionWebSocketHandler {
     });
 
     // エラーをブロードキャスト
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    this.processManager.on('error', (data: any) => {
+    this.processManager.on('error', (data: ProcessManagerErrorEvent) => {
       const message: ServerMessage = {
         type: 'error',
         content: data.content,
@@ -106,8 +109,7 @@ export class SessionWebSocketHandler {
     });
 
     // プロセス終了時にステータス変更を通知
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    this.processManager.on('exit', (data: any) => {
+    this.processManager.on('exit', (data: ProcessManagerExitEvent) => {
       const message: ServerMessage = {
         type: 'status_change',
         status: data.exitCode === 0 ? 'completed' : 'error',

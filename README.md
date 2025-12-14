@@ -18,7 +18,7 @@ npx claude-work
 
 #### Required Environment Variables
 
-- `CLAUDE_WORK_TOKEN`: 認証トークン（必須）
+- `AUTH_TOKEN`: 認証トークン（必須）
 - `SESSION_SECRET`: セッション暗号化用のシークレットキー（必須、32文字以上）
 
 #### Optional Environment Variables
@@ -42,7 +42,7 @@ cp .env.example .env
 
 ```bash
 # .env
-CLAUDE_WORK_TOKEN=your-secure-token-here
+AUTH_TOKEN=your-secure-token-here
 SESSION_SECRET=your-32-character-or-longer-secret-key-here
 PORT=3000
 ```
@@ -118,7 +118,7 @@ ClaudeWorkはSQLiteデータベースを使用します。デフォルトでは`
 
 ## Security Notes
 
-- `CLAUDE_WORK_TOKEN`は安全な値に設定してください
+- `AUTH_TOKEN`は安全な値に設定してください
 - `SESSION_SECRET`は32文字以上のランダムな文字列を使用してください
 - 本番環境では`ALLOWED_ORIGINS`を適切に設定してください
 - 必要に応じて`ALLOWED_PROJECT_DIRS`でプロジェクトディレクトリを制限してください

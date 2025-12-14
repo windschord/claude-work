@@ -41,3 +41,29 @@ export interface PermissionRequest {
  * セッションステータス
  */
 export type SessionStatus = 'initializing' | 'running' | 'waiting_input' | 'completed' | 'error';
+
+/**
+ * ProcessManagerイベントデータ型
+ */
+export interface ProcessManagerOutputEvent {
+  sessionId: string;
+  content: string;
+  subAgent?: SubAgent;
+}
+
+export interface ProcessManagerPermissionEvent {
+  sessionId: string;
+  requestId: string;
+  action: string;
+  details: string;
+}
+
+export interface ProcessManagerErrorEvent {
+  sessionId: string;
+  content: string;
+}
+
+export interface ProcessManagerExitEvent {
+  sessionId: string;
+  exitCode: number;
+}

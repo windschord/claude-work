@@ -8,28 +8,40 @@ import { logger } from '../logger';
  * WebSocket接続の認証ミドルウェア
  *
  * クッキーからセッション情報を取得し、認証済みかどうかを検証します。
+ * URLパスのセッションIDと認証されたセッションを照合します。
  * 認証に失敗した場合はnullを返します。
  *
  * @param request - WebSocketアップグレードリクエスト
+ * @param sessionId - URLパスから抽出されたセッションID
  * @returns 認証に成功した場合はセッションID、失敗した場合はnull
  */
 export async function authenticateWebSocket(
-  request: IncomingMessage
+  request: IncomingMessage,
+  sessionId: string
 ): Promise<string | null> {
   try {
     // クッキーヘッダーからセッションIDを抽出
     const cookies = parseCookies(request.headers.cookie || '');
-    const sessionId = cookies['sessionId'];
+    const cookieSessionId = cookies['sessionId'];
 
-    if (!sessionId) {
+    if (!cookieSessionId) {
       logger.warn('WebSocket authentication failed: No session cookie');
       return null;
     }
 
     // セッションを検証
-    const session = await getSession(sessionId);
+    const session = await getSession(cookieSessionId);
     if (!session) {
-      logger.warn('WebSocket authentication failed: Invalid session', { sessionId });
+      logger.warn('WebSocket authentication failed: Invalid session', { sessionId: cookieSessionId });
+      return null;
+    }
+
+    // URLパスのセッションIDとクッキーのセッションIDが一致することを確認
+    if (sessionId !== cookieSessionId) {
+      logger.warn('WebSocket authentication failed: Session ID mismatch', {
+        pathSessionId: sessionId,
+        cookieSessionId,
+      });
       return null;
     }
 

@@ -97,8 +97,8 @@ export function useWebSocket(
 
         reconnectTimeoutRef.current = setTimeout(() => {
           if (shouldReconnectRef.current) {
-            reconnectCountRef.current += 1; // 再接続試行時にカウントをインクリメント
             setStatus('connecting');
+            reconnectCountRef.current += 1; // 再接続試行時にカウントをインクリメント
             connect();
           }
         }, delay);
