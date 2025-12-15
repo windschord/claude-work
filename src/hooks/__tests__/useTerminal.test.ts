@@ -60,7 +60,7 @@ describe('useTerminal', () => {
       }
     }
 
-    global.WebSocket = MockWebSocketConstructor as any;
+    global.WebSocket = MockWebSocketConstructor as unknown as typeof WebSocket;
   });
 
   afterEach(() => {

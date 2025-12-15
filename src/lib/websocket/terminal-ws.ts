@@ -22,7 +22,7 @@ interface TerminalResizeMessage {
   };
 }
 
-type TerminalClientMessage = TerminalInputMessage | TerminalResizeMessage;
+export type TerminalClientMessage = TerminalInputMessage | TerminalResizeMessage;
 
 // サーバー → クライアント（出力）
 interface TerminalDataMessage {

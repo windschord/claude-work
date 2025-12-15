@@ -11,7 +11,7 @@ import { TerminalPanel } from '../TerminalPanel';
 const mockUseTerminal = vi.fn();
 
 vi.mock('@/hooks/useTerminal', () => ({
-  useTerminal: (...args: any[]) => mockUseTerminal(...args),
+  useTerminal: (...args: unknown[]) => mockUseTerminal(...args),
 }));
 
 describe('TerminalPanel', () => {
