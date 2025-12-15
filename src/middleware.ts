@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 
 /**
  * Next.js ミドルウェア - CORS設定とプリフライトリクエスト処理
@@ -19,7 +20,12 @@ import { NextRequest, NextResponse } from 'next/server';
 export function middleware(request: NextRequest) {
   const allowedOrigins = process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(',').map((origin) => origin.trim())
-    : (process.env.NODE_ENV === 'production' ? [] : ['*']);
+    : (process.env.NODE_ENV === 'production'
+      ? (() => {
+          logger.warn('ALLOWED_ORIGINS not set in production - CORS will block all origins');
+          return [];
+        })()
+      : ['*']);
 
   // 本番環境でのワイルドカード使用を検証
   if (process.env.NODE_ENV === 'production' && allowedOrigins.includes('*')) {
@@ -28,16 +34,23 @@ export function middleware(request: NextRequest) {
 
   const origin = request.headers.get('origin');
   const response = NextResponse.next();
+  let originAllowed = false;
 
   // CORS設定 - 認証情報を使用する場合は特定のオリジンをエコーバック
-  if (origin && (allowedOrigins.includes('*') || allowedOrigins.includes(origin))) {
+  if (allowedOrigins.includes('*')) {
+    response.headers.set('Access-Control-Allow-Origin', '*');
+    originAllowed = true;
+  } else if (origin && allowedOrigins.includes(origin)) {
     response.headers.set('Access-Control-Allow-Origin', origin);
     response.headers.set('Access-Control-Allow-Credentials', 'true');
+    originAllowed = true;
   }
 
-  response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  response.headers.set('Access-Control-Max-Age', '86400');
+  if (originAllowed) {
+    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    response.headers.set('Access-Control-Max-Age', '86400');
+  }
 
   // OPTIONS リクエストへの対応
   if (request.method === 'OPTIONS') {
