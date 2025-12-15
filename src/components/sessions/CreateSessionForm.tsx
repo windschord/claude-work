@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAppStore } from '@/store';
 
 interface CreateSessionFormProps {
@@ -13,7 +13,7 @@ interface CreateSessionFormProps {
  * セッション作成フォームコンポーネント
  *
  * 新しいセッションを作成するためのフォームです。
- * セッション名とプロンプトを入力し、バリデーションとエラーハンドリングを行います。
+ * セッション名、プロンプト、モデル、作成数を入力し、バリデーションとエラーハンドリングを行います。
  *
  * @param props - コンポーネントのプロパティ
  * @param props.projectId - セッションを作成するプロジェクトのID
@@ -24,10 +24,23 @@ interface CreateSessionFormProps {
 export function CreateSessionForm({ projectId, onSuccess, onError }: CreateSessionFormProps) {
   const [name, setName] = useState('');
   const [prompt, setPrompt] = useState('');
+  const [model, setModel] = useState('auto');
+  const [count, setCount] = useState(1);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const createSession = useAppStore((state) => state.createSession);
+  const createBulkSessions = useAppStore((state) => state.createBulkSessions);
+  const projects = useAppStore((state) => state.projects);
+
+  // プロジェクトのデフォルトモデルを取得
+  const project = projects?.find((p) => p.id === projectId);
+  const defaultModel = project?.default_model || 'auto';
+
+  // デフォルトモデルを設定
+  useEffect(() => {
+    setModel(defaultModel);
+  }, [defaultModel]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,14 +60,26 @@ export function CreateSessionForm({ projectId, onSuccess, onError }: CreateSessi
     setIsLoading(true);
 
     try {
-      await createSession(projectId, {
-        name: name.trim(),
-        prompt: prompt.trim(),
-      });
+      if (count === 1) {
+        await createSession(projectId, {
+          name: name.trim(),
+          prompt: prompt.trim(),
+          model,
+        });
+      } else {
+        await createBulkSessions(projectId, {
+          name: name.trim(),
+          prompt: prompt.trim(),
+          model,
+          count,
+        });
+      }
 
       // 成功時: フォームをクリア
       setName('');
       setPrompt('');
+      setModel(defaultModel);
+      setCount(1);
 
       if (onSuccess) {
         onSuccess();
@@ -109,6 +134,43 @@ export function CreateSessionForm({ projectId, onSuccess, onError }: CreateSessi
           className="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
           disabled={isLoading}
         />
+      </div>
+
+      <div>
+        <label htmlFor="session-model" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          モデル
+        </label>
+        <select
+          id="session-model"
+          value={model}
+          onChange={(e) => setModel(e.target.value)}
+          className="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+          disabled={isLoading}
+        >
+          <option value="auto">auto</option>
+          <option value="opus">opus</option>
+          <option value="sonnet">sonnet</option>
+          <option value="haiku">haiku</option>
+        </select>
+      </div>
+
+      <div>
+        <label htmlFor="session-count" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          作成するセッション数
+        </label>
+        <select
+          id="session-count"
+          value={count}
+          onChange={(e) => setCount(Number(e.target.value))}
+          className="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+          disabled={isLoading}
+        >
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+            <option key={num} value={num}>
+              {num}
+            </option>
+          ))}
+        </select>
       </div>
 
       <button
