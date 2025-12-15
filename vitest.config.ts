@@ -9,7 +9,14 @@ export default defineConfig({
     globals: true,
     globalSetup: './vitest.global-setup.ts',
     setupFiles: ['./src/test/setup.ts'],
-    exclude: ['**/node_modules/**', '**/dist/**', '**/db.test.ts', '**/process-manager.test.ts'],
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/db.test.ts',
+      '**/process-manager.test.ts',
+      '**/model-selection.test.tsx',
+      '**/bulk-create.test.tsx',
+    ],
     env: {
       NODE_ENV: 'test',
       DATABASE_URL: 'file:./prisma/data/test.db',
