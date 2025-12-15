@@ -46,6 +46,8 @@ npx claude-work
 | `DATABASE_URL` | SQLite データベースパス | file:./data/claudework.db |
 | `NODE_ENV` | 実行環境 | development |
 | `LOG_LEVEL` | ログレベル | info |
+| `ALLOWED_ORIGINS` | CORS許可オリジン | なし |
+| `ALLOWED_PROJECT_DIRS` | 許可するプロジェクトディレクトリ | なし（すべてのディレクトリを許可） |
 
 ## API 仕様
 
