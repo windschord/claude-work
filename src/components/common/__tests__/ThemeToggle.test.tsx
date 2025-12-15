@@ -29,9 +29,26 @@ describe('ThemeToggle', () => {
     expect(button).toBeInTheDocument();
   });
 
-  it('ライトモード時は月アイコンを表示する', async () => {
+  it('ライトモード時は太陽アイコンを表示する', async () => {
     mockUseTheme.mockReturnValue({
       theme: 'light',
+      setTheme: mockSetTheme,
+    });
+
+    render(<ThemeToggle />);
+
+    // マウント後に太陽アイコンが表示されることを待つ
+    await waitFor(() => {
+      const button = screen.getByLabelText('Toggle theme');
+      // lucide-reactのSunアイコンはSVG要素として描画される
+      const svg = button.querySelector('svg');
+      expect(svg).toBeInTheDocument();
+    });
+  });
+
+  it('ダークモード時は月アイコンを表示する', async () => {
+    mockUseTheme.mockReturnValue({
+      theme: 'dark',
       setTheme: mockSetTheme,
     });
 
@@ -46,18 +63,18 @@ describe('ThemeToggle', () => {
     });
   });
 
-  it('ダークモード時は太陽アイコンを表示する', async () => {
+  it('システムモード時はモニターアイコンを表示する', async () => {
     mockUseTheme.mockReturnValue({
-      theme: 'dark',
+      theme: 'system',
       setTheme: mockSetTheme,
     });
 
     render(<ThemeToggle />);
 
-    // マウント後に太陽アイコンが表示されることを待つ
+    // マウント後にモニターアイコンが表示されることを待つ
     await waitFor(() => {
       const button = screen.getByLabelText('Toggle theme');
-      // lucide-reactのSunアイコンはSVG要素として描画される
+      // lucide-reactのMonitorアイコンはSVG要素として描画される
       const svg = button.querySelector('svg');
       expect(svg).toBeInTheDocument();
     });
@@ -82,9 +99,28 @@ describe('ThemeToggle', () => {
     expect(mockSetTheme).toHaveBeenCalledWith('dark');
   });
 
-  it('クリックでダークモードからライトモードに切り替わる', async () => {
+  it('クリックでダークモードからシステムモードに切り替わる', async () => {
     mockUseTheme.mockReturnValue({
       theme: 'dark',
+      setTheme: mockSetTheme,
+    });
+
+    render(<ThemeToggle />);
+
+    // マウント完了を待つ
+    await waitFor(() => {
+      expect(screen.getByLabelText('Toggle theme').querySelector('svg')).toBeInTheDocument();
+    });
+
+    const button = screen.getByLabelText('Toggle theme');
+    fireEvent.click(button);
+
+    expect(mockSetTheme).toHaveBeenCalledWith('system');
+  });
+
+  it('クリックでシステムモードからライトモードに切り替わる', async () => {
+    mockUseTheme.mockReturnValue({
+      theme: 'system',
       setTheme: mockSetTheme,
     });
 

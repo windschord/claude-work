@@ -72,17 +72,17 @@ export function CreateSessionForm({ projectId, onSuccess, onError }: CreateSessi
   };
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white border rounded-lg p-6 space-y-4">
-      <h3 className="text-lg font-semibold text-gray-900">新しいセッションを作成</h3>
+    <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg p-6 space-y-4">
+      <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">新しいセッションを作成</h3>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded">
+        <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded">
           {error}
         </div>
       )}
 
       <div>
-        <label htmlFor="session-name" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="session-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
           セッション名
         </label>
         <input
@@ -91,13 +91,13 @@ export function CreateSessionForm({ projectId, onSuccess, onError }: CreateSessi
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="セッション名を入力"
-          className="w-full px-3 py-2 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
           disabled={isLoading}
         />
       </div>
 
       <div>
-        <label htmlFor="session-prompt" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="session-prompt" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
           プロンプト
         </label>
         <textarea
@@ -106,7 +106,7 @@ export function CreateSessionForm({ projectId, onSuccess, onError }: CreateSessi
           onChange={(e) => setPrompt(e.target.value)}
           placeholder="プロンプトを入力"
           rows={4}
-          className="w-full px-3 py-2 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
           disabled={isLoading}
         />
       </div>
@@ -114,7 +114,7 @@ export function CreateSessionForm({ projectId, onSuccess, onError }: CreateSessi
       <button
         type="submit"
         disabled={isLoading}
-        className="w-full bg-blue-600 text-white px-4 py-2 min-h-[44px] rounded-md hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+        className="w-full bg-blue-600 dark:bg-blue-500 text-white px-4 py-2 min-h-[44px] rounded-md hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed"
       >
         {isLoading ? '作成中...' : 'セッション作成'}
       </button>
