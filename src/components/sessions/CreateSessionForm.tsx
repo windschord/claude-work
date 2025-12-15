@@ -91,7 +91,7 @@ export function CreateSessionForm({ projectId, onSuccess, onError }: CreateSessi
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="セッション名を入力"
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-2 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           disabled={isLoading}
         />
       </div>
@@ -106,7 +106,7 @@ export function CreateSessionForm({ projectId, onSuccess, onError }: CreateSessi
           onChange={(e) => setPrompt(e.target.value)}
           placeholder="プロンプトを入力"
           rows={4}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-2 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           disabled={isLoading}
         />
       </div>
@@ -114,7 +114,7 @@ export function CreateSessionForm({ projectId, onSuccess, onError }: CreateSessi
       <button
         type="submit"
         disabled={isLoading}
-        className="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+        className="w-full bg-blue-600 text-white px-4 py-2 min-h-[44px] rounded-md hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
       >
         {isLoading ? '作成中...' : 'セッション作成'}
       </button>

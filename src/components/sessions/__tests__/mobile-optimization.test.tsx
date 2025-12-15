@@ -1,4 +1,4 @@
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, cleanup } from '@testing-library/react';
 import { describe, it, expect, afterEach } from 'vitest';
 import { SessionCard } from '../SessionCard';
 import type { Session } from '@/store';

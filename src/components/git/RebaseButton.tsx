@@ -37,7 +37,7 @@ export function RebaseButton({ sessionId }: RebaseButtonProps) {
     <button
       onClick={handleRebase}
       disabled={isGitOperationLoading}
-      className="bg-blue-500 text-white rounded px-4 py-2 hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+      className="bg-blue-500 text-white rounded px-4 py-2 min-h-[44px] hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
     >
       {isGitOperationLoading ? '処理中...' : 'mainから取り込み'}
     </button>

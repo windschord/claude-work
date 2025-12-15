@@ -216,14 +216,14 @@ export default function SessionDetailPage() {
             <div className="flex gap-2">
               <button
                 onClick={() => router.back()}
-                className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                className="px-4 py-2 min-h-[44px] rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
               >
                 戻る
               </button>
               {(currentSession.status === 'running' || currentSession.status === 'waiting_input') && (
                 <button
                   onClick={handleStopSession}
-                  className="px-4 py-2 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors"
+                  className="px-4 py-2 min-h-[44px] rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors"
                 >
                   停止
                 </button>
@@ -236,7 +236,7 @@ export default function SessionDetailPage() {
             <div className="flex">
               <button
                 onClick={() => setActiveTab('chat')}
-                className={`px-6 py-3 font-medium transition-colors ${
+                className={`px-6 py-3 min-h-[44px] font-medium transition-colors ${
                   activeTab === 'chat'
                     ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400'
                     : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
@@ -246,7 +246,7 @@ export default function SessionDetailPage() {
               </button>
               <button
                 onClick={() => setActiveTab('diff')}
-                className={`px-6 py-3 font-medium transition-colors ${
+                className={`px-6 py-3 min-h-[44px] font-medium transition-colors ${
                   activeTab === 'diff'
                     ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400'
                     : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
@@ -256,7 +256,7 @@ export default function SessionDetailPage() {
               </button>
               <button
                 onClick={() => setActiveTab('terminal')}
-                className={`px-6 py-3 font-medium transition-colors ${
+                className={`px-6 py-3 min-h-[44px] font-medium transition-colors ${
                   activeTab === 'terminal'
                     ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400'
                     : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
@@ -286,7 +286,7 @@ export default function SessionDetailPage() {
                 <RebaseButton sessionId={sessionId} />
                 <button
                   onClick={() => setIsMergeModalOpen(true)}
-                  className="bg-green-500 text-white rounded px-4 py-2 hover:bg-green-600 transition-colors"
+                  className="bg-green-500 text-white rounded px-4 py-2 min-h-[44px] hover:bg-green-600 transition-colors"
                 >
                   スカッシュしてマージ
                 </button>
