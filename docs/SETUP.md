@@ -30,14 +30,14 @@ claude-work
 環境変数で認証トークンを設定します:
 
 ```bash
-export AUTH_TOKEN="your-secret-token"
+export CLAUDE_WORK_TOKEN="your-secret-token"
 export SESSION_SECRET="your-32-character-or-longer-secret-key"
 ```
 
 または、`.env`ファイルを作成:
 
-```
-AUTH_TOKEN=your-secret-token
+```env
+CLAUDE_WORK_TOKEN=your-secret-token
 SESSION_SECRET=your-32-character-or-longer-secret-key
 PORT=3000
 DATABASE_URL=file:./data/claudework.db

@@ -40,6 +40,8 @@ export interface Session {
   branch_name: string;
   /** 作成日時 */
   created_at: string;
+  /** 更新日時 */
+  updated_at: string;
 }
 
 /**

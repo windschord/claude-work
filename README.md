@@ -27,7 +27,7 @@ npx claude-work
 初回起動時に認証トークンを設定します:
 
 ```bash
-export AUTH_TOKEN="your-secret-token"
+export CLAUDE_WORK_TOKEN="your-secret-token"
 export SESSION_SECRET="your-32-character-or-longer-secret"
 npx claude-work
 ```
@@ -40,10 +40,12 @@ npx claude-work
 
 | 変数名 | 説明 | デフォルト |
 |--------|------|-----------|
-| `AUTH_TOKEN` | 認証トークン | なし（必須） |
+| `CLAUDE_WORK_TOKEN` | 認証トークン | なし（必須） |
 | `SESSION_SECRET` | セッション暗号化用シークレット | なし（必須） |
 | `PORT` | サーバーポート | 3000 |
 | `DATABASE_URL` | SQLite データベースパス | file:./data/claudework.db |
+| `NODE_ENV` | 実行環境 | development |
+| `LOG_LEVEL` | ログレベル | info |
 
 ## API 仕様
 
@@ -57,7 +59,7 @@ Apache License 2.0 - 詳細は [LICENSE](LICENSE) を参照してください。
 
 - **フロントエンド**: Next.js 15, React 19, TypeScript, Tailwind CSS, Zustand
 - **バックエンド**: Next.js API Routes, Prisma, SQLite, WebSocket (ws)
-- **その他**: XTerm.js, react-diff-viewer-continued, Headless UI
+- **その他**: XTerm.js, react-diff-viewer-continued, Headless UI, next-themes
 
 ## 貢献
 

@@ -8,7 +8,7 @@ ClaudeWork の REST API とWebSocket API の概要です。
 
 ### ログイン
 
-```
+```http
 POST /api/auth/login
 Content-Type: application/json
 
@@ -19,7 +19,7 @@ Content-Type: application/json
 
 ### ログアウト
 
-```
+```http
 POST /api/auth/logout
 ```
 
@@ -27,13 +27,13 @@ POST /api/auth/logout
 
 ### プロジェクト一覧取得
 
-```
+```http
 GET /api/projects
 ```
 
 ### プロジェクト追加
 
-```
+```http
 POST /api/projects
 Content-Type: application/json
 
@@ -44,7 +44,7 @@ Content-Type: application/json
 
 ### プロジェクト削除
 
-```
+```http
 DELETE /api/projects/{id}
 ```
 
@@ -52,13 +52,13 @@ DELETE /api/projects/{id}
 
 ### セッション一覧取得
 
-```
+```http
 GET /api/projects/{id}/sessions
 ```
 
 ### セッション作成
 
-```
+```http
 POST /api/projects/{id}/sessions
 Content-Type: application/json
 
@@ -71,7 +71,7 @@ Content-Type: application/json
 
 ### セッション削除
 
-```
+```http
 DELETE /api/sessions/{id}
 ```
 
@@ -79,19 +79,19 @@ DELETE /api/sessions/{id}
 
 ### Diff 取得
 
-```
+```http
 GET /api/sessions/{id}/diff
 ```
 
 ### Rebase 実行
 
-```
+```http
 POST /api/sessions/{id}/rebase
 ```
 
 ### Squash Merge 実行
 
-```
+```http
 POST /api/sessions/{id}/merge
 Content-Type: application/json
 
@@ -100,17 +100,17 @@ Content-Type: application/json
 }
 ```
 
-## ランスクリプト API
+## ランタイムスクリプト API
 
 ### スクリプト一覧取得
 
-```
+```http
 GET /api/projects/{id}/scripts
 ```
 
 ### スクリプト実行
 
-```
+```http
 POST /api/sessions/{id}/execute
 Content-Type: application/json
 
@@ -123,7 +123,7 @@ Content-Type: application/json
 
 ### セッション WebSocket
 
-```
+```http
 ws://localhost:3000/ws/sessions/{id}
 ```
 
@@ -147,7 +147,7 @@ ws://localhost:3000/ws/sessions/{id}
 
 ### ターミナル WebSocket
 
-```
+```http
 ws://localhost:3000/ws/terminal/{id}
 ```
 

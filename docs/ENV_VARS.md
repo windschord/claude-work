@@ -4,11 +4,11 @@ ClaudeWork で使用可能な環境変数の一覧です。
 
 ## 必須環境変数
 
-### AUTH_TOKEN
+### CLAUDE_WORK_TOKEN
 
 - **説明**: 認証トークン
 - **形式**: 任意の文字列（推奨: 32文字以上のランダム文字列）
-- **例**: `AUTH_TOKEN="my-secret-token-12345678"`
+- **例**: `CLAUDE_WORK_TOKEN="my-secret-token-12345678"`
 - **デフォルト**: なし（必須）
 
 ### SESSION_SECRET
@@ -67,7 +67,7 @@ ClaudeWork で使用可能な環境変数の一覧です。
 ### .env ファイル
 
 ```env
-AUTH_TOKEN=your-secret-token-here
+CLAUDE_WORK_TOKEN=your-secret-token-here
 SESSION_SECRET=your-32-character-or-longer-secret-key-here
 PORT=3000
 DATABASE_URL=file:./data/claudework.db
@@ -80,5 +80,5 @@ ALLOWED_PROJECT_DIRS=/home/user/projects
 ### コマンドライン
 
 ```bash
-AUTH_TOKEN="your-token" SESSION_SECRET="your-secret" PORT=3001 npx claude-work
+CLAUDE_WORK_TOKEN="your-token" SESSION_SECRET="your-secret" PORT=3001 npx claude-work
 ```
