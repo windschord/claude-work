@@ -147,10 +147,10 @@ export function CreateSessionForm({ projectId, onSuccess, onError }: CreateSessi
           className="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
           disabled={isLoading}
         >
-          <option value="auto">auto</option>
-          <option value="opus">opus</option>
-          <option value="sonnet">sonnet</option>
-          <option value="haiku">haiku</option>
+          <option value="auto">Auto</option>
+          <option value="opus">Opus</option>
+          <option value="sonnet">Sonnet</option>
+          <option value="haiku">Haiku</option>
         </select>
       </div>
 

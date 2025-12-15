@@ -10,13 +10,20 @@ export default defineConfig({
     globalSetup: './vitest.global-setup.ts',
     setupFiles: ['./src/test/setup.ts'],
     exclude: ['**/node_modules/**', '**/dist/**', '**/db.test.ts', '**/process-manager.test.ts'],
+    testTimeout: 10000,
+    hookTimeout: 10000,
     env: {
       NODE_ENV: 'test',
       DATABASE_URL: 'file:./prisma/data/test.db',
     },
     pool: 'forks',
-    maxWorkers: 1,
-    isolate: false,
+    poolOptions: {
+      forks: {
+        singleFork: false,
+      },
+    },
+    maxConcurrency: 5,
+    isolate: true,
     server: {
       deps: {
         inline: [],

@@ -25,10 +25,10 @@ describe('CreateSessionForm - Model Selection', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockCreateSession.mockResolvedValue(undefined);
-    (useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+    (useAppStore as unknown as ReturnType<typeof vi.fn>).mockImplementation((selector) => selector({
       createSession: mockCreateSession,
       projects: mockProjects,
-    });
+    }));
   });
 
   afterEach(() => {
@@ -82,10 +82,10 @@ describe('CreateSessionForm - Model Selection', () => {
         },
       ];
 
-      (useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+      (useAppStore as unknown as ReturnType<typeof vi.fn>).mockImplementation((selector) => selector({
         createSession: mockCreateSession,
         projects: projectsWithoutDefault,
-      });
+      }));
 
       render(<CreateSessionForm projectId="project-1" />);
 
@@ -101,10 +101,10 @@ describe('CreateSessionForm - Model Selection', () => {
         },
       ];
 
-      (useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+      (useAppStore as unknown as ReturnType<typeof vi.fn>).mockImplementation((selector) => selector({
         createSession: mockCreateSession,
         projects: projectsWithAutoDefault,
-      });
+      }));
 
       render(<CreateSessionForm projectId="project-1" />);
 
@@ -283,10 +283,10 @@ describe('CreateSessionForm - Model Selection', () => {
 
   describe('プロジェクトが見つからない場合', () => {
     it('プロジェクトが見つからない場合はAutoがデフォルトになる', () => {
-      (useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+      (useAppStore as unknown as ReturnType<typeof vi.fn>).mockImplementation((selector) => selector({
         createSession: mockCreateSession,
         projects: [],
-      });
+      }));
 
       render(<CreateSessionForm projectId="non-existent-project" />);
 

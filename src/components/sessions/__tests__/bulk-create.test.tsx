@@ -29,11 +29,13 @@ describe('CreateSessionForm - Bulk Create', () => {
     vi.clearAllMocks();
     mockCreateSession.mockResolvedValue(undefined);
     mockCreateBulkSessions.mockResolvedValue(undefined);
-    (useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
-      createSession: mockCreateSession,
-      createBulkSessions: mockCreateBulkSessions,
-      projects: mockProjects,
-    });
+    (useAppStore as unknown as ReturnType<typeof vi.fn>).mockImplementation((selector) =>
+      selector({
+        createSession: mockCreateSession,
+        createBulkSessions: mockCreateBulkSessions,
+        projects: mockProjects,
+      })
+    );
   });
 
   afterEach(() => {
@@ -110,13 +112,12 @@ describe('CreateSessionForm - Bulk Create', () => {
     fireEvent.click(createButton);
 
     await waitFor(() => {
-      expect(mockCreateBulkSessions).toHaveBeenCalledWith(
-        'project-1',
-        'Feature',
-        'Test prompt',
-        3,
-        expect.any(String)
-      );
+      expect(mockCreateBulkSessions).toHaveBeenCalledWith('project-1', {
+        name: 'Feature',
+        prompt: 'Test prompt',
+        model: expect.any(String),
+        count: 3,
+      });
       expect(mockCreateSession).not.toHaveBeenCalled();
       expect(mockOnCreate).toHaveBeenCalled();
     });
@@ -136,13 +137,12 @@ describe('CreateSessionForm - Bulk Create', () => {
     fireEvent.click(createButton);
 
     await waitFor(() => {
-      expect(mockCreateBulkSessions).toHaveBeenCalledWith(
-        'project-1',
-        'Feature',
-        'Test prompt',
-        10,
-        expect.any(String)
-      );
+      expect(mockCreateBulkSessions).toHaveBeenCalledWith('project-1', {
+        name: 'Feature',
+        prompt: 'Test prompt',
+        model: expect.any(String),
+        count: 10,
+      });
     });
   });
 
