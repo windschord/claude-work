@@ -61,7 +61,7 @@ export function MergeModal({ isOpen, sessionId, onClose, onSuccess }: MergeModal
               placeholder="コミットメッセージを入力"
               value={commitMessage}
               onChange={(e) => setCommitMessage(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
               disabled={isGitOperationLoading}
             />
           </div>
@@ -69,14 +69,14 @@ export function MergeModal({ isOpen, sessionId, onClose, onSuccess }: MergeModal
             <button
               onClick={handleClose}
               disabled={isGitOperationLoading}
-              className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+              className="px-4 py-2 min-h-[44px] bg-gray-500 text-white rounded hover:bg-gray-600 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
             >
               キャンセル
             </button>
             <button
               onClick={handleMerge}
               disabled={isGitOperationLoading || !commitMessage.trim()}
-              className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+              className="px-4 py-2 min-h-[44px] bg-green-500 text-white rounded hover:bg-green-600 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
             >
               マージ
             </button>

@@ -22,17 +22,17 @@ interface SessionCardProps {
 export function SessionCard({ session, onClick }: SessionCardProps) {
   return (
     <div
-      className="border rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
+      className="border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg p-4 min-h-[120px] hover:shadow-md transition-shadow cursor-pointer active:bg-gray-50 dark:active:bg-gray-700"
       onClick={() => onClick(session.id)}
     >
       <div className="flex items-start justify-between mb-2">
-        <h3 className="text-lg font-semibold text-gray-900">{session.name}</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{session.name}</h3>
         <SessionStatusIcon status={session.status} />
       </div>
       <div className="space-y-1">
-        <p className="text-sm text-gray-600">モデル: {session.model}</p>
-        <p className="text-sm text-gray-600">ブランチ: {session.branch_name}</p>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-gray-600 dark:text-gray-400">モデル: {session.model}</p>
+        <p className="text-sm text-gray-600 dark:text-gray-400">ブランチ: {session.branch_name}</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400">
           作成日時: {new Date(session.created_at).toLocaleString('ja-JP')}
         </p>
       </div>

@@ -1,133 +1,72 @@
 # ClaudeWork
 
-AI-powered development workspace with Next.js integration.
+ClaudeWork は、Claude Code セッションをブラウザから管理するための Web ベースツールです。複数のセッションを並列で実行し、Git worktree を使用して各セッションを独立した環境で管理します。
 
-## Getting Started
+## 主な機能
 
-### Installation
+- **セッション管理**: 複数の Claude Code セッションを並列実行
+- **Git worktree 統合**: セッションごとに独立した Git 環境
+- **リアルタイム通信**: WebSocket によるリアルタイム出力表示
+- **Diff 表示**: Git diff をビジュアルに表示
+- **Git 操作**: rebase、squash merge などの Git 操作をブラウザから実行
+- **実行スクリプト**: テスト実行、ビルドなどの定型作業を簡単に実行
+- **ターミナル統合**: ブラウザ内でターミナル操作
+- **ライト/ダークモード**: テーマ切り替え対応
+- **モバイル対応**: レスポンシブデザイン
 
-ClaudeWorkはnpxを使って簡単に起動できます。
+## セットアップ
 
-```bash
-npx claude-work
-```
+詳細は [SETUP.md](docs/SETUP.md) を参照してください。
 
-### Environment Variables
-
-起動前に以下の環境変数を設定する必要があります。
-
-#### Required Environment Variables
-
-- `AUTH_TOKEN`: 認証トークン（必須）
-- `SESSION_SECRET`: セッション暗号化用のシークレットキー（必須、32文字以上）
-
-#### Optional Environment Variables
-
-- `PORT`: サーバーポート（省略可、デフォルト: 3000）
-- `DATABASE_URL`: データベースURL（省略可、デフォルト: file:./data/claudework.db）
-- `NODE_ENV`: 実行環境（development/production）
-- `LOG_LEVEL`: ログレベル（debug/info/warn/error）
-- `ALLOWED_ORIGINS`: CORS許可オリジン（カンマ区切り）
-- `ALLOWED_PROJECT_DIRS`: 許可するプロジェクトディレクトリ（カンマ区切り）
-
-### Setup
-
-1. `.env.example`をコピーして`.env`ファイルを作成:
-
-```bash
-cp .env.example .env
-```
-
-2. `.env`ファイルを編集して必須の環境変数を設定:
-
-```bash
-# .env
-AUTH_TOKEN=your-secure-token-here
-SESSION_SECRET=your-32-character-or-longer-secret-key-here
-PORT=3000
-```
-
-3. ClaudeWorkを起動:
+### クイックスタート
 
 ```bash
 npx claude-work
 ```
 
-4. ブラウザで [http://localhost:3000](http://localhost:3000) を開く
-
-### Local Development
-
-開発用にリポジトリをクローンして作業する場合:
+初回起動時に認証トークンを設定します:
 
 ```bash
-# 依存関係をインストール
-npm install
-
-# 開発サーバーを起動
-npm run dev
+export CLAUDE_WORK_TOKEN="your-secret-token"
+export SESSION_SECRET="your-32-character-or-longer-secret"
+npx claude-work
 ```
 
-## Project Structure
+ブラウザで `http://localhost:3000` を開き、設定したトークンでログインします。
 
-```
-claude-work/
-├── src/
-│   ├── app/          # Next.js App Router pages
-│   ├── services/     # Business logic and external services
-│   ├── lib/          # Utility functions and helpers
-│   └── bin/          # CLI entry point
-├── docs/             # Documentation
-├── prisma/           # Database schema and migrations
-├── server.ts         # Custom Next.js server with WebSocket
-└── package.json
-```
+## 環境変数
 
-## Technologies
+詳細は [ENV_VARS.md](docs/ENV_VARS.md) を参照してください。
 
-- Next.js 15 (App Router)
-- TypeScript
-- Tailwind CSS
-- React 19
-- WebSocket (ws)
-- Prisma ORM
-- SQLite
-- Zustand (State Management)
+| 変数名 | 説明 | デフォルト |
+|--------|------|-----------|
+| `CLAUDE_WORK_TOKEN` | 認証トークン | なし（必須） |
+| `SESSION_SECRET` | セッション暗号化用シークレット | なし（必須） |
+| `PORT` | サーバーポート | 3000 |
+| `DATABASE_URL` | SQLite データベースパス | file:./data/claudework.db |
+| `NODE_ENV` | 実行環境 | development |
+| `LOG_LEVEL` | ログレベル | info |
+| `ALLOWED_ORIGINS` | CORS許可オリジン | なし |
+| `ALLOWED_PROJECT_DIRS` | 許可するプロジェクトディレクトリ | なし（すべてのディレクトリを許可） |
 
-## Available Scripts
+## API 仕様
 
-- `npm run dev` - 開発サーバーを起動
-- `npm run build` - 本番用にビルド
-- `npm run start` - 本番サーバーを起動
-- `npm run lint` - ESLintを実行
-- `npm run test` - テストを実行
-- `npm run test:watch` - テストをwatch modeで実行
+詳細は [API.md](docs/API.md) を参照してください。
 
-## Features
+## ライセンス
 
-- プロジェクト管理: Gitリポジトリをプロジェクトとして登録
-- セッション管理: AI対話セッションの作成と管理
-- リアルタイム通信: WebSocketによるリアルタイム出力表示
-- Git操作: diff、rebase、merge などのGit操作をUI上で実行
-- 認証: トークンベースの認証システム
+Apache License 2.0 - 詳細は [LICENSE](LICENSE) を参照してください。
 
-## Database
+## 技術スタック
 
-ClaudeWorkはSQLiteデータベースを使用します。デフォルトでは`./data/claudework.db`に保存されます。
+- **フロントエンド**: Next.js 15, React 19, TypeScript, Tailwind CSS, Zustand
+- **バックエンド**: Next.js API Routes, Prisma, SQLite, WebSocket (ws)
+- **その他**: XTerm.js, react-diff-viewer-continued, Headless UI, next-themes
 
-初回起動時に自動的にデータベースが作成されます。
+## 貢献
 
-## Security Notes
+Issue や Pull Request は歓迎します。
 
-- `AUTH_TOKEN`は安全な値に設定してください
-- `SESSION_SECRET`は32文字以上のランダムな文字列を使用してください
-- 本番環境では`ALLOWED_ORIGINS`を適切に設定してください
-- 必要に応じて`ALLOWED_PROJECT_DIRS`でプロジェクトディレクトリを制限してください
+## サポート
 
-## Requirements
-
-- Node.js 20 以上
-- Git
-
-## License
-
-Private
+問題が発生した場合は、GitHub Issues でお知らせください。
