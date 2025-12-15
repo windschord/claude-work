@@ -34,7 +34,7 @@ export CLAUDE_WORK_TOKEN="your-secret-token"
 export SESSION_SECRET="your-32-character-or-longer-secret-key"
 ```
 
-または、`.env`ファイルを作成:
+または、`.env`ファイルを作成（最小構成）:
 
 ```env
 CLAUDE_WORK_TOKEN=your-secret-token
@@ -42,6 +42,8 @@ SESSION_SECRET=your-32-character-or-longer-secret-key
 PORT=3000
 DATABASE_URL=file:./data/claudework.db
 ```
+
+その他の環境変数については [ENV_VARS.md](ENV_VARS.md) を参照してください。
 
 ### 2. サーバー起動
 
@@ -59,7 +61,7 @@ npx claude-work
 
 Git リポジトリのパスを指定してプロジェクトを追加します:
 
-```
+```text
 /path/to/your/git/repo
 ```
 
