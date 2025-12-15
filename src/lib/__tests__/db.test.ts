@@ -65,12 +65,16 @@ describe('Database Tests', () => {
         }
       });
 
+      // 時刻の差を確実にするため10ms待機
+      await new Promise(resolve => setTimeout(resolve, 10));
+
       const updated = await prisma.project.update({
         where: { id: project.id },
         data: { name: 'Updated Project' }
       });
 
       expect(updated.name).toBe('Updated Project');
+      expect(updated.updated_at.getTime()).toBeGreaterThan(project.updated_at.getTime());
     });
 
     it('should delete a project', async () => {

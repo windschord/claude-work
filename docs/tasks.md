@@ -165,10 +165,10 @@ MVP後に実装:
 - Playwright（E2E）
 
 **バックエンド（Next.js統合）**:
-- Next.js 14 API Routes
+- Next.js 15.1 API Routes
 - Next.jsカスタムサーバー（WebSocket統合）
 - TypeScript
-- Prisma 5.x
+- Prisma 7.x
 - better-sqlite3
 - ws / socket.io（WebSocket）
 - winston（ロギング）

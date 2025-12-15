@@ -20,7 +20,7 @@ describe('Logger', () => {
     expect(logger.warn).toBeDefined();
   });
 
-  it('should have json format', () => {
+  it('should have at least one transport configured', () => {
     const transports = logger.transports;
     expect(transports.length).toBeGreaterThan(0);
   });
