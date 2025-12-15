@@ -16,13 +16,14 @@ export default defineConfig({
       NODE_ENV: 'test',
       DATABASE_URL: 'file:./prisma/data/test.db',
     },
-    pool: 'forks',
+    // CI環境では並列化を制限してハングを防ぐ
+    pool: process.env.CI ? 'forks' : 'forks',
     poolOptions: {
       forks: {
-        singleFork: false,
+        singleFork: process.env.CI ? true : false,
       },
     },
-    maxConcurrency: 5,
+    maxConcurrency: process.env.CI ? 1 : 5,
     isolate: true,
     server: {
       deps: {
