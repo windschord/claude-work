@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { logger } from '@/lib/logger';
 
 /**
  * Next.js ミドルウェア - CORS設定とプリフライトリクエスト処理
@@ -22,7 +21,7 @@ export function middleware(request: NextRequest) {
     ? process.env.ALLOWED_ORIGINS.split(',').map((origin) => origin.trim())
     : (process.env.NODE_ENV === 'production'
       ? (() => {
-          logger.warn('ALLOWED_ORIGINS not set in production - CORS will block all origins');
+          console.warn('ALLOWED_ORIGINS not set in production - CORS will block all origins');
           return [];
         })()
       : ['*']);
