@@ -99,39 +99,45 @@ export class ProcessManager extends EventEmitter {
 
     const claudeCodePath = process.env.CLAUDE_CODE_PATH || 'claude';
 
-    let childProc: ChildProcess;
-    try {
-      childProc = spawn(claudeCodePath, args, {
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
-    } catch (error) {
-      const err = error as NodeJS.ErrnoException;
-      if (err.code === 'ENOENT') {
-        throw new Error('Claude Codeが見つかりません。環境変数CLAUDE_CODE_PATHを確認してください。');
-      }
-      throw error;
-    }
-
-    if (!childProc.pid) {
-      throw new Error(`Failed to spawn Claude Code process for session ${sessionId}`);
-    }
-
-    const info: ProcessInfo = {
-      sessionId,
-      pid: childProc.pid,
-      status: 'running',
-    };
-
-    this.processes.set(sessionId, {
-      process: childProc,
-      info,
+    const childProc = spawn(claudeCodePath, args, {
+      stdio: ['pipe', 'pipe', 'pipe'],
     });
 
-    this.setupProcessListeners(sessionId, childProc);
+    // Handle spawn errors (e.g., ENOENT) asynchronously
+    return new Promise((resolve, reject) => {
+      childProc.on('error', (error: NodeJS.ErrnoException) => {
+        if (error.code === 'ENOENT') {
+          reject(new Error('Claude Codeが見つかりません。環境変数CLAUDE_CODE_PATHを確認してください。'));
+        } else {
+          reject(error);
+        }
+      });
 
-    childProc.stdin.write(`${prompt}\n`);
+      // Wait for process to start successfully
+      childProc.on('spawn', () => {
+        if (!childProc.pid) {
+          reject(new Error(`Failed to spawn Claude Code process for session ${sessionId}`));
+          return;
+        }
 
-    return info;
+        const info: ProcessInfo = {
+          sessionId,
+          pid: childProc.pid,
+          status: 'running',
+        };
+
+        this.processes.set(sessionId, {
+          process: childProc,
+          info,
+        });
+
+        this.setupProcessListeners(sessionId, childProc);
+        childProc.stdin.write(`${prompt}\n`);
+
+        resolve(info);
+      });
+    });
+
   }
 
   /**
