@@ -454,6 +454,14 @@ export const useAppStore = create<AppState>((set) => ({
           throw new Error('有効なパスを入力してください');
         }
 
+        if (response.status === 403) {
+          throw new Error('指定されたパスは許可されていません');
+        }
+
+        if (response.status === 409) {
+          throw new Error('このパスは既に登録されています');
+        }
+
         if (response.status === 500) {
           throw new Error('プロジェクトの追加に失敗しました');
         }
@@ -462,6 +470,12 @@ export const useAppStore = create<AppState>((set) => ({
       }
 
       const data = await response.json();
+
+      // データ検証: projectとproject.idが存在することを確認
+      if (!data.project || !data.project.id) {
+        throw new Error('プロジェクトの追加に失敗しました');
+      }
+
       set((state) => ({
         projects: [...state.projects, data.project],
       }));
