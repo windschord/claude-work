@@ -18,7 +18,10 @@ describe('ProjectCard', () => {
     id: 'test-project-id',
     name: 'Test Project',
     path: '/path/to/project',
+    default_model: 'claude-3-sonnet',
+    run_scripts: [],
     session_count: 5,
+    created_at: '2024-01-01T00:00:00Z',
   };
 
   const mockOnDelete = vi.fn();
