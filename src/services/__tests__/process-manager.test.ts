@@ -1,14 +1,35 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { EventEmitter } from 'events';
-import { ProcessManager, StartOptions } from '../process-manager';
-import { spawn, ChildProcess } from 'child_process';
+import type { ChildProcess } from 'child_process';
 
-vi.mock('child_process');
+// Create hoisted mock
+const { mockSpawn } = vi.hoisted(() => ({
+  mockSpawn: vi.fn(),
+}));
+
+// Mock child_process module
+vi.mock('child_process', async () => {
+  const { EventEmitter } = await import('events');
+  const mockExports = {
+    spawn: mockSpawn,
+    ChildProcess: class extends EventEmitter {},
+    exec: vi.fn(),
+    execFile: vi.fn(),
+    fork: vi.fn(),
+  };
+  return {
+    ...mockExports,
+    default: mockExports,
+  };
+});
+
+import { ProcessManager, StartOptions } from '../process-manager';
 
 type MockChildProcess = {
   stdin: { write: ReturnType<typeof vi.fn>; end: ReturnType<typeof vi.fn> };
   stdout: EventEmitter;
   stderr: EventEmitter;
+  on: ReturnType<typeof vi.fn>;
   kill: ReturnType<typeof vi.fn>;
   pid: number;
 };
@@ -25,19 +46,104 @@ describe('ProcessManager', () => {
       },
       stdout: new EventEmitter(),
       stderr: new EventEmitter(),
+      on: vi.fn((event, callback) => {
+        if (event === 'exit') {
+          setTimeout(() => callback(0, null), 0);
+        }
+        return mockChildProcess;
+      }),
       kill: vi.fn(),
       pid: 12345,
     };
 
-    vi.mocked(spawn).mockReturnValue(mockChildProcess as unknown as ChildProcess);
-    processManager = new ProcessManager();
+    mockSpawn.mockImplementation(() => mockChildProcess as unknown as ChildProcess);
+    processManager = ProcessManager.getInstance();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    // Clean up any running sessions
+    const testSessionIds = ['test-session', 'non-existent'];
+    for (const sessionId of testSessionIds) {
+      try {
+        await processManager.stop(sessionId);
+      } catch {
+        // Ignore errors for non-existent sessions
+      }
+    }
     vi.clearAllMocks();
   });
 
   describe('startClaudeCode', () => {
+    it('should use CLAUDE_CODE_PATH environment variable when set', async () => {
+      const originalPath = process.env.CLAUDE_CODE_PATH;
+      process.env.CLAUDE_CODE_PATH = '/custom/path/to/claude';
+
+      const options: StartOptions = {
+        sessionId: 'test-session',
+        worktreePath: '/path/to/worktree',
+        prompt: 'test prompt',
+        model: 'sonnet',
+      };
+
+      await processManager.startClaudeCode(options);
+
+      expect(mockSpawn).toHaveBeenCalledWith(
+        '/custom/path/to/claude',
+        ['--print', '--model', 'sonnet', '--cwd', '/path/to/worktree'],
+        expect.objectContaining({ stdio: ['pipe', 'pipe', 'pipe'] })
+      );
+
+      // Restore original value
+      if (originalPath !== undefined) {
+        process.env.CLAUDE_CODE_PATH = originalPath;
+      } else {
+        delete process.env.CLAUDE_CODE_PATH;
+      }
+    });
+
+    it('should use default "claude" command when CLAUDE_CODE_PATH is not set', async () => {
+      const originalPath = process.env.CLAUDE_CODE_PATH;
+      delete process.env.CLAUDE_CODE_PATH;
+
+      const options: StartOptions = {
+        sessionId: 'test-session',
+        worktreePath: '/path/to/worktree',
+        prompt: 'test prompt',
+        model: 'sonnet',
+      };
+
+      await processManager.startClaudeCode(options);
+
+      expect(mockSpawn).toHaveBeenCalledWith(
+        'claude',
+        ['--print', '--model', 'sonnet', '--cwd', '/path/to/worktree'],
+        expect.objectContaining({ stdio: ['pipe', 'pipe', 'pipe'] })
+      );
+
+      // Restore original value
+      if (originalPath !== undefined) {
+        process.env.CLAUDE_CODE_PATH = originalPath;
+      }
+    });
+
+    it('should throw Japanese error message when spawn fails with ENOENT', async () => {
+      const mockError = new Error('spawn claude ENOENT') as NodeJS.ErrnoException;
+      mockError.code = 'ENOENT';
+      mockSpawn.mockImplementation(() => {
+        throw mockError;
+      });
+
+      const options: StartOptions = {
+        sessionId: 'test-session',
+        worktreePath: '/path/to/worktree',
+        prompt: 'test prompt',
+      };
+
+      await expect(processManager.startClaudeCode(options)).rejects.toThrow(
+        'Claude Codeが見つかりません。環境変数CLAUDE_CODE_PATHを確認してください。'
+      );
+    });
+
     it('should spawn claude process with correct arguments', async () => {
       const options: StartOptions = {
         sessionId: 'test-session',
@@ -48,7 +154,7 @@ describe('ProcessManager', () => {
 
       await processManager.startClaudeCode(options);
 
-      expect(spawn).toHaveBeenCalledWith(
+      expect(mockSpawn).toHaveBeenCalledWith(
         'claude',
         ['--print', '--model', 'sonnet', '--cwd', '/path/to/worktree'],
         expect.objectContaining({ stdio: ['pipe', 'pipe', 'pipe'] })
