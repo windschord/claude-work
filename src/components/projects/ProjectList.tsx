@@ -15,14 +15,10 @@ import { DeleteProjectDialog } from './DeleteProjectDialog';
  * @returns プロジェクト一覧のJSX要素
  */
 export function ProjectList() {
-  const { projects, setSelectedProjectId } = useAppStore();
+  const { projects } = useAppStore();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
-
-  const handleOpenProject = (id: string) => {
-    setSelectedProjectId(id);
-  };
 
   const handleDeleteClick = (project: Project) => {
     setProjectToDelete(project);
@@ -59,7 +55,6 @@ export function ProjectList() {
             <ProjectCard
               key={project.id}
               project={project}
-              onOpen={handleOpenProject}
               onDelete={handleDeleteClick}
             />
           ))}

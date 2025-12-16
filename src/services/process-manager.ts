@@ -97,30 +97,47 @@ export class ProcessManager extends EventEmitter {
     }
     args.push('--cwd', worktreePath);
 
-    const childProc = spawn('claude', args, {
+    const claudeCodePath = process.env.CLAUDE_CODE_PATH || 'claude';
+
+    const childProc = spawn(claudeCodePath, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
     });
 
-    if (!childProc.pid) {
-      throw new Error(`Failed to spawn Claude Code process for session ${sessionId}`);
-    }
+    // Handle spawn errors (e.g., ENOENT) asynchronously
+    return new Promise((resolve, reject) => {
+      childProc.on('error', (error: NodeJS.ErrnoException) => {
+        if (error.code === 'ENOENT') {
+          reject(new Error('Claude Codeが見つかりません。環境変数CLAUDE_CODE_PATHを確認してください。'));
+        } else {
+          reject(error);
+        }
+      });
 
-    const info: ProcessInfo = {
-      sessionId,
-      pid: childProc.pid,
-      status: 'running',
-    };
+      // Wait for process to start successfully
+      childProc.on('spawn', () => {
+        if (!childProc.pid) {
+          reject(new Error(`Failed to spawn Claude Code process for session ${sessionId}`));
+          return;
+        }
 
-    this.processes.set(sessionId, {
-      process: childProc,
-      info,
+        const info: ProcessInfo = {
+          sessionId,
+          pid: childProc.pid,
+          status: 'running',
+        };
+
+        this.processes.set(sessionId, {
+          process: childProc,
+          info,
+        });
+
+        this.setupProcessListeners(sessionId, childProc);
+        childProc.stdin.write(`${prompt}\n`);
+
+        resolve(info);
+      });
     });
 
-    this.setupProcessListeners(sessionId, childProc);
-
-    childProc.stdin.write(`${prompt}\n`);
-
-    return info;
   }
 
   /**
