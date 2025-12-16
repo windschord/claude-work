@@ -24,8 +24,9 @@ export default defineConfig({
         '**/app/projects/__tests__/[id].test.tsx',
         '**/AuthGuard.test.tsx',
         '**/middleware.test.ts',
-        '**/app/api/**/__tests__/**',  // API routeテスト全般
-        '**/lib/__tests__/auth.test.ts',  // 認証テスト
+        '**/app/api/**/__tests__/**',
+        '**/lib/__tests__/auth.test.ts',
+        '**/AddRunScriptModal.test.tsx',
       ] : []),
     ],
     testTimeout: 10000,
