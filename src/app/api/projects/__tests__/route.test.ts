@@ -62,9 +62,10 @@ describe('GET /api/projects', () => {
     expect(response.status).toBe(200);
 
     const data = await response.json();
-    expect(data).toHaveLength(1);
-    expect(data[0].name).toBe('Test Project');
-    expect(data[0].path).toBe(testRepoPath);
+    expect(data).toHaveProperty('projects');
+    expect(data.projects).toHaveLength(1);
+    expect(data.projects[0].name).toBe('Test Project');
+    expect(data.projects[0].path).toBe(testRepoPath);
   });
 
   it('should return 401 if not authenticated', async () => {
