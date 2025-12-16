@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { Prisma } from '@prisma/client';
 import { getSession } from '@/lib/auth';
 import { spawnSync } from 'child_process';
 import { basename, resolve } from 'path';
@@ -55,7 +56,7 @@ export async function GET(request: NextRequest) {
     });
 
     logger.debug('Projects retrieved', { count: projects.length });
-    return NextResponse.json(projects);
+    return NextResponse.json({ projects });
   } catch (error) {
     logger.error('Failed to get projects', { error });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -171,15 +172,29 @@ export async function POST(request: NextRequest) {
 
     const name = basename(absolutePath);
 
-    const project = await prisma.project.create({
-      data: {
-        name,
-        path: absolutePath,
-      },
-    });
+    try {
+      const project = await prisma.project.create({
+        data: {
+          name,
+          path: absolutePath,
+        },
+      });
 
-    logger.info('Project created', { id: project.id, name, path: absolutePath });
-    return NextResponse.json(project, { status: 201 });
+      logger.info('Project created', { id: project.id, name, path: absolutePath });
+      return NextResponse.json(project, { status: 201 });
+    } catch (error) {
+      // Prisma P2002エラー（Unique constraint violation）のハンドリング
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        if (error.code === 'P2002') {
+          logger.warn('Duplicate project path', { error });
+          return NextResponse.json(
+            { error: 'このパスは既に登録されています' },
+            { status: 409 }
+          );
+        }
+      }
+      throw error;
+    }
   } catch (error) {
     logger.error('Failed to create project', { error });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
