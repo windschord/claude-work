@@ -1,10 +1,10 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { Project } from '@/store';
 
 interface ProjectCardProps {
   project: Project;
-  onOpen: (id: string) => void;
   onDelete: (project: Project) => void;
 }
 
@@ -15,11 +15,11 @@ interface ProjectCardProps {
  *
  * @param props - コンポーネントのプロパティ
  * @param props.project - 表示するプロジェクト情報
- * @param props.onOpen - プロジェクトを開くときのコールバック関数
  * @param props.onDelete - プロジェクトを削除するときのコールバック関数
  * @returns プロジェクトカードのJSX要素
  */
-export function ProjectCard({ project, onOpen, onDelete }: ProjectCardProps) {
+export function ProjectCard({ project, onDelete }: ProjectCardProps) {
+  const router = useRouter();
   return (
     <div className="border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg p-4 hover:shadow-md transition-shadow">
       <div className="flex justify-between items-start mb-2">
@@ -31,7 +31,7 @@ export function ProjectCard({ project, onOpen, onDelete }: ProjectCardProps) {
       <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">{project.path}</p>
       <div className="flex gap-2">
         <button
-          onClick={() => onOpen(project.id)}
+          onClick={() => router.push(`/projects/${project.id}`)}
           className="flex-1 bg-blue-600 dark:bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 dark:hover:bg-blue-700 transition-colors"
         >
           開く

@@ -1,17 +1,17 @@
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { ProjectCard } from '../ProjectCard';
 import { Project } from '@/store';
 
 // next/navigationのモック
 const mockPush = vi.fn();
-const mockRouter = vi.fn(() => ({
-  push: mockPush,
-}));
 
 vi.mock('next/navigation', () => ({
-  useRouter: mockRouter,
+  useRouter: () => ({
+    push: mockPush,
+  }),
 }));
+
+import { ProjectCard } from '../ProjectCard';
 
 describe('ProjectCard', () => {
   const mockProject: Project = {
