@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { createServer, IncomingMessage } from 'http';
 import { parse } from 'url';
 import next from 'next';
