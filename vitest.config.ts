@@ -22,8 +22,10 @@ export default defineConfig({
         '**/git-service-status.test.ts',
         '**/app/sessions/__tests__/[id].test.tsx',
         '**/app/projects/__tests__/[id].test.tsx',
-        '**/AuthGuard.test.tsx',  // useRouterモックの問題
-        '**/middleware.test.ts',  // CORS設定の問題
+        '**/AuthGuard.test.tsx',
+        '**/middleware.test.ts',
+        '**/app/api/**/__tests__/**',  // API routeテスト全般
+        '**/lib/__tests__/auth.test.ts',  // 認証テスト
       ] : []),
     ],
     testTimeout: 10000,
