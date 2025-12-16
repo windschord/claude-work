@@ -133,31 +133,32 @@ export async function POST(request: NextRequest) {
     }
 
     // 許可されたディレクトリのチェック
-    const allowedDirs = process.env.ALLOWED_PROJECT_DIRS?.split(',').map((dir) =>
-      dir.trim()
-    );
-    if (allowedDirs && allowedDirs.length > 0) {
-      const isAllowed = allowedDirs.some((allowedDir) => {
-        if (!allowedDir) return false;
-        try {
-          const normalizedAllowedDir = realpathSync(allowedDir);
-          return absolutePath.startsWith(normalizedAllowedDir);
-        } catch {
-          return false;
-        }
-      });
-
-      if (!isAllowed) {
-        logger.warn('Path not in allowed directories', {
-          path: absolutePath,
-          allowedDirs,
+    const allowedDirsStr = process.env.ALLOWED_PROJECT_DIRS?.trim();
+    if (allowedDirsStr) {
+      const allowedDirs = allowedDirsStr.split(',').map((dir) => dir.trim()).filter(Boolean);
+      if (allowedDirs.length > 0) {
+        const isAllowed = allowedDirs.some((allowedDir) => {
+          try {
+            const normalizedAllowedDir = realpathSync(allowedDir);
+            return absolutePath.startsWith(normalizedAllowedDir);
+          } catch {
+            return false;
+          }
         });
-        return NextResponse.json(
-          { error: 'Path is not in allowed directories' },
-          { status: 403 }
-        );
+
+        if (!isAllowed) {
+          logger.warn('Path not in allowed directories', {
+            path: absolutePath,
+            allowedDirs,
+          });
+          return NextResponse.json(
+            { error: '指定されたパスは許可されていません' },
+            { status: 403 }
+          );
+        }
       }
     }
+    // allowedDirsStrが空または未設定の場合、チェックをスキップ（すべて許可）
 
     // Gitリポジトリの検証
     const result = spawnSync('git', ['rev-parse', '--git-dir'], {
