@@ -97,9 +97,20 @@ export class ProcessManager extends EventEmitter {
     }
     args.push('--cwd', worktreePath);
 
-    const childProc = spawn('claude', args, {
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
+    const claudeCodePath = process.env.CLAUDE_CODE_PATH || 'claude';
+
+    let childProc: ChildProcess;
+    try {
+      childProc = spawn(claudeCodePath, args, {
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+    } catch (error) {
+      const err = error as NodeJS.ErrnoException;
+      if (err.code === 'ENOENT') {
+        throw new Error('Claude Codeが見つかりません。環境変数CLAUDE_CODE_PATHを確認してください。');
+      }
+      throw error;
+    }
 
     if (!childProc.pid) {
       throw new Error(`Failed to spawn Claude Code process for session ${sessionId}`);
