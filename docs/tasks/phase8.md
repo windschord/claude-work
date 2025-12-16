@@ -107,7 +107,7 @@ if (allowedDirs && allowedDirs.length > 0) {
 ```
 
 **実際のログ**:
-```
+```text
 Path not in allowed directories {
   path: "/Users/tsk/Sync/git/claude-work",
   allowedDirs: [""]
