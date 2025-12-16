@@ -221,6 +221,19 @@ export async function POST(
   } catch (error) {
     const { project_id: errorProjectId } = await params;
     logger.error('Failed to create session', { error, project_id: errorProjectId });
+
+    // 開発環境では詳細なエラーメッセージを返す
+    if (process.env.NODE_ENV === 'development') {
+      const errorMessage = error instanceof Error ? error.message : 'Internal server error';
+      return NextResponse.json(
+        {
+          error: errorMessage,
+          details: error instanceof Error ? error.stack : undefined,
+        },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
