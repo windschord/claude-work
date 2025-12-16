@@ -3,6 +3,7 @@
 import { useState, Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { useAppStore } from '@/store';
+import toast from 'react-hot-toast';
 
 interface AddProjectModalProps {
   isOpen: boolean;
@@ -39,14 +40,13 @@ export function AddProjectModal({ isOpen, onClose }: AddProjectModalProps) {
     try {
       await addProject(path.trim());
       await fetchProjects();
+      toast.success('プロジェクトを追加しました');
       setPath('');
       onClose();
     } catch (err) {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError('プロジェクトの追加に失敗しました');
-      }
+      const errorMessage = err instanceof Error ? err.message : 'プロジェクトの追加に失敗しました';
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }

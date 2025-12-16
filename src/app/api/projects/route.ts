@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { Prisma } from '@prisma/client';
 import { getSession } from '@/lib/auth';
 import { spawnSync } from 'child_process';
 import { basename, resolve } from 'path';
@@ -55,7 +56,7 @@ export async function GET(request: NextRequest) {
     });
 
     logger.debug('Projects retrieved', { count: projects.length });
-    return NextResponse.json(projects);
+    return NextResponse.json({ projects });
   } catch (error) {
     logger.error('Failed to get projects', { error });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -132,31 +133,32 @@ export async function POST(request: NextRequest) {
     }
 
     // 許可されたディレクトリのチェック
-    const allowedDirs = process.env.ALLOWED_PROJECT_DIRS?.split(',').map((dir) =>
-      dir.trim()
-    );
-    if (allowedDirs && allowedDirs.length > 0) {
-      const isAllowed = allowedDirs.some((allowedDir) => {
-        if (!allowedDir) return false;
-        try {
-          const normalizedAllowedDir = realpathSync(allowedDir);
-          return absolutePath.startsWith(normalizedAllowedDir);
-        } catch {
-          return false;
-        }
-      });
-
-      if (!isAllowed) {
-        logger.warn('Path not in allowed directories', {
-          path: absolutePath,
-          allowedDirs,
+    const allowedDirsStr = process.env.ALLOWED_PROJECT_DIRS?.trim();
+    if (allowedDirsStr) {
+      const allowedDirs = allowedDirsStr.split(',').map((dir) => dir.trim()).filter(Boolean);
+      if (allowedDirs.length > 0) {
+        const isAllowed = allowedDirs.some((allowedDir) => {
+          try {
+            const normalizedAllowedDir = realpathSync(allowedDir);
+            return absolutePath.startsWith(normalizedAllowedDir);
+          } catch {
+            return false;
+          }
         });
-        return NextResponse.json(
-          { error: 'Path is not in allowed directories' },
-          { status: 403 }
-        );
+
+        if (!isAllowed) {
+          logger.warn('Path not in allowed directories', {
+            path: absolutePath,
+            allowedDirs,
+          });
+          return NextResponse.json(
+            { error: '指定されたパスは許可されていません' },
+            { status: 403 }
+          );
+        }
       }
     }
+    // allowedDirsStrが空または未設定の場合、チェックをスキップ（すべて許可）
 
     // Gitリポジトリの検証
     const result = spawnSync('git', ['rev-parse', '--git-dir'], {
@@ -171,15 +173,29 @@ export async function POST(request: NextRequest) {
 
     const name = basename(absolutePath);
 
-    const project = await prisma.project.create({
-      data: {
-        name,
-        path: absolutePath,
-      },
-    });
+    try {
+      const project = await prisma.project.create({
+        data: {
+          name,
+          path: absolutePath,
+        },
+      });
 
-    logger.info('Project created', { id: project.id, name, path: absolutePath });
-    return NextResponse.json(project, { status: 201 });
+      logger.info('Project created', { id: project.id, name, path: absolutePath });
+      return NextResponse.json(project, { status: 201 });
+    } catch (error) {
+      // Prisma P2002エラー（Unique constraint violation）のハンドリング
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        if (error.code === 'P2002') {
+          logger.warn('Duplicate project path', { error });
+          return NextResponse.json(
+            { error: 'このパスは既に登録されています' },
+            { status: 409 }
+          );
+        }
+      }
+      throw error;
+    }
   } catch (error) {
     logger.error('Failed to create project', { error });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
