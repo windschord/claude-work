@@ -4,7 +4,7 @@ import { getSession } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 
 /**
- * GET /api/projects/[id]/scripts - スクリプト一覧取得
+ * GET /api/projects/[project_id]/scripts - スクリプト一覧取得
  *
  * 指定されたプロジェクトのランスクリプト一覧を取得します。
  * 認証が必要です。
@@ -39,7 +39,7 @@ import { logger } from '@/lib/logger';
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ project_id: string }> }
 ) {
   try {
     const sessionId = request.cookies.get('sessionId')?.value;
@@ -53,7 +53,7 @@ export async function GET(
     }
 
     const resolvedParams = await params;
-    const { id: projectId } = resolvedParams;
+    const { project_id: projectId } = resolvedParams;
 
     const scripts = await prisma.runScript.findMany({
       where: { project_id: projectId },
@@ -66,7 +66,7 @@ export async function GET(
     const resolvedParams = await params;
     logger.error('Failed to fetch scripts', {
       error,
-      projectId: resolvedParams.id,
+      projectId: resolvedParams.project_id,
     });
     return NextResponse.json(
       { error: 'Internal server error' },
@@ -76,7 +76,7 @@ export async function GET(
 }
 
 /**
- * POST /api/projects/[id]/scripts - スクリプト追加
+ * POST /api/projects/[project_id]/scripts - スクリプト追加
  *
  * 指定されたプロジェクトにランスクリプトを追加します。
  * 認証が必要です。
@@ -116,7 +116,7 @@ export async function GET(
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ project_id: string }> }
 ) {
   try {
     const sessionId = request.cookies.get('sessionId')?.value;
@@ -130,7 +130,7 @@ export async function POST(
     }
 
     const resolvedParams = await params;
-    const { id: projectId } = resolvedParams;
+    const { project_id: projectId } = resolvedParams;
 
     let body;
     try {
@@ -194,7 +194,7 @@ export async function POST(
     const resolvedParams = await params;
     logger.error('Failed to create script', {
       error,
-      projectId: resolvedParams.id,
+      projectId: resolvedParams.project_id,
     });
     return NextResponse.json(
       { error: 'Internal server error' },

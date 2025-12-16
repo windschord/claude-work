@@ -4,7 +4,7 @@ import { getSession } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 
 /**
- * PUT /api/projects/[id]/scripts/[scriptId] - スクリプト更新
+ * PUT /api/projects/[project_id]/scripts/[scriptId] - スクリプト更新
  *
  * 指定されたランスクリプトを更新します。
  * 認証が必要です。
@@ -47,7 +47,7 @@ export async function PUT(
   {
     params,
   }: {
-    params: { id: string; scriptId: string } | Promise<{ id: string; scriptId: string }>;
+    params: Promise<{ project_id: string; scriptId: string }>;
   }
 ) {
   try {
@@ -62,7 +62,7 @@ export async function PUT(
     }
 
     const resolvedParams = await params;
-    const { id: projectId, scriptId } = resolvedParams;
+    const { project_id: projectId, scriptId } = resolvedParams;
 
     let body;
     try {
@@ -145,7 +145,7 @@ export async function PUT(
 }
 
 /**
- * DELETE /api/projects/[id]/scripts/[scriptId] - スクリプト削除
+ * DELETE /api/projects/[project_id]/scripts/[scriptId] - スクリプト削除
  *
  * 指定されたランスクリプトを削除します。
  * 認証が必要です。
@@ -174,7 +174,7 @@ export async function DELETE(
   {
     params,
   }: {
-    params: { id: string; scriptId: string } | Promise<{ id: string; scriptId: string }>;
+    params: Promise<{ project_id: string; scriptId: string }>;
   }
 ) {
   try {
@@ -189,7 +189,7 @@ export async function DELETE(
     }
 
     const resolvedParams = await params;
-    const { id: projectId, scriptId } = resolvedParams;
+    const { project_id: projectId, scriptId } = resolvedParams;
 
     const existing = await prisma.runScript.findFirst({
       where: { id: scriptId, project_id: projectId },

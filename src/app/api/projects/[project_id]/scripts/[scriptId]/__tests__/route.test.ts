@@ -32,7 +32,7 @@ afterEach(async () => {
   await cleanupTestEnvironment(testRepoPath);
 });
 
-describe('PUT /api/projects/[id]/scripts/[scriptId]', () => {
+describe('PUT /api/projects/[project_id]/scripts/[scriptId]', () => {
 
   it('should update run script successfully', async () => {
     const request = new NextRequest(
@@ -136,7 +136,7 @@ describe('PUT /api/projects/[id]/scripts/[scriptId]', () => {
   });
 });
 
-describe('DELETE /api/projects/[id]/scripts/[scriptId]', () => {
+describe('DELETE /api/projects/[project_id]/scripts/[scriptId]', () => {
 
   it('should delete run script successfully', async () => {
     const request = new NextRequest(

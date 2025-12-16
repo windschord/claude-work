@@ -5,7 +5,7 @@ import { NextRequest } from 'next/server';
 import type { AuthSession, Project } from '@prisma/client';
 import { setupTestEnvironment, cleanupTestEnvironment } from './test-helpers';
 
-describe('GET /api/projects/[id]/scripts', () => {
+describe('GET /api/projects/[project_id]/scripts', () => {
   let testRepoPath: string;
   let authSession: AuthSession;
   let project: Project;
@@ -85,7 +85,7 @@ describe('GET /api/projects/[id]/scripts', () => {
   });
 });
 
-describe('POST /api/projects/[id]/scripts', () => {
+describe('POST /api/projects/[project_id]/scripts', () => {
   let testRepoPath: string;
   let authSession: AuthSession;
   let project: Project;

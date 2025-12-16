@@ -9,10 +9,18 @@ interface MessageDisplayProps {
   content: string;
 }
 
+interface CodeProps {
+  node?: unknown;
+  inline?: boolean;
+  className?: string;
+  children?: React.ReactNode;
+  [key: string]: unknown;
+}
+
 export function MessageDisplay({ content }: MessageDisplayProps) {
   const components: Components = {
     code(props) {
-      const { node: _node, inline, className, children, ...rest } = props;
+      const { node: _node, inline, className, children, ...rest } = props as CodeProps;
       const match = /language-(\w+)/.exec(className || '');
       const language = match ? match[1] : '';
 
