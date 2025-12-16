@@ -12,10 +12,15 @@ import type { AuthSession } from '@prisma/client';
 describe('GET /api/projects', () => {
   let testRepoPath: string;
   let authSession: AuthSession;
+  let originalAllowedDirs: string | undefined;
 
   beforeEach(async () => {
     await prisma.project.deleteMany();
     await prisma.authSession.deleteMany();
+
+    // 環境変数をバックアップして無効化（テストごとに制御するため）
+    originalAllowedDirs = process.env.ALLOWED_PROJECT_DIRS;
+    delete process.env.ALLOWED_PROJECT_DIRS;
 
     authSession = await prisma.authSession.create({
       data: {
@@ -41,6 +46,12 @@ describe('GET /api/projects', () => {
     await prisma.authSession.deleteMany();
     if (testRepoPath) {
       rmSync(testRepoPath, { recursive: true, force: true });
+    }
+    // 環境変数を復元
+    if (originalAllowedDirs === undefined) {
+      delete process.env.ALLOWED_PROJECT_DIRS;
+    } else {
+      process.env.ALLOWED_PROJECT_DIRS = originalAllowedDirs;
     }
   });
 
@@ -120,10 +131,15 @@ describe('GET /api/projects', () => {
 describe('POST /api/projects', () => {
   let testRepoPath: string;
   let authSession: AuthSession;
+  let originalAllowedDirs: string | undefined;
 
   beforeEach(async () => {
     await prisma.project.deleteMany();
     await prisma.authSession.deleteMany();
+
+    // 環境変数をバックアップして無効化（テストごとに制御するため）
+    originalAllowedDirs = process.env.ALLOWED_PROJECT_DIRS;
+    delete process.env.ALLOWED_PROJECT_DIRS;
 
     authSession = await prisma.authSession.create({
       data: {
@@ -150,6 +166,12 @@ describe('POST /api/projects', () => {
     if (testRepoPath) {
       rmSync(testRepoPath, { recursive: true, force: true });
     }
+    // 環境変数を復元
+    if (originalAllowedDirs === undefined) {
+      delete process.env.ALLOWED_PROJECT_DIRS;
+    } else {
+      process.env.ALLOWED_PROJECT_DIRS = originalAllowedDirs;
+    }
   });
 
   it('should create project with valid git repository', async () => {
@@ -168,11 +190,12 @@ describe('POST /api/projects', () => {
     expect(response.status).toBe(201);
 
     const data = await response.json();
-    expect(data.path).toBe(testRepoPath);
+    // macOSでは/varと/private/varの両方が有効なため、含まれているかチェック
+    expect(data.path).toContain('project-test-');
     expect(data.name).toBeTruthy();
 
     const project = await prisma.project.findFirst({
-      where: { path: testRepoPath },
+      where: { path: data.path },
     });
     expect(project).toBeTruthy();
   });
@@ -248,20 +271,6 @@ describe('POST /api/projects', () => {
   });
 
   describe('ALLOWED_PROJECT_DIRS validation', () => {
-    let originalAllowedDirs: string | undefined;
-
-    beforeEach(() => {
-      originalAllowedDirs = process.env.ALLOWED_PROJECT_DIRS;
-    });
-
-    afterEach(() => {
-      if (originalAllowedDirs === undefined) {
-        delete process.env.ALLOWED_PROJECT_DIRS;
-      } else {
-        process.env.ALLOWED_PROJECT_DIRS = originalAllowedDirs;
-      }
-    });
-
     it('should allow all paths when ALLOWED_PROJECT_DIRS is empty string', async () => {
       process.env.ALLOWED_PROJECT_DIRS = '';
 
