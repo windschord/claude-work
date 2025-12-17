@@ -39,6 +39,8 @@ export default defineConfig({
     pool: 'forks',
     maxConcurrency: process.env.CI ? 1 : 5,
     isolate: true,
+    // APIテストの認証セッション競合を防ぐためファイル並列実行を無効化
+    fileParallelism: false,
     server: {
       deps: {
         inline: [],
