@@ -104,14 +104,16 @@ export async function GET(
  *
  * // レスポンス
  * {
- *   "id": "session-uuid",
- *   "project_id": "uuid-1234",
- *   "name": "新機能実装",
- *   "status": "running",
- *   "model": "claude-3-5-sonnet-20241022",
- *   "worktree_path": "/path/to/worktrees/session-1234567890",
- *   "branch_name": "session/session-1234567890",
- *   "created_at": "2025-12-13T09:00:00.000Z"
+ *   "session": {
+ *     "id": "session-uuid",
+ *     "project_id": "uuid-1234",
+ *     "name": "新機能実装",
+ *     "status": "running",
+ *     "model": "claude-3-5-sonnet-20241022",
+ *     "worktree_path": "/path/to/worktrees/session-1234567890",
+ *     "branch_name": "session/session-1234567890",
+ *     "created_at": "2025-12-13T09:00:00.000Z"
+ *   }
  * }
  * ```
  */

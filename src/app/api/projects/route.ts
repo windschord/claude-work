@@ -88,12 +88,14 @@ export async function GET(request: NextRequest) {
  *
  * // レスポンス
  * {
- *   "id": "uuid",
- *   "name": "repo",
- *   "path": "/path/to/git/repo",
- *   "default_model": "auto",
- *   "run_scripts": true,
- *   "created_at": "2025-12-13T09:00:00.000Z"
+ *   "project": {
+ *     "id": "uuid",
+ *     "name": "repo",
+ *     "path": "/path/to/git/repo",
+ *     "default_model": "auto",
+ *     "run_scripts": true,
+ *     "created_at": "2025-12-13T09:00:00.000Z"
+ *   }
  * }
  * ```
  */
