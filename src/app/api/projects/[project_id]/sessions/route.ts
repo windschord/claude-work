@@ -201,7 +201,7 @@ export async function POST(
         worktree_path: worktreePath,
       });
 
-      return NextResponse.json(newSession, { status: 201 });
+      return NextResponse.json({ session: newSession }, { status: 201 });
     } catch (processError) {
       // プロセス起動失敗時はworktreeをクリーンアップ
       gitService.deleteWorktree(sessionName);
