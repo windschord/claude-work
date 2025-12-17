@@ -178,16 +178,60 @@ describe('POST /api/projects/[project_id]/sessions', () => {
     expect(response.status).toBe(201);
 
     const data = await response.json();
-    expect(data.name).toBe('New Session');
-    expect(data.project_id).toBe(project.id);
-    expect(data.status).toBe('running');
-    expect(data.worktree_path).toBeTruthy();
-    expect(data.branch_name).toBeTruthy();
+    expect(data).toHaveProperty('session');
+    expect(data.session.name).toBe('New Session');
+    expect(data.session.project_id).toBe(project.id);
+    expect(data.session.status).toBe('running');
+    expect(data.session.worktree_path).toBeTruthy();
+    expect(data.session.branch_name).toBeTruthy();
 
     const session = await prisma.session.findFirst({
       where: { project_id: project.id },
     });
     expect(session).toBeTruthy();
+  });
+
+  it('should return response in { session: {...} } format', async () => {
+    const request = new NextRequest(
+      `http://localhost:3000/api/projects/${project.id}/sessions`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: `sessionId=${authSession.id}`,
+        },
+        body: JSON.stringify({
+          name: 'Test Response Format',
+          prompt: 'test prompt',
+          model: 'sonnet',
+        }),
+      }
+    );
+
+    const response = await POST(request, { params: { project_id: project.id } });
+    expect(response.status).toBe(201);
+
+    const data = await response.json();
+
+    // レスポンス形式の検証
+    expect(data).toHaveProperty('session');
+    expect(typeof data.session).toBe('object');
+
+    // sessionオブジェクトのフィールド検証
+    expect(data.session).toHaveProperty('id');
+    expect(data.session).toHaveProperty('project_id');
+    expect(data.session).toHaveProperty('name');
+    expect(data.session).toHaveProperty('status');
+    expect(data.session).toHaveProperty('model');
+    expect(data.session).toHaveProperty('worktree_path');
+    expect(data.session).toHaveProperty('branch_name');
+    expect(data.session).toHaveProperty('created_at');
+
+    // 値の検証
+    expect(data.session.project_id).toBe(project.id);
+    expect(data.session.name).toBe('Test Response Format');
+    expect(data.session.status).toBe('running');
+    expect(data.session.model).toBe('sonnet');
   });
 
   it('should return 404 for non-existent project', async () => {
