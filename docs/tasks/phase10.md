@@ -23,7 +23,7 @@ Phase 9のマージ後、nodejs-architectureブランチでの動作確認で発
 セッション作成リクエスト（POST /api/projects/{project_id}/sessions）が500エラーで失敗する問題の原因を調査します。
 
 **エラー詳細**:
-```
+```json
 POST http://localhost:3000/api/projects/bb75e609-4e1a-4167-a11e-0e461a878934/sessions
 Status: 500 Internal Server Error
 
@@ -190,14 +190,14 @@ Response Body:
 
 ### 説明
 
-URL http://localhost:3000/projects にアクセスした時に、プロジェクト一覧ページ（http://localhost:3000/）にリダイレクトする機能を実装します。
+URL `http://localhost:3000/projects` にアクセスした時に、プロジェクト一覧ページ（`http://localhost:3000/`）にリダイレクトする機能を実装します。
 
 **現在の動作**:
 - /projects にアクセスすると404エラー
 
 **期待される動作**:
 - /projects にアクセスすると / にリダイレクトされる（301 Permanent Redirect）
-- ユーザーはプロジェクト一覧を見ることができる
+- ユーザーにプロジェクト一覧が表示される
 
 ### 実装手順（TDD）
 
