@@ -191,11 +191,11 @@ describe('POST /api/projects', () => {
 
     const data = await response.json();
     // macOSでは/varと/private/varの両方が有効なため、含まれているかチェック
-    expect(data.path).toContain('project-test-');
-    expect(data.name).toBeTruthy();
+    expect(data.project.path).toContain('project-test-');
+    expect(data.project.name).toBeTruthy();
 
     const project = await prisma.project.findFirst({
-      where: { path: data.path },
+      where: { path: data.project.path },
     });
     expect(project).toBeTruthy();
   });
@@ -268,6 +268,41 @@ describe('POST /api/projects', () => {
 
     const data = await secondResponse.json();
     expect(data.error).toBe('このパスは既に登録されています');
+  });
+
+  it('should return response in {project: {...}} format on successful creation', async () => {
+    const request = new NextRequest('http://localhost:3000/api/projects', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: `sessionId=${authSession.id}`,
+      },
+      body: JSON.stringify({
+        path: testRepoPath,
+      }),
+    });
+
+    const response = await POST(request);
+    expect(response.status).toBe(201);
+
+    const data = await response.json();
+
+    // レスポンス形式が{ project: {...} }であることを検証
+    expect(data).toHaveProperty('project');
+    expect(data.project).toBeTruthy();
+
+    // projectオブジェクトに必要なフィールドが含まれていることを検証
+    expect(data.project).toHaveProperty('id');
+    expect(data.project).toHaveProperty('name');
+    expect(data.project).toHaveProperty('path');
+    expect(data.project).toHaveProperty('default_model');
+    expect(data.project).toHaveProperty('created_at');
+
+    // 値の検証
+    expect(data.project.id).toBeTruthy();
+    expect(data.project.name).toBeTruthy();
+    expect(data.project.path).toContain('project-test-');
+    expect(data.project.default_model).toBe('auto');
   });
 
   describe('ALLOWED_PROJECT_DIRS validation', () => {

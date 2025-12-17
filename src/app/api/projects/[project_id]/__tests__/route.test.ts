@@ -69,8 +69,15 @@ describe('PUT /api/projects/[project_id]', () => {
     expect(response.status).toBe(200);
 
     const data = await response.json();
-    expect(data.name).toBe('Updated Project');
-    expect(data.default_model).toBe('opus');
+    expect(data).toHaveProperty('project');
+    expect(data.project).toHaveProperty('id');
+    expect(data.project).toHaveProperty('name');
+    expect(data.project).toHaveProperty('path');
+    expect(data.project).toHaveProperty('default_model');
+    expect(data.project).toHaveProperty('created_at');
+    expect(data.project).toHaveProperty('updated_at');
+    expect(data.project.name).toBe('Updated Project');
+    expect(data.project.default_model).toBe('opus');
 
     const updated = await prisma.project.findUnique({
       where: { id: project.id },

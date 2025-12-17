@@ -73,7 +73,7 @@ export async function PUT(
     });
 
     logger.info('Project updated', { id: project_id, name: project.name });
-    return NextResponse.json(project);
+    return NextResponse.json({ project });
   } catch (error) {
     const { project_id: errorProjectId } = await params;
     logger.error('Failed to update project', { error, id: errorProjectId });
