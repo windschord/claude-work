@@ -182,7 +182,7 @@ export async function POST(request: NextRequest) {
       });
 
       logger.info('Project created', { id: project.id, name, path: absolutePath });
-      return NextResponse.json(project, { status: 201 });
+      return NextResponse.json({ project }, { status: 201 });
     } catch (error) {
       // Prisma P2002エラー（Unique constraint violation）のハンドリング
       if (error instanceof Prisma.PrismaClientKnownRequestError) {

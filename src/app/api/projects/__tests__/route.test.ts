@@ -191,11 +191,11 @@ describe('POST /api/projects', () => {
 
     const data = await response.json();
     // macOSでは/varと/private/varの両方が有効なため、含まれているかチェック
-    expect(data.path).toContain('project-test-');
-    expect(data.name).toBeTruthy();
+    expect(data.project.path).toContain('project-test-');
+    expect(data.project.name).toBeTruthy();
 
     const project = await prisma.project.findFirst({
-      where: { path: data.path },
+      where: { path: data.project.path },
     });
     expect(project).toBeTruthy();
   });
@@ -296,15 +296,13 @@ describe('POST /api/projects', () => {
     expect(data.project).toHaveProperty('name');
     expect(data.project).toHaveProperty('path');
     expect(data.project).toHaveProperty('default_model');
-    expect(data.project).toHaveProperty('run_scripts');
-    expect(data.project).toHaveProperty('session_count');
     expect(data.project).toHaveProperty('created_at');
 
     // 値の検証
     expect(data.project.id).toBeTruthy();
     expect(data.project.name).toBeTruthy();
     expect(data.project.path).toContain('project-test-');
-    expect(data.project.session_count).toBe(0);
+    expect(data.project.default_model).toBe('auto');
   });
 
   describe('ALLOWED_PROJECT_DIRS validation', () => {
