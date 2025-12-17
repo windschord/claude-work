@@ -30,6 +30,17 @@ vi.mock('@/components/AuthGuard', () => ({
   AuthGuard: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
+// CreateSessionFormをモック（storeの参照を避けるため）
+vi.mock('@/components/sessions/CreateSessionForm', () => ({
+  CreateSessionForm: ({ projectId }: { projectId: string }) => (
+    <div data-testid="create-session-form">
+      <input placeholder="セッション名を入力してください" />
+      <textarea placeholder="プロンプトを入力してください" />
+      <button type="submit">セッション作成</button>
+    </div>
+  ),
+}));
+
 describe('ProjectDetailPage', () => {
   const mockFetchSessions = vi.fn();
   const mockCreateSession = vi.fn();
@@ -68,6 +79,16 @@ describe('ProjectDetailPage', () => {
       isAuthenticated: true,
       sessions: mockSessions,
       selectedSessionId: null,
+      projects: [
+        {
+          id: 'project-1',
+          name: 'Test Project',
+          path: '/test/path',
+          default_model: 'claude-3-opus',
+          session_count: 2,
+          created_at: '2024-01-01T00:00:00Z',
+        },
+      ],
       fetchSessions: mockFetchSessions,
       createSession: mockCreateSession,
       checkAuth: mockCheckAuth,
@@ -112,6 +133,16 @@ describe('ProjectDetailPage', () => {
         },
       ],
       selectedSessionId: null,
+      projects: [
+        {
+          id: 'project-1',
+          name: 'Test Project',
+          path: '/test/path',
+          default_model: 'claude-3-opus',
+          session_count: 1,
+          created_at: '2024-01-01T00:00:00Z',
+        },
+      ],
       fetchSessions: mockFetchSessions,
       createSession: mockCreateSession,
       checkAuth: mockCheckAuth,
@@ -199,6 +230,16 @@ describe('ProjectDetailPage', () => {
       isAuthenticated: true,
       sessions: [],
       selectedSessionId: null,
+      projects: [
+        {
+          id: 'project-1',
+          name: 'Test Project',
+          path: '/test/path',
+          default_model: 'claude-3-opus',
+          session_count: 0,
+          created_at: '2024-01-01T00:00:00Z',
+        },
+      ],
       fetchSessions: mockFetchSessions,
       createSession: mockCreateSession,
       checkAuth: mockCheckAuth,

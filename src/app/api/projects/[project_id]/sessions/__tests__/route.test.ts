@@ -10,18 +10,20 @@ import { randomUUID } from 'crypto';
 import type { AuthSession, Project } from '@prisma/client';
 
 vi.mock('@/services/process-manager', () => ({
-  ProcessManager: class {
-    startClaudeCode = vi.fn().mockResolvedValue({
-      sessionId: 'test-session',
-      pid: 12345,
-      status: 'running',
-    });
-    stop = vi.fn().mockResolvedValue(undefined);
-    getStatus = vi.fn().mockReturnValue({
-      sessionId: 'test-session',
-      pid: 12345,
-      status: 'running',
-    });
+  ProcessManager: {
+    getInstance: vi.fn(() => ({
+      startClaudeCode: vi.fn().mockResolvedValue({
+        sessionId: 'test-session',
+        pid: 12345,
+        status: 'running',
+      }),
+      stop: vi.fn().mockResolvedValue(undefined),
+      getStatus: vi.fn().mockReturnValue({
+        sessionId: 'test-session',
+        pid: 12345,
+        status: 'running',
+      }),
+    })),
   },
 }));
 
@@ -225,5 +227,47 @@ describe('POST /api/projects/[project_id]/sessions', () => {
 
     const response = await POST(request, { params: { project_id: project.id } });
     expect(response.status).toBe(401);
+  });
+
+  it('should return 400 if name is missing', async () => {
+    const request = new NextRequest(
+      `http://localhost:3000/api/projects/${project.id}/sessions`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: `sessionId=${authSession.id}`,
+        },
+        body: JSON.stringify({
+          prompt: 'test prompt',
+        }),
+      }
+    );
+
+    const response = await POST(request, { params: { project_id: project.id } });
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error).toBe('Name and prompt are required');
+  });
+
+  it('should return 400 if prompt is missing', async () => {
+    const request = new NextRequest(
+      `http://localhost:3000/api/projects/${project.id}/sessions`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: `sessionId=${authSession.id}`,
+        },
+        body: JSON.stringify({
+          name: 'New Session',
+        }),
+      }
+    );
+
+    const response = await POST(request, { params: { project_id: project.id } });
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error).toBe('Name and prompt are required');
   });
 });

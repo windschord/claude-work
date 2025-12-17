@@ -8,6 +8,7 @@ import { RunScriptList } from '@/components/settings/RunScriptList';
  *
  * プロジェクトの設定を行うページです。
  * ランスクリプトの管理などを提供します。
+ * レイアウト（ヘッダー、サイドバー）は親のlayout.tsxが提供します。
  *
  * @param params - ページパラメータ
  * @param params.id - プロジェクトID
@@ -21,10 +22,10 @@ export default function ProjectSettingsPage({
   const { id: projectId } = use(params);
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-6">プロジェクト設定</h1>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <h1 className="text-2xl font-bold mb-6 text-gray-900 dark:text-gray-100">プロジェクト設定</h1>
 
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
         <RunScriptList projectId={projectId} />
       </div>
     </div>
