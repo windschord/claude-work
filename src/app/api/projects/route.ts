@@ -16,7 +16,7 @@ import { logger } from '@/lib/logger';
  * @param request - sessionIdクッキーを含むリクエスト
  *
  * @returns
- * - 200: プロジェクト一覧（配列）
+ * - 200: プロジェクト一覧（統一形式）
  * - 401: 認証されていない
  * - 500: サーバーエラー
  *
@@ -27,16 +27,18 @@ import { logger } from '@/lib/logger';
  * Cookie: sessionId=<uuid>
  *
  * // レスポンス
- * [
- *   {
- *     "id": "uuid",
- *     "name": "my-project",
- *     "path": "/path/to/repo",
- *     "default_model": "auto",
- *     "run_scripts": true,
- *     "created_at": "2025-12-13T09:00:00.000Z"
- *   }
- * ]
+ * {
+ *   "projects": [
+ *     {
+ *       "id": "uuid",
+ *       "name": "my-project",
+ *       "path": "/path/to/repo",
+ *       "default_model": "auto",
+ *       "run_scripts": true,
+ *       "created_at": "2025-12-13T09:00:00.000Z"
+ *     }
+ *   ]
+ * }
  * ```
  */
 export async function GET(request: NextRequest) {

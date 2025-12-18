@@ -13,7 +13,7 @@ import { logger } from '@/lib/logger';
  * @param params - idとscriptIdを含むパスパラメータ
  *
  * @returns
- * - 200: スクリプト更新成功
+ * - 200: スクリプト更新成功（統一形式）
  * - 401: 認証されていない
  * - 404: スクリプトが見つからない
  * - 500: サーバーエラー
@@ -32,13 +32,15 @@ import { logger } from '@/lib/logger';
  *
  * // レスポンス
  * {
- *   "id": "script-uuid",
- *   "project_id": "project-uuid",
- *   "name": "Test Updated",
- *   "description": "Run all tests",
- *   "command": "npm run test:all",
- *   "created_at": "2025-12-08T10:00:00Z",
- *   "updated_at": "2025-12-08T10:00:00Z"
+ *   "script": {
+ *     "id": "script-uuid",
+ *     "project_id": "project-uuid",
+ *     "name": "Test Updated",
+ *     "description": "Run all tests",
+ *     "command": "npm run test:all",
+ *     "created_at": "2025-12-08T10:00:00Z",
+ *     "updated_at": "2025-12-08T10:00:00Z"
+ *   }
  * }
  * ```
  */
@@ -130,7 +132,7 @@ export async function PUT(
     });
 
     logger.info('Script updated', { scriptId, name: script.name });
-    return NextResponse.json(script);
+    return NextResponse.json({ script });
   } catch (error) {
     const resolvedParams = await params;
     logger.error('Failed to update script', {

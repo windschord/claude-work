@@ -9,7 +9,7 @@ import { execSync } from 'child_process';
 import { randomUUID } from 'crypto';
 import type { AuthSession, Project, Session } from '@prisma/client';
 
-describe('GET /api/sessions/[id]/commits', () => {
+describe('GET /api/sessions/{id}/commits', () => {
   let testRepoPath: string;
   let authSession: AuthSession;
   let project: Project;
@@ -30,9 +30,9 @@ describe('GET /api/sessions/[id]/commits', () => {
 
     testRepoPath = mkdtempSync(join(tmpdir(), 'commits-test-'));
     execSync('git init', { cwd: testRepoPath });
-    execSync('git config user.name "Test User"', { cwd: testRepoPath });
+    execSync('git config user.name "Test"', { cwd: testRepoPath });
     execSync('git config user.email "test@example.com"', { cwd: testRepoPath });
-    execSync('echo "test" > README.md && git add . && git commit -m "initial commit"', {
+    execSync('echo "test" > README.md && git add . && git commit -m "initial"', {
       cwd: testRepoPath,
       shell: true,
     });
@@ -61,18 +61,13 @@ describe('GET /api/sessions/[id]/commits', () => {
       `git worktree add -b ${session.branch_name} ${session.worktree_path}`,
       { cwd: testRepoPath }
     );
-    writeFileSync(join(session.worktree_path, 'file1.txt'), 'content 1');
-    execSync('git add . && git commit -m "Add file1"', {
+    writeFileSync(join(session.worktree_path, 'file1.txt'), 'content1');
+    execSync('git add file1.txt && git commit -m "Add authentication"', {
       cwd: session.worktree_path,
       shell: true,
     });
-    writeFileSync(join(session.worktree_path, 'file2.txt'), 'content 2');
-    execSync('git add . && git commit -m "Add file2"', {
-      cwd: session.worktree_path,
-      shell: true,
-    });
-    writeFileSync(join(session.worktree_path, 'file3.txt'), 'content 3');
-    execSync('git add . && git commit -m "Add file3"', {
+    writeFileSync(join(session.worktree_path, 'file2.txt'), 'content2');
+    execSync('git add file2.txt && git commit -m "Fix bug in login"', {
       cwd: session.worktree_path,
       shell: true,
     });
@@ -87,145 +82,7 @@ describe('GET /api/sessions/[id]/commits', () => {
     }
   });
 
-  it('should return commit history with correct structure', async () => {
-    const request = new NextRequest(
-      `http://localhost:3000/api/sessions/${session.id}/commits`,
-      {
-        method: 'GET',
-        headers: {
-          cookie: `sessionId=${authSession.id}`,
-        },
-      }
-    );
-
-    const response = await GET(request, { params: { id: session.id } });
-    expect(response.status).toBe(200);
-
-    const data = await response.json();
-    expect(data).toHaveProperty('commits');
-    expect(Array.isArray(data.commits)).toBe(true);
-    expect(data.commits.length).toBeGreaterThan(0);
-  });
-
-  it('should return commits with all required fields', async () => {
-    const request = new NextRequest(
-      `http://localhost:3000/api/sessions/${session.id}/commits`,
-      {
-        method: 'GET',
-        headers: {
-          cookie: `sessionId=${authSession.id}`,
-        },
-      }
-    );
-
-    const response = await GET(request, { params: { id: session.id } });
-    expect(response.status).toBe(200);
-
-    const data = await response.json();
-    const firstCommit = data.commits[0];
-
-    // 各コミットが必要なフィールドを持っているか確認
-    expect(firstCommit).toHaveProperty('hash');
-    expect(firstCommit).toHaveProperty('shortHash');
-    expect(firstCommit).toHaveProperty('message');
-    expect(firstCommit).toHaveProperty('author');
-    expect(firstCommit).toHaveProperty('email');
-    expect(firstCommit).toHaveProperty('date');
-    expect(firstCommit).toHaveProperty('filesChanged');
-
-    // フィールドの型を確認
-    expect(typeof firstCommit.hash).toBe('string');
-    expect(typeof firstCommit.shortHash).toBe('string');
-    expect(typeof firstCommit.message).toBe('string');
-    expect(typeof firstCommit.author).toBe('string');
-    expect(typeof firstCommit.email).toBe('string');
-    expect(typeof firstCommit.date).toBe('string');
-    expect(typeof firstCommit.filesChanged).toBe('number');
-
-    // ハッシュの形式を確認
-    expect(firstCommit.hash.length).toBe(40); // Full SHA-1 hash
-    expect(firstCommit.shortHash.length).toBeGreaterThanOrEqual(6);
-    expect(firstCommit.shortHash.length).toBeLessThanOrEqual(7);
-  });
-
-  it('should return commits in chronological order (newest first)', async () => {
-    const request = new NextRequest(
-      `http://localhost:3000/api/sessions/${session.id}/commits`,
-      {
-        method: 'GET',
-        headers: {
-          cookie: `sessionId=${authSession.id}`,
-        },
-      }
-    );
-
-    const response = await GET(request, { params: { id: session.id } });
-    expect(response.status).toBe(200);
-
-    const data = await response.json();
-
-    // 最新のコミットが最初に来ることを確認
-    expect(data.commits[0].message).toBe('Add file3');
-    expect(data.commits[1].message).toBe('Add file2');
-    expect(data.commits[2].message).toBe('Add file1');
-  });
-
-  it('should include correct author information', async () => {
-    const request = new NextRequest(
-      `http://localhost:3000/api/sessions/${session.id}/commits`,
-      {
-        method: 'GET',
-        headers: {
-          cookie: `sessionId=${authSession.id}`,
-        },
-      }
-    );
-
-    const response = await GET(request, { params: { id: session.id } });
-    expect(response.status).toBe(200);
-
-    const data = await response.json();
-    const firstCommit = data.commits[0];
-
-    expect(firstCommit.author).toBe('Test User');
-    expect(firstCommit.email).toBe('test@example.com');
-  });
-
-  it('should return correct filesChanged count', async () => {
-    const request = new NextRequest(
-      `http://localhost:3000/api/sessions/${session.id}/commits`,
-      {
-        method: 'GET',
-        headers: {
-          cookie: `sessionId=${authSession.id}`,
-        },
-      }
-    );
-
-    const response = await GET(request, { params: { id: session.id } });
-    expect(response.status).toBe(200);
-
-    const data = await response.json();
-
-    // 各コミットで1ファイルずつ変更されているはず
-    data.commits.forEach((commit: { filesChanged: number }) => {
-      expect(commit.filesChanged).toBeGreaterThanOrEqual(1);
-    });
-  });
-
-  it('should return 404 for non-existent session', async () => {
-    const request = new NextRequest('http://localhost:3000/api/sessions/non-existent/commits', {
-      method: 'GET',
-      headers: {
-        cookie: `sessionId=${authSession.id}`,
-      },
-    });
-
-    const response = await GET(request, { params: { id: 'non-existent' } });
-    expect(response.status).toBe(404);
-  });
-
-  it('should return 401 if not authenticated', async () => {
+  it('認証されていない場合は401を返す', async () => {
     const request = new NextRequest(
       `http://localhost:3000/api/sessions/${session.id}/commits`,
       {
@@ -237,26 +94,21 @@ describe('GET /api/sessions/[id]/commits', () => {
     expect(response.status).toBe(401);
   });
 
-  it('should handle repository with no commits gracefully', async () => {
-    // 新しい空のworktreeを持つセッションを作成
-    const emptySession = await prisma.session.create({
-      data: {
-        project_id: project.id,
-        name: 'Empty Session',
-        status: 'running',
-        model: 'sonnet',
-        worktree_path: join(testRepoPath, '.worktrees', 'empty-session'),
-        branch_name: 'empty-branch',
+  it('セッションが見つからない場合は404を返す', async () => {
+    const request = new NextRequest('http://localhost:3000/api/sessions/non-existent/commits', {
+      method: 'GET',
+      headers: {
+        cookie: `sessionId=${authSession.id}`,
       },
     });
 
-    execSync(
-      `git worktree add -b ${emptySession.branch_name} ${emptySession.worktree_path}`,
-      { cwd: testRepoPath }
-    );
+    const response = await GET(request, { params: { id: 'non-existent' } });
+    expect(response.status).toBe(404);
+  });
 
+  it('コミット履歴を統一形式で返す', async () => {
     const request = new NextRequest(
-      `http://localhost:3000/api/sessions/${emptySession.id}/commits`,
+      `http://localhost:3000/api/sessions/${session.id}/commits`,
       {
         method: 'GET',
         headers: {
@@ -265,13 +117,24 @@ describe('GET /api/sessions/[id]/commits', () => {
       }
     );
 
-    const response = await GET(request, { params: { id: emptySession.id } });
+    const response = await GET(request, { params: { id: session.id } });
     expect(response.status).toBe(200);
 
     const data = await response.json();
     expect(data).toHaveProperty('commits');
     expect(Array.isArray(data.commits)).toBe(true);
-    // initial commitは存在するはず
-    expect(data.commits.length).toBeGreaterThanOrEqual(1);
+    expect(data.commits.length).toBe(2);
+
+    // 最新のコミットが最初に来る
+    expect(data.commits[0].message).toBe('Fix bug in login');
+    expect(data.commits[0]).toHaveProperty('hash');
+    expect(data.commits[0]).toHaveProperty('short_hash');
+    expect(data.commits[0]).toHaveProperty('author');
+    expect(data.commits[0]).toHaveProperty('date');
+    expect(data.commits[0]).toHaveProperty('files_changed');
+    expect(data.commits[0].files_changed).toBe(1);
+
+    expect(data.commits[1].message).toBe('Add authentication');
+    expect(data.commits[1].files_changed).toBe(1);
   });
 });

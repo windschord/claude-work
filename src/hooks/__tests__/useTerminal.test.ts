@@ -8,7 +8,7 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { useTerminal } from '../useTerminal';
 
 // WebSocketのモック
-class MockWebSocket {
+class MockWebSocket extends EventTarget {
   static CONNECTING = 0;
   static OPEN = 1;
   static CLOSING = 2;
@@ -22,19 +22,23 @@ class MockWebSocket {
   url: string;
 
   constructor(url: string) {
+    super();
     this.url = url;
     // 非同期でopenイベントを発火
-    setTimeout(() => {
+    queueMicrotask(() => {
       this.readyState = MockWebSocket.OPEN;
       if (this.onopen) {
         this.onopen(new Event('open'));
       }
-    }, 0);
+    });
   }
 
   send = vi.fn();
   close = vi.fn(() => {
     this.readyState = MockWebSocket.CLOSED;
+    if (this.onclose) {
+      this.onclose(new CloseEvent('close'));
+    }
   });
 }
 
@@ -47,20 +51,17 @@ describe('useTerminal', () => {
     originalWebSocket = global.WebSocket;
 
     // WebSocketのグローバルモック（classとして定義）
-    class MockWebSocketConstructor extends EventTarget {
-      static CONNECTING = MockWebSocket.CONNECTING;
-      static OPEN = MockWebSocket.OPEN;
-      static CLOSING = MockWebSocket.CLOSING;
-      static CLOSED = MockWebSocket.CLOSED;
+    const MockWebSocketConstructor = function (this: any, url: string) {
+      mockWebSocketInstance = new MockWebSocket(url);
+      return mockWebSocketInstance;
+    } as any;
 
-      constructor(url: string) {
-        super();
-        mockWebSocketInstance = new MockWebSocket(url);
-        Object.assign(this, mockWebSocketInstance);
-      }
-    }
+    MockWebSocketConstructor.CONNECTING = MockWebSocket.CONNECTING;
+    MockWebSocketConstructor.OPEN = MockWebSocket.OPEN;
+    MockWebSocketConstructor.CLOSING = MockWebSocket.CLOSING;
+    MockWebSocketConstructor.CLOSED = MockWebSocket.CLOSED;
 
-    global.WebSocket = MockWebSocketConstructor as unknown as typeof WebSocket;
+    global.WebSocket = MockWebSocketConstructor;
   });
 
   afterEach(() => {

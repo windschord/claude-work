@@ -16,7 +16,7 @@ const processManager = ProcessManager.getInstance();
  * @param params.id - セッションID
  *
  * @returns
- * - 200: 停止成功、更新されたセッション情報を返す
+ * - 200: セッション停止成功（統一形式）
  * - 401: 認証されていない
  * - 404: セッションが見つからない
  * - 500: サーバーエラー
@@ -29,14 +29,16 @@ const processManager = ProcessManager.getInstance();
  *
  * // レスポンス
  * {
- *   "id": "session-uuid",
- *   "project_id": "uuid-1234",
- *   "name": "新機能実装",
- *   "status": "completed",
- *   "model": "claude-3-5-sonnet-20241022",
- *   "worktree_path": "/path/to/worktrees/session-1234567890",
- *   "branch_name": "session/session-1234567890",
- *   "created_at": "2025-12-13T09:00:00.000Z"
+ *   "session": {
+ *     "id": "session-uuid",
+ *     "project_id": "uuid-1234",
+ *     "name": "新機能実装",
+ *     "status": "completed",
+ *     "model": "claude-3-5-sonnet-20241022",
+ *     "worktree_path": "/path/to/worktrees/session-1234567890",
+ *     "branch_name": "session/session-1234567890",
+ *     "created_at": "2025-12-13T09:00:00.000Z"
+ *   }
  * }
  * ```
  */
@@ -83,7 +85,7 @@ export async function POST(
     });
 
     logger.info('Session stopped', { id });
-    return NextResponse.json(updatedSession);
+    return NextResponse.json({ session: updatedSession });
   } catch (error) {
     const { id: errorId } = await params;
     logger.error('Failed to stop session', { error, session_id: errorId });

@@ -17,7 +17,7 @@ const processManager = ProcessManager.getInstance();
  * @param params.project_id - プロジェクトID
  *
  * @returns
- * - 200: セッション一覧（配列）
+ * - 200: セッション一覧（統一形式）
  * - 401: 認証されていない
  * - 500: サーバーエラー
  *
@@ -28,18 +28,20 @@ const processManager = ProcessManager.getInstance();
  * Cookie: sessionId=<uuid>
  *
  * // レスポンス
- * [
- *   {
- *     "id": "session-uuid",
- *     "project_id": "uuid-1234",
- *     "name": "新機能実装",
- *     "status": "running",
- *     "model": "claude-3-5-sonnet-20241022",
- *     "worktree_path": "/path/to/worktrees/session-1234567890",
- *     "branch_name": "session/session-1234567890",
- *     "created_at": "2025-12-13T09:00:00.000Z"
- *   }
- * ]
+ * {
+ *   "sessions": [
+ *     {
+ *       "id": "session-uuid",
+ *       "project_id": "uuid-1234",
+ *       "name": "新機能実装",
+ *       "status": "running",
+ *       "model": "claude-3-5-sonnet-20241022",
+ *       "worktree_path": "/path/to/worktrees/session-1234567890",
+ *       "branch_name": "session/session-1234567890",
+ *       "created_at": "2025-12-13T09:00:00.000Z"
+ *     }
+ *   ]
+ * }
  * ```
  */
 export async function GET(
@@ -65,7 +67,7 @@ export async function GET(
     });
 
     logger.debug('Sessions retrieved', { project_id, count: sessions.length });
-    return NextResponse.json(sessions);
+    return NextResponse.json({ sessions });
   } catch (error) {
     const { project_id: errorProjectId } = await params;
     logger.error('Failed to get sessions', { error, project_id: errorProjectId });

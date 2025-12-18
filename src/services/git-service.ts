@@ -404,6 +404,104 @@ export class GitService {
   }
 
   /**
+   * セッションのコミット履歴を取得
+   *
+   * 指定されたセッションのGitコミット履歴を取得します。
+   * 各コミットのハッシュ、メッセージ、作成者、日時、変更ファイル数を含みます。
+   *
+   * @param sessionName - セッション名
+   * @returns コミット履歴の配列
+   */
+  getCommits(sessionName: string): Array<{
+    hash: string;
+    short_hash: string;
+    message: string;
+    author: string;
+    date: string;
+    files_changed: number;
+  }> {
+    this.validateName(sessionName, 'session');
+
+    const worktreePath = join(this.repoPath, '.worktrees', sessionName);
+    this.validateWorktreePath(worktreePath);
+
+    try {
+      // git logでコミット履歴を取得（mainブランチ以降のコミットのみ）
+      // フォーマット: hash|short_hash|message|author|date
+      const format = '%H|%h|%s|%an|%aI';
+      const logResult = spawnSync('git', ['-C', worktreePath, 'log', `--pretty=format:${format}`, '--numstat', 'main..HEAD'], {
+        encoding: 'utf-8',
+        maxBuffer: 10 * 1024 * 1024, // 10MB
+      });
+
+      if (logResult.error || logResult.status !== 0) {
+        this.logger.error('Failed to get commits', { sessionName, error: logResult.stderr });
+        return [];
+      }
+
+      const output = (logResult.stdout || '').trim();
+      if (!output) {
+        return [];
+      }
+
+      const commits: Array<{
+        hash: string;
+        short_hash: string;
+        message: string;
+        author: string;
+        date: string;
+        files_changed: number;
+      }> = [];
+
+      const lines = output.split('\n');
+      let currentCommit: {
+        hash: string;
+        short_hash: string;
+        message: string;
+        author: string;
+        date: string;
+        files_changed: number;
+      } | null = null;
+      let filesChanged = 0;
+
+      for (const line of lines) {
+        if (line.includes('|')) {
+          // コミット情報行
+          if (currentCommit) {
+            currentCommit.files_changed = filesChanged;
+            commits.push(currentCommit);
+            filesChanged = 0;
+          }
+
+          const [hash, short_hash, message, author, date] = line.split('|');
+          currentCommit = {
+            hash,
+            short_hash,
+            message,
+            author,
+            date,
+            files_changed: 0,
+          };
+        } else if (line.trim() && currentCommit) {
+          // numstat行（ファイル変更情報）
+          filesChanged++;
+        }
+      }
+
+      // 最後のコミットを追加
+      if (currentCommit) {
+        currentCommit.files_changed = filesChanged;
+        commits.push(currentCommit);
+      }
+
+      return commits;
+    } catch (error) {
+      this.logger.error('Failed to get commits', { error, sessionName });
+      return [];
+    }
+  }
+
+  /**
    * セッションブランチをmainにスカッシュマージ
    *
    * 指定されたセッションのworktreeのブランチを、mainブランチにスカッシュマージします。

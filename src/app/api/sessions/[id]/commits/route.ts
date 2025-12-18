@@ -6,16 +6,16 @@ import { logger } from '@/lib/logger';
 import { basename } from 'path';
 
 /**
- * GET /api/sessions/[id]/diff - セッションの差分取得
+ * GET /api/sessions/[id]/commits - セッションのコミット履歴取得
  *
- * 指定されたセッションのGit差分（mainブランチとの比較）を取得します。
+ * 指定されたセッションのGitコミット履歴を取得します。
  * 認証が必要です。
  *
  * @param request - sessionIdクッキーを含むリクエスト
  * @param params.id - セッションID
  *
  * @returns
- * - 200: 差分情報（統一形式）
+ * - 200: コミット履歴（統一形式）
  * - 401: 認証されていない
  * - 404: セッションが見つからない
  * - 500: サーバーエラー
@@ -23,25 +23,21 @@ import { basename } from 'path';
  * @example
  * ```typescript
  * // リクエスト
- * GET /api/sessions/session-uuid/diff
+ * GET /api/sessions/session-uuid/commits
  * Cookie: sessionId=<uuid>
  *
  * // レスポンス
  * {
- *   "diff": {
- *     "files": [
- *       {
- *         "path": "file.ts",
- *         "status": "modified",
- *         "additions": 5,
- *         "deletions": 3,
- *         "oldContent": "const old = true;",
- *         "newContent": "const new = true;"
- *       }
- *     ],
- *     "totalAdditions": 5,
- *     "totalDeletions": 3
- *   }
+ *   "commits": [
+ *     {
+ *       "hash": "abc123def456",
+ *       "short_hash": "abc123d",
+ *       "message": "Add authentication",
+ *       "author": "Claude",
+ *       "date": "2025-12-08T10:05:00Z",
+ *       "files_changed": 3
+ *     }
+ *   ]
  * }
  * ```
  */
@@ -73,13 +69,13 @@ export async function GET(
 
     const sessionName = basename(targetSession.worktree_path);
     const gitService = new GitService(targetSession.project.path, logger);
-    const diff = gitService.getDiffDetails(sessionName);
+    const commits = gitService.getCommits(sessionName);
 
-    logger.info('Got diff for session', { id });
-    return NextResponse.json({ diff });
+    logger.info('Got commits for session', { id, count: commits.length });
+    return NextResponse.json({ commits });
   } catch (error) {
     const { id: errorId } = await params;
-    logger.error('Failed to get diff', { error, session_id: errorId });
+    logger.error('Failed to get commits', { error, session_id: errorId });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -30,8 +30,7 @@ describe('Database Tests', () => {
         data: {
           name: 'Test Project',
           path: '/path/to/project',
-          default_model: 'sonnet',
-          run_scripts: JSON.stringify([{ name: 'test', command: 'npm test' }])
+          default_model: 'sonnet'
         }
       });
 

@@ -497,27 +497,29 @@ sequenceDiagram
 **レスポンス（200）**:
 ```json
 {
-  "id": "uuid",
-  "name": "feature-auth",
-  "status": "waiting_input",
-  "git_status": "dirty",
-  "model": "sonnet",
-  "worktree_path": "/path/to/worktree",
-  "messages": [
-    {
-      "role": "user",
-      "content": "Implement auth",
-      "timestamp": "2025-12-08T10:00:00Z"
-    },
-    {
-      "role": "assistant",
-      "content": "I'll implement...",
-      "timestamp": "2025-12-08T10:00:05Z",
-      "sub_agents": [
-        {"name": "file_edit", "output": "..."}
-      ]
-    }
-  ]
+  "session": {
+    "id": "uuid",
+    "name": "feature-auth",
+    "status": "waiting_input",
+    "git_status": "dirty",
+    "model": "sonnet",
+    "worktree_path": "/path/to/worktree",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Implement auth",
+        "timestamp": "2025-12-08T10:00:00Z"
+      },
+      {
+        "role": "assistant",
+        "content": "I'll implement...",
+        "timestamp": "2025-12-08T10:00:05Z",
+        "sub_agents": [
+          {"name": "file_edit", "output": "..."}
+        ]
+      }
+    ]
+  }
 }
 ```
 
@@ -534,10 +536,12 @@ sequenceDiagram
 **レスポンス（200）**:
 ```json
 {
-  "id": "msg-uuid",
-  "role": "user",
-  "content": "Please also add tests",
-  "timestamp": "2025-12-08T10:05:00Z"
+  "message": {
+    "id": "msg-uuid",
+    "role": "user",
+    "content": "Please also add tests",
+    "timestamp": "2025-12-08T10:05:00Z"
+  }
 }
 ```
 
@@ -566,13 +570,15 @@ sequenceDiagram
 **レスポンス（200）**:
 ```json
 {
-  "id": "uuid",
-  "name": "feature-auth",
-  "status": "stopped",
-  "git_status": "dirty",
-  "model": "sonnet",
-  "worktree_path": "/path/to/worktree",
-  "created_at": "2025-12-08T10:00:00Z"
+  "session": {
+    "id": "uuid",
+    "name": "feature-auth",
+    "status": "stopped",
+    "git_status": "dirty",
+    "model": "sonnet",
+    "worktree_path": "/path/to/worktree",
+    "created_at": "2025-12-08T10:00:00Z"
+  }
 }
 ```
 
@@ -587,25 +593,27 @@ sequenceDiagram
 **レスポンス（200）**:
 ```json
 {
-  "files": [
-    {
-      "path": "src/auth.ts",
-      "status": "modified",
-      "additions": 45,
-      "deletions": 12,
-      "hunks": [
-        {
-          "old_start": 10,
-          "old_lines": 5,
-          "new_start": 10,
-          "new_lines": 8,
-          "content": "@@ -10,5 +10,8 @@\n-old line\n+new line"
-        }
-      ]
-    }
-  ],
-  "total_additions": 45,
-  "total_deletions": 12
+  "diff": {
+    "files": [
+      {
+        "path": "src/auth.ts",
+        "status": "modified",
+        "additions": 45,
+        "deletions": 12,
+        "hunks": [
+          {
+            "old_start": 10,
+            "old_lines": 5,
+            "new_start": 10,
+            "new_lines": 8,
+            "content": "@@ -10,5 +10,8 @@\n-old line\n+new line"
+          }
+        ]
+      }
+    ],
+    "totalAdditions": 45,
+    "totalDeletions": 12
+  }
 }
 ```
 
@@ -641,8 +649,8 @@ sequenceDiagram
 **レスポンス（409）**:
 ```json
 {
-  "error": "Conflict detected",
-  "conflicting_files": ["src/auth.ts"]
+  "success": false,
+  "conflicts": ["src/auth.ts"]
 }
 ```
 
