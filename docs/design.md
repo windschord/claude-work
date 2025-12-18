@@ -593,25 +593,27 @@ sequenceDiagram
 **レスポンス（200）**:
 ```json
 {
-  "files": [
-    {
-      "path": "src/auth.ts",
-      "status": "modified",
-      "additions": 45,
-      "deletions": 12,
-      "hunks": [
-        {
-          "old_start": 10,
-          "old_lines": 5,
-          "new_start": 10,
-          "new_lines": 8,
-          "content": "@@ -10,5 +10,8 @@\n-old line\n+new line"
-        }
-      ]
-    }
-  ],
-  "total_additions": 45,
-  "total_deletions": 12
+  "diff": {
+    "files": [
+      {
+        "path": "src/auth.ts",
+        "status": "modified",
+        "additions": 45,
+        "deletions": 12,
+        "hunks": [
+          {
+            "old_start": 10,
+            "old_lines": 5,
+            "new_start": 10,
+            "new_lines": 8,
+            "content": "@@ -10,5 +10,8 @@\n-old line\n+new line"
+          }
+        ]
+      }
+    ],
+    "totalAdditions": 45,
+    "totalDeletions": 12
+  }
 }
 ```
 
@@ -647,8 +649,8 @@ sequenceDiagram
 **レスポンス（409）**:
 ```json
 {
-  "error": "Conflict detected",
-  "conflicting_files": ["src/auth.ts"]
+  "success": false,
+  "conflicts": ["src/auth.ts"]
 }
 ```
 
