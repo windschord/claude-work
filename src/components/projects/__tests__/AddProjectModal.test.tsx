@@ -141,7 +141,7 @@ describe('AddProjectModal', () => {
     });
   });
 
-  it('「キャンセル」ボタンクリックでモーダルが閉じる', () => {
+  it('キャンセルボタンをクリックするとonCloseが呼ばれる', () => {
     render(<AddProjectModal isOpen={true} onClose={mockOnClose} />);
 
     const cancelButton = screen.getByRole('button', { name: 'キャンセル' });
