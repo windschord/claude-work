@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, Fragment } from 'react';
+import { useState, useCallback, Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { useAppStore } from '@/store';
 import toast from 'react-hot-toast';
@@ -52,11 +52,11 @@ export function AddProjectModal({ isOpen, onClose }: AddProjectModalProps) {
     }
   };
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     setPath('');
     setError('');
     onClose();
-  };
+  }, [onClose]);
 
   return (
     <Transition appear show={isOpen} as={Fragment}>
@@ -120,7 +120,11 @@ export function AddProjectModal({ isOpen, onClose }: AddProjectModalProps) {
                   <div className="flex gap-3 justify-end">
                     <button
                       type="button"
-                      onClick={handleClose}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleClose();
+                      }}
                       className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
                       disabled={isLoading}
                     >
