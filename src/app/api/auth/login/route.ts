@@ -40,20 +40,34 @@ export async function POST(request: NextRequest) {
 
     const { token } = body;
 
-    if (!token || typeof token !== 'string') {
-      return NextResponse.json({ error: 'Token is required' }, { status: 400 });
+    // トークンの入力チェック
+    if (!token || typeof token !== 'string' || token.trim() === '') {
+      logger.warn('Login attempt with empty token', { service: 'claude-work' });
+      return NextResponse.json(
+        { error: 'Token is required. Please enter your authentication token.' },
+        { status: 400 }
+      );
     }
 
     // Validate token
     try {
       if (!validateToken(token)) {
-        logger.warn('Login attempt with invalid token');
-        return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+        logger.warn('Login attempt with invalid token', { service: 'claude-work' });
+        return NextResponse.json(
+          {
+            error: 'Invalid authentication token. Please check your token and try again. ' +
+                   'You can find the correct token in your .env file (CLAUDE_WORK_TOKEN).'
+          },
+          { status: 401 }
+        );
       }
     } catch (error) {
-      logger.error('AUTH_TOKEN environment variable is not configured', { error });
+      logger.error('CLAUDE_WORK_TOKEN not configured', { service: 'claude-work', error });
       return NextResponse.json(
-        { error: 'Authentication not configured' },
+        {
+          error: 'Server configuration error: Authentication token not configured. ' +
+                 'Please contact the administrator.'
+        },
         { status: 500 }
       );
     }
