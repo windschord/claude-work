@@ -51,10 +51,10 @@ describe('useTerminal', () => {
     originalWebSocket = global.WebSocket;
 
     // WebSocketのグローバルモック（classとして定義）
-    const MockWebSocketConstructor = function (this: any, url: string) {
+    const MockWebSocketConstructor = function (this: WebSocket, url: string) {
       mockWebSocketInstance = new MockWebSocket(url);
       return mockWebSocketInstance;
-    } as any;
+    } as unknown as typeof WebSocket;
 
     MockWebSocketConstructor.CONNECTING = MockWebSocket.CONNECTING;
     MockWebSocketConstructor.OPEN = MockWebSocket.OPEN;

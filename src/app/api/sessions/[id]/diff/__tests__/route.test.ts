@@ -89,23 +89,26 @@ describe('GET /api/sessions/[id]/diff', () => {
       }
     );
 
-    const response = await GET(request, { params: { id: session.id } });
+    const response = await GET(request, {
+      params: Promise.resolve({ id: session.id }),
+    });
     expect(response.status).toBe(200);
 
     const data = await response.json();
-    expect(data).toHaveProperty('files');
-    expect(data).toHaveProperty('totalAdditions');
-    expect(data).toHaveProperty('totalDeletions');
-    expect(Array.isArray(data.files)).toBe(true);
+    expect(data).toHaveProperty('diff');
+    expect(data.diff).toHaveProperty('files');
+    expect(data.diff).toHaveProperty('totalAdditions');
+    expect(data.diff).toHaveProperty('totalDeletions');
+    expect(Array.isArray(data.diff.files)).toBe(true);
 
     // 追加されたファイルを確認
-    const addedFile = data.files.find((f: { path: string; status: string }) => f.path === 'new-file.txt');
+    const addedFile = data.diff.files.find((f: { path: string; status: string }) => f.path === 'new-file.txt');
     expect(addedFile).toBeDefined();
     expect(addedFile.status).toBe('added');
     expect(addedFile.newContent).toContain('new content');
 
     // 変更されたファイルを確認
-    const modifiedFile = data.files.find((f: { path: string; status: string }) => f.path === 'README.md');
+    const modifiedFile = data.diff.files.find((f: { path: string; status: string }) => f.path === 'README.md');
     expect(modifiedFile).toBeDefined();
     expect(modifiedFile.status).toBe('modified');
     expect(modifiedFile.oldContent).toContain('test');
@@ -120,7 +123,9 @@ describe('GET /api/sessions/[id]/diff', () => {
       },
     });
 
-    const response = await GET(request, { params: { id: 'non-existent' } });
+    const response = await GET(request, {
+      params: Promise.resolve({ id: 'non-existent' }),
+    });
     expect(response.status).toBe(404);
   });
 
@@ -132,7 +137,9 @@ describe('GET /api/sessions/[id]/diff', () => {
       }
     );
 
-    const response = await GET(request, { params: { id: session.id } });
+    const response = await GET(request, {
+      params: Promise.resolve({ id: session.id }),
+    });
     expect(response.status).toBe(401);
   });
 });

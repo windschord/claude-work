@@ -52,14 +52,14 @@ describe('PUT /api/projects/[project_id]/scripts/[scriptId]', () => {
     );
 
     const response = await PUT(request, {
-      params: { id: project.id, scriptId: script.id },
+      params: Promise.resolve({ project_id: project.id, scriptId: script.id }),
     });
     expect(response.status).toBe(200);
 
     const data = await response.json();
-    expect(data.name).toBe('Test Updated');
-    expect(data.description).toBe('Run all tests');
-    expect(data.command).toBe('npm run test:all');
+    expect(data.script.name).toBe('Test Updated');
+    expect(data.script.description).toBe('Run all tests');
+    expect(data.script.command).toBe('npm run test:all');
 
     const updatedScript = await prisma.runScript.findUnique({
       where: { id: script.id },
@@ -83,14 +83,14 @@ describe('PUT /api/projects/[project_id]/scripts/[scriptId]', () => {
     );
 
     const response = await PUT(request, {
-      params: { id: project.id, scriptId: script.id },
+      params: Promise.resolve({ project_id: project.id, scriptId: script.id }),
     });
     expect(response.status).toBe(200);
 
     const data = await response.json();
-    expect(data.name).toBe('Test Updated');
-    expect(data.description).toBe('Run unit tests');
-    expect(data.command).toBe('npm test');
+    expect(data.script.name).toBe('Test Updated');
+    expect(data.script.description).toBe('Run unit tests');
+    expect(data.script.command).toBe('npm test');
   });
 
   it('should return 404 if script not found', async () => {
@@ -110,7 +110,7 @@ describe('PUT /api/projects/[project_id]/scripts/[scriptId]', () => {
     );
 
     const response = await PUT(request, {
-      params: { id: project.id, scriptId: fakeId },
+      params: Promise.resolve({ project_id: project.id, scriptId: fakeId }),
     });
     expect(response.status).toBe(404);
   });
@@ -130,7 +130,7 @@ describe('PUT /api/projects/[project_id]/scripts/[scriptId]', () => {
     );
 
     const response = await PUT(request, {
-      params: { id: project.id, scriptId: script.id },
+      params: Promise.resolve({ project_id: project.id, scriptId: script.id }),
     });
     expect(response.status).toBe(401);
   });
@@ -150,7 +150,7 @@ describe('DELETE /api/projects/[project_id]/scripts/[scriptId]', () => {
     );
 
     const response = await DELETE(request, {
-      params: { id: project.id, scriptId: script.id },
+      params: Promise.resolve({ project_id: project.id, scriptId: script.id }),
     });
     expect(response.status).toBe(204);
 
@@ -173,7 +173,7 @@ describe('DELETE /api/projects/[project_id]/scripts/[scriptId]', () => {
     );
 
     const response = await DELETE(request, {
-      params: { id: project.id, scriptId: fakeId },
+      params: Promise.resolve({ project_id: project.id, scriptId: fakeId }),
     });
     expect(response.status).toBe(404);
   });
@@ -187,7 +187,7 @@ describe('DELETE /api/projects/[project_id]/scripts/[scriptId]', () => {
     );
 
     const response = await DELETE(request, {
-      params: { id: project.id, scriptId: script.id },
+      params: Promise.resolve({ project_id: project.id, scriptId: script.id }),
     });
     expect(response.status).toBe(401);
   });

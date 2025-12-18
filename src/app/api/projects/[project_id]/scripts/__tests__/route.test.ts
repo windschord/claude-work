@@ -48,14 +48,16 @@ describe('GET /api/projects/[project_id]/scripts', () => {
       }
     );
 
-    const response = await GET(request, { params: { id: project.id } });
+    const response = await GET(request, {
+      params: Promise.resolve({ project_id: project.id }),
+    });
     expect(response.status).toBe(200);
 
     const data = await response.json();
-    expect(data).toHaveLength(2);
-    expect(data[0].name).toBe('Test');
-    expect(data[0].command).toBe('npm test');
-    expect(data[1].name).toBe('Build');
+    expect(data.scripts).toHaveLength(2);
+    expect(data.scripts[0].name).toBe('Test');
+    expect(data.scripts[0].command).toBe('npm test');
+    expect(data.scripts[1].name).toBe('Build');
   });
 
   it('should return empty array when no scripts exist', async () => {
@@ -68,11 +70,13 @@ describe('GET /api/projects/[project_id]/scripts', () => {
       }
     );
 
-    const response = await GET(request, { params: { id: project.id } });
+    const response = await GET(request, {
+      params: Promise.resolve({ project_id: project.id }),
+    });
     expect(response.status).toBe(200);
 
     const data = await response.json();
-    expect(data).toEqual([]);
+    expect(data.scripts).toEqual([]);
   });
 
   it('should return 401 if not authenticated', async () => {
@@ -80,7 +84,9 @@ describe('GET /api/projects/[project_id]/scripts', () => {
       `http://localhost:3000/api/projects/${project.id}/scripts`
     );
 
-    const response = await GET(request, { params: { id: project.id } });
+    const response = await GET(request, {
+      params: Promise.resolve({ project_id: project.id }),
+    });
     expect(response.status).toBe(401);
   });
 });
@@ -118,14 +124,16 @@ describe('POST /api/projects/[project_id]/scripts', () => {
       }
     );
 
-    const response = await POST(request, { params: { id: project.id } });
+    const response = await POST(request, {
+      params: Promise.resolve({ project_id: project.id }),
+    });
     expect(response.status).toBe(201);
 
     const data = await response.json();
-    expect(data.name).toBe('Test');
-    expect(data.description).toBe('Run unit tests');
-    expect(data.command).toBe('npm test');
-    expect(data.project_id).toBe(project.id);
+    expect(data.script.name).toBe('Test');
+    expect(data.script.description).toBe('Run unit tests');
+    expect(data.script.command).toBe('npm test');
+    expect(data.script.project_id).toBe(project.id);
 
     const script = await prisma.runScript.findFirst({
       where: { project_id: project.id },
@@ -150,13 +158,15 @@ describe('POST /api/projects/[project_id]/scripts', () => {
       }
     );
 
-    const response = await POST(request, { params: { id: project.id } });
+    const response = await POST(request, {
+      params: Promise.resolve({ project_id: project.id }),
+    });
     expect(response.status).toBe(201);
 
     const data = await response.json();
-    expect(data.name).toBe('Build');
-    expect(data.description).toBeNull();
-    expect(data.command).toBe('npm run build');
+    expect(data.script.name).toBe('Build');
+    expect(data.script.description).toBeNull();
+    expect(data.script.command).toBe('npm run build');
   });
 
   it('should return 400 if name is missing', async () => {
@@ -174,7 +184,9 @@ describe('POST /api/projects/[project_id]/scripts', () => {
       }
     );
 
-    const response = await POST(request, { params: { id: project.id } });
+    const response = await POST(request, {
+      params: Promise.resolve({ project_id: project.id }),
+    });
     expect(response.status).toBe(400);
   });
 
@@ -193,7 +205,9 @@ describe('POST /api/projects/[project_id]/scripts', () => {
       }
     );
 
-    const response = await POST(request, { params: { id: project.id } });
+    const response = await POST(request, {
+      params: Promise.resolve({ project_id: project.id }),
+    });
     expect(response.status).toBe(400);
   });
 
@@ -212,7 +226,9 @@ describe('POST /api/projects/[project_id]/scripts', () => {
       }
     );
 
-    const response = await POST(request, { params: { id: project.id } });
+    const response = await POST(request, {
+      params: Promise.resolve({ project_id: project.id }),
+    });
     expect(response.status).toBe(401);
   });
 });
