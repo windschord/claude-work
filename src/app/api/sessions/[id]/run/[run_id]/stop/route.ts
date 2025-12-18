@@ -19,6 +19,7 @@ const runScriptManager = RunScriptManager.getInstance();
  * @returns
  * - 200: ランスクリプト停止成功
  * - 401: 認証されていない
+ * - 403: セッションへのアクセス権限がない
  * - 404: セッションまたはrun_idが見つからない
  * - 500: サーバーエラー
  *
@@ -59,6 +60,11 @@ export async function POST(
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });
     }
 
+    // Verify ownership
+    if (authSession.user_id !== targetSession.user_id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     // Check if the run_id exists
     const runStatus = runScriptManager.getStatus(run_id);
     if (!runStatus) {
@@ -82,7 +88,15 @@ export async function POST(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    const { id: errorId, run_id: errorRunId } = await params;
+    let errorId = 'unknown';
+    let errorRunId = 'unknown';
+    try {
+      const resolvedParams = await params;
+      errorId = resolvedParams.id;
+      errorRunId = resolvedParams.run_id;
+    } catch {
+      // params resolution failed, use defaults
+    }
     logger.error('Failed to stop run script', {
       error,
       session_id: errorId,

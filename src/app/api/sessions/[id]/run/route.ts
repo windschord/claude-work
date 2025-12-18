@@ -19,6 +19,7 @@ const runScriptManager = RunScriptManager.getInstance();
  * - 202: ランスクリプト実行開始（run_idを返却）
  * - 400: script_nameが指定されていない
  * - 401: 認証されていない
+ * - 403: セッションへのアクセス権限がない
  * - 404: セッション、プロジェクト、またはスクリプトが見つからない
  * - 500: サーバーエラー
  *
@@ -66,6 +67,11 @@ export async function POST(
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });
     }
 
+    // Verify ownership
+    if (authSession.user_id !== targetSession.user_id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const body = await request.json();
     const { script_name } = body;
 
@@ -104,7 +110,13 @@ export async function POST(
 
     return NextResponse.json({ run_id: runId }, { status: 202 });
   } catch (error) {
-    const { id: errorId } = await params;
+    let errorId = 'unknown';
+    try {
+      const resolvedParams = await params;
+      errorId = resolvedParams.id;
+    } catch {
+      // params resolution failed, use default
+    }
     logger.error('Failed to start run script', { error, session_id: errorId });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

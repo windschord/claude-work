@@ -19,6 +19,7 @@ import { basename } from 'path';
  * - 200: リセット成功
  * - 400: commit_hashが未指定またはリセット失敗
  * - 401: 認証されていない
+ * - 403: セッションへのアクセス権限がない
  * - 404: セッションが見つからない
  * - 500: サーバーエラー
  *
@@ -62,6 +63,11 @@ export async function POST(
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });
     }
 
+    // Verify ownership
+    if (session.user_id !== targetSession.user_id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const body = await request.json();
     const { commit_hash } = body;
 
@@ -87,7 +93,13 @@ export async function POST(
     logger.info('Reset session successfully', { id, commit_hash });
     return NextResponse.json(result);
   } catch (error) {
-    const { id: errorId } = await params;
+    let errorId = 'unknown';
+    try {
+      const resolvedParams = await params;
+      errorId = resolvedParams.id;
+    } catch {
+      // params resolution failed, use default
+    }
     logger.error('Failed to reset session', { error, session_id: errorId });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
