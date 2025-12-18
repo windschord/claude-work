@@ -497,27 +497,29 @@ sequenceDiagram
 **レスポンス（200）**:
 ```json
 {
-  "id": "uuid",
-  "name": "feature-auth",
-  "status": "waiting_input",
-  "git_status": "dirty",
-  "model": "sonnet",
-  "worktree_path": "/path/to/worktree",
-  "messages": [
-    {
-      "role": "user",
-      "content": "Implement auth",
-      "timestamp": "2025-12-08T10:00:00Z"
-    },
-    {
-      "role": "assistant",
-      "content": "I'll implement...",
-      "timestamp": "2025-12-08T10:00:05Z",
-      "sub_agents": [
-        {"name": "file_edit", "output": "..."}
-      ]
-    }
-  ]
+  "session": {
+    "id": "uuid",
+    "name": "feature-auth",
+    "status": "waiting_input",
+    "git_status": "dirty",
+    "model": "sonnet",
+    "worktree_path": "/path/to/worktree",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Implement auth",
+        "timestamp": "2025-12-08T10:00:00Z"
+      },
+      {
+        "role": "assistant",
+        "content": "I'll implement...",
+        "timestamp": "2025-12-08T10:00:05Z",
+        "sub_agents": [
+          {"name": "file_edit", "output": "..."}
+        ]
+      }
+    ]
+  }
 }
 ```
 
@@ -534,10 +536,12 @@ sequenceDiagram
 **レスポンス（200）**:
 ```json
 {
-  "id": "msg-uuid",
-  "role": "user",
-  "content": "Please also add tests",
-  "timestamp": "2025-12-08T10:05:00Z"
+  "message": {
+    "id": "msg-uuid",
+    "role": "user",
+    "content": "Please also add tests",
+    "timestamp": "2025-12-08T10:05:00Z"
+  }
 }
 ```
 
@@ -566,13 +570,15 @@ sequenceDiagram
 **レスポンス（200）**:
 ```json
 {
-  "id": "uuid",
-  "name": "feature-auth",
-  "status": "stopped",
-  "git_status": "dirty",
-  "model": "sonnet",
-  "worktree_path": "/path/to/worktree",
-  "created_at": "2025-12-08T10:00:00Z"
+  "session": {
+    "id": "uuid",
+    "name": "feature-auth",
+    "status": "stopped",
+    "git_status": "dirty",
+    "model": "sonnet",
+    "worktree_path": "/path/to/worktree",
+    "created_at": "2025-12-08T10:00:00Z"
+  }
 }
 ```
 
