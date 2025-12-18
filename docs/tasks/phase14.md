@@ -10,7 +10,7 @@ Phase 13マージ後の動作検証で発見された環境変数設定の問題
 
 **参照**:
 - `docs/verification-report-phase13-post-merge.md`
-- PR #2: https://github.com/windschord/claude-work/pull/2
+- [PR #2](https://github.com/windschord/claude-work/pull/2)
 
 ---
 

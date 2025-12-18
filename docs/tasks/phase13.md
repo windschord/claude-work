@@ -136,7 +136,7 @@ Next.jsアプリケーションが起動しない問題を修正します。開�
    `src/lib/db.test.ts`を作成し、以下のテストケースを実装：
 
    ```typescript
-   import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+   import { describe, it, expect, afterEach, vi } from 'vitest';
 
    describe('Database Configuration', () => {
      const originalEnv = process.env.DATABASE_URL;
@@ -148,23 +148,24 @@ Next.jsアプリケーションが起動しない問題を修正します。開�
        } else {
          delete process.env.DATABASE_URL;
        }
+       vi.resetModules();
      });
 
-     it('DATABASE_URLが設定されていない場合、エラーをスローする', () => {
+     it('DATABASE_URLが設定されていない場合、エラーをスローする', async () => {
        delete process.env.DATABASE_URL;
 
-       expect(() => {
+       await expect(async () => {
          // db.tsを再読み込みしてチェック
-         jest.resetModules();
-         require('./db');
-       }).toThrow('DATABASE_URL environment variable is not set');
+         vi.resetModules();
+         await import('./db');
+       }).rejects.toThrow('DATABASE_URL environment variable is not set');
      });
 
      it('DATABASE_URLが設定されている場合、エラーをスローしない', () => {
        process.env.DATABASE_URL = 'file:./prisma/data/claudework.db';
 
        expect(() => {
-         jest.resetModules();
+         vi.resetModules();
          require('./db');
        }).not.toThrow();
      });
@@ -173,7 +174,7 @@ Next.jsアプリケーションが起動しない問題を修正します。開�
        process.env.DATABASE_URL = '';
 
        expect(() => {
-         jest.resetModules();
+         vi.resetModules();
          require('./db');
        }).toThrow('DATABASE_URL environment variable is not set');
      });

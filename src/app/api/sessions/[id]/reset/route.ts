@@ -65,13 +65,19 @@ export async function POST(
     const body = await request.json();
     const { commit_hash } = body;
 
-    if (!commit_hash) {
+    if (!commit_hash || typeof commit_hash !== 'string') {
       return NextResponse.json({ error: 'commit_hash is required' }, { status: 400 });
+    }
+
+    const trimmedCommitHash = commit_hash.trim();
+    const isValidCommitHash = /^[0-9a-f]{4,40}$/i.test(trimmedCommitHash);
+    if (!isValidCommitHash) {
+      return NextResponse.json({ error: 'Invalid commit_hash format' }, { status: 400 });
     }
 
     const sessionName = basename(targetSession.worktree_path);
     const gitService = new GitService(targetSession.project.path, logger);
-    const result = gitService.reset(sessionName, commit_hash);
+    const result = gitService.reset(sessionName, trimmedCommitHash);
 
     if (!result.success) {
       logger.warn('Reset failed', { id, commit_hash, error: result.error });

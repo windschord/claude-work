@@ -73,11 +73,11 @@ export async function POST(
         run_id,
       });
     } catch (error) {
-      logger.warn('Failed to stop run script', {
-        error,
-        session_id: targetSession.id,
-        run_id,
-      });
+      logger.warn('Failed to stop run script', { error, run_id });
+      return NextResponse.json(
+        { error: 'Failed to stop run script' },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({ success: true });

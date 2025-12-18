@@ -206,6 +206,7 @@ export class RunScriptManager extends EventEmitter {
    *
    * 指定されたrun_idのプロセスにSIGTERMシグナルを送信して停止します。
    * プロセスの状態は'stopped'に更新されます。
+   * 5秒経ってもプロセスが終了しない場合はSIGKILLで強制終了します。
    *
    * @param runId - 停止する実行ID
    * @throws run_idが存在しない場合にエラーをスロー
@@ -216,8 +217,16 @@ export class RunScriptManager extends EventEmitter {
       throw new Error(`Run script ${runId} not found`);
     }
 
-    processData.process.kill();
+    // Try graceful shutdown first (SIGTERM)
+    processData.process.kill('SIGTERM');
     processData.info.status = 'stopped';
+
+    // Set a timeout to force kill if process doesn't exit
+    setTimeout(() => {
+      if (this.processes.has(runId)) {
+        processData.process.kill('SIGKILL');
+      }
+    }, 5000); // 5 seconds grace period
   }
 
   /**

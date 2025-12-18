@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { logger } from '@/lib/logger';
+import { getSession } from '@/lib/auth';
 
 /**
  * GET /api/prompts - プロンプト履歴取得
@@ -32,8 +33,18 @@ import { logger } from '@/lib/logger';
  * }
  * ```
  */
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
+    const sessionId = request.cookies.get('sessionId')?.value;
+    if (!sessionId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const session = await getSession(sessionId);
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const prompts = await prisma.prompt.findMany({
       orderBy: { used_count: 'desc' },
       take: 50,
@@ -86,6 +97,16 @@ export async function GET(_request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
+    const sessionId = request.cookies.get('sessionId')?.value;
+    if (!sessionId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const session = await getSession(sessionId);
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     let body;
     try {
       body = await request.json();
