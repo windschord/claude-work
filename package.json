@@ -19,7 +19,8 @@
     "test:watch": "vitest",
     "e2e": "playwright test",
     "e2e:ui": "playwright test --ui",
-    "e2e:headed": "playwright test --headed"
+    "e2e:headed": "playwright test --headed",
+    "integration-test": "ts-node -r tsconfig-paths/register scripts/integration-test.ts"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.9",
