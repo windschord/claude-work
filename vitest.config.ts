@@ -12,7 +12,6 @@ export default defineConfig({
     exclude: [
       '**/node_modules/**',
       '**/dist/**',
-      '**/db.test.ts',
       '**/process-manager.test.ts',  // TODO: モック問題により一時的に除外
       '**/e2e/**',  // Playwrightのe2eテストを除外
       // CI環境で不安定なテストを一時的に除外
