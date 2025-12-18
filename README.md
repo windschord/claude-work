@@ -71,6 +71,64 @@ npx claude-work
 
 詳細は [API.md](docs/API.md) を参照してください。
 
+## テスト
+
+### ユニットテスト
+
+```bash
+# すべてのテストを実行
+npm test
+
+# テストをウォッチモードで実行
+npm run test:watch
+```
+
+### E2Eテスト
+
+```bash
+# E2Eテストを実行
+npm run e2e
+
+# UIモードでE2Eテストを実行
+npm run e2e:ui
+
+# ブラウザを表示してE2Eテストを実行
+npm run e2e:headed
+```
+
+### 統合テスト
+
+統合テストスクリプトは、実際のClaude Codeプロセスを起動して手動テストを支援します。
+
+```bash
+# 統合テストスクリプトを実行
+npm run integration-test
+```
+
+このスクリプトは以下を行います:
+- 開発サーバーを起動（環境変数を自動設定）
+- テストチェックリストを表示
+- インタラクティブメニューを提供
+
+テスト結果は `docs/integration-test-report.md` に記録してください。
+
+#### 環境変数
+
+統合テストには以下の環境変数を使用できます:
+
+```bash
+# カスタム環境変数で実行
+CLAUDE_WORK_TOKEN=my-token \
+SESSION_SECRET=my-secret-32-characters-long \
+PORT=3001 \
+npm run integration-test
+```
+
+環境変数を指定しない場合、以下のデフォルト値が使用されます:
+- `CLAUDE_WORK_TOKEN`: test-token
+- `SESSION_SECRET`: test-session-secret-32-characters-long
+- `PORT`: 3000
+
 ## ライセンス
 
 Apache License 2.0 - 詳細は [LICENSE](LICENSE) を参照してください。

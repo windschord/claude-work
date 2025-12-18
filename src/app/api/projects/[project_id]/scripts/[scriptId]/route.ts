@@ -114,6 +114,21 @@ export async function PUT(
       );
     }
 
+    // シェルインジェクション対策: 危険なメタ文字を含むコマンドを拒否
+    if (body.command !== undefined) {
+      const dangerousPatterns = /[;&|`$(){}<>\n]/;
+      if (dangerousPatterns.test(body.command)) {
+        return NextResponse.json(
+          {
+            error:
+              'Command contains dangerous shell metacharacters. ' +
+              'Please use simple commands without ; & | ` $ () {} < > or newlines.',
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     const existing = await prisma.runScript.findFirst({
       where: { id: scriptId, project_id: projectId },
     });

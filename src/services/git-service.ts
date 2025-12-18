@@ -502,6 +502,53 @@ export class GitService {
   }
 
   /**
+   * 指定されたコミットにリセット
+   *
+   * セッションのworktreeを指定されたコミットハッシュにリセットします。
+   * git reset --hard を使用するため、未コミットの変更は破棄されます。
+   *
+   * @param sessionName - セッション名
+   * @param commitHash - コミットハッシュ（フルハッシュまたはショートハッシュ）
+   * @returns リセットの成功/失敗とエラーメッセージ（失敗時のみ）
+   */
+  reset(sessionName: string, commitHash: string): { success: boolean; error?: string } {
+    this.validateName(sessionName, 'session');
+
+    const worktreePath = this.getWorktreePath(sessionName);
+
+    try {
+      const result = spawnSync('git', ['reset', '--hard', commitHash], {
+        cwd: worktreePath,
+        encoding: 'utf-8',
+      });
+
+      if (result.error || result.status !== 0) {
+        const errorMsg = result.stderr || result.error?.message || 'Failed to reset';
+        this.logger.error('Failed to reset', { error: errorMsg, sessionName, commitHash });
+        return { success: false, error: errorMsg };
+      }
+
+      this.logger.info('Reset to commit', { sessionName, commitHash });
+      return { success: true };
+    } catch (error) {
+      this.logger.error('Failed to reset', { error, sessionName, commitHash });
+      return { success: false, error: String(error) };
+    }
+  }
+
+  /**
+   * セッションのworktreeパスを取得
+   *
+   * @param sessionName - セッション名
+   * @returns worktreeパス
+   */
+  private getWorktreePath(sessionName: string): string {
+    const worktreePath = join(this.repoPath, '.worktrees', sessionName);
+    this.validateWorktreePath(worktreePath);
+    return worktreePath;
+  }
+
+  /**
    * セッションブランチをmainにスカッシュマージ
    *
    * 指定されたセッションのworktreeのブランチを、mainブランチにスカッシュマージします。

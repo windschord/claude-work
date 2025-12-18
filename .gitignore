@@ -246,3 +246,6 @@ test-results/
 playwright-report/
 
 /src/generated/prisma
+
+# Git worktrees
+.worktrees/

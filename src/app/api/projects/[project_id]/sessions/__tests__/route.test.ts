@@ -97,9 +97,10 @@ describe('GET /api/projects/[project_id]/sessions', () => {
     expect(response.status).toBe(200);
 
     const data = await response.json();
-    expect(data).toHaveLength(1);
-    expect(data[0].name).toBe('Test Session');
-    expect(data[0].project_id).toBe(project.id);
+    expect(data).toHaveProperty('sessions');
+    expect(data.sessions).toHaveLength(1);
+    expect(data.sessions[0].name).toBe('Test Session');
+    expect(data.sessions[0].project_id).toBe(project.id);
   });
 
   it('should return 401 if not authenticated', async () => {
@@ -313,5 +314,77 @@ describe('POST /api/projects/[project_id]/sessions', () => {
     expect(response.status).toBe(400);
     const data = await response.json();
     expect(data.error).toBe('Name and prompt are required');
+  });
+
+  it('should save prompt to Prompt table when creating session', async () => {
+    await prisma.prompt.deleteMany();
+
+    const request = new NextRequest(
+      `http://localhost:3000/api/projects/${project.id}/sessions`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: `sessionId=${authSession.id}`,
+        },
+        body: JSON.stringify({
+          name: 'New Session',
+          prompt: 'Implement user authentication',
+          model: 'sonnet',
+        }),
+      }
+    );
+
+    const response = await POST(request, { params: { project_id: project.id } });
+    expect(response.status).toBe(201);
+
+    // プロンプトが保存されたか確認
+    const savedPrompt = await prisma.prompt.findFirst({
+      where: { content: 'Implement user authentication' },
+    });
+    expect(savedPrompt).toBeTruthy();
+    expect(savedPrompt?.used_count).toBe(1);
+    expect(savedPrompt?.last_used_at).toBeTruthy();
+  });
+
+  it('should increment used_count if prompt already exists', async () => {
+    await prisma.prompt.deleteMany();
+
+    // 既存のプロンプトを作成
+    const existingPrompt = await prisma.prompt.create({
+      data: {
+        content: 'Fix bug in authentication',
+        used_count: 3,
+        last_used_at: new Date('2025-12-10T10:00:00Z'),
+      },
+    });
+
+    const request = new NextRequest(
+      `http://localhost:3000/api/projects/${project.id}/sessions`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: `sessionId=${authSession.id}`,
+        },
+        body: JSON.stringify({
+          name: 'New Session',
+          prompt: 'Fix bug in authentication',
+          model: 'sonnet',
+        }),
+      }
+    );
+
+    const response = await POST(request, { params: { project_id: project.id } });
+    expect(response.status).toBe(201);
+
+    // used_countがインクリメントされたか確認
+    const updatedPrompt = await prisma.prompt.findUnique({
+      where: { id: existingPrompt.id },
+    });
+    expect(updatedPrompt?.used_count).toBe(4);
+    expect(updatedPrompt?.last_used_at.getTime()).toBeGreaterThan(
+      existingPrompt.last_used_at.getTime()
+    );
   });
 });
