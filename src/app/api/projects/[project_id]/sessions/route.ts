@@ -190,6 +190,29 @@ export async function POST(
       },
     });
 
+    // プロンプトを保存または更新
+    const existingPrompt = await prisma.prompt.findFirst({
+      where: { content: prompt },
+    });
+
+    if (existingPrompt) {
+      await prisma.prompt.update({
+        where: { id: existingPrompt.id },
+        data: {
+          used_count: { increment: 1 },
+          last_used_at: new Date(),
+        },
+      });
+    } else {
+      await prisma.prompt.create({
+        data: {
+          content: prompt,
+          used_count: 1,
+          last_used_at: new Date(),
+        },
+      });
+    }
+
     try {
       await processManager.startClaudeCode({
         sessionId: newSession.id,
