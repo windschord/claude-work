@@ -5,11 +5,26 @@
  * 未設定の場合は詳細なエラーメッセージを表示します。
  */
 
-interface EnvValidationError {
+/**
+ * 環境変数のバリデーションエラー情報
+ */
+export interface EnvValidationError {
+  /** エラーが発生した環境変数名 */
   variable: string;
+  /** エラーメッセージの詳細 */
   message: string;
 }
 
+/**
+ * 必須環境変数の存在と有効性を検証します
+ *
+ * 以下の環境変数をチェックします：
+ * - CLAUDE_WORK_TOKEN: 認証に必要なトークン
+ * - SESSION_SECRET: セッション暗号化に必要な32文字以上の秘密鍵
+ * - DATABASE_URL: データベース接続URL
+ *
+ * @throws {Error} 必須環境変数が未設定または無効な場合、詳細なエラーメッセージとセットアップ手順を含むエラーをスロー
+ */
 export function validateRequiredEnvVars(): void {
   const errors: EnvValidationError[] = [];
 
