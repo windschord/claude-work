@@ -454,7 +454,14 @@ export class GitService {
       }> = [];
 
       const lines = output.split('\n');
-      let currentCommit: any = null;
+      let currentCommit: {
+        hash: string;
+        short_hash: string;
+        message: string;
+        author: string;
+        date: string;
+        files_changed: number;
+      } | null = null;
       let filesChanged = 0;
 
       for (const line of lines) {
