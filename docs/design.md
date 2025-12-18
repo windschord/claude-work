@@ -801,9 +801,11 @@ ws://host/ws/terminal/{session_id}
 | name | TEXT | NOT NULL | プロジェクト名 |
 | path | TEXT | NOT NULL UNIQUE | Gitリポジトリパス |
 | default_model | TEXT | DEFAULT 'auto' | デフォルトモデル |
-| run_scripts | TEXT | | JSON形式のランスクリプト配列 |
 | created_at | TEXT | NOT NULL | 作成日時（ISO 8601） |
 | updated_at | TEXT | NOT NULL | 更新日時（ISO 8601） |
+
+**リレーション**:
+- `RunScript` テーブルと1対多のリレーション（project_id経由）
 
 ### テーブル: sessions
 
@@ -839,6 +841,24 @@ ws://host/ws/terminal/{session_id}
 | used_count | INTEGER | DEFAULT 1 | 使用回数 |
 | last_used_at | TEXT | NOT NULL | 最終使用日時 |
 | created_at | TEXT | NOT NULL | 作成日時 |
+
+### テーブル: run_scripts
+
+| カラム | 型 | 制約 | 説明 |
+|--------|------|------|------|
+| id | TEXT | PRIMARY KEY | UUID |
+| project_id | TEXT | FOREIGN KEY | プロジェクトID |
+| name | TEXT | NOT NULL | スクリプト名 |
+| description | TEXT | | スクリプトの説明 |
+| command | TEXT | NOT NULL | 実行するコマンド |
+| created_at | TEXT | NOT NULL | 作成日時（ISO 8601） |
+| updated_at | TEXT | NOT NULL | 更新日時（ISO 8601） |
+
+**インデックス**:
+- `project_id` にインデックス
+
+**リレーション**:
+- `Project` テーブルと多対1のリレーション（project_id経由）
 
 ### テーブル: auth_sessions
 
