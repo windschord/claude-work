@@ -14,6 +14,7 @@ export default defineConfig({
       '**/dist/**',
       '**/process-manager.test.ts',  // TODO: モック問題により一時的に除外
       '**/e2e/**',  // Playwrightのe2eテストを除外
+      '.worktrees/**',  // worktreeディレクトリのテストを除外
       // CI環境で不安定なテストを一時的に除外
       ...(process.env.CI ? [
         '**/pty-manager.test.ts',
@@ -44,6 +45,18 @@ export default defineConfig({
       deps: {
         inline: [],
       },
+    },
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html'],
+      exclude: [
+        'node_modules/',
+        'dist/',
+        '.worktrees/',
+        '**/*.config.ts',
+        '**/__tests__/**',
+        '**/tests/**',
+      ],
     },
   },
   resolve: {
