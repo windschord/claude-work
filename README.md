@@ -24,13 +24,31 @@ ClaudeWork は、Claude Code セッションをブラウザから管理するた
 npx claude-work
 ```
 
-初回起動時に認証トークンを設定します:
+### 環境変数の設定
 
-```text
-export CLAUDE_WORK_TOKEN="your-secret-token"
-export SESSION_SECRET="your-32-character-or-longer-secret"
-npx claude-work
-```
+**重要**: `.env`ファイルで`DATABASE_URL`を必ず設定してください。未設定の場合、アプリケーションは起動しません。
+
+1. `.env.example`をコピーして`.env`ファイルを作成:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. `.env`ファイルで必須の環境変数を設定:
+   ```bash
+   # 必須: データベースURL
+   DATABASE_URL=file:./prisma/data/claudework.db
+
+   # 必須: 認証トークン
+   CLAUDE_WORK_TOKEN=your-secret-token
+
+   # 必須: セッションシークレット（32文字以上）
+   SESSION_SECRET=your-32-character-or-longer-secret
+   ```
+
+3. アプリケーションを起動:
+   ```bash
+   npx claude-work
+   ```
 
 ブラウザで `http://localhost:3000` を開き、設定したトークンでログインします。
 
@@ -42,8 +60,8 @@ npx claude-work
 |--------|------|-----------|
 | `CLAUDE_WORK_TOKEN` | 認証トークン | なし（必須） |
 | `SESSION_SECRET` | セッション暗号化用シークレット | なし（必須） |
+| `DATABASE_URL` | SQLite データベースパス | なし（必須） |
 | `PORT` | サーバーポート | 3000 |
-| `DATABASE_URL` | SQLite データベースパス | file:./data/claudework.db |
 | `NODE_ENV` | 実行環境 | development |
 | `LOG_LEVEL` | ログレベル | info |
 | `ALLOWED_ORIGINS` | CORS許可オリジン | なし |

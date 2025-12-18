@@ -1,8 +1,14 @@
 import { PrismaClient, Prisma } from '@prisma/client';
 
-// Set default DATABASE_URL for tests if not set
-if (!process.env.DATABASE_URL) {
-  process.env.DATABASE_URL = 'file:./data/test.db';
+// DATABASE_URL環境変数の検証
+const databaseUrl = process.env.DATABASE_URL;
+
+if (!databaseUrl || databaseUrl.trim() === '') {
+  throw new Error(
+    'DATABASE_URL environment variable is not set. ' +
+    'Please set it in your .env file. ' +
+    'Example: DATABASE_URL=file:./prisma/data/claudework.db'
+  );
 }
 
 /**
