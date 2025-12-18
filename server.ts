@@ -8,6 +8,18 @@ import { ConnectionManager } from './src/lib/websocket/connection-manager';
 import { SessionWebSocketHandler } from './src/lib/websocket/session-ws';
 import { setupTerminalWebSocket } from './src/lib/websocket/terminal-ws';
 import { logger } from './src/lib/logger';
+import { validateRequiredEnvVars } from './src/lib/env-validation';
+
+// 環境変数のバリデーション（サーバー起動前）
+try {
+  validateRequiredEnvVars();
+} catch (error) {
+  if (error instanceof Error) {
+    console.error('\nEnvironment variable validation failed:\n');
+    console.error(error.message);
+  }
+  process.exit(1);
+}
 
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = 'localhost';
