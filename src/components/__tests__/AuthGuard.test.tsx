@@ -9,12 +9,13 @@ vi.mock('@/store', () => ({
 }));
 
 // Next.jsのナビゲーションモック
-const mockRedirect = vi.fn();
+const mockPush = vi.fn();
+const mockReplace = vi.fn();
 vi.mock('next/navigation', () => ({
-  redirect: (path: string) => {
-    mockRedirect(path);
-    throw new Error(`NEXT_REDIRECT: ${path}`); // Next.jsのredirectは例外をスローする
-  },
+  useRouter: () => ({
+    push: mockPush,
+    replace: mockReplace,
+  }),
   usePathname: () => '/test',
 }));
 
@@ -23,7 +24,8 @@ describe('AuthGuard', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockRedirect.mockClear();
+    mockPush.mockClear();
+    mockReplace.mockClear();
   });
 
   afterEach(() => {
@@ -53,16 +55,15 @@ describe('AuthGuard', () => {
       checkAuth: mockCheckAuth,
     });
 
-    // redirectは例外をスローするので、エラーをキャッチする
-    expect(() => {
-      render(
-        <AuthGuard>
-          <div>Protected Content</div>
-        </AuthGuard>
-      );
-    }).toThrow('NEXT_REDIRECT: /login');
+    render(
+      <AuthGuard>
+        <div>Protected Content</div>
+      </AuthGuard>
+    );
 
-    expect(mockRedirect).toHaveBeenCalledWith('/login');
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/login');
+    });
   });
 
   it('マウント時にcheckAuth()が呼ばれる', async () => {
@@ -114,12 +115,14 @@ describe('AuthGuard', () => {
       checkAuth: mockCheckAuthWithError,
     });
 
-    expect(() => {
-      render(
-        <AuthGuard>
-          <div>Protected Content</div>
-        </AuthGuard>
-      );
-    }).toThrow('NEXT_REDIRECT: /login');
+    render(
+      <AuthGuard>
+        <div>Protected Content</div>
+      </AuthGuard>
+    );
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/login');
+    });
   });
 });
