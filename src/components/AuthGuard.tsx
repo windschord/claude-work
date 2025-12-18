@@ -27,8 +27,14 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const checkAuthentication = async () => {
-      await checkAuth();
-      setIsChecking(false);
+      try {
+        await checkAuth();
+      } catch (error) {
+        // エラーが発生した場合でも、認証チェックを完了とみなす
+        console.error('Authentication check failed:', error);
+      } finally {
+        setIsChecking(false);
+      }
     };
 
     checkAuthentication();

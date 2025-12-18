@@ -1,4 +1,4 @@
-import { render, screen, waitFor, cleanup } from '@testing-library/react';
+import { render, screen, waitFor, cleanup, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import AuthGuard from '../AuthGuard';
 import { useAppStore } from '@/store';
@@ -38,11 +38,13 @@ describe('AuthGuard', () => {
       checkAuth: mockCheckAuth,
     });
 
-    render(
-      <AuthGuard>
-        <div>Protected Content</div>
-      </AuthGuard>
-    );
+    await act(async () => {
+      render(
+        <AuthGuard>
+          <div>Protected Content</div>
+        </AuthGuard>
+      );
+    });
 
     await waitFor(() => {
       expect(screen.getByText('Protected Content')).toBeInTheDocument();
@@ -55,11 +57,13 @@ describe('AuthGuard', () => {
       checkAuth: mockCheckAuth,
     });
 
-    render(
-      <AuthGuard>
-        <div>Protected Content</div>
-      </AuthGuard>
-    );
+    await act(async () => {
+      render(
+        <AuthGuard>
+          <div>Protected Content</div>
+        </AuthGuard>
+      );
+    });
 
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith('/login');
@@ -72,11 +76,13 @@ describe('AuthGuard', () => {
       checkAuth: mockCheckAuth,
     });
 
-    render(
-      <AuthGuard>
-        <div>Protected Content</div>
-      </AuthGuard>
-    );
+    await act(async () => {
+      render(
+        <AuthGuard>
+          <div>Protected Content</div>
+        </AuthGuard>
+      );
+    });
 
     await waitFor(() => {
       expect(mockCheckAuth).toHaveBeenCalledTimes(1);
@@ -92,11 +98,13 @@ describe('AuthGuard', () => {
       checkAuth: mockCheckAuthWithStateChange,
     });
 
-    render(
-      <AuthGuard>
-        <div>Protected Content</div>
-      </AuthGuard>
-    );
+    await act(async () => {
+      render(
+        <AuthGuard>
+          <div>Protected Content</div>
+        </AuthGuard>
+      );
+    });
 
     // 認証済み状態では子コンポーネントが表示される
     await waitFor(() => {
@@ -115,14 +123,21 @@ describe('AuthGuard', () => {
       checkAuth: mockCheckAuthWithError,
     });
 
-    render(
-      <AuthGuard>
-        <div>Protected Content</div>
-      </AuthGuard>
-    );
-
-    await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith('/login');
+    await act(async () => {
+      render(
+        <AuthGuard>
+          <div>Protected Content</div>
+        </AuthGuard>
+      );
     });
+
+    // エラーが発生してもfinally句でsetIsChecking(false)が呼ばれるため、
+    // isAuthenticatedがfalseの場合はリダイレクトが実行される
+    await waitFor(
+      () => {
+        expect(mockPush).toHaveBeenCalledWith('/login');
+      },
+      { timeout: 3000 }
+    );
   });
 });
