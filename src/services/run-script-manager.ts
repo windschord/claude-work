@@ -28,7 +28,7 @@ export interface RunInfo {
   /** プロセスID */
   pid: number;
   /** プロセスの状態 */
-  status: 'running' | 'stopped';
+  status: 'running' | 'stopping' | 'stopped';
   /** 開始時刻 */
   startTime: number;
 }
@@ -41,6 +41,8 @@ interface ProcessData {
   process: ChildProcess;
   /** プロセス情報 */
   info: RunInfo;
+  /** 強制終了タイムアウトID */
+  killTimeout?: NodeJS.Timeout;
 }
 
 /**
@@ -102,11 +104,16 @@ export class RunScriptManager extends EventEmitter {
 
     // Wait for process to start successfully
     return new Promise((resolve, reject) => {
-      childProc.on('error', (error: NodeJS.ErrnoException) => {
+      const errorHandler = (error: NodeJS.ErrnoException) => {
         reject(error);
-      });
+      };
+
+      childProc.on('error', errorHandler);
 
       childProc.on('spawn', () => {
+        // spawn成功後はerrorリスナーを削除
+        childProc.removeListener('error', errorHandler);
+
         if (!childProc.pid) {
           reject(new Error(`Failed to spawn run script process for run ${runId}`));
           return;
@@ -172,6 +179,10 @@ export class RunScriptManager extends EventEmitter {
       const processData = this.processes.get(runId);
       if (processData) {
         processData.info.status = 'stopped';
+        // タイムアウトをクリア
+        if (processData.killTimeout) {
+          clearTimeout(processData.killTimeout);
+        }
         // メモリリークを防ぐため、終了したプロセスをMapから削除
         this.processes.delete(runId);
       }
@@ -192,8 +203,9 @@ export class RunScriptManager extends EventEmitter {
    * プロセスを停止
    *
    * 指定されたrun_idのプロセスにSIGTERMシグナルを送信して停止します。
-   * プロセスの状態は'stopped'に更新されます。
+   * プロセスの状態は'stopping'に更新されます。
    * 5秒経ってもプロセスが終了しない場合はSIGKILLで強制終了します。
+   * 実際に'stopped'状態になるのは、プロセスのexitイベントが発火した時です。
    *
    * @param runId - 停止する実行ID
    * @throws run_idが存在しない場合にエラーをスロー
@@ -205,13 +217,14 @@ export class RunScriptManager extends EventEmitter {
     }
 
     // Try graceful shutdown first (SIGTERM)
+    processData.info.status = 'stopping';
     processData.process.kill('SIGTERM');
-    processData.info.status = 'stopped';
 
     // Set a timeout to force kill if process doesn't exit
-    setTimeout(() => {
-      if (this.processes.has(runId)) {
-        processData.process.kill('SIGKILL');
+    processData.killTimeout = setTimeout(() => {
+      const currentData = this.processes.get(runId);
+      if (currentData) {
+        currentData.process.kill('SIGKILL');
       }
     }, 5000); // 5 seconds grace period
   }

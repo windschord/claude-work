@@ -171,6 +171,19 @@ export async function POST(
       );
     }
 
+    // シェルインジェクション対策: 危険なメタ文字を含むコマンドを拒否
+    const dangerousPatterns = /[;&|`$(){}<>\n]/;
+    if (dangerousPatterns.test(command)) {
+      return NextResponse.json(
+        {
+          error:
+            'Command contains dangerous shell metacharacters. ' +
+            'Please use simple commands without ; & | ` $ () {} < > or newlines.',
+        },
+        { status: 400 }
+      );
+    }
+
     // プロジェクト存在確認
     const project = await prisma.project.findUnique({
       where: { id: projectId },
