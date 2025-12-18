@@ -92,26 +92,13 @@ export class RunScriptManager extends EventEmitter {
     const runId = randomUUID();
 
     // コマンドを解析してspawnの引数を準備
-    let childProc: ChildProcess;
-
-    // シェル機能が必要なコマンド（&&、||、パイプなど）はshellオプションを使用
-    if (command.includes('&&') || command.includes('||') || command.includes('|')) {
-      childProc = spawn(command, {
-        cwd: workingDirectory,
-        stdio: ['pipe', 'pipe', 'pipe'],
-        shell: true,
-      });
-    } else {
-      // 単純なコマンドはスペースで分割
-      const parts = command.split(/\s+/);
-      const cmd = parts[0];
-      const args = parts.slice(1);
-
-      childProc = spawn(cmd, args, {
-        cwd: workingDirectory,
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
-    }
+    // 常にshellオプションを使用することで、引用符、リダイレクト、パイプなど
+    // すべてのシェル機能を一貫して処理できるようにする
+    const childProc: ChildProcess = spawn(command, {
+      cwd: workingDirectory,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      shell: true,
+    });
 
     // Wait for process to start successfully
     return new Promise((resolve, reject) => {
