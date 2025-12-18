@@ -97,8 +97,9 @@ describe('POST /api/sessions/[id]/stop', () => {
     expect(response.status).toBe(200);
 
     const data = await response.json();
-    expect(data.id).toBe(session.id);
-    expect(data.status).toBe('completed');
+    expect(data).toHaveProperty('session');
+    expect(data.session.id).toBe(session.id);
+    expect(data.session.status).toBe('completed');
 
     const updatedSession = await prisma.session.findUnique({
       where: { id: session.id },

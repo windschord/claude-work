@@ -93,10 +93,11 @@ describe('GET /api/sessions/[id]', () => {
     expect(response.status).toBe(200);
 
     const data = await response.json();
-    expect(data.id).toBe(session.id);
-    expect(data.name).toBe('Test Session');
-    expect(data.status).toBe('running');
-    expect(data.project_id).toBe(project.id);
+    expect(data).toHaveProperty('session');
+    expect(data.session.id).toBe(session.id);
+    expect(data.session.name).toBe('Test Session');
+    expect(data.session.status).toBe('running');
+    expect(data.session.project_id).toBe(project.id);
   });
 
   it('should return 404 for non-existent session', async () => {
