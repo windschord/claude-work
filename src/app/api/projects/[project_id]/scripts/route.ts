@@ -13,7 +13,7 @@ import { logger } from '@/lib/logger';
  * @param params - idを含むパスパラメータ
  *
  * @returns
- * - 200: スクリプト一覧取得成功
+ * - 200: スクリプト一覧（統一形式）
  * - 401: 認証されていない
  * - 500: サーバーエラー
  *
@@ -24,17 +24,19 @@ import { logger } from '@/lib/logger';
  * Cookie: sessionId=<uuid>
  *
  * // レスポンス
- * [
- *   {
- *     "id": "script-uuid",
- *     "project_id": "project-uuid",
- *     "name": "Test",
- *     "description": "Run unit tests",
- *     "command": "npm test",
- *     "created_at": "2025-12-08T10:00:00Z",
- *     "updated_at": "2025-12-08T10:00:00Z"
- *   }
- * ]
+ * {
+ *   "scripts": [
+ *     {
+ *       "id": "script-uuid",
+ *       "project_id": "project-uuid",
+ *       "name": "Test",
+ *       "description": "Run unit tests",
+ *       "command": "npm test",
+ *       "created_at": "2025-12-08T10:00:00Z",
+ *       "updated_at": "2025-12-08T10:00:00Z"
+ *     }
+ *   ]
+ * }
  * ```
  */
 export async function GET(
@@ -61,7 +63,7 @@ export async function GET(
     });
 
     logger.info('Scripts fetched', { projectId, count: scripts.length });
-    return NextResponse.json(scripts);
+    return NextResponse.json({ scripts });
   } catch (error) {
     const resolvedParams = await params;
     logger.error('Failed to fetch scripts', {
@@ -85,7 +87,7 @@ export async function GET(
  * @param params - idを含むパスパラメータ
  *
  * @returns
- * - 201: スクリプト追加成功
+ * - 201: スクリプト追加成功（統一形式）
  * - 400: 必須フィールドが不足している
  * - 401: 認証されていない
  * - 500: サーバーエラー
@@ -104,13 +106,15 @@ export async function GET(
  *
  * // レスポンス
  * {
- *   "id": "script-uuid",
- *   "project_id": "project-uuid",
- *   "name": "Test",
- *   "description": "Run unit tests",
- *   "command": "npm test",
- *   "created_at": "2025-12-08T10:00:00Z",
- *   "updated_at": "2025-12-08T10:00:00Z"
+ *   "script": {
+ *     "id": "script-uuid",
+ *     "project_id": "project-uuid",
+ *     "name": "Test",
+ *     "description": "Run unit tests",
+ *     "command": "npm test",
+ *     "created_at": "2025-12-08T10:00:00Z",
+ *     "updated_at": "2025-12-08T10:00:00Z"
+ *   }
  * }
  * ```
  */
@@ -189,7 +193,7 @@ export async function POST(
     });
 
     logger.info('Script created', { scriptId: script.id, name: script.name });
-    return NextResponse.json(script, { status: 201 });
+    return NextResponse.json({ script }, { status: 201 });
   } catch (error) {
     const resolvedParams = await params;
     logger.error('Failed to create script', {

@@ -15,7 +15,7 @@ import { basename } from 'path';
  * @param params.id - セッションID
  *
  * @returns
- * - 200: 差分情報（ファイルごとの詳細情報を含む）
+ * - 200: 差分情報（統一形式）
  * - 401: 認証されていない
  * - 404: セッションが見つからない
  * - 500: サーバーエラー
@@ -28,18 +28,20 @@ import { basename } from 'path';
  *
  * // レスポンス
  * {
- *   files: [
- *     {
- *       path: "file.ts",
- *       status: "modified",
- *       additions: 5,
- *       deletions: 3,
- *       oldContent: "const old = true;",
- *       newContent: "const new = true;"
- *     }
- *   ],
- *   totalAdditions: 5,
- *   totalDeletions: 3
+ *   "diff": {
+ *     "files": [
+ *       {
+ *         "path": "file.ts",
+ *         "status": "modified",
+ *         "additions": 5,
+ *         "deletions": 3,
+ *         "oldContent": "const old = true;",
+ *         "newContent": "const new = true;"
+ *       }
+ *     ],
+ *     "totalAdditions": 5,
+ *     "totalDeletions": 3
+ *   }
  * }
  * ```
  */
@@ -74,7 +76,7 @@ export async function GET(
     const diff = gitService.getDiffDetails(sessionName);
 
     logger.info('Got diff for session', { id });
-    return NextResponse.json(diff);
+    return NextResponse.json({ diff });
   } catch (error) {
     const { id: errorId } = await params;
     logger.error('Failed to get diff', { error, session_id: errorId });

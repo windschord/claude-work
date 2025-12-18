@@ -13,7 +13,7 @@ import { logger } from '@/lib/logger';
  * @param params.id - セッションID
  *
  * @returns
- * - 200: メッセージ送信成功、作成されたメッセージを返す
+ * - 201: メッセージ作成成功（統一形式）
  * - 400: リクエストボディが不正
  * - 401: 認証されていない
  * - 404: セッションが見つからない
@@ -30,12 +30,14 @@ import { logger } from '@/lib/logger';
  *
  * // レスポンス
  * {
- *   "id": "message-uuid",
- *   "session_id": "session-uuid",
- *   "role": "user",
- *   "content": "Hello, Claude!",
- *   "sub_agents": null,
- *   "created_at": "2025-12-14T00:00:00.000Z"
+ *   "message": {
+ *     "id": "message-uuid",
+ *     "session_id": "session-uuid",
+ *     "role": "user",
+ *     "content": "Hello, Claude!",
+ *     "sub_agents": null,
+ *     "created_at": "2025-12-14T00:00:00.000Z"
+ *   }
  * }
  * ```
  */
@@ -88,7 +90,7 @@ export async function POST(
     });
 
     logger.info('Message sent to session', { session_id: id, message_id: message.id });
-    return NextResponse.json(message);
+    return NextResponse.json({ message }, { status: 201 });
   } catch (error) {
     const { id: errorId } = await params;
     logger.error('Failed to send message', { error, session_id: errorId });
