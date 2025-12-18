@@ -21,7 +21,7 @@ interface LayoutProps {
  */
 export default async function ProjectLayout({ children, params }: LayoutProps) {
   // Next.js 15では、paramsは非同期（Promise）として扱う
-  const { id } = await params;
+  const { id: _id } = await params;
 
   return (
     <div className="flex h-screen">

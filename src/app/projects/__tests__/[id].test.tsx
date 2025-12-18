@@ -32,7 +32,7 @@ vi.mock('@/components/AuthGuard', () => ({
 
 // CreateSessionFormをモック（storeの参照を避けるため）
 vi.mock('@/components/sessions/CreateSessionForm', () => ({
-  CreateSessionForm: ({ projectId }: { projectId: string }) => (
+  CreateSessionForm: ({ projectId: _projectId }: { projectId: string }) => (
     <div data-testid="create-session-form">
       <input placeholder="セッション名を入力してください" />
       <textarea placeholder="プロンプトを入力してください" />
