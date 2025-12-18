@@ -318,6 +318,7 @@ sequenceDiagram
 **レスポンス（200）**:
 ```json
 {
+  "message": "Login successful",
   "session_id": "uuid",
   "expires_at": "2025-12-08T12:00:00Z"
 }
@@ -336,7 +337,7 @@ sequenceDiagram
 **レスポンス（200）**:
 ```json
 {
-  "message": "Logged out successfully"
+  "message": "Logout successful"
 }
 ```
 
@@ -380,9 +381,14 @@ sequenceDiagram
 **レスポンス（201）**:
 ```json
 {
-  "id": "uuid",
-  "name": "repo-name",
-  "path": "/path/to/git/repo"
+  "project": {
+    "id": "uuid",
+    "name": "repo-name",
+    "path": "/path/to/git/repo",
+    "default_model": "auto",
+    "run_scripts": [],
+    "created_at": "2025-12-01T00:00:00Z"
+  }
 }
 ```
 
@@ -417,6 +423,22 @@ sequenceDiagram
   "run_scripts": [
     {"name": "test", "command": "npm test"}
   ]
+}
+```
+
+**レスポンス（200）**:
+```json
+{
+  "project": {
+    "id": "uuid",
+    "name": "repo-name",
+    "path": "/path/to/git/repo",
+    "default_model": "sonnet",
+    "run_scripts": [
+      {"name": "test", "command": "npm test"}
+    ],
+    "created_at": "2025-12-01T00:00:00Z"
+  }
 }
 ```
 
@@ -509,18 +531,50 @@ sequenceDiagram
 }
 ```
 
+**レスポンス（200）**:
+```json
+{
+  "id": "msg-uuid",
+  "role": "user",
+  "content": "Please also add tests",
+  "timestamp": "2025-12-08T10:05:00Z"
+}
+```
+
 #### POST /api/sessions/{id}/approve
 **目的**: 権限承認
 
 **リクエスト**:
 ```json
 {
-  "approved": true
+  "action": "approve",
+  "permission_id": "perm-uuid"
+}
+```
+
+**レスポンス（200）**:
+```json
+{
+  "success": true,
+  "action": "approve"
 }
 ```
 
 #### POST /api/sessions/{id}/stop
 **目的**: セッション停止
+
+**レスポンス（200）**:
+```json
+{
+  "id": "uuid",
+  "name": "feature-auth",
+  "status": "stopped",
+  "git_status": "dirty",
+  "model": "sonnet",
+  "worktree_path": "/path/to/worktree",
+  "created_at": "2025-12-08T10:00:00Z"
+}
+```
 
 #### DELETE /api/sessions/{id}
 **目的**: セッション削除（worktreeも削除）
@@ -595,6 +649,8 @@ sequenceDiagram
 #### POST /api/sessions/{id}/reset
 **目的**: 特定コミットへのリセット
 
+**注意**: このエンドポイントは未実装です。
+
 **リクエスト**:
 ```json
 {
@@ -613,10 +669,27 @@ sequenceDiagram
 }
 ```
 
+**レスポンス（200）**:
+```json
+{
+  "success": true
+}
+```
+
+**レスポンス（409）**:
+```json
+{
+  "success": false,
+  "conflicts": ["src/auth.ts", "src/utils.ts"]
+}
+```
+
 ### ランスクリプト
 
 #### POST /api/sessions/{id}/run
 **目的**: ランスクリプト実行
+
+**注意**: このエンドポイントは未実装です。
 
 **リクエスト**:
 ```json
@@ -635,10 +708,14 @@ sequenceDiagram
 #### POST /api/sessions/{id}/run/{run_id}/stop
 **目的**: ランスクリプト停止
 
+**注意**: このエンドポイントは未実装です。
+
 ### プロンプト履歴
 
 #### GET /api/prompts
 **目的**: プロンプト履歴取得
+
+**注意**: このエンドポイントは未実装です。
 
 **レスポンス（200）**:
 ```json
@@ -656,6 +733,8 @@ sequenceDiagram
 
 #### DELETE /api/prompts/{id}
 **目的**: プロンプト履歴削除
+
+**注意**: このエンドポイントは未実装です。
 
 ## WebSocket API
 
