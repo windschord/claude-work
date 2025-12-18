@@ -654,7 +654,7 @@ export const useAppStore = create<AppState>((set) => ({
         throw new Error('セッション詳細の取得に失敗しました');
       }
 
-      const session = await response.json();
+      const data = await response.json();
 
       // Fetch messages for this session
       const messagesResponse = await fetch(`/api/sessions/${sessionId}/messages`);
@@ -664,7 +664,7 @@ export const useAppStore = create<AppState>((set) => ({
         messages = messagesData.messages || [];
       }
 
-      set({ currentSession: session, messages });
+      set({ currentSession: data.session, messages });
     } catch (error) {
       if (error instanceof Error) {
         if (error.message.includes('Failed to fetch') || error.message.includes('Network')) {
@@ -690,9 +690,9 @@ export const useAppStore = create<AppState>((set) => ({
         throw new Error('メッセージの送信に失敗しました');
       }
 
-      const message = await response.json();
+      const data = await response.json();
       set((state) => ({
-        messages: [...state.messages, message],
+        messages: [...state.messages, data.message],
       }));
     } catch (error) {
       if (error instanceof Error) {
@@ -742,8 +742,8 @@ export const useAppStore = create<AppState>((set) => ({
         throw new Error('セッションの停止に失敗しました');
       }
 
-      const updatedSession = await response.json();
-      set({ currentSession: updatedSession });
+      const data = await response.json();
+      set({ currentSession: data.session });
     } catch (error) {
       if (error instanceof Error) {
         if (error.message.includes('Failed to fetch') || error.message.includes('Network')) {
@@ -766,8 +766,8 @@ export const useAppStore = create<AppState>((set) => ({
         throw new Error('差分の取得に失敗しました');
       }
 
-      const diff: DiffData = await response.json();
-      set({ diff });
+      const data = await response.json();
+      set({ diff: data.diff });
     } catch (error) {
       if (error instanceof Error) {
         if (error.message.includes('Failed to fetch') || error.message.includes('Network')) {
