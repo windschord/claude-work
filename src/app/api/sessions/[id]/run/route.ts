@@ -1,0 +1,111 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/db';
+import { getSession } from '@/lib/auth';
+import { RunScriptManager } from '@/services/run-script-manager';
+import { logger } from '@/lib/logger';
+
+const runScriptManager = RunScriptManager.getInstance();
+
+/**
+ * POST /api/sessions/[id]/run - ランスクリプト実行
+ *
+ * 指定されたセッションのworktree内でランスクリプトを実行します。
+ * 認証が必要です。
+ *
+ * @param request - sessionIdクッキーとscript_nameを含むリクエスト
+ * @param params.id - セッションID
+ *
+ * @returns
+ * - 202: ランスクリプト実行開始（run_idを返却）
+ * - 400: script_nameが指定されていない
+ * - 401: 認証されていない
+ * - 404: セッション、プロジェクト、またはスクリプトが見つからない
+ * - 500: サーバーエラー
+ *
+ * @example
+ * ```typescript
+ * // リクエスト
+ * POST /api/sessions/session-uuid/run
+ * Cookie: sessionId=<uuid>
+ * Content-Type: application/json
+ * {
+ *   "script_name": "test"
+ * }
+ *
+ * // レスポンス
+ * {
+ *   "run_id": "run-uuid-1234"
+ * }
+ * ```
+ */
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const sessionId = request.cookies.get('sessionId')?.value;
+    if (!sessionId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const authSession = await getSession(sessionId);
+    if (!authSession) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { id } = await params;
+
+    const targetSession = await prisma.session.findUnique({
+      where: { id },
+      include: {
+        project: true,
+      },
+    });
+
+    if (!targetSession) {
+      return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+    }
+
+    const body = await request.json();
+    const { script_name } = body;
+
+    if (!script_name) {
+      return NextResponse.json({ error: 'script_name is required' }, { status: 400 });
+    }
+
+    // Find the run script
+    const runScript = await prisma.runScript.findFirst({
+      where: {
+        project_id: targetSession.project_id,
+        name: script_name,
+      },
+    });
+
+    if (!runScript) {
+      return NextResponse.json(
+        { error: `Run script '${script_name}' not found` },
+        { status: 404 }
+      );
+    }
+
+    // Execute the script
+    const runId = await runScriptManager.runScript({
+      sessionId: targetSession.id,
+      workingDirectory: targetSession.worktree_path,
+      command: runScript.command,
+    });
+
+    logger.info('Run script started', {
+      session_id: targetSession.id,
+      run_id: runId,
+      script_name,
+      command: runScript.command,
+    });
+
+    return NextResponse.json({ run_id: runId }, { status: 202 });
+  } catch (error) {
+    const { id: errorId } = await params;
+    logger.error('Failed to start run script', { error, session_id: errorId });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
