@@ -89,7 +89,7 @@ Phase 18で要求されたテーマ切り替え機能の修正および改善を
 ### 4. テスト結果
 
 #### ユニットテスト
-```
+```text
 ✓ src/components/common/__tests__/ThemeToggle.test.tsx (9 tests)
   - マウント前は空のプレースホルダーを表示する ✓
   - ライトモード時は太陽アイコンを表示する ✓
@@ -123,7 +123,7 @@ Tests: 9 passed (9)
 
 ### テーマの3段階ローテーション
 
-```
+```text
 light → dark → system → light ...
 ```
 
@@ -164,7 +164,7 @@ light → dark → system → light ...
    ```
 
 2. **手動ブラウザテスト**
-   - ブラウザで http://localhost:3000/login にアクセス
+   - ブラウザで <http://localhost:3000/login> にアクセス
    - 右上のテーマ切り替えボタンをクリック
    - 3段階（light → dark → system）でテーマが切り替わることを確認
    - 開発者ツールで以下を確認:
@@ -183,7 +183,7 @@ light → dark → system → light ...
 **ブランチ**: `feature/phase17-18-fixes`
 **コミットハッシュ**: `15d6de2`
 **コミットメッセージ**:
-```
+```text
 feat: ログインページにテーマ切り替え機能を追加とThemeProvider設定の改善
 
 変更内容:
