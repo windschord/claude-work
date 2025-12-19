@@ -72,7 +72,7 @@ Phase 18で要求されたテーマ切り替え機能の修正および改善を
 
 **効果**:
 - ローカルストレージのキー名を明示化
-- `color-scheme`メタタグの自動追加を無効化（TailwindのダークモードとConflictを防ぐ）
+- `color-scheme`メタタグの自動追加を無効化（Tailwindのダークモードとのconflictを防ぐ）
 
 ### 3. E2Eテストの追加
 
