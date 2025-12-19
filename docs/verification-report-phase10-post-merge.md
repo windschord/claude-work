@@ -10,7 +10,7 @@ Phase 10のマージ後、仕様書通りにアプリケーションが動作す
 
 ## 検証環境
 
-- URL: http://localhost:3000
+- URL: `http://localhost:3000`
 - サーバー: npm run dev (PID: 69955)
 - データベース: /Users/tsk/Sync/git/claude-work/prisma/data/claudework.db
 - 認証トークン: `your-secure-token-here`

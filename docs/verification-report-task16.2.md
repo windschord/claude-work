@@ -48,7 +48,7 @@
 
 #### AuthGuard.test.tsx
 
-```
+```text
 ✓ 認証済みの場合は子コンポーネントを表示する (36ms)
 ✓ 未認証の場合は/loginにリダイレクトする (7ms)
 ✓ マウント時にcheckAuth()が呼ばれる (6ms)
@@ -64,7 +64,7 @@ Duration  3.20s
 
 #### [id].test.tsx
 
-```
+```text
 ✓ src/app/projects/__tests__/[id].test.tsx (10 tests | 3 skipped) 169ms
 
 Test Files  1 passed (1)
@@ -78,7 +78,7 @@ Duration  3.42s
 
 **コミットハッシュ**: 330d08e
 **コミットメッセージ**:
-```
+```text
 fix: タイムアウトするテストケースの修正とエラーハンドリング改善
 
 - AuthGuardコンポーネントのcheckAuth()にtry-catch-finallyを追加

@@ -12,7 +12,7 @@ Phase 13（Phase 12マージ後の不具合修正）のマージ後、仕様書�
 
 - **ブランチ**: nodejs-architecture
 - **最新コミット**: c62d70d Merge pull request #14 from windschord/phase13-fixes
-- **開発サーバー**: http://localhost:3000
+- **開発サーバー**: `http://localhost:3000`
 - **確認方法**: Chrome DevTools（MCP chrome-devtools）
 
 ## 発見された問題

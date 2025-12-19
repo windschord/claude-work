@@ -12,7 +12,7 @@ Phase 12（Phase 11マージ後の不具合修正・調査・ドキュメント�
 
 - **ブランチ**: nodejs-architecture
 - **最新コミット**: f31b113 Merge pull request #13 from windschord/phase12-fixes
-- **開発サーバー**: http://localhost:3000
+- **開発サーバー**: `http://localhost:3000`
 - **確認方法**: Chrome DevTools（MCP chrome-devtools）
 
 ## 発見された問題

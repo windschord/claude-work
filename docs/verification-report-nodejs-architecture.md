@@ -111,7 +111,7 @@ CLAUDE_WORK_TOKEN=test-token SESSION_SECRET=test-session-secret-32-characters-lo
 ```
 
 **起動結果**:
-- サーバーが正常に起動: `http://localhost:3000`
+- サーバーが正常に起動: <http://localhost:3000>
 - Next.js開発サーバーが稼働
 - WebSocketサーバーが起動
 
