@@ -38,14 +38,6 @@ export default defineConfig({
     isolate: true,
     // APIテストの認証セッション競合を防ぐためファイル並列実行を無効化
     fileParallelism: false,
-    poolOptions: {
-      threads: {
-        singleThread: process.env.CI ? true : false,
-      },
-      forks: {
-        singleFork: process.env.CI ? true : false,
-      },
-    },
     server: {
       deps: {
         inline: [],

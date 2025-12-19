@@ -60,11 +60,6 @@ export async function POST(
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });
     }
 
-    // Verify ownership
-    if (authSession.user_id !== targetSession.user_id) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
     // Check if the run_id exists
     const runStatus = runScriptManager.getStatus(run_id);
     if (!runStatus) {
