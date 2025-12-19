@@ -1,4 +1,6 @@
 import { chromium, Browser, Page } from 'playwright';
+import { mkdir } from 'fs/promises';
+import { join } from 'path';
 
 /**
  * テーマ切り替え機能のE2Eテスト（ログインページで実行）
@@ -40,12 +42,6 @@ async function testThemeToggle(page: Page): Promise<void> {
   const themeToggle = page.getByLabel('Toggle theme');
   await themeToggle.waitFor({ state: 'visible', timeout: 5000 });
   console.log('✓ テーマ切り替えボタンが表示されています');
-
-  // スクリーンショット保存用ディレクトリ作成
-  await page.evaluate(() => {
-    const dir = '/Users/tsk/Sync/git/claude-work/test-screenshots';
-    return dir;
-  });
 
   // 初期状態のHTMLクラスを取得
   const initialClass = await page.evaluate(() => document.documentElement.className);
@@ -116,16 +112,19 @@ async function testThemeToggle(page: Page): Promise<void> {
   if (consoleErrors.length > 0) {
     console.log('\n❌ JavaScriptエラーが発生しました:');
     consoleErrors.forEach(err => console.log(`  - ${err}`));
+    throw new Error(`${consoleErrors.length}個のJavaScriptエラーが発生しました`);
   } else {
     console.log('\n✓ JavaScriptエラーは発生していません');
   }
 
   // テーマ切り替えが正しく動作しているか検証
   console.log('\n検証結果:');
+  let hasFailure = false;
 
   // HTMLクラスが変更されているか確認
   if (initialClass === afterFirstClick && afterFirstClick === afterSecondClick && afterSecondClick === afterThirdClick) {
     console.log('❌ HTMLクラスが変更されていません - テーマ切り替えが動作していない可能性があります');
+    hasFailure = true;
   } else {
     console.log('✓ HTMLクラスが変更されています - テーマ切り替えが動作しています');
   }
@@ -133,8 +132,13 @@ async function testThemeToggle(page: Page): Promise<void> {
   // ローカルストレージが変更されているか確認
   if (initialTheme === themeAfterFirstClick && themeAfterFirstClick === themeAfterSecondClick && themeAfterSecondClick === themeAfterThirdClick) {
     console.log('❌ ローカルストレージのテーマが変更されていません');
+    hasFailure = true;
   } else {
     console.log('✓ ローカルストレージのテーマが変更されています');
+  }
+
+  if (hasFailure) {
+    throw new Error('テーマ切り替えの検証に失敗しました');
   }
 
   console.log('\nテーマ切り替え機能のテスト完了');
@@ -148,6 +152,11 @@ async function main() {
 
   try {
     console.log('ブラウザテスト開始...\n');
+
+    // スクリーンショット保存用ディレクトリを作成
+    const screenshotDir = join(process.cwd(), 'test-screenshots');
+    await mkdir(screenshotDir, { recursive: true });
+    console.log(`スクリーンショットディレクトリを作成しました: ${screenshotDir}\n`);
 
     // ブラウザ起動（デバッグモード: headless: false）
     const headless = process.env.HEADLESS === 'false' ? false : true;
