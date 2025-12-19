@@ -33,11 +33,19 @@ export default defineConfig({
       DATABASE_URL: 'file:./prisma/data/test.db',
     },
     // CI環境では並列化を制限してハングを防ぐ
-    pool: 'forks',
+    pool: process.env.CI ? 'threads' : 'forks',
     maxConcurrency: process.env.CI ? 1 : 5,
     isolate: true,
     // APIテストの認証セッション競合を防ぐためファイル並列実行を無効化
     fileParallelism: false,
+    poolOptions: {
+      threads: {
+        singleThread: process.env.CI ? true : false,
+      },
+      forks: {
+        singleFork: process.env.CI ? true : false,
+      },
+    },
     server: {
       deps: {
         inline: [],
