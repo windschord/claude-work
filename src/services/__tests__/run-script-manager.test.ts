@@ -31,6 +31,7 @@ type MockChildProcess = {
   stderr: EventEmitter;
   on: ReturnType<typeof vi.fn>;
   emit: ReturnType<typeof vi.fn>;
+  removeListener: ReturnType<typeof vi.fn>;
   kill: ReturnType<typeof vi.fn>;
   pid: number;
 };
@@ -50,13 +51,9 @@ describe('RunScriptManager', () => {
       stdout: new EventEmitter(),
       stderr: new EventEmitter(),
       on: vi.fn((event, callback) => {
-        if (event === 'spawn') {
-          setTimeout(() => callback(), 0);
-        } else if (event === 'exit') {
-          const handlers = eventHandlers.get('exit') || [];
-          handlers.push(callback);
-          eventHandlers.set('exit', handlers);
-        }
+        const handlers = eventHandlers.get(event) || [];
+        handlers.push(callback);
+        eventHandlers.set(event, handlers);
         return mockChildProcess;
       }),
       emit: vi.fn((event, ...args) => {
@@ -64,11 +61,27 @@ describe('RunScriptManager', () => {
         handlers.forEach((handler) => handler(...args));
         return true;
       }),
+      removeListener: vi.fn((event, callback) => {
+        const handlers = eventHandlers.get(event) || [];
+        const index = handlers.indexOf(callback);
+        if (index > -1) {
+          handlers.splice(index, 1);
+          eventHandlers.set(event, handlers);
+        }
+        return mockChildProcess;
+      }),
       kill: vi.fn(),
       pid: 12345,
     };
 
-    mockSpawn.mockImplementation(() => mockChildProcess as unknown as ChildProcess);
+    mockSpawn.mockImplementation(() => {
+      // Emit spawn event asynchronously to simulate real process behavior
+      setTimeout(() => {
+        const spawnHandlers = eventHandlers.get('spawn') || [];
+        spawnHandlers.forEach((handler) => handler());
+      }, 0);
+      return mockChildProcess as unknown as ChildProcess;
+    });
     runScriptManager = RunScriptManager.getInstance();
   });
 
@@ -89,11 +102,11 @@ describe('RunScriptManager', () => {
 
       expect(runId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
       expect(mockSpawn).toHaveBeenCalledWith(
-        'npm',
-        ['test'],
+        'npm test',
         expect.objectContaining({
           cwd: '/path/to/worktree',
           stdio: ['pipe', 'pipe', 'pipe'],
+          shell: true,
         })
       );
     });

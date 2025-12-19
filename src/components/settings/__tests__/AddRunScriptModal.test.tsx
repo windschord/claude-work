@@ -147,7 +147,7 @@ describe('AddRunScriptModal', () => {
     await waitFor(() => {
       expect(mockAddScript).toHaveBeenCalledWith('project-1', {
         name: 'Build',
-        description: '',
+        description: null,
         command: 'npm run build',
       });
       expect(mockOnClose).toHaveBeenCalled();
