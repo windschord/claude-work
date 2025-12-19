@@ -25,7 +25,7 @@ describe('DELETE /api/prompts/[id]', () => {
       method: 'DELETE',
     });
 
-    const response = await DELETE(request, { params: { id: prompt.id } });
+    const response = await DELETE(request, { params: Promise.resolve({ id: prompt.id }) });
     expect(response.status).toBe(200);
 
     const data = await response.json();
@@ -42,7 +42,7 @@ describe('DELETE /api/prompts/[id]', () => {
       method: 'DELETE',
     });
 
-    const response = await DELETE(request, { params: { id: 'non-existent-id' } });
+    const response = await DELETE(request, { params: Promise.resolve({ id: 'non-existent-id' }) });
     expect(response.status).toBe(404);
 
     const data = await response.json();
@@ -70,7 +70,7 @@ describe('DELETE /api/prompts/[id]', () => {
       method: 'DELETE',
     });
 
-    const response = await DELETE(request, { params: { id: prompt1.id } });
+    const response = await DELETE(request, { params: Promise.resolve({ id: prompt1.id }) });
     expect(response.status).toBe(200);
 
     const remainingPrompt = await prisma.prompt.findUnique({

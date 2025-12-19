@@ -93,7 +93,7 @@ describe('GET /api/projects/[project_id]/sessions', () => {
       }
     );
 
-    const response = await GET(request, { params: { project_id: project.id } });
+    const response = await GET(request, { params: Promise.resolve({ project_id: project.id }) });
     expect(response.status).toBe(200);
 
     const data = await response.json();
@@ -108,7 +108,7 @@ describe('GET /api/projects/[project_id]/sessions', () => {
       `http://localhost:3000/api/projects/${project.id}/sessions`
     );
 
-    const response = await GET(request, { params: { project_id: project.id } });
+    const response = await GET(request, { params: Promise.resolve({ project_id: project.id }) });
     expect(response.status).toBe(401);
   });
 });
@@ -175,7 +175,7 @@ describe('POST /api/projects/[project_id]/sessions', () => {
       }
     );
 
-    const response = await POST(request, { params: { project_id: project.id } });
+    const response = await POST(request, { params: Promise.resolve({ project_id: project.id }) });
     expect(response.status).toBe(201);
 
     const data = await response.json();
@@ -209,7 +209,7 @@ describe('POST /api/projects/[project_id]/sessions', () => {
       }
     );
 
-    const response = await POST(request, { params: { project_id: project.id } });
+    const response = await POST(request, { params: Promise.resolve({ project_id: project.id }) });
     expect(response.status).toBe(201);
 
     const data = await response.json();
@@ -251,7 +251,7 @@ describe('POST /api/projects/[project_id]/sessions', () => {
       }
     );
 
-    const response = await POST(request, { params: { project_id: 'non-existent' } });
+    const response = await POST(request, { params: Promise.resolve({ project_id: 'non-existent' }) });
     expect(response.status).toBe(404);
   });
 
@@ -270,7 +270,7 @@ describe('POST /api/projects/[project_id]/sessions', () => {
       }
     );
 
-    const response = await POST(request, { params: { project_id: project.id } });
+    const response = await POST(request, { params: Promise.resolve({ project_id: project.id }) });
     expect(response.status).toBe(401);
   });
 
@@ -289,7 +289,7 @@ describe('POST /api/projects/[project_id]/sessions', () => {
       }
     );
 
-    const response = await POST(request, { params: { project_id: project.id } });
+    const response = await POST(request, { params: Promise.resolve({ project_id: project.id }) });
     expect(response.status).toBe(400);
     const data = await response.json();
     expect(data.error).toBe('Name and prompt are required');
@@ -310,7 +310,7 @@ describe('POST /api/projects/[project_id]/sessions', () => {
       }
     );
 
-    const response = await POST(request, { params: { project_id: project.id } });
+    const response = await POST(request, { params: Promise.resolve({ project_id: project.id }) });
     expect(response.status).toBe(400);
     const data = await response.json();
     expect(data.error).toBe('Name and prompt are required');
@@ -335,7 +335,7 @@ describe('POST /api/projects/[project_id]/sessions', () => {
       }
     );
 
-    const response = await POST(request, { params: { project_id: project.id } });
+    const response = await POST(request, { params: Promise.resolve({ project_id: project.id }) });
     expect(response.status).toBe(201);
 
     // プロンプトが保存されたか確認
@@ -375,7 +375,7 @@ describe('POST /api/projects/[project_id]/sessions', () => {
       }
     );
 
-    const response = await POST(request, { params: { project_id: project.id } });
+    const response = await POST(request, { params: Promise.resolve({ project_id: project.id }) });
     expect(response.status).toBe(201);
 
     // used_countがインクリメントされたか確認

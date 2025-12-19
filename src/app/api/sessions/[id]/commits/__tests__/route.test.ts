@@ -90,7 +90,7 @@ describe('GET /api/sessions/{id}/commits', () => {
       }
     );
 
-    const response = await GET(request, { params: { id: session.id } });
+    const response = await GET(request, { params: Promise.resolve({ id: session.id }) });
     expect(response.status).toBe(401);
   });
 
@@ -102,7 +102,7 @@ describe('GET /api/sessions/{id}/commits', () => {
       },
     });
 
-    const response = await GET(request, { params: { id: 'non-existent' } });
+    const response = await GET(request, { params: Promise.resolve({ id: 'non-existent' }) });
     expect(response.status).toBe(404);
   });
 
@@ -117,7 +117,7 @@ describe('GET /api/sessions/{id}/commits', () => {
       }
     );
 
-    const response = await GET(request, { params: { id: session.id } });
+    const response = await GET(request, { params: Promise.resolve({ id: session.id }) });
     expect(response.status).toBe(200);
 
     const data = await response.json();

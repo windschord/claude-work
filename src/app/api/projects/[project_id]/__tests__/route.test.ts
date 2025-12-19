@@ -65,7 +65,7 @@ describe('PUT /api/projects/[project_id]', () => {
       }),
     });
 
-    const response = await PUT(request, { params: { project_id: project.id } });
+    const response = await PUT(request, { params: Promise.resolve({ project_id: project.id }) });
     expect(response.status).toBe(200);
 
     const data = await response.json();
@@ -98,7 +98,7 @@ describe('PUT /api/projects/[project_id]', () => {
       }),
     });
 
-    const response = await PUT(request, { params: { project_id: 'non-existent-id' } });
+    const response = await PUT(request, { params: Promise.resolve({ project_id: 'non-existent-id' }) });
     expect(response.status).toBe(404);
   });
 
@@ -113,7 +113,7 @@ describe('PUT /api/projects/[project_id]', () => {
       }),
     });
 
-    const response = await PUT(request, { params: { project_id: project.id } });
+    const response = await PUT(request, { params: Promise.resolve({ project_id: project.id }) });
     expect(response.status).toBe(401);
   });
 });
@@ -169,7 +169,7 @@ describe('DELETE /api/projects/[project_id]', () => {
       },
     });
 
-    const response = await DELETE(request, { params: { project_id: project.id } });
+    const response = await DELETE(request, { params: Promise.resolve({ project_id: project.id }) });
     expect(response.status).toBe(204);
 
     const deleted = await prisma.project.findUnique({
@@ -186,7 +186,7 @@ describe('DELETE /api/projects/[project_id]', () => {
       },
     });
 
-    const response = await DELETE(request, { params: { project_id: 'non-existent-id' } });
+    const response = await DELETE(request, { params: Promise.resolve({ project_id: 'non-existent-id' }) });
     expect(response.status).toBe(404);
   });
 
@@ -195,7 +195,7 @@ describe('DELETE /api/projects/[project_id]', () => {
       method: 'DELETE',
     });
 
-    const response = await DELETE(request, { params: { project_id: project.id } });
+    const response = await DELETE(request, { params: Promise.resolve({ project_id: project.id }) });
     expect(response.status).toBe(401);
   });
 });

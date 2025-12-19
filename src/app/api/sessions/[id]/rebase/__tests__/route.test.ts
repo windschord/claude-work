@@ -88,7 +88,7 @@ describe('POST /api/sessions/[id]/rebase', () => {
       }
     );
 
-    const response = await POST(request, { params: { id: session.id } });
+    const response = await POST(request, { params: Promise.resolve({ id: session.id }) });
     expect(response.status).toBe(200);
 
     const data = await response.json();
@@ -125,7 +125,7 @@ describe('POST /api/sessions/[id]/rebase', () => {
       }
     );
 
-    const response = await POST(request, { params: { id: session.id } });
+    const response = await POST(request, { params: Promise.resolve({ id: session.id }) });
     expect(response.status).toBe(409);
 
     const data = await response.json();
@@ -141,7 +141,7 @@ describe('POST /api/sessions/[id]/rebase', () => {
       },
     });
 
-    const response = await POST(request, { params: { id: 'non-existent' } });
+    const response = await POST(request, { params: Promise.resolve({ id: 'non-existent' }) });
     expect(response.status).toBe(404);
   });
 
@@ -153,7 +153,7 @@ describe('POST /api/sessions/[id]/rebase', () => {
       }
     );
 
-    const response = await POST(request, { params: { id: session.id } });
+    const response = await POST(request, { params: Promise.resolve({ id: session.id }) });
     expect(response.status).toBe(401);
   });
 });

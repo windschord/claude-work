@@ -3,7 +3,7 @@ import { prisma } from '@/lib/db';
 import { Prisma } from '@prisma/client';
 import { getSession } from '@/lib/auth';
 import { spawnSync } from 'child_process';
-import { basename, resolve } from 'path';
+import { basename, relative, resolve } from 'path';
 import { realpathSync } from 'fs';
 import { logger } from '@/lib/logger';
 
@@ -144,7 +144,11 @@ export async function POST(request: NextRequest) {
         const isAllowed = allowedDirs.some((allowedDir) => {
           try {
             const normalizedAllowedDir = realpathSync(allowedDir);
-            return absolutePath.startsWith(normalizedAllowedDir);
+            // path.relativeを使った適切なディレクトリ境界チェック
+            const relativePath = relative(normalizedAllowedDir, absolutePath);
+            // 相対パスが '..' で始まる場合、許可ディレクトリの外にある
+            // 空文字列の場合は同じディレクトリ
+            return relativePath && !relativePath.startsWith('..') && !resolve(normalizedAllowedDir, relativePath).startsWith('..');
           } catch {
             return false;
           }
@@ -168,6 +172,9 @@ export async function POST(request: NextRequest) {
     const result = spawnSync('git', ['rev-parse', '--git-dir'], {
       cwd: absolutePath,
       encoding: 'utf-8',
+      timeout: 10_000, // 10秒でタイムアウト
+      maxBuffer: 1024 * 1024, // 1MBまでバッファ許容
+      env: { ...process.env, GIT_TERMINAL_PROMPT: '0' }, // インタラクティブプロンプトを抑止
     });
 
     if (result.error || result.status !== 0) {

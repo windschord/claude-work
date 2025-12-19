@@ -89,7 +89,7 @@ describe('GET /api/sessions/[id]', () => {
       },
     });
 
-    const response = await GET(request, { params: { id: session.id } });
+    const response = await GET(request, { params: Promise.resolve({ id: session.id }) });
     expect(response.status).toBe(200);
 
     const data = await response.json();
@@ -107,14 +107,14 @@ describe('GET /api/sessions/[id]', () => {
       },
     });
 
-    const response = await GET(request, { params: { id: 'non-existent' } });
+    const response = await GET(request, { params: Promise.resolve({ id: 'non-existent' }) });
     expect(response.status).toBe(404);
   });
 
   it('should return 401 if not authenticated', async () => {
     const request = new NextRequest(`http://localhost:3000/api/sessions/${session.id}`);
 
-    const response = await GET(request, { params: { id: session.id } });
+    const response = await GET(request, { params: Promise.resolve({ id: session.id }) });
     expect(response.status).toBe(401);
   });
 });
@@ -184,7 +184,7 @@ describe('DELETE /api/sessions/[id]', () => {
       },
     });
 
-    const response = await DELETE(request, { params: { id: session.id } });
+    const response = await DELETE(request, { params: Promise.resolve({ id: session.id }) });
     expect(response.status).toBe(204);
 
     const deletedSession = await prisma.session.findUnique({
@@ -201,7 +201,7 @@ describe('DELETE /api/sessions/[id]', () => {
       },
     });
 
-    const response = await DELETE(request, { params: { id: 'non-existent' } });
+    const response = await DELETE(request, { params: Promise.resolve({ id: 'non-existent' }) });
     expect(response.status).toBe(404);
   });
 
@@ -210,7 +210,7 @@ describe('DELETE /api/sessions/[id]', () => {
       method: 'DELETE',
     });
 
-    const response = await DELETE(request, { params: { id: session.id } });
+    const response = await DELETE(request, { params: Promise.resolve({ id: session.id }) });
     expect(response.status).toBe(401);
   });
 });

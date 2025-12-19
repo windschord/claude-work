@@ -106,7 +106,7 @@ describe('POST /api/sessions/[id]/run/[run_id]/stop', () => {
     );
 
     const response = await POST(request, {
-      params: { id: session.id, run_id: 'test-run-id' },
+      params: Promise.resolve({ id: session.id, run_id: 'test-run-id' }),
     });
     expect(response.status).toBe(200);
 
@@ -125,7 +125,7 @@ describe('POST /api/sessions/[id]/run/[run_id]/stop', () => {
     );
 
     const response = await POST(request, {
-      params: { id: session.id, run_id: 'test-run-id' },
+      params: Promise.resolve({ id: session.id, run_id: 'test-run-id' }),
     });
     expect(response.status).toBe(401);
   });
@@ -142,7 +142,7 @@ describe('POST /api/sessions/[id]/run/[run_id]/stop', () => {
     );
 
     const response = await POST(request, {
-      params: { id: 'non-existent', run_id: 'test-run-id' },
+      params: Promise.resolve({ id: 'non-existent', run_id: 'test-run-id' }),
     });
     expect(response.status).toBe(404);
   });
@@ -161,7 +161,7 @@ describe('POST /api/sessions/[id]/run/[run_id]/stop', () => {
     );
 
     const response = await POST(request, {
-      params: { id: session.id, run_id: 'non-existent-run-id' },
+      params: Promise.resolve({ id: session.id, run_id: 'non-existent-run-id' }),
     });
     expect(response.status).toBe(404);
   });
