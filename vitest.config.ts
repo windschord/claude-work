@@ -18,15 +18,12 @@ export default defineConfig({
       // CI環境で不安定なテストを一時的に除外
       ...(process.env.CI ? [
         '**/pty-manager.test.ts',
-        '**/useTerminal.test.ts',
         '**/git-service-status.test.ts',
         '**/app/sessions/__tests__/[id].test.tsx',
         '**/app/projects/__tests__/[id].test.tsx',
         '**/AuthGuard.test.tsx',
         '**/middleware.test.ts',
-        '**/app/api/**/__tests__/**',
         '**/lib/__tests__/auth.test.ts',
-        '**/AddRunScriptModal.test.tsx',
       ] : []),
     ],
     testTimeout: 10000,
