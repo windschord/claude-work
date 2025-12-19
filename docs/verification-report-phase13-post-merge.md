@@ -28,7 +28,7 @@ Phase 13（Phase 12マージ後の不具合修正）のマージ後、仕様書�
 - `src/app/projects/__tests__/[id].test.tsx:35` - `projectId`変数が未使用
 
 **エラー内容**:
-```
+```text
 ./src/app/projects/[id]/layout.tsx
 24:11  Error: 'id' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
 
@@ -53,7 +53,7 @@ Phase 13（Phase 12マージ後の不具合修正）のマージ後、仕様書�
 - 環境変数`CLAUDE_WORK_TOKEN`が未設定または不正な値
 
 **エラーログ**:
-```
+```log
 2025-12-18 11:06:10 [warn]: Login attempt with invalid token
 {
   "service": "claude-work"

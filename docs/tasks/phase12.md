@@ -68,7 +68,7 @@ Phase 11マージ後の動作検証で発見された不具合を修正します
 4. **環境変数CLAUDE_CODE_PATHの確認**:
    ```bash
    # 環境変数を確認
-   echo $CLAUDE_CODE_PATH
+   printenv CLAUDE_CODE_PATH || echo "未設定"
 
    # .envファイルの内容を確認
    cat .env
@@ -93,18 +93,37 @@ Phase 11マージ後の動作検証で発見された不具合を修正します
    - 問題の原因（特定できた場合）
    - 修正方針の提案
 
-7. **調査結果をコミット**:
+7. **調査結果をファイルに記録してコミット**:
    ```bash
-   git commit --allow-empty -m "investigate: セッション作成エラーの原因調査完了
+   # 調査結果をファイルに記録
+   mkdir -p docs/investigation
+   cat > docs/investigation/session-creation-error.md << 'EOF'
+# セッション作成エラーの調査結果
 
-調査結果:
-- エラーメッセージ: [記録したエラー内容]
-- CLAUDE_CODE_PATH: [設定状況]
-- Claude Codeインストール: [確認結果]
-- 原因: [特定できた原因]
-- 修正方針: [提案する修正方法]
+## 調査日時
+[実施日時]
 
-参照: docs/verification-report-phase11-post-merge.md:39-121"
+## エラーメッセージ
+[記録したエラー内容]
+
+## CLAUDE_CODE_PATH設定状況
+[設定状況]
+
+## Claude Codeインストール状況
+[確認結果]
+
+## 原因
+[特定できた原因]
+
+## 修正方針
+[提案する修正方法]
+
+## 参照
+- docs/verification-report-phase11-post-merge.md:39-121
+EOF
+
+   git add docs/investigation/session-creation-error.md
+   git commit -m "investigate: セッション作成エラーの原因調査完了"
    ```
 
 ### 受入基準
@@ -196,23 +215,34 @@ Phase 11マージ後の動作検証で発見された不具合を修正します
    - 123行目のキャンセルボタンの実装を確認
    - onClick={handleClose}が正しく設定されているか確認
 
-6. **確認結果をコミット**:
+6. **確認結果をファイルに記録してコミット**:
    ```bash
-   git commit --allow-empty -m "verify: Dialogキャンセルボタンの実ブラウザ確認完了
+   # 確認結果をファイルに記録
+   mkdir -p docs/investigation
+   cat > docs/investigation/dialog-cancel-button-check.md << 'EOF'
+# Dialogキャンセルボタンの実ブラウザ確認結果
 
-確認結果:
+## 確認日時
+[実施日時]
+
+## 確認結果
 - Chrome: [✅正常 / ❌問題あり]
 - Firefox: [✅正常 / ❌問題あり / 未確認]
 - Safari: [✅正常 / ❌問題あり / 未確認]
 
-結論:
+## 結論
 [DevTools特有の問題 / 実際に問題が存在する]
 
-[問題が存在する場合]
-修正方針: [提案する修正方法]
+## 修正方針（問題が存在する場合）
+[提案する修正方法]
 
-参照: docs/verification-report-phase11-post-merge.md:124-170
-該当コード: src/components/projects/AddProjectModal.tsx:123"
+## 参照
+- docs/verification-report-phase11-post-merge.md:124-170
+- 該当コード: src/components/projects/AddProjectModal.tsx:123
+EOF
+
+   git add docs/investigation/dialog-cancel-button-check.md
+   git commit -m "verify: Dialogキャンセルボタンの実ブラウザ確認完了"
    ```
 
 ### 受入基準

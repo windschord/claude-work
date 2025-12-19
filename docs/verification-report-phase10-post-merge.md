@@ -61,7 +61,7 @@ sqlite3 prisma/data/claudework.db "SELECT id, name, status FROM Session WHERE pr
 ```
 
 結果:
-```
+```text
 8e38e16f-e268-4881-83e6-a99a0b2c57f2|テストセッション|running
 ```
 

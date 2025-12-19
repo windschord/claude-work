@@ -31,7 +31,7 @@ Prismaスキーマ確認結果:
 **問題**: 設計書では `projects.run_scripts` をTEXT型(JSON形式)で保存する設計だが、実装では `RunScript` テーブルとして正規化されている。
 
 **設計書 (design.md:804-806)**:
-```
+```text
 | run_scripts | TEXT | | JSON形式のランスクリプト配列 |
 ```
 

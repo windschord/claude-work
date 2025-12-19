@@ -25,7 +25,7 @@ Phase 12（Phase 11マージ後の不具合修正・調査・ドキュメント�
 - すべてのページリクエストが404エラー
 
 **エラーログ**:
-```
+```log
 ENOENT: no such file or directory, open '/Users/tsk/Sync/git/claude-work/.next/server/pages/_document.js'
 ```
 
