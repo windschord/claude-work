@@ -39,9 +39,10 @@ type MockChildProcess = {
 describe('RunScriptManager', () => {
   let runScriptManager: RunScriptManager;
   let mockChildProcess: MockChildProcess;
+  let eventHandlers: Map<string, ((...args: unknown[]) => void)[]>;
 
   beforeEach(() => {
-    const eventHandlers: Map<string, ((...args: unknown[]) => void)[]> = new Map();
+    eventHandlers = new Map();
 
     mockChildProcess = {
       stdin: {
