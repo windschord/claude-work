@@ -249,3 +249,6 @@ playwright-report/
 
 # Git worktrees
 .worktrees/
+
+# PM2 logs
+logs/
