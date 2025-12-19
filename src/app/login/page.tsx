@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAppStore } from '@/store';
+import { ThemeToggle } from '@/components/common/ThemeToggle';
 
 /**
  * ログインページ
@@ -44,18 +45,21 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-24 bg-gray-50">
+    <main className="flex min-h-screen flex-col items-center justify-center p-24 bg-gray-50 dark:bg-gray-900">
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
       <div className="w-full max-w-md">
-        <div className="bg-white shadow-md rounded-lg px-8 pt-6 pb-8 mb-4">
+        <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg px-8 pt-6 pb-8 mb-4">
           <div className="mb-6 text-center">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">ClaudeWork</h1>
-            <h2 className="text-xl text-gray-600">ログイン</h2>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">ClaudeWork</h1>
+            <h2 className="text-xl text-gray-600 dark:text-gray-300">ログイン</h2>
           </div>
 
           <form onSubmit={handleSubmit}>
             <div className="mb-4">
               <label
-                className="block text-gray-700 text-sm font-bold mb-2"
+                className="block text-gray-700 dark:text-gray-300 text-sm font-bold mb-2"
                 htmlFor="token"
               >
                 認証トークン
@@ -66,13 +70,13 @@ export default function LoginPage() {
                 placeholder="認証トークンを入力"
                 value={token}
                 onChange={(e) => setToken(e.target.value)}
-                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                className="shadow appearance-none border border-gray-300 dark:border-gray-600 rounded w-full py-2 px-3 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:border-blue-500 dark:focus:border-blue-400"
                 disabled={isLoading}
               />
             </div>
 
             {error && (
-              <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+              <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/30 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-400 rounded">
                 {error}
               </div>
             )}
@@ -81,7 +85,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={!token || isLoading}
-                className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline disabled:opacity-50 disabled:cursor-not-allowed"
+                className="bg-blue-500 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
                   <span className="flex items-center">
