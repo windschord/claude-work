@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { pathToFileURL } from 'url';
 
-export default function setup() {
+export default async function setup() {
   // Create a temporary test database file
   const testDbPath = path.join(process.cwd(), 'prisma', 'data', 'test.db');
   const testDbDir = path.dirname(testDbPath);
@@ -37,4 +37,11 @@ export default function setup() {
   }
 
   console.log(`Test database initialized at ${testDbPath}`);
+
+  return async () => {
+    // Teardown: Disconnect all Prisma clients
+    const { prisma } = await import('./src/lib/db');
+    await prisma.$disconnect();
+    console.log('Test database connections closed');
+  };
 }
