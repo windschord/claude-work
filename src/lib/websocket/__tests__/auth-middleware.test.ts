@@ -104,6 +104,33 @@ describe('WebSocket Auth Middleware', () => {
       expect(result).toBeNull();
     });
   });
+
+  describe('⚠️ 認可ギャップ（既知のセキュリティ制限）', () => {
+    it('異なるユーザーのセッションにアクセスできる（user_idフィールドがないため）', async () => {
+      // ユーザーA用の認証セッションを作成
+      const userAToken = 'user-a-token';
+      const userAAuthSessionId = await createSession(userAToken);
+
+      // ユーザーB用の認証セッションを作成
+      const userBToken = 'user-b-token';
+      const userBAuthSessionId = await createSession(userBToken);
+
+      // ユーザーAのクッキーでユーザーBのセッションにアクセスを試みる
+      const request = createMockRequest({
+        sessionId: userAAuthSessionId,
+      });
+
+      const result = await authenticateWebSocket(request, validClaudeWorkSessionId);
+
+      // ⚠️ 現在は認証成功してしまう（認可チェックがないため）
+      // これは既知のセキュリティ制限で、user_idフィールドが追加されるまで修正されません
+      expect(result).toBe(validClaudeWorkSessionId);
+
+      // TODO (Phase 20+): user_idフィールド追加後は、この動作を変更する
+      // 期待される動作: 別ユーザーのセッションへのアクセスは拒否されるべき
+      // expect(result).toBeNull();
+    });
+  });
 });
 
 /**

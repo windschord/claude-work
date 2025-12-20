@@ -49,8 +49,12 @@ export async function authenticateWebSocket(
         return null;
       }
 
-      // 注: 現在のスキーマではuser_idフィールドがないため、セッションの存在確認のみ実施
-      // 将来的にuser_idフィールドが追加された場合は、以下のような所有者チェックを追加
+      // ⚠️ SECURITY LIMITATION: Authorization gap
+      // 現在のスキーマではsessionsテーブルにuser_idフィールドがないため、
+      // 認証済みユーザーが他のユーザーのセッションにアクセスできる状態です。
+      // これは既知のセキュリティ制限であり、将来のバージョンで修正が必要です。
+      //
+      // TODO (Phase 20+): user_idフィールドを追加して所有者チェックを実装
       // if (sessionDetails.user_id !== authSession.user_id) {
       //   logger.warn('WebSocket authorization failed: User not authorized', { sessionId: pathSessionId });
       //   return null;

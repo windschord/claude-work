@@ -79,6 +79,11 @@ export class ProcessManager extends EventEmitter {
    *
    * このメソッドはテストでのみ使用してください。
    * プロダクションコードでは使用しないでください。
+   *
+   * @remarks
+   * シングルトンインスタンスをnullに設定することで、次回のgetInstance()呼び出し時に
+   * 新しいインスタンスが生成されます。これにより、テスト間での完全な分離が保証されます。
+   * static property type `ProcessManager | null` は、この動作を型安全に実現するために必要です。
    */
   static resetForTesting(): void {
     if (ProcessManager.instance) {
@@ -92,6 +97,7 @@ export class ProcessManager extends EventEmitter {
       }
       ProcessManager.instance.processes.clear();
       ProcessManager.instance.removeAllListeners();
+      // シングルトンをnullにリセット（次回getInstance()で新しいインスタンスを生成）
       ProcessManager.instance = null;
     }
   }
