@@ -95,12 +95,12 @@ export class ProcessManager extends EventEmitter {
     if (model) {
       args.push('--model', model);
     }
-    args.push('--cwd', worktreePath);
 
     const claudeCodePath = process.env.CLAUDE_CODE_PATH || 'claude';
 
     const childProc = spawn(claudeCodePath, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
+      cwd: worktreePath,
     });
 
     // Handle spawn errors (e.g., ENOENT) asynchronously
