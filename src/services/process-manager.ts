@@ -75,6 +75,34 @@ export class ProcessManager extends EventEmitter {
   }
 
   /**
+   * テスト用: シングルトンインスタンスと全プロセスをリセット
+   *
+   * このメソッドはテストでのみ使用してください。
+   * プロダクションコードでは使用しないでください。
+   *
+   * @remarks
+   * シングルトンインスタンスをnullに設定することで、次回のgetInstance()呼び出し時に
+   * 新しいインスタンスが生成されます。これにより、テスト間での完全な分離が保証されます。
+   * static property type `ProcessManager | null` は、この動作を型安全に実現するために必要です。
+   */
+  static resetForTesting(): void {
+    if (ProcessManager.instance) {
+      // 全プロセスを強制終了
+      for (const [, processData] of ProcessManager.instance.processes) {
+        try {
+          processData.process.kill();
+        } catch {
+          // Ignore errors
+        }
+      }
+      ProcessManager.instance.processes.clear();
+      ProcessManager.instance.removeAllListeners();
+      // シングルトンをnullにリセット（次回getInstance()で新しいインスタンスを生成）
+      ProcessManager.instance = null;
+    }
+  }
+
+  /**
    * Claude Codeプロセスを起動
    *
    * 指定されたworktreeでClaude Codeを起動し、初期プロンプトを送信します。
@@ -95,12 +123,12 @@ export class ProcessManager extends EventEmitter {
     if (model) {
       args.push('--model', model);
     }
-    args.push('--cwd', worktreePath);
 
     const claudeCodePath = process.env.CLAUDE_CODE_PATH || 'claude';
 
     const childProc = spawn(claudeCodePath, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
+      cwd: worktreePath,
     });
 
     // Handle spawn errors (e.g., ENOENT) asynchronously

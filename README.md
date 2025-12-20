@@ -71,6 +71,78 @@ npx claude-work
 
 詳細は [API.md](docs/API.md) を参照してください。
 
+## 開発
+
+### 開発サーバーの起動
+
+開発時には、pm2を使った起動を推奨します。pm2を使うことで、バックグラウンドプロセスの管理が容易になります。
+
+```bash
+# pm2で開発サーバーを起動（推奨）
+npm run dev:pm2
+
+# プロセスの状態を確認
+npm run pm2:status
+
+# ログを確認
+npm run pm2:logs
+
+# サーバーを停止
+npm run pm2:stop
+
+# pm2からプロセスを削除
+npm run pm2:delete
+```
+
+従来の方法でも起動できます:
+
+```bash
+# 直接起動（Ctrl+Cで停止）
+npm run dev
+```
+
+### pm2の利点
+
+- プロセスの安全な停止（killコマンド不要）
+- プロセス状態の確認が容易
+- ログ管理の統一
+- 自動再起動機能
+- リソース使用状況のモニタリング
+
+### pm2コマンド一覧
+
+```bash
+# 開発サーバーのみ起動
+npm run dev:pm2
+
+# テスト実行（pm2経由）
+npm run test:pm2
+
+# テスト監視モード（pm2経由）
+npm run test:watch:pm2
+
+# すべてのプロセスを起動
+npm run pm2:start
+
+# すべてのプロセスを再起動
+npm run pm2:restart
+
+# プロセス状態を確認
+npm run pm2:status
+
+# ログをリアルタイム表示
+npm run pm2:logs
+
+# リソース使用状況をモニタリング
+npm run pm2:monit
+
+# すべてのプロセスを停止
+npm run pm2:stop
+
+# すべてのプロセスを削除
+npm run pm2:delete
+```
+
 ## テスト
 
 ### ユニットテスト
@@ -81,6 +153,9 @@ npm test
 
 # テストをウォッチモードで実行
 npm run test:watch
+
+# pm2でテスト監視モードを実行（バックグラウンド）
+npm run test:watch:pm2
 ```
 
 ### E2Eテスト

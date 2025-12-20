@@ -9,19 +9,19 @@ import { prisma } from '../db';
  * WebSocket接続の認証ミドルウェア
  *
  * クッキーからセッション情報を取得し、認証済みかどうかを検証します。
- * URLパスのセッションIDと認証されたセッションを照合します。
+ * 認証が成功した場合、URLパスのセッションIDを返します（セッション識別用）。
  * 認証に失敗した場合はnullを返します。
  *
  * @param request - WebSocketアップグレードリクエスト
- * @param sessionId - URLパスから抽出されたセッションID
- * @returns 認証に成功した場合はセッションID、失敗した場合はnull
+ * @param pathSessionId - URLパスから抽出されたClaude WorkセッションID（セッション識別用）
+ * @returns 認証に成功した場合はpathSessionId、失敗した場合はnull
  */
 export async function authenticateWebSocket(
   request: IncomingMessage,
-  sessionId: string
+  pathSessionId: string
 ): Promise<string | null> {
   try {
-    // クッキーヘッダーからセッションIDを抽出
+    // クッキーヘッダーから認証セッションIDを抽出
     const cookies = parseCookies(request.headers.cookie || '');
     const cookieSessionId = cookies['sessionId'];
 
@@ -30,43 +30,41 @@ export async function authenticateWebSocket(
       return null;
     }
 
-    // セッションを検証
-    const session = await getSession(cookieSessionId);
-    if (!session) {
+    // 認証セッションの有効性を検証
+    const authSession = await getSession(cookieSessionId);
+    if (!authSession) {
       logger.warn('WebSocket authentication failed: Invalid session', { sessionId: cookieSessionId });
       return null;
     }
 
-    // URLパスのセッションIDとクッキーのセッションIDが一致することを確認
-    if (sessionId !== cookieSessionId) {
-      logger.warn('WebSocket authentication failed: Session ID mismatch', {
-        pathSessionId: sessionId,
-        cookieSessionId,
-      });
-      return null;
-    }
-
-    // セッションの所有者確認（認可チェック）
+    // Claude Workセッションの存在確認（認可チェック）
     try {
       const sessionDetails = await prisma.session.findUnique({
-        where: { id: sessionId },
+        where: { id: pathSessionId },
         select: { project: { select: { id: true } } },
       });
 
       if (!sessionDetails) {
-        logger.warn('WebSocket authorization failed: Session not found', { sessionId });
+        logger.warn('WebSocket authorization failed: Session not found', { sessionId: pathSessionId });
         return null;
       }
 
-      // 注: 現在のスキーマではuser_idフィールドがないため、セッションの存在確認のみ実施
-      // 将来的にuser_idフィールドが追加された場合は、以下のような所有者チェックを追加
-      // if (sessionDetails.user_id !== session.user_id) {
-      //   logger.warn('WebSocket authorization failed: User not authorized', { sessionId });
+      // ⚠️ SECURITY LIMITATION: Authorization gap
+      // 現在のスキーマではsessionsテーブルにuser_idフィールドがないため、
+      // 認証済みユーザーが他のユーザーのセッションにアクセスできる状態です。
+      // これは既知のセキュリティ制限であり、将来のバージョンで修正が必要です。
+      //
+      // TODO (Phase 20+): user_idフィールドを追加して所有者チェックを実装
+      // if (sessionDetails.user_id !== authSession.user_id) {
+      //   logger.warn('WebSocket authorization failed: User not authorized', { sessionId: pathSessionId });
       //   return null;
       // }
 
-      logger.info('WebSocket authentication successful', { sessionId });
-      return sessionId;
+      logger.info('WebSocket authentication successful', {
+        authSessionId: cookieSessionId,
+        claudeWorkSessionId: pathSessionId
+      });
+      return pathSessionId;
     } catch (error) {
       logger.error('WebSocket authorization error', { error });
       return null;

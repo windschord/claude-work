@@ -37,8 +37,11 @@ type MockChildProcess = {
 describe('ProcessManager', () => {
   let processManager: ProcessManager;
   let mockChildProcess: MockChildProcess;
+  let eventHandlers: { [key: string]: (...args: unknown[]) => void } = {};
 
   beforeEach(() => {
+    eventHandlers = {};
+
     mockChildProcess = {
       stdin: {
         write: vi.fn(),
@@ -47,6 +50,7 @@ describe('ProcessManager', () => {
       stdout: new EventEmitter(),
       stderr: new EventEmitter(),
       on: vi.fn((event, callback) => {
+        eventHandlers[event] = callback;
         if (event === 'exit') {
           setTimeout(() => callback(0, null), 0);
         }
@@ -56,30 +60,96 @@ describe('ProcessManager', () => {
       pid: 12345,
     };
 
-    mockSpawn.mockImplementation(() => mockChildProcess as unknown as ChildProcess);
+    mockSpawn.mockImplementation(() => {
+      // Spawn イベントを非同期で発火する
+      setTimeout(() => {
+        const spawnHandler = eventHandlers['spawn'];
+        if (spawnHandler) {
+          spawnHandler();
+        }
+      }, 0);
+      return mockChildProcess as unknown as ChildProcess;
+    });
     processManager = ProcessManager.getInstance();
   });
 
   afterEach(async () => {
-    // Clean up any running sessions
-    const testSessionIds = ['test-session', 'non-existent'];
-    for (const sessionId of testSessionIds) {
-      try {
-        await processManager.stop(sessionId);
-      } catch {
-        // Ignore errors for non-existent sessions
-      }
-    }
+    // Reset ProcessManager singleton and clear all processes
+    ProcessManager.resetForTesting();
     vi.clearAllMocks();
   });
 
   describe('startClaudeCode', () => {
+    it('should NOT include --cwd option in spawn arguments', async () => {
+      const options: StartOptions = {
+        sessionId: 'test-session-no-cwd-arg',
+        worktreePath: '/path/to/worktree',
+        prompt: 'test prompt',
+        model: 'sonnet',
+      };
+
+      await processManager.startClaudeCode(options);
+
+      // --cwdオプションが引数に含まれていないことを確認
+      const spawnCall = mockSpawn.mock.calls[mockSpawn.mock.calls.length - 1];
+      const args = spawnCall[1] as string[];
+      expect(args).not.toContain('--cwd');
+      expect(args).not.toContain('/path/to/worktree');
+    });
+
+    it('should set cwd option in spawn options', async () => {
+      const options: StartOptions = {
+        sessionId: 'test-session-cwd-option',
+        worktreePath: '/path/to/worktree',
+        prompt: 'test prompt',
+        model: 'sonnet',
+      };
+
+      await processManager.startClaudeCode(options);
+
+      // spawn()のオプションにcwd: worktreePathが設定されていることを確認
+      expect(mockSpawn).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(Array),
+        expect.objectContaining({
+          stdio: ['pipe', 'pipe', 'pipe'],
+          cwd: '/path/to/worktree',
+        })
+      );
+    });
+
+    it('should successfully spawn Claude Code process with worktree path', async () => {
+      const options: StartOptions = {
+        sessionId: 'test-session-spawn-success',
+        worktreePath: '/path/to/worktree',
+        prompt: 'test prompt',
+        model: 'sonnet',
+      };
+
+      const info = await processManager.startClaudeCode(options);
+
+      // プロセスが正常に起動することを確認
+      expect(info).toEqual({
+        sessionId: 'test-session-spawn-success',
+        pid: 12345,
+        status: 'running',
+      });
+      expect(mockSpawn).toHaveBeenCalledWith(
+        'claude',
+        ['--print', '--model', 'sonnet'],
+        expect.objectContaining({
+          stdio: ['pipe', 'pipe', 'pipe'],
+          cwd: '/path/to/worktree',
+        })
+      );
+    });
+
     it('should use CLAUDE_CODE_PATH environment variable when set', async () => {
       const originalPath = process.env.CLAUDE_CODE_PATH;
       process.env.CLAUDE_CODE_PATH = '/custom/path/to/claude';
 
       const options: StartOptions = {
-        sessionId: 'test-session',
+        sessionId: 'test-session-custom-path',
         worktreePath: '/path/to/worktree',
         prompt: 'test prompt',
         model: 'sonnet',
@@ -89,8 +159,11 @@ describe('ProcessManager', () => {
 
       expect(mockSpawn).toHaveBeenCalledWith(
         '/custom/path/to/claude',
-        ['--print', '--model', 'sonnet', '--cwd', '/path/to/worktree'],
-        expect.objectContaining({ stdio: ['pipe', 'pipe', 'pipe'] })
+        ['--print', '--model', 'sonnet'],
+        expect.objectContaining({
+          stdio: ['pipe', 'pipe', 'pipe'],
+          cwd: '/path/to/worktree',
+        })
       );
 
       // Restore original value
@@ -106,7 +179,7 @@ describe('ProcessManager', () => {
       delete process.env.CLAUDE_CODE_PATH;
 
       const options: StartOptions = {
-        sessionId: 'test-session',
+        sessionId: 'test-session-default-cmd',
         worktreePath: '/path/to/worktree',
         prompt: 'test prompt',
         model: 'sonnet',
@@ -116,8 +189,11 @@ describe('ProcessManager', () => {
 
       expect(mockSpawn).toHaveBeenCalledWith(
         'claude',
-        ['--print', '--model', 'sonnet', '--cwd', '/path/to/worktree'],
-        expect.objectContaining({ stdio: ['pipe', 'pipe', 'pipe'] })
+        ['--print', '--model', 'sonnet'],
+        expect.objectContaining({
+          stdio: ['pipe', 'pipe', 'pipe'],
+          cwd: '/path/to/worktree',
+        })
       );
 
       // Restore original value
@@ -129,12 +205,33 @@ describe('ProcessManager', () => {
     it('should throw Japanese error message when spawn fails with ENOENT', async () => {
       const mockError = new Error('spawn claude ENOENT') as NodeJS.ErrnoException;
       mockError.code = 'ENOENT';
+
+      const eventHandlers: { [key: string]: (...args: unknown[]) => void } = {};
+      const mockFailedProcess = {
+        stdin: { write: vi.fn(), end: vi.fn() },
+        stdout: new EventEmitter(),
+        stderr: new EventEmitter(),
+        on: vi.fn((event, callback) => {
+          eventHandlers[event] = callback;
+          return mockFailedProcess;
+        }),
+        kill: vi.fn(),
+        pid: undefined,
+      };
+
       mockSpawn.mockImplementation(() => {
-        throw mockError;
+        // error イベントを非同期で発火する
+        setTimeout(() => {
+          const errorHandler = eventHandlers['error'];
+          if (errorHandler) {
+            errorHandler(mockError);
+          }
+        }, 0);
+        return mockFailedProcess as unknown as ChildProcess;
       });
 
       const options: StartOptions = {
-        sessionId: 'test-session',
+        sessionId: 'test-session-enoent',
         worktreePath: '/path/to/worktree',
         prompt: 'test prompt',
       };
@@ -146,7 +243,7 @@ describe('ProcessManager', () => {
 
     it('should spawn claude process with correct arguments', async () => {
       const options: StartOptions = {
-        sessionId: 'test-session',
+        sessionId: 'test-session-correct-args',
         worktreePath: '/path/to/worktree',
         prompt: 'test prompt',
         model: 'sonnet',
@@ -156,14 +253,17 @@ describe('ProcessManager', () => {
 
       expect(mockSpawn).toHaveBeenCalledWith(
         'claude',
-        ['--print', '--model', 'sonnet', '--cwd', '/path/to/worktree'],
-        expect.objectContaining({ stdio: ['pipe', 'pipe', 'pipe'] })
+        ['--print', '--model', 'sonnet'],
+        expect.objectContaining({
+          stdio: ['pipe', 'pipe', 'pipe'],
+          cwd: '/path/to/worktree',
+        })
       );
     });
 
     it('should send initial prompt to stdin', async () => {
       const options: StartOptions = {
-        sessionId: 'test-session',
+        sessionId: 'test-session-stdin',
         worktreePath: '/path/to/worktree',
         prompt: 'test prompt',
       };
@@ -175,7 +275,7 @@ describe('ProcessManager', () => {
 
     it('should return process info', async () => {
       const options: StartOptions = {
-        sessionId: 'test-session',
+        sessionId: 'test-session-return-info',
         worktreePath: '/path/to/worktree',
         prompt: 'test prompt',
       };
@@ -183,7 +283,7 @@ describe('ProcessManager', () => {
       const info = await processManager.startClaudeCode(options);
 
       expect(info).toEqual({
-        sessionId: 'test-session',
+        sessionId: 'test-session-return-info',
         pid: 12345,
         status: 'running',
       });
@@ -191,7 +291,7 @@ describe('ProcessManager', () => {
 
     it('should reject if session already exists', async () => {
       const options: StartOptions = {
-        sessionId: 'test-session',
+        sessionId: 'test-session-duplicate',
         worktreePath: '/path/to/worktree',
         prompt: 'test prompt',
       };
@@ -199,7 +299,7 @@ describe('ProcessManager', () => {
       await processManager.startClaudeCode(options);
 
       await expect(processManager.startClaudeCode(options)).rejects.toThrow(
-        'Session test-session already exists'
+        'Session test-session-duplicate already exists'
       );
     });
   });
@@ -207,7 +307,7 @@ describe('ProcessManager', () => {
   describe('sendInput', () => {
     beforeEach(async () => {
       const options: StartOptions = {
-        sessionId: 'test-session',
+        sessionId: 'test-session-send-input',
         worktreePath: '/path/to/worktree',
         prompt: 'test prompt',
       };
@@ -216,7 +316,7 @@ describe('ProcessManager', () => {
     });
 
     it('should write input to stdin', async () => {
-      await processManager.sendInput('test-session', 'test input');
+      await processManager.sendInput('test-session-send-input', 'test input');
 
       expect(mockChildProcess.stdin.write).toHaveBeenCalledWith('test input\n');
     });
@@ -231,7 +331,7 @@ describe('ProcessManager', () => {
   describe('stop', () => {
     beforeEach(async () => {
       const options: StartOptions = {
-        sessionId: 'test-session',
+        sessionId: 'test-session-stop',
         worktreePath: '/path/to/worktree',
         prompt: 'test prompt',
       };
@@ -239,22 +339,22 @@ describe('ProcessManager', () => {
     });
 
     it('should kill the process', async () => {
-      await processManager.stop('test-session');
+      await processManager.stop('test-session-stop');
 
       expect(mockChildProcess.kill).toHaveBeenCalled();
     });
 
     it('should update status to stopped', async () => {
-      await processManager.stop('test-session');
+      await processManager.stop('test-session-stop');
 
-      const status = processManager.getStatus('test-session');
+      const status = processManager.getStatus('test-session-stop');
       expect(status?.status).toBe('stopped');
     });
 
     it('should not remove from map', async () => {
-      await processManager.stop('test-session');
+      await processManager.stop('test-session-stop');
 
-      const status = processManager.getStatus('test-session');
+      const status = processManager.getStatus('test-session-stop');
       expect(status).not.toBeNull();
     });
 
@@ -273,15 +373,15 @@ describe('ProcessManager', () => {
 
     it('should return process info if session exists', async () => {
       const options: StartOptions = {
-        sessionId: 'test-session',
+        sessionId: 'test-session-get-status',
         worktreePath: '/path/to/worktree',
         prompt: 'test prompt',
       };
       await processManager.startClaudeCode(options);
 
-      const status = processManager.getStatus('test-session');
+      const status = processManager.getStatus('test-session-get-status');
       expect(status).toEqual({
-        sessionId: 'test-session',
+        sessionId: 'test-session-get-status',
         pid: 12345,
         status: 'running',
       });
@@ -291,27 +391,30 @@ describe('ProcessManager', () => {
   describe('events', () => {
     beforeEach(async () => {
       const options: StartOptions = {
-        sessionId: 'test-session',
+        sessionId: 'test-session-events',
         worktreePath: '/path/to/worktree',
         prompt: 'test prompt',
       };
       await processManager.startClaudeCode(options);
     });
 
-    it('should emit output event for normal stdout', (done) => {
-      processManager.once('output', (data) => {
-        expect(data).toEqual({
-          sessionId: 'test-session',
-          type: 'output',
-          content: 'normal output',
+    it('should emit output event for normal stdout', async () => {
+      const outputPromise = new Promise((resolve) => {
+        processManager.once('output', (data) => {
+          expect(data).toEqual({
+            sessionId: 'test-session-events',
+            type: 'output',
+            content: 'normal output',
+          });
+          resolve(undefined);
         });
-        done();
       });
 
       mockChildProcess.stdout.emit('data', Buffer.from('normal output\n'));
+      await outputPromise;
     });
 
-    it('should emit permission event for permission request JSON', (done) => {
+    it('should emit permission event for permission request JSON', async () => {
       const permissionRequest = {
         type: 'permission_request',
         requestId: 'req-123',
@@ -319,46 +422,59 @@ describe('ProcessManager', () => {
         details: { path: '/path/to/file' },
       };
 
-      processManager.once('permission', (data) => {
-        expect(data).toEqual({
-          sessionId: 'test-session',
-          requestId: 'req-123',
-          action: 'edit_file',
-          details: { path: '/path/to/file' },
+      const permissionPromise = new Promise((resolve) => {
+        processManager.once('permission', (data) => {
+          expect(data).toEqual({
+            sessionId: 'test-session-events',
+            requestId: 'req-123',
+            action: 'edit_file',
+            details: { path: '/path/to/file' },
+          });
+          resolve(undefined);
         });
-        done();
       });
 
       mockChildProcess.stdout.emit('data', Buffer.from(JSON.stringify(permissionRequest) + '\n'));
+      await permissionPromise;
     });
 
-    it('should emit error event for stderr', (done) => {
-      processManager.once('error', (data) => {
-        expect(data).toEqual({
-          sessionId: 'test-session',
-          content: 'error message',
+    it('should emit error event for stderr', async () => {
+      const errorPromise = new Promise((resolve) => {
+        processManager.once('error', (data) => {
+          expect(data).toEqual({
+            sessionId: 'test-session-events',
+            content: 'error message',
+          });
+          resolve(undefined);
         });
-        done();
       });
 
       mockChildProcess.stderr.emit('data', Buffer.from('error message\n'));
+      await errorPromise;
     });
 
-    it('should emit exit event but not remove from map', (done) => {
-      processManager.once('exit', (data) => {
-        expect(data).toEqual({
-          sessionId: 'test-session',
-          exitCode: 0,
-          signal: null,
-        });
+    it('should emit exit event but not remove from map', async () => {
+      const exitPromise = new Promise((resolve) => {
+        processManager.once('exit', (data) => {
+          expect(data).toEqual({
+            sessionId: 'test-session-events',
+            exitCode: 0,
+            signal: null,
+          });
 
-        // Process should not be removed from map
-        const status = processManager.getStatus('test-session');
-        expect(status).not.toBeNull();
-        done();
+          // Process should be removed from map when exit
+          const status = processManager.getStatus('test-session-events');
+          expect(status).toBeNull();
+          resolve(undefined);
+        });
       });
 
-      mockChildProcess.emit('exit', 0, null);
+      // Trigger exit event by calling the registered handler
+      const exitHandler = eventHandlers['exit'];
+      if (exitHandler) {
+        exitHandler(0, null);
+      }
+      await exitPromise;
     });
   });
 });
