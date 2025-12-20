@@ -75,6 +75,28 @@ export class ProcessManager extends EventEmitter {
   }
 
   /**
+   * テスト用: シングルトンインスタンスと全プロセスをリセット
+   *
+   * このメソッドはテストでのみ使用してください。
+   * プロダクションコードでは使用しないでください。
+   */
+  static resetForTesting(): void {
+    if (ProcessManager.instance) {
+      // 全プロセスを強制終了
+      for (const [, processData] of ProcessManager.instance.processes) {
+        try {
+          processData.process.kill();
+        } catch {
+          // Ignore errors
+        }
+      }
+      ProcessManager.instance.processes.clear();
+      ProcessManager.instance.removeAllListeners();
+      ProcessManager.instance = null;
+    }
+  }
+
+  /**
    * Claude Codeプロセスを起動
    *
    * 指定されたworktreeでClaude Codeを起動し、初期プロンプトを送信します。

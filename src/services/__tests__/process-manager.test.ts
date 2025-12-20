@@ -37,9 +37,10 @@ type MockChildProcess = {
 describe('ProcessManager', () => {
   let processManager: ProcessManager;
   let mockChildProcess: MockChildProcess;
+  let eventHandlers: { [key: string]: (...args: unknown[]) => void } = {};
 
   beforeEach(() => {
-    const eventHandlers: { [key: string]: Function } = {};
+    eventHandlers = {};
 
     mockChildProcess = {
       stdin: {
@@ -73,30 +74,8 @@ describe('ProcessManager', () => {
   });
 
   afterEach(async () => {
-    // Clean up any running sessions
-    const testSessionIds = [
-      'test-session-no-cwd-arg',
-      'test-session-cwd-option',
-      'test-session-spawn-success',
-      'test-session-custom-path',
-      'test-session-default-cmd',
-      'test-session-enoent',
-      'test-session-correct-args',
-      'test-session-stdin',
-      'test-session-return-info',
-      'test-session-duplicate',
-      'test-session-send-input',
-      'test-session-stop',
-      'test-session-get-status',
-      'test-session-events',
-    ];
-    for (const sessionId of testSessionIds) {
-      try {
-        await processManager.stop(sessionId);
-      } catch {
-        // Ignore errors for non-existent sessions
-      }
-    }
+    // Reset ProcessManager singleton and clear all processes
+    ProcessManager.resetForTesting();
     vi.clearAllMocks();
   });
 
@@ -227,7 +206,7 @@ describe('ProcessManager', () => {
       const mockError = new Error('spawn claude ENOENT') as NodeJS.ErrnoException;
       mockError.code = 'ENOENT';
 
-      const eventHandlers: { [key: string]: Function } = {};
+      const eventHandlers: { [key: string]: (...args: unknown[]) => void } = {};
       const mockFailedProcess = {
         stdin: { write: vi.fn(), end: vi.fn() },
         stdout: new EventEmitter(),
@@ -419,20 +398,23 @@ describe('ProcessManager', () => {
       await processManager.startClaudeCode(options);
     });
 
-    it('should emit output event for normal stdout', (done) => {
-      processManager.once('output', (data) => {
-        expect(data).toEqual({
-          sessionId: 'test-session-events',
-          type: 'output',
-          content: 'normal output',
+    it('should emit output event for normal stdout', async () => {
+      const outputPromise = new Promise((resolve) => {
+        processManager.once('output', (data) => {
+          expect(data).toEqual({
+            sessionId: 'test-session-events',
+            type: 'output',
+            content: 'normal output',
+          });
+          resolve(undefined);
         });
-        done();
       });
 
       mockChildProcess.stdout.emit('data', Buffer.from('normal output\n'));
+      await outputPromise;
     });
 
-    it('should emit permission event for permission request JSON', (done) => {
+    it('should emit permission event for permission request JSON', async () => {
       const permissionRequest = {
         type: 'permission_request',
         requestId: 'req-123',
@@ -440,46 +422,59 @@ describe('ProcessManager', () => {
         details: { path: '/path/to/file' },
       };
 
-      processManager.once('permission', (data) => {
-        expect(data).toEqual({
-          sessionId: 'test-session-events',
-          requestId: 'req-123',
-          action: 'edit_file',
-          details: { path: '/path/to/file' },
+      const permissionPromise = new Promise((resolve) => {
+        processManager.once('permission', (data) => {
+          expect(data).toEqual({
+            sessionId: 'test-session-events',
+            requestId: 'req-123',
+            action: 'edit_file',
+            details: { path: '/path/to/file' },
+          });
+          resolve(undefined);
         });
-        done();
       });
 
       mockChildProcess.stdout.emit('data', Buffer.from(JSON.stringify(permissionRequest) + '\n'));
+      await permissionPromise;
     });
 
-    it('should emit error event for stderr', (done) => {
-      processManager.once('error', (data) => {
-        expect(data).toEqual({
-          sessionId: 'test-session-events',
-          content: 'error message',
+    it('should emit error event for stderr', async () => {
+      const errorPromise = new Promise((resolve) => {
+        processManager.once('error', (data) => {
+          expect(data).toEqual({
+            sessionId: 'test-session-events',
+            content: 'error message',
+          });
+          resolve(undefined);
         });
-        done();
       });
 
       mockChildProcess.stderr.emit('data', Buffer.from('error message\n'));
+      await errorPromise;
     });
 
-    it('should emit exit event but not remove from map', (done) => {
-      processManager.once('exit', (data) => {
-        expect(data).toEqual({
-          sessionId: 'test-session-events',
-          exitCode: 0,
-          signal: null,
-        });
+    it('should emit exit event but not remove from map', async () => {
+      const exitPromise = new Promise((resolve) => {
+        processManager.once('exit', (data) => {
+          expect(data).toEqual({
+            sessionId: 'test-session-events',
+            exitCode: 0,
+            signal: null,
+          });
 
-        // Process should be removed from map when exit
-        const status = processManager.getStatus('test-session-events');
-        expect(status).toBeNull();
-        done();
+          // Process should be removed from map when exit
+          const status = processManager.getStatus('test-session-events');
+          expect(status).toBeNull();
+          resolve(undefined);
+        });
       });
 
-      mockChildProcess.emit('exit', 0, null);
+      // Trigger exit event by calling the registered handler
+      const exitHandler = eventHandlers['exit'];
+      if (exitHandler) {
+        exitHandler(0, null);
+      }
+      await exitPromise;
     });
   });
 });
