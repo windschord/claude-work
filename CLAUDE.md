@@ -155,10 +155,10 @@ See `docs/ENV_VARS.md` for complete reference.
 ### WebSocket Authentication
 
 Both WebSocket servers authenticate via:
-1. Extract sessionId from URL path (`/ws/sessions/:id` or `/ws/terminal/:id`)
-2. Parse iron-session cookie from request headers
-3. Compare cookie sessionId with URL sessionId
-4. Reject if mismatch (prevents session hijacking)
+1. Parse and validate the iron-session cookie from request headers (authentication/authorization)
+2. Extract `pathSessionId` from URL path (`/ws/sessions/:id` or `/ws/terminal/:id`) to identify the target session
+3. Bind the WebSocket connection to the identified session using the validated cookie context
+   - Note: the cookie `sessionId` is not compared to the URL `pathSessionId`; the path value is used only for session identification
 
 Implementation: `src/lib/websocket/auth-middleware.ts`
 
@@ -246,21 +246,21 @@ Manual testing script: `npm run integration-test`
 4. Create service layer in `src/lib/` or `src/services/`
 5. Add tests for database operations
 
-## Known Issues (as of Phase 18)
+## Known Issues (Phase 18 baseline and Phase 19 status)
 
-See `docs/verification-report-browser-ui-phase18.md` for current status:
+See `docs/verification-report-browser-ui-phase18.md` for the Phase 18 baseline status.
 
-1. **Critical**: Claude Code `--cwd` option not supported (process-manager.ts:98)
-2. **Critical**: WebSocket authentication session ID mismatch
-3. **Critical**: WebSocket remains disconnected (related to issues 1-2)
+1. **Critical** (resolved in Phase 19): Claude Code `--cwd` option not supported (process-manager.ts:98)
+2. **Critical** (resolved in Phase 19): WebSocket authentication session ID mismatch
+3. **Critical** (partially resolved in Phase 19): WebSocket remains disconnected (related to issues 1-2)
 4. **Low**: Next.js HMR WebSocket 404 in custom server mode
 5. **Low**: Multiple lockfile warning (remove package-lock.json)
 
-Phase 19 tasks (docs/tasks/phase19.md) address these issues.
+Phase 19 tasks (docs/tasks/phase19.md) implement fixes for issues 1–3; issues 1–2 are fully resolved and issue 3 is partially resolved per the Phase 19 verification report.
 
 ## Project Structure
 
-```
+```text
 ├── server.ts                 # Custom Next.js server with WebSocket
 ├── ecosystem.config.js       # PM2 process configuration
 ├── prisma/
