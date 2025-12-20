@@ -1,0 +1,102 @@
+# Gemini PR Review Workflow
+# このワークフローはPRが作成・更新された際にGemini CLIを使用して自動レビューを行います
+
+name: Gemini PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+
+# 同じPRに対する重複実行を防止
+concurrency:
+  group: gemini-review-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  # コメントトリガーの場合、@gemini-cli コマンドかどうかを判定
+  check-trigger:
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+      pr_number: ${{ steps.check.outputs.pr_number }}
+    steps:
+      - name: Check trigger condition
+        id: check
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+            echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "issue_comment" || "${{ github.event_name }}" == "pull_request_review_comment" ]]; then
+            COMMENT_BODY="${{ github.event.comment.body }}"
+            if [[ "$COMMENT_BODY" == *"@gemini-cli"* && "$COMMENT_BODY" == *"/review"* ]]; then
+              echo "should_run=true" >> $GITHUB_OUTPUT
+              echo "pr_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+            else
+              echo "should_run=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "should_run=false" >> $GITHUB_OUTPUT
+          fi
+
+  review:
+    needs: check-trigger
+    if: needs.check-trigger.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gemini CLI Review
+        uses: google-github-actions/run-gemini-cli@main
+        with:
+          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+          prompt: |
+            あなたはコードレビューの専門家です。このプルリクエストを日本語でレビューしてください。
+
+            ## 必須レビュー観点
+
+            以下の観点は必ずチェックしてください：
+
+            ### 1. 設計書との整合性
+            - `docs/design.md` に記載された設計に沿った実装になっているか
+            - `docs/requirements.md` に記載された要件を満たしているか
+            - 設計から逸脱している箇所があれば指摘してください
+
+            ### 2. セキュリティチェック
+            - SQLインジェクション、XSS、コマンドインジェクションなどの脆弱性がないか
+            - 機密情報（APIキー、パスワード等）がハードコードされていないか
+            - 入力値の検証が適切に行われているか
+            - 認証・認可の処理が適切か
+            - セキュリティ上の問題があれば必ず🔴 Criticalとして報告してください
+
+            ## その他のレビュー観点
+
+            - **コードの正確性**: ロジックにバグや誤りがないか
+            - **パフォーマンス**: 非効率な処理やボトルネックがないか
+            - **保守性**: コードが読みやすく、保守しやすいか
+            - **テスト**: 適切なテストが含まれているか
+
+            ## レビューコメントの形式
+
+            各コメントには以下の重要度レベルを必ず付けてください：
+
+            - 🔴 **Critical（重大）**: マージ前に必ず修正が必要（セキュリティ問題、重大なバグ）
+            - 🟠 **High（高）**: 対応を強く推奨
+            - 🟡 **Medium（中）**: 改善を推奨
+            - 🟢 **Low（低）**: 提案・スタイルの改善
+
+            ## 出力形式
+
+            レビュー結果は日本語で出力し、具体的なコード箇所を参照しながら指摘してください。
+            良い点があれば、それも含めてフィードバックしてください。
