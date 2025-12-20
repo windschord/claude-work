@@ -44,7 +44,7 @@
 **症状**:
 - セッション作成時にClaude Codeプロセスの起動に失敗する
 - サーバーログに以下のエラーが記録される:
-  ```
+  ```text
   Error: Unhandled error. ({
     sessionId: 'c27c8104-88a3-4abc-a53a-3ce49b629e70',
     content: "error: unknown option '--cwd'"
@@ -92,13 +92,13 @@
 - Session WebSocketの接続時に認証エラーが発生
 - Terminal WebSocketの接続時にも同様の認証エラーが発生
 - サーバーログ:
-  ```
+  ```text
   WebSocket authentication failed: Session ID mismatch
   pathSessionId: "c27c8104-88a3-4abc-a53a-3ce49b629e70"
   cookieSessionId: "a2a40dcb-f39a-4795-ac2f-125ed349adb8"
   ```
 - ブラウザコンソールログ:
-  ```
+  ```text
   WebSocket connection to 'ws://localhost:3000/ws/sessions/c27c8104-88a3-4abc-a53a-3ce49b629e70' failed:
   HTTP Authentication failed; no valid credentials available
   ```
@@ -168,7 +168,7 @@
 
 **症状**:
 - サーバーログに以下の警告が記録される:
-  ```
+  ```json
   Invalid WebSocket path
   {
     "service": "claude-work",
@@ -196,7 +196,7 @@
 **重要度**: Low
 
 **症状**:
-```
+```text
 Warning: Found multiple lockfiles. Selecting /Users/tsk/package-lock.json.
 Consider removing the lockfiles at:
 * /Users/tsk/Sync/git/claude-work/package-lock.json
