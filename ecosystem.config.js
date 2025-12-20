@@ -7,7 +7,7 @@ module.exports = {
       cwd: __dirname,
       env: {
         NODE_ENV: 'development',
-        CLAUDE_CODE_PATH: '/Users/tsk/.local/bin/claude',
+        ...(process.env.CLAUDE_CODE_PATH && { CLAUDE_CODE_PATH: process.env.CLAUDE_CODE_PATH }),
       },
       watch: false,
       autorestart: true,

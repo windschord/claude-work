@@ -260,14 +260,13 @@ if (sessionId !== cookieSessionId) {
 ### ecosystem.config.js
 
 **問題**: pm2経由で起動時に`.env`ファイルの`CLAUDE_CODE_PATH`が読み込まれない
-**解決策**: `ecosystem.config.js`に明示的に設定
+**解決策**: `ecosystem.config.js`で環境変数から取得するように設定
 
 **追加内容**:
 ```javascript
 env: {
   NODE_ENV: 'development',
-  PORT: 3000,
-  CLAUDE_CODE_PATH: '/Users/tsk/.local/bin/claude',
+  ...(process.env.CLAUDE_CODE_PATH && { CLAUDE_CODE_PATH: process.env.CLAUDE_CODE_PATH }),
 },
 ```
 

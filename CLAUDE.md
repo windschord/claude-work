@@ -167,7 +167,7 @@ Implementation: `src/lib/websocket/auth-middleware.ts`
 ProcessManager spawns Claude Code with:
 - `--print` flag for JSON-structured output
 - `--model` flag if specified (auto/opus/sonnet/haiku)
-- **Important**: Currently uses `--cwd` which may not be supported - see Phase 19 tasks
+- Working directory set via spawn `cwd` option to the worktree path
 
 Claude Code output is parsed for:
 - Regular output (streamed to WebSocket)
