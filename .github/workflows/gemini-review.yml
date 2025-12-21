@@ -62,8 +62,40 @@ jobs:
         uses: google-github-actions/run-gemini-cli@main
         with:
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+          gemini_debug: "true"
+          settings: |
+            {
+              "mcpServers": {
+                "github": {
+                  "command": "docker",
+                  "args": [
+                    "run",
+                    "-i",
+                    "--rm",
+                    "-e", "GITHUB_PERSONAL_ACCESS_TOKEN",
+                    "ghcr.io/github/github-mcp-server"
+                  ],
+                  "env": {
+                    "GITHUB_PERSONAL_ACCESS_TOKEN": "${{ secrets.GITHUB_TOKEN }}"
+                  },
+                  "trust": true,
+                  "tools": [
+                    "add_comment_to_pending_review",
+                    "create_pending_pull_request_review",
+                    "pull_request_read",
+                    "submit_pending_pull_request_review"
+                  ]
+                }
+              },
+              "coreTools": ["cat", "echo", "grep", "head", "tail"],
+              "maxSessionTurns": 25
+            }
           prompt: |
             あなたはコードレビューの専門家です。このプルリクエストを日本語でレビューしてください。
+
+            ## リポジトリ情報
+            - リポジトリ: ${{ github.repository }}
+            - PR番号: ${{ github.event.pull_request.number || github.event.issue.number }}
 
             ## 必須レビュー観点
 
@@ -97,7 +129,12 @@ jobs:
             - 🟡 **Medium（中）**: 改善を推奨
             - 🟢 **Low（低）**: 提案・スタイルの改善
 
-            ## 出力形式
+            ## 手順
+
+            1. まず `pull_request_read` ツールを使ってPRの差分を取得してください
+            2. 差分を分析し、上記の観点でレビューしてください
+            3. `create_pending_pull_request_review` でレビューを作成し、`add_comment_to_pending_review` でコメントを追加してください
+            4. 最後に `submit_pending_pull_request_review` でレビューを送信してください
 
             レビュー結果は日本語で出力し、具体的なコード箇所を参照しながら指摘してください。
             良い点があれば、それも含めてフィードバックしてください。
