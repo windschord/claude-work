@@ -328,3 +328,312 @@ logger.info('Merged session successfully', {
 **受入基準**:
 - ログに出力されるcommitMessageが80文字以内
 - 文字数情報が記録される
+
+---
+
+## Phase 20: セッション詳細ページSSRエラー修正
+
+**検証レポート**: docs/verification-report-nodejs-architecture-phase20.md
+**実施期間**: 2025-12-20
+**優先度**: Critical
+**推定期間**: 150分（AIエージェント作業時間）
+**MVP**: Yes
+
+### 背景
+
+Phase 19のCritical Issue修正後、nodejs-architectureブランチの動作検証を実施したところ、セッション詳細ページで新たなCritical Issueを発見しました。
+
+#### Critical Issue #1: セッション詳細ページでSSRエラー
+
+- `@xterm/addon-fit`パッケージがSSR時に`self`オブジェクトを参照してエラー
+- セッション詳細ページが「読み込み中...」のまま表示されない
+- Claude Codeとの対話、ターミナル統合など全ての機能が使用不可
+
+#### 影響範囲
+- REQ-014, REQ-021~REQ-028 (Claude Codeとの対話)
+- REQ-033~REQ-038 (ランスクリプト実行)
+- REQ-039~REQ-047 (コミット履歴、diff確認)
+- REQ-048~REQ-053 (Git操作)
+- REQ-058~REQ-062 (ターミナル統合)
+
+### タスク一覧
+
+#### タスク20.1: SSRエラー修正のE2Eテスト作成
+
+**説明**:
+セッション詳細ページが正常にレンダリングされ、XTermコンポーネントがクライアントサイドでのみ読み込まれることを検証するE2Eテストを作成する。
+
+**実装手順（TDD）**:
+1. テスト作成: `tests/e2e/session-detail-ssr.spec.ts`に以下のテストケースを作成
+   - セッション詳細ページが正常にレンダリングされる
+   - ページに「読み込み中...」が表示されない
+   - セッション名が表示される
+   - タブ（対話、ターミナル、Diff、Git）が表示される
+   - SSRエラーがコンソールに出力されない
+2. テスト実行: すべてのテストが失敗することを確認（現在SSRエラーで失敗する）
+3. テストコミット: テストのみをコミット
+
+**受入基準**:
+- [ ] `tests/e2e/session-detail-ssr.spec.ts`が作成されている
+- [ ] 5つ以上のテストケースが含まれている
+- [ ] テスト実行で期待通りに失敗する（SSRエラー検出）
+- [ ] コミットメッセージが適切（例: "test: セッション詳細ページSSRエラー修正のE2Eテスト追加"）
+
+**依存関係**:
+- Phase 19の完了（WebSocket認証修正済み）
+- Playwrightのセットアップ完了
+
+**推定工数**: 30分（AIエージェント作業時間）
+
+**ステータス**: `TODO`
+
+#### タスク20.2: useTerminal.tsの動的インポート化
+
+**説明**:
+`src/hooks/useTerminal.ts`フック内のXTermライブラリインポートを、クライアントサイドでのみ実行されるように動的インポート化する。
+
+**実装手順**:
+1. `@xterm/xterm`と`@xterm/addon-fit`のインポートを削除
+2. フック内で`useEffect`を使用し、クライアントサイドで動的インポート
+3. ローディング状態とエラー状態を管理
+4. TypeScript型定義を適切に設定
+
+**技術的文脈**:
+- フレームワーク: Next.js 15 (App Router)
+- XTermライブラリ: @xterm/xterm@5.5.0, @xterm/addon-fit@0.10.0
+- 既存のパターン: `'use client'`ディレクティブ使用済み
+
+**実装例**:
+```typescript
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+
+export function useTerminal(sessionId: string) {
+  const terminalRef = useRef<HTMLDivElement>(null);
+  const [terminal, setTerminal] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    // クライアントサイドでのみ実行
+    if (typeof window === 'undefined') return;
+
+    let mounted = true;
+
+    const loadTerminal = async () => {
+      try {
+        const { Terminal } = await import('@xterm/xterm');
+        const { FitAddon } = await import('@xterm/addon-fit');
+
+        if (!mounted || !terminalRef.current) return;
+
+        const term = new Terminal({
+          // 設定...
+        });
+        const fitAddon = new FitAddon();
+        term.loadAddon(fitAddon);
+
+        setTerminal(term);
+        setIsLoading(false);
+      } catch (err) {
+        setError(err as Error);
+        setIsLoading(false);
+      }
+    };
+
+    loadTerminal();
+
+    return () => {
+      mounted = false;
+      terminal?.dispose();
+    };
+  }, [sessionId]);
+
+  return { terminal, terminalRef, isLoading, error };
+}
+```
+
+**受入基準**:
+- [ ] `src/hooks/useTerminal.ts`でXTermライブラリが動的インポートされている
+- [ ] `typeof window !== 'undefined'`チェックが含まれている
+- [ ] ローディング状態とエラー状態が管理されている
+- [ ] TypeScript型エラーがない
+- [ ] 既存のテストが通過する
+- [ ] コミットメッセージが適切（例: "fix: useTerminal.tsをSSR対応に修正（動的インポート化）"）
+
+**依存関係**:
+- タスク20.1の完了（テスト作成済み）
+
+**推定工数**: 40分（AIエージェント作業時間）
+
+**ステータス**: `TODO`
+
+#### タスク20.3: TerminalPanelコンポーネントの動的インポート化
+
+**説明**:
+`src/components/sessions/TerminalPanel.tsx`コンポーネントを、`next/dynamic`を使用してクライアントサイドでのみ読み込まれるように修正する。
+
+**実装手順**:
+1. TerminalPanelの実装ロジックを維持
+2. SSR時のフォールバックUIを追加（ローディングスピナー）
+3. エラーハンドリングを追加
+
+**技術的文脈**:
+- フレームワーク: Next.js 15 (App Router)
+- 既存のパターン: 他のコンポーネントは通常のインポート
+
+**実装方針**:
+TerminalPanel自体は通常のコンポーネントとして維持し、useTerminalフックが動的インポートを処理するため、このコンポーネントでは追加の動的インポート処理は不要。ただし、ローディングとエラー状態の表示を追加する。
+
+**受入基準**:
+- [ ] `src/components/sessions/TerminalPanel.tsx`がuseTerminalフックのローディング状態を表示する
+- [ ] エラー状態が適切に表示される
+- [ ] TypeScript型エラーがない
+- [ ] 既存のテストが通過する
+- [ ] コミットメッセージが適切（例: "fix: TerminalPanelにローディング・エラー表示を追加"）
+
+**依存関係**:
+- タスク20.2の完了（useTerminal修正済み）
+
+**推定工数**: 30分（AIエージェント作業時間）
+
+**ステータス**: `TODO`
+
+#### タスク20.4: SessionDetailページでのTerminalPanel動的インポート
+
+**説明**:
+`src/app/sessions/[id]/page.tsx`でTerminalPanelを動的インポートし、SSR時にはレンダリングしないように修正する。
+
+**実装手順**:
+1. `next/dynamic`をインポート
+2. TerminalPanelを動的インポート化（`ssr: false`オプション使用）
+3. ローディングフォールバックを設定
+4. 他のコンポーネントは通常通りインポート
+
+**技術的文脈**:
+- フレームワーク: Next.js 15 (App Router)
+- 既存のパターン: `'use client'`ディレクティブ使用済み
+
+**実装例**:
+```typescript
+'use client';
+
+import dynamic from 'next/dynamic';
+import { useEffect } from 'react';
+import { useParams } from 'next/navigation';
+// 他の通常のインポート...
+
+// TerminalPanelを動的インポート（SSR無効化）
+const TerminalPanel = dynamic(
+  () => import('@/components/sessions/TerminalPanel'),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-gray-500">ターミナルを読み込み中...</div>
+      </div>
+    ),
+  }
+);
+
+export default function SessionDetailPage() {
+  // 既存のロジック...
+
+  return (
+    <div>
+      {/* 既存のUI */}
+      <TerminalPanel sessionId={sessionId} />
+    </div>
+  );
+}
+```
+
+**受入基準**:
+- [ ] `src/app/sessions/[id]/page.tsx`でTerminalPanelが動的インポートされている
+- [ ] `ssr: false`オプションが設定されている
+- [ ] ローディングフォールバックが実装されている
+- [ ] TypeScript型エラーがない
+- [ ] タスク20.1のE2Eテストが通過する
+- [ ] コミットメッセージが適切（例: "fix: SessionDetailページのTerminalPanelを動的インポート化"）
+
+**依存関係**:
+- タスク20.3の完了（TerminalPanel修正済み）
+
+**推定工数**: 25分（AIエージェント作業時間）
+
+**ステータス**: `TODO`
+
+#### タスク20.5: 動作確認とレポート更新
+
+**説明**:
+修正後のセッション詳細ページが正常に動作することを確認し、検証レポートを更新する。
+
+**検証項目**:
+1. セッション詳細ページのレンダリング
+   - ページが「読み込み中...」から正常に遷移する
+   - セッション名、ステータス、Git情報が表示される
+   - タブ（対話、ターミナル、Diff、Git）が表示される
+2. Claude Codeとの対話
+   - WebSocket接続が「connected」状態になる
+   - メッセージ入力フィールドが表示される
+   - メッセージ送信が可能
+3. ターミナル統合
+   - ターミナルタブが表示される
+   - XTermコンポーネントがロードされる
+   - ターミナル入力が可能
+4. Diff表示
+   - Diffタブが表示される
+   - 変更内容が表示される
+5. エラーがないこと
+   - ブラウザコンソールにSSRエラーが出力されない
+   - サーバーログにSSRエラーが記録されない
+
+**実装手順**:
+1. Chrome DevTools MCPを使用してブラウザ動作確認
+2. サーバーログを確認
+3. E2Eテストを実行
+4. `docs/verification-report-nodejs-architecture-phase20.md`を更新
+   - Critical Issue #1のステータスを「解決済み」に更新
+   - 検証結果を追記
+   - 達成された要件を更新
+
+**受入基準**:
+- [ ] セッション詳細ページが正常にレンダリングされる
+- [ ] WebSocket接続が成功する
+- [ ] ターミナルが表示される
+- [ ] Diffが表示される
+- [ ] SSRエラーがコンソール・ログに出力されない
+- [ ] タスク20.1のE2Eテストがすべて通過する
+- [ ] `docs/verification-report-nodejs-architecture-phase20.md`が更新されている
+- [ ] コミットメッセージが適切（例: "docs: Phase 20検証完了、SSRエラー解決を報告"）
+
+**依存関係**:
+- タスク20.4の完了（すべての実装完了）
+
+**推定工数**: 25分（AIエージェント作業時間）
+
+**ステータス**: `TODO`
+
+### Phase 20 完了後の状態
+
+**解決されるIssue**:
+- Critical Issue #1: セッション詳細ページのSSRエラー
+
+**達成される要件**:
+- REQ-014: セッション選択時の出力表示
+- REQ-021~REQ-028: Claude Codeとの対話
+- REQ-058~REQ-062: ターミナル統合
+- その他、セッション詳細ページに依存する全要件
+
+**残課題**:
+- REQ-033~REQ-038: ランスクリプト実行（未検証、Phase 20で検証可能になる）
+- REQ-039~REQ-043: コミット履歴と復元（未検証、Phase 20で検証可能になる）
+- REQ-044~REQ-047: 変更差分の確認（未検証、Phase 20で検証可能になる）
+- REQ-048~REQ-053: Git操作（未検証、Phase 20で検証可能になる）
+
+**技術的な学び**:
+- Next.js App RouterでのSSR対策
+- ブラウザ専用ライブラリの動的インポート
+- `next/dynamic`の使用方法
+- XTermライブラリのクライアントサイド限定読み込み
