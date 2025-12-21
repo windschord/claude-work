@@ -343,12 +343,13 @@ logger.info('Merged session successfully', {
 
 Phase 19のCritical Issue修正後、nodejs-architectureブランチの動作検証を実施したところ、セッション詳細ページで新たなCritical Issueを発見しました。
 
-**Critical Issue #1: セッション詳細ページでSSRエラー**
+#### Critical Issue #1: セッション詳細ページでSSRエラー
+
 - `@xterm/addon-fit`パッケージがSSR時に`self`オブジェクトを参照してエラー
 - セッション詳細ページが「読み込み中...」のまま表示されない
 - Claude Codeとの対話、ターミナル統合など全ての機能が使用不可
 
-**影響範囲**:
+#### 影響範囲
 - REQ-014, REQ-021~REQ-028 (Claude Codeとの対話)
 - REQ-033~REQ-038 (ランスクリプト実行)
 - REQ-039~REQ-047 (コミット履歴、diff確認)
@@ -525,7 +526,7 @@ import { useParams } from 'next/navigation';
 
 // TerminalPanelを動的インポート（SSR無効化）
 const TerminalPanel = dynamic(
-  () => import('@/components/sessions/TerminalPanel').then(mod => ({ default: mod.TerminalPanel })),
+  () => import('@/components/sessions/TerminalPanel'),
   {
     ssr: false,
     loading: () => (
