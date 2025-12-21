@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 module.exports = {
   apps: [
     {
@@ -7,6 +9,10 @@ module.exports = {
       cwd: __dirname,
       env: {
         NODE_ENV: 'development',
+        // .envファイルから読み込んだ環境変数を優先、未設定の場合のみデフォルト値を使用
+        CLAUDE_WORK_TOKEN: process.env.CLAUDE_WORK_TOKEN || 'verification-test-token-2025',
+        SESSION_SECRET: process.env.SESSION_SECRET || 'verification-session-secret-key-for-comprehensive-testing-2025',
+        DATABASE_URL: process.env.DATABASE_URL || 'file:./prisma/data/claudework.db',
         ...(process.env.CLAUDE_CODE_PATH && { CLAUDE_CODE_PATH: process.env.CLAUDE_CODE_PATH }),
       },
       watch: false,

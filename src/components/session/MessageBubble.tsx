@@ -1,6 +1,7 @@
 'use client';
 
 import { Message } from '@/store';
+import { MessageDisplay } from '@/components/sessions/MessageDisplay';
 
 interface MessageBubbleProps {
   message: Message;
@@ -31,7 +32,11 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
             : 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100'
         }`}
       >
-        <div className="whitespace-pre-wrap break-words">{message.content}</div>
+        {isUser ? (
+          <div className="whitespace-pre-wrap break-words">{message.content}</div>
+        ) : (
+          <MessageDisplay content={message.content} sub_agents={message.sub_agents} />
+        )}
         <div
           className={`text-xs mt-1 ${
             isUser
