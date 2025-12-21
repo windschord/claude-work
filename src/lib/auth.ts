@@ -1,6 +1,7 @@
 import { randomUUID, createHash } from 'crypto';
 import { prisma } from './db';
 import { NextRequest } from 'next/server';
+import { logger } from './logger';
 
 /**
  * トークンをSHA-256でハッシュ化
@@ -53,7 +54,23 @@ export function validateToken(token: string): boolean {
   if (!validToken) {
     throw new Error('CLAUDE_WORK_TOKEN環境変数が設定されていません');
   }
-  return token === validToken;
+
+  // デバッグログ追加
+  logger.debug('Token validation debug', {
+    service: 'claude-work',
+    envTokenLength: validToken.length,
+    envTokenPrefix: validToken.substring(0, 4),
+    inputTokenLength: token.length,
+    inputTokenPrefix: token.substring(0, 4),
+  });
+
+  const result = token === validToken;
+  logger.debug('Token validation result', {
+    service: 'claude-work',
+    result,
+  });
+
+  return result;
 }
 
 /**
