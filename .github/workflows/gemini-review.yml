@@ -1,5 +1,6 @@
 # Gemini PR Review Workflow
 # このワークフローはPRが作成・更新された際にGemini CLIを使用して自動レビューを行います
+# レビュー基準は GEMINI.md を参照（Single Source of Truth）
 
 name: Gemini PR Review
 
@@ -13,7 +14,7 @@ on:
 
 # 同じPRに対する重複実行を防止
 concurrency:
-  group: gemini-review-${{ github.event.pull_request.number || github.event.issue.number }}
+  group: gemini-review-${{ github.event.pull_request.number || github.event.issue.number || github.event.pull_request.number }}
   cancel-in-progress: true
 
 permissions:
@@ -22,7 +23,7 @@ permissions:
   issues: write
 
 jobs:
-  # コメントトリガーの場合、@gemini-cli コマンドかどうかを判定
+  # トリガー条件の判定とPR番号の取得
   check-trigger:
     runs-on: ubuntu-latest
     outputs:
@@ -34,18 +35,55 @@ jobs:
         env:
           COMMENT_BODY: ${{ github.event.comment.body }}
         run: |
+          set -e
+
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             echo "should_run=true" >> $GITHUB_OUTPUT
             echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.event_name }}" == "issue_comment" || "${{ github.event_name }}" == "pull_request_review_comment" ]]; then
-            if [[ "$COMMENT_BODY" == *"@gemini-cli"* && "$COMMENT_BODY" == *"/review"* ]]; then
+            echo "✅ Triggered by pull_request event"
+
+          elif [[ "${{ github.event_name }}" == "pull_request_review_comment" ]]; then
+            # pull_request_review_comment の場合は github.event.pull_request.number を使用
+            PR_NUMBER="${{ github.event.pull_request.number }}"
+            if [[ -z "$PR_NUMBER" ]]; then
+              echo "should_run=false" >> $GITHUB_OUTPUT
+              echo "❌ Could not determine PR number"
+              exit 0
+            fi
+
+            # コメント内容をチェック（環境変数経由で安全に処理）
+            if [[ "$COMMENT_BODY" == *"@gemini-cli"* ]] && [[ "$COMMENT_BODY" == *"/review"* ]]; then
               echo "should_run=true" >> $GITHUB_OUTPUT
-              echo "pr_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+              echo "pr_number=${PR_NUMBER}" >> $GITHUB_OUTPUT
+              echo "✅ Triggered by pull_request_review_comment with @gemini-cli /review"
             else
               echo "should_run=false" >> $GITHUB_OUTPUT
+              echo "⏭️ Skipping: Comment does not contain @gemini-cli /review"
             fi
+
+          elif [[ "${{ github.event_name }}" == "issue_comment" ]]; then
+            # issue_comment がPRに対するものかチェック
+            if [[ -z "${{ github.event.issue.pull_request }}" ]]; then
+              echo "should_run=false" >> $GITHUB_OUTPUT
+              echo "⏭️ Skipping: Comment is on an issue, not a pull request"
+              exit 0
+            fi
+
+            PR_NUMBER="${{ github.event.issue.number }}"
+
+            # コメント内容をチェック（環境変数経由で安全に処理）
+            if [[ "$COMMENT_BODY" == *"@gemini-cli"* ]] && [[ "$COMMENT_BODY" == *"/review"* ]]; then
+              echo "should_run=true" >> $GITHUB_OUTPUT
+              echo "pr_number=${PR_NUMBER}" >> $GITHUB_OUTPUT
+              echo "✅ Triggered by issue_comment with @gemini-cli /review"
+            else
+              echo "should_run=false" >> $GITHUB_OUTPUT
+              echo "⏭️ Skipping: Comment does not contain @gemini-cli /review"
+            fi
+
           else
             echo "should_run=false" >> $GITHUB_OUTPUT
+            echo "⏭️ Unknown event type"
           fi
 
   review:
@@ -55,10 +93,13 @@ jobs:
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PR_NUMBER: ${{ needs.check-trigger.outputs.pr_number }}
     steps:
-      - name: Checkout repository
+      - name: Checkout PR branch
         uses: actions/checkout@v4
         with:
+          # PRのブランチを正しくチェックアウト
+          ref: refs/pull/${{ needs.check-trigger.outputs.pr_number }}/head
           fetch-depth: 0
 
       - name: Check API Key
@@ -67,67 +108,51 @@ jobs:
             echo "::error::GEMINI_API_KEY is not set. Please add it to repository secrets."
             exit 1
           fi
-          echo "GEMINI_API_KEY is configured"
+          echo "✅ GEMINI_API_KEY is configured"
 
       - name: Get PR diff
         id: diff
         run: |
-          PR_NUMBER="${{ github.event.pull_request.number || github.event.issue.number }}"
           echo "Getting diff for PR #${PR_NUMBER}"
-          gh pr diff ${PR_NUMBER} > pr_diff.txt 2>&1 || echo "Could not get diff" > pr_diff.txt
-          echo "--- PR Diff ---"
+          gh pr diff "${PR_NUMBER}" > pr_diff.txt 2>&1 || echo "Could not get diff" > pr_diff.txt
+          echo "--- PR Diff Preview (first 100 lines) ---"
           head -100 pr_diff.txt
-          echo "--- End of preview (first 100 lines) ---"
+          echo "--- End of preview ---"
 
       - name: Run Gemini CLI Review
         id: gemini
-        uses: google-github-actions/run-gemini-cli@main
+        uses: google-github-actions/run-gemini-cli@v0.1.14
         with:
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
           prompt: |
             あなたはコードレビューの専門家です。このリポジトリのプルリクエストをレビューしてください。
 
             リポジトリ: ${{ github.repository }}
-            PR番号: #${{ github.event.pull_request.number || github.event.issue.number }}
+            PR番号: #${{ needs.check-trigger.outputs.pr_number }}
 
-            まず、catコマンドでpr_diff.txtファイルを読んで、PRの差分を確認してください。
-            その後、以下の観点でレビューを日本語で行ってください。
+            ## 手順
+            1. まず GEMINI.md ファイルを読んで、レビュー基準を確認してください
+            2. 次に pr_diff.txt ファイルを読んで、PRの差分を確認してください
+            3. GEMINI.md に記載された基準に従って、日本語でレビューを行ってください
 
-            ## 必須レビュー観点
-
-            ### 1. 設計書との整合性
-            - docs/design.md に記載された設計に沿った実装か
-            - docs/requirements.md の要件を満たしているか
-
-            ### 2. セキュリティチェック
-            - インジェクション脆弱性（SQL、XSS、コマンド）
-            - 機密情報のハードコード
-            - 入力値検証
-            - 🔴 Criticalとして報告
-
-            ## 重要度レベル
-            - 🔴 Critical: 必須修正
-            - 🟠 High: 強く推奨
-            - 🟡 Medium: 推奨
-            - 🟢 Low: 提案
+            レビュー結果を日本語で出力してください。
 
       - name: Post review comment
         if: always()
+        env:
+          GEMINI_SUMMARY: ${{ steps.gemini.outputs.summary }}
         run: |
-          PR_NUMBER="${{ github.event.pull_request.number || github.event.issue.number }}"
-
-          # Geminiの出力を取得
-          SUMMARY="${{ steps.gemini.outputs.summary }}"
-
-          if [ -n "$SUMMARY" ]; then
+          # 環境変数経由で安全にコメント内容を処理
+          if [ -n "$GEMINI_SUMMARY" ]; then
             echo "Posting Gemini review to PR #${PR_NUMBER}"
-            gh pr comment ${PR_NUMBER} --body "## 🤖 Gemini Code Review
+            # ヒアドキュメントを使用して特殊文字を安全に処理
+            gh pr comment "${PR_NUMBER}" --body "## 🤖 Gemini Code Review
 
-          ${SUMMARY}"
+          ${GEMINI_SUMMARY}"
           else
-            echo "No summary output from Gemini"
-            # 代替: .geminiディレクトリを確認
+            echo "⚠️ No summary output from Gemini"
             if [ -d ".gemini" ]; then
+              echo "Contents of .gemini directory:"
               ls -la .gemini/
             fi
           fi
