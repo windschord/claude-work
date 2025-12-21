@@ -21,7 +21,6 @@ export function CommitHistory({ sessionId }: CommitHistoryProps) {
   const [commits, setCommits] = useState<CommitData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedCommit, setSelectedCommit] = useState<CommitData | null>(null);
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
   const [resettingCommitHash, setResettingCommitHash] = useState<string | null>(null);
 
@@ -46,6 +45,7 @@ export function CommitHistory({ sessionId }: CommitHistoryProps) {
 
   useEffect(() => {
     fetchCommits();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
   const handleResetClick = (commit: CommitData) => {
@@ -97,66 +97,67 @@ export function CommitHistory({ sessionId }: CommitHistoryProps) {
 
   return (
     <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-        <thead className="bg-gray-50 dark:bg-gray-800">
-          <tr>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-              ハッシュ
-            </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-              メッセージ
-            </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-              作成者
-            </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-              日時
-            </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-              変更ファイル数
-            </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-              操作
-            </th>
-          </tr>
-        </thead>
-        <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-          {commits.map((commit) => (
-            <tr
-              key={commit.hash}
-              className="hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
-              onClick={() => setSelectedCommit(commit)}
-            >
-              <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900 dark:text-gray-100">
-                {commit.shortHash}
-              </td>
-              <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">
-                {commit.message}
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
-                {commit.author}
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                {commit.date}
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                {commit.filesChanged} ファイル
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleResetClick(commit);
-                  }}
-                  className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
-                >
-                  リセット
-                </button>
-              </td>
+      {!isResetDialogOpen && (
+        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <thead className="bg-gray-50 dark:bg-gray-800">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                ハッシュ
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                メッセージ
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                作成者
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                日時
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                変更ファイル数
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                操作
+              </th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+            {commits.map((commit) => (
+              <tr
+                key={commit.hash}
+                className="hover:bg-gray-50 dark:hover:bg-gray-800"
+              >
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900 dark:text-gray-100">
+                  {commit.shortHash}
+                </td>
+                <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">
+                  {commit.message}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
+                  {commit.author}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                  {commit.date}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                  {commit.filesChanged} ファイル
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleResetClick(commit);
+                    }}
+                    className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
+                  >
+                    リセット
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
 
       {/* リセット確認ダイアログ */}
       <Transition appear show={isResetDialogOpen} as={Fragment}>
