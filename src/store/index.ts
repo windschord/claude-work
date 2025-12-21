@@ -961,6 +961,51 @@ export const useAppStore = create<AppState>((set) => ({
     }
   },
 
+  fetchPrompts: async () => {
+    try {
+      set({ isLoading: true, error: null });
+
+      const response = await fetch('/api/prompts');
+
+      if (!response.ok) {
+        throw new Error('プロンプト履歴の取得に失敗しました');
+      }
+
+      const data = await response.json();
+      set({ prompts: data.prompts || [], isLoading: false });
+    } catch (error) {
+      const errorMessage = error instanceof Error
+        ? error.message
+        : 'プロンプト履歴の取得に失敗しました';
+
+      set({ error: errorMessage, isLoading: false });
+    }
+  },
+
+  deletePrompt: async (promptId: string) => {
+    try {
+      const response = await fetch(`/api/prompts/${promptId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('プロンプトの削除に失敗しました');
+      }
+
+      // プロンプトリストから削除
+      set((state) => ({
+        prompts: state.prompts.filter((p) => p.id !== promptId),
+      }));
+    } catch (error) {
+      const errorMessage = error instanceof Error
+        ? error.message
+        : 'プロンプトの削除に失敗しました';
+
+      set({ error: errorMessage });
+      throw error;
+    }
+  },
+
   reset: () =>
     set(initialState),
 }));
