@@ -8,7 +8,7 @@ import { ConnectionManager } from './src/lib/websocket/connection-manager';
 import { SessionWebSocketHandler } from './src/lib/websocket/session-ws';
 import { setupTerminalWebSocket } from './src/lib/websocket/terminal-ws';
 import { logger } from './src/lib/logger';
-import { validateRequiredEnvVars } from './src/lib/env-validation';
+import { validateRequiredEnvVars, detectClaudePath } from './src/lib/env-validation';
 
 // 環境変数のバリデーション（サーバー起動前）
 try {
@@ -16,6 +16,22 @@ try {
 } catch (error) {
   if (error instanceof Error) {
     console.error('\nEnvironment variable validation failed:\n');
+    console.error(error.message);
+  }
+  process.exit(1);
+}
+
+// Claude Code CLIのパスを検出・設定
+try {
+  const claudePath = detectClaudePath();
+  process.env.CLAUDE_CODE_PATH = claudePath;
+  logger.info('Claude Code CLI detected', { path: claudePath });
+} catch (error) {
+  logger.error('Failed to detect Claude Code CLI', {
+    error: error instanceof Error ? error.message : String(error),
+  });
+  console.error('\nClaude Code CLI detection failed:\n');
+  if (error instanceof Error) {
     console.error(error.message);
   }
   process.exit(1);
