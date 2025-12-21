@@ -74,12 +74,25 @@ export function ScriptLogViewer({ runId }: ScriptLogViewerProps) {
   // タイムスタンプのフォーマット
   const formatTimestamp = (timestamp: number) => {
     const date = new Date(timestamp);
-    return date.toLocaleTimeString('ja-JP', {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      fractionalSecondDigits: 3,
-    });
+    try {
+      // fractionalSecondDigitsはIntl.DateTimeFormatの比較的新しい機能のため、
+      // サポートされていない環境でもエラーにならないようにtry-catchで囲む
+      return date.toLocaleTimeString('ja-JP', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        fractionalSecondDigits: 3,
+      } as any);
+    } catch {
+      // フォールバック: ミリ秒を手動で追加
+      const timeStr = date.toLocaleTimeString('ja-JP', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      });
+      const ms = String(date.getMilliseconds()).padStart(3, '0');
+      return `${timeStr}.${ms}`;
+    }
   };
 
   return (

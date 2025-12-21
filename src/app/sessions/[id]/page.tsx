@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { useAppStore } from '@/store';
+import { useScriptLogStore } from '@/store/script-logs';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { AuthGuard } from '@/components/AuthGuard';
 import { MainLayout } from '@/components/layout/MainLayout';
@@ -67,7 +68,6 @@ export default function SessionDetailPage() {
 
       // スクリプトログメッセージを処理（script-logsストアを更新）
       if (message.type === 'run_script_log') {
-        const { useScriptLogStore } = require('@/store/script-logs');
         const { addLog } = useScriptLogStore.getState();
         addLog(message.runId, {
           timestamp: message.timestamp,
@@ -75,9 +75,8 @@ export default function SessionDetailPage() {
           content: message.content,
         });
       } else if (message.type === 'run_script_exit') {
-        const { useScriptLogStore } = require('@/store/script-logs');
         const { endRun } = useScriptLogStore.getState();
-        endRun(message.runId, message.exitCode, message.executionTime);
+        endRun(message.runId, message.exitCode, message.signal ?? null, message.executionTime);
       }
     },
     [handleWebSocketMessage]
