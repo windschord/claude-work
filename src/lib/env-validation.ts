@@ -5,6 +5,9 @@
  * 未設定の場合は詳細なエラーメッセージを表示します。
  */
 
+import { execSync } from 'child_process';
+import { existsSync } from 'fs';
+
 /**
  * 環境変数のバリデーションエラー情報
  */
@@ -71,6 +74,49 @@ export function validateRequiredEnvVars(): void {
       '   - SESSION_SECRET: A 32+ character secret for session encryption\n' +
       '   - DATABASE_URL: Database connection URL (e.g., file:./prisma/data/claudework.db)\n\n' +
       'For more details, see README.md and docs/ENV_VARS.md'
+    );
+  }
+}
+
+/**
+ * Claude Code CLIのパスを検出します
+ *
+ * 以下の優先順位でパスを検出します：
+ * 1. CLAUDE_CODE_PATH環境変数が設定されている場合はそのパスを使用
+ * 2. PATH環境変数からwhichコマンドで自動検出
+ *
+ * @returns Claude Code CLIの絶対パス
+ * @throws {Error} Windows環境、パスが存在しない、またはCLIが見つからない場合
+ */
+export function detectClaudePath(): string {
+  // Windows環境チェック
+  if (process.platform === 'win32') {
+    throw new Error('Windows is not supported. Please use macOS or Linux.');
+  }
+
+  // CLAUDE_CODE_PATHが設定済みの場合
+  const envPath = process.env.CLAUDE_CODE_PATH;
+  if (envPath) {
+    if (!existsSync(envPath)) {
+      throw new Error(`CLAUDE_CODE_PATH is set but the path does not exist: ${envPath}`);
+    }
+    return envPath;
+  }
+
+  // PATH環境変数から自動検出
+  try {
+    const path = execSync('which claude', {
+      encoding: 'utf-8',
+      timeout: 5000, // 5秒のタイムアウト
+    }).trim();
+    if (!path) {
+      throw new Error('claude command not found');
+    }
+    return path;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `claude command not found in PATH. ${errorMessage}\nPlease install Claude Code CLI or set CLAUDE_CODE_PATH environment variable.`
     );
   }
 }

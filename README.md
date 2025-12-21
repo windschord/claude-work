@@ -1,6 +1,15 @@
 # ClaudeWork
 
+> **注意**: このプロジェクトは開発中（Work In Progress）です。予告なく仕様が変更される可能性があります。
+
 ClaudeWork は、Claude Code セッションをブラウザから管理するための Web ベースツールです。複数のセッションを並列で実行し、Git worktree を使用して各セッションを独立した環境で管理します。
+
+## 動作保証環境
+
+- **OS**: macOS, Linux
+  - Windows は現在サポートされていません
+- **Node.js**: 18.x 以上
+- **Claude Code CLI**: インストール済みであること
 
 ## 主な機能
 

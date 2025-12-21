@@ -113,7 +113,7 @@ describe('WebSocket Auth Middleware', () => {
 
       // ユーザーB用の認証セッションを作成
       const userBToken = 'user-b-token';
-      const userBAuthSessionId = await createSession(userBToken);
+      const _userBAuthSessionId = await createSession(userBToken);
 
       // ユーザーAのクッキーでユーザーBのセッションにアクセスを試みる
       const request = createMockRequest({
