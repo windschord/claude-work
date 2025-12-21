@@ -202,7 +202,64 @@ interface AppState {
 
 **実装場所**: `src/services/pty-manager.ts`（node-ptyライブラリ使用）
 
+#### コンポーネント: Environment Validator
+
+**目的**: サーバー起動時の環境検証
+
+**責務**:
+- CLAUDE_CODE_PATH環境変数のチェック
+- PATH環境変数からclaudeコマンドの自動検出
+- 既存のCLAUDE_CODE_PATHの有効性検証
+- claudeコマンドの実行可能性確認
+- 検出結果のログ出力
+
+**実装場所**: `src/lib/env-validation.ts`
+
+**検証フロー**:
+1. CLAUDE_CODE_PATH環境変数をチェック
+2. 設定済みの場合 → パスの有効性を検証
+3. 未設定の場合 → PATH環境変数から自動検出
+4. 検出/検証失敗時 → エラーメッセージを表示してプロセス終了
+5. 検出/検証成功時 → process.env.CLAUDE_CODE_PATHに設定してログ出力
+
 ## データフロー
+
+### シーケンス: サーバー起動時の環境検証
+
+```mermaid
+sequenceDiagram
+    participant Server as server.ts
+    participant Validator as Environment Validator
+    participant OS as OS (which command)
+    participant FS as File System
+
+    Server->>Validator: detectClaudePath()
+
+    alt CLAUDE_CODE_PATH が設定済み
+        Validator->>FS: existsSync(CLAUDE_CODE_PATH)
+        alt パスが存在する
+            FS-->>Validator: true
+            Validator->>Server: CLAUDE_CODE_PATH (検証済み)
+            Server->>Server: ログ出力: 検証成功
+        else パスが存在しない
+            FS-->>Validator: false
+            Validator->>Server: エラー: 無効なパス
+            Server->>Server: process.exit(1)
+        end
+    else CLAUDE_CODE_PATH が未設定
+        Validator->>OS: execSync('which claude')
+        alt claudeコマンドが見つかった
+            OS-->>Validator: /path/to/claude
+            Validator->>Validator: process.env.CLAUDE_CODE_PATH = path
+            Validator->>Server: /path/to/claude
+            Server->>Server: ログ出力: 自動検出成功
+        else claudeコマンドが見つからない
+            OS-->>Validator: エラー
+            Validator->>Server: エラー: claudeが見つからない
+            Server->>Server: process.exit(1)
+        end
+    end
+```
 
 ### シーケンス: セッション作成
 
@@ -941,6 +998,27 @@ ws://host/ws/terminal/{session_id}
 - 環境変数での設定が容易
 - リバースプロキシと組み合わせて使用
 
+### 決定6: Claude CLIパスの自動検出機能を実装
+
+**検討した選択肢**:
+1. PATH環境変数から自動検出 - ユーザーフレンドリー、設定不要
+2. CLAUDE_CODE_PATH必須 - 明示的だが設定が手間
+3. デフォルトパス検索 - 環境依存、メンテナンス困難
+
+**決定**: PATH環境変数から自動検出（CLAUDE_CODE_PATH設定時は検証のみ）
+
+**根拠**:
+- ユーザーがclaudeコマンドをインストール済みなら追加設定不要
+- CLAUDE_CODE_PATHが設定済みの場合は既存動作を維持
+- 起動時にパスを検証することでエラーを早期発見
+- macOS/Linux環境では`which`コマンドで確実に検出可能
+
+**実装方針**:
+- `src/lib/env-validation.ts`に検出ロジックを実装
+- `server.ts`起動時に自動的に実行
+- 検出失敗時はエラーメッセージを表示してサーバー起動停止
+- 検出成功時はログに検出されたパスを出力
+
 ## セキュリティ考慮事項
 
 ### 認証・認可
@@ -998,6 +1076,23 @@ ws://host/ws/terminal/{session_id}
 - SQLite WALモードで読み取り性能向上
 
 ## エラー処理
+
+### 環境検証（サーバー起動時）
+
+- **claudeコマンド未検出**:
+  - エラーメッセージ: `Error: claude command not found in PATH. Please install Claude Code CLI or set CLAUDE_CODE_PATH environment variable.`
+  - サーバー起動を停止（process.exit(1)）
+  - ログレベル: error
+
+- **CLAUDE_CODE_PATH無効**:
+  - エラーメッセージ: `Error: CLAUDE_CODE_PATH is set but the path does not exist: ${path}`
+  - サーバー起動を停止（process.exit(1)）
+  - ログレベル: error
+
+- **Windows環境**:
+  - エラーメッセージ: `Error: Windows is not supported. Please use macOS or Linux.`
+  - サーバー起動を停止（process.exit(1)）
+  - ログレベル: error
 
 ### Claude Codeプロセス
 

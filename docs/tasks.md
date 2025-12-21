@@ -350,3 +350,253 @@ TDDアプローチで`src/components/layout/Header.tsx`のClaudeWorkロゴボタ
 - Next.js App Router での useRouter フックの使用
 - Vitest でのルーターモックのテスト方法
 - ボタン要素へのナビゲーション機能の追加
+
+---
+
+## Phase 22: Claude CLI自動検出機能の実装
+
+**実施期間**: 2025-12-21
+**優先度**: High
+**推定期間**: 60分（AIエージェント作業時間）
+**MVP**: Yes
+
+### 背景
+
+現在、Claude Code CLIのパスは環境変数`CLAUDE_CODE_PATH`で明示的に設定する必要がある。多くの環境では`claude`コマンドが既にPATH環境変数に含まれているため、自動検出機能を実装することでユーザーの設定負担を軽減する。また、CLAUDE_CODE_PATHが設定されている場合でも、そのパスが有効かどうかを検証することで、起動時のエラーを早期発見できる。
+
+### 目的
+
+- PATH環境変数から`claude`コマンドを自動検出する
+- CLAUDE_CODE_PATHが設定済みの場合は、パスの有効性を検証する
+- claudeコマンドが見つからない、または無効な場合はサーバー起動を停止する
+- macOS/Linux環境でのみ動作し、Windows環境ではエラーメッセージを表示する
+
+### タスク
+
+#### タスク22.1: Claude CLIパス検出関数のテスト作成（TDD Step 1）
+
+**説明**:
+TDDアプローチで`src/lib/env-validation.ts`にClaudeパス検出関数`detectClaudePath()`のテストを作成する。
+
+**実装手順（TDD）**:
+1. **テスト作成**: `src/lib/__tests__/env-validation.test.ts`にテストケースを追加
+   - CLAUDE_CODE_PATHが未設定でclaudeコマンドが見つかる場合、検出されたパスを返す
+   - CLAUDE_CODE_PATHが設定済みで有効なパスの場合、そのパスを返す
+   - CLAUDE_CODE_PATHが設定済みで無効なパスの場合、エラーをスローする
+   - CLAUDE_CODE_PATHが未設定でclaudeコマンドが見つからない場合、エラーをスローする
+   - Windows環境ではエラーをスローする
+2. **テスト実行**: すべてのテストが失敗することを確認
+3. **テストコミット**: テストのみをコミット
+
+**技術的文脈**:
+- テストフレームワーク: Vitest
+- モック対象: child_process.execSync, fs.existsSync, process.platform
+- テストファイルパターン: `src/lib/__tests__/env-validation.test.ts`
+
+**受入基準**:
+- [ ] テストファイル`src/lib/__tests__/env-validation.test.ts`が作成されている
+- [ ] 5つ以上のテストケースが含まれている
+- [ ] child_process.execSyncとfs.existsSyncがモック化されている
+- [ ] テスト実行で失敗することを確認済み（`npm test`）
+- [ ] ESLintエラーがゼロである
+- [ ] テストのみのコミットが存在する
+
+**依存関係**: なし
+
+**推定工数**: 20分（AIエージェント作業時間）
+
+**ステータス**: `TODO`
+
+**情報の明確性**:
+
+**明示された情報**:
+- 対象ファイル: src/lib/env-validation.ts
+- テストファイル: src/lib/__tests__/env-validation.test.ts
+- 関数名: detectClaudePath()
+- 使用技術: Node.js child_process.execSync, fs.existsSync
+- OS検出: process.platform
+- macOS/Linuxでwhichコマンドを使用
+
+**不明/要確認の情報**: なし
+
+#### タスク22.2: Claude CLIパス検出関数の実装（TDD Step 2）
+
+**説明**:
+`src/lib/env-validation.ts`に`detectClaudePath()`関数を実装し、テストを通過させる。
+
+**実装手順**:
+1. **実装**: `src/lib/env-validation.ts`にdetectClaudePath関数を追加
+   - process.platformがwin32の場合、エラーをスローする
+   - CLAUDE_CODE_PATH環境変数をチェック
+   - 設定済みの場合、fs.existsSyncで存在確認
+   - 存在しない場合はエラーをスローする
+   - 未設定の場合、execSync('which claude')で検出
+   - 検出成功時、trimしたパスを返す
+   - 検出失敗時はエラーをスローする
+2. **テスト通過確認**: すべてのテストが通過することを確認（`npm test`）
+3. **実装コミット**: 実装をコミット
+
+**技術的文脈**:
+- Node.js標準モジュール: child_process, fs
+- エラーハンドリング: try-catchでexecSyncの例外をキャッチ
+- 文字列処理: trim()で改行を除去
+
+**実装例**:
+```typescript
+import { execSync } from 'child_process';
+import { existsSync } from 'fs';
+
+export function detectClaudePath(): string {
+  // Windows環境チェック
+  if (process.platform === 'win32') {
+    throw new Error('Windows is not supported. Please use macOS or Linux.');
+  }
+
+  // CLAUDE_CODE_PATHが設定済みの場合
+  const envPath = process.env.CLAUDE_CODE_PATH;
+  if (envPath) {
+    if (!existsSync(envPath)) {
+      throw new Error(`CLAUDE_CODE_PATH is set but the path does not exist: ${envPath}`);
+    }
+    return envPath;
+  }
+
+  // PATH環境変数から自動検出
+  try {
+    const path = execSync('which claude', { encoding: 'utf-8' }).trim();
+    if (!path) {
+      throw new Error('claude command not found');
+    }
+    return path;
+  } catch (error) {
+    throw new Error(
+      'claude command not found in PATH. Please install Claude Code CLI or set CLAUDE_CODE_PATH environment variable.'
+    );
+  }
+}
+```
+
+**受入基準**:
+- [ ] `src/lib/env-validation.ts`にdetectClaudePath関数が実装されている
+- [ ] Windows環境でエラーをスローする
+- [ ] CLAUDE_CODE_PATH設定済みで有効な場合、そのパスを返す
+- [ ] CLAUDE_CODE_PATH設定済みで無効な場合、エラーをスローする
+- [ ] CLAUDE_CODE_PATH未設定でclaudeコマンドがある場合、検出パスを返す
+- [ ] CLAUDE_CODE_PATH未設定でclaudeコマンドがない場合、エラーをスローする
+- [ ] すべてのテストが通過する（`npm test`）
+- [ ] ESLintエラーがゼロである
+- [ ] 実装のコミットが存在する
+
+**依存関係**: タスク22.1（テスト作成）
+
+**推定工数**: 20分（AIエージェント作業時間）
+
+**ステータス**: `TODO`
+
+**情報の明確性**:
+
+**明示された情報**:
+- 関数シグネチャ: `detectClaudePath(): string`
+- エラーメッセージの内容（design.mdに記載）
+- whichコマンドの使用方法
+- 戻り値の型: string（claudeコマンドの絶対パス）
+
+**不明/要確認の情報**: なし
+
+#### タスク22.3: サーバー起動時の環境検証統合
+
+**説明**:
+`server.ts`起動時に`detectClaudePath()`を呼び出し、検出されたパスを`process.env.CLAUDE_CODE_PATH`に設定する。検出失敗時はエラーログを出力してサーバー起動を停止する。
+
+**実装手順**:
+1. **実装**: `server.ts`を修正
+   - `detectClaudePath`をインポート
+   - サーバー起動前（WebSocket設定前）にdetectClaudePath()を呼び出し
+   - 検出成功時、process.env.CLAUDE_CODE_PATHに設定
+   - logger.infoで検出されたパスをログ出力
+   - 検出失敗時、logger.errorでエラーログ出力
+   - process.exit(1)でサーバー起動を停止
+2. **動作確認**: `npm run dev`でサーバーが起動することを確認
+3. **ログ確認**: 検出されたパスがログに出力されることを確認
+4. **コミット**: 実装をコミット
+
+**技術的文脈**:
+- サーバーエントリーポイント: server.ts
+- ログライブラリ: winston（既存のloggerを使用）
+- 起動シーケンス: 環境検証 → WebSocket設定 → Next.js起動
+
+**実装例**:
+```typescript
+import { detectClaudePath } from './src/lib/env-validation';
+
+// 環境検証
+try {
+  const claudePath = detectClaudePath();
+  process.env.CLAUDE_CODE_PATH = claudePath;
+  logger.info('Claude Code CLI detected', { path: claudePath });
+} catch (error) {
+  logger.error('Failed to detect Claude Code CLI', {
+    error: error instanceof Error ? error.message : String(error),
+  });
+  process.exit(1);
+}
+```
+
+**受入基準**:
+- [ ] `server.ts`にdetectClaudePathのインポートが追加されている
+- [ ] サーバー起動前にdetectClaudePath()が呼ばれている
+- [ ] 検出成功時、process.env.CLAUDE_CODE_PATHに設定される
+- [ ] 検出成功時、logger.infoでパスがログ出力される
+- [ ] 検出失敗時、logger.errorでエラーログ出力される
+- [ ] 検出失敗時、process.exit(1)が呼ばれる
+- [ ] `npm run dev`でサーバーが正常起動する
+- [ ] ログに検出されたclaudeパスが表示される
+- [ ] ESLintエラーがゼロである
+- [ ] コミットが存在する
+
+**依存関係**: タスク22.2（検出関数の実装）
+
+**推定工数**: 20分（AIエージェント作業時間）
+
+**ステータス**: `TODO`
+
+**情報の明確性**:
+
+**明示された情報**:
+- 対象ファイル: server.ts
+- インポート元: src/lib/env-validation.ts
+- ログライブラリ: winston（既存のlogger）
+- エラー時の動作: process.exit(1)
+
+**不明/要確認の情報**: なし
+
+### Phase 22完了基準
+
+- [ ] タスク22.1が完了している（テスト作成）
+- [ ] タスク22.2が完了している（検出関数実装）
+- [ ] タスク22.3が完了している（サーバー統合）
+- [ ] すべてのテストが通過している（`npm test`）
+- [ ] ESLintエラーがゼロである
+- [ ] サーバーが正常起動し、claudeパスがログに出力される
+- [ ] 3つのコミット（テスト、実装、統合）が作成されている
+- [ ] CLAUDE_CODE_PATH未設定でもサーバーが起動する
+- [ ] claudeコマンドが見つからない環境ではエラーメッセージが表示される
+
+### 解決される要件
+
+**docs/requirements.md**:
+- REQ-070: サーバー起動時、CLAUDE_CODE_PATH環境変数が設定されていない場合、システムはPATH環境変数からclaudeコマンドのパスを自動検出しなければならない
+- REQ-071: サーバー起動時、CLAUDE_CODE_PATH環境変数が既に設定されている場合、システムはそのパスの有効性を検証しなければならない
+- REQ-072: claudeコマンドが見つからない場合、システムはエラーメッセージを表示してサーバー起動を停止しなければならない
+- REQ-073: CLAUDE_CODE_PATHが無効なパスの場合、システムはエラーメッセージを表示してサーバー起動を停止しなければならない
+- REQ-074: claudeコマンドが正常に検出された時、システムは検出されたパスをログに出力しなければならない
+- REQ-075: システムはmacOSとLinuxでwhichコマンドを使用してclaude コマンドを検出しなければならない
+- REQ-076: システムはWindows環境での動作をサポートしなければならない（将来的な拡張のため、現状はエラーで停止）
+
+### 技術的な学び
+
+- Node.js child_processでのコマンド実行
+- 環境変数の検証パターン
+- PATH環境変数からのコマンド検出
+- TDDでのシステムコマンドモック化
+- サーバー起動時の環境検証ベストプラクティス
