@@ -9,6 +9,10 @@
 
 import { spawn } from 'child_process';
 import path from 'path';
+import dotenv from 'dotenv';
+
+// .envファイルを読み込む
+dotenv.config();
 
 // CommonJSビルド時は__dirnameが利用可能
 const currentDir = __dirname;
