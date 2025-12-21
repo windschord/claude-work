@@ -314,13 +314,13 @@ TDDアプローチで`src/components/layout/Header.tsx`のClaudeWorkロゴボタ
 - テスト作成・コミット: 8分
 - 実装・テスト通過・コミット: 12分
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
 
 **情報の明確性**:
 
 **明示された情報**:
 - 対象ファイル: src/components/layout/Header.tsx
-- テストファイル: src/components/layout/__tests__/Header.test.tsx
+- テストファイル: `src/components/layout/__tests__/Header.test.tsx`
 - 使用技術: Next.js 15 App Router, next/navigation useRouter
 - 期待動作: ロゴクリック時に router.push('/') でトップページに遷移
 - TDDアプローチ: テスト → 実装の順
@@ -329,11 +329,11 @@ TDDアプローチで`src/components/layout/Header.tsx`のClaudeWorkロゴボタ
 
 ### Phase 21完了基準
 
-- [ ] タスク21.1が完了している
-- [ ] ClaudeWorkロゴボタンをクリックするとトップページ（/）に遷移する
-- [ ] すべてのテストが通過している
-- [ ] ESLintエラーがゼロである
-- [ ] 2つのコミット（テスト、実装）が作成されている
+- [x] タスク21.1が完了している
+- [x] ClaudeWorkロゴボタンをクリックするとトップページ（/）に遷移する
+- [x] すべてのテストが通過している
+- [x] ESLintエラーがゼロである
+- [x] 2つのコミット（テスト、実装）が作成されている
 
 ### 解決されるIssue
 
@@ -405,13 +405,13 @@ TDDアプローチで`src/lib/env-validation.ts`にClaudeパス検出関数`dete
 
 **推定工数**: 20分（AIエージェント作業時間）
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
 
 **情報の明確性**:
 
 **明示された情報**:
 - 対象ファイル: src/lib/env-validation.ts
-- テストファイル: src/lib/__tests__/env-validation.test.ts
+- テストファイル: `src/lib/__tests__/env-validation.test.ts`
 - 関数名: detectClaudePath()
 - 使用技術: Node.js child_process.execSync, fs.existsSync
 - OS検出: process.platform
@@ -491,7 +491,7 @@ export function detectClaudePath(): string {
 
 **推定工数**: 20分（AIエージェント作業時間）
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
 
 **情報の明確性**:
 
@@ -558,7 +558,7 @@ try {
 
 **推定工数**: 20分（AIエージェント作業時間）
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
 
 **情報の明確性**:
 
@@ -572,15 +572,15 @@ try {
 
 ### Phase 22完了基準
 
-- [ ] タスク22.1が完了している（テスト作成）
-- [ ] タスク22.2が完了している（検出関数実装）
-- [ ] タスク22.3が完了している（サーバー統合）
-- [ ] すべてのテストが通過している（`npm test`）
-- [ ] ESLintエラーがゼロである
-- [ ] サーバーが正常起動し、claudeパスがログに出力される
-- [ ] 3つのコミット（テスト、実装、統合）が作成されている
-- [ ] CLAUDE_CODE_PATH未設定でもサーバーが起動する
-- [ ] claudeコマンドが見つからない環境ではエラーメッセージが表示される
+- [x] タスク22.1が完了している（テスト作成）
+- [x] タスク22.2が完了している（検出関数実装）
+- [x] タスク22.3が完了している（サーバー統合）
+- [x] すべてのテストが通過している（`npm test`）
+- [x] ESLintエラーがゼロである
+- [x] サーバーが正常起動し、claudeパスがログに出力される
+- [x] 3つのコミット（テスト、実装、統合）が作成されている
+- [x] CLAUDE_CODE_PATH未設定でもサーバーが起動する
+- [x] claudeコマンドが見つからない環境ではエラーメッセージが表示される
 
 ### 解決される要件
 

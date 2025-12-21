@@ -105,14 +105,18 @@ export function detectClaudePath(): string {
 
   // PATH環境変数から自動検出
   try {
-    const path = execSync('which claude', { encoding: 'utf-8' }).trim();
+    const path = execSync('which claude', {
+      encoding: 'utf-8',
+      timeout: 5000, // 5秒のタイムアウト
+    }).trim();
     if (!path) {
       throw new Error('claude command not found');
     }
     return path;
-  } catch {
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     throw new Error(
-      'claude command not found in PATH. Please install Claude Code CLI or set CLAUDE_CODE_PATH environment variable.'
+      `claude command not found in PATH. ${errorMessage}\nPlease install Claude Code CLI or set CLAUDE_CODE_PATH environment variable.`
     );
   }
 }
