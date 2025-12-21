@@ -36,7 +36,8 @@ export function SessionCard({ session, onClick }: SessionCardProps) {
         </div>
         <div className="flex items-center gap-2">
           <p className="text-sm text-gray-600 dark:text-gray-400">ブランチ: {session.branch_name}</p>
-          <GitStatusBadge status="clean" />
+          {/* TODO: Session型にgit_statusフィールドを追加し、APIから実際のGitステータスを取得する */}
+          <GitStatusBadge status={(session as any).git_status || 'clean'} />
         </div>
         <p className="text-sm text-gray-500 dark:text-gray-400">
           作成日時: {new Date(session.created_at).toLocaleString('ja-JP')}

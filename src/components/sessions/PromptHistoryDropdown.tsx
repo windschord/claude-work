@@ -29,7 +29,12 @@ export function PromptHistoryDropdown({ onSelect }: PromptHistoryDropdownProps) 
   const handleDelete = async (e: React.MouseEvent, promptId: string) => {
     e.stopPropagation();
     e.preventDefault();
-    await deletePrompt(promptId);
+    try {
+      await deletePrompt(promptId);
+    } catch {
+      // エラーはストアで管理されるため、ここでは追加のハンドリングは不要
+      // 必要に応じて toast.error() などでユーザーに通知
+    }
   };
 
   // used_countで降順ソート、最大10件まで表示

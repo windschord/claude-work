@@ -17,7 +17,7 @@ dotenv.config();
 console.log('Environment variables loaded:');
 console.log('  CLAUDE_WORK_TOKEN:', process.env.CLAUDE_WORK_TOKEN ? `${process.env.CLAUDE_WORK_TOKEN.substring(0, 4)}****` : 'NOT SET');
 console.log('  SESSION_SECRET:', process.env.SESSION_SECRET ? `${process.env.SESSION_SECRET.substring(0, 4)}****` : 'NOT SET');
-console.log('  DATABASE_URL:', process.env.DATABASE_URL || 'NOT SET');
+console.log('  DATABASE_URL:', process.env.DATABASE_URL ? 'SET' : 'NOT SET');
 
 // 環境変数のバリデーション（サーバー起動前）
 try {

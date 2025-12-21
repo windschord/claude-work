@@ -64,6 +64,21 @@ export default function SessionDetailPage() {
   const onMessage = useCallback(
     (message: ServerMessage) => {
       handleWebSocketMessage(message);
+
+      // スクリプトログメッセージを処理（script-logsストアを更新）
+      if (message.type === 'run_script_log') {
+        const { useScriptLogStore } = require('@/store/script-logs');
+        const { addLog } = useScriptLogStore.getState();
+        addLog(message.runId, {
+          timestamp: message.timestamp,
+          level: message.level,
+          content: message.content,
+        });
+      } else if (message.type === 'run_script_exit') {
+        const { useScriptLogStore } = require('@/store/script-logs');
+        const { endRun } = useScriptLogStore.getState();
+        endRun(message.runId, message.exitCode, message.executionTime);
+      }
     },
     [handleWebSocketMessage]
   );

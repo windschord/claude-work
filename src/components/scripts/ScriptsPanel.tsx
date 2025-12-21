@@ -1,13 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useRunScriptStore } from '@/store/run-scripts';
 import { useScriptLogStore } from '@/store/script-logs';
-import { useWebSocket } from '@/hooks/useWebSocket';
 import { ScriptLogViewer } from './ScriptLogViewer';
 import { Play, Square, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import type { ServerMessage } from '@/types/websocket';
 
 interface ScriptsPanelProps {
   /** セッションID */
@@ -23,32 +21,8 @@ interface ScriptsPanelProps {
  */
 export function ScriptsPanel({ sessionId, projectId }: ScriptsPanelProps) {
   const { scripts, fetchScripts, isLoading } = useRunScriptStore();
-  const { runs, startRun, addLog, endRun } = useScriptLogStore();
+  const { runs, startRun } = useScriptLogStore();
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
-
-  // WebSocketメッセージハンドラー
-  const handleWebSocketMessage = useCallback(
-    (message: ServerMessage) => {
-      if (message.type === 'run_script_log') {
-        addLog(message.runId, {
-          timestamp: message.timestamp,
-          level: message.level,
-          content: message.content,
-        });
-      } else if (message.type === 'run_script_exit') {
-        endRun(
-          message.runId,
-          message.exitCode,
-          message.signal,
-          message.executionTime
-        );
-      }
-    },
-    [addLog, endRun]
-  );
-
-  // WebSocket接続（ログ受信用）
-  useWebSocket(sessionId, handleWebSocketMessage);
 
   // スクリプト一覧を取得
   useEffect(() => {
