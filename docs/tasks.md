@@ -314,13 +314,13 @@ TDDアプローチで`src/components/layout/Header.tsx`のClaudeWorkロゴボタ
 - テスト作成・コミット: 8分
 - 実装・テスト通過・コミット: 12分
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
 
 **情報の明確性**:
 
 **明示された情報**:
 - 対象ファイル: src/components/layout/Header.tsx
-- テストファイル: src/components/layout/__tests__/Header.test.tsx
+- テストファイル: `src/components/layout/__tests__/Header.test.tsx`
 - 使用技術: Next.js 15 App Router, next/navigation useRouter
 - 期待動作: ロゴクリック時に router.push('/') でトップページに遷移
 - TDDアプローチ: テスト → 実装の順
@@ -329,11 +329,11 @@ TDDアプローチで`src/components/layout/Header.tsx`のClaudeWorkロゴボタ
 
 ### Phase 21完了基準
 
-- [ ] タスク21.1が完了している
-- [ ] ClaudeWorkロゴボタンをクリックするとトップページ（/）に遷移する
-- [ ] すべてのテストが通過している
-- [ ] ESLintエラーがゼロである
-- [ ] 2つのコミット（テスト、実装）が作成されている
+- [x] タスク21.1が完了している
+- [x] ClaudeWorkロゴボタンをクリックするとトップページ（/）に遷移する
+- [x] すべてのテストが通過している
+- [x] ESLintエラーがゼロである
+- [x] 2つのコミット（テスト、実装）が作成されている
 
 ### 解決されるIssue
 
@@ -350,3 +350,802 @@ TDDアプローチで`src/components/layout/Header.tsx`のClaudeWorkロゴボタ
 - Next.js App Router での useRouter フックの使用
 - Vitest でのルーターモックのテスト方法
 - ボタン要素へのナビゲーション機能の追加
+
+---
+
+## Phase 22: Claude CLI自動検出機能の実装
+
+**実施期間**: 2025-12-21
+**優先度**: High
+**推定期間**: 60分（AIエージェント作業時間）
+**MVP**: Yes
+
+### 背景
+
+現在、Claude Code CLIのパスは環境変数`CLAUDE_CODE_PATH`で明示的に設定する必要がある。多くの環境では`claude`コマンドが既にPATH環境変数に含まれているため、自動検出機能を実装することでユーザーの設定負担を軽減する。また、CLAUDE_CODE_PATHが設定されている場合でも、そのパスが有効かどうかを検証することで、起動時のエラーを早期発見できる。
+
+### 目的
+
+- PATH環境変数から`claude`コマンドを自動検出する
+- CLAUDE_CODE_PATHが設定済みの場合は、パスの有効性を検証する
+- claudeコマンドが見つからない、または無効な場合はサーバー起動を停止する
+- macOS/Linux環境でのみ動作し、Windows環境ではエラーメッセージを表示する
+
+### タスク
+
+#### タスク22.1: Claude CLIパス検出関数のテスト作成（TDD Step 1）
+
+**説明**:
+TDDアプローチで`src/lib/env-validation.ts`にClaudeパス検出関数`detectClaudePath()`のテストを作成する。
+
+**実装手順（TDD）**:
+1. **テスト作成**: `src/lib/__tests__/env-validation.test.ts`にテストケースを追加
+   - CLAUDE_CODE_PATHが未設定でclaudeコマンドが見つかる場合、検出されたパスを返す
+   - CLAUDE_CODE_PATHが設定済みで有効なパスの場合、そのパスを返す
+   - CLAUDE_CODE_PATHが設定済みで無効なパスの場合、エラーをスローする
+   - CLAUDE_CODE_PATHが未設定でclaudeコマンドが見つからない場合、エラーをスローする
+   - Windows環境ではエラーをスローする
+2. **テスト実行**: すべてのテストが失敗することを確認
+3. **テストコミット**: テストのみをコミット
+
+**技術的文脈**:
+- テストフレームワーク: Vitest
+- モック対象: child_process.execSync, fs.existsSync, process.platform
+- テストファイルパターン: `src/lib/__tests__/env-validation.test.ts`
+
+**受入基準**:
+- [ ] テストファイル`src/lib/__tests__/env-validation.test.ts`が作成されている
+- [ ] 5つ以上のテストケースが含まれている
+- [ ] child_process.execSyncとfs.existsSyncがモック化されている
+- [ ] テスト実行で失敗することを確認済み（`npm test`）
+- [ ] ESLintエラーがゼロである
+- [ ] テストのみのコミットが存在する
+
+**依存関係**: なし
+
+**推定工数**: 20分（AIエージェント作業時間）
+
+**ステータス**: `DONE`
+
+**情報の明確性**:
+
+**明示された情報**:
+- 対象ファイル: src/lib/env-validation.ts
+- テストファイル: `src/lib/__tests__/env-validation.test.ts`
+- 関数名: detectClaudePath()
+- 使用技術: Node.js child_process.execSync, fs.existsSync
+- OS検出: process.platform
+- macOS/Linuxでwhichコマンドを使用
+
+**不明/要確認の情報**: なし
+
+#### タスク22.2: Claude CLIパス検出関数の実装（TDD Step 2）
+
+**説明**:
+`src/lib/env-validation.ts`に`detectClaudePath()`関数を実装し、テストを通過させる。
+
+**実装手順**:
+1. **実装**: `src/lib/env-validation.ts`にdetectClaudePath関数を追加
+   - process.platformがwin32の場合、エラーをスローする
+   - CLAUDE_CODE_PATH環境変数をチェック
+   - 設定済みの場合、fs.existsSyncで存在確認
+   - 存在しない場合はエラーをスローする
+   - 未設定の場合、execSync('which claude')で検出
+   - 検出成功時、trimしたパスを返す
+   - 検出失敗時はエラーをスローする
+2. **テスト通過確認**: すべてのテストが通過することを確認（`npm test`）
+3. **実装コミット**: 実装をコミット
+
+**技術的文脈**:
+- Node.js標準モジュール: child_process, fs
+- エラーハンドリング: try-catchでexecSyncの例外をキャッチ
+- 文字列処理: trim()で改行を除去
+
+**実装例**:
+```typescript
+import { execSync } from 'child_process';
+import { existsSync } from 'fs';
+
+export function detectClaudePath(): string {
+  // Windows環境チェック
+  if (process.platform === 'win32') {
+    throw new Error('Windows is not supported. Please use macOS or Linux.');
+  }
+
+  // CLAUDE_CODE_PATHが設定済みの場合
+  const envPath = process.env.CLAUDE_CODE_PATH;
+  if (envPath) {
+    if (!existsSync(envPath)) {
+      throw new Error(`CLAUDE_CODE_PATH is set but the path does not exist: ${envPath}`);
+    }
+    return envPath;
+  }
+
+  // PATH環境変数から自動検出
+  try {
+    const path = execSync('which claude', { encoding: 'utf-8' }).trim();
+    if (!path) {
+      throw new Error('claude command not found');
+    }
+    return path;
+  } catch (error) {
+    throw new Error(
+      'claude command not found in PATH. Please install Claude Code CLI or set CLAUDE_CODE_PATH environment variable.'
+    );
+  }
+}
+```
+
+**受入基準**:
+- [ ] `src/lib/env-validation.ts`にdetectClaudePath関数が実装されている
+- [ ] Windows環境でエラーをスローする
+- [ ] CLAUDE_CODE_PATH設定済みで有効な場合、そのパスを返す
+- [ ] CLAUDE_CODE_PATH設定済みで無効な場合、エラーをスローする
+- [ ] CLAUDE_CODE_PATH未設定でclaudeコマンドがある場合、検出パスを返す
+- [ ] CLAUDE_CODE_PATH未設定でclaudeコマンドがない場合、エラーをスローする
+- [ ] すべてのテストが通過する（`npm test`）
+- [ ] ESLintエラーがゼロである
+- [ ] 実装のコミットが存在する
+
+**依存関係**: タスク22.1（テスト作成）
+
+**推定工数**: 20分（AIエージェント作業時間）
+
+**ステータス**: `DONE`
+
+**情報の明確性**:
+
+**明示された情報**:
+- 関数シグネチャ: `detectClaudePath(): string`
+- エラーメッセージの内容（design.mdに記載）
+- whichコマンドの使用方法
+- 戻り値の型: string（claudeコマンドの絶対パス）
+
+**不明/要確認の情報**: なし
+
+#### タスク22.3: サーバー起動時の環境検証統合
+
+**説明**:
+`server.ts`起動時に`detectClaudePath()`を呼び出し、検出されたパスを`process.env.CLAUDE_CODE_PATH`に設定する。検出失敗時はエラーログを出力してサーバー起動を停止する。
+
+**実装手順**:
+1. **実装**: `server.ts`を修正
+   - `detectClaudePath`をインポート
+   - サーバー起動前（WebSocket設定前）にdetectClaudePath()を呼び出し
+   - 検出成功時、process.env.CLAUDE_CODE_PATHに設定
+   - logger.infoで検出されたパスをログ出力
+   - 検出失敗時、logger.errorでエラーログ出力
+   - process.exit(1)でサーバー起動を停止
+2. **動作確認**: `npm run dev`でサーバーが起動することを確認
+3. **ログ確認**: 検出されたパスがログに出力されることを確認
+4. **コミット**: 実装をコミット
+
+**技術的文脈**:
+- サーバーエントリーポイント: server.ts
+- ログライブラリ: winston（既存のloggerを使用）
+- 起動シーケンス: 環境検証 → WebSocket設定 → Next.js起動
+
+**実装例**:
+```typescript
+import { detectClaudePath } from './src/lib/env-validation';
+
+// 環境検証
+try {
+  const claudePath = detectClaudePath();
+  process.env.CLAUDE_CODE_PATH = claudePath;
+  logger.info('Claude Code CLI detected', { path: claudePath });
+} catch (error) {
+  logger.error('Failed to detect Claude Code CLI', {
+    error: error instanceof Error ? error.message : String(error),
+  });
+  process.exit(1);
+}
+```
+
+**受入基準**:
+- [ ] `server.ts`にdetectClaudePathのインポートが追加されている
+- [ ] サーバー起動前にdetectClaudePath()が呼ばれている
+- [ ] 検出成功時、process.env.CLAUDE_CODE_PATHに設定される
+- [ ] 検出成功時、logger.infoでパスがログ出力される
+- [ ] 検出失敗時、logger.errorでエラーログ出力される
+- [ ] 検出失敗時、process.exit(1)が呼ばれる
+- [ ] `npm run dev`でサーバーが正常起動する
+- [ ] ログに検出されたclaudeパスが表示される
+- [ ] ESLintエラーがゼロである
+- [ ] コミットが存在する
+
+**依存関係**: タスク22.2（検出関数の実装）
+
+**推定工数**: 20分（AIエージェント作業時間）
+
+**ステータス**: `DONE`
+
+**情報の明確性**:
+
+**明示された情報**:
+- 対象ファイル: server.ts
+- インポート元: src/lib/env-validation.ts
+- ログライブラリ: winston（既存のlogger）
+- エラー時の動作: process.exit(1)
+
+**不明/要確認の情報**: なし
+
+### Phase 22完了基準
+
+- [x] タスク22.1が完了している（テスト作成）
+- [x] タスク22.2が完了している（検出関数実装）
+- [x] タスク22.3が完了している（サーバー統合）
+- [x] すべてのテストが通過している（`npm test`）
+- [x] ESLintエラーがゼロである
+- [x] サーバーが正常起動し、claudeパスがログに出力される
+- [x] 3つのコミット（テスト、実装、統合）が作成されている
+- [x] CLAUDE_CODE_PATH未設定でもサーバーが起動する
+- [x] claudeコマンドが見つからない環境ではエラーメッセージが表示される
+
+### 解決される要件
+
+**docs/requirements.md**:
+- REQ-070: サーバー起動時、CLAUDE_CODE_PATH環境変数が設定されていない場合、システムはPATH環境変数からclaudeコマンドのパスを自動検出しなければならない
+- REQ-071: サーバー起動時、CLAUDE_CODE_PATH環境変数が既に設定されている場合、システムはそのパスの有効性を検証しなければならない
+- REQ-072: claudeコマンドが見つからない場合、システムはエラーメッセージを表示してサーバー起動を停止しなければならない
+- REQ-073: CLAUDE_CODE_PATHが無効なパスの場合、システムはエラーメッセージを表示してサーバー起動を停止しなければならない
+- REQ-074: claudeコマンドが正常に検出された時、システムは検出されたパスをログに出力しなければならない
+- REQ-075: システムはmacOSとLinuxでwhichコマンドを使用してclaude コマンドを検出しなければならない
+- REQ-076: システムはWindows環境での動作をサポートしなければならない（将来的な拡張のため、現状はエラーで停止）
+
+### 技術的な学び
+
+- Node.js child_processでのコマンド実行
+- 環境変数の検証パターン
+- PATH環境変数からのコマンド検出
+- TDDでのシステムコマンドモック化
+- サーバー起動時の環境検証ベストプラクティス
+
+---
+
+## Phase 23: Critical Issues修正（動作検証で発見）
+
+**目的**: 動作検証で発見された2件のCritical不具合を修正し、アプリケーションの基本機能を回復する。
+
+**背景**: 2025-12-21の動作検証で、ログイン機能とセッション認証が完全に動作しない2つのCritical不具合が発見された。これらはアプリケーション全体の使用を阻害するため、最優先で修正が必要。
+
+**検証レポート**: `docs/verification-issues.md`
+
+---
+
+#### タスク23.1: 環境変数ロード問題の調査と修正（Issue #1）
+
+**説明**:
+ログイン機能が動作しない問題を修正する。`process.env.CLAUDE_WORK_TOKEN`が正しくロードされていないため、正しいトークンでもログインが失敗する。
+
+**調査内容**:
+1. `.env`ファイルには`CLAUDE_WORK_TOKEN=your-secure-token-here`が設定されている
+2. `server.ts:1`で`import 'dotenv/config'`が実行されているが、環境変数が読み込まれていない
+3. `src/lib/auth.ts:51-56`の`validateToken`関数で`process.env.CLAUDE_WORK_TOKEN`が`undefined`になっている可能性
+
+**実装手順（調査→修正）**:
+1. server.ts起動時に環境変数ロード状況をログ出力
+2. dotenv/configのロードタイミングを確認
+3. 必要に応じてdotenv.config()を明示的に呼び出し
+4. ecosystem.config.jsのenv設定との競合を確認
+5. 環境変数が正しくロードされることを確認
+6. ログインテストを実施（E2Eまたは手動）
+
+**受入基準**:
+- [ ] server.ts起動時に`CLAUDE_WORK_TOKEN`がログ出力される（最初の4文字のみ表示）
+- [ ] `.env`ファイルの`CLAUDE_WORK_TOKEN`が`process.env.CLAUDE_WORK_TOKEN`として読み込まれる
+- [ ] ログインページで正しいトークン`your-secure-token-here`を入力してログイン成功する
+- [ ] ログイン成功後、プロジェクト一覧ページにリダイレクトされる
+- [ ] サーバーログに`Login attempt with invalid token`が出力されない
+- [ ] 環境変数ロード確認のログが追加されている
+- [ ] コミットが存在する
+
+**依存関係**: なし（最優先タスク）
+
+**推定工数**: 30分（AIエージェント作業時間）
+- 調査・ログ追加: 15分
+- 修正・検証: 15分
+
+**ステータス**: `TODO`
+
+**情報の明確性**:
+
+**明示された情報**:
+- 対象ファイル: server.ts, src/lib/auth.ts
+- 環境変数名: CLAUDE_WORK_TOKEN
+- .envファイルの設定値: your-secure-token-here
+- 既存のインポート: import 'dotenv/config' (server.ts:1)
+- エラー現象: validateToken関数でprocess.env.CLAUDE_WORK_TOKENがundefinedになっている
+
+**不明/要確認の情報**: なし（調査タスクのため、実装中に判断）
+
+---
+
+#### タスク23.2: Prismaクライアントの再生成とAuthSession取得問題の修正（Issue #2）
+
+**説明**:
+セッション認証が機能しない問題を修正する。`prisma.authSession.findUnique()`がnullを返すが、データベースにはデータが存在する。Prismaクライアントとスキーマの不一致が原因と推定。
+
+**調査内容**:
+1. データベースに有効なセッションが存在する（ID: `50659c5c-bf82-4b1f-be63-59f5bfd28a93`）
+2. `prisma.authSession.findUnique({ where: { id: '...' } })`がnullを返す
+3. `prisma/schema.prisma`のAuthSessionモデル定義は正しい
+4. Prismaクライアントが古い可能性、またはDATABASE_URLの不一致
+
+**実装手順（修正→検証）**:
+1. `npx prisma generate`を実行してPrismaクライアントを再生成
+2. `npx prisma db push`でスキーマをデータベースに反映（念のため）
+3. DATABASE_URL環境変数が正しいデータベースファイルを指していることを確認
+4. サーバーを再起動
+5. テストセッションを作成（または既存セッションを使用）
+6. `/api/auth/session`エンドポイントにGETリクエスト
+7. `{"authenticated": true}`が返されることを確認
+
+**受入基準**:
+- [ ] `npx prisma generate`が正常に完了する
+- [ ] `prisma.authSession.findUnique()`がデータベースの既存セッションを取得できる
+- [ ] 有効なセッションCookieを持つリクエストで`/api/auth/session`が`{"authenticated": true}`を返す
+- [ ] AuthGuardコンポーネントが認証済みユーザーをプロジェクト一覧ページに通す
+- [ ] ログイン後、プロジェクト一覧ページが正常に表示される
+- [ ] サーバーログにPrismaクエリエラーが出力されない
+- [ ] DATABASE_URL設定が確認されている
+- [ ] コミットが存在する
+
+**依存関係**: タスク23.1（ログイン機能修正）- ログインできないとセッション作成もできないため
+
+**推定工数**: 30分（AIエージェント作業時間）
+- Prisma再生成・検証: 15分
+- セッション認証テスト: 15分
+
+**ステータス**: `TODO`
+
+**情報の明確性**:
+
+**明示された情報**:
+- 対象モデル: AuthSession (prisma/schema.prisma:51-56)
+- データベースファイル: prisma/data/claudework.db
+- 既存のセッションID: 50659c5c-bf82-4b1f-be63-59f5bfd28a93
+- 問題のAPI: src/app/api/auth/session/route.ts:47
+- 問題の関数: src/lib/auth.ts:68-82 (getSession)
+
+**不明/要確認の情報**: なし
+
+---
+
+### Phase 23完了基準
+
+- [ ] タスク23.1が完了している（環境変数ロード修正）
+- [ ] タスク23.2が完了している（Prismaクライアント修正）
+- [ ] ログインページで正しいトークンを入力してログイン成功する
+- [ ] ログイン後、プロジェクト一覧ページが表示される
+- [ ] セッションCookieが正しく機能し、認証状態が維持される
+- [ ] `/api/auth/session`が認証済みユーザーに対して`{"authenticated": true}`を返す
+- [ ] すべてのコミットが作成されている
+- [ ] 動作検証チェックリスト（docs/verification-checklist.md）のログイン関連項目がパスする
+
+### 解決される不具合
+
+**docs/verification-issues.md**:
+- Issue #1: ログイン機能が動作しない（Critical）- 環境変数ロード問題
+- Issue #2: セッション認証が機能しない（Critical）- Prismaクエリ問題
+
+**docs/requirements.md**:
+- REQ-055: ユーザーがログインページにアクセスした時、システムは認証トークン入力フォームを表示しなければならない
+- REQ-056: ユーザーが正しいトークンを入力した時、システムはセッションを開始しプロジェクト一覧ページにリダイレクトしなければならない
+- REQ-057: セッションの有効期限が切れた時、システムはユーザーをログインページにリダイレクトしなければならない
+
+### 技術的な学び
+
+- dotenv環境変数ロードのタイミングとトラブルシューティング
+- Prismaクライアント生成とスキーマ同期の重要性
+- iron-sessionとCookie認証のデバッグ方法
+- PM2環境変数設定との競合解決
+
+---
+
+## Phase 24: High Priority UIコンポーネント実装（動作検証で発見）
+
+**目的**: テストファイルのみ存在し実装が欠落している3つのUIコンポーネントと、ランスクリプトログUIを実装する。
+
+**背景**: 動作検証で、テスト仕様は存在するが実装ファイルが欠落しているコンポーネント（GitStatusBadge、PromptHistoryDropdown、CommitHistory）が発見された。また、ランスクリプトログ表示UIも未実装。これらはユーザー体験に大きく影響するHigh Priority機能。
+
+**検証レポート**: `docs/verification-issues.md`
+
+---
+
+#### タスク24.1: GitStatusBadge.tsxの実装（Issue #3）
+
+**説明**:
+TDDで`src/components/sessions/GitStatusBadge.tsx`を実装する。テスト仕様は既に存在する（`src/components/sessions/__tests__/GitStatusBadge.test.tsx`）ため、テストファーストで実装を進める。
+
+**実装手順（TDD）**:
+1. テスト確認: `src/components/sessions/__tests__/GitStatusBadge.test.tsx`の内容を確認
+2. テスト実行: `npm test -- GitStatusBadge.test.tsx`を実行し、失敗を確認
+3. 実装: `src/components/sessions/GitStatusBadge.tsx`を実装
+   - Props: `isDirty: boolean`を受け取る
+   - isDirty=trueの場合: 「変更あり」バッジ（黄色/オレンジ系）
+   - isDirty=falseの場合: 「クリーン」バッジ（緑系）
+   - Tailwind CSSでスタイリング
+4. テスト通過: すべてのテストが通過するまで実装を調整
+5. 統合: SessionCard.tsxにGitStatusBadgeを追加
+6. 動作確認: セッション一覧でGit状態が視覚的に表示されることを確認
+
+**受入基準**:
+- [ ] `src/components/sessions/GitStatusBadge.tsx`ファイルが作成されている
+- [ ] GitStatusBadgeコンポーネントがprops `isDirty: boolean`を受け取る
+- [ ] isDirty=trueで「変更あり」バッジが表示される
+- [ ] isDirty=falseで「クリーン」バッジが表示される
+- [ ] Tailwind CSSでレスポンシブ対応されている
+- [ ] `src/components/sessions/__tests__/GitStatusBadge.test.tsx`のすべてのテストが通過する
+- [ ] SessionCard.tsxにGitStatusBadgeが統合されている
+- [ ] ESLintエラーがゼロである
+- [ ] コミットが存在する
+
+**依存関係**: Phase 23（認証修正）- UI表示をテストするには認証が必要
+
+**推定工数**: 30分（AIエージェント作業時間）
+- テスト確認・実装: 20分
+- 統合・動作確認: 10分
+
+**ステータス**: `TODO`
+
+**情報の明確性**:
+
+**明示された情報**:
+- 対象ファイル: src/components/sessions/GitStatusBadge.tsx（新規作成）
+- テストファイル: src/components/sessions/__tests__/GitStatusBadge.test.tsx（既存）
+- 統合先: src/components/sessions/SessionCard.tsx
+- スタイリング: Tailwind CSS
+- 表示内容: isDirtyに応じて「変更あり」/「クリーン」
+
+**不明/要確認の情報**: なし（テスト仕様から実装詳細を取得）
+
+---
+
+#### タスク24.2: PromptHistoryDropdown.tsxの実装（Issue #4）
+
+**説明**:
+TDDで`src/components/sessions/PromptHistoryDropdown.tsx`を実装する。テスト仕様は既に存在し、プロンプト履歴API（`src/app/api/prompts/route.ts`）も実装済み。
+
+**実装手順（TDD）**:
+1. テスト確認: `src/components/sessions/__tests__/PromptHistoryDropdown.test.tsx`の内容を確認
+2. API確認: `/api/prompts` GET エンドポイントの仕様を確認
+3. テスト実行: `npm test -- PromptHistoryDropdown.test.tsx`を実行し、失敗を確認
+4. 実装: `src/components/sessions/PromptHistoryDropdown.tsx`を実装
+   - `/api/prompts`からプロンプト履歴を取得
+   - ドロップダウンメニュー表示（Headless UI Menuコンポーネント使用）
+   - 履歴選択時、親コンポーネントにプロンプトテキストを渡すコールバック
+   - ローディング状態とエラーハンドリング
+5. テスト通過: すべてのテストが通過するまで実装を調整
+6. 統合: CreateSessionForm.tsxのプロンプト入力欄に統合
+7. 動作確認: 新規セッション作成時に履歴ドロップダウンが機能することを確認
+
+**受入基準**:
+- [ ] `src/components/sessions/PromptHistoryDropdown.tsx`ファイルが作成されている
+- [ ] GET `/api/prompts`からプロンプト履歴を取得する
+- [ ] Headless UI Menuコンポーネントでドロップダウンを実装
+- [ ] 履歴選択時、onSelect(promptText)コールバックが呼ばれる
+- [ ] ローディング状態が表示される
+- [ ] エラー発生時、適切なメッセージが表示される
+- [ ] `src/components/sessions/__tests__/PromptHistoryDropdown.test.tsx`のすべてのテストが通過する
+- [ ] CreateSessionForm.tsxに統合されている
+- [ ] プロンプト入力欄の近くにドロップダウントリガーボタンが配置されている
+- [ ] ESLintエラーがゼロである
+- [ ] コミットが存在する
+
+**依存関係**: Phase 23（認証修正）
+
+**推定工数**: 40分（AIエージェント作業時間）
+- テスト確認・実装: 25分
+- 統合・動作確認: 15分
+
+**ステータス**: `TODO`
+
+**情報の明確性**:
+
+**明示された情報**:
+- 対象ファイル: src/components/sessions/PromptHistoryDropdown.tsx（新規作成）
+- テストファイル: src/components/sessions/__tests__/PromptHistoryDropdown.test.tsx（既存）
+- 統合先: src/components/sessions/CreateSessionForm.tsx
+- API: GET /api/prompts（実装済み: src/app/api/prompts/route.ts）
+- UIライブラリ: Headless UI Menu
+
+**不明/要確認の情報**: なし（テスト仕様とAPI仕様から実装詳細を取得）
+
+---
+
+#### タスク24.3: CommitHistory.tsxの実装（Issue #5）
+
+**説明**:
+TDDで`src/components/git/CommitHistory.tsx`を実装する。テスト仕様は既に存在し、コミット取得API（GET `/api/sessions/:id/commits`）とリセットAPI（POST `/api/sessions/:id/reset`）も実装済み。
+
+**実装手順（TDD）**:
+1. テスト確認: `src/components/git/__tests__/CommitHistory.test.tsx`の内容を確認
+2. API確認: `/api/sessions/:id/commits`と`/api/sessions/:id/reset`の仕様を確認
+3. テスト実行: `npm test -- CommitHistory.test.tsx`を実行し、失敗を確認
+4. 実装: `src/components/git/CommitHistory.tsx`を実装
+   - GET `/api/sessions/:id/commits`からコミット履歴を取得
+   - コミット一覧を時系列で表示（ハッシュ、メッセージ、日時、変更ファイル数）
+   - コミット選択時、diff表示エリアを更新
+   - 「このコミットに戻る」ボタンと確認ダイアログ
+   - POST `/api/sessions/:id/reset`でリセット実行
+5. テスト通過: すべてのテストが通過するまで実装を調整
+6. 統合: セッション詳細ページ（`src/app/sessions/[id]/page.tsx`）に「Commits」タブを追加
+7. 動作確認: コミット履歴の閲覧とリセット機能が動作することを確認
+
+**受入基準**:
+- [ ] `src/components/git/CommitHistory.tsx`ファイルが作成されている
+- [ ] GET `/api/sessions/:id/commits`からコミット履歴を取得する
+- [ ] コミット一覧が時系列で表示される（ハッシュ、メッセージ、日時、変更ファイル数）
+- [ ] コミット選択時、diff表示エリアが更新される
+- [ ] 「このコミットに戻る」ボタンをクリックで確認ダイアログが表示される
+- [ ] ダイアログで確認後、POST `/api/sessions/:id/reset`が呼ばれる
+- [ ] リセット成功時、コミット履歴が再読み込みされる
+- [ ] `src/components/git/__tests__/CommitHistory.test.tsx`のすべてのテストが通過する
+- [ ] セッション詳細ページに「Commits」タブが追加されている
+- [ ] タブ切り替えでCommitHistoryコンポーネントが表示される
+- [ ] ESLintエラーがゼロである
+- [ ] コミットが存在する
+
+**依存関係**: Phase 23（認証修正）
+
+**推定工数**: 50分（AIエージェント作業時間）
+- テスト確認・実装: 30分
+- 統合・動作確認: 20分
+
+**ステータス**: `TODO`
+
+**情報の明確性**:
+
+**明示された情報**:
+- 対象ファイル: src/components/git/CommitHistory.tsx（新規作成）
+- テストファイル: src/components/git/__tests__/CommitHistory.test.tsx（既存）
+- 統合先: src/app/sessions/[id]/page.tsx（新タブ追加）
+- API: GET /api/sessions/:id/commits, POST /api/sessions/:id/reset（実装済み）
+- 表示内容: ハッシュ、メッセージ、日時、変更ファイル数
+
+**不明/要確認の情報**: なし（テスト仕様とAPI仕様から実装詳細を取得）
+
+---
+
+#### タスク24.4: ランスクリプトログ表示UIの実装（Issue #6）
+
+**説明**:
+セッション詳細ページに「Scripts」タブを追加し、ランスクリプト実行時のログをリアルタイムで表示するUIを実装する。バックエンド（RunScriptManager）は実装済みのため、WebSocket経由でログイベントを受信する。
+
+**実装手順（実装→テスト）**:
+1. WebSocket拡張: SessionWebSocketHandlerにランスクリプトログイベントの転送を追加
+   - RunScriptManagerの`log`イベントをリスニング
+   - WebSocket経由でクライアントに`run_script_log`メッセージを送信
+2. コンポーネント作成: `src/components/scripts/ScriptLogViewer.tsx`を作成
+   - ログ一覧表示（時刻、ログレベル、メッセージ）
+   - ログレベルフィルター（info/warn/error）- REQ-035
+   - テキスト検索機能 - REQ-036
+   - 終了コードと実行時間の表示 - REQ-037（Issue #8とも関連）
+   - 自動スクロール（最新ログへ）
+3. 統合: セッション詳細ページに「Scripts」タブを追加
+   - ランスクリプト一覧表示（RunScriptList使用）
+   - 実行ボタン、停止ボタン
+   - ScriptLogViewerでログ表示
+4. テスト作成: `src/components/scripts/__tests__/ScriptLogViewer.test.tsx`
+5. 動作確認: ランスクリプト実行時、ログがリアルタイムで表示されることを確認
+
+**受入基準**:
+- [ ] SessionWebSocketHandlerがRunScriptManagerのlogイベントを転送する
+- [ ] `src/components/scripts/ScriptLogViewer.tsx`ファイルが作成されている
+- [ ] ログ一覧が時刻、ログレベル、メッセージを含めて表示される
+- [ ] ログレベルフィルター（info/warn/error）が機能する（REQ-035）
+- [ ] テキスト検索機能が実装されている（REQ-036）
+- [ ] ランスクリプト終了時、終了コードと実行時間が表示される（REQ-037）
+- [ ] 自動スクロールで最新ログが常に表示される
+- [ ] セッション詳細ページに「Scripts」タブが追加されている
+- [ ] ランスクリプト一覧と実行/停止ボタンが表示される
+- [ ] ランスクリプト実行中、ログがリアルタイムで表示される
+- [ ] `src/components/scripts/__tests__/ScriptLogViewer.test.tsx`が作成され、すべてのテストが通過する
+- [ ] ESLintエラーがゼロである
+- [ ] コミットが存在する
+
+**依存関係**: Phase 23（認証修正）
+
+**推定工数**: 60分（AIエージェント作業時間）
+- WebSocket拡張: 15分
+- ScriptLogViewer実装: 30分
+- 統合・テスト・動作確認: 15分
+
+**ステータス**: `TODO`
+
+**情報の明確性**:
+
+**明示された情報**:
+- 対象ファイル:
+  - src/components/scripts/ScriptLogViewer.tsx（新規作成）
+  - src/lib/websocket/session-websocket-handler.ts（修正）
+  - src/app/sessions/[id]/page.tsx（タブ追加）
+- バックエンド: src/services/run-script-manager.ts（実装済み）
+- 既存コンポーネント: src/components/settings/RunScriptList.tsx
+- WebSocketメッセージタイプ: run_script_log（新規追加）
+- 実装機能: ログ表示、フィルター、検索、終了コード/実行時間表示
+
+**不明/要確認の情報**: なし
+
+---
+
+### Phase 24完了基準
+
+- [ ] タスク24.1が完了している（GitStatusBadge実装）
+- [ ] タスク24.2が完了している（PromptHistoryDropdown実装）
+- [ ] タスク24.3が完了している（CommitHistory実装）
+- [ ] タスク24.4が完了している（ランスクリプトログUI実装）
+- [ ] すべてのテストが通過している（`npm test`）
+- [ ] ESLintエラーがゼロである
+- [ ] セッション一覧でGit状態インジケーターが表示される
+- [ ] 新規セッション作成時、プロンプト履歴ドロップダウンが機能する
+- [ ] セッション詳細ページ「Commits」タブでコミット履歴が閲覧できる
+- [ ] セッション詳細ページ「Scripts」タブでランスクリプトログが表示される
+- [ ] すべてのコミットが作成されている
+
+### 解決される不具合
+
+**docs/verification-issues.md**:
+- Issue #3: Git状態インジケーターが未実装（High）
+- Issue #4: プロンプト履歴ドロップダウンが未実装（High）
+- Issue #5: コミット履歴UIが未実装（High）
+- Issue #6: ランスクリプトログ表示UIが未実装（High）
+
+**docs/requirements.md**:
+- REQ-016: セッション一覧表示時、システムは各セッションのGit状態インジケーターを表示しなければならない
+- REQ-018: プロンプト入力時、システムは過去のプロンプト履歴をドロップダウンで表示しなければならない
+- REQ-019: ユーザーが履歴を選択した時、システムはプロンプト入力欄に挿入しなければならない
+- REQ-034: ランスクリプト実行中、システムは出力をリアルタイムで専用ログタブに表示しなければならない
+- REQ-035: ログタブ表示時、システムはログレベル（info/warn/error）でフィルターできる機能を提供しなければならない
+- REQ-036: ログタブ表示時、システムはログをテキスト検索できる機能を提供しなければならない
+- REQ-037: ランスクリプト終了時、システムは終了コードと実行時間を表示しなければならない
+- REQ-039: セッション詳細ページのCommitsタブで、システムはworktree内のコミット履歴を時系列で表示しなければならない
+- REQ-040: コミット履歴表示時、システムは各コミットのハッシュ、メッセージ、日時、変更ファイル数を表示しなければならない
+- REQ-041: ユーザーがコミットを選択した時、システムは変更内容（diff）を表示しなければならない
+- REQ-042: ユーザーが「このコミットに戻る」をクリックした時、システムは確認ダイアログを表示しなければならない
+
+### 技術的な学び
+
+- TDDでのReactコンポーネント実装
+- テスト仕様から実装への変換プロセス
+- WebSocketによるリアルタイムログ配信
+- Headless UIによるアクセシブルなドロップダウン実装
+- ログフィルタリングと検索のUXパターン
+
+---
+
+## Phase 25: Medium Priority機能改善（動作検証で発見）
+
+**目的**: 部分的に実装されているが、UI表示やユーザー体験が不完全な2つの機能を改善する。
+
+**背景**: サブエージェント出力の折りたたみ表示とランスクリプト終了コード表示は、データモデルやイベント発火は実装されているが、UI表示が未確認または不完全。
+
+**検証レポート**: `docs/verification-issues.md`
+
+---
+
+#### タスク25.1: サブエージェント出力の折りたたみ表示確認と実装（Issue #7）
+
+**説明**:
+サブエージェント出力が折りたたみ可能なUIで表示されているか確認し、未実装の場合は実装する。データモデル（`src/store/index.ts:85-86`）には`sub_agents`フィールドが存在するため、MessageDisplayコンポーネントでの処理を確認・実装する。
+
+**実装手順（調査→実装）**:
+1. 調査: `src/components/sessions/MessageDisplay.tsx`でsub_agentsフィールドの処理を確認
+2. テストデータ作成: sub_agentsを含むメッセージデータを用意
+3. 表示確認: サブエージェント出力が折りたたみ表示されるか確認
+4. 未実装の場合:
+   - MessageDisplayにsub_agents表示ロジックを追加
+   - Headless UI Disclosureコンポーネントで折りたたみUI実装
+   - 各サブエージェントタスクの名前、ステータス、出力を表示
+   - 展開/折りたたみアニメーション
+5. テスト作成: `src/components/sessions/__tests__/MessageDisplay.test.tsx`にsub_agents表示テストを追加
+6. 動作確認: セッション詳細ページでサブエージェント出力が適切に表示されることを確認
+
+**受入基準**:
+- [ ] MessageDisplay.tsxでsub_agentsフィールドを処理している
+- [ ] サブエージェント出力が折りたたみ可能なUIで表示される
+- [ ] 各サブエージェントタスクの名前、ステータス、出力が表示される
+- [ ] Headless UI Disclosureで展開/折りたたみが実装されている
+- [ ] デフォルトで折りたたまれている状態
+- [ ] 展開/折りたたみアニメーションがスムーズ
+- [ ] `src/components/sessions/__tests__/MessageDisplay.test.tsx`にテストが追加され、通過する
+- [ ] ESLintエラーがゼロである
+- [ ] コミットが存在する
+
+**依存関係**: Phase 23（認証修正）
+
+**推定工数**: 40分（AIエージェント作業時間）
+- 調査・確認: 15分
+- 実装（必要な場合）: 20分
+- テスト・動作確認: 5分
+
+**ステータス**: `TODO`
+
+**情報の明確性**:
+
+**明示された情報**:
+- 対象ファイル: src/components/sessions/MessageDisplay.tsx
+- データモデル: src/store/index.ts:85-86 (sub_agentsフィールド)
+- UIライブラリ: Headless UI Disclosure
+- 表示内容: サブエージェントタスクの名前、ステータス、出力
+
+**不明/要確認の情報**: なし（調査タスクのため、実装中に判断）
+
+---
+
+#### タスク25.2: ランスクリプト終了コードと実行時間の表示確認（Issue #8）
+
+**説明**:
+ランスクリプト終了時の終了コードと実行時間がUIに表示されているか確認し、未実装の場合は実装する。RunScriptManager（`src/services/run-script-manager.ts:191-198`）でイベント発火は実装済み。
+
+**実装手順（調査→実装）**:
+1. 調査: Phase 24.4で実装するScriptLogViewerでの終了コード/実行時間表示を確認
+2. イベント確認: RunScriptManagerの`end`イベントのデータ構造を確認
+3. 表示確認: ログUI下部または最終行に終了コード/実行時間が表示されるか確認
+4. 未実装の場合:
+   - ScriptLogViewerに終了情報表示エリアを追加
+   - `run_script_end`イベントで終了コード（exitCode）と実行時間（duration）を取得
+   - 成功時（exitCode=0）は緑、失敗時（exitCode≠0）は赤で表示
+   - 実行時間をhh:mm:ss形式でフォーマット
+5. テスト追加: ScriptLogViewer.test.tsxに終了情報表示テストを追加
+6. 動作確認: ランスクリプト実行終了時、終了コードと実行時間が表示されることを確認
+
+**受入基準**:
+- [ ] ScriptLogViewerが`run_script_end`イベントを処理する
+- [ ] ランスクリプト終了時、終了コードが表示される
+- [ ] 終了コード0は緑、0以外は赤で表示される
+- [ ] 実行時間がhh:mm:ss形式で表示される
+- [ ] ログUI下部または最終行に終了情報エリアが配置されている
+- [ ] `src/components/scripts/__tests__/ScriptLogViewer.test.tsx`に終了情報表示テストが追加され、通過する
+- [ ] ESLintエラーがゼロである
+- [ ] コミットが存在する
+
+**依存関係**: タスク24.4（ランスクリプトログUI実装）- ScriptLogViewerが実装されている必要がある
+
+**推定工数**: 30分（AIエージェント作業時間）
+- 調査・確認: 10分
+- 実装（必要な場合）: 15分
+- テスト・動作確認: 5分
+
+**ステータス**: `TODO`
+
+**情報の明確性**:
+
+**明示された情報**:
+- 対象ファイル: src/components/scripts/ScriptLogViewer.tsx（Phase 24.4で作成）
+- イベント発火: src/services/run-script-manager.ts:191-198
+- WebSocketイベント: run_script_end（新規追加が必要な場合）
+- 表示内容: 終了コード（exitCode）、実行時間（duration）
+- 表示形式: exitCode=0は緑、≠0は赤
+
+**不明/要確認の情報**: なし
+
+---
+
+### Phase 25完了基準
+
+- [ ] タスク25.1が完了している（サブエージェント表示確認・実装）
+- [ ] タスク25.2が完了している（ランスクリプト終了コード表示確認）
+- [ ] サブエージェント出力が折りたたみ可能なUIで表示される
+- [ ] ランスクリプト終了時、終了コードと実行時間が表示される
+- [ ] すべてのテストが通過している（`npm test`）
+- [ ] ESLintエラーがゼロである
+- [ ] すべてのコミットが作成されている
+
+### 解決される不具合
+
+**docs/verification-issues.md**:
+- Issue #7: サブエージェント出力の折りたたみ表示が部分実装（Medium）
+- Issue #8: ランスクリプト終了コードと実行時間の表示が部分実装（Medium）
+
+**docs/requirements.md**:
+- REQ-024: Claude Code出力時、システムはサブエージェントタスクの出力を折りたたみ可能に表示しなければならない
+- REQ-037: ランスクリプト終了時、システムは終了コードと実行時間を表示しなければならない（Phase 24.4でも対応）
+
+### 技術的な学び
+
+- データモデルとUI表示の整合性確認
+- イベント駆動アーキテクチャでのUI更新
+- Headless UI Disclosureによるアクセシブルな折りたたみUI
+- 実行結果の視覚的フィードバック（色分け、フォーマット）
