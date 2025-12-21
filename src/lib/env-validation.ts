@@ -110,7 +110,7 @@ export function detectClaudePath(): string {
       throw new Error('claude command not found');
     }
     return path;
-  } catch (error) {
+  } catch {
     throw new Error(
       'claude command not found in PATH. Please install Claude Code CLI or set CLAUDE_CODE_PATH environment variable.'
     );
