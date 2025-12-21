@@ -83,15 +83,40 @@ export function validateToken(token: string): boolean {
  * @returns セッション情報、または存在しない/有効期限切れの場合はnull
  */
 export async function getSession(sessionId: string) {
+  logger.debug('getSession called', {
+    service: 'claude-work',
+    sessionId,
+  });
+
   const session = await prisma.authSession.findUnique({
     where: { id: sessionId },
   });
 
   if (!session) {
+    logger.debug('Session not found', {
+      service: 'claude-work',
+      sessionId,
+    });
     return null;
   }
 
-  if (session.expires_at < new Date()) {
+  logger.debug('Session found', {
+    service: 'claude-work',
+    sessionId,
+    expiresAt: session.expires_at,
+    expiresAtType: typeof session.expires_at,
+    expiresAtConstructor: session.expires_at.constructor.name,
+    currentTime: new Date(),
+  });
+
+  const isExpired = session.expires_at < new Date();
+  logger.debug('Expiration check', {
+    service: 'claude-work',
+    sessionId,
+    isExpired,
+  });
+
+  if (isExpired) {
     return null;
   }
 
