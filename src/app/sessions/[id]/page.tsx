@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { useAppStore } from '@/store';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { AuthGuard } from '@/components/AuthGuard';
@@ -15,9 +16,14 @@ import { RebaseButton } from '@/components/git/RebaseButton';
 import { MergeModal } from '@/components/git/MergeModal';
 import { ConflictDialog } from '@/components/git/ConflictDialog';
 import { DeleteWorktreeDialog } from '@/components/git/DeleteWorktreeDialog';
-import { TerminalPanel } from '@/components/sessions/TerminalPanel';
 import { Toaster } from 'react-hot-toast';
 import type { ServerMessage } from '@/types/websocket';
+
+// TerminalPanelをSSRなしで動的インポート（xtermはブラウザ専用）
+const TerminalPanel = dynamic(
+  () => import('@/components/sessions/TerminalPanel').then((mod) => mod.TerminalPanel),
+  { ssr: false }
+);
 
 /**
  * セッション詳細ページ
