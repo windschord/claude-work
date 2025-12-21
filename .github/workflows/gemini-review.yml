@@ -1,5 +1,5 @@
 # Gemini PR Review Workflow
-# このワークフローはPRが作成・更新された際にGemini CLIを使用して自動レビューを行います
+# このワークフローはPRが作成・更新された際にGemini APIを使用して自動レビューを行います
 # レビュー基準は GEMINI.md を参照（Single Source of Truth）
 
 name: Gemini PR Review
@@ -43,7 +43,6 @@ jobs:
             echo "✅ Triggered by pull_request event"
 
           elif [[ "${{ github.event_name }}" == "pull_request_review_comment" ]]; then
-            # pull_request_review_comment の場合は github.event.pull_request.number を使用
             PR_NUMBER="${{ github.event.pull_request.number }}"
             if [[ -z "$PR_NUMBER" ]]; then
               echo "should_run=false" >> $GITHUB_OUTPUT
@@ -51,7 +50,6 @@ jobs:
               exit 0
             fi
 
-            # コメント内容をチェック（環境変数経由で安全に処理）
             if [[ "$COMMENT_BODY" == *"@gemini-cli"* ]] && [[ "$COMMENT_BODY" == *"/review"* ]]; then
               echo "should_run=true" >> $GITHUB_OUTPUT
               echo "pr_number=${PR_NUMBER}" >> $GITHUB_OUTPUT
@@ -62,7 +60,6 @@ jobs:
             fi
 
           elif [[ "${{ github.event_name }}" == "issue_comment" ]]; then
-            # issue_comment がPRに対するものかチェック
             if [[ -z "${{ github.event.issue.pull_request }}" ]]; then
               echo "should_run=false" >> $GITHUB_OUTPUT
               echo "⏭️ Skipping: Comment is on an issue, not a pull request"
@@ -71,7 +68,6 @@ jobs:
 
             PR_NUMBER="${{ github.event.issue.number }}"
 
-            # コメント内容をチェック（環境変数経由で安全に処理）
             if [[ "$COMMENT_BODY" == *"@gemini-cli"* ]] && [[ "$COMMENT_BODY" == *"/review"* ]]; then
               echo "should_run=true" >> $GITHUB_OUTPUT
               echo "pr_number=${PR_NUMBER}" >> $GITHUB_OUTPUT
@@ -94,6 +90,7 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       PR_NUMBER: ${{ needs.check-trigger.outputs.pr_number }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
     steps:
       - name: Checkout PR branch
         uses: actions/checkout@v4
@@ -101,50 +98,100 @@ jobs:
           ref: refs/pull/${{ needs.check-trigger.outputs.pr_number }}/head
           fetch-depth: 0
 
-      - name: Get PR diff and info
-        id: pr_info
+      - name: Get PR diff and review guidelines
+        id: prepare
         run: |
           echo "Getting diff for PR #${PR_NUMBER}"
           gh pr diff "${PR_NUMBER}" > pr_diff.txt 2>&1 || echo "Could not get diff" > pr_diff.txt
-
-          # PRの情報も取得
-          gh pr view "${PR_NUMBER}" --json title,body > pr_info.json 2>&1 || echo "{}" > pr_info.json
 
           echo "--- PR Diff Preview (first 50 lines) ---"
           head -50 pr_diff.txt
           echo "--- End of preview ---"
 
-      - name: Run Gemini CLI Review
+          # GEMINI.mdの内容を読み込み
+          if [ -f "GEMINI.md" ]; then
+            REVIEW_GUIDELINES=$(cat GEMINI.md)
+          else
+            REVIEW_GUIDELINES="コードレビューを日本語で行ってください。"
+          fi
+
+          # PRの差分を読み込み（最大10000文字）
+          PR_DIFF=$(head -c 10000 pr_diff.txt)
+
+          # プロンプトを構築
+          cat > prompt.txt << 'PROMPT_EOF'
+          あなたはコードレビューの専門家です。
+
+          ## レビュー基準
+          PROMPT_EOF
+
+          echo "$REVIEW_GUIDELINES" >> prompt.txt
+
+          cat >> prompt.txt << 'PROMPT_EOF'
+
+          ## PRの差分
+          以下のPRの差分をレビューしてください：
+
+          ```diff
+          PROMPT_EOF
+
+          echo "$PR_DIFF" >> prompt.txt
+
+          cat >> prompt.txt << 'PROMPT_EOF'
+          ```
+
+          上記のレビュー基準に従って、日本語でレビュー結果を出力してください。
+          PROMPT_EOF
+
+          echo "Prompt prepared successfully"
+
+      - name: Call Gemini API
         id: gemini
-        uses: google-github-actions/run-gemini-cli@v0
-        with:
-          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
-          gemini_model: gemini-2.0-flash
-          prompt: |
-            あなたはコードレビューの専門家です。
+        run: |
+          # プロンプトを読み込んでJSON用にエスケープ
+          PROMPT_CONTENT=$(cat prompt.txt | jq -Rs .)
 
-            リポジトリ: ${{ github.repository }}
-            PR番号: #${{ needs.check-trigger.outputs.pr_number }}
+          # Gemini APIを呼び出し
+          RESPONSE=$(curl -s -X POST \
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}" \
+            -H 'Content-Type: application/json' \
+            -d "{
+              \"contents\": [{
+                \"parts\": [{
+                  \"text\": ${PROMPT_CONTENT}
+                }]
+              }]
+            }")
 
-            以下の手順でレビューしてください：
-            1. GEMINI.md を読んでレビュー基準を確認
-            2. pr_diff.txt を読んでPRの差分を確認
-            3. 日本語でレビュー結果を出力
+          echo "API Response received"
+
+          # レスポンスからテキストを抽出
+          REVIEW_TEXT=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text // empty')
+
+          if [ -z "$REVIEW_TEXT" ]; then
+            echo "❌ Failed to get review from Gemini API"
+            echo "Response: $RESPONSE"
+            ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error.message // "Unknown error"')
+            echo "Error: $ERROR_MSG"
+            exit 1
+          fi
+
+          echo "✅ Review generated successfully"
+
+          # レビュー結果をファイルに保存
+          echo "$REVIEW_TEXT" > review_result.txt
 
       - name: Post review comment
-        if: always()
-        env:
-          GEMINI_SUMMARY: ${{ steps.gemini.outputs.summary }}
+        if: success()
         run: |
-          if [ -n "$GEMINI_SUMMARY" ]; then
-            echo "Posting Gemini review to PR #${PR_NUMBER}"
-            gh pr comment "${PR_NUMBER}" --body "## 🤖 Gemini Code Review
+          echo "Posting Gemini review to PR #${PR_NUMBER}"
 
-          $GEMINI_SUMMARY"
-          else
-            echo "⚠️ No summary output from Gemini"
-            # エラー情報を出力
-            echo "Gemini outputs:"
-            echo "summary: ${{ steps.gemini.outputs.summary }}"
-            echo "error: ${{ steps.gemini.outputs.error }}"
-          fi
+          # レビュー結果を読み込み
+          REVIEW_CONTENT=$(cat review_result.txt)
+
+          # PRにコメントを投稿
+          gh pr comment "${PR_NUMBER}" --body "## 🤖 Gemini Code Review
+
+          ${REVIEW_CONTENT}"
+
+          echo "✅ Review posted successfully"
