@@ -1,6 +1,7 @@
 import { WebSocket } from 'ws';
 import { ConnectionManager } from './connection-manager';
 import { getProcessManager } from '../../services/process-manager';
+import { getRunScriptManager } from '../../services/run-script-manager';
 import { logger } from '../logger';
 import { prisma } from '../db';
 import type {
@@ -22,11 +23,14 @@ import type {
 export class SessionWebSocketHandler {
   private connectionManager: ConnectionManager;
   private processManager: ReturnType<typeof getProcessManager>;
+  private runScriptManager: ReturnType<typeof getRunScriptManager>;
 
   constructor(connectionManager: ConnectionManager) {
     this.connectionManager = connectionManager;
     this.processManager = getProcessManager();
+    this.runScriptManager = getRunScriptManager();
     this.setupProcessManagerListeners();
+    this.setupRunScriptManagerListeners();
   }
 
   /**
@@ -73,6 +77,65 @@ export class SessionWebSocketHandler {
       const message: ServerMessage = {
         type: 'status_change',
         status: data.exitCode === 0 ? 'completed' : 'error',
+      };
+      this.connectionManager.broadcast(data.sessionId, message);
+    });
+  }
+
+  /**
+   * RunScriptManagerのイベントリスナーをセットアップ
+   *
+   * RunScriptManagerからのイベントをWebSocketメッセージに変換し、
+   * クライアントにブロードキャストします。
+   */
+  private setupRunScriptManagerListeners(): void {
+    // ランスクリプトの標準出力をブロードキャスト
+    this.runScriptManager.on('output', (data: {
+      runId: string;
+      sessionId: string;
+      type: 'stdout';
+      content: string;
+    }) => {
+      const message: ServerMessage = {
+        type: 'run_script_log',
+        runId: data.runId,
+        level: 'info',
+        content: data.content,
+        timestamp: Date.now(),
+      };
+      this.connectionManager.broadcast(data.sessionId, message);
+    });
+
+    // ランスクリプトの標準エラー出力をブロードキャスト
+    this.runScriptManager.on('error', (data: {
+      runId: string;
+      sessionId: string;
+      content: string;
+    }) => {
+      const message: ServerMessage = {
+        type: 'run_script_log',
+        runId: data.runId,
+        level: 'error',
+        content: data.content,
+        timestamp: Date.now(),
+      };
+      this.connectionManager.broadcast(data.sessionId, message);
+    });
+
+    // ランスクリプトの終了をブロードキャスト
+    this.runScriptManager.on('exit', (data: {
+      runId: string;
+      sessionId: string;
+      exitCode: number | null;
+      signal: string | null;
+      executionTime: number;
+    }) => {
+      const message: ServerMessage = {
+        type: 'run_script_exit',
+        runId: data.runId,
+        exitCode: data.exitCode,
+        signal: data.signal,
+        executionTime: data.executionTime,
       };
       this.connectionManager.broadcast(data.sessionId, message);
     });

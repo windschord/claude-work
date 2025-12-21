@@ -17,6 +17,7 @@ import { MergeModal } from '@/components/git/MergeModal';
 import { ConflictDialog } from '@/components/git/ConflictDialog';
 import { DeleteWorktreeDialog } from '@/components/git/DeleteWorktreeDialog';
 import { CommitHistory } from '@/components/git/CommitHistory';
+import { ScriptsPanel } from '@/components/scripts/ScriptsPanel';
 import { Toaster } from 'react-hot-toast';
 import type { ServerMessage } from '@/types/websocket';
 
@@ -54,7 +55,7 @@ export default function SessionDetailPage() {
   } = useAppStore();
 
   const [isPermissionDialogOpen, setIsPermissionDialogOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'chat' | 'diff' | 'commits' | 'terminal'>('chat');
+  const [activeTab, setActiveTab] = useState<'chat' | 'diff' | 'commits' | 'terminal' | 'scripts'>('chat');
   const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
   const [isConflictDialogOpen, setIsConflictDialogOpen] = useState(false);
   const [isDeleteWorktreeDialogOpen, setIsDeleteWorktreeDialogOpen] = useState(false);
@@ -281,6 +282,16 @@ export default function SessionDetailPage() {
               >
                 Terminal
               </button>
+              <button
+                onClick={() => setActiveTab('scripts')}
+                className={`px-6 py-3 min-h-[44px] font-medium transition-colors ${
+                  activeTab === 'scripts'
+                    ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                }`}
+              >
+                Scripts
+              </button>
             </div>
           </div>
 
@@ -319,10 +330,15 @@ export default function SessionDetailPage() {
               {/* Commit History */}
               <CommitHistory sessionId={sessionId} />
             </div>
-          ) : (
+          ) : activeTab === 'terminal' ? (
             <div className="flex-1 overflow-hidden">
               {/* Terminal */}
               <TerminalPanel sessionId={sessionId} />
+            </div>
+          ) : (
+            <div className="flex-1 overflow-hidden">
+              {/* Scripts */}
+              <ScriptsPanel sessionId={sessionId} projectId={currentSession.project_id} />
             </div>
           )}
 

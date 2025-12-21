@@ -109,10 +109,12 @@ export function MessageDisplay({ content, sub_agents }: MessageDisplayProps) {
   let parsedSubAgents: SubAgent[] | null = null;
   if (sub_agents) {
     try {
-      parsedSubAgents = JSON.parse(sub_agents);
+      const parsed = JSON.parse(sub_agents);
       // Ensure it's an array
-      if (!Array.isArray(parsedSubAgents)) {
-        parsedSubAgents = [parsedSubAgents];
+      if (!Array.isArray(parsed)) {
+        parsedSubAgents = [parsed];
+      } else {
+        parsedSubAgents = parsed;
       }
     } catch {
       // Invalid JSON, ignore
