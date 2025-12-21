@@ -52,89 +52,82 @@ jobs:
     needs: check-trigger
     if: needs.check-trigger.outputs.should_run == 'true'
     runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      - name: Check API Key
+        run: |
+          if [ -z "${{ secrets.GEMINI_API_KEY }}" ]; then
+            echo "::error::GEMINI_API_KEY is not set. Please add it to repository secrets."
+            exit 1
+          fi
+          echo "GEMINI_API_KEY is configured"
+
+      - name: Get PR diff
+        id: diff
+        run: |
+          PR_NUMBER="${{ github.event.pull_request.number || github.event.issue.number }}"
+          echo "Getting diff for PR #${PR_NUMBER}"
+          gh pr diff ${PR_NUMBER} > pr_diff.txt 2>&1 || echo "Could not get diff" > pr_diff.txt
+          echo "--- PR Diff ---"
+          head -100 pr_diff.txt
+          echo "--- End of preview (first 100 lines) ---"
+
       - name: Run Gemini CLI Review
+        id: gemini
         uses: google-github-actions/run-gemini-cli@main
         with:
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
-          gemini_debug: "true"
-          settings: |
-            {
-              "mcpServers": {
-                "github": {
-                  "command": "docker",
-                  "args": [
-                    "run",
-                    "-i",
-                    "--rm",
-                    "-e", "GITHUB_PERSONAL_ACCESS_TOKEN",
-                    "ghcr.io/github/github-mcp-server"
-                  ],
-                  "env": {
-                    "GITHUB_PERSONAL_ACCESS_TOKEN": "${{ secrets.GITHUB_TOKEN }}"
-                  },
-                  "trust": true,
-                  "tools": [
-                    "add_comment_to_pending_review",
-                    "create_pending_pull_request_review",
-                    "pull_request_read",
-                    "submit_pending_pull_request_review"
-                  ]
-                }
-              },
-              "coreTools": ["cat", "echo", "grep", "head", "tail"],
-              "maxSessionTurns": 25
-            }
           prompt: |
-            あなたはコードレビューの専門家です。このプルリクエストを日本語でレビューしてください。
+            あなたはコードレビューの専門家です。このリポジトリのプルリクエストをレビューしてください。
 
-            ## リポジトリ情報
-            - リポジトリ: ${{ github.repository }}
-            - PR番号: ${{ github.event.pull_request.number || github.event.issue.number }}
+            リポジトリ: ${{ github.repository }}
+            PR番号: #${{ github.event.pull_request.number || github.event.issue.number }}
+
+            まず、catコマンドでpr_diff.txtファイルを読んで、PRの差分を確認してください。
+            その後、以下の観点でレビューを日本語で行ってください。
 
             ## 必須レビュー観点
 
-            以下の観点は必ずチェックしてください：
-
             ### 1. 設計書との整合性
-            - `docs/design.md` に記載された設計に沿った実装になっているか
-            - `docs/requirements.md` に記載された要件を満たしているか
-            - 設計から逸脱している箇所があれば指摘してください
+            - docs/design.md に記載された設計に沿った実装か
+            - docs/requirements.md の要件を満たしているか
 
             ### 2. セキュリティチェック
-            - SQLインジェクション、XSS、コマンドインジェクションなどの脆弱性がないか
-            - 機密情報（APIキー、パスワード等）がハードコードされていないか
-            - 入力値の検証が適切に行われているか
-            - 認証・認可の処理が適切か
-            - セキュリティ上の問題があれば必ず🔴 Criticalとして報告してください
+            - インジェクション脆弱性（SQL、XSS、コマンド）
+            - 機密情報のハードコード
+            - 入力値検証
+            - 🔴 Criticalとして報告
 
-            ## その他のレビュー観点
+            ## 重要度レベル
+            - 🔴 Critical: 必須修正
+            - 🟠 High: 強く推奨
+            - 🟡 Medium: 推奨
+            - 🟢 Low: 提案
 
-            - **コードの正確性**: ロジックにバグや誤りがないか
-            - **パフォーマンス**: 非効率な処理やボトルネックがないか
-            - **保守性**: コードが読みやすく、保守しやすいか
-            - **テスト**: 適切なテストが含まれているか
+      - name: Post review comment
+        if: always()
+        run: |
+          PR_NUMBER="${{ github.event.pull_request.number || github.event.issue.number }}"
 
-            ## レビューコメントの形式
+          # Geminiの出力を取得
+          SUMMARY="${{ steps.gemini.outputs.summary }}"
 
-            各コメントには以下の重要度レベルを必ず付けてください：
+          if [ -n "$SUMMARY" ]; then
+            echo "Posting Gemini review to PR #${PR_NUMBER}"
+            gh pr comment ${PR_NUMBER} --body "## 🤖 Gemini Code Review
 
-            - 🔴 **Critical（重大）**: マージ前に必ず修正が必要（セキュリティ問題、重大なバグ）
-            - 🟠 **High（高）**: 対応を強く推奨
-            - 🟡 **Medium（中）**: 改善を推奨
-            - 🟢 **Low（低）**: 提案・スタイルの改善
-
-            ## 手順
-
-            1. まず `pull_request_read` ツールを使ってPRの差分を取得してください
-            2. 差分を分析し、上記の観点でレビューしてください
-            3. `create_pending_pull_request_review` でレビューを作成し、`add_comment_to_pending_review` でコメントを追加してください
-            4. 最後に `submit_pending_pull_request_review` でレビューを送信してください
-
-            レビュー結果は日本語で出力し、具体的なコード箇所を参照しながら指摘してください。
-            良い点があれば、それも含めてフィードバックしてください。
+          ${SUMMARY}"
+          else
+            echo "No summary output from Gemini"
+            # 代替: .geminiディレクトリを確認
+            if [ -d ".gemini" ]; then
+              ls -la .gemini/
+            fi
+          fi
