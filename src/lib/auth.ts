@@ -100,16 +100,21 @@ export async function getSession(sessionId: string) {
     return null;
   }
 
+  // expires_atを明示的にDate型に変換
+  const expiresAt = new Date(session.expires_at);
+  const now = new Date();
+
   logger.debug('Session found', {
     service: 'claude-work',
     sessionId,
-    expiresAt: session.expires_at,
+    expiresAtRaw: session.expires_at,
+    expiresAtConverted: expiresAt,
     expiresAtType: typeof session.expires_at,
     expiresAtConstructor: session.expires_at.constructor.name,
-    currentTime: new Date(),
+    currentTime: now,
   });
 
-  const isExpired = session.expires_at < new Date();
+  const isExpired = expiresAt < now;
   logger.debug('Expiration check', {
     service: 'claude-work',
     sessionId,
