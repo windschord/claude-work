@@ -2,11 +2,19 @@
 
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { Disclosure, Transition } from '@headlessui/react';
+import { ChevronDown } from 'lucide-react';
 import { CodeBlock } from './CodeBlock';
 import type { Components } from 'react-markdown';
 
+interface SubAgent {
+  name: string;
+  output: string;
+}
+
 interface MessageDisplayProps {
   content: string;
+  sub_agents?: string | null;
 }
 
 interface CodeProps {
@@ -17,7 +25,7 @@ interface CodeProps {
   [key: string]: unknown;
 }
 
-export function MessageDisplay({ content }: MessageDisplayProps) {
+export function MessageDisplay({ content, sub_agents }: MessageDisplayProps) {
   const components: Components = {
     code(props) {
       const { node: _node, inline, className, children, ...rest } = props as CodeProps;
@@ -97,9 +105,65 @@ export function MessageDisplay({ content }: MessageDisplayProps) {
     },
   };
 
+  // Parse sub_agents if it's a JSON string
+  let parsedSubAgents: SubAgent[] | null = null;
+  if (sub_agents) {
+    try {
+      const parsed = JSON.parse(sub_agents);
+      // Ensure it's an array
+      if (!Array.isArray(parsed)) {
+        parsedSubAgents = [parsed];
+      } else {
+        parsedSubAgents = parsed;
+      }
+    } catch {
+      // Invalid JSON, ignore
+      parsedSubAgents = null;
+    }
+  }
+
   return (
-    <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
-      {content}
-    </ReactMarkdown>
+    <div className="space-y-3">
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+        {content}
+      </ReactMarkdown>
+
+      {parsedSubAgents && parsedSubAgents.length > 0 && (
+        <div className="mt-4 space-y-2">
+          {parsedSubAgents.map((subAgent, index) => (
+            <Disclosure key={index} defaultOpen={false}>
+              {({ open }) => (
+                <div className="border border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden">
+                  <Disclosure.Button className="flex w-full items-center justify-between bg-gray-50 dark:bg-gray-800 px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                    <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                      Sub-agent: {subAgent.name}
+                    </span>
+                    <ChevronDown
+                      className={`h-5 w-5 text-gray-500 dark:text-gray-400 transition-transform duration-200 ${
+                        open ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </Disclosure.Button>
+                  <Transition
+                    enter="transition duration-100 ease-out"
+                    enterFrom="transform scale-95 opacity-0"
+                    enterTo="transform scale-100 opacity-100"
+                    leave="transition duration-75 ease-out"
+                    leaveFrom="transform scale-100 opacity-100"
+                    leaveTo="transform scale-95 opacity-0"
+                  >
+                    <Disclosure.Panel className="px-4 py-3 bg-white dark:bg-gray-900">
+                      <div className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-mono">
+                        {subAgent.output}
+                      </div>
+                    </Disclosure.Panel>
+                  </Transition>
+                </div>
+              )}
+            </Disclosure>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

@@ -3,6 +3,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { CreateSessionForm } from '../CreateSessionForm';
 import { useAppStore } from '@/store';
 
+// PromptHistoryDropdownのモック
+vi.mock('../PromptHistoryDropdown', () => ({
+  PromptHistoryDropdown: ({ onSelect }: { onSelect: (content: string) => void }) => (
+    <button onClick={() => onSelect('Test from history')}>履歴</button>
+  ),
+}));
+
 // Zustandストアのモック
 vi.mock('@/store', () => ({
   useAppStore: vi.fn(),

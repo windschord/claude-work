@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { MessageDisplay } from '../MessageDisplay';
 
 describe('MessageDisplay', () => {
@@ -91,5 +91,100 @@ describe('MessageDisplay', () => {
 
     // 取り消し線の確認
     expect(screen.getByText('strikethrough')).toBeInTheDocument();
+  });
+
+  it('sub_agentsがnullの場合、サブエージェント出力は表示されない', () => {
+    const content = 'Test message';
+    render(<MessageDisplay content={content} sub_agents={null} />);
+
+    expect(screen.getByText('Test message')).toBeInTheDocument();
+    expect(screen.queryByText(/Sub-agent:/)).not.toBeInTheDocument();
+  });
+
+  it('sub_agentsが空文字列の場合、サブエージェント出力は表示されない', () => {
+    const content = 'Test message';
+    render(<MessageDisplay content={content} sub_agents="" />);
+
+    expect(screen.getByText('Test message')).toBeInTheDocument();
+    expect(screen.queryByText(/Sub-agent:/)).not.toBeInTheDocument();
+  });
+
+  it('sub_agentsが無効なJSONの場合、サブエージェント出力は表示されない', () => {
+    const content = 'Test message';
+    render(<MessageDisplay content={content} sub_agents="invalid json" />);
+
+    expect(screen.getByText('Test message')).toBeInTheDocument();
+    expect(screen.queryByText(/Sub-agent:/)).not.toBeInTheDocument();
+  });
+
+  it('単一のsub_agentが正しく表示される', () => {
+    const content = 'Main message';
+    const subAgent = JSON.stringify({ name: 'Task Executor', output: 'Task completed successfully' });
+    render(<MessageDisplay content={content} sub_agents={subAgent} />);
+
+    expect(screen.getByText('Main message')).toBeInTheDocument();
+    expect(screen.getByText('Sub-agent: Task Executor')).toBeInTheDocument();
+  });
+
+  it('複数のsub_agentsが正しく表示される', () => {
+    const content = 'Main message';
+    const subAgents = JSON.stringify([
+      { name: 'Agent 1', output: 'Output from agent 1' },
+      { name: 'Agent 2', output: 'Output from agent 2' },
+    ]);
+    render(<MessageDisplay content={content} sub_agents={subAgents} />);
+
+    expect(screen.getByText('Main message')).toBeInTheDocument();
+    expect(screen.getByText('Sub-agent: Agent 1')).toBeInTheDocument();
+    expect(screen.getByText('Sub-agent: Agent 2')).toBeInTheDocument();
+  });
+
+  it('sub_agentの折りたたみがデフォルトで閉じている', () => {
+    const content = 'Main message';
+    const subAgent = JSON.stringify({ name: 'Task Executor', output: 'Task completed successfully' });
+    render(<MessageDisplay content={content} sub_agents={subAgent} />);
+
+    // ボタンは表示される
+    const button = screen.getByText('Sub-agent: Task Executor');
+    expect(button).toBeInTheDocument();
+
+    // 出力はデフォルトで非表示
+    expect(screen.queryByText('Task completed successfully')).not.toBeInTheDocument();
+  });
+
+  it('sub_agentの折りたたみをクリックすると出力が表示される', () => {
+    const content = 'Main message';
+    const subAgent = JSON.stringify({ name: 'Task Executor', output: 'Task completed successfully' });
+    render(<MessageDisplay content={content} sub_agents={subAgent} />);
+
+    // 初期状態では出力は非表示
+    expect(screen.queryByText('Task completed successfully')).not.toBeInTheDocument();
+
+    // ボタンをクリック
+    const button = screen.getByText('Sub-agent: Task Executor');
+    fireEvent.click(button);
+
+    // 出力が表示される
+    expect(screen.getByText('Task completed successfully')).toBeInTheDocument();
+  });
+
+  it('sub_agentの出力が改行を含む場合、正しく表示される', () => {
+    const content = 'Main message';
+    const subAgent = JSON.stringify({
+      name: 'Multi-line Agent',
+      output: 'Line 1\nLine 2\nLine 3',
+    });
+    const { container } = render(<MessageDisplay content={content} sub_agents={subAgent} />);
+
+    // ボタンをクリックして展開
+    const button = screen.getByText('Sub-agent: Multi-line Agent');
+    fireEvent.click(button);
+
+    // whitespace-pre-wrapクラスで改行が保持される
+    const outputDiv = container.querySelector('.whitespace-pre-wrap');
+    expect(outputDiv).toBeInTheDocument();
+    expect(outputDiv?.textContent).toContain('Line 1');
+    expect(outputDiv?.textContent).toContain('Line 2');
+    expect(outputDiv?.textContent).toContain('Line 3');
   });
 });
