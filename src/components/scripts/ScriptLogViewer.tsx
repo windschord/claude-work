@@ -82,7 +82,7 @@ export function ScriptLogViewer({ runId }: ScriptLogViewerProps) {
         minute: '2-digit',
         second: '2-digit',
         fractionalSecondDigits: 3,
-      } as any);
+      } as Intl.DateTimeFormatOptions);
     } catch {
       // フォールバック: ミリ秒を手動で追加
       const timeStr = date.toLocaleTimeString('ja-JP', {
