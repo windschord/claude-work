@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { createSession, getSession, deleteSession } from '../auth';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { createSession, getSession, deleteSession, validateToken } from '../auth';
 import { prisma } from '../db';
 
 describe('Auth', () => {
@@ -139,6 +139,68 @@ describe('Auth', () => {
       });
 
       expect(session).toBeNull();
+    });
+  });
+
+  describe('validateToken', () => {
+    const originalEnv = process.env;
+
+    beforeEach(() => {
+      process.env = { ...originalEnv };
+    });
+
+    afterEach(() => {
+      process.env = originalEnv;
+    });
+
+    it('CLAUDE_WORK_TOKENが設定されていない場合、エラーをスローする', () => {
+      delete process.env.CLAUDE_WORK_TOKEN;
+
+      expect(() => {
+        validateToken('any-token');
+      }).toThrow('CLAUDE_WORK_TOKEN環境変数が設定されていません');
+    });
+
+    it('正しいトークンの場合、trueを返す', () => {
+      process.env.CLAUDE_WORK_TOKEN = 'test-token-correct';
+
+      const result = validateToken('test-token-correct');
+
+      expect(result).toBe(true);
+    });
+
+    it('誤ったトークンの場合、falseを返す', () => {
+      process.env.CLAUDE_WORK_TOKEN = 'test-token-correct';
+
+      const result = validateToken('test-token-wrong');
+
+      expect(result).toBe(false);
+    });
+
+    it('空文字列トークンの場合、falseを返す', () => {
+      process.env.CLAUDE_WORK_TOKEN = 'test-token-correct';
+
+      const result = validateToken('');
+
+      expect(result).toBe(false);
+    });
+
+    it('トークンが完全に一致する必要がある', () => {
+      process.env.CLAUDE_WORK_TOKEN = 'exact-token';
+
+      // 部分一致はfalse
+      expect(validateToken('exact-token-extra')).toBe(false);
+      expect(validateToken('exact')).toBe(false);
+      // 完全一致のみtrue
+      expect(validateToken('exact-token')).toBe(true);
+    });
+
+    it('実際の環境変数値でトークン検証が動作する', () => {
+      // .envファイルから読み込まれた実際の値をシミュレート
+      process.env.CLAUDE_WORK_TOKEN = 'your-secure-token-here';
+
+      expect(validateToken('your-secure-token-here')).toBe(true);
+      expect(validateToken('wrong-token')).toBe(false);
     });
   });
 });
