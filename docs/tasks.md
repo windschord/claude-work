@@ -1149,3 +1149,139 @@ TDDで`src/components/git/CommitHistory.tsx`を実装する。テスト仕様は
 - イベント駆動アーキテクチャでのUI更新
 - Headless UI Disclosureによるアクセシブルな折りたたみUI
 - 実行結果の視覚的フィードバック（色分け、フォーマット）
+
+---
+
+## Phase 30: E2Eテスト環境変数修正
+
+### 概要
+
+Phase 29の包括的UI検証で発見されたPlaywrightテストの環境変数不一致問題を修正します。
+
+### 背景
+
+検証レポート（docs/verification-report-phase29.md）で以下の問題が発見されました：
+
+1. `playwright.config.ts`で`AUTH_TOKEN`を使用しているが、アプリは`CLAUDE_WORK_TOKEN`を期待
+2. `e2e/login.spec.ts`も`AUTH_TOKEN`を参照している
+3. これによりE2Eテストのログイン後リダイレクトが失敗する
+
+### タスク一覧
+
+| タスクID | タイトル | 依存関係 | 推定工数 | ステータス |
+|----------|----------|----------|----------|------------|
+| 30.1 | playwright.config.ts環境変数修正 | なし | 10分 | `TODO` |
+| 30.2 | e2eテストファイルのトークン参照修正 | 30.1 | 15分 | `TODO` |
+
+---
+
+#### タスク30.1: playwright.config.ts環境変数修正
+
+**説明**:
+`playwright.config.ts`の環境変数設定で`AUTH_TOKEN`を`CLAUDE_WORK_TOKEN`に変更します。
+
+**対象ファイル**: `playwright.config.ts`
+
+**現在の実装**:
+```typescript
+env: {
+  AUTH_TOKEN: process.env.AUTH_TOKEN || 'test-token',
+  SESSION_SECRET: process.env.SESSION_SECRET || 'test-session-secret-key-for-e2e-testing-purposes-only',
+  PORT: '3001',
+},
+```
+
+**修正後**:
+```typescript
+env: {
+  CLAUDE_WORK_TOKEN: process.env.CLAUDE_WORK_TOKEN || 'test-token',
+  SESSION_SECRET: process.env.SESSION_SECRET || 'test-session-secret-key-for-e2e-testing-purposes-only',
+  PORT: '3001',
+},
+```
+
+**受入基準**:
+- [ ] `playwright.config.ts`で`AUTH_TOKEN`が`CLAUDE_WORK_TOKEN`に変更されている
+- [ ] ESLintエラーがゼロである
+- [ ] コミットが存在する
+
+**依存関係**: なし
+
+**推定工数**: 10分（AIエージェント作業時間）
+
+**ステータス**: `TODO`
+
+**情報の明確性**:
+
+**明示された情報**:
+- 対象ファイル: playwright.config.ts
+- 変更内容: AUTH_TOKEN → CLAUDE_WORK_TOKEN
+- アプリケーションが期待する環境変数名: CLAUDE_WORK_TOKEN（.env, server.ts参照）
+
+**不明/要確認の情報**: なし
+
+---
+
+#### タスク30.2: e2eテストファイルのトークン参照修正
+
+**説明**:
+E2Eテストファイル内の`AUTH_TOKEN`参照を`CLAUDE_WORK_TOKEN`に修正します。
+
+**対象ファイル**:
+- `e2e/login.spec.ts`
+- その他`AUTH_TOKEN`を参照しているE2Eテストファイル
+
+**現在の実装**（e2e/login.spec.ts）:
+```typescript
+const token = process.env.AUTH_TOKEN || 'test-token';
+```
+
+**修正後**:
+```typescript
+const token = process.env.CLAUDE_WORK_TOKEN || 'test-token';
+```
+
+**受入基準**:
+- [ ] すべてのE2Eテストファイルで`AUTH_TOKEN`が`CLAUDE_WORK_TOKEN`に変更されている
+- [ ] E2Eテストが正常に動作する（`npm run e2e`）
+- [ ] ESLintエラーがゼロである
+- [ ] コミットが存在する
+
+**依存関係**: タスク30.1（playwright.config.ts修正）が完了していること
+
+**推定工数**: 15分（AIエージェント作業時間）
+- ファイル検索: 5分
+- 修正: 5分
+- テスト実行確認: 5分
+
+**ステータス**: `TODO`
+
+**情報の明確性**:
+
+**明示された情報**:
+- 主要な対象ファイル: e2e/login.spec.ts
+- 変更内容: process.env.AUTH_TOKEN → process.env.CLAUDE_WORK_TOKEN
+- テスト実行コマンド: npm run e2e
+
+**不明/要確認の情報**: なし
+
+---
+
+### Phase 30完了基準
+
+- [ ] タスク30.1が完了している（playwright.config.ts修正）
+- [ ] タスク30.2が完了している（E2Eテストファイル修正）
+- [ ] E2Eテストが正常に実行できる
+- [ ] ESLintエラーがゼロである
+- [ ] すべてのコミットが作成されている
+
+### 解決される不具合
+
+**docs/verification-report-phase29.md**:
+- Issue #1: Playwrightテスト環境変数不一致（Medium）
+- Issue #2: e2e/login.spec.tsのトークン取得（Medium）
+
+### 技術的な学び
+
+- 環境変数の命名一貫性の重要性
+- E2Eテスト設定とアプリケーション設定の整合性確認
