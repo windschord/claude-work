@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAppStore } from '@/store';
+import { PromptHistoryDropdown } from './PromptHistoryDropdown';
 
 interface CreateSessionFormProps {
   projectId: string;
@@ -122,9 +123,12 @@ export function CreateSessionForm({ projectId, onSuccess, onError }: CreateSessi
       </div>
 
       <div>
-        <label htmlFor="session-prompt" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-          プロンプト
-        </label>
+        <div className="flex items-center justify-between mb-1">
+          <label htmlFor="session-prompt" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            プロンプト
+          </label>
+          <PromptHistoryDropdown onSelect={(content) => setPrompt(content)} />
+        </div>
         <textarea
           id="session-prompt"
           value={prompt}

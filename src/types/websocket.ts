@@ -18,7 +18,9 @@ export type ServerMessage =
   | { type: 'output'; content: string; subAgent?: SubAgent }
   | { type: 'permission_request'; permission: PermissionRequest }
   | { type: 'status_change'; status: SessionStatus }
-  | { type: 'error'; content: string };
+  | { type: 'error'; content: string }
+  | { type: 'run_script_log'; runId: string; level: 'info' | 'error'; content: string; timestamp: number }
+  | { type: 'run_script_exit'; runId: string; exitCode: number | null; signal: string | null; executionTime: number };
 
 /**
  * サブエージェント情報

@@ -1,0 +1,15 @@
+uid=90_0 RootWebArea "ClaudeWork" url="http://localhost:3000/"
+  uid=90_1 banner
+    uid=90_2 button "ClaudeWork" focusable focused
+    uid=90_3 button "Toggle theme"
+    uid=90_4 button "ログアウト"
+  uid=90_5 complementary
+    uid=90_6 heading "プロジェクト" level="2"
+    uid=90_7 button "claude-work セッション"
+  uid=90_8 main
+    uid=90_9 heading "プロジェクト一覧" level="1"
+    uid=90_10 button "プロジェクト追加"
+    uid=90_11 heading "claude-work" level="3"
+    uid=90_12 StaticText "/Users/tsk/Sync/git/claude-work"
+    uid=90_13 button "開く"
+    uid=90_14 button "削除"

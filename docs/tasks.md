@@ -603,441 +603,110 @@ try {
 
 ---
 
-## Phase 23: Critical Issue修正（ログイン認証・セッション認証）
+## Phase 23: Critical Issues修正（動作検証で発見）
 
-**検証レポート**: docs/verification-report-comprehensive.md
-**実施期間**: 2025-12-22
-**優先度**: Critical
-**推定期間**: 120分（AIエージェント作業時間）
-**MVP**: Yes
+**目的**: 動作検証で発見された2件のCritical不具合を修正し、アプリケーションの基本機能を回復する。
 
-### 背景
+**背景**: 2025-12-21の動作検証で、ログイン機能とセッション認証が完全に動作しない2つのCritical不具合が発見された。これらはアプリケーション全体の使用を阻害するため、最優先で修正が必要。
 
-nodejs-architectureブランチの網羅的動作確認（docs/verification-report-comprehensive.md）で、2つのCritical不具合を発見：
-
-1. **ログイン認証失敗**: .envファイルの正しいトークンを入力しても「トークンが無効です」エラーが発生し、ログインできない
-2. **セッション認証失敗**: データベースに存在する有効なセッションでも `{"authenticated": false}` が返され、認証状態が維持できない
-
-これらの不具合により、アプリケーション全体が使用不可能な状態となっている。
-
-### 目的
-
-- ログイン認証を修正し、正しいトークンでログインできるようにする
-- セッション認証を修正し、ログイン後の認証状態を正しく維持できるようにする
-- 環境変数の読み込み問題を解決する（Next.jsとdotenv/configの競合）
-- Prisma DateTimeフィールドの比較処理を修正する
-
-### タスク
-
-#### タスク23.1: validateToken関数へのデバッグログ追加
-
-**説明**:
-`src/lib/auth.ts`の`validateToken`関数にデバッグログを追加し、実際に比較されているトークン値を確認できるようにする。
-
-**実装手順**:
-1. **実装**: `src/lib/auth.ts`のvalidateToken関数を修正
-   - logger.debugで`process.env.CLAUDE_WORK_TOKEN`の値をログ出力（長さと先頭4文字のみ）
-   - logger.debugで入力されたtokenの値をログ出力（長さと先頭4文字のみ）
-   - logger.debugで比較結果（true/false）をログ出力
-   - 機密情報を避けるため、トークン全体ではなく一部のみをログに出力
-2. **動作確認**: `npm run dev:pm2`でサーバーを起動
-3. **テスト**: ログイン画面から正しいトークンでログインを試行
-4. **ログ確認**: `npm run pm2:logs`でデバッグログを確認
-5. **コミット**: デバッグログ追加をコミット
-
-**技術的文脈**:
-- ロガー: winston（既存のloggerを使用）
-- ログレベル: debug（本番環境では出力されない）
-- 機密情報対策: トークンの一部のみを出力
-
-**実装例**:
-```typescript
-export function validateToken(token: string): boolean {
-  const validToken = process.env.CLAUDE_WORK_TOKEN;
-  if (!validToken) {
-    throw new Error('CLAUDE_WORK_TOKEN環境変数が設定されていません');
-  }
-
-  // デバッグログ追加
-  logger.debug('Token validation debug', {
-    service: 'claude-work',
-    envTokenLength: validToken.length,
-    envTokenPrefix: validToken.substring(0, 4),
-    inputTokenLength: token.length,
-    inputTokenPrefix: token.substring(0, 4),
-  });
-
-  const result = token === validToken;
-  logger.debug('Token validation result', {
-    service: 'claude-work',
-    result,
-  });
-
-  return result;
-}
-```
-
-**受入基準**:
-- [ ] validateToken関数にlogger.debugが追加されている
-- [ ] 環境変数のトークン情報（長さと先頭4文字）がログ出力される
-- [ ] 入力トークン情報（長さと先頭4文字）がログ出力される
-- [ ] 比較結果がログ出力される
-- [ ] トークン全体は出力されない（機密情報保護）
-- [ ] サーバーが正常起動する
-- [ ] ログイン試行時にデバッグログが出力される
-- [ ] ESLintエラーがゼロである
-- [ ] コミットが存在する
-
-**依存関係**: なし
-
-**推定工数**: 15分（AIエージェント作業時間）
-
-**ステータス**: `TODO`
-
-**情報の明確性**:
-
-**明示された情報**:
-- 対象ファイル: src/lib/auth.ts
-- 対象関数: validateToken
-- ログライブラリ: winston（既存のlogger）
-- ログレベル: debug
-- 出力内容: トークンの長さと先頭4文字、比較結果
-
-**不明/要確認の情報**: なし
+**検証レポート**: `docs/verification-issues.md`
 
 ---
 
-#### タスク23.2: getSession関数へのデバッグログ追加
+#### タスク23.1: 環境変数ロード問題の調査と修正（Issue #1）
 
 **説明**:
-`src/lib/auth.ts`の`getSession`関数にデバッグログを追加し、Prisma DateTimeフィールドの値と比較処理の詳細を確認できるようにする。
+ログイン機能が動作しない問題を修正する。`process.env.CLAUDE_WORK_TOKEN`が正しくロードされていないため、正しいトークンでもログインが失敗する。
 
-**実装手順**:
-1. **実装**: `src/lib/auth.ts`のgetSession関数を修正
-   - logger.debugでsessionIdをログ出力
-   - logger.debugでprisma.authSession.findUniqueの結果をログ出力
-   - logger.debugでsession.expires_atの値と型をログ出力
-   - logger.debugでnew Date()の値をログ出力
-   - logger.debugで比較結果をログ出力
-2. **動作確認**: サーバーを再起動
-3. **テスト**: `/api/auth/session`にアクセスしてデバッグログを確認
-4. **ログ確認**: `npm run pm2:logs`でデバッグログを確認
-5. **コミット**: デバッグログ追加をコミット
+**調査内容**:
+1. `.env`ファイルには`CLAUDE_WORK_TOKEN=your-secure-token-here`が設定されている
+2. `server.ts:1`で`import 'dotenv/config'`が実行されているが、環境変数が読み込まれていない
+3. `src/lib/auth.ts:51-56`の`validateToken`関数で`process.env.CLAUDE_WORK_TOKEN`が`undefined`になっている可能性
 
-**技術的文脈**:
-- ロガー: winston（既存のloggerを使用）
-- ログレベル: debug
-- Prisma: authSession.findUnique
-
-**実装例**:
-```typescript
-export async function getSession(sessionId: string) {
-  logger.debug('getSession called', {
-    service: 'claude-work',
-    sessionId,
-  });
-
-  const session = await prisma.authSession.findUnique({
-    where: { id: sessionId },
-  });
-
-  if (!session) {
-    logger.debug('Session not found', {
-      service: 'claude-work',
-      sessionId,
-    });
-    return null;
-  }
-
-  logger.debug('Session found', {
-    service: 'claude-work',
-    sessionId,
-    expiresAt: session.expires_at,
-    expiresAtType: typeof session.expires_at,
-    expiresAtConstructor: session.expires_at.constructor.name,
-    currentTime: new Date(),
-  });
-
-  const isExpired = session.expires_at < new Date();
-  logger.debug('Expiration check', {
-    service: 'claude-work',
-    sessionId,
-    isExpired,
-  });
-
-  if (isExpired) {
-    return null;
-  }
-
-  return session;
-}
-```
+**実装手順（調査→修正）**:
+1. server.ts起動時に環境変数ロード状況をログ出力
+2. dotenv/configのロードタイミングを確認
+3. 必要に応じてdotenv.config()を明示的に呼び出し
+4. ecosystem.config.jsのenv設定との競合を確認
+5. 環境変数が正しくロードされることを確認
+6. ログインテストを実施（E2Eまたは手動）
 
 **受入基準**:
-- [ ] getSession関数にlogger.debugが追加されている
-- [ ] sessionIdがログ出力される
-- [ ] Prismaの検索結果がログ出力される
-- [ ] session.expires_atの値、型、コンストラクタ名がログ出力される
-- [ ] new Date()の値がログ出力される
-- [ ] 有効期限チェックの結果がログ出力される
-- [ ] サーバーが正常起動する
-- [ ] /api/auth/sessionアクセス時にデバッグログが出力される
-- [ ] ESLintエラーがゼロである
+- [ ] server.ts起動時に`CLAUDE_WORK_TOKEN`がログ出力される（最初の4文字のみ表示）
+- [ ] `.env`ファイルの`CLAUDE_WORK_TOKEN`が`process.env.CLAUDE_WORK_TOKEN`として読み込まれる
+- [ ] ログインページで正しいトークン`your-secure-token-here`を入力してログイン成功する
+- [ ] ログイン成功後、プロジェクト一覧ページにリダイレクトされる
+- [ ] サーバーログに`Login attempt with invalid token`が出力されない
+- [ ] 環境変数ロード確認のログが追加されている
 - [ ] コミットが存在する
 
-**依存関係**: なし
-
-**推定工数**: 15分（AIエージェント作業時間）
-
-**ステータス**: `TODO`
-
-**情報の明確性**:
-
-**明示された情報**:
-- 対象ファイル: src/lib/auth.ts
-- 対象関数: getSession
-- ログライブラリ: winston（既存のlogger）
-- ログレベル: debug
-- 出力内容: sessionId、expires_atの値と型、比較結果
-
-**不明/要確認の情報**: なし
-
----
-
-#### タスク23.3: 環境変数読み込みの修正（dotenv/config削除）
-
-**説明**:
-`server.ts`から`dotenv/config`のインポートを削除し、Next.jsのネイティブな環境変数読み込みメカニズムのみを使用するように変更する。これにより、Next.jsとdotenv/configの競合を解消する。
-
-**実装手順**:
-1. **実装**: `server.ts`を修正
-   - `import 'dotenv/config';`の行を削除
-   - Next.jsは自動的に.env, .env.local, .env.productionなどを読み込むため、追加の変更は不要
-2. **動作確認**: `npm run dev:pm2`でサーバーを起動
-3. **ログ確認**: デバッグログで環境変数が正しく読み込まれていることを確認
-4. **テスト**: ログイン画面から正しいトークンでログインを試行
-5. **コミット**: 環境変数読み込み修正をコミット
-
-**技術的文脈**:
-- Next.js 15: 環境変数の自動読み込み機能を使用
-- .envファイル: Next.jsが自動的に読み込む
-- カスタムサーバー: Next.jsの環境変数読み込みがカスタムサーバーでも機能することを確認
-
-**受入基準**:
-- [ ] `server.ts`から`import 'dotenv/config';`が削除されている
-- [ ] サーバーが正常起動する
-- [ ] 環境変数CLAUDE_WORK_TOKENが正しく読み込まれている（デバッグログで確認）
-- [ ] 環境変数SESSION_SECRETが正しく読み込まれている
-- [ ] 環境変数DATABASE_URLが正しく読み込まれている
-- [ ] ログイン機能が正常に動作する
-- [ ] ESLintエラーがゼロである
-- [ ] コミットが存在する
-
-**依存関係**: タスク23.1, タスク23.2（デバッグログで確認するため）
-
-**推定工数**: 10分（AIエージェント作業時間）
-
-**ステータス**: `TODO`
-
-**情報の明確性**:
-
-**明示された情報**:
-- 対象ファイル: server.ts
-- 削除する行: `import 'dotenv/config';`
-- Next.jsの環境変数読み込みを使用
-
-**不明/要確認の情報**: なし
-
----
-
-#### タスク23.4: getSession関数のDateTime比較修正（TDD）
-
-**説明**:
-TDDアプローチで`src/lib/auth.ts`の`getSession`関数を修正し、Prisma DateTimeフィールド（expires_at）を明示的にDate型に変換してから比較するように変更する。
-
-**実装手順（TDD）**:
-1. **テスト作成**: `src/lib/__tests__/auth.test.ts`にテストケースを追加
-   - 有効期限内のセッションを取得するテスト
-   - 有効期限切れのセッションを取得しようとするとnullが返るテスト
-   - 存在しないセッションを取得しようとするとnullが返るテスト
-2. **テスト実行**: すべてのテストが失敗することを確認（既存実装では失敗する可能性がある）
-3. **テストコミット**: テストのみをコミット
-4. **実装**: `getSession`関数を修正
-   - `session.expires_at < new Date()`を`new Date(session.expires_at) < new Date()`に変更
-   - デバッグログはそのまま維持（ただし、変換後の値も出力）
-5. **テスト通過確認**: すべてのテストが通過することを確認（`npm test`）
-6. **統合テスト**: `/api/auth/session`にアクセスして動作確認
-7. **実装コミット**: 実装をコミット
-
-**技術的文脈**:
-- Prisma: SQLiteのDATETIME型を文字列として返す可能性がある
-- Date型変換: new Date()コンストラクタで文字列をDate型に変換
-- 比較演算子: Date型同士の比較は内部的にgetTime()が呼ばれる
-
-**実装例**:
-```typescript
-export async function getSession(sessionId: string) {
-  logger.debug('getSession called', {
-    service: 'claude-work',
-    sessionId,
-  });
-
-  const session = await prisma.authSession.findUnique({
-    where: { id: sessionId },
-  });
-
-  if (!session) {
-    logger.debug('Session not found', {
-      service: 'claude-work',
-      sessionId,
-    });
-    return null;
-  }
-
-  // expires_atを明示的にDate型に変換
-  const expiresAt = new Date(session.expires_at);
-  const now = new Date();
-
-  logger.debug('Session found', {
-    service: 'claude-work',
-    sessionId,
-    expiresAtRaw: session.expires_at,
-    expiresAtConverted: expiresAt,
-    currentTime: now,
-  });
-
-  const isExpired = expiresAt < now;
-  logger.debug('Expiration check', {
-    service: 'claude-work',
-    sessionId,
-    isExpired,
-  });
-
-  if (isExpired) {
-    return null;
-  }
-
-  return session;
-}
-```
-
-**受入基準**:
-- [ ] テストファイル`src/lib/__tests__/auth.test.ts`が存在または更新されている
-- [ ] getSessionのテストケースが3つ以上含まれている
-- [ ] 実装前にテストのみのコミットが存在する
-- [ ] `getSession`関数で`new Date(session.expires_at)`を使用している
-- [ ] デバッグログが変換前後の値を出力している
-- [ ] すべてのテストが通過する（`npm test`）
-- [ ] `/api/auth/session`が正しく動作する
-- [ ] 有効なセッションで`{"authenticated": true}`が返る
-- [ ] 有効期限切れセッションで`{"authenticated": false}`が返る
-- [ ] ESLintエラーがゼロである
-- [ ] 実装のコミットが存在する
-
-**依存関係**: タスク23.2（デバッグログで動作確認するため）
+**依存関係**: なし（最優先タスク）
 
 **推定工数**: 30分（AIエージェント作業時間）
-- テスト作成・コミット: 15分
-- 実装・テスト通過・コミット: 15分
+- 調査・ログ追加: 15分
+- 修正・検証: 15分
 
 **ステータス**: `TODO`
 
 **情報の明確性**:
 
 **明示された情報**:
-- 対象ファイル: src/lib/auth.ts
-- 対象関数: getSession
-- テストファイル: src/lib/__tests__/auth.test.ts
-- 修正内容: new Date(session.expires_at) < new Date()
-- TDDアプローチ: テスト → 実装の順
+- 対象ファイル: server.ts, src/lib/auth.ts
+- 環境変数名: CLAUDE_WORK_TOKEN
+- .envファイルの設定値: your-secure-token-here
+- 既存のインポート: import 'dotenv/config' (server.ts:1)
+- エラー現象: validateToken関数でprocess.env.CLAUDE_WORK_TOKENがundefinedになっている
 
-**不明/要確認の情報**: なし
+**不明/要確認の情報**: なし（調査タスクのため、実装中に判断）
 
 ---
 
-#### タスク23.5: 統合テストと動作確認
+#### タスク23.2: Prismaクライアントの再生成とAuthSession取得問題の修正（Issue #2）
 
 **説明**:
-デバッグログを削除し、ログイン機能とセッション認証機能が正しく動作することを統合テストで確認する。
+セッション認証が機能しない問題を修正する。`prisma.authSession.findUnique()`がnullを返すが、データベースにはデータが存在する。Prismaクライアントとスキーマの不一致が原因と推定。
 
-**実装手順**:
-1. **デバッグログ削除**: validateToken関数とgetSession関数からデバッグログを削除
-   - 本番環境に不要なデバッグログを削除
-   - 必要に応じて重要なログ（エラー時など）は残す
-2. **統合テスト**: 以下のシナリオを手動でテスト
-   - ログイン画面で正しいトークンを入力してログイン
-   - ダッシュボードにリダイレクトされることを確認
-   - ページをリロードしても認証状態が維持されることを確認
-   - ログアウトして再度ログインできることを確認
-3. **自動テスト**: `npm test`ですべてのテストが通過することを確認
-4. **コミット**: デバッグログ削除と動作確認完了をコミット
+**調査内容**:
+1. データベースに有効なセッションが存在する（ID: `50659c5c-bf82-4b1f-be63-59f5bfd28a93`）
+2. `prisma.authSession.findUnique({ where: { id: '...' } })`がnullを返す
+3. `prisma/schema.prisma`のAuthSessionモデル定義は正しい
+4. Prismaクライアントが古い可能性、またはDATABASE_URLの不一致
 
-**技術的文脈**:
-- 手動テスト: ブラウザでの動作確認
-- 自動テスト: Vitest（既存のテストスイート）
+**実装手順（修正→検証）**:
+1. `npx prisma generate`を実行してPrismaクライアントを再生成
+2. `npx prisma db push`でスキーマをデータベースに反映（念のため）
+3. DATABASE_URL環境変数が正しいデータベースファイルを指していることを確認
+4. サーバーを再起動
+5. テストセッションを作成（または既存セッションを使用）
+6. `/api/auth/session`エンドポイントにGETリクエスト
+7. `{"authenticated": true}`が返されることを確認
 
 **受入基準**:
-- [ ] validateToken関数からデバッグログが削除されている
-- [ ] getSession関数からデバッグログが削除されている
-- [ ] ログイン画面で正しいトークンを入力すると、ダッシュボードにリダイレクトされる
-- [ ] ページリロード後も認証状態が維持される
-- [ ] ログアウト機能が正常に動作する
-- [ ] 再ログインが可能である
-- [ ] すべての自動テストが通過する（`npm test`）
-- [ ] ESLintエラーがゼロである
+- [ ] `npx prisma generate`が正常に完了する
+- [ ] `prisma.authSession.findUnique()`がデータベースの既存セッションを取得できる
+- [ ] 有効なセッションCookieを持つリクエストで`/api/auth/session`が`{"authenticated": true}`を返す
+- [ ] AuthGuardコンポーネントが認証済みユーザーをプロジェクト一覧ページに通す
+- [ ] ログイン後、プロジェクト一覧ページが正常に表示される
+- [ ] サーバーログにPrismaクエリエラーが出力されない
+- [ ] DATABASE_URL設定が確認されている
 - [ ] コミットが存在する
 
-**依存関係**: タスク23.3, タスク23.4（すべての修正が完了していること）
+**依存関係**: タスク23.1（ログイン機能修正）- ログインできないとセッション作成もできないため
 
-**推定工数**: 20分（AIエージェント作業時間）
-- デバッグログ削除: 5分
-- 統合テスト: 10分
-- コミット: 5分
+**推定工数**: 30分（AIエージェント作業時間）
+- Prisma再生成・検証: 15分
+- セッション認証テスト: 15分
 
 **ステータス**: `TODO`
 
 **情報の明確性**:
 
 **明示された情報**:
-- デバッグログの削除
-- 手動での統合テスト実施
-- 自動テストの実行
-
-**不明/要確認の情報**: なし
-
----
-
-#### タスク23.6: 検証レポート更新
-
-**説明**:
-`docs/verification-report-comprehensive.md`を更新し、Critical不具合が修正されたことを記録する。
-
-**実装手順**:
-1. **レポート更新**: verification-report-comprehensive.mdを編集
-   - Critical Issue #1とCritical Issue #2のセクションに「修正済み」を追記
-   - 修正内容の概要を追加
-   - Phase 23へのリンクを追加
-2. **コミット**: レポート更新をコミット
-
-**受入基準**:
-- [ ] verification-report-comprehensive.mdが更新されている
-- [ ] Critical Issue #1に修正済みマーク（✅）が追加されている
-- [ ] Critical Issue #2に修正済みマーク（✅）が追加されている
-- [ ] 修正内容の概要が記載されている
-- [ ] Phase 23へのリンクが追加されている
-- [ ] コミットが存在する
-
-**依存関係**: タスク23.5（すべての修正とテストが完了していること）
-
-**推定工数**: 10分（AIエージェント作業時間）
-
-**ステータス**: `TODO`
-
-**情報の明確性**:
-
-**明示された情報**:
-- 対象ファイル: docs/verification-report-comprehensive.md
-- 更新内容: Critical Issueの修正済みマーク追加
+- 対象モデル: AuthSession (prisma/schema.prisma:51-56)
+- データベースファイル: prisma/data/claudework.db
+- 既存のセッションID: 50659c5c-bf82-4b1f-be63-59f5bfd28a93
+- 問題のAPI: src/app/api/auth/session/route.ts:47
+- 問題の関数: src/lib/auth.ts:68-82 (getSession)
 
 **不明/要確認の情報**: なし
 
@@ -1045,34 +714,438 @@ export async function getSession(sessionId: string) {
 
 ### Phase 23完了基準
 
-- [ ] タスク23.1が完了している（validateTokenデバッグログ追加）
-- [ ] タスク23.2が完了している（getSessionデバッグログ追加）
-- [ ] タスク23.3が完了している（dotenv/config削除）
-- [ ] タスク23.4が完了している（DateTime比較修正）
-- [ ] タスク23.5が完了している（統合テストと動作確認）
-- [ ] タスク23.6が完了している（検証レポート更新）
-- [ ] ログイン機能が正常に動作する
-- [ ] セッション認証が正常に動作する
-- [ ] すべてのテストが通過している（`npm test`）
-- [ ] ESLintエラーがゼロである
-- [ ] 6つのコミットが作成されている
+- [ ] タスク23.1が完了している（環境変数ロード修正）
+- [ ] タスク23.2が完了している（Prismaクライアント修正）
+- [ ] ログインページで正しいトークンを入力してログイン成功する
+- [ ] ログイン後、プロジェクト一覧ページが表示される
+- [ ] セッションCookieが正しく機能し、認証状態が維持される
+- [ ] `/api/auth/session`が認証済みユーザーに対して`{"authenticated": true}`を返す
+- [ ] すべてのコミットが作成されている
+- [ ] 動作検証チェックリスト（docs/verification-checklist.md）のログイン関連項目がパスする
 
 ### 解決される不具合
 
-**docs/verification-report-comprehensive.md**:
-- Critical Issue #1: ログイン認証が失敗する
-- Critical Issue #2: セッション認証が機能しない
-
-### 達成される要件
+**docs/verification-issues.md**:
+- Issue #1: ログイン機能が動作しない（Critical）- 環境変数ロード問題
+- Issue #2: セッション認証が機能しない（Critical）- Prismaクエリ問題
 
 **docs/requirements.md**:
-- REQ-055: システムは認証なしでのアクセスを拒否しなければならない
-- REQ-056: 正しいトークンが入力された時、システムはセッションを開始し、ダッシュボードにリダイレクトしなければならない
-- REQ-057: 認証済みセッションの有効期限が切れた時、システムはユーザーをログインページにリダイレクトしなければならない
+- REQ-055: ユーザーがログインページにアクセスした時、システムは認証トークン入力フォームを表示しなければならない
+- REQ-056: ユーザーが正しいトークンを入力した時、システムはセッションを開始しプロジェクト一覧ページにリダイレクトしなければならない
+- REQ-057: セッションの有効期限が切れた時、システムはユーザーをログインページにリダイレクトしなければならない
 
 ### 技術的な学び
 
-- Next.jsとdotenv/configの環境変数読み込み競合の解決方法
-- Prisma SQLite DateTimeフィールドの型変換の必要性
-- デバッグログを使った問題の特定手法
-- TDDでの日時比較処理のテスト方法
+- dotenv環境変数ロードのタイミングとトラブルシューティング
+- Prismaクライアント生成とスキーマ同期の重要性
+- iron-sessionとCookie認証のデバッグ方法
+- PM2環境変数設定との競合解決
+
+---
+
+## Phase 24: High Priority UIコンポーネント実装（動作検証で発見）
+
+**目的**: テストファイルのみ存在し実装が欠落している3つのUIコンポーネントと、ランスクリプトログUIを実装する。
+
+**背景**: 動作検証で、テスト仕様は存在するが実装ファイルが欠落しているコンポーネント（GitStatusBadge、PromptHistoryDropdown、CommitHistory）が発見された。また、ランスクリプトログ表示UIも未実装。これらはユーザー体験に大きく影響するHigh Priority機能。
+
+**検証レポート**: `docs/verification-issues.md`
+
+---
+
+#### タスク24.1: GitStatusBadge.tsxの実装（Issue #3）
+
+**説明**:
+TDDで`src/components/sessions/GitStatusBadge.tsx`を実装する。テスト仕様は既に存在する（`src/components/sessions/__tests__/GitStatusBadge.test.tsx`）ため、テストファーストで実装を進める。
+
+**実装手順（TDD）**:
+1. テスト確認: `src/components/sessions/__tests__/GitStatusBadge.test.tsx`の内容を確認
+2. テスト実行: `npm test -- GitStatusBadge.test.tsx`を実行し、失敗を確認
+3. 実装: `src/components/sessions/GitStatusBadge.tsx`を実装
+   - Props: `isDirty: boolean`を受け取る
+   - isDirty=trueの場合: 「変更あり」バッジ（黄色/オレンジ系）
+   - isDirty=falseの場合: 「クリーン」バッジ（緑系）
+   - Tailwind CSSでスタイリング
+4. テスト通過: すべてのテストが通過するまで実装を調整
+5. 統合: SessionCard.tsxにGitStatusBadgeを追加
+6. 動作確認: セッション一覧でGit状態が視覚的に表示されることを確認
+
+**受入基準**:
+- [ ] `src/components/sessions/GitStatusBadge.tsx`ファイルが作成されている
+- [ ] GitStatusBadgeコンポーネントがprops `isDirty: boolean`を受け取る
+- [ ] isDirty=trueで「変更あり」バッジが表示される
+- [ ] isDirty=falseで「クリーン」バッジが表示される
+- [ ] Tailwind CSSでレスポンシブ対応されている
+- [ ] `src/components/sessions/__tests__/GitStatusBadge.test.tsx`のすべてのテストが通過する
+- [ ] SessionCard.tsxにGitStatusBadgeが統合されている
+- [ ] ESLintエラーがゼロである
+- [ ] コミットが存在する
+
+**依存関係**: Phase 23（認証修正）- UI表示をテストするには認証が必要
+
+**推定工数**: 30分（AIエージェント作業時間）
+- テスト確認・実装: 20分
+- 統合・動作確認: 10分
+
+**ステータス**: `TODO`
+
+**情報の明確性**:
+
+**明示された情報**:
+- 対象ファイル: src/components/sessions/GitStatusBadge.tsx（新規作成）
+- テストファイル: src/components/sessions/__tests__/GitStatusBadge.test.tsx（既存）
+- 統合先: src/components/sessions/SessionCard.tsx
+- スタイリング: Tailwind CSS
+- 表示内容: isDirtyに応じて「変更あり」/「クリーン」
+
+**不明/要確認の情報**: なし（テスト仕様から実装詳細を取得）
+
+---
+
+#### タスク24.2: PromptHistoryDropdown.tsxの実装（Issue #4）
+
+**説明**:
+TDDで`src/components/sessions/PromptHistoryDropdown.tsx`を実装する。テスト仕様は既に存在し、プロンプト履歴API（`src/app/api/prompts/route.ts`）も実装済み。
+
+**実装手順（TDD）**:
+1. テスト確認: `src/components/sessions/__tests__/PromptHistoryDropdown.test.tsx`の内容を確認
+2. API確認: `/api/prompts` GET エンドポイントの仕様を確認
+3. テスト実行: `npm test -- PromptHistoryDropdown.test.tsx`を実行し、失敗を確認
+4. 実装: `src/components/sessions/PromptHistoryDropdown.tsx`を実装
+   - `/api/prompts`からプロンプト履歴を取得
+   - ドロップダウンメニュー表示（Headless UI Menuコンポーネント使用）
+   - 履歴選択時、親コンポーネントにプロンプトテキストを渡すコールバック
+   - ローディング状態とエラーハンドリング
+5. テスト通過: すべてのテストが通過するまで実装を調整
+6. 統合: CreateSessionForm.tsxのプロンプト入力欄に統合
+7. 動作確認: 新規セッション作成時に履歴ドロップダウンが機能することを確認
+
+**受入基準**:
+- [ ] `src/components/sessions/PromptHistoryDropdown.tsx`ファイルが作成されている
+- [ ] GET `/api/prompts`からプロンプト履歴を取得する
+- [ ] Headless UI Menuコンポーネントでドロップダウンを実装
+- [ ] 履歴選択時、onSelect(promptText)コールバックが呼ばれる
+- [ ] ローディング状態が表示される
+- [ ] エラー発生時、適切なメッセージが表示される
+- [ ] `src/components/sessions/__tests__/PromptHistoryDropdown.test.tsx`のすべてのテストが通過する
+- [ ] CreateSessionForm.tsxに統合されている
+- [ ] プロンプト入力欄の近くにドロップダウントリガーボタンが配置されている
+- [ ] ESLintエラーがゼロである
+- [ ] コミットが存在する
+
+**依存関係**: Phase 23（認証修正）
+
+**推定工数**: 40分（AIエージェント作業時間）
+- テスト確認・実装: 25分
+- 統合・動作確認: 15分
+
+**ステータス**: `TODO`
+
+**情報の明確性**:
+
+**明示された情報**:
+- 対象ファイル: src/components/sessions/PromptHistoryDropdown.tsx（新規作成）
+- テストファイル: src/components/sessions/__tests__/PromptHistoryDropdown.test.tsx（既存）
+- 統合先: src/components/sessions/CreateSessionForm.tsx
+- API: GET /api/prompts（実装済み: src/app/api/prompts/route.ts）
+- UIライブラリ: Headless UI Menu
+
+**不明/要確認の情報**: なし（テスト仕様とAPI仕様から実装詳細を取得）
+
+---
+
+#### タスク24.3: CommitHistory.tsxの実装（Issue #5）
+
+**説明**:
+TDDで`src/components/git/CommitHistory.tsx`を実装する。テスト仕様は既に存在し、コミット取得API（GET `/api/sessions/:id/commits`）とリセットAPI（POST `/api/sessions/:id/reset`）も実装済み。
+
+**実装手順（TDD）**:
+1. テスト確認: `src/components/git/__tests__/CommitHistory.test.tsx`の内容を確認
+2. API確認: `/api/sessions/:id/commits`と`/api/sessions/:id/reset`の仕様を確認
+3. テスト実行: `npm test -- CommitHistory.test.tsx`を実行し、失敗を確認
+4. 実装: `src/components/git/CommitHistory.tsx`を実装
+   - GET `/api/sessions/:id/commits`からコミット履歴を取得
+   - コミット一覧を時系列で表示（ハッシュ、メッセージ、日時、変更ファイル数）
+   - コミット選択時、diff表示エリアを更新
+   - 「このコミットに戻る」ボタンと確認ダイアログ
+   - POST `/api/sessions/:id/reset`でリセット実行
+5. テスト通過: すべてのテストが通過するまで実装を調整
+6. 統合: セッション詳細ページ（`src/app/sessions/[id]/page.tsx`）に「Commits」タブを追加
+7. 動作確認: コミット履歴の閲覧とリセット機能が動作することを確認
+
+**受入基準**:
+- [ ] `src/components/git/CommitHistory.tsx`ファイルが作成されている
+- [ ] GET `/api/sessions/:id/commits`からコミット履歴を取得する
+- [ ] コミット一覧が時系列で表示される（ハッシュ、メッセージ、日時、変更ファイル数）
+- [ ] コミット選択時、diff表示エリアが更新される
+- [ ] 「このコミットに戻る」ボタンをクリックで確認ダイアログが表示される
+- [ ] ダイアログで確認後、POST `/api/sessions/:id/reset`が呼ばれる
+- [ ] リセット成功時、コミット履歴が再読み込みされる
+- [ ] `src/components/git/__tests__/CommitHistory.test.tsx`のすべてのテストが通過する
+- [ ] セッション詳細ページに「Commits」タブが追加されている
+- [ ] タブ切り替えでCommitHistoryコンポーネントが表示される
+- [ ] ESLintエラーがゼロである
+- [ ] コミットが存在する
+
+**依存関係**: Phase 23（認証修正）
+
+**推定工数**: 50分（AIエージェント作業時間）
+- テスト確認・実装: 30分
+- 統合・動作確認: 20分
+
+**ステータス**: `TODO`
+
+**情報の明確性**:
+
+**明示された情報**:
+- 対象ファイル: src/components/git/CommitHistory.tsx（新規作成）
+- テストファイル: src/components/git/__tests__/CommitHistory.test.tsx（既存）
+- 統合先: src/app/sessions/[id]/page.tsx（新タブ追加）
+- API: GET /api/sessions/:id/commits, POST /api/sessions/:id/reset（実装済み）
+- 表示内容: ハッシュ、メッセージ、日時、変更ファイル数
+
+**不明/要確認の情報**: なし（テスト仕様とAPI仕様から実装詳細を取得）
+
+---
+
+#### タスク24.4: ランスクリプトログ表示UIの実装（Issue #6）
+
+**説明**:
+セッション詳細ページに「Scripts」タブを追加し、ランスクリプト実行時のログをリアルタイムで表示するUIを実装する。バックエンド（RunScriptManager）は実装済みのため、WebSocket経由でログイベントを受信する。
+
+**実装手順（実装→テスト）**:
+1. WebSocket拡張: SessionWebSocketHandlerにランスクリプトログイベントの転送を追加
+   - RunScriptManagerの`log`イベントをリスニング
+   - WebSocket経由でクライアントに`run_script_log`メッセージを送信
+2. コンポーネント作成: `src/components/scripts/ScriptLogViewer.tsx`を作成
+   - ログ一覧表示（時刻、ログレベル、メッセージ）
+   - ログレベルフィルター（info/warn/error）- REQ-035
+   - テキスト検索機能 - REQ-036
+   - 終了コードと実行時間の表示 - REQ-037（Issue #8とも関連）
+   - 自動スクロール（最新ログへ）
+3. 統合: セッション詳細ページに「Scripts」タブを追加
+   - ランスクリプト一覧表示（RunScriptList使用）
+   - 実行ボタン、停止ボタン
+   - ScriptLogViewerでログ表示
+4. テスト作成: `src/components/scripts/__tests__/ScriptLogViewer.test.tsx`
+5. 動作確認: ランスクリプト実行時、ログがリアルタイムで表示されることを確認
+
+**受入基準**:
+- [ ] SessionWebSocketHandlerがRunScriptManagerのlogイベントを転送する
+- [ ] `src/components/scripts/ScriptLogViewer.tsx`ファイルが作成されている
+- [ ] ログ一覧が時刻、ログレベル、メッセージを含めて表示される
+- [ ] ログレベルフィルター（info/warn/error）が機能する（REQ-035）
+- [ ] テキスト検索機能が実装されている（REQ-036）
+- [ ] ランスクリプト終了時、終了コードと実行時間が表示される（REQ-037）
+- [ ] 自動スクロールで最新ログが常に表示される
+- [ ] セッション詳細ページに「Scripts」タブが追加されている
+- [ ] ランスクリプト一覧と実行/停止ボタンが表示される
+- [ ] ランスクリプト実行中、ログがリアルタイムで表示される
+- [ ] `src/components/scripts/__tests__/ScriptLogViewer.test.tsx`が作成され、すべてのテストが通過する
+- [ ] ESLintエラーがゼロである
+- [ ] コミットが存在する
+
+**依存関係**: Phase 23（認証修正）
+
+**推定工数**: 60分（AIエージェント作業時間）
+- WebSocket拡張: 15分
+- ScriptLogViewer実装: 30分
+- 統合・テスト・動作確認: 15分
+
+**ステータス**: `TODO`
+
+**情報の明確性**:
+
+**明示された情報**:
+- 対象ファイル:
+  - src/components/scripts/ScriptLogViewer.tsx（新規作成）
+  - src/lib/websocket/session-websocket-handler.ts（修正）
+  - src/app/sessions/[id]/page.tsx（タブ追加）
+- バックエンド: src/services/run-script-manager.ts（実装済み）
+- 既存コンポーネント: src/components/settings/RunScriptList.tsx
+- WebSocketメッセージタイプ: run_script_log（新規追加）
+- 実装機能: ログ表示、フィルター、検索、終了コード/実行時間表示
+
+**不明/要確認の情報**: なし
+
+---
+
+### Phase 24完了基準
+
+- [ ] タスク24.1が完了している（GitStatusBadge実装）
+- [ ] タスク24.2が完了している（PromptHistoryDropdown実装）
+- [ ] タスク24.3が完了している（CommitHistory実装）
+- [ ] タスク24.4が完了している（ランスクリプトログUI実装）
+- [ ] すべてのテストが通過している（`npm test`）
+- [ ] ESLintエラーがゼロである
+- [ ] セッション一覧でGit状態インジケーターが表示される
+- [ ] 新規セッション作成時、プロンプト履歴ドロップダウンが機能する
+- [ ] セッション詳細ページ「Commits」タブでコミット履歴が閲覧できる
+- [ ] セッション詳細ページ「Scripts」タブでランスクリプトログが表示される
+- [ ] すべてのコミットが作成されている
+
+### 解決される不具合
+
+**docs/verification-issues.md**:
+- Issue #3: Git状態インジケーターが未実装（High）
+- Issue #4: プロンプト履歴ドロップダウンが未実装（High）
+- Issue #5: コミット履歴UIが未実装（High）
+- Issue #6: ランスクリプトログ表示UIが未実装（High）
+
+**docs/requirements.md**:
+- REQ-016: セッション一覧表示時、システムは各セッションのGit状態インジケーターを表示しなければならない
+- REQ-018: プロンプト入力時、システムは過去のプロンプト履歴をドロップダウンで表示しなければならない
+- REQ-019: ユーザーが履歴を選択した時、システムはプロンプト入力欄に挿入しなければならない
+- REQ-034: ランスクリプト実行中、システムは出力をリアルタイムで専用ログタブに表示しなければならない
+- REQ-035: ログタブ表示時、システムはログレベル（info/warn/error）でフィルターできる機能を提供しなければならない
+- REQ-036: ログタブ表示時、システムはログをテキスト検索できる機能を提供しなければならない
+- REQ-037: ランスクリプト終了時、システムは終了コードと実行時間を表示しなければならない
+- REQ-039: セッション詳細ページのCommitsタブで、システムはworktree内のコミット履歴を時系列で表示しなければならない
+- REQ-040: コミット履歴表示時、システムは各コミットのハッシュ、メッセージ、日時、変更ファイル数を表示しなければならない
+- REQ-041: ユーザーがコミットを選択した時、システムは変更内容（diff）を表示しなければならない
+- REQ-042: ユーザーが「このコミットに戻る」をクリックした時、システムは確認ダイアログを表示しなければならない
+
+### 技術的な学び
+
+- TDDでのReactコンポーネント実装
+- テスト仕様から実装への変換プロセス
+- WebSocketによるリアルタイムログ配信
+- Headless UIによるアクセシブルなドロップダウン実装
+- ログフィルタリングと検索のUXパターン
+
+---
+
+## Phase 25: Medium Priority機能改善（動作検証で発見）
+
+**目的**: 部分的に実装されているが、UI表示やユーザー体験が不完全な2つの機能を改善する。
+
+**背景**: サブエージェント出力の折りたたみ表示とランスクリプト終了コード表示は、データモデルやイベント発火は実装されているが、UI表示が未確認または不完全。
+
+**検証レポート**: `docs/verification-issues.md`
+
+---
+
+#### タスク25.1: サブエージェント出力の折りたたみ表示確認と実装（Issue #7）
+
+**説明**:
+サブエージェント出力が折りたたみ可能なUIで表示されているか確認し、未実装の場合は実装する。データモデル（`src/store/index.ts:85-86`）には`sub_agents`フィールドが存在するため、MessageDisplayコンポーネントでの処理を確認・実装する。
+
+**実装手順（調査→実装）**:
+1. 調査: `src/components/sessions/MessageDisplay.tsx`でsub_agentsフィールドの処理を確認
+2. テストデータ作成: sub_agentsを含むメッセージデータを用意
+3. 表示確認: サブエージェント出力が折りたたみ表示されるか確認
+4. 未実装の場合:
+   - MessageDisplayにsub_agents表示ロジックを追加
+   - Headless UI Disclosureコンポーネントで折りたたみUI実装
+   - 各サブエージェントタスクの名前、ステータス、出力を表示
+   - 展開/折りたたみアニメーション
+5. テスト作成: `src/components/sessions/__tests__/MessageDisplay.test.tsx`にsub_agents表示テストを追加
+6. 動作確認: セッション詳細ページでサブエージェント出力が適切に表示されることを確認
+
+**受入基準**:
+- [ ] MessageDisplay.tsxでsub_agentsフィールドを処理している
+- [ ] サブエージェント出力が折りたたみ可能なUIで表示される
+- [ ] 各サブエージェントタスクの名前、ステータス、出力が表示される
+- [ ] Headless UI Disclosureで展開/折りたたみが実装されている
+- [ ] デフォルトで折りたたまれている状態
+- [ ] 展開/折りたたみアニメーションがスムーズ
+- [ ] `src/components/sessions/__tests__/MessageDisplay.test.tsx`にテストが追加され、通過する
+- [ ] ESLintエラーがゼロである
+- [ ] コミットが存在する
+
+**依存関係**: Phase 23（認証修正）
+
+**推定工数**: 40分（AIエージェント作業時間）
+- 調査・確認: 15分
+- 実装（必要な場合）: 20分
+- テスト・動作確認: 5分
+
+**ステータス**: `TODO`
+
+**情報の明確性**:
+
+**明示された情報**:
+- 対象ファイル: src/components/sessions/MessageDisplay.tsx
+- データモデル: src/store/index.ts:85-86 (sub_agentsフィールド)
+- UIライブラリ: Headless UI Disclosure
+- 表示内容: サブエージェントタスクの名前、ステータス、出力
+
+**不明/要確認の情報**: なし（調査タスクのため、実装中に判断）
+
+---
+
+#### タスク25.2: ランスクリプト終了コードと実行時間の表示確認（Issue #8）
+
+**説明**:
+ランスクリプト終了時の終了コードと実行時間がUIに表示されているか確認し、未実装の場合は実装する。RunScriptManager（`src/services/run-script-manager.ts:191-198`）でイベント発火は実装済み。
+
+**実装手順（調査→実装）**:
+1. 調査: Phase 24.4で実装するScriptLogViewerでの終了コード/実行時間表示を確認
+2. イベント確認: RunScriptManagerの`end`イベントのデータ構造を確認
+3. 表示確認: ログUI下部または最終行に終了コード/実行時間が表示されるか確認
+4. 未実装の場合:
+   - ScriptLogViewerに終了情報表示エリアを追加
+   - `run_script_end`イベントで終了コード（exitCode）と実行時間（duration）を取得
+   - 成功時（exitCode=0）は緑、失敗時（exitCode≠0）は赤で表示
+   - 実行時間をhh:mm:ss形式でフォーマット
+5. テスト追加: ScriptLogViewer.test.tsxに終了情報表示テストを追加
+6. 動作確認: ランスクリプト実行終了時、終了コードと実行時間が表示されることを確認
+
+**受入基準**:
+- [ ] ScriptLogViewerが`run_script_end`イベントを処理する
+- [ ] ランスクリプト終了時、終了コードが表示される
+- [ ] 終了コード0は緑、0以外は赤で表示される
+- [ ] 実行時間がhh:mm:ss形式で表示される
+- [ ] ログUI下部または最終行に終了情報エリアが配置されている
+- [ ] `src/components/scripts/__tests__/ScriptLogViewer.test.tsx`に終了情報表示テストが追加され、通過する
+- [ ] ESLintエラーがゼロである
+- [ ] コミットが存在する
+
+**依存関係**: タスク24.4（ランスクリプトログUI実装）- ScriptLogViewerが実装されている必要がある
+
+**推定工数**: 30分（AIエージェント作業時間）
+- 調査・確認: 10分
+- 実装（必要な場合）: 15分
+- テスト・動作確認: 5分
+
+**ステータス**: `TODO`
+
+**情報の明確性**:
+
+**明示された情報**:
+- 対象ファイル: src/components/scripts/ScriptLogViewer.tsx（Phase 24.4で作成）
+- イベント発火: src/services/run-script-manager.ts:191-198
+- WebSocketイベント: run_script_end（新規追加が必要な場合）
+- 表示内容: 終了コード（exitCode）、実行時間（duration）
+- 表示形式: exitCode=0は緑、≠0は赤
+
+**不明/要確認の情報**: なし
+
+---
+
+### Phase 25完了基準
+
+- [ ] タスク25.1が完了している（サブエージェント表示確認・実装）
+- [ ] タスク25.2が完了している（ランスクリプト終了コード表示確認）
+- [ ] サブエージェント出力が折りたたみ可能なUIで表示される
+- [ ] ランスクリプト終了時、終了コードと実行時間が表示される
+- [ ] すべてのテストが通過している（`npm test`）
+- [ ] ESLintエラーがゼロである
+- [ ] すべてのコミットが作成されている
+
+### 解決される不具合
+
+**docs/verification-issues.md**:
+- Issue #7: サブエージェント出力の折りたたみ表示が部分実装（Medium）
+- Issue #8: ランスクリプト終了コードと実行時間の表示が部分実装（Medium）
+
+**docs/requirements.md**:
+- REQ-024: Claude Code出力時、システムはサブエージェントタスクの出力を折りたたみ可能に表示しなければならない
+- REQ-037: ランスクリプト終了時、システムは終了コードと実行時間を表示しなければならない（Phase 24.4でも対応）
+
+### 技術的な学び
+
+- データモデルとUI表示の整合性確認
+- イベント駆動アーキテクチャでのUI更新
+- Headless UI Disclosureによるアクセシブルな折りたたみUI
+- 実行結果の視覚的フィードバック（色分け、フォーマット）

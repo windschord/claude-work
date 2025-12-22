@@ -1,3 +1,4 @@
+import dotenv from 'dotenv';
 import { createServer, IncomingMessage } from 'http';
 import { parse } from 'url';
 import next from 'next';
@@ -8,6 +9,15 @@ import { SessionWebSocketHandler } from './src/lib/websocket/session-ws';
 import { setupTerminalWebSocket } from './src/lib/websocket/terminal-ws';
 import { logger } from './src/lib/logger';
 import { validateRequiredEnvVars, detectClaudePath } from './src/lib/env-validation';
+
+// 環境変数を.envファイルから明示的にロード（PM2で設定されている場合はそちらを優先）
+dotenv.config();
+
+// 環境変数のロード状況を確認（デバッグログ）
+console.log('Environment variables loaded:');
+console.log('  CLAUDE_WORK_TOKEN:', process.env.CLAUDE_WORK_TOKEN ? `${process.env.CLAUDE_WORK_TOKEN.substring(0, 4)}****` : 'NOT SET');
+console.log('  SESSION_SECRET:', process.env.SESSION_SECRET ? `${process.env.SESSION_SECRET.substring(0, 4)}****` : 'NOT SET');
+console.log('  DATABASE_URL:', process.env.DATABASE_URL ? 'SET' : 'NOT SET');
 
 // 環境変数のバリデーション（サーバー起動前）
 try {

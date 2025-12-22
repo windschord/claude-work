@@ -133,6 +133,20 @@ export interface DiffData {
 }
 
 /**
+ * プロンプト履歴の型定義
+ */
+export interface Prompt {
+  /** プロンプトID */
+  id: string;
+  /** プロンプト内容 */
+  content: string;
+  /** 使用回数 */
+  used_count: number;
+  /** 最終使用日時 */
+  last_used_at: string;
+}
+
+/**
  * アプリケーション全体の状態管理インターフェース
  *
  * Zustandを使用したグローバルステート管理の型定義です。
@@ -177,6 +191,11 @@ export interface AppState {
 
   /** エラーメッセージ */
   error: string | null;
+
+  /** プロンプト履歴 */
+  prompts: Prompt[];
+  /** プロンプト取得中かどうか */
+  isLoading: boolean;
 
   /** テーマ設定 */
   theme: 'light' | 'dark' | 'system';
@@ -235,6 +254,10 @@ export interface AppState {
   deleteSession: (sessionId: string) => Promise<void>;
   /** WebSocketメッセージを処理 */
   handleWebSocketMessage: (message: import('@/types/websocket').ServerMessage) => void;
+  /** プロンプト履歴を取得 */
+  fetchPrompts: () => Promise<void>;
+  /** プロンプトを削除 */
+  deletePrompt: (promptId: string) => Promise<void>;
   /** テーマを設定 */
   setTheme: (theme: 'light' | 'dark' | 'system') => void;
   /** モバイル表示フラグを設定 */
@@ -265,6 +288,8 @@ const initialState = {
   isGitOperationLoading: false,
   conflictFiles: null,
   error: null,
+  prompts: [],
+  isLoading: false,
   theme: 'system' as const,
   isMobile: false,
   isSidebarOpen: false,
@@ -933,6 +958,51 @@ export const useAppStore = create<AppState>((set) => ({
       case 'error':
         set({ error: message.content });
         break;
+    }
+  },
+
+  fetchPrompts: async () => {
+    try {
+      set({ isLoading: true, error: null });
+
+      const response = await fetch('/api/prompts');
+
+      if (!response.ok) {
+        throw new Error('プロンプト履歴の取得に失敗しました');
+      }
+
+      const data = await response.json();
+      set({ prompts: data.prompts || [], isLoading: false });
+    } catch (error) {
+      const errorMessage = error instanceof Error
+        ? error.message
+        : 'プロンプト履歴の取得に失敗しました';
+
+      set({ error: errorMessage, isLoading: false });
+    }
+  },
+
+  deletePrompt: async (promptId: string) => {
+    try {
+      const response = await fetch(`/api/prompts/${promptId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('プロンプトの削除に失敗しました');
+      }
+
+      // プロンプトリストから削除
+      set((state) => ({
+        prompts: state.prompts.filter((p) => p.id !== promptId),
+      }));
+    } catch (error) {
+      const errorMessage = error instanceof Error
+        ? error.message
+        : 'プロンプトの削除に失敗しました';
+
+      set({ error: errorMessage });
+      throw error;
     }
   },
 

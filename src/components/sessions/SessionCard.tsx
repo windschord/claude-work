@@ -2,6 +2,7 @@
 
 import { Session } from '@/store';
 import { SessionStatusIcon } from './SessionStatusIcon';
+import { GitStatusBadge } from './GitStatusBadge';
 
 interface SessionCardProps {
   session: Session;
@@ -30,8 +31,14 @@ export function SessionCard({ session, onClick }: SessionCardProps) {
         <SessionStatusIcon status={session.status} />
       </div>
       <div className="space-y-1">
-        <p className="text-sm text-gray-600 dark:text-gray-400">モデル: {session.model}</p>
-        <p className="text-sm text-gray-600 dark:text-gray-400">ブランチ: {session.branch_name}</p>
+        <div className="flex items-center gap-2">
+          <p className="text-sm text-gray-600 dark:text-gray-400">モデル: {session.model}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <p className="text-sm text-gray-600 dark:text-gray-400">ブランチ: {session.branch_name}</p>
+          {/* TODO: Session型にgit_statusフィールドを追加し、APIから実際のGitステータスを取得する */}
+          <GitStatusBadge status={(session as any).git_status || 'clean'} />
+        </div>
         <p className="text-sm text-gray-500 dark:text-gray-400">
           作成日時: {new Date(session.created_at).toLocaleString('ja-JP')}
         </p>

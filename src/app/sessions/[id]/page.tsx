@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { useAppStore } from '@/store';
+import { useScriptLogStore } from '@/store/script-logs';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { AuthGuard } from '@/components/AuthGuard';
 import { MainLayout } from '@/components/layout/MainLayout';
@@ -16,6 +17,8 @@ import { RebaseButton } from '@/components/git/RebaseButton';
 import { MergeModal } from '@/components/git/MergeModal';
 import { ConflictDialog } from '@/components/git/ConflictDialog';
 import { DeleteWorktreeDialog } from '@/components/git/DeleteWorktreeDialog';
+import { CommitHistory } from '@/components/git/CommitHistory';
+import { ScriptsPanel } from '@/components/scripts/ScriptsPanel';
 import { Toaster } from 'react-hot-toast';
 import type { ServerMessage } from '@/types/websocket';
 
@@ -53,7 +56,7 @@ export default function SessionDetailPage() {
   } = useAppStore();
 
   const [isPermissionDialogOpen, setIsPermissionDialogOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'chat' | 'diff' | 'terminal'>('chat');
+  const [activeTab, setActiveTab] = useState<'chat' | 'diff' | 'commits' | 'terminal' | 'scripts'>('chat');
   const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
   const [isConflictDialogOpen, setIsConflictDialogOpen] = useState(false);
   const [isDeleteWorktreeDialogOpen, setIsDeleteWorktreeDialogOpen] = useState(false);
@@ -62,6 +65,19 @@ export default function SessionDetailPage() {
   const onMessage = useCallback(
     (message: ServerMessage) => {
       handleWebSocketMessage(message);
+
+      // スクリプトログメッセージを処理（script-logsストアを更新）
+      if (message.type === 'run_script_log') {
+        const { addLog } = useScriptLogStore.getState();
+        addLog(message.runId, {
+          timestamp: message.timestamp,
+          level: message.level,
+          content: message.content,
+        });
+      } else if (message.type === 'run_script_exit') {
+        const { endRun } = useScriptLogStore.getState();
+        endRun(message.runId, message.exitCode, message.signal ?? null, message.executionTime);
+      }
     },
     [handleWebSocketMessage]
   );
@@ -261,6 +277,16 @@ export default function SessionDetailPage() {
                 Diff
               </button>
               <button
+                onClick={() => setActiveTab('commits')}
+                className={`px-6 py-3 min-h-[44px] font-medium transition-colors ${
+                  activeTab === 'commits'
+                    ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                }`}
+              >
+                Commits
+              </button>
+              <button
                 onClick={() => setActiveTab('terminal')}
                 className={`px-6 py-3 min-h-[44px] font-medium transition-colors ${
                   activeTab === 'terminal'
@@ -269,6 +295,16 @@ export default function SessionDetailPage() {
                 }`}
               >
                 Terminal
+              </button>
+              <button
+                onClick={() => setActiveTab('scripts')}
+                className={`px-6 py-3 min-h-[44px] font-medium transition-colors ${
+                  activeTab === 'scripts'
+                    ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                }`}
+              >
+                Scripts
               </button>
             </div>
           </div>
@@ -303,10 +339,20 @@ export default function SessionDetailPage() {
                 <DiffViewer />
               </div>
             </div>
-          ) : (
+          ) : activeTab === 'commits' ? (
+            <div className="flex-1 overflow-auto p-4">
+              {/* Commit History */}
+              <CommitHistory sessionId={sessionId} />
+            </div>
+          ) : activeTab === 'terminal' ? (
             <div className="flex-1 overflow-hidden">
               {/* Terminal */}
               <TerminalPanel sessionId={sessionId} />
+            </div>
+          ) : (
+            <div className="flex-1 overflow-hidden">
+              {/* Scripts */}
+              <ScriptsPanel sessionId={sessionId} projectId={currentSession.project_id} />
             </div>
           )}
 
