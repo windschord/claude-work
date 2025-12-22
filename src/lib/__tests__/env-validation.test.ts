@@ -157,7 +157,10 @@ describe('detectClaudePath', () => {
     const result = detectClaudePath();
 
     expect(result).toBe(expectedPath);
-    expect(mockExecSync).toHaveBeenCalledWith('which claude', { encoding: 'utf-8' });
+    expect(mockExecSync).toHaveBeenCalledWith('which claude', {
+      encoding: 'utf-8',
+      timeout: 5000,
+    });
   });
 
   it('whichコマンドが空文字列を返す場合、エラーをスローする', () => {
@@ -166,9 +169,7 @@ describe('detectClaudePath', () => {
 
     expect(() => {
       detectClaudePath();
-    }).toThrow(
-      'claude command not found in PATH. Please install Claude Code CLI or set CLAUDE_CODE_PATH environment variable.'
-    );
+    }).toThrow(/claude command not found in PATH.*Please install Claude Code CLI or set CLAUDE_CODE_PATH environment variable/s);
   });
 
   it('whichコマンドが例外をスローする場合、適切なエラーメッセージをスローする', () => {
@@ -179,9 +180,7 @@ describe('detectClaudePath', () => {
 
     expect(() => {
       detectClaudePath();
-    }).toThrow(
-      'claude command not found in PATH. Please install Claude Code CLI or set CLAUDE_CODE_PATH environment variable.'
-    );
+    }).toThrow(/claude command not found in PATH.*Please install Claude Code CLI or set CLAUDE_CODE_PATH environment variable/s);
   });
 
   it('macOS環境でPATHから正常に検出できる', () => {
