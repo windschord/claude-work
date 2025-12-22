@@ -72,7 +72,7 @@ describe('ProjectCard', () => {
 
   it('「開く」ボタンのクリックイベントが親要素に伝播しない', () => {
     const parentOnClick = vi.fn();
-    const { container } = render(
+    render(
       <div onClick={parentOnClick}>
         <ProjectCard project={mockProject} onDelete={mockOnDelete} />
       </div>

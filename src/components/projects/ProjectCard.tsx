@@ -20,6 +20,17 @@ interface ProjectCardProps {
  */
 export function ProjectCard({ project, onDelete }: ProjectCardProps) {
   const router = useRouter();
+
+  const handleOpen = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    router.push(`/projects/${project.id}`);
+  };
+
+  const handleDelete = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    onDelete(project);
+  };
+
   return (
     <div className="border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg p-4 hover:shadow-md transition-shadow">
       <div className="flex justify-between items-start mb-2">
@@ -31,13 +42,15 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
       <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">{project.path}</p>
       <div className="flex gap-2">
         <button
-          onClick={() => router.push(`/projects/${project.id}`)}
+          type="button"
+          onClick={handleOpen}
           className="flex-1 bg-blue-600 dark:bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 dark:hover:bg-blue-700 transition-colors"
         >
           開く
         </button>
         <button
-          onClick={() => onDelete(project)}
+          type="button"
+          onClick={handleDelete}
           className="flex-1 bg-red-600 dark:bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 dark:hover:bg-red-700 transition-colors"
         >
           削除
