@@ -21,10 +21,15 @@ interface SessionCardProps {
  * @returns セッションカードのJSX要素
  */
 export function SessionCard({ session, onClick }: SessionCardProps) {
+  const handleClick = () => {
+    onClick(session.id);
+  };
+
   return (
     <div
+      data-testid="session-card"
       className="border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg p-4 min-h-[120px] hover:shadow-md transition-shadow cursor-pointer active:bg-gray-50 dark:active:bg-gray-700"
-      onClick={() => onClick(session.id)}
+      onClick={handleClick}
     >
       <div className="flex items-start justify-between mb-2">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{session.name}</h3>
@@ -37,7 +42,11 @@ export function SessionCard({ session, onClick }: SessionCardProps) {
         <div className="flex items-center gap-2">
           <p className="text-sm text-gray-600 dark:text-gray-400">ブランチ: {session.branch_name}</p>
           {/* TODO: Session型にgit_statusフィールドを追加し、APIから実際のGitステータスを取得する */}
-          <GitStatusBadge status={(session as any).git_status || 'clean'} />
+          <GitStatusBadge
+            status={
+              (session as { git_status?: 'clean' | 'modified' | 'untracked' }).git_status || 'clean'
+            }
+          />
         </div>
         <p className="text-sm text-gray-500 dark:text-gray-400">
           作成日時: {new Date(session.created_at).toLocaleString('ja-JP')}
