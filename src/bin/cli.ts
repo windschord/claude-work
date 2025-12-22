@@ -13,7 +13,11 @@ import path from 'path';
 import dotenv from 'dotenv';
 
 // .envファイルを読み込む
-dotenv.config();
+const dotenvResult = dotenv.config();
+if (dotenvResult.error) {
+  // .envファイルが見つからない場合は警告のみ（環境変数が直接設定されている場合があるため）
+  console.warn('Warning: Could not load .env file:', dotenvResult.error.message);
+}
 
 // CommonJSビルド時は__dirnameが利用可能
 const currentDir = __dirname;
