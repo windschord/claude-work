@@ -74,7 +74,11 @@ export async function getSession(sessionId: string) {
     return null;
   }
 
-  if (session.expires_at < new Date()) {
+  // expires_atを明示的にDate型に変換
+  const expiresAt = new Date(session.expires_at);
+  const now = new Date();
+
+  if (expiresAt < now) {
     return null;
   }
 

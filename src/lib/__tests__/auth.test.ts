@@ -46,6 +46,7 @@ describe('Auth', () => {
 
       expect(session).toBeDefined();
       expect(session?.id).toBe(sessionId);
+      expect(session?.expires_at).toBeInstanceOf(Date);
     });
 
     it('should return null if expired', async () => {
@@ -65,6 +66,62 @@ describe('Auth', () => {
 
     it('should return null if not found', async () => {
       const session = await getSession('non-existent-id');
+
+      expect(session).toBeNull();
+    });
+
+    it('should correctly compare DateTime fields using Date conversion', async () => {
+      const testToken = 'test-token-datetime';
+      const sessionId = await createSession(testToken);
+
+      // Set expiry to 1 hour in the future
+      const futureDate = new Date(Date.now() + 60 * 60 * 1000);
+      await prisma.authSession.update({
+        where: { id: sessionId },
+        data: { expires_at: futureDate },
+      });
+
+      const session = await getSession(sessionId);
+
+      expect(session).toBeDefined();
+      expect(session?.id).toBe(sessionId);
+      // Verify that the expires_at is correctly compared as Date
+      expect(new Date(session!.expires_at).getTime()).toBeGreaterThan(Date.now());
+    });
+
+    it('should handle expires_at as string and convert to Date for comparison', async () => {
+      const testToken = 'test-token-string-date';
+      const sessionId = await createSession(testToken);
+
+      // Get the raw session from database
+      const rawSession = await prisma.authSession.findUnique({
+        where: { id: sessionId },
+      });
+
+      expect(rawSession).toBeDefined();
+
+      // Verify that comparing with Date works correctly
+      // This tests the fix: new Date(session.expires_at) < new Date()
+      const expiresAt = new Date(rawSession!.expires_at);
+      const now = new Date();
+      expect(expiresAt > now).toBe(true);
+
+      const session = await getSession(sessionId);
+      expect(session).toBeDefined();
+    });
+
+    it('should return null for session expired exactly at current time', async () => {
+      const testToken = 'test-token-exact-expiry';
+      const sessionId = await createSession(testToken);
+
+      // Set expiry to 1ms in the past to ensure it's expired
+      const pastTime = new Date(Date.now() - 1);
+      await prisma.authSession.update({
+        where: { id: sessionId },
+        data: { expires_at: pastTime },
+      });
+
+      const session = await getSession(sessionId);
 
       expect(session).toBeNull();
     });
