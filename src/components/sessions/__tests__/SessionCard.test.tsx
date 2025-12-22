@@ -52,8 +52,13 @@ describe('SessionCard', () => {
   it('作成日時が表示される', () => {
     render(<SessionCard session={mockSession} onClick={mockOnClick} />);
 
-    // ロケールに依存しないように、プレフィックスのみをチェック
-    expect(screen.getByText(/作成日時:/)).toBeInTheDocument();
+    // 「作成日時:」ラベルに続いて実際の日付文字列が表示されていることを確認
+    // 例: "作成日時: 2024/1/1 0:00:00" や "作成日時: 1/1/2024, 12:00:00 AM"
+    const dateElement = screen.getByText(/作成日時:/);
+    expect(dateElement).toBeInTheDocument();
+
+    // 実際の日付値が含まれていることを確認（数字が含まれている）
+    expect(dateElement.textContent).toMatch(/作成日時:\s*\d+/);
   });
 
   it('カードにcursor-pointerクラスが設定されている', () => {
