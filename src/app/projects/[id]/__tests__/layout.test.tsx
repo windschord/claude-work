@@ -62,7 +62,7 @@ describe('ProjectLayout', () => {
   });
 
 
-  it('should not directly render Header and Sidebar components', () => {
+  it('should delegate layout rendering to MainLayout', () => {
     const children = <div>Test Content</div>;
 
     render(<ProjectLayout>{children}</ProjectLayout>);

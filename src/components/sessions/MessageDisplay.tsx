@@ -6,11 +6,7 @@ import { Disclosure, Transition } from '@headlessui/react';
 import { ChevronDown } from 'lucide-react';
 import { CodeBlock } from './CodeBlock';
 import type { Components } from 'react-markdown';
-
-interface SubAgent {
-  name: string;
-  output: string;
-}
+import type { SubAgent } from '@/types/websocket';
 
 interface MessageDisplayProps {
   content: string;

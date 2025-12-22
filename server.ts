@@ -11,7 +11,11 @@ import { logger } from './src/lib/logger';
 import { validateRequiredEnvVars, detectClaudePath } from './src/lib/env-validation';
 
 // 環境変数を.envファイルから明示的にロード（PM2で設定されている場合はそちらを優先）
-dotenv.config();
+const dotenvResult = dotenv.config();
+if (dotenvResult.error) {
+  // .envファイルが見つからない場合は警告のみ（環境変数が直接設定されている場合があるため）
+  console.warn('Warning: Could not load .env file:', dotenvResult.error.message);
+}
 
 // 環境変数のロード状況を確認（デバッグログ）
 console.log('Environment variables loaded:');

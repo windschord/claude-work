@@ -84,6 +84,12 @@ export interface ScriptLogState {
    * すべてのログをクリア
    */
   clearAll: () => void;
+
+  /**
+   * 古い実行データを自動クリーンアップ（最新maxRuns件のみ保持）
+   * @param maxRuns 保持する最大実行数（デフォルト: 100）
+   */
+  cleanup: (maxRuns?: number) => void;
 }
 
 /**
@@ -107,6 +113,16 @@ export const useScriptLogStore = create<ScriptLogState>((set) => ({
         executionTime: null,
         logs: [],
       });
+
+      // 古い実行データを自動クリーンアップ（メモリリーク防止）
+      const maxRuns = 100;
+      if (newRuns.size > maxRuns) {
+        const entries = Array.from(newRuns.entries());
+        entries.sort((a, b) => b[1].startTime - a[1].startTime);
+        const trimmedEntries = entries.slice(0, maxRuns);
+        return { runs: new Map(trimmedEntries) };
+      }
+
       return { runs: newRuns };
     });
   },
@@ -120,6 +136,8 @@ export const useScriptLogStore = create<ScriptLogState>((set) => ({
           ...run,
           logs: [...run.logs, entry],
         });
+      } else if (process.env.NODE_ENV === 'development') {
+        console.warn(`[ScriptLogStore] addLog called for non-existent runId: ${runId}`);
       }
       return { runs: newRuns };
     });
@@ -143,6 +161,8 @@ export const useScriptLogStore = create<ScriptLogState>((set) => ({
           signal,
           executionTime,
         });
+      } else if (process.env.NODE_ENV === 'development') {
+        console.warn(`[ScriptLogStore] endRun called for non-existent runId: ${runId}`);
       }
       return { runs: newRuns };
     });
@@ -158,5 +178,17 @@ export const useScriptLogStore = create<ScriptLogState>((set) => ({
 
   clearAll: () => {
     set({ runs: new Map() });
+  },
+
+  cleanup: (maxRuns: number = 100) => {
+    set((state) => {
+      const entries = Array.from(state.runs.entries());
+      if (entries.length <= maxRuns) return state;
+
+      // startTimeでソートし、新しいものからmaxRuns件のみ保持
+      entries.sort((a, b) => b[1].startTime - a[1].startTime);
+      const newRuns = new Map(entries.slice(0, maxRuns));
+      return { runs: newRuns };
+    });
   },
 }));

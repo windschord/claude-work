@@ -42,11 +42,11 @@ export function SessionCard({ session, onClick }: SessionCardProps) {
         <div className="flex items-center gap-2">
           <p className="text-sm text-gray-600 dark:text-gray-400">ブランチ: {session.branch_name}</p>
           {/* TODO: Session型にgit_statusフィールドを追加し、APIから実際のGitステータスを取得する */}
-          <GitStatusBadge
-            status={
-              (session as { git_status?: 'clean' | 'modified' | 'untracked' }).git_status || 'clean'
-            }
-          />
+          {(() => {
+            const gitStatus = (session as { git_status?: 'clean' | 'modified' | 'untracked' }).git_status;
+            const badgeStatus: 'clean' | 'dirty' = gitStatus === 'clean' || !gitStatus ? 'clean' : 'dirty';
+            return <GitStatusBadge status={badgeStatus} />;
+          })()}
         </div>
         <p className="text-sm text-gray-500 dark:text-gray-400">
           作成日時: {new Date(session.created_at).toLocaleString('ja-JP')}

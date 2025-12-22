@@ -46,6 +46,10 @@ export function ScriptsPanel({ sessionId, projectId }: ScriptsPanelProps) {
 
       const { runId } = await response.json();
 
+      if (!runId) {
+        throw new Error('スクリプトの実行IDを取得できませんでした');
+      }
+
       // ストアに実行開始を記録
       startRun(runId, scriptId, scriptName);
       setSelectedRunId(runId);

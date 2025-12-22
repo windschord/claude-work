@@ -20,7 +20,7 @@ interface PromptHistoryDropdownProps {
  * @returns プロンプト履歴ドロップダウンのJSX要素
  */
 export function PromptHistoryDropdown({ onSelect }: PromptHistoryDropdownProps) {
-  const { prompts, isLoading, error, fetchPrompts, deletePrompt } = useAppStore();
+  const { prompts, isPromptsLoading, error, fetchPrompts, deletePrompt } = useAppStore();
 
   useEffect(() => {
     fetchPrompts();
@@ -42,7 +42,7 @@ export function PromptHistoryDropdown({ onSelect }: PromptHistoryDropdownProps) 
     .sort((a, b) => b.used_count - a.used_count)
     .slice(0, 10);
 
-  if (isLoading) {
+  if (isPromptsLoading) {
     return (
       <div className="text-sm text-gray-500 dark:text-gray-400">
         読み込み中...
@@ -87,10 +87,18 @@ export function PromptHistoryDropdown({ onSelect }: PromptHistoryDropdownProps) 
                 <Menu.Item key={prompt.id}>
                   {({ active }) => (
                     <div
+                      role="menuitem"
+                      tabIndex={0}
                       className={`${
                         active ? 'bg-gray-100 dark:bg-gray-700' : ''
                       } px-4 py-2 text-sm flex items-start justify-between group cursor-pointer`}
                       onClick={() => onSelect(prompt.content)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          onSelect(prompt.content);
+                        }
+                      }}
                     >
                       <div className="flex-1 min-w-0 mr-2">
                         <div className="text-gray-900 dark:text-gray-100 truncate">

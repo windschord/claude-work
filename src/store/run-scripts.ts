@@ -106,8 +106,8 @@ export const useRunScriptStore = create<RunScriptState>((set) => ({
       if (!response.ok) {
         throw new Error('スクリプトの取得に失敗しました');
       }
-      const scripts = await response.json();
-      set({ scripts, isLoading: false });
+      const data = await response.json();
+      set({ scripts: data.scripts || [], isLoading: false });
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'エラーが発生しました',

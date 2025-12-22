@@ -90,6 +90,8 @@ export class SessionWebSocketHandler {
    */
   private setupRunScriptManagerListeners(): void {
     // ランスクリプトの標準出力をブロードキャスト
+    // Note: 'output'イベントは標準出力(stdout)専用。
+    // 標準エラー出力(stderr)は別途'error'イベントで処理される。
     this.runScriptManager.on('output', (data: {
       runId: string;
       sessionId: string;
