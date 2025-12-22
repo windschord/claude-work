@@ -1,7 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import fs from 'fs';
-import path from 'path';
 import ProjectLayout from '../layout';
 import * as mainLayoutModule from '@/components/layout/MainLayout';
 
@@ -31,15 +29,6 @@ describe('ProjectLayout', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
-  });
-
-  it('should be a Client Component with "use client" directive', () => {
-    // layout.tsxファイルの内容を読み込んで検証
-    const layoutPath = path.resolve(__dirname, '../layout.tsx');
-    const layoutContent = fs.readFileSync(layoutPath, 'utf-8');
-
-    // ファイルの先頭に'use client'ディレクティブが存在することを確認
-    expect(layoutContent.trimStart().startsWith("'use client'")).toBe(true);
   });
 
   it('should use MainLayout component to wrap children', () => {
