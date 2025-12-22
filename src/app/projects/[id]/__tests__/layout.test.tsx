@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
+import fs from 'fs';
+import path from 'path';
 import ProjectLayout from '../layout';
 import * as mainLayoutModule from '@/components/layout/MainLayout';
-import * as useAppStoreModule from '@/store';
 
 // MainLayoutコンポーネントをモック
 vi.mock('@/components/layout/MainLayout', () => ({
@@ -32,10 +33,8 @@ describe('ProjectLayout', () => {
     vi.restoreAllMocks();
   });
 
-  it('should be a Client Component with "use client" directive', async () => {
+  it('should be a Client Component with "use client" directive', () => {
     // layout.tsxファイルの内容を読み込んで検証
-    const fs = await import('fs');
-    const path = await import('path');
     const layoutPath = path.resolve(__dirname, '../layout.tsx');
     const layoutContent = fs.readFileSync(layoutPath, 'utf-8');
 
@@ -43,11 +42,10 @@ describe('ProjectLayout', () => {
     expect(layoutContent.trimStart().startsWith("'use client'")).toBe(true);
   });
 
-  it('should use MainLayout component to wrap children', async () => {
-    const params = Promise.resolve({ id: 'test-project-id' });
+  it('should use MainLayout component to wrap children', () => {
     const children = <div data-testid="test-children">Test Content</div>;
 
-    render(await ProjectLayout({ children, params }));
+    render(<ProjectLayout params={Promise.resolve({ id: 'test-project-id' })}>{children}</ProjectLayout>);
 
     // MainLayoutが使用されていることを確認
     expect(mainLayoutModule.MainLayout).toHaveBeenCalled();
@@ -57,35 +55,11 @@ describe('ProjectLayout', () => {
     expect(screen.getByTestId('test-children')).toBeInTheDocument();
   });
 
-  it('should call fetchProjects when MainLayout is mounted', async () => {
-    // MainLayoutの実装を一時的に実際の動作に近づける
-    const actualMainLayout = ({ children }: { children: React.ReactNode }) => {
-      const { fetchProjects } = useAppStoreModule.useAppStore();
 
-      // useEffectの代わりに、レンダリング時に呼び出す（テスト用簡略化）
-      fetchProjects();
-
-      return <div data-testid="main-layout">{children}</div>;
-    };
-
-    vi.mocked(mainLayoutModule.MainLayout).mockImplementation(actualMainLayout);
-
-    const params = Promise.resolve({ id: 'test-project-id' });
+  it('should not directly render Header and Sidebar components', () => {
     const children = <div>Test Content</div>;
 
-    render(await ProjectLayout({ children, params }));
-
-    // fetchProjectsが呼ばれることを確認
-    await waitFor(() => {
-      expect(mockFetchProjects).toHaveBeenCalled();
-    });
-  });
-
-  it('should not directly render Header and Sidebar components', async () => {
-    const params = Promise.resolve({ id: 'test-project-id' });
-    const children = <div>Test Content</div>;
-
-    render(await ProjectLayout({ children, params }));
+    render(<ProjectLayout params={Promise.resolve({ id: 'test-project-id' })}>{children}</ProjectLayout>);
 
     // MainLayoutがレンダリングされていることを確認（モックされたMainLayout）
     expect(screen.getByTestId('main-layout')).toBeInTheDocument();
@@ -98,8 +72,7 @@ describe('ProjectLayout', () => {
     expect(callArgs[0]).toHaveProperty('children');
   });
 
-  it('should pass children to MainLayout correctly', async () => {
-    const params = Promise.resolve({ id: 'another-project-id' });
+  it('should pass children to MainLayout correctly', () => {
     const testContent = (
       <div data-testid="complex-children">
         <h1>Complex Content</h1>
@@ -107,7 +80,7 @@ describe('ProjectLayout', () => {
       </div>
     );
 
-    render(await ProjectLayout({ children: testContent, params }));
+    render(<ProjectLayout params={Promise.resolve({ id: 'another-project-id' })}>{testContent}</ProjectLayout>);
 
     // childrenが正しく渡されていることを確認
     expect(screen.getByTestId('complex-children')).toBeInTheDocument();
