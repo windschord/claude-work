@@ -23,6 +23,7 @@ export function CommitHistory({ sessionId }: CommitHistoryProps) {
   const [error, setError] = useState<string | null>(null);
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
   const [resettingCommitHash, setResettingCommitHash] = useState<string | null>(null);
+  const [isResetting, setIsResetting] = useState(false);
 
   const fetchCommits = useCallback(async () => {
     setLoading(true);
@@ -55,6 +56,7 @@ export function CommitHistory({ sessionId }: CommitHistoryProps) {
   const handleResetConfirm = async () => {
     if (!resettingCommitHash) return;
 
+    setIsResetting(true);
     try {
       const response = await fetch(`/api/sessions/${sessionId}/reset`, {
         method: 'POST',
@@ -74,6 +76,8 @@ export function CommitHistory({ sessionId }: CommitHistoryProps) {
       setResettingCommitHash(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'リセットに失敗しました');
+    } finally {
+      setIsResetting(false);
     }
   };
 
@@ -193,7 +197,7 @@ export function CommitHistory({ sessionId }: CommitHistoryProps) {
                   </Dialog.Title>
                   <div className="mt-2">
                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                      コミット <span className="font-mono">{commits.find(c => c.hash === resettingCommitHash)?.shortHash}</span> にリセットしますか？
+                      コミット <span className="font-mono">{commits.find(c => c.hash === resettingCommitHash)?.shortHash || resettingCommitHash?.slice(0, 7)}</span> にリセットしますか？
                       それ以降の変更は失われます。
                     </p>
                   </div>
@@ -208,10 +212,11 @@ export function CommitHistory({ sessionId }: CommitHistoryProps) {
                     </button>
                     <button
                       type="button"
-                      className="inline-flex justify-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+                      className="inline-flex justify-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
                       onClick={handleResetConfirm}
+                      disabled={isResetting}
                     >
-                      リセット
+                      {isResetting ? 'リセット中...' : 'リセット'}
                     </button>
                   </div>
                 </Dialog.Panel>

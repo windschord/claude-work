@@ -4,6 +4,47 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { useScriptLogStore } from '@/store/script-logs';
 import { Search, Filter, Clock, AlertCircle, CheckCircle } from 'lucide-react';
 
+/**
+ * 実行時間をフォーマット
+ * @param ms ミリ秒
+ * @returns フォーマットされた時間文字列
+ */
+const formatExecutionTime = (ms: number): string => {
+  if (ms < 1000) return `${ms}ms`;
+  if (ms < 60000) return `${(ms / 1000).toFixed(2)}s`;
+  const minutes = Math.floor(ms / 60000);
+  const seconds = ((ms % 60000) / 1000).toFixed(0);
+  return `${minutes}m ${seconds}s`;
+};
+
+/**
+ * タイムスタンプをフォーマット
+ * @param timestamp タイムスタンプ（ミリ秒）
+ * @returns フォーマットされた時刻文字列
+ */
+const formatTimestamp = (timestamp: number): string => {
+  const date = new Date(timestamp);
+  try {
+    // fractionalSecondDigitsはIntl.DateTimeFormatの比較的新しい機能のため、
+    // サポートされていない環境でもエラーにならないようにtry-catchで囲む
+    return date.toLocaleTimeString('ja-JP', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      fractionalSecondDigits: 3,
+    } as Intl.DateTimeFormatOptions);
+  } catch {
+    // フォールバック: ミリ秒を手動で追加
+    const timeStr = date.toLocaleTimeString('ja-JP', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+    const ms = String(date.getMilliseconds()).padStart(3, '0');
+    return `${timeStr}.${ms}`;
+  }
+};
+
 interface ScriptLogViewerProps {
   /** 表示する実行ID */
   runId: string;
@@ -61,39 +102,6 @@ export function ScriptLogViewer({ runId }: ScriptLogViewerProps) {
       </div>
     );
   }
-
-  // 実行時間のフォーマット
-  const formatExecutionTime = (ms: number) => {
-    if (ms < 1000) return `${ms}ms`;
-    if (ms < 60000) return `${(ms / 1000).toFixed(2)}s`;
-    const minutes = Math.floor(ms / 60000);
-    const seconds = ((ms % 60000) / 1000).toFixed(0);
-    return `${minutes}m ${seconds}s`;
-  };
-
-  // タイムスタンプのフォーマット
-  const formatTimestamp = (timestamp: number) => {
-    const date = new Date(timestamp);
-    try {
-      // fractionalSecondDigitsはIntl.DateTimeFormatの比較的新しい機能のため、
-      // サポートされていない環境でもエラーにならないようにtry-catchで囲む
-      return date.toLocaleTimeString('ja-JP', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        fractionalSecondDigits: 3,
-      } as Intl.DateTimeFormatOptions);
-    } catch {
-      // フォールバック: ミリ秒を手動で追加
-      const timeStr = date.toLocaleTimeString('ja-JP', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      });
-      const ms = String(date.getMilliseconds()).padStart(3, '0');
-      return `${timeStr}.${ms}`;
-    }
-  };
 
   return (
     <div className="flex flex-col h-full">

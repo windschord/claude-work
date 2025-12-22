@@ -136,6 +136,8 @@ export const useScriptLogStore = create<ScriptLogState>((set) => ({
           ...run,
           logs: [...run.logs, entry],
         });
+      } else if (process.env.NODE_ENV === 'development') {
+        console.warn(`[ScriptLogStore] addLog called for non-existent runId: ${runId}`);
       }
       return { runs: newRuns };
     });
@@ -159,6 +161,8 @@ export const useScriptLogStore = create<ScriptLogState>((set) => ({
           signal,
           executionTime,
         });
+      } else if (process.env.NODE_ENV === 'development') {
+        console.warn(`[ScriptLogStore] endRun called for non-existent runId: ${runId}`);
       }
       return { runs: newRuns };
     });
