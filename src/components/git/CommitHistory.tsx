@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, Fragment } from 'react';
+import { useEffect, useState, Fragment, useCallback } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 
 export interface CommitData {
@@ -24,7 +24,7 @@ export function CommitHistory({ sessionId }: CommitHistoryProps) {
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
   const [resettingCommitHash, setResettingCommitHash] = useState<string | null>(null);
 
-  const fetchCommits = async () => {
+  const fetchCommits = useCallback(async () => {
     setLoading(true);
     setError(null);
 
@@ -41,12 +41,11 @@ export function CommitHistory({ sessionId }: CommitHistoryProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [sessionId]);
 
   useEffect(() => {
     fetchCommits();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId]);
+  }, [fetchCommits]);
 
   const handleResetClick = (commit: CommitData) => {
     setResettingCommitHash(commit.hash);

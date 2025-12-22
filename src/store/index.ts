@@ -195,7 +195,7 @@ export interface AppState {
   /** プロンプト履歴 */
   prompts: Prompt[];
   /** プロンプト取得中かどうか */
-  isLoading: boolean;
+  isPromptsLoading: boolean;
 
   /** テーマ設定 */
   theme: 'light' | 'dark' | 'system';
@@ -289,7 +289,7 @@ const initialState = {
   conflictFiles: null,
   error: null,
   prompts: [],
-  isLoading: false,
+  isPromptsLoading: false,
   theme: 'system' as const,
   isMobile: false,
   isSidebarOpen: false,
@@ -963,7 +963,7 @@ export const useAppStore = create<AppState>((set) => ({
 
   fetchPrompts: async () => {
     try {
-      set({ isLoading: true, error: null });
+      set({ isPromptsLoading: true, error: null });
 
       const response = await fetch('/api/prompts');
 
@@ -972,13 +972,13 @@ export const useAppStore = create<AppState>((set) => ({
       }
 
       const data = await response.json();
-      set({ prompts: data.prompts || [], isLoading: false });
+      set({ prompts: data.prompts || [], isPromptsLoading: false });
     } catch (error) {
       const errorMessage = error instanceof Error
         ? error.message
         : 'プロンプト履歴の取得に失敗しました';
 
-      set({ error: errorMessage, isLoading: false });
+      set({ error: errorMessage, isPromptsLoading: false });
     }
   },
 

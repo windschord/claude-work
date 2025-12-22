@@ -17,7 +17,6 @@ interface LayoutProps {
  * - メインコンテンツエリア
  *
  * @param children - レイアウト内に表示する子要素
- * @param params - 動的ルートパラメータ（プロジェクトID）
  * @returns プロジェクトレイアウトのJSX要素
  */
 export default function ProjectLayout({ children }: LayoutProps) {
