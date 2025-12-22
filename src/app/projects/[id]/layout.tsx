@@ -5,7 +5,6 @@ import { MainLayout } from '@/components/layout/MainLayout';
 
 interface LayoutProps {
   children: ReactNode;
-  params: Promise<{ id: string }>;
 }
 
 /**

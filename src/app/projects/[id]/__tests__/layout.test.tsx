@@ -45,7 +45,7 @@ describe('ProjectLayout', () => {
   it('should use MainLayout component to wrap children', () => {
     const children = <div data-testid="test-children">Test Content</div>;
 
-    render(<ProjectLayout params={Promise.resolve({ id: 'test-project-id' })}>{children}</ProjectLayout>);
+    render(<ProjectLayout>{children}</ProjectLayout>);
 
     // MainLayoutが使用されていることを確認
     expect(mainLayoutModule.MainLayout).toHaveBeenCalled();
@@ -55,11 +55,26 @@ describe('ProjectLayout', () => {
     expect(screen.getByTestId('test-children')).toBeInTheDocument();
   });
 
+  it('should trigger fetchProjects when MainLayout is used', () => {
+    // MainLayoutが実際にfetchProjectsを呼び出す動作をシミュレート
+    vi.mocked(mainLayoutModule.MainLayout).mockImplementationOnce(({ children }) => {
+      // MainLayoutのマウント時の動作を再現
+      mockFetchProjects();
+      return <div data-testid="main-layout">{children}</div>;
+    });
+
+    const children = <div>Test Content</div>;
+    render(<ProjectLayout>{children}</ProjectLayout>);
+
+    // fetchProjectsが呼び出されたことを確認
+    expect(mockFetchProjects).toHaveBeenCalled();
+  });
+
 
   it('should not directly render Header and Sidebar components', () => {
     const children = <div>Test Content</div>;
 
-    render(<ProjectLayout params={Promise.resolve({ id: 'test-project-id' })}>{children}</ProjectLayout>);
+    render(<ProjectLayout>{children}</ProjectLayout>);
 
     // MainLayoutがレンダリングされていることを確認（モックされたMainLayout）
     expect(screen.getByTestId('main-layout')).toBeInTheDocument();
@@ -80,7 +95,7 @@ describe('ProjectLayout', () => {
       </div>
     );
 
-    render(<ProjectLayout params={Promise.resolve({ id: 'another-project-id' })}>{testContent}</ProjectLayout>);
+    render(<ProjectLayout>{testContent}</ProjectLayout>);
 
     // childrenが正しく渡されていることを確認
     expect(screen.getByTestId('complex-children')).toBeInTheDocument();
