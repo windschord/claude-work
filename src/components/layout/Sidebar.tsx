@@ -66,6 +66,7 @@ export function Sidebar() {
                 {projects.map((project) => (
                   <button
                     key={project.id}
+                    type="button"
                     onClick={() => handleProjectClick(project.id)}
                     className={`
                       w-full text-left px-3 py-3 rounded-lg mb-1
