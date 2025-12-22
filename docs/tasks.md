@@ -600,3 +600,479 @@ try {
 - PATH環境変数からのコマンド検出
 - TDDでのシステムコマンドモック化
 - サーバー起動時の環境検証ベストプラクティス
+
+---
+
+## Phase 23: Critical Issue修正（ログイン認証・セッション認証）
+
+**検証レポート**: docs/verification-report-comprehensive.md
+**実施期間**: 2025-12-22
+**優先度**: Critical
+**推定期間**: 120分（AIエージェント作業時間）
+**MVP**: Yes
+
+### 背景
+
+nodejs-architectureブランチの網羅的動作確認（docs/verification-report-comprehensive.md）で、2つのCritical不具合を発見：
+
+1. **ログイン認証失敗**: .envファイルの正しいトークンを入力しても「トークンが無効です」エラーが発生し、ログインできない
+2. **セッション認証失敗**: データベースに存在する有効なセッションでも `{"authenticated": false}` が返され、認証状態が維持できない
+
+これらの不具合により、アプリケーション全体が使用不可能な状態となっている。
+
+### 目的
+
+- ログイン認証を修正し、正しいトークンでログインできるようにする
+- セッション認証を修正し、ログイン後の認証状態を正しく維持できるようにする
+- 環境変数の読み込み問題を解決する（Next.jsとdotenv/configの競合）
+- Prisma DateTimeフィールドの比較処理を修正する
+
+### タスク
+
+#### タスク23.1: validateToken関数へのデバッグログ追加
+
+**説明**:
+`src/lib/auth.ts`の`validateToken`関数にデバッグログを追加し、実際に比較されているトークン値を確認できるようにする。
+
+**実装手順**:
+1. **実装**: `src/lib/auth.ts`のvalidateToken関数を修正
+   - logger.debugで`process.env.CLAUDE_WORK_TOKEN`の値をログ出力（長さと先頭4文字のみ）
+   - logger.debugで入力されたtokenの値をログ出力（長さと先頭4文字のみ）
+   - logger.debugで比較結果（true/false）をログ出力
+   - 機密情報を避けるため、トークン全体ではなく一部のみをログに出力
+2. **動作確認**: `npm run dev:pm2`でサーバーを起動
+3. **テスト**: ログイン画面から正しいトークンでログインを試行
+4. **ログ確認**: `npm run pm2:logs`でデバッグログを確認
+5. **コミット**: デバッグログ追加をコミット
+
+**技術的文脈**:
+- ロガー: winston（既存のloggerを使用）
+- ログレベル: debug（本番環境では出力されない）
+- 機密情報対策: トークンの一部のみを出力
+
+**実装例**:
+```typescript
+export function validateToken(token: string): boolean {
+  const validToken = process.env.CLAUDE_WORK_TOKEN;
+  if (!validToken) {
+    throw new Error('CLAUDE_WORK_TOKEN環境変数が設定されていません');
+  }
+
+  // デバッグログ追加
+  logger.debug('Token validation debug', {
+    service: 'claude-work',
+    envTokenLength: validToken.length,
+    envTokenPrefix: validToken.substring(0, 4),
+    inputTokenLength: token.length,
+    inputTokenPrefix: token.substring(0, 4),
+  });
+
+  const result = token === validToken;
+  logger.debug('Token validation result', {
+    service: 'claude-work',
+    result,
+  });
+
+  return result;
+}
+```
+
+**受入基準**:
+- [ ] validateToken関数にlogger.debugが追加されている
+- [ ] 環境変数のトークン情報（長さと先頭4文字）がログ出力される
+- [ ] 入力トークン情報（長さと先頭4文字）がログ出力される
+- [ ] 比較結果がログ出力される
+- [ ] トークン全体は出力されない（機密情報保護）
+- [ ] サーバーが正常起動する
+- [ ] ログイン試行時にデバッグログが出力される
+- [ ] ESLintエラーがゼロである
+- [ ] コミットが存在する
+
+**依存関係**: なし
+
+**推定工数**: 15分（AIエージェント作業時間）
+
+**ステータス**: `TODO`
+
+**情報の明確性**:
+
+**明示された情報**:
+- 対象ファイル: src/lib/auth.ts
+- 対象関数: validateToken
+- ログライブラリ: winston（既存のlogger）
+- ログレベル: debug
+- 出力内容: トークンの長さと先頭4文字、比較結果
+
+**不明/要確認の情報**: なし
+
+---
+
+#### タスク23.2: getSession関数へのデバッグログ追加
+
+**説明**:
+`src/lib/auth.ts`の`getSession`関数にデバッグログを追加し、Prisma DateTimeフィールドの値と比較処理の詳細を確認できるようにする。
+
+**実装手順**:
+1. **実装**: `src/lib/auth.ts`のgetSession関数を修正
+   - logger.debugでsessionIdをログ出力
+   - logger.debugでprisma.authSession.findUniqueの結果をログ出力
+   - logger.debugでsession.expires_atの値と型をログ出力
+   - logger.debugでnew Date()の値をログ出力
+   - logger.debugで比較結果をログ出力
+2. **動作確認**: サーバーを再起動
+3. **テスト**: `/api/auth/session`にアクセスしてデバッグログを確認
+4. **ログ確認**: `npm run pm2:logs`でデバッグログを確認
+5. **コミット**: デバッグログ追加をコミット
+
+**技術的文脈**:
+- ロガー: winston（既存のloggerを使用）
+- ログレベル: debug
+- Prisma: authSession.findUnique
+
+**実装例**:
+```typescript
+export async function getSession(sessionId: string) {
+  logger.debug('getSession called', {
+    service: 'claude-work',
+    sessionId,
+  });
+
+  const session = await prisma.authSession.findUnique({
+    where: { id: sessionId },
+  });
+
+  if (!session) {
+    logger.debug('Session not found', {
+      service: 'claude-work',
+      sessionId,
+    });
+    return null;
+  }
+
+  logger.debug('Session found', {
+    service: 'claude-work',
+    sessionId,
+    expiresAt: session.expires_at,
+    expiresAtType: typeof session.expires_at,
+    expiresAtConstructor: session.expires_at.constructor.name,
+    currentTime: new Date(),
+  });
+
+  const isExpired = session.expires_at < new Date();
+  logger.debug('Expiration check', {
+    service: 'claude-work',
+    sessionId,
+    isExpired,
+  });
+
+  if (isExpired) {
+    return null;
+  }
+
+  return session;
+}
+```
+
+**受入基準**:
+- [ ] getSession関数にlogger.debugが追加されている
+- [ ] sessionIdがログ出力される
+- [ ] Prismaの検索結果がログ出力される
+- [ ] session.expires_atの値、型、コンストラクタ名がログ出力される
+- [ ] new Date()の値がログ出力される
+- [ ] 有効期限チェックの結果がログ出力される
+- [ ] サーバーが正常起動する
+- [ ] /api/auth/sessionアクセス時にデバッグログが出力される
+- [ ] ESLintエラーがゼロである
+- [ ] コミットが存在する
+
+**依存関係**: なし
+
+**推定工数**: 15分（AIエージェント作業時間）
+
+**ステータス**: `TODO`
+
+**情報の明確性**:
+
+**明示された情報**:
+- 対象ファイル: src/lib/auth.ts
+- 対象関数: getSession
+- ログライブラリ: winston（既存のlogger）
+- ログレベル: debug
+- 出力内容: sessionId、expires_atの値と型、比較結果
+
+**不明/要確認の情報**: なし
+
+---
+
+#### タスク23.3: 環境変数読み込みの修正（dotenv/config削除）
+
+**説明**:
+`server.ts`から`dotenv/config`のインポートを削除し、Next.jsのネイティブな環境変数読み込みメカニズムのみを使用するように変更する。これにより、Next.jsとdotenv/configの競合を解消する。
+
+**実装手順**:
+1. **実装**: `server.ts`を修正
+   - `import 'dotenv/config';`の行を削除
+   - Next.jsは自動的に.env, .env.local, .env.productionなどを読み込むため、追加の変更は不要
+2. **動作確認**: `npm run dev:pm2`でサーバーを起動
+3. **ログ確認**: デバッグログで環境変数が正しく読み込まれていることを確認
+4. **テスト**: ログイン画面から正しいトークンでログインを試行
+5. **コミット**: 環境変数読み込み修正をコミット
+
+**技術的文脈**:
+- Next.js 15: 環境変数の自動読み込み機能を使用
+- .envファイル: Next.jsが自動的に読み込む
+- カスタムサーバー: Next.jsの環境変数読み込みがカスタムサーバーでも機能することを確認
+
+**受入基準**:
+- [ ] `server.ts`から`import 'dotenv/config';`が削除されている
+- [ ] サーバーが正常起動する
+- [ ] 環境変数CLAUDE_WORK_TOKENが正しく読み込まれている（デバッグログで確認）
+- [ ] 環境変数SESSION_SECRETが正しく読み込まれている
+- [ ] 環境変数DATABASE_URLが正しく読み込まれている
+- [ ] ログイン機能が正常に動作する
+- [ ] ESLintエラーがゼロである
+- [ ] コミットが存在する
+
+**依存関係**: タスク23.1, タスク23.2（デバッグログで確認するため）
+
+**推定工数**: 10分（AIエージェント作業時間）
+
+**ステータス**: `TODO`
+
+**情報の明確性**:
+
+**明示された情報**:
+- 対象ファイル: server.ts
+- 削除する行: `import 'dotenv/config';`
+- Next.jsの環境変数読み込みを使用
+
+**不明/要確認の情報**: なし
+
+---
+
+#### タスク23.4: getSession関数のDateTime比較修正（TDD）
+
+**説明**:
+TDDアプローチで`src/lib/auth.ts`の`getSession`関数を修正し、Prisma DateTimeフィールド（expires_at）を明示的にDate型に変換してから比較するように変更する。
+
+**実装手順（TDD）**:
+1. **テスト作成**: `src/lib/__tests__/auth.test.ts`にテストケースを追加
+   - 有効期限内のセッションを取得するテスト
+   - 有効期限切れのセッションを取得しようとするとnullが返るテスト
+   - 存在しないセッションを取得しようとするとnullが返るテスト
+2. **テスト実行**: すべてのテストが失敗することを確認（既存実装では失敗する可能性がある）
+3. **テストコミット**: テストのみをコミット
+4. **実装**: `getSession`関数を修正
+   - `session.expires_at < new Date()`を`new Date(session.expires_at) < new Date()`に変更
+   - デバッグログはそのまま維持（ただし、変換後の値も出力）
+5. **テスト通過確認**: すべてのテストが通過することを確認（`npm test`）
+6. **統合テスト**: `/api/auth/session`にアクセスして動作確認
+7. **実装コミット**: 実装をコミット
+
+**技術的文脈**:
+- Prisma: SQLiteのDATETIME型を文字列として返す可能性がある
+- Date型変換: new Date()コンストラクタで文字列をDate型に変換
+- 比較演算子: Date型同士の比較は内部的にgetTime()が呼ばれる
+
+**実装例**:
+```typescript
+export async function getSession(sessionId: string) {
+  logger.debug('getSession called', {
+    service: 'claude-work',
+    sessionId,
+  });
+
+  const session = await prisma.authSession.findUnique({
+    where: { id: sessionId },
+  });
+
+  if (!session) {
+    logger.debug('Session not found', {
+      service: 'claude-work',
+      sessionId,
+    });
+    return null;
+  }
+
+  // expires_atを明示的にDate型に変換
+  const expiresAt = new Date(session.expires_at);
+  const now = new Date();
+
+  logger.debug('Session found', {
+    service: 'claude-work',
+    sessionId,
+    expiresAtRaw: session.expires_at,
+    expiresAtConverted: expiresAt,
+    currentTime: now,
+  });
+
+  const isExpired = expiresAt < now;
+  logger.debug('Expiration check', {
+    service: 'claude-work',
+    sessionId,
+    isExpired,
+  });
+
+  if (isExpired) {
+    return null;
+  }
+
+  return session;
+}
+```
+
+**受入基準**:
+- [ ] テストファイル`src/lib/__tests__/auth.test.ts`が存在または更新されている
+- [ ] getSessionのテストケースが3つ以上含まれている
+- [ ] 実装前にテストのみのコミットが存在する
+- [ ] `getSession`関数で`new Date(session.expires_at)`を使用している
+- [ ] デバッグログが変換前後の値を出力している
+- [ ] すべてのテストが通過する（`npm test`）
+- [ ] `/api/auth/session`が正しく動作する
+- [ ] 有効なセッションで`{"authenticated": true}`が返る
+- [ ] 有効期限切れセッションで`{"authenticated": false}`が返る
+- [ ] ESLintエラーがゼロである
+- [ ] 実装のコミットが存在する
+
+**依存関係**: タスク23.2（デバッグログで動作確認するため）
+
+**推定工数**: 30分（AIエージェント作業時間）
+- テスト作成・コミット: 15分
+- 実装・テスト通過・コミット: 15分
+
+**ステータス**: `TODO`
+
+**情報の明確性**:
+
+**明示された情報**:
+- 対象ファイル: src/lib/auth.ts
+- 対象関数: getSession
+- テストファイル: src/lib/__tests__/auth.test.ts
+- 修正内容: new Date(session.expires_at) < new Date()
+- TDDアプローチ: テスト → 実装の順
+
+**不明/要確認の情報**: なし
+
+---
+
+#### タスク23.5: 統合テストと動作確認
+
+**説明**:
+デバッグログを削除し、ログイン機能とセッション認証機能が正しく動作することを統合テストで確認する。
+
+**実装手順**:
+1. **デバッグログ削除**: validateToken関数とgetSession関数からデバッグログを削除
+   - 本番環境に不要なデバッグログを削除
+   - 必要に応じて重要なログ（エラー時など）は残す
+2. **統合テスト**: 以下のシナリオを手動でテスト
+   - ログイン画面で正しいトークンを入力してログイン
+   - ダッシュボードにリダイレクトされることを確認
+   - ページをリロードしても認証状態が維持されることを確認
+   - ログアウトして再度ログインできることを確認
+3. **自動テスト**: `npm test`ですべてのテストが通過することを確認
+4. **コミット**: デバッグログ削除と動作確認完了をコミット
+
+**技術的文脈**:
+- 手動テスト: ブラウザでの動作確認
+- 自動テスト: Vitest（既存のテストスイート）
+
+**受入基準**:
+- [ ] validateToken関数からデバッグログが削除されている
+- [ ] getSession関数からデバッグログが削除されている
+- [ ] ログイン画面で正しいトークンを入力すると、ダッシュボードにリダイレクトされる
+- [ ] ページリロード後も認証状態が維持される
+- [ ] ログアウト機能が正常に動作する
+- [ ] 再ログインが可能である
+- [ ] すべての自動テストが通過する（`npm test`）
+- [ ] ESLintエラーがゼロである
+- [ ] コミットが存在する
+
+**依存関係**: タスク23.3, タスク23.4（すべての修正が完了していること）
+
+**推定工数**: 20分（AIエージェント作業時間）
+- デバッグログ削除: 5分
+- 統合テスト: 10分
+- コミット: 5分
+
+**ステータス**: `TODO`
+
+**情報の明確性**:
+
+**明示された情報**:
+- デバッグログの削除
+- 手動での統合テスト実施
+- 自動テストの実行
+
+**不明/要確認の情報**: なし
+
+---
+
+#### タスク23.6: 検証レポート更新
+
+**説明**:
+`docs/verification-report-comprehensive.md`を更新し、Critical不具合が修正されたことを記録する。
+
+**実装手順**:
+1. **レポート更新**: verification-report-comprehensive.mdを編集
+   - Critical Issue #1とCritical Issue #2のセクションに「修正済み」を追記
+   - 修正内容の概要を追加
+   - Phase 23へのリンクを追加
+2. **コミット**: レポート更新をコミット
+
+**受入基準**:
+- [ ] verification-report-comprehensive.mdが更新されている
+- [ ] Critical Issue #1に修正済みマーク（✅）が追加されている
+- [ ] Critical Issue #2に修正済みマーク（✅）が追加されている
+- [ ] 修正内容の概要が記載されている
+- [ ] Phase 23へのリンクが追加されている
+- [ ] コミットが存在する
+
+**依存関係**: タスク23.5（すべての修正とテストが完了していること）
+
+**推定工数**: 10分（AIエージェント作業時間）
+
+**ステータス**: `TODO`
+
+**情報の明確性**:
+
+**明示された情報**:
+- 対象ファイル: docs/verification-report-comprehensive.md
+- 更新内容: Critical Issueの修正済みマーク追加
+
+**不明/要確認の情報**: なし
+
+---
+
+### Phase 23完了基準
+
+- [ ] タスク23.1が完了している（validateTokenデバッグログ追加）
+- [ ] タスク23.2が完了している（getSessionデバッグログ追加）
+- [ ] タスク23.3が完了している（dotenv/config削除）
+- [ ] タスク23.4が完了している（DateTime比較修正）
+- [ ] タスク23.5が完了している（統合テストと動作確認）
+- [ ] タスク23.6が完了している（検証レポート更新）
+- [ ] ログイン機能が正常に動作する
+- [ ] セッション認証が正常に動作する
+- [ ] すべてのテストが通過している（`npm test`）
+- [ ] ESLintエラーがゼロである
+- [ ] 6つのコミットが作成されている
+
+### 解決される不具合
+
+**docs/verification-report-comprehensive.md**:
+- Critical Issue #1: ログイン認証が失敗する
+- Critical Issue #2: セッション認証が機能しない
+
+### 達成される要件
+
+**docs/requirements.md**:
+- REQ-055: システムは認証なしでのアクセスを拒否しなければならない
+- REQ-056: 正しいトークンが入力された時、システムはセッションを開始し、ダッシュボードにリダイレクトしなければならない
+- REQ-057: 認証済みセッションの有効期限が切れた時、システムはユーザーをログインページにリダイレクトしなければならない
+
+### 技術的な学び
+
+- Next.jsとdotenv/configの環境変数読み込み競合の解決方法
+- Prisma SQLite DateTimeフィールドの型変換の必要性
+- デバッグログを使った問題の特定手法
+- TDDでの日時比較処理のテスト方法
