@@ -1365,7 +1365,112 @@ TDDで`src/components/git/CommitHistory.tsx`を実装する。テスト仕様は
 
 ---
 
-## Phase 27: 未検証機能の検証と性能測定
+## Phase 27: セッションカードクリック問題の修正
+
+**目的**: verification-report-comprehensive-phase26.mdで発見されたIssue #1（セッションカードクリック不可）を修正し、セッション詳細ページへのナビゲーションを復旧する。
+
+**背景**: Phase 26でUI Navigation Bugsの修正を完了後、包括的UI検証を実施した結果、セッションカードをクリックしてもセッション詳細ページに遷移しない Critical な不具合が新たに発見された。この問題により、ユーザーはセッション詳細ページにアクセスできない状態となっている。
+
+**検証レポート**: `docs/verification-report-comprehensive-phase26.md` (Issue #1)
+
+---
+
+#### タスク27.1: セッションカードクリックイベントの修正とテスト追加
+
+**説明**:
+TDDアプローチでセッションカードのクリックイベント問題を修正する。`src/components/sessions/SessionCard.tsx`のクリックイベントが正常に発火しない問題を調査し、Phase 26.1のProjectCard修正と同様のアプローチで修正する。
+
+**影響を受けるコンポーネント**:
+- `src/components/sessions/SessionCard.tsx` (line 26-27)
+- `src/components/sessions/SessionList.tsx` (line 37)
+- `src/app/projects/[id]/page.tsx` (line 37-38)
+
+**実装手順（TDD）**:
+1. **テスト作成**: `src/components/sessions/__tests__/SessionCard.test.tsx`に以下のテストケースを追加
+   - セッションカードクリック時にonClickハンドラーが呼ばれる
+   - セッションカードクリック時に正しいsessionIdが渡される
+   - クリックイベントが親要素に伝播しない
+   - 複数のセッションカードでそれぞれクリックイベントが独立して動作する
+2. **テスト実行**: すべてのテストが失敗することを確認（現在の実装ではクリックイベントが発火しない）
+3. **テストコミット**: テストのみをコミット
+4. **問題調査**: SessionCard.tsx:26-27のdiv要素とクリックイベントの問題を調査
+   - Phase 26.1のProjectCard.tsx修正内容を参照
+   - イベント伝播の問題を確認
+   - 子要素によるイベント阻害を確認
+5. **修正実装**: SessionCard.tsxを修正してテストを通過させる
+   - イベントハンドラーに `e.stopPropagation()` を追加（必要な場合）
+   - div要素をbutton要素に変更（必要な場合）
+   - または、適切なイベントハンドリング方法に修正
+6. **テスト実行**: すべてのテストが通過することを確認
+7. **実装コミット**: 修正をコミット
+8. **手動検証**: ブラウザでセッションカードクリック動作を確認
+   - プロジェクト詳細ページでセッションカードをクリック
+   - セッション詳細ページ（/sessions/[id]）に遷移することを確認
+   - URLが正しく変更されることを確認
+
+**受入基準**:
+- [ ] `src/components/sessions/__tests__/SessionCard.test.tsx`に新しいテストケースが4つ以上追加されている
+- [ ] テストのみのコミットが存在する
+- [ ] `src/components/sessions/SessionCard.tsx`が修正されている
+- [ ] セッションカードをクリックすると`onClick`ハンドラーが正しく呼ばれる
+- [ ] クリックイベントで正しい`sessionId`が渡される
+- [ ] クリックイベントが親要素に伝播しない
+- [ ] すべてのテストが通過する（`npm test`）
+- [ ] ESLintエラーがゼロである
+- [ ] ブラウザでセッションカードクリック時にセッション詳細ページに遷移する
+- [ ] 修正のコミットが存在する
+
+**依存関係**: なし
+
+**推定工数**: 40分（AIエージェント作業時間）
+- テスト作成・コミット: 15分
+- 問題調査: 10分
+- 修正実装・テスト通過・コミット: 15分
+
+**ステータス**: `TODO`
+
+**情報の明確性**:
+
+**明示された情報**:
+- 対象ファイル: src/components/sessions/SessionCard.tsx (line 26-27)
+- テストファイル: src/components/sessions/__tests__/SessionCard.test.tsx
+- 検証レポート: docs/verification-report-comprehensive-phase26.md (Issue #1)
+- 要件違反: REQ-013
+- 症状: セッションカードクリックでセッション詳細ページに遷移しない
+- 期待動作: クリック時に `/sessions/[sessionId]` に遷移する
+- 参考実装: Phase 26.1のProjectCard.tsx修正（e.stopPropagation()とtype="button"追加）
+
+**不明/要確認の情報**: なし（調査・修正タスクのため、実装中に判断）
+
+---
+
+### Phase 27完了基準
+
+- [ ] タスク27.1が完了している（セッションカードクリックイベント修正）
+- [ ] セッションカードをクリックするとセッション詳細ページに遷移する
+- [ ] すべてのテストが通過している（`npm test`）
+- [ ] ESLintエラーがゼロである
+- [ ] すべてのコミットが作成されている
+
+### 解決される不具合
+
+**docs/verification-report-comprehensive-phase26.md**:
+- Issue #1: セッションカードクリック不可（Critical）
+
+**docs/requirements.md**:
+- REQ-013: セッションが作成された時、システムはセッション一覧に新しいセッションをステータス「初期化中」で表示しなければならない
+  - セッションカードのクリックでセッション詳細に遷移できる
+
+### 技術的な学び
+
+- React イベントハンドリングのベストプラクティス
+- div要素とbutton要素のクリックイベントの違い
+- イベント伝播（Event Propagation）の制御
+- Phase 26.1の修正パターンの再利用
+
+---
+
+## Phase 28: 未検証機能の検証と性能測定
 
 **目的**: verification-issues.mdで未検証とされている機能の動作確認と、非機能要件の性能測定を実施する。
 
