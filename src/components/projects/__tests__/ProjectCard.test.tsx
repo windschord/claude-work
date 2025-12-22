@@ -69,4 +69,28 @@ describe('ProjectCard', () => {
     expect(mockOnDelete).toHaveBeenCalledTimes(1);
     expect(mockOnDelete).toHaveBeenCalledWith(mockProject);
   });
+
+  it('「開く」ボタンのクリックイベントが親要素に伝播しない', () => {
+    const parentOnClick = vi.fn();
+    const { container } = render(
+      <div onClick={parentOnClick}>
+        <ProjectCard project={mockProject} onDelete={mockOnDelete} />
+      </div>
+    );
+
+    const openButton = screen.getByText('開く');
+    fireEvent.click(openButton);
+
+    // 「開く」ボタンがクリックされた時、親要素のonClickは呼ばれない
+    expect(parentOnClick).not.toHaveBeenCalled();
+    // router.pushは正常に呼ばれる
+    expect(mockPush).toHaveBeenCalledWith('/projects/test-project-id');
+  });
+
+  it('「開く」ボタンにtype="button"が設定されている', () => {
+    render(<ProjectCard project={mockProject} onDelete={mockOnDelete} />);
+
+    const openButton = screen.getByText('開く');
+    expect(openButton).toHaveAttribute('type', 'button');
+  });
 });
