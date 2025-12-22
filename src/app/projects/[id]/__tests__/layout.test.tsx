@@ -44,8 +44,10 @@ describe('ProjectLayout', () => {
     expect(screen.getByTestId('test-children')).toBeInTheDocument();
   });
 
-  it('should trigger fetchProjects when MainLayout is used', () => {
+  it('should use MainLayout which is responsible for calling fetchProjects', () => {
     // MainLayoutが実際にfetchProjectsを呼び出す動作をシミュレート
+    // Note: MainLayout自体がuseEffectでfetchProjectsを呼び出すことは
+    // MainLayoutのテストで検証される。このテストはMainLayoutの使用を確認する。
     vi.mocked(mainLayoutModule.MainLayout).mockImplementationOnce(({ children }) => {
       // MainLayoutのマウント時の動作を再現
       mockFetchProjects();
@@ -55,7 +57,7 @@ describe('ProjectLayout', () => {
     const children = <div>Test Content</div>;
     render(<ProjectLayout>{children}</ProjectLayout>);
 
-    // fetchProjectsが呼び出されたことを確認
+    // MainLayoutが使用され、fetchProjectsが呼び出されたことを確認
     expect(mockFetchProjects).toHaveBeenCalled();
   });
 
