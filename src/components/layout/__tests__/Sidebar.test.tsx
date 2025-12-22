@@ -189,4 +189,110 @@ describe('Sidebar', () => {
 
     expect(mockSetIsSidebarOpen).toHaveBeenCalledWith(false);
   });
+
+  it('プロジェクト配列がundefinedの場合でもエラーにならない', () => {
+    (useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+      projects: undefined,
+      selectedProjectId: null,
+      setSelectedProjectId: mockSetSelectedProjectId,
+      isSidebarOpen: false,
+      setIsSidebarOpen: mockSetIsSidebarOpen,
+    });
+
+    // エラーにならずにレンダリングされることを確認
+    expect(() => render(<Sidebar />)).not.toThrow();
+  });
+
+  it('プロジェクト配列がnullの場合でもエラーにならない', () => {
+    (useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+      projects: null,
+      selectedProjectId: null,
+      setSelectedProjectId: mockSetSelectedProjectId,
+      isSidebarOpen: false,
+      setIsSidebarOpen: mockSetIsSidebarOpen,
+    });
+
+    // エラーにならずにレンダリングされることを確認
+    expect(() => render(<Sidebar />)).not.toThrow();
+  });
+
+  it('プロジェクト配列が未初期化（undefined）の場合、「プロジェクトがありません」が表示される', () => {
+    (useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+      projects: undefined,
+      selectedProjectId: null,
+      setSelectedProjectId: mockSetSelectedProjectId,
+      isSidebarOpen: false,
+      setIsSidebarOpen: mockSetIsSidebarOpen,
+    });
+
+    render(<Sidebar />);
+
+    expect(screen.getByText('プロジェクトがありません')).toBeInTheDocument();
+  });
+
+  it('プロジェクト配列がnullの場合、「プロジェクトがありません」が表示される', () => {
+    (useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+      projects: null,
+      selectedProjectId: null,
+      setSelectedProjectId: mockSetSelectedProjectId,
+      isSidebarOpen: false,
+      setIsSidebarOpen: mockSetIsSidebarOpen,
+    });
+
+    render(<Sidebar />);
+
+    expect(screen.getByText('プロジェクトがありません')).toBeInTheDocument();
+  });
+
+  it('プロジェクトボタンがクリック可能な状態である', () => {
+    render(<Sidebar />);
+
+    const buttons = screen.getAllByRole('button');
+    const projectAButton = buttons.find(button => button.textContent?.includes('プロジェクトA'));
+
+    expect(projectAButton).toBeDefined();
+    expect(projectAButton).not.toBeDisabled();
+    expect(projectAButton).toBeVisible();
+  });
+
+  it('プロジェクトボタンのz-indexが適切に設定されている', () => {
+    const { container } = render(<Sidebar />);
+
+    const sidebar = container.querySelector('aside');
+    expect(sidebar).toBeInTheDocument();
+    expect(sidebar).toHaveClass('z-40');
+  });
+
+  it('複数のプロジェクトがある場合、すべてのボタンがクリック可能である', () => {
+    render(<Sidebar />);
+
+    const buttons = screen.getAllByRole('button');
+    const projectButtons = buttons.filter(button =>
+      button.textContent?.includes('プロジェクトA') || button.textContent?.includes('プロジェクトB')
+    );
+
+    expect(projectButtons).toHaveLength(2);
+    projectButtons.forEach(button => {
+      expect(button).not.toBeDisabled();
+      expect(button).toBeVisible();
+    });
+  });
+
+  it('プロジェクトボタンクリック時、正しいイベントハンドラーが実行される', () => {
+    mockPush.mockClear();
+    mockSetSelectedProjectId.mockClear();
+
+    render(<Sidebar />);
+
+    const buttons = screen.getAllByRole('button');
+    const projectBButton = buttons.find(button => button.textContent?.includes('プロジェクトB'));
+
+    expect(projectBButton).toBeDefined();
+    fireEvent.click(projectBButton!);
+
+    expect(mockSetSelectedProjectId).toHaveBeenCalledWith('project-2');
+    expect(mockSetSelectedProjectId).toHaveBeenCalledTimes(1);
+    expect(mockPush).toHaveBeenCalledWith('/projects/project-2');
+    expect(mockPush).toHaveBeenCalledTimes(1);
+  });
 });
