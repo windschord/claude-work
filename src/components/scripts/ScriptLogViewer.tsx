@@ -189,7 +189,7 @@ export function ScriptLogViewer({ runId }: ScriptLogViewerProps) {
           <div className="space-y-1">
             {filteredLogs.map((log, index) => (
               <div
-                key={index}
+                key={`${log.timestamp}-${index}`}
                 className={`flex gap-4 ${
                   log.level === 'error'
                     ? 'text-red-600 dark:text-red-400'
