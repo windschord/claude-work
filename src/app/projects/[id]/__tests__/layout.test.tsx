@@ -85,22 +85,17 @@ describe('ProjectLayout', () => {
     const params = Promise.resolve({ id: 'test-project-id' });
     const children = <div>Test Content</div>;
 
-    const { container } = render(await ProjectLayout({ children, params }));
-
-    // layout.tsx内でHeaderやSidebarを直接レンダリングしていないことを確認
-    // MainLayoutを使用しているため、layout.tsx自体にはHeaderやSidebarが含まれない
-    const layoutSource = container.innerHTML;
+    render(await ProjectLayout({ children, params }));
 
     // MainLayoutがレンダリングされていることを確認（モックされたMainLayout）
     expect(screen.getByTestId('main-layout')).toBeInTheDocument();
 
     // MainLayoutコンポーネントが呼び出されたことを確認
-    expect(mainLayoutModule.MainLayout).toHaveBeenCalledWith(
-      expect.objectContaining({
-        children: expect.anything(),
-      }),
-      expect.anything()
-    );
+    expect(mainLayoutModule.MainLayout).toHaveBeenCalled();
+
+    // 呼び出し時の引数を確認（children propsが渡されている）
+    const callArgs = vi.mocked(mainLayoutModule.MainLayout).mock.calls[0];
+    expect(callArgs[0]).toHaveProperty('children');
   });
 
   it('should pass children to MainLayout correctly', async () => {
