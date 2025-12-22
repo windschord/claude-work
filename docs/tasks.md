@@ -1444,10 +1444,81 @@ TDDアプローチでセッションカードのクリックイベント問題�
 
 ---
 
+#### タスク27.2: プロジェクト詳細ページでのプロジェクト一覧表示問題の修正
+
+**説明**:
+TDDアプローチでプロジェクト詳細ページのサイドバーにプロジェクト一覧が表示されない問題を修正する。`src/app/projects/[id]/layout.tsx`をClient Componentに変換し、`MainLayout`を使用することで、プロジェクト一覧ページ（/）と同じ構造にし、`fetchProjects()`を確実に呼び出す。
+
+**影響を受けるファイル**:
+- `src/app/projects/[id]/layout.tsx` (line 22-37)
+- `src/components/layout/MainLayout.tsx` (line 24-35)
+- `src/components/layout/Sidebar.tsx` (line 18)
+
+**実装手順（TDD）**:
+1. **テスト作成**: `src/app/projects/[id]/__tests__/layout.test.tsx`を作成し、以下のテストケースを追加
+   - プロジェクト詳細ページレイアウトがMainLayoutをレンダリングする
+   - MainLayoutがfetchProjects()を呼び出す
+   - Sidebarにプロジェクト一覧が表示される
+   - ページリロード後もサイドバーにプロジェクトが表示される
+2. **テスト実行**: すべてのテストが失敗することを確認（現在の実装ではServer ComponentでMainLayoutを使用していない）
+3. **テストコミット**: テストのみをコミット
+4. **layout.tsx修正**: `src/app/projects/[id]/layout.tsx`を以下のように修正
+   - ファイル先頭に`'use client'`ディレクティブを追加してClient Componentに変換
+   - `MainLayout`をインポート
+   - 既存のHeader、Sidebar、div構造を削除
+   - MainLayoutでchildrenをラップする形に変更
+   - paramsの扱いをClient Componentに合わせて調整
+5. **テスト実行**: すべてのテストが通過することを確認
+6. **実装コミット**: 修正をコミット
+7. **手動検証**: ブラウザでプロジェクト詳細ページをリロードして動作確認
+   - プロジェクト詳細ページ（/projects/[id]）を直接リロード
+   - サイドバーにプロジェクト一覧が表示されることを確認
+   - ネットワークタブで`/api/projects`へのリクエストが発生することを確認
+   - プロジェクト一覧ページ（/）からの遷移でも問題ないことを確認
+
+**受入基準**:
+- [ ] `src/app/projects/[id]/__tests__/layout.test.tsx`が作成され、テストケースが4つ以上ある
+- [ ] テストのみのコミットが存在する
+- [ ] `src/app/projects/[id]/layout.tsx`が`'use client'`ディレクティブを持つClient Componentになっている
+- [ ] layout.tsxが`MainLayout`を使用している
+- [ ] 既存のHeader、Sidebarの直接レンダリングが削除されている
+- [ ] すべてのテストが通過する（`npm test`）
+- [ ] ESLintエラーがゼロである
+- [ ] ブラウザでプロジェクト詳細ページをリロードしてもサイドバーにプロジェクトが表示される
+- [ ] ネットワークログで`/api/projects`へのリクエストが確認できる
+- [ ] 修正のコミットが存在する
+
+**依存関係**: なし（タスク27.1とは独立して実装可能）
+
+**推定工数**: 35分（AIエージェント作業時間）
+- テスト作成・コミット: 15分
+- layout.tsx修正・テスト通過・コミット: 15分
+- 手動検証: 5分
+
+**ステータス**: `TODO`
+
+**情報の明確性**:
+
+**明示された情報**:
+- 対象ファイル: src/app/projects/[id]/layout.tsx (line 22-37)
+- テストファイル: src/app/projects/[id]/__tests__/layout.test.tsx（新規作成）
+- 検証レポート: docs/verification-report-comprehensive-phase26.md (Issue #2)
+- 症状: 直リンクでアクセスするとサイドバーに「プロジェクトがありません」と表示
+- 根本原因: layout.tsxがServer Componentで、MainLayoutを使用せず、fetchProjects()が呼ばれない
+- 修正アプローチ: layout.tsxをClient Componentに変換し、MainLayoutを使用（ユーザー選択済み）
+- 期待動作: ページリロード時にもサイドバーにプロジェクト一覧が表示される
+- 技術スタック: Next.js 15 App Router、Client Component、Zustand
+
+**不明/要確認の情報**: なし（すべて明確化済み）
+
+---
+
 ### Phase 27完了基準
 
 - [ ] タスク27.1が完了している（セッションカードクリックイベント修正）
+- [ ] タスク27.2が完了している（プロジェクト詳細ページのサイドバー表示修正）
 - [ ] セッションカードをクリックするとセッション詳細ページに遷移する
+- [ ] プロジェクト詳細ページのサイドバーにプロジェクト一覧が常に表示される
 - [ ] すべてのテストが通過している（`npm test`）
 - [ ] ESLintエラーがゼロである
 - [ ] すべてのコミットが作成されている
@@ -1456,6 +1527,7 @@ TDDアプローチでセッションカードのクリックイベント問題�
 
 **docs/verification-report-comprehensive-phase26.md**:
 - Issue #1: セッションカードクリック不可（Critical）
+- Issue #2: プロジェクト詳細ページのサイドバーにプロジェクト一覧が表示されない（Medium）
 
 **docs/requirements.md**:
 - REQ-013: セッションが作成された時、システムはセッション一覧に新しいセッションをステータス「初期化中」で表示しなければならない
@@ -1463,10 +1535,17 @@ TDDアプローチでセッションカードのクリックイベント問題�
 
 ### 技術的な学び
 
+**タスク27.1関連**:
 - React イベントハンドリングのベストプラクティス
 - div要素とbutton要素のクリックイベントの違い
 - イベント伝播（Event Propagation）の制御
 - Phase 26.1の修正パターンの再利用
+
+**タスク27.2関連**:
+- Next.js 15 App RouterにおけるServer ComponentとClient Componentの使い分け
+- レイアウトコンポーネントのClient Component化のトレードオフ
+- Zustand状態管理とデータフェッチングの統合パターン
+- MainLayoutの再利用による一貫性の確保
 
 ---
 
