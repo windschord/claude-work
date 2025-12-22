@@ -114,15 +114,12 @@ describe('Auth', () => {
       const testToken = 'test-token-exact-expiry';
       const sessionId = await createSession(testToken);
 
-      // Set expiry to current time (edge case)
-      const currentTime = new Date();
+      // Set expiry to 1ms in the past to ensure it's expired
+      const pastTime = new Date(Date.now() - 1);
       await prisma.authSession.update({
         where: { id: sessionId },
-        data: { expires_at: currentTime },
+        data: { expires_at: pastTime },
       });
-
-      // Wait 1ms to ensure current time is after expiry
-      await new Promise(resolve => setTimeout(resolve, 1));
 
       const session = await getSession(sessionId);
 

@@ -53,7 +53,6 @@ export function validateToken(token: string): boolean {
   if (!validToken) {
     throw new Error('CLAUDE_WORK_TOKEN環境変数が設定されていません');
   }
-
   return token === validToken;
 }
 
