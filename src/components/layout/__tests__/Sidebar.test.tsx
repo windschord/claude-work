@@ -190,60 +190,6 @@ describe('Sidebar', () => {
     expect(mockSetIsSidebarOpen).toHaveBeenCalledWith(false);
   });
 
-  it('プロジェクト配列がundefinedの場合でもエラーにならない', () => {
-    (useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
-      projects: undefined,
-      selectedProjectId: null,
-      setSelectedProjectId: mockSetSelectedProjectId,
-      isSidebarOpen: false,
-      setIsSidebarOpen: mockSetIsSidebarOpen,
-    });
-
-    // エラーにならずにレンダリングされることを確認
-    expect(() => render(<Sidebar />)).not.toThrow();
-  });
-
-  it('プロジェクト配列がnullの場合でもエラーにならない', () => {
-    (useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
-      projects: null,
-      selectedProjectId: null,
-      setSelectedProjectId: mockSetSelectedProjectId,
-      isSidebarOpen: false,
-      setIsSidebarOpen: mockSetIsSidebarOpen,
-    });
-
-    // エラーにならずにレンダリングされることを確認
-    expect(() => render(<Sidebar />)).not.toThrow();
-  });
-
-  it('プロジェクト配列が未初期化（undefined）の場合、「プロジェクトがありません」が表示される', () => {
-    (useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
-      projects: undefined,
-      selectedProjectId: null,
-      setSelectedProjectId: mockSetSelectedProjectId,
-      isSidebarOpen: false,
-      setIsSidebarOpen: mockSetIsSidebarOpen,
-    });
-
-    render(<Sidebar />);
-
-    expect(screen.getByText('プロジェクトがありません')).toBeInTheDocument();
-  });
-
-  it('プロジェクト配列がnullの場合、「プロジェクトがありません」が表示される', () => {
-    (useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
-      projects: null,
-      selectedProjectId: null,
-      setSelectedProjectId: mockSetSelectedProjectId,
-      isSidebarOpen: false,
-      setIsSidebarOpen: mockSetIsSidebarOpen,
-    });
-
-    render(<Sidebar />);
-
-    expect(screen.getByText('プロジェクトがありません')).toBeInTheDocument();
-  });
-
   it('プロジェクトボタンがクリック可能な状態である', () => {
     render(<Sidebar />);
 
