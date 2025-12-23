@@ -1285,3 +1285,335 @@ const token = process.env.CLAUDE_WORK_TOKEN || 'test-token';
 
 - 環境変数の命名一貫性の重要性
 - E2Eテスト設定とアプリケーション設定の整合性確認
+
+---
+
+## Phase 31: 既存セッションのClaude Codeプロセス再起動機能
+
+**目的**: サーバー再起動後も既存セッションでClaude Codeと対話できるようにする
+
+**背景**:
+- Claude Codeプロセスはセッション作成時のみProcessManager.startClaudeCode()で起動される
+- サーバー再起動後、既存セッションにアクセスしてもプロセスは自動的には再起動されない
+- プロセスがないセッションにメッセージを送信しても何も起きない（エラーも出ない）
+- ユーザーは既存セッションで作業を継続したいが、現状それができない
+
+**技術的制約**:
+- ProcessManager.startClaudeCode(sessionId, worktreePath, model)を使用してプロセスを起動
+- セッションのworktree_pathとproject情報はDBから取得可能
+- WebSocket接続経由でメッセージを送受信
+- SessionWebSocketHandlerでプロセス状態を管理
+
+**検証レポート**: なし（新規機能）
+
+---
+
+#### タスク31.1: プロセス状態確認APIの実装（TDD）
+
+**説明**:
+セッションのClaude Codeプロセスが実行中かどうかを確認するAPIエンドポイントを実装する。
+
+**実装手順（TDD）**:
+1. **テスト作成**: `src/app/api/sessions/[id]/process/__tests__/route.test.ts`にテストケースを作成
+   - プロセスが実行中の場合、`{ running: true }`を返す
+   - プロセスが停止中の場合、`{ running: false }`を返す
+   - 認証されていない場合、401エラーを返す
+   - セッションが存在しない場合、404エラーを返す
+2. **テスト実行**: すべてのテストが失敗することを確認
+3. **テストコミット**: テストのみをコミット
+4. **実装**: `src/app/api/sessions/[id]/process/route.ts`を作成
+   - GET: ProcessManager.hasProcess(sessionId)でプロセス状態を確認
+   - 認証チェック（getIronSession）
+   - セッション存在チェック（prisma.session.findUnique）
+5. **テスト通過確認**: すべてのテストが通過することを確認
+6. **実装コミット**: 実装をコミット
+
+**技術的文脈**:
+- ProcessManagerにhasProcess(sessionId)メソッドを追加する必要がある
+- 既存のProcessManager.processes Mapを参照
+
+**受入基準**:
+- [ ] `src/app/api/sessions/[id]/process/route.ts`ファイルが作成されている
+- [ ] GET `/api/sessions/:id/process`がプロセス状態を返す
+- [ ] ProcessManager.hasProcess(sessionId)メソッドが実装されている
+- [ ] 認証チェックが実装されている
+- [ ] テストがすべて通過する
+- [ ] ESLintエラーがゼロである
+- [ ] 2つのコミット（テスト、実装）が存在する
+
+**依存関係**: なし
+
+**推定工数**: 30分（AIエージェント作業時間）
+- テスト作成・コミット: 15分
+- 実装・テスト通過・コミット: 15分
+
+**ステータス**: `TODO`
+
+**情報の明確性**:
+
+**明示された情報**:
+- 対象ファイル: src/app/api/sessions/[id]/process/route.ts（新規作成）
+- ProcessManager: src/services/process-manager.ts
+- 認証: src/lib/auth.ts (getIronSession)
+- レスポンス形式: `{ running: boolean }`
+
+**不明/要確認の情報**: なし
+
+---
+
+#### タスク31.2: プロセス再起動APIの実装（TDD）
+
+**説明**:
+停止中のセッションのClaude Codeプロセスを再起動するAPIエンドポイントを実装する。
+
+**実装手順（TDD）**:
+1. **テスト作成**: `src/app/api/sessions/[id]/process/__tests__/route.test.ts`にPOSTのテストケースを追加
+   - プロセスが正常に起動した場合、`{ success: true, running: true }`を返す
+   - 既にプロセスが実行中の場合、`{ success: true, running: true, message: 'Process already running' }`を返す
+   - 起動に失敗した場合、500エラーを返す
+   - 認証されていない場合、401エラーを返す
+   - セッションが存在しない場合、404エラーを返す
+2. **テスト実行**: すべてのテストが失敗することを確認
+3. **テストコミット**: テストのみをコミット
+4. **実装**: `src/app/api/sessions/[id]/process/route.ts`にPOSTハンドラーを追加
+   - 認証チェック
+   - セッション取得（worktree_path, projectのdefault_model）
+   - ProcessManager.hasProcess()でプロセス状態確認
+   - 停止中の場合、ProcessManager.startClaudeCode()で起動
+   - 結果を返す
+5. **テスト通過確認**: すべてのテストが通過することを確認
+6. **実装コミット**: 実装をコミット
+
+**技術的文脈**:
+- ProcessManager.startClaudeCode(sessionId, worktreePath, model)を使用
+- セッションのworktree_pathとproject.default_modelをDBから取得
+- 既にプロセスが実行中の場合は再起動せず成功を返す
+
+**受入基準**:
+- [ ] POST `/api/sessions/:id/process`でプロセスを起動できる
+- [ ] セッションのworktree_pathを使用してプロセスが起動される
+- [ ] 既にプロセスが実行中の場合、エラーにならず成功を返す
+- [ ] 起動失敗時、適切なエラーメッセージを返す
+- [ ] テストがすべて通過する
+- [ ] ESLintエラーがゼロである
+- [ ] 2つのコミット（テスト、実装）が存在する
+
+**依存関係**: タスク31.1（プロセス状態確認API）
+
+**推定工数**: 30分（AIエージェント作業時間）
+- テスト作成・コミット: 15分
+- 実装・テスト通過・コミット: 15分
+
+**ステータス**: `TODO`
+
+**情報の明確性**:
+
+**明示された情報**:
+- 対象ファイル: src/app/api/sessions/[id]/process/route.ts
+- ProcessManager.startClaudeCode(sessionId, worktreePath, model)
+- セッションスキーマ: worktree_path, project関連
+
+**不明/要確認の情報**: なし
+
+---
+
+#### タスク31.3: プロセス状態表示コンポーネントの実装（TDD）
+
+**説明**:
+セッション詳細ページにClaude Codeプロセスの状態を表示し、再起動ボタンを提供するコンポーネントを実装する。
+
+**実装手順（TDD）**:
+1. **テスト作成**: `src/components/sessions/__tests__/ProcessStatus.test.tsx`にテストケースを作成
+   - プロセスが実行中の場合、緑のバッジと「実行中」を表示
+   - プロセスが停止中の場合、赤のバッジと「停止」、「再起動」ボタンを表示
+   - 再起動ボタンクリックでonRestart()コールバックが呼ばれる
+   - ローディング中の表示
+2. **テスト実行**: すべてのテストが失敗することを確認
+3. **テストコミット**: テストのみをコミット
+4. **実装**: `src/components/sessions/ProcessStatus.tsx`を作成
+   - Props: `running: boolean`, `loading: boolean`, `onRestart: () => void`
+   - 実行中: 緑のバッジ + 「実行中」テキスト
+   - 停止中: 赤のバッジ + 「停止」テキスト + 「再起動」ボタン
+   - ローディング: スピナー表示
+   - Tailwind CSSでスタイリング
+5. **テスト通過確認**: すべてのテストが通過することを確認
+6. **実装コミット**: 実装をコミット
+
+**技術的文脈**:
+- スタイリング: Tailwind CSS
+- アイコン: Lucide React（PlayCircle, StopCircle等）
+- 再起動ボタンは停止中のみ表示
+
+**受入基準**:
+- [ ] `src/components/sessions/ProcessStatus.tsx`ファイルが作成されている
+- [ ] プロセス実行中は緑のバッジと「実行中」が表示される
+- [ ] プロセス停止中は赤のバッジと「停止」が表示される
+- [ ] 停止中のみ「再起動」ボタンが表示される
+- [ ] 再起動ボタンクリックでonRestart()が呼ばれる
+- [ ] ローディング中はスピナーが表示される
+- [ ] テストがすべて通過する
+- [ ] ESLintエラーがゼロである
+- [ ] 2つのコミット（テスト、実装）が存在する
+
+**依存関係**: なし
+
+**推定工数**: 25分（AIエージェント作業時間）
+- テスト作成・コミット: 10分
+- 実装・テスト通過・コミット: 15分
+
+**ステータス**: `TODO`
+
+**情報の明確性**:
+
+**明示された情報**:
+- 対象ファイル: src/components/sessions/ProcessStatus.tsx（新規作成）
+- Props: running, loading, onRestart
+- スタイリング: Tailwind CSS
+- アイコン: Lucide React
+
+**不明/要確認の情報**: なし
+
+---
+
+#### タスク31.4: セッション詳細ページへのプロセス状態統合
+
+**説明**:
+セッション詳細ページ（`src/app/sessions/[id]/page.tsx`）にProcessStatusコンポーネントを統合し、プロセス状態確認と再起動機能を実装する。
+
+**実装手順**:
+1. **状態管理追加**: useStateでprocessRunning, processLoadingを管理
+2. **プロセス状態確認ロジック追加**:
+   - useEffectでマウント時にGET `/api/sessions/:id/process`を呼び出し
+   - WebSocket接続確立時にもプロセス状態を確認
+3. **再起動ハンドラー実装**:
+   - POST `/api/sessions/:id/process`を呼び出し
+   - 成功時、processRunningをtrueに更新
+   - 失敗時、トースト通知でエラーメッセージ表示
+4. **ProcessStatusコンポーネント配置**:
+   - ヘッダーエリアまたはメッセージ入力欄の上に配置
+   - running, loading, onRestartをpropsとして渡す
+5. **メッセージ送信時のエラーハンドリング**:
+   - プロセスが停止中の場合、送信を阻止してエラーメッセージ表示
+   - 「プロセスを再起動してください」と案内
+6. **動作確認**: サーバー再起動後、既存セッションでプロセス再起動が機能することを確認
+7. **コミット**: 実装をコミット
+
+**技術的文脈**:
+- 既存のuseWebSocketフックとの連携
+- トースト通知: react-hot-toast（既存使用）
+- fetch APIでAPIを呼び出し
+
+**受入基準**:
+- [ ] セッション詳細ページにProcessStatusコンポーネントが表示される
+- [ ] ページ読み込み時にプロセス状態が確認される
+- [ ] プロセスが停止中の場合、再起動ボタンが表示される
+- [ ] 再起動ボタンクリックでプロセスが起動される
+- [ ] プロセス起動成功後、状態が「実行中」に更新される
+- [ ] プロセス起動失敗時、エラートーストが表示される
+- [ ] プロセス停止中にメッセージ送信すると、エラーメッセージが表示される
+- [ ] ESLintエラーがゼロである
+- [ ] コミットが存在する
+
+**依存関係**:
+- タスク31.1（プロセス状態確認API）
+- タスク31.2（プロセス再起動API）
+- タスク31.3（ProcessStatusコンポーネント）
+
+**推定工数**: 40分（AIエージェント作業時間）
+- 状態管理・ロジック実装: 25分
+- 動作確認・コミット: 15分
+
+**ステータス**: `TODO`
+
+**情報の明確性**:
+
+**明示された情報**:
+- 対象ファイル: src/app/sessions/[id]/page.tsx
+- API: GET/POST /api/sessions/:id/process
+- コンポーネント: ProcessStatus
+- トースト: react-hot-toast
+
+**不明/要確認の情報**: なし
+
+---
+
+#### タスク31.5: WebSocketメッセージ送信時のプロセス確認
+
+**説明**:
+サーバーサイドのSessionWebSocketHandlerでメッセージ送信時にプロセスの存在を確認し、存在しない場合はエラーメッセージを返す。
+
+**実装手順**:
+1. **調査**: `src/lib/websocket/session-ws.ts`のメッセージハンドリングを確認
+2. **実装**:
+   - `input`メッセージ受信時、ProcessManager.hasProcess(sessionId)を確認
+   - プロセスが存在しない場合、エラーメッセージを返す
+   - `{ type: 'error', message: 'Claude Code process is not running. Please restart the process.' }`
+3. **クライアント対応**: useWebSocket.tsでerrorメッセージを処理
+   - エラーメッセージをトースト通知で表示
+4. **テスト追加**: WebSocketハンドラーのテストにプロセス未存在ケースを追加
+5. **コミット**: 実装をコミット
+
+**技術的文脈**:
+- SessionWebSocketHandler: src/lib/websocket/session-ws.ts
+- ProcessManager.sendInput()はプロセスが存在しない場合何もしない（現状）
+- エラーメッセージはWebSocket経由でクライアントに送信
+
+**受入基準**:
+- [ ] メッセージ送信時にプロセスの存在が確認される
+- [ ] プロセスが存在しない場合、errorメッセージがクライアントに送信される
+- [ ] クライアントでエラーメッセージがトースト通知で表示される
+- [ ] テストが追加され、すべて通過する
+- [ ] ESLintエラーがゼロである
+- [ ] コミットが存在する
+
+**依存関係**: タスク31.1（hasProcessメソッド）
+
+**推定工数**: 25分（AIエージェント作業時間）
+- サーバーサイド実装: 15分
+- クライアント対応・テスト: 10分
+
+**ステータス**: `TODO`
+
+**情報の明確性**:
+
+**明示された情報**:
+- 対象ファイル:
+  - src/lib/websocket/session-ws.ts（サーバー）
+  - src/hooks/useWebSocket.ts（クライアント）
+- エラーメッセージ形式: `{ type: 'error', message: '...' }`
+
+**不明/要確認の情報**: なし
+
+---
+
+### Phase 31完了基準
+
+- [ ] タスク31.1が完了している（プロセス状態確認API）
+- [ ] タスク31.2が完了している（プロセス再起動API）
+- [ ] タスク31.3が完了している（ProcessStatusコンポーネント）
+- [ ] タスク31.4が完了している（セッション詳細ページ統合）
+- [ ] タスク31.5が完了している（WebSocketエラーハンドリング）
+- [ ] セッション詳細ページでプロセス状態が表示される
+- [ ] プロセスが停止中の場合、再起動ボタンで起動できる
+- [ ] プロセス停止中のメッセージ送信でエラーが表示される
+- [ ] すべてのテストが通過している（`npm test`）
+- [ ] ESLintエラーがゼロである
+- [ ] すべてのコミットが作成されている
+
+### 解決される要件
+
+**docs/requirements.md**:
+- REQ-077: セッション詳細ページを表示した時、システムはClaude Codeプロセスの状態をUIで表示しなければならない
+- REQ-078: Claude Codeプロセスが停止している場合、システムは「プロセス再起動」ボタンを表示しなければならない
+- REQ-079: ユーザーが「プロセス再起動」ボタンをクリックした時、システムはClaude Codeプロセスを起動しなければならない
+- REQ-080: プロセスが正常に起動した時、システムはプロセス状態表示を「実行中」に更新しなければならない
+- REQ-081: プロセスの起動に失敗した場合、システムはエラーメッセージをユーザーに表示しなければならない
+- REQ-082: メッセージ送信時にプロセスが停止している場合、システムはエラーメッセージを表示しなければならない
+- REQ-083: WebSocket接続確立時、システムはプロセス状態を自動的に確認しなければならない
+
+### 技術的な学び
+
+- ProcessManagerでのプロセス状態管理
+- WebSocketとREST APIの連携パターン
+- リアルタイム状態同期のベストプラクティス
+- エラーハンドリングとユーザーフィードバック
