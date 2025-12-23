@@ -287,6 +287,18 @@ export class ProcessManager extends EventEmitter {
 
     return processData.info;
   }
+
+  /**
+   * プロセスが実行中かどうかを確認
+   *
+   * 指定されたセッションのプロセスが存在するかどうかを確認します。
+   *
+   * @param sessionId - 確認するセッションID
+   * @returns プロセスが実行中の場合はtrue、それ以外はfalse
+   */
+  hasProcess(sessionId: string): boolean {
+    return this.processes.has(sessionId);
+  }
 }
 
 /**

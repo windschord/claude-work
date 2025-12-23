@@ -267,6 +267,17 @@ export class SessionWebSocketHandler {
     content: string
   ): Promise<void> {
     try {
+      // プロセスの存在を確認
+      if (!this.processManager.hasProcess(sessionId)) {
+        logger.warn('Claude Code process not running', { sessionId });
+        const errorMessage: ServerMessage = {
+          type: 'error',
+          content: 'Claude Codeプロセスが実行されていません。プロセスを再起動してください。',
+        };
+        this.connectionManager.broadcast(sessionId, errorMessage);
+        return;
+      }
+
       await this.processManager.sendInput(sessionId, content);
       logger.info('Input sent to Claude Code', { sessionId });
     } catch (error) {
@@ -292,6 +303,17 @@ export class SessionWebSocketHandler {
     requestId: string
   ): Promise<void> {
     try {
+      // プロセスの存在を確認
+      if (!this.processManager.hasProcess(sessionId)) {
+        logger.warn('Claude Code process not running', { sessionId });
+        const errorMessage: ServerMessage = {
+          type: 'error',
+          content: 'Claude Codeプロセスが実行されていません。プロセスを再起動してください。',
+        };
+        this.connectionManager.broadcast(sessionId, errorMessage);
+        return;
+      }
+
       await this.processManager.sendInput(sessionId, `approve:${requestId}`);
       logger.info('Approval sent to Claude Code', { sessionId, requestId });
     } catch (error) {
@@ -321,6 +343,17 @@ export class SessionWebSocketHandler {
     requestId: string
   ): Promise<void> {
     try {
+      // プロセスの存在を確認
+      if (!this.processManager.hasProcess(sessionId)) {
+        logger.warn('Claude Code process not running', { sessionId });
+        const errorMessage: ServerMessage = {
+          type: 'error',
+          content: 'Claude Codeプロセスが実行されていません。プロセスを再起動してください。',
+        };
+        this.connectionManager.broadcast(sessionId, errorMessage);
+        return;
+      }
+
       await this.processManager.sendInput(sessionId, `deny:${requestId}`);
       logger.info('Denial sent to Claude Code', { sessionId, requestId });
     } catch (error) {

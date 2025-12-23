@@ -19,7 +19,8 @@ import { ConflictDialog } from '@/components/git/ConflictDialog';
 import { DeleteWorktreeDialog } from '@/components/git/DeleteWorktreeDialog';
 import { CommitHistory } from '@/components/git/CommitHistory';
 import { ScriptsPanel } from '@/components/scripts/ScriptsPanel';
-import { Toaster } from 'react-hot-toast';
+import { ProcessStatus } from '@/components/sessions/ProcessStatus';
+import { Toaster, toast } from 'react-hot-toast';
 import type { ServerMessage } from '@/types/websocket';
 
 // TerminalPanelをSSRなしで動的インポート（xtermはブラウザ専用）
@@ -60,11 +61,18 @@ export default function SessionDetailPage() {
   const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
   const [isConflictDialogOpen, setIsConflictDialogOpen] = useState(false);
   const [isDeleteWorktreeDialogOpen, setIsDeleteWorktreeDialogOpen] = useState(false);
+  const [processRunning, setProcessRunning] = useState(false);
+  const [processLoading, setProcessLoading] = useState(false);
 
   // WebSocketメッセージハンドラ（useCallbackで最適化）
   const onMessage = useCallback(
     (message: ServerMessage) => {
       handleWebSocketMessage(message);
+
+      // errorメッセージをトースト通知で表示
+      if (message.type === 'error') {
+        toast.error(message.content);
+      }
 
       // スクリプトログメッセージを処理（script-logsストアを更新）
       if (message.type === 'run_script_log') {
@@ -98,6 +106,39 @@ export default function SessionDetailPage() {
     fetchData();
   }, [sessionId, fetchSessionDetail]);
 
+  // プロセス状態確認関数
+  const checkProcessStatus = useCallback(async () => {
+    try {
+      setProcessLoading(true);
+      const response = await fetch(`/api/sessions/${sessionId}/process`, {
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setProcessRunning(data.running);
+      } else {
+        console.error('Failed to check process status:', response.statusText);
+      }
+    } catch (error) {
+      console.error('Failed to check process status:', error);
+    } finally {
+      setProcessLoading(false);
+    }
+  }, [sessionId]);
+
+  // 初回およびsessionId変更時にプロセス状態を確認
+  useEffect(() => {
+    checkProcessStatus();
+  }, [checkProcessStatus]);
+
+  // WebSocket接続確立時にもプロセス状態を確認（REQ-083）
+  useEffect(() => {
+    if (wsStatus === 'connected') {
+      checkProcessStatus();
+    }
+  }, [wsStatus, checkProcessStatus]);
+
   // Show permission dialog when permission request is available
   useEffect(() => {
     if (permissionRequest) {
@@ -130,8 +171,38 @@ export default function SessionDetailPage() {
     }
   }, [activeTab, sessionId, fetchDiff]);
 
+  const handleRestartProcess = useCallback(async () => {
+    try {
+      setProcessLoading(true);
+      const response = await fetch(`/api/sessions/${sessionId}/process`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setProcessRunning(data.running);
+        toast.success('プロセスを起動しました');
+      } else {
+        const errorData = await response.json();
+        toast.error(`プロセス起動に失敗しました: ${errorData.error || response.statusText}`);
+      }
+    } catch (error) {
+      console.error('Failed to restart process:', error);
+      toast.error('プロセス起動に失敗しました');
+    } finally {
+      setProcessLoading(false);
+    }
+  }, [sessionId]);
+
   const handleSendMessage = useCallback(
     (content: string) => {
+      // プロセスが停止している場合は送信を阻止
+      if (!processRunning) {
+        toast.error('プロセスが停止しています。再起動してください');
+        return;
+      }
+
       try {
         // WebSocket経由でメッセージ送信
         send({ type: 'input', content });
@@ -139,7 +210,7 @@ export default function SessionDetailPage() {
         console.error('Failed to send message:', error);
       }
     },
-    [send]
+    [send, processRunning]
   );
 
   const handleApprove = useCallback(
@@ -219,21 +290,28 @@ export default function SessionDetailPage() {
               <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
                 {currentSession.name}
               </h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                ステータス: {currentSession.status} | モデル: {currentSession.model}
-                {' | '}
-                <span
-                  className={`${
-                    wsStatus === 'connected'
-                      ? 'text-green-500'
-                      : wsStatus === 'connecting'
-                      ? 'text-yellow-500'
-                      : 'text-red-500'
-                  }`}
-                >
-                  WebSocket: {wsStatus}
-                </span>
-              </p>
+              <div className="flex items-center gap-4 mt-2">
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  ステータス: {currentSession.status} | モデル: {currentSession.model}
+                  {' | '}
+                  <span
+                    className={`${
+                      wsStatus === 'connected'
+                        ? 'text-green-500'
+                        : wsStatus === 'connecting'
+                        ? 'text-yellow-500'
+                        : 'text-red-500'
+                    }`}
+                  >
+                    WebSocket: {wsStatus}
+                  </span>
+                </p>
+                <ProcessStatus
+                  running={processRunning}
+                  loading={processLoading}
+                  onRestart={handleRestartProcess}
+                />
+              </div>
             </div>
             <div className="flex gap-2">
               <button
