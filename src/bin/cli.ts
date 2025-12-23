@@ -14,18 +14,20 @@ import path from 'path';
 import fs from 'fs';
 import dotenv from 'dotenv';
 
-// .envファイルを読み込む
-const dotenvResult = dotenv.config();
-if (dotenvResult.error) {
-  // .envファイルが見つからない場合は警告のみ（環境変数が直接設定されている場合があるため）
-  console.warn('Warning: Could not load .env file:', dotenvResult.error.message);
-}
-
 // CommonJSビルド時は__dirnameが利用可能
 const currentDir = __dirname;
 
 // プロジェクトルートを解決（dist/src/bin/ から3階層上）
 const projectRoot = path.resolve(currentDir, '..', '..', '..');
+
+// プロジェクトルートの.envファイルを読み込む
+const envPath = path.join(projectRoot, '.env');
+const dotenvResult = dotenv.config({ path: envPath });
+if (dotenvResult.error) {
+  // .envファイルが見つからない場合は警告のみ（環境変数が直接設定されている場合があるため）
+  console.warn('Warning: Could not load .env file from', envPath);
+  console.warn('  Error:', dotenvResult.error.message);
+}
 
 const PORT = process.env.PORT || '3000';
 
@@ -69,9 +71,10 @@ function startServer(): void {
   // server.jsのパスを解決
   const serverPath = path.resolve(currentDir, '..', '..', 'server.js');
 
-  // サーバーをspawn（本番モードで実行）
+  // サーバーをspawn（本番モードで実行、プロジェクトルートをcwdに設定）
   const server = spawn('node', [serverPath], {
     stdio: 'inherit',
+    cwd: projectRoot,
     env: { ...process.env, NODE_ENV: 'production', PORT },
   });
 
