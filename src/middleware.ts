@@ -17,18 +17,22 @@ import { NextRequest, NextResponse } from 'next/server';
  * ```
  */
 export function middleware(request: NextRequest) {
-  const allowedOrigins = process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(',').map((origin) => origin.trim())
-    : (process.env.NODE_ENV === 'production'
-      ? (() => {
-          console.warn('ALLOWED_ORIGINS not set in production - CORS will block all origins');
-          return [];
-        })()
-      : ['*']);
+  const port = process.env.PORT || '3000';
+  const defaultProductionOrigins = [
+    `http://localhost:${port}`,
+    `http://127.0.0.1:${port}`,
+  ];
 
-  // 本番環境でのワイルドカード使用を検証
-  if (process.env.NODE_ENV === 'production' && allowedOrigins.includes('*')) {
-    throw new Error('Security error: CORS wildcard (*) is not allowed in production. Please set explicit origins in ALLOWED_ORIGINS.');
+  let allowedOrigins: string[];
+  if (process.env.ALLOWED_ORIGINS && process.env.ALLOWED_ORIGINS !== '*') {
+    // 明示的にオリジンが指定されている場合
+    allowedOrigins = process.env.ALLOWED_ORIGINS.split(',').map((origin) => origin.trim());
+  } else if (process.env.NODE_ENV === 'production') {
+    // 本番環境ではlocalhost/127.0.0.1をデフォルトで許可
+    allowedOrigins = defaultProductionOrigins;
+  } else {
+    // 開発環境ではすべてのオリジンを許可
+    allowedOrigins = ['*'];
   }
 
   const origin = request.headers.get('origin');
