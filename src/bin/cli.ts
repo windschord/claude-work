@@ -30,10 +30,10 @@ console.log(`Starting ClaudeWork on port ${PORT}...`);
 // dist/src/bin/cli.js から dist/server.js への相対パス
 const serverPath = path.resolve(currentDir, '..', '..', 'server.js');
 
-// サーバーをspawn
+// サーバーをspawn（本番モードで実行）
 const server = spawn('node', [serverPath], {
   stdio: 'inherit',
-  env: { ...process.env, PORT },
+  env: { ...process.env, NODE_ENV: 'production', PORT },
 });
 
 // サーバー終了時の処理
