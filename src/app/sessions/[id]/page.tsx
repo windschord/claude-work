@@ -106,30 +106,38 @@ export default function SessionDetailPage() {
     fetchData();
   }, [sessionId, fetchSessionDetail]);
 
-  // プロセス状態確認
-  useEffect(() => {
-    const checkProcessStatus = async () => {
-      try {
-        setProcessLoading(true);
-        const response = await fetch(`/api/sessions/${sessionId}/process`, {
-          credentials: 'include',
-        });
+  // プロセス状態確認関数
+  const checkProcessStatus = useCallback(async () => {
+    try {
+      setProcessLoading(true);
+      const response = await fetch(`/api/sessions/${sessionId}/process`, {
+        credentials: 'include',
+      });
 
-        if (response.ok) {
-          const data = await response.json();
-          setProcessRunning(data.running);
-        } else {
-          console.error('Failed to check process status:', response.statusText);
-        }
-      } catch (error) {
-        console.error('Failed to check process status:', error);
-      } finally {
-        setProcessLoading(false);
+      if (response.ok) {
+        const data = await response.json();
+        setProcessRunning(data.running);
+      } else {
+        console.error('Failed to check process status:', response.statusText);
       }
-    };
-
-    checkProcessStatus();
+    } catch (error) {
+      console.error('Failed to check process status:', error);
+    } finally {
+      setProcessLoading(false);
+    }
   }, [sessionId]);
+
+  // 初回およびsessionId変更時にプロセス状態を確認
+  useEffect(() => {
+    checkProcessStatus();
+  }, [checkProcessStatus]);
+
+  // WebSocket接続確立時にもプロセス状態を確認（REQ-083）
+  useEffect(() => {
+    if (wsStatus === 'connected') {
+      checkProcessStatus();
+    }
+  }, [wsStatus, checkProcessStatus]);
 
   // Show permission dialog when permission request is available
   useEffect(() => {
