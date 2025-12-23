@@ -302,6 +302,36 @@ describe('ProcessManager', () => {
         'Session test-session-duplicate already exists'
       );
     });
+
+    it('should start process without prompt', async () => {
+      const options: StartOptions = {
+        sessionId: 'test-session-no-prompt',
+        worktreePath: '/path/to/worktree',
+      };
+
+      const info = await processManager.startClaudeCode(options);
+
+      expect(info).toEqual({
+        sessionId: 'test-session-no-prompt',
+        pid: 12345,
+        status: 'running',
+      });
+      expect(mockChildProcess.stdin.write).not.toHaveBeenCalled();
+    });
+
+    it('should allow sending input after starting without prompt', async () => {
+      const options: StartOptions = {
+        sessionId: 'test-session-no-prompt-then-input',
+        worktreePath: '/path/to/worktree',
+      };
+
+      await processManager.startClaudeCode(options);
+      vi.clearAllMocks();
+
+      await processManager.sendInput('test-session-no-prompt-then-input', 'delayed prompt');
+
+      expect(mockChildProcess.stdin.write).toHaveBeenCalledWith('delayed prompt\n');
+    });
   });
 
   describe('sendInput', () => {
