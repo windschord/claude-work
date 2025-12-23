@@ -1308,7 +1308,7 @@ const token = process.env.CLAUDE_WORK_TOKEN || 'test-token';
 
 ---
 
-#### タスク31.1: プロセス状態確認APIの実装（TDD）
+### タスク31.1: プロセス状態確認APIの実装（TDD）
 
 **説明**:
 セッションのClaude Codeプロセスが実行中かどうかを確認するAPIエンドポイントを実装する。
@@ -1361,7 +1361,7 @@ const token = process.env.CLAUDE_WORK_TOKEN || 'test-token';
 
 ---
 
-#### タスク31.2: プロセス再起動APIの実装（TDD）
+### タスク31.2: プロセス再起動APIの実装（TDD）
 
 **説明**:
 停止中のセッションのClaude Codeプロセスを再起動するAPIエンドポイントを実装する。
@@ -1417,7 +1417,7 @@ const token = process.env.CLAUDE_WORK_TOKEN || 'test-token';
 
 ---
 
-#### タスク31.3: プロセス状態表示コンポーネントの実装（TDD）
+### タスク31.3: プロセス状態表示コンポーネントの実装（TDD）
 
 **説明**:
 セッション詳細ページにClaude Codeプロセスの状態を表示し、再起動ボタンを提供するコンポーネントを実装する。
@@ -1475,7 +1475,7 @@ const token = process.env.CLAUDE_WORK_TOKEN || 'test-token';
 
 ---
 
-#### タスク31.4: セッション詳細ページへのプロセス状態統合
+### タスク31.4: セッション詳細ページへのプロセス状態統合
 
 **説明**:
 セッション詳細ページ（`src/app/sessions/[id]/page.tsx`）にProcessStatusコンポーネントを統合し、プロセス状態確認と再起動機能を実装する。
@@ -1537,7 +1537,7 @@ const token = process.env.CLAUDE_WORK_TOKEN || 'test-token';
 
 ---
 
-#### タスク31.5: WebSocketメッセージ送信時のプロセス確認
+### タスク31.5: WebSocketメッセージ送信時のプロセス確認
 
 **説明**:
 サーバーサイドのSessionWebSocketHandlerでメッセージ送信時にプロセスの存在を確認し、存在しない場合はエラーメッセージを返す。

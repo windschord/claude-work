@@ -50,7 +50,7 @@ function buildNext(): boolean {
   const result = spawnSync(npmCmd, ['run', 'build:next'], {
     cwd: projectRoot,
     stdio: 'inherit',
-    env: { ...process.env },
+    env: { ...process.env, NODE_ENV: 'production' },
   });
 
   if (result.status !== 0) {
