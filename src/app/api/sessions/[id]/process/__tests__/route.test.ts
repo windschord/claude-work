@@ -9,15 +9,21 @@ import { execSync } from 'child_process';
 import { randomUUID } from 'crypto';
 import type { AuthSession, Project, Session } from '@prisma/client';
 
-const mockHasProcess = vi.fn();
+vi.mock('@/services/process-manager', () => {
+  const mockHasProcess = vi.fn();
+  return {
+    ProcessManager: {
+      getInstance: vi.fn(() => ({
+        hasProcess: mockHasProcess,
+      })),
+    },
+    mockHasProcess,
+  };
+});
 
-vi.mock('@/services/process-manager', () => ({
-  ProcessManager: {
-    getInstance: vi.fn(() => ({
-      hasProcess: mockHasProcess,
-    })),
-  },
-}));
+const { mockHasProcess } = await import('@/services/process-manager') as {
+  mockHasProcess: ReturnType<typeof vi.fn>;
+};
 
 describe('GET /api/sessions/[id]/process', () => {
   let testRepoPath: string;
