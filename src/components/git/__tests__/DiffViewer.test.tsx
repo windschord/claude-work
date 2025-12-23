@@ -42,6 +42,8 @@ describe('DiffViewer', () => {
         totalDeletions: 1,
       },
       selectedFile: null,
+      isDiffLoading: false,
+      diffError: null,
     });
 
     render(<DiffViewer />);
@@ -65,6 +67,8 @@ describe('DiffViewer', () => {
         totalDeletions: 1,
       },
       selectedFile: 'selected.ts',
+      isDiffLoading: false,
+      diffError: null,
     });
 
     render(<DiffViewer />);
@@ -92,6 +96,8 @@ describe('DiffViewer', () => {
         totalDeletions: 0,
       },
       selectedFile: 'new-file.ts',
+      isDiffLoading: false,
+      diffError: null,
     });
 
     render(<DiffViewer />);
@@ -119,6 +125,8 @@ describe('DiffViewer', () => {
         totalDeletions: 3,
       },
       selectedFile: 'deleted-file.ts',
+      isDiffLoading: false,
+      diffError: null,
     });
 
     render(<DiffViewer />);
@@ -129,10 +137,12 @@ describe('DiffViewer', () => {
     expect(screen.getByText('-3')).toBeInTheDocument();
   });
 
-  it('diffがnullの場合、読み込み中メッセージを表示する', () => {
+  it('ローディング中の場合、読み込み中メッセージを表示する', () => {
     (useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       diff: null,
       selectedFile: null,
+      isDiffLoading: true,
+      diffError: null,
     });
 
     render(<DiffViewer />);
@@ -156,6 +166,8 @@ describe('DiffViewer', () => {
         totalDeletions: 1,
       },
       selectedFile: 'non-existent.ts',
+      isDiffLoading: false,
+      diffError: null,
     });
 
     render(<DiffViewer />);
@@ -179,6 +191,8 @@ describe('DiffViewer', () => {
         totalDeletions: 3,
       },
       selectedFile: 'modified.ts',
+      isDiffLoading: false,
+      diffError: null,
     });
 
     render(<DiffViewer />);
