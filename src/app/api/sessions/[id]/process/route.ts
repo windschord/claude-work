@@ -147,11 +147,10 @@ export async function POST(
       });
     }
 
-    // プロセスを起動
+    // プロセスを起動（promptなしで起動）
     await processManager.startClaudeCode({
       sessionId: targetSession.id,
       worktreePath: targetSession.worktree_path,
-      prompt: '',
       model: targetSession.model || undefined,
     });
 
