@@ -132,6 +132,52 @@ function getSettingKey(type: NotificationEventType): keyof NotificationSettings 
 }
 
 /**
+ * イベント種別に応じた通知タイトルを取得する
+ *
+ * @param event - 通知イベント
+ * @returns 通知タイトル
+ */
+function getTitle(event: NotificationEvent): string {
+  switch (event.type) {
+    case 'taskComplete':
+      return `タスク完了: ${event.sessionName}`;
+    case 'permissionRequest':
+      return `アクション要求: ${event.sessionName}`;
+    case 'error':
+      return `エラー発生: ${event.sessionName}`;
+  }
+}
+
+/**
+ * イベント種別に応じたデフォルトの通知本文を取得する
+ *
+ * @param event - 通知イベント
+ * @returns デフォルトの通知本文
+ */
+function getDefaultBody(event: NotificationEvent): string {
+  return getDefaultMessage(event.type);
+}
+
+/**
+ * OS通知を表示する
+ *
+ * @param event - 通知イベント
+ */
+function showOSNotification(event: NotificationEvent): void {
+  const notification = new Notification(getTitle(event), {
+    body: event.message || getDefaultBody(event),
+    icon: '/icon.png',
+    tag: `claudework-${event.sessionId}`,
+  });
+
+  notification.onclick = () => {
+    window.focus();
+    window.location.href = `/sessions/${event.sessionId}`;
+    notification.close();
+  };
+}
+
+/**
  * 通知を送信する
  *
  * タブがアクティブな場合はtoast通知、
@@ -165,11 +211,7 @@ export function sendNotification(event: NotificationEvent): void {
       'Notification' in window &&
       Notification.permission === 'granted'
     ) {
-      new Notification('ClaudeWork', {
-        body: fullMessage,
-        icon: '/favicon.ico',
-        tag: event.sessionId,
-      });
+      showOSNotification(event);
     }
   }
 }

@@ -300,10 +300,10 @@ describe('notification-service', () => {
       sendNotification(mockEvent);
 
       expect(toast.success).not.toHaveBeenCalled();
-      expect(mockNotification).toHaveBeenCalledWith('ClaudeWork', {
-        body: 'Test Session: タスクが完了しました',
-        icon: '/favicon.ico',
-        tag: 'session-123',
+      expect(mockNotification).toHaveBeenCalledWith('タスク完了: Test Session', {
+        body: 'タスクが完了しました',
+        icon: '/icon.png',
+        tag: 'claudework-session-123',
       });
     });
 
@@ -323,10 +323,10 @@ describe('notification-service', () => {
       sendNotification(event);
 
       expect(toast.success).not.toHaveBeenCalled();
-      expect(mockNotification).toHaveBeenCalledWith('ClaudeWork', {
-        body: 'Another Session: 権限確認が必要です',
-        icon: '/favicon.ico',
-        tag: 'session-456',
+      expect(mockNotification).toHaveBeenCalledWith('アクション要求: Another Session', {
+        body: '権限確認が必要です',
+        icon: '/icon.png',
+        tag: 'claudework-session-456',
       });
     });
 
@@ -376,6 +376,243 @@ describe('notification-service', () => {
       sendNotification(event);
 
       expect(toast.error).toHaveBeenCalledWith('Test Session: エラーが発生しました');
+    });
+
+    it('OS通知クリック時にウィンドウがフォーカスされセッションページに遷移する（taskComplete）', () => {
+      Object.defineProperty(document, 'visibilityState', {
+        value: 'hidden',
+        writable: true,
+      });
+
+      const mockFocus = vi.fn();
+      const mockClose = vi.fn();
+      let capturedOnClick: (() => void) | null = null;
+      let capturedHref: string | null = null;
+
+      Object.defineProperty(window, 'focus', {
+        value: mockFocus,
+        writable: true,
+      });
+
+      // window.location.href への代入をキャプチャ
+      Object.defineProperty(window, 'location', {
+        value: {
+          set href(value: string) {
+            capturedHref = value;
+          },
+          get href() {
+            return capturedHref || 'http://localhost:3000/';
+          },
+        },
+        writable: true,
+      });
+
+      // コンストラクタとして動作するモックを作成
+      const NotificationConstructor = function (
+        this: { onclick: (() => void) | null; close: () => void },
+        _title: string,
+        _options: NotificationOptions
+      ) {
+        this.onclick = null;
+        this.close = mockClose;
+        // onclickプロパティに代入された値をキャプチャするためのプロキシ
+        Object.defineProperty(this, 'onclick', {
+          set: (handler) => {
+            capturedOnClick = handler;
+          },
+          get: () => capturedOnClick,
+        });
+      } as unknown as typeof Notification;
+
+      NotificationConstructor.permission = 'granted';
+
+      Object.defineProperty(global, 'Notification', {
+        value: NotificationConstructor,
+        writable: true,
+      });
+
+      const event: NotificationEvent = {
+        type: 'taskComplete',
+        sessionId: 'session-123',
+        sessionName: 'Test Session',
+      };
+
+      sendNotification(event);
+
+      expect(capturedOnClick).toBeDefined();
+
+      // onclickハンドラを実行
+      if (capturedOnClick) {
+        capturedOnClick();
+      }
+
+      expect(mockFocus).toHaveBeenCalledOnce();
+      expect(capturedHref).toBe('/sessions/session-123');
+      expect(mockClose).toHaveBeenCalledOnce();
+
+      // モックを元に戻す
+      Object.defineProperty(global, 'Notification', {
+        value: mockNotification,
+        writable: true,
+      });
+    });
+
+    it('OS通知クリック時にウィンドウがフォーカスされセッションページに遷移する（permissionRequest）', () => {
+      Object.defineProperty(document, 'visibilityState', {
+        value: 'hidden',
+        writable: true,
+      });
+
+      const mockFocus = vi.fn();
+      const mockClose = vi.fn();
+      let capturedOnClick: (() => void) | null = null;
+      let capturedHref: string | null = null;
+
+      Object.defineProperty(window, 'focus', {
+        value: mockFocus,
+        writable: true,
+      });
+
+      // window.location.href への代入をキャプチャ
+      Object.defineProperty(window, 'location', {
+        value: {
+          set href(value: string) {
+            capturedHref = value;
+          },
+          get href() {
+            return capturedHref || 'http://localhost:3000/';
+          },
+        },
+        writable: true,
+      });
+
+      // コンストラクタとして動作するモックを作成
+      const NotificationConstructor = function (
+        this: { onclick: (() => void) | null; close: () => void },
+        _title: string,
+        _options: NotificationOptions
+      ) {
+        this.onclick = null;
+        this.close = mockClose;
+        // onclickプロパティに代入された値をキャプチャするためのプロキシ
+        Object.defineProperty(this, 'onclick', {
+          set: (handler) => {
+            capturedOnClick = handler;
+          },
+          get: () => capturedOnClick,
+        });
+      } as unknown as typeof Notification;
+
+      NotificationConstructor.permission = 'granted';
+
+      Object.defineProperty(global, 'Notification', {
+        value: NotificationConstructor,
+        writable: true,
+      });
+
+      const event: NotificationEvent = {
+        type: 'permissionRequest',
+        sessionId: 'session-456',
+        sessionName: 'Another Session',
+      };
+
+      sendNotification(event);
+
+      expect(capturedOnClick).toBeDefined();
+
+      // onclickハンドラを実行
+      if (capturedOnClick) {
+        capturedOnClick();
+      }
+
+      expect(mockFocus).toHaveBeenCalledOnce();
+      expect(capturedHref).toBe('/sessions/session-456');
+      expect(mockClose).toHaveBeenCalledOnce();
+
+      // モックを元に戻す
+      Object.defineProperty(global, 'Notification', {
+        value: mockNotification,
+        writable: true,
+      });
+    });
+
+    it('OS通知クリック時にウィンドウがフォーカスされセッションページに遷移する（error）', () => {
+      Object.defineProperty(document, 'visibilityState', {
+        value: 'hidden',
+        writable: true,
+      });
+
+      const mockFocus = vi.fn();
+      const mockClose = vi.fn();
+      let capturedOnClick: (() => void) | null = null;
+      let capturedHref: string | null = null;
+
+      Object.defineProperty(window, 'focus', {
+        value: mockFocus,
+        writable: true,
+      });
+
+      // window.location.href への代入をキャプチャ
+      Object.defineProperty(window, 'location', {
+        value: {
+          set href(value: string) {
+            capturedHref = value;
+          },
+          get href() {
+            return capturedHref || 'http://localhost:3000/';
+          },
+        },
+        writable: true,
+      });
+
+      // コンストラクタとして動作するモックを作成
+      const NotificationConstructor = function (
+        this: { onclick: (() => void) | null; close: () => void },
+        _title: string,
+        _options: NotificationOptions
+      ) {
+        this.onclick = null;
+        this.close = mockClose;
+        // onclickプロパティに代入された値をキャプチャするためのプロキシ
+        Object.defineProperty(this, 'onclick', {
+          set: (handler) => {
+            capturedOnClick = handler;
+          },
+          get: () => capturedOnClick,
+        });
+      } as unknown as typeof Notification;
+
+      NotificationConstructor.permission = 'granted';
+
+      Object.defineProperty(global, 'Notification', {
+        value: NotificationConstructor,
+        writable: true,
+      });
+
+      const event: NotificationEvent = {
+        type: 'error',
+        sessionId: 'session-789',
+        sessionName: 'Error Session',
+      };
+
+      sendNotification(event);
+
+      expect(capturedOnClick).toBeDefined();
+
+      // onclickハンドラを実行
+      if (capturedOnClick) {
+        capturedOnClick();
+      }
+
+      expect(mockFocus).toHaveBeenCalledOnce();
+      expect(capturedHref).toBe('/sessions/session-789');
+      expect(mockClose).toHaveBeenCalledOnce();
+
+      // モックを元に戻す
+      Object.defineProperty(global, 'Notification', {
+        value: mockNotification,
+        writable: true,
+      });
     });
   });
 });
