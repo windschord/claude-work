@@ -101,18 +101,36 @@ interface AppState {
   // 認証
   isAuthenticated: boolean;
   token: string | null;
-  
+
   // プロジェクト
   projects: Project[];
   selectedProjectId: string | null;
-  
+
   // セッション
   sessions: Session[];
   selectedSessionId: string | null;
-  
+
   // UI
   theme: 'light' | 'dark' | 'system';
   isMobile: boolean;
+}
+
+// 通知設定（別ストアとして実装）
+interface NotificationState {
+  // 通知許可状態
+  permission: 'default' | 'granted' | 'denied';
+
+  // イベント別通知設定
+  settings: {
+    onTaskComplete: boolean;    // タスク完了時
+    onPermissionRequest: boolean; // 権限要求時
+    onError: boolean;           // エラー発生時
+  };
+
+  // アクション
+  requestPermission: () => Promise<void>;
+  updateSettings: (settings: Partial<NotificationSettings>) => void;
+  sendNotification: (event: NotificationEvent) => void;
 }
 ```
 
@@ -125,6 +143,51 @@ interface AppState {
 - ターミナル入出力の送受信
 - ランスクリプト出力のストリーミング受信
 - 接続状態の管理と自動再接続
+
+#### コンポーネント: Notification Service
+
+**目的**: ブラウザ通知とアプリ内toast通知の管理
+
+**責務**:
+- ブラウザ通知権限のリクエストと状態管理
+- OS通知（Notification API）の送信
+- アプリ内toast通知の送信
+- タブのアクティブ/バックグラウンド状態の検出
+- イベント別通知設定の管理と永続化
+
+**実装場所**: `src/lib/notification-service.ts`
+
+**対応イベント**:
+| イベント | OS通知タイトル | 条件 |
+|----------|----------------|------|
+| タスク完了 | タスク完了: [セッション名] | `status_change` で `completed` |
+| 権限要求 | アクション要求: [セッション名] | `permission_request` メッセージ |
+| エラー発生 | エラー発生: [セッション名] | `status_change` で `error` または `error` メッセージ |
+
+**通知ルーティング**:
+```typescript
+function sendNotification(event: NotificationEvent): void {
+  const settings = getSettings();
+
+  // イベント別の有効/無効チェック
+  if (!isEventEnabled(event.type, settings)) return;
+
+  // タブのアクティブ状態で通知方法を切り替え
+  if (document.visibilityState === 'visible') {
+    // アプリ内toast通知
+    showToast(event);
+  } else {
+    // OS通知（権限がある場合のみ）
+    if (Notification.permission === 'granted') {
+      showOSNotification(event);
+    }
+  }
+}
+```
+
+**設定の永続化**:
+- ローカルストレージのキー: `claudework:notification-settings`
+- デフォルト: すべてのイベントで通知有効
 
 ### バックエンド
 
@@ -356,6 +419,64 @@ sequenceDiagram
     PTY-->>WS: broadcast(output)
     WS-->>XT: onMessage(output)
     XT-->>U: 出力表示
+```
+
+### シーケンス: ブラウザ通知
+
+```mermaid
+sequenceDiagram
+    participant CC as Claude Code
+    participant PM as Process Manager
+    participant WS as WebSocket
+    participant F as Frontend
+    participant NS as Notification Service
+    participant OS as OS Notification
+
+    CC->>PM: プロセス終了（completed/error）
+    PM->>WS: broadcast(status_change)
+    WS->>F: onMessage(status_change)
+    F->>NS: sendNotification(event)
+
+    NS->>NS: イベント設定チェック
+
+    alt 設定が無効
+        NS-->>NS: 通知スキップ
+    else タブがアクティブ
+        NS->>F: toast.success/error()
+        F-->>F: toast表示
+    else タブがバックグラウンド
+        NS->>NS: Notification.permission確認
+        alt 権限あり
+            NS->>OS: new Notification()
+            OS-->>OS: デスクトップ通知表示
+            Note over OS: クリックでタブにフォーカス
+        else 権限なし
+            NS-->>NS: 通知スキップ
+        end
+    end
+```
+
+### シーケンス: 通知許可リクエスト
+
+```mermaid
+sequenceDiagram
+    participant U as ユーザー
+    participant F as Frontend
+    participant NS as Notification Service
+    participant Browser as ブラウザ
+
+    U->>F: セッションページにアクセス
+    F->>NS: checkPermission()
+
+    alt 許可状態が 'default'
+        NS->>Browser: Notification.requestPermission()
+        Browser->>U: 通知許可ダイアログ表示
+        U->>Browser: 許可/拒否
+        Browser-->>NS: 'granted' | 'denied'
+        NS->>NS: 許可状態を保存
+    else 許可状態が 'granted' or 'denied'
+        NS-->>NS: リクエストスキップ
+    end
 ```
 
 ## API設計
