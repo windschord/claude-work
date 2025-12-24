@@ -183,6 +183,10 @@ export interface AppState {
   diff: DiffData | null;
   /** 選択中のファイル */
   selectedFile: string | null;
+  /** Diff読み込み中フラグ */
+  isDiffLoading: boolean;
+  /** Diffエラーメッセージ */
+  diffError: string | null;
 
   /** Git操作のローディング状態 */
   isGitOperationLoading: boolean;
@@ -285,6 +289,8 @@ const initialState = {
   permissionRequest: null,
   diff: null,
   selectedFile: null,
+  isDiffLoading: false,
+  diffError: null,
   isGitOperationLoading: false,
   conflictFiles: null,
   error: null,
@@ -781,26 +787,57 @@ export const useAppStore = create<AppState>((set) => ({
   },
 
   fetchDiff: async (sessionId: string) => {
+    // ローディング開始、エラーをクリア
+    set({ isDiffLoading: true, diffError: null });
+
+    // エラー状態を追跡するローカル変数（getState()を避けるため）
+    let errorAlreadySet = false;
+
     try {
       const response = await fetch(`/api/sessions/${sessionId}/diff`);
 
       if (!response.ok) {
+        let errorMessage = '差分の取得に失敗しました';
         if (response.status === 404) {
-          throw new Error('セッションが見つかりません');
+          errorMessage = 'セッションが見つかりません';
+        } else if (response.status === 401) {
+          errorMessage = '認証エラーが発生しました';
         }
-        throw new Error('差分の取得に失敗しました');
+        set({ isDiffLoading: false, diffError: errorMessage });
+        errorAlreadySet = true;
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
-      set({ diff: data.diff });
+
+      // data.diffがundefinedまたはnullの場合のガード
+      if (data.diff == null) {
+        set({ isDiffLoading: false, diffError: 'APIレスポンスの形式が不正です' });
+        errorAlreadySet = true;
+        throw new Error('APIレスポンスの形式が不正です');
+      }
+
+      set({ diff: data.diff, isDiffLoading: false, diffError: null });
     } catch (error) {
       if (error instanceof Error) {
+        // ネットワークエラー
         if (error.message.includes('Failed to fetch') || error.message.includes('Network')) {
-          throw new Error('ネットワークエラーが発生しました');
+          const errorMessage = 'ネットワークエラーが発生しました';
+          set({ isDiffLoading: false, diffError: errorMessage });
+          throw new Error(errorMessage);
         }
+        // 既にエラー状態を設定済みならそのまま投げる
+        if (errorAlreadySet) {
+          throw error;
+        }
+        // その他のエラー（JSON解析エラー等）
+        const errorMessage = '差分の取得に失敗しました';
+        set({ isDiffLoading: false, diffError: errorMessage });
         throw error;
       }
-      throw new Error('差分の取得に失敗しました');
+      const errorMessage = '差分の取得に失敗しました';
+      set({ isDiffLoading: false, diffError: errorMessage });
+      throw new Error(errorMessage);
     }
   },
 

@@ -18,17 +18,49 @@ const ReactDiffViewer = dynamic(() => import('react-diff-viewer-continued'), {
  * @returns Diffビューアのジェーエスエックス要素
  */
 export function DiffViewer() {
-  const { diff, selectedFile } = useAppStore();
+  const { diff, selectedFile, isDiffLoading, diffError } = useAppStore();
 
   const selectedFileData = useMemo(() => {
     if (!diff || !selectedFile) return null;
     return diff.files.find((f) => f.path === selectedFile);
   }, [diff, selectedFile]);
 
-  if (!diff) {
+  // Debug logging
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[DiffViewer] State:', { diff, selectedFile, selectedFileData, isDiffLoading, diffError });
+  }
+
+  // ローディング中の表示
+  if (isDiffLoading) {
     return (
       <div className="flex-1 flex items-center justify-center p-8">
         <p className="text-gray-500 dark:text-gray-400">差分を読み込み中...</p>
+      </div>
+    );
+  }
+
+  // エラー時の表示
+  if (diffError) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-8">
+        <div className="text-center">
+          <p className="text-red-600 dark:text-red-400 mb-2">{diffError}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            ページを再読み込みするか、もう一度お試しください
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // diffがnullまたはundefinedの場合（初期状態）
+  if (!diff) {
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('[DiffViewer] diff is null or undefined, but not loading and no error');
+    }
+    return (
+      <div className="flex-1 flex items-center justify-center p-8">
+        <p className="text-gray-500 dark:text-gray-400">Diffタブを選択すると差分を表示します</p>
       </div>
     );
   }

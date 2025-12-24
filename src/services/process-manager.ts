@@ -10,8 +10,8 @@ export interface StartOptions {
   sessionId: string;
   /** worktreeのパス */
   worktreePath: string;
-  /** Claude Codeに送信する初期プロンプト */
-  prompt: string;
+  /** Claude Codeに送信する初期プロンプト（オプション） */
+  prompt?: string;
   /** 使用するモデル名（オプション） */
   model?: string;
 }
@@ -160,7 +160,11 @@ export class ProcessManager extends EventEmitter {
         });
 
         this.setupProcessListeners(sessionId, childProc);
-        childProc.stdin.write(`${prompt}\n`);
+
+        // promptが指定されている場合のみstdinに書き込む
+        if (prompt !== undefined && prompt !== '') {
+          childProc.stdin.write(`${prompt}\n`);
+        }
 
         resolve(info);
       });
