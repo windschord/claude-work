@@ -158,6 +158,7 @@ interface NotificationState {
 **実装場所**: `src/lib/notification-service.ts`
 
 **対応イベント**:
+
 | イベント | OS通知タイトル | 条件 |
 |----------|----------------|------|
 | タスク完了 | タスク完了: [セッション名] | `status_change` で `completed` |

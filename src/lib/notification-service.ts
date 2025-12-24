@@ -43,6 +43,14 @@ export function getSettings(): NotificationSettings {
     }
 
     const parsed = JSON.parse(stored) as NotificationSettings;
+    // 必須フィールドの存在確認
+    if (
+      typeof parsed.onTaskComplete !== 'boolean' ||
+      typeof parsed.onPermissionRequest !== 'boolean' ||
+      typeof parsed.onError !== 'boolean'
+    ) {
+      return DEFAULT_SETTINGS;
+    }
     return parsed;
   } catch {
     return DEFAULT_SETTINGS;

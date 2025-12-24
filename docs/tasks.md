@@ -1857,7 +1857,7 @@ await processManager.startClaudeCode({
 5. 実装コミット: すべてのテストが通過したらコミット
 
 **ファイル構成**:
-```
+```text
 src/lib/notification-service.ts
 src/lib/__tests__/notification-service.test.ts
 ```

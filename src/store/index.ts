@@ -968,8 +968,9 @@ export const useAppStore = create<AppState>((set) => ({
         break;
 
       case 'permission_request':
-        set((state) => {
-          // 通知を送信
+        {
+          const state = useAppStore.getState();
+          // 通知を送信（状態更新の前に実行）
           sendNotification({
             type: 'permissionRequest',
             sessionId: state.currentSession?.id || '',
@@ -977,20 +978,21 @@ export const useAppStore = create<AppState>((set) => ({
             message: message.permission?.action,
           });
 
-          return {
+          set({
             permissionRequest: {
               id: message.permission.requestId,
               type: message.permission.action,
               description: message.permission.action,
               details: message.permission.details,
             },
-          };
-        });
+          });
+        }
         break;
 
       case 'status_change':
-        set((state) => {
-          // 通知を送信
+        {
+          const state = useAppStore.getState();
+          // 通知を送信（状態更新の前に実行）
           if (message.status === 'completed') {
             sendNotification({
               type: 'taskComplete',
@@ -1006,7 +1008,7 @@ export const useAppStore = create<AppState>((set) => ({
             });
           }
 
-          return {
+          set({
             // セッション一覧のステータスを更新
             sessions: state.sessions.map((s) =>
               s.id === state.selectedSessionId
@@ -1017,8 +1019,8 @@ export const useAppStore = create<AppState>((set) => ({
             currentSession: state.currentSession
               ? { ...state.currentSession, status: message.status }
               : null,
-          };
-        });
+          });
+        }
         break;
 
       case 'error':
