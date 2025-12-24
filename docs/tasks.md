@@ -1893,6 +1893,27 @@ export function saveSettings(settings: NotificationSettings): void;
 export function requestPermission(): Promise<NotificationPermission>;
 export function sendNotification(event: NotificationEvent): void;
 export function isTabActive(): boolean;
+
+// sendNotification の通知ルーティングロジック
+function sendNotification(event: NotificationEvent): void {
+  const settings = getSettings();
+  // イベント種別に応じた設定チェック
+  if (!settings[getSettingKey(event.type)]) return;
+
+  if (isTabActive()) {
+    // タブがアクティブ → react-hot-toast で表示
+    if (event.type === 'error') {
+      toast.error(message);
+    } else {
+      toast.success(message);
+    }
+  } else {
+    // タブがバックグラウンド → OS通知（Notification API）
+    if (Notification.permission === 'granted') {
+      new Notification(title, { body, icon, tag });
+    }
+  }
+}
 ```
 
 **受入基準**:
@@ -1969,6 +1990,8 @@ export const useNotificationStore = create<NotificationState>((set) => ({
   },
 }));
 ```
+
+**注意**: `initializeFromStorage()`はNotificationSettingsコンポーネント（タスク34.5）のマウント時に呼び出す。これにより、ローカルストレージから設定が読み込まれ、UIと同期される。
 
 **受入基準**:
 - [ ] テストファイル`src/store/__tests__/notification.test.ts`が存在する
@@ -2065,9 +2088,12 @@ const { permission, requestPermission } = useNotificationStore();
 
 useEffect(() => {
   if (permission === 'default') {
+    // 非同期処理だがawaitは不要（結果はストアに保存される）
     requestPermission();
   }
 }, [permission, requestPermission]);
+// 注: sessionIdは依存配列に含めない。通知許可はブラウザ全体で1回のみリクエストすればよい。
+// セッション変更時に再リクエストは不要。
 ```
 
 **受入基準**:
@@ -2092,8 +2118,15 @@ useEffect(() => {
 2. テスト実行: すべてのテストが失敗することを確認
 3. テストコミット: テストのみをコミット
 4. 実装: `src/components/common/NotificationSettings.tsx`を実装
-5. ヘッダーコンポーネントにNotificationSettingsを追加
+5. ヘッダーコンポーネント（`src/components/layout/Header.tsx`）にNotificationSettingsを追加
+   - ThemeToggleの左側に配置
+   - `import { NotificationSettings } from '@/components/common/NotificationSettings';`
 6. 実装コミット: すべてのテストが通過したらコミット
+
+**レイアウト**:
+- 配置: ヘッダー右側、ThemeToggleの左隣
+- ドロップダウン: `absolute right-0`で右寄せ、幅264px
+- レスポンシブ: モバイルでも同じ配置（ドロップダウンは画面内に収まる）
 
 **ファイル構成**:
 ```text
@@ -2179,8 +2212,10 @@ export function NotificationSettings() {
 - [ ] テストが5つ以上含まれている
 - [ ] 実装前にテストのみのコミットが存在する
 - [ ] `src/components/common/NotificationSettings.tsx`が実装されている
-- [ ] ヘッダーに通知アイコンが表示される
+- [ ] `src/components/layout/Header.tsx`にNotificationSettingsがインポート・配置されている
+- [ ] ヘッダーに通知アイコンが表示される（ThemeToggleの左隣）
 - [ ] クリックで設定ドロップダウンが開く
+- [ ] ドロップダウン外クリックで閉じる
 - [ ] チェックボックスで各イベントの通知をオン/オフできる
 - [ ] 設定変更が即座にローカルストレージに保存される
 - [ ] 通知がブロックされている場合に警告が表示される
