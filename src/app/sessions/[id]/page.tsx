@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { useAppStore } from '@/store';
 import { useScriptLogStore } from '@/store/script-logs';
+import { useNotificationStore } from '@/store/notification';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { AuthGuard } from '@/components/AuthGuard';
 import { MainLayout } from '@/components/layout/MainLayout';
@@ -55,6 +56,8 @@ export default function SessionDetailPage() {
     checkAuth,
     handleWebSocketMessage,
   } = useAppStore();
+
+  const { permission, requestPermission } = useNotificationStore();
 
   const [isPermissionDialogOpen, setIsPermissionDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'chat' | 'diff' | 'commits' | 'terminal' | 'scripts'>('chat');
@@ -149,6 +152,13 @@ export default function SessionDetailPage() {
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
+
+  // Request notification permission on first visit
+  useEffect(() => {
+    if (permission === 'default') {
+      requestPermission();
+    }
+  }, [permission, requestPermission]);
 
   // Show conflict dialog when conflict files are detected
   useEffect(() => {

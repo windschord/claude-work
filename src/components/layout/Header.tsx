@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Menu, LogOut } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { ThemeToggle } from '@/components/common/ThemeToggle';
+import { NotificationSettings } from '@/components/common/NotificationSettings';
 
 /**
  * ヘッダーコンポーネント
@@ -57,8 +58,9 @@ export function Header() {
         </button>
       </div>
 
-      {/* 右側: テーマ切り替え + ログアウトボタン */}
+      {/* 右側: 通知設定 + テーマ切り替え + ログアウトボタン */}
       <div className="flex items-center gap-2">
+        <NotificationSettings />
         <ThemeToggle />
         <button
           onClick={handleLogout}

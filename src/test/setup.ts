@@ -12,3 +12,16 @@ global.ResizeObserver = class ResizeObserver {
   unobserve() {}
   disconnect() {}
 };
+
+// Mock Notification API for notification tests
+class MockNotification {
+  static permission: NotificationPermission = 'default';
+  constructor(_title: string, _options?: NotificationOptions) {
+    // Mock constructor
+  }
+}
+
+Object.defineProperty(global, 'Notification', {
+  value: MockNotification,
+  writable: true,
+});
