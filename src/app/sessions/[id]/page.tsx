@@ -165,7 +165,7 @@ export default function SessionDetailPage() {
           await fetchDiff(sessionId);
         } catch (error) {
           console.error('Failed to fetch diff:', error);
-          toast.error('差分の取得に失敗しました');
+          // エラーはDiffViewer側でdiffErrorとして表示されるためtoastは不要
         }
       };
       fetchDiffData();

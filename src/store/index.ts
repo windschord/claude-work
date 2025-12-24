@@ -790,11 +790,11 @@ export const useAppStore = create<AppState>((set) => ({
     // ローディング開始、エラーをクリア
     set({ isDiffLoading: true, diffError: null });
 
-    try {
-      console.log('[fetchDiff] Fetching diff for session:', sessionId);
-      const response = await fetch(`/api/sessions/${sessionId}/diff`);
+    // エラー状態を追跡するローカル変数（getState()を避けるため）
+    let errorAlreadySet = false;
 
-      console.log('[fetchDiff] Response status:', response.status);
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}/diff`);
 
       if (!response.ok) {
         let errorMessage = '差分の取得に失敗しました';
@@ -804,24 +804,21 @@ export const useAppStore = create<AppState>((set) => ({
           errorMessage = '認証エラーが発生しました';
         }
         set({ isDiffLoading: false, diffError: errorMessage });
+        errorAlreadySet = true;
         throw new Error(errorMessage);
       }
 
       const data = await response.json();
-      console.log('[fetchDiff] Received data:', data);
 
-      // data.diffがundefinedの場合のガード
-      if (data.diff === undefined) {
-        console.warn('[fetchDiff] API response missing "diff" property');
+      // data.diffがundefinedまたはnullの場合のガード
+      if (data.diff == null) {
         set({ isDiffLoading: false, diffError: 'APIレスポンスの形式が不正です' });
+        errorAlreadySet = true;
         throw new Error('APIレスポンスの形式が不正です');
       }
 
-      console.log('[fetchDiff] Setting diff:', data.diff);
       set({ diff: data.diff, isDiffLoading: false, diffError: null });
-      console.log('[fetchDiff] Diff set successfully');
     } catch (error) {
-      console.error('[fetchDiff] Error:', error);
       if (error instanceof Error) {
         // ネットワークエラー
         if (error.message.includes('Failed to fetch') || error.message.includes('Network')) {
@@ -829,11 +826,8 @@ export const useAppStore = create<AppState>((set) => ({
           set({ isDiffLoading: false, diffError: errorMessage });
           throw new Error(errorMessage);
         }
-        // 既にエラーメッセージが設定されているかチェック
-        // （認証エラー、セッションが見つからない、API形式エラー等は既にsetされている）
-        const currentState = useAppStore.getState();
-        if (currentState.diffError) {
-          // エラー状態は既に設定されているのでそのまま投げる
+        // 既にエラー状態を設定済みならそのまま投げる
+        if (errorAlreadySet) {
           throw error;
         }
         // その他のエラー（JSON解析エラー等）

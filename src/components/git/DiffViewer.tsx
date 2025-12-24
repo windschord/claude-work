@@ -55,7 +55,9 @@ export function DiffViewer() {
 
   // diffがnullまたはundefinedの場合（初期状態）
   if (!diff) {
-    console.warn('[DiffViewer] diff is null or undefined, but not loading and no error');
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('[DiffViewer] diff is null or undefined, but not loading and no error');
+    }
     return (
       <div className="flex-1 flex items-center justify-center p-8">
         <p className="text-gray-500 dark:text-gray-400">Diffタブを選択すると差分を表示します</p>
