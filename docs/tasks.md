@@ -1716,7 +1716,7 @@ await processManager.startClaudeCode({
 - ページリロード後も同様
 
 **サーバーログ分析**:
-```
+```text
 07:38:00 [info]: Got diff for session { id: "58df9ef1-4409-4e95-87f4-ce2c726b528c" }
 ```
 サーバー側では正常にデータ取得完了している。
