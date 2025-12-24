@@ -1893,6 +1893,57 @@ export function saveSettings(settings: NotificationSettings): void;
 export function requestPermission(): Promise<NotificationPermission>;
 export function sendNotification(event: NotificationEvent): void;
 export function isTabActive(): boolean;
+
+// ヘルパー関数の実装例
+function getSettingKey(type: NotificationEventType): keyof NotificationSettings {
+  switch (type) {
+    case 'taskComplete': return 'onTaskComplete';
+    case 'permissionRequest': return 'onPermissionRequest';
+    case 'error': return 'onError';
+  }
+}
+
+function getDefaultMessage(type: NotificationEventType): string {
+  switch (type) {
+    case 'taskComplete': return 'タスクが完了しました';
+    case 'permissionRequest': return '権限確認が必要です';
+    case 'error': return 'エラーが発生しました';
+  }
+}
+
+function getTitle(event: NotificationEvent): string {
+  switch (event.type) {
+    case 'taskComplete': return `タスク完了: ${event.sessionName}`;
+    case 'permissionRequest': return `アクション要求: ${event.sessionName}`;
+    case 'error': return `エラー発生: ${event.sessionName}`;
+  }
+}
+
+// sendNotification の通知ルーティングロジック
+function sendNotification(event: NotificationEvent): void {
+  const settings = getSettings();
+  const settingKey = getSettingKey(event.type);  // 'onTaskComplete' | 'onPermissionRequest' | 'onError'
+  if (!settings[settingKey]) return;
+
+  const message = event.message || getDefaultMessage(event.type);
+  const fullMessage = `${event.sessionName}: ${message}`;
+
+  if (isTabActive()) {
+    // タブがアクティブ → react-hot-toast で表示
+    if (event.type === 'error') {
+      toast.error(fullMessage);
+    } else {
+      toast.success(fullMessage);
+    }
+  } else {
+    // タブがバックグラウンド → OS通知（Notification API）
+    if (Notification.permission === 'granted') {
+      const title = getTitle(event);  // 例: 'タスク完了: session-1'
+      const body = event.message || getDefaultMessage(event.type);
+      new Notification(title, { body, icon: '/icon.png', tag: `claudework-${event.sessionId}` });
+    }
+  }
+}
 ```
 
 **受入基準**:
@@ -1968,6 +2019,18 @@ export const useNotificationStore = create<NotificationState>((set) => ({
     set({ settings: getSettings() });
   },
 }));
+```
+
+**注意**: `initializeFromStorage()`の呼び出しについて:
+- **呼び出し場所**: `src/components/common/NotificationSettings.tsx`
+- **タイミング**: コンポーネントのマウント時に`useEffect`内で1回呼び出す
+- **目的**: ローカルストレージから設定を読み込み、UIと同期する
+- **補足**: ストアの初期化時（`getSettings()`）にも読み込むため、実際には冗長だが、
+  他のタブでの設定変更を反映するためにマウント時にも呼び出す
+```typescript
+// NotificationSettings.tsx での呼び出し例
+const { initializeFromStorage } = useNotificationStore();
+useEffect(() => { initializeFromStorage(); }, [initializeFromStorage]);
 ```
 
 **受入基準**:
@@ -2065,9 +2128,16 @@ const { permission, requestPermission } = useNotificationStore();
 
 useEffect(() => {
   if (permission === 'default') {
+    // 非同期処理だがawaitは不要（結果はストアに保存される）
     requestPermission();
   }
 }, [permission, requestPermission]);
+// 依存配列の解説:
+// - permission: ストアから取得した現在の許可状態。変化を検知してエフェクトを再実行する。
+// - requestPermission: Zustandのアクションは安定（毎回同じ参照）なので無限ループにはならない。
+//   ESLintのexhaustive-depsルールに従い含める。
+// - sessionId: 含めない。通知許可はブラウザ全体で1回のみリクエストすればよく、
+//   セッション変更時に再リクエストは不要。
 ```
 
 **受入基準**:
@@ -2092,8 +2162,19 @@ useEffect(() => {
 2. テスト実行: すべてのテストが失敗することを確認
 3. テストコミット: テストのみをコミット
 4. 実装: `src/components/common/NotificationSettings.tsx`を実装
-5. ヘッダーコンポーネントにNotificationSettingsを追加
+   - useEffect + useRef でドロップダウン外クリック検知を実装
+   - isOpen 状態の管理と外側クリック時のクローズ処理
+5. ヘッダーコンポーネント（`src/components/layout/Header.tsx`）にNotificationSettingsを追加
+   - ThemeToggleの左側に配置
+   - `import { NotificationSettings } from '@/components/common/NotificationSettings';`
 6. 実装コミット: すべてのテストが通過したらコミット
+
+**レイアウト**:
+- 配置: ヘッダー右側、ThemeToggleの左隣
+- ドロップダウン: `absolute right-0`で右寄せ、`w-64`（256px）
+- レスポンシブ:
+  - モバイル（375px以下）: ドロップダウンは`right-0`で右端固定、画面内に収まる
+  - 特別な調整は不要（ドロップダウン幅256px < 375px）
 
 **ファイル構成**:
 ```text
@@ -2106,16 +2187,30 @@ src/components/common/__tests__/NotificationSettings.test.tsx
 // src/components/common/NotificationSettings.tsx
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Bell, BellOff } from 'lucide-react';
 import { useNotificationStore } from '@/store/notification';
 
 export function NotificationSettings() {
   const [isOpen, setIsOpen] = useState(false);
   const { permission, settings, updateSettings } = useNotificationStore();
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // ドロップダウン外クリックで閉じる
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isOpen]);
 
   return (
-    <div className="relative">
+    <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800"
@@ -2179,8 +2274,10 @@ export function NotificationSettings() {
 - [ ] テストが5つ以上含まれている
 - [ ] 実装前にテストのみのコミットが存在する
 - [ ] `src/components/common/NotificationSettings.tsx`が実装されている
-- [ ] ヘッダーに通知アイコンが表示される
+- [ ] `src/components/layout/Header.tsx`にNotificationSettingsがインポート・配置されている
+- [ ] ヘッダーに通知アイコンが表示される（ThemeToggleの左隣）
 - [ ] クリックで設定ドロップダウンが開く
+- [ ] ドロップダウン外クリックで閉じる
 - [ ] チェックボックスで各イベントの通知をオン/オフできる
 - [ ] 設定変更が即座にローカルストレージに保存される
 - [ ] 通知がブロックされている場合に警告が表示される
