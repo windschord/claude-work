@@ -22,6 +22,20 @@ vi.mock('react-diff-viewer-continued', () => ({
   default: vi.fn(() => <div data-testid="react-diff-viewer">Diff Content</div>),
 }));
 
+// テスト用のモック状態を型安全に作成するヘルパー
+type MockAppStoreState = Pick<
+  ReturnType<typeof useAppStore>,
+  'diff' | 'selectedFile' | 'isDiffLoading' | 'diffError'
+>;
+
+const createMockStore = (overrides: Partial<MockAppStoreState> = {}): MockAppStoreState => ({
+  diff: null,
+  selectedFile: null,
+  isDiffLoading: false,
+  diffError: null,
+  ...overrides,
+});
+
 describe('BUG-002: DiffViewer - 差分読み込み表示の問題', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -29,12 +43,9 @@ describe('BUG-002: DiffViewer - 差分読み込み表示の問題', () => {
 
   it('ローディング中の場合、「差分を読み込み中...」と表示される', () => {
     // Setup: ローディング中の状態
-    vi.mocked(useAppStore).mockReturnValue({
-      diff: null,
-      selectedFile: null,
-      isDiffLoading: true,
-      diffError: null,
-    } as ReturnType<typeof useAppStore>);
+    vi.mocked(useAppStore).mockReturnValue(
+      createMockStore({ isDiffLoading: true }) as ReturnType<typeof useAppStore>
+    );
 
     // Execute
     render(<DiffViewer />);
@@ -45,12 +56,9 @@ describe('BUG-002: DiffViewer - 差分読み込み表示の問題', () => {
 
   it('エラー時にはエラーメッセージを表示する（BUG-002修正）', () => {
     // Setup: エラー状態
-    vi.mocked(useAppStore).mockReturnValue({
-      diff: null,
-      selectedFile: null,
-      isDiffLoading: false,
-      diffError: '差分の取得に失敗しました',
-    } as ReturnType<typeof useAppStore>);
+    vi.mocked(useAppStore).mockReturnValue(
+      createMockStore({ diffError: '差分の取得に失敗しました' }) as ReturnType<typeof useAppStore>
+    );
 
     // Execute
     render(<DiffViewer />);
@@ -62,16 +70,15 @@ describe('BUG-002: DiffViewer - 差分読み込み表示の問題', () => {
 
   it('diffが空の配列の場合、ファイル選択メッセージが表示される', () => {
     // Setup: diffは存在するがfilesが空
-    vi.mocked(useAppStore).mockReturnValue({
-      diff: {
-        files: [],
-        totalAdditions: 0,
-        totalDeletions: 0,
-      },
-      selectedFile: null,
-      isDiffLoading: false,
-      diffError: null,
-    } as ReturnType<typeof useAppStore>);
+    vi.mocked(useAppStore).mockReturnValue(
+      createMockStore({
+        diff: {
+          files: [],
+          totalAdditions: 0,
+          totalDeletions: 0,
+        },
+      }) as ReturnType<typeof useAppStore>
+    );
 
     // Execute
     render(<DiffViewer />);
@@ -98,12 +105,9 @@ describe('BUG-002: DiffViewer - 差分読み込み表示の問題', () => {
       totalDeletions: 3,
     };
 
-    vi.mocked(useAppStore).mockReturnValue({
-      diff: mockDiff,
-      selectedFile: 'test.ts',
-      isDiffLoading: false,
-      diffError: null,
-    } as ReturnType<typeof useAppStore>);
+    vi.mocked(useAppStore).mockReturnValue(
+      createMockStore({ diff: mockDiff, selectedFile: 'test.ts' }) as ReturnType<typeof useAppStore>
+    );
 
     // Execute
     render(<DiffViewer />);
@@ -123,12 +127,9 @@ describe('BUG-002: DiffViewer - 差分読み込み表示の問題', () => {
      */
 
     // Setup: 初期状態（ローディングもエラーもない）
-    vi.mocked(useAppStore).mockReturnValue({
-      diff: null,
-      selectedFile: null,
-      isDiffLoading: false,
-      diffError: null,
-    } as ReturnType<typeof useAppStore>);
+    vi.mocked(useAppStore).mockReturnValue(
+      createMockStore() as ReturnType<typeof useAppStore>
+    );
 
     // Execute
     render(<DiffViewer />);
@@ -140,12 +141,9 @@ describe('BUG-002: DiffViewer - 差分読み込み表示の問題', () => {
 
   it('認証エラーの場合、適切なエラーメッセージを表示', () => {
     // Setup: 認証エラー状態
-    vi.mocked(useAppStore).mockReturnValue({
-      diff: null,
-      selectedFile: null,
-      isDiffLoading: false,
-      diffError: '認証エラーが発生しました',
-    } as ReturnType<typeof useAppStore>);
+    vi.mocked(useAppStore).mockReturnValue(
+      createMockStore({ diffError: '認証エラーが発生しました' }) as ReturnType<typeof useAppStore>
+    );
 
     // Execute
     render(<DiffViewer />);
@@ -157,12 +155,9 @@ describe('BUG-002: DiffViewer - 差分読み込み表示の問題', () => {
 
   it('ネットワークエラーの場合、適切なエラーメッセージを表示', () => {
     // Setup: ネットワークエラー状態
-    vi.mocked(useAppStore).mockReturnValue({
-      diff: null,
-      selectedFile: null,
-      isDiffLoading: false,
-      diffError: 'ネットワークエラーが発生しました',
-    } as ReturnType<typeof useAppStore>);
+    vi.mocked(useAppStore).mockReturnValue(
+      createMockStore({ diffError: 'ネットワークエラーが発生しました' }) as ReturnType<typeof useAppStore>
+    );
 
     // Execute
     render(<DiffViewer />);

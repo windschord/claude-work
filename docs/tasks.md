@@ -1663,11 +1663,11 @@ await processManager.startClaudeCode({
 3. **テストコミット**: テストのみをコミット
 
 4. **実装案の検討**:
-   - 案A: `--print`オプションなしでインタラクティブモードで起動
-   - 案B: 最初のプロンプトを送信するまでプロセスを起動しない（遅延起動）
-   - 案C: ダミープロンプト（例: "waiting for input"）で起動
+   - 案A: `--print`オプションなしでインタラクティブモードで起動（複雑：出力パース変更が必要）
+   - 案B: promptをオプショナルにし、未指定時はstdinへの書き込みをスキップ（推奨：最もシンプル）
+   - 案C: ダミープロンプト（例: "waiting for input"）で起動（不要な処理が発生）
 
-5. **実装**: 選択した方式で修正
+5. **実装**: 案Bを採用 - promptをオプショナルにし、空の場合はstdin書き込みをスキップ
 
 6. **実装コミット**: すべてのテストが通過したらコミット
 
@@ -1735,6 +1735,9 @@ await processManager.startClaudeCode({
 **実装手順（TDD）**:
 
 1. **調査**: ブラウザのコンソールログを確認し、エラーの有無を調べる
+   - 確認項目: ネットワークタブでAPI応答を確認
+   - 確認項目: `fetchDiff`のPromiseがresolve/rejectしているか
+   - 確認項目: ストアの`diff`プロパティが設定されているか
 
 2. **テスト作成**: `src/store/__tests__/diff-store.test.ts`または関連するテストファイル
    - APIレスポンスが正しくストアに格納されるテスト
@@ -1746,17 +1749,22 @@ await processManager.startClaudeCode({
 
 5. **デバッグ**:
    - `src/store/index.ts`の`fetchDiff`関数を確認
-   - APIレスポンスとストアの期待する形式を比較
-   - React DevToolsでZustandストアの状態を確認
+   - APIレスポンス形式: `{ diff: { files: [], totalAdditions, totalDeletions } }`
+   - ストアが期待する形式: 同上（`data.diff`をそのまま設定）
+   - 問題発見: エラー時/例外時にローディング状態がリセットされない
 
 6. **実装**: 問題箇所を修正
+   - `isDiffLoading`と`diffError`状態を追加
+   - ローディング開始時に`isDiffLoading: true`を設定
+   - 成功/失敗時に`isDiffLoading: false`を設定
+   - エラー時は`diffError`にメッセージを設定
 
 7. **実装コミット**: すべてのテストが通過したらコミット
 
 **技術的文脈**:
 - Diffストア: src/store/index.ts
 - Diff取得API: src/app/api/sessions/[id]/diff/route.ts
-- Diffコンポーネント: src/components/SessionDetail/DiffView.tsx（仮）
+- Diffコンポーネント: src/components/git/DiffViewer.tsx
 
 **受入基準**:
 - [ ] テストファイルが存在する
