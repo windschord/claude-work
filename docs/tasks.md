@@ -1926,7 +1926,7 @@ export function isTabActive(): boolean;
 5. 実装コミット: すべてのテストが通過したらコミット
 
 **ファイル構成**:
-```
+```text
 src/store/notification.ts
 src/store/__tests__/notification.test.ts
 ```
@@ -2096,7 +2096,7 @@ useEffect(() => {
 6. 実装コミット: すべてのテストが通過したらコミット
 
 **ファイル構成**:
-```
+```text
 src/components/common/NotificationSettings.tsx
 src/components/common/__tests__/NotificationSettings.test.tsx
 ```
