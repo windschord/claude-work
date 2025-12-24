@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { sendNotification } from '@/lib/notification-service';
 
 /**
  * プロジェクトの型定義
@@ -967,29 +968,57 @@ export const useAppStore = create<AppState>((set) => ({
         break;
 
       case 'permission_request':
-        set({
-          permissionRequest: {
-            id: message.permission.requestId,
-            type: message.permission.action,
-            description: message.permission.action,
-            details: message.permission.details,
-          },
+        set((state) => {
+          // 通知を送信
+          sendNotification({
+            type: 'permissionRequest',
+            sessionId: state.currentSession?.id || '',
+            sessionName: state.currentSession?.name || '',
+            message: message.permission?.action,
+          });
+
+          return {
+            permissionRequest: {
+              id: message.permission.requestId,
+              type: message.permission.action,
+              description: message.permission.action,
+              details: message.permission.details,
+            },
+          };
         });
         break;
 
       case 'status_change':
-        set((state) => ({
-          // セッション一覧のステータスを更新
-          sessions: state.sessions.map((s) =>
-            s.id === state.selectedSessionId
-              ? { ...s, status: message.status }
-              : s
-          ),
-          // currentSessionのステータスも更新
-          currentSession: state.currentSession
-            ? { ...state.currentSession, status: message.status }
-            : null,
-        }));
+        set((state) => {
+          // 通知を送信
+          if (message.status === 'completed') {
+            sendNotification({
+              type: 'taskComplete',
+              sessionId: state.currentSession?.id || '',
+              sessionName: state.currentSession?.name || '',
+            });
+          } else if (message.status === 'error') {
+            sendNotification({
+              type: 'error',
+              sessionId: state.currentSession?.id || '',
+              sessionName: state.currentSession?.name || '',
+              message: 'プロセスがエラーで終了しました',
+            });
+          }
+
+          return {
+            // セッション一覧のステータスを更新
+            sessions: state.sessions.map((s) =>
+              s.id === state.selectedSessionId
+                ? { ...s, status: message.status }
+                : s
+            ),
+            // currentSessionのステータスも更新
+            currentSession: state.currentSession
+              ? { ...state.currentSession, status: message.status }
+              : null,
+          };
+        });
         break;
 
       case 'error':
