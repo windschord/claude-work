@@ -1,0 +1,390 @@
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { GET, POST } from '../route';
+import { prisma } from '@/lib/db';
+import { NextRequest } from 'next/server';
+import { mkdtempSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { execSync } from 'child_process';
+import { randomUUID } from 'crypto';
+import type { AuthSession, Project } from '@prisma/client';
+
+vi.mock('@/services/process-manager', () => ({
+  ProcessManager: {
+    getInstance: vi.fn(() => ({
+      startClaudeCode: vi.fn().mockResolvedValue({
+        sessionId: 'test-session',
+        pid: 12345,
+        status: 'running',
+      }),
+      stop: vi.fn().mockResolvedValue(undefined),
+      getStatus: vi.fn().mockReturnValue({
+        sessionId: 'test-session',
+        pid: 12345,
+        status: 'running',
+      }),
+    })),
+  },
+}));
+
+describe('GET /api/projects/[project_id]/sessions', () => {
+  let testRepoPath: string;
+  let authSession: AuthSession;
+  let project: Project;
+
+  beforeEach(async () => {
+    await prisma.session.deleteMany();
+    await prisma.project.deleteMany();
+    await prisma.authSession.deleteMany();
+
+    authSession = await prisma.authSession.create({
+      data: {
+        id: randomUUID(),
+        token_hash: 'test-hash',
+        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      },
+    });
+
+    testRepoPath = mkdtempSync(join(tmpdir(), 'session-test-'));
+    execSync('git init', { cwd: testRepoPath });
+    execSync('git config user.name "Test"', { cwd: testRepoPath });
+    execSync('git config user.email "test@example.com"', { cwd: testRepoPath });
+    execSync('echo "test" > README.md && git add . && git commit -m "initial"', {
+      cwd: testRepoPath,
+      shell: true,
+    });
+    execSync('git branch -M main', { cwd: testRepoPath });
+
+    project = await prisma.project.create({
+      data: {
+        name: 'Test Project',
+        path: testRepoPath,
+      },
+    });
+  });
+
+  afterEach(async () => {
+    await prisma.session.deleteMany();
+    await prisma.project.deleteMany();
+    await prisma.authSession.deleteMany();
+    if (testRepoPath) {
+      rmSync(testRepoPath, { recursive: true, force: true });
+    }
+  });
+
+  it('should return 200 and list of sessions for a project', async () => {
+    await prisma.session.create({
+      data: {
+        project_id: project.id,
+        name: 'Test Session',
+        status: 'running',
+        model: 'sonnet',
+        worktree_path: join(testRepoPath, '.worktrees', 'test-session'),
+        branch_name: 'test-branch',
+      },
+    });
+
+    const request = new NextRequest(
+      `http://localhost:3000/api/projects/${project.id}/sessions`,
+      {
+        headers: {
+          cookie: `sessionId=${authSession.id}`,
+        },
+      }
+    );
+
+    const response = await GET(request, { params: Promise.resolve({ project_id: project.id }) });
+    expect(response.status).toBe(200);
+
+    const data = await response.json();
+    expect(data).toHaveProperty('sessions');
+    expect(data.sessions).toHaveLength(1);
+    expect(data.sessions[0].name).toBe('Test Session');
+    expect(data.sessions[0].project_id).toBe(project.id);
+  });
+
+  it('should return 401 if not authenticated', async () => {
+    const request = new NextRequest(
+      `http://localhost:3000/api/projects/${project.id}/sessions`
+    );
+
+    const response = await GET(request, { params: Promise.resolve({ project_id: project.id }) });
+    expect(response.status).toBe(401);
+  });
+});
+
+describe('POST /api/projects/[project_id]/sessions', () => {
+  let testRepoPath: string;
+  let authSession: AuthSession;
+  let project: Project;
+
+  beforeEach(async () => {
+    await prisma.session.deleteMany();
+    await prisma.project.deleteMany();
+    await prisma.authSession.deleteMany();
+
+    authSession = await prisma.authSession.create({
+      data: {
+        id: randomUUID(),
+        token_hash: 'test-hash',
+        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      },
+    });
+
+    testRepoPath = mkdtempSync(join(tmpdir(), 'session-test-'));
+    execSync('git init', { cwd: testRepoPath });
+    execSync('git config user.name "Test"', { cwd: testRepoPath });
+    execSync('git config user.email "test@example.com"', { cwd: testRepoPath });
+    execSync('echo "test" > README.md && git add . && git commit -m "initial"', {
+      cwd: testRepoPath,
+      shell: true,
+    });
+    execSync('git branch -M main', { cwd: testRepoPath });
+
+    project = await prisma.project.create({
+      data: {
+        name: 'Test Project',
+        path: testRepoPath,
+      },
+    });
+  });
+
+  afterEach(async () => {
+    await prisma.session.deleteMany();
+    await prisma.project.deleteMany();
+    await prisma.authSession.deleteMany();
+    if (testRepoPath) {
+      rmSync(testRepoPath, { recursive: true, force: true });
+    }
+  });
+
+  it('should create session with worktree', async () => {
+    const request = new NextRequest(
+      `http://localhost:3000/api/projects/${project.id}/sessions`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: `sessionId=${authSession.id}`,
+        },
+        body: JSON.stringify({
+          name: 'New Session',
+          prompt: 'test prompt',
+          model: 'sonnet',
+        }),
+      }
+    );
+
+    const response = await POST(request, { params: Promise.resolve({ project_id: project.id }) });
+    expect(response.status).toBe(201);
+
+    const data = await response.json();
+    expect(data).toHaveProperty('session');
+    expect(data.session.name).toBe('New Session');
+    expect(data.session.project_id).toBe(project.id);
+    expect(data.session.status).toBe('running');
+    expect(data.session.worktree_path).toBeTruthy();
+    expect(data.session.branch_name).toBeTruthy();
+
+    const session = await prisma.session.findFirst({
+      where: { project_id: project.id },
+    });
+    expect(session).toBeTruthy();
+  });
+
+  it('should return response in { session: {...} } format', async () => {
+    const request = new NextRequest(
+      `http://localhost:3000/api/projects/${project.id}/sessions`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: `sessionId=${authSession.id}`,
+        },
+        body: JSON.stringify({
+          name: 'Test Response Format',
+          prompt: 'test prompt',
+          model: 'sonnet',
+        }),
+      }
+    );
+
+    const response = await POST(request, { params: Promise.resolve({ project_id: project.id }) });
+    expect(response.status).toBe(201);
+
+    const data = await response.json();
+
+    // レスポンス形式の検証
+    expect(data).toHaveProperty('session');
+    expect(typeof data.session).toBe('object');
+
+    // sessionオブジェクトのフィールド検証
+    expect(data.session).toHaveProperty('id');
+    expect(data.session).toHaveProperty('project_id');
+    expect(data.session).toHaveProperty('name');
+    expect(data.session).toHaveProperty('status');
+    expect(data.session).toHaveProperty('model');
+    expect(data.session).toHaveProperty('worktree_path');
+    expect(data.session).toHaveProperty('branch_name');
+    expect(data.session).toHaveProperty('created_at');
+
+    // 値の検証
+    expect(data.session.project_id).toBe(project.id);
+    expect(data.session.name).toBe('Test Response Format');
+    expect(data.session.status).toBe('running');
+    expect(data.session.model).toBe('sonnet');
+  });
+
+  it('should return 404 for non-existent project', async () => {
+    const request = new NextRequest(
+      'http://localhost:3000/api/projects/non-existent/sessions',
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: `sessionId=${authSession.id}`,
+        },
+        body: JSON.stringify({
+          name: 'New Session',
+          prompt: 'test prompt',
+        }),
+      }
+    );
+
+    const response = await POST(request, { params: Promise.resolve({ project_id: 'non-existent' }) });
+    expect(response.status).toBe(404);
+  });
+
+  it('should return 401 if not authenticated', async () => {
+    const request = new NextRequest(
+      `http://localhost:3000/api/projects/${project.id}/sessions`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: 'New Session',
+          prompt: 'test prompt',
+        }),
+      }
+    );
+
+    const response = await POST(request, { params: Promise.resolve({ project_id: project.id }) });
+    expect(response.status).toBe(401);
+  });
+
+  it('should return 400 if name is missing', async () => {
+    const request = new NextRequest(
+      `http://localhost:3000/api/projects/${project.id}/sessions`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: `sessionId=${authSession.id}`,
+        },
+        body: JSON.stringify({
+          prompt: 'test prompt',
+        }),
+      }
+    );
+
+    const response = await POST(request, { params: Promise.resolve({ project_id: project.id }) });
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error).toBe('Name and prompt are required');
+  });
+
+  it('should return 400 if prompt is missing', async () => {
+    const request = new NextRequest(
+      `http://localhost:3000/api/projects/${project.id}/sessions`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: `sessionId=${authSession.id}`,
+        },
+        body: JSON.stringify({
+          name: 'New Session',
+        }),
+      }
+    );
+
+    const response = await POST(request, { params: Promise.resolve({ project_id: project.id }) });
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error).toBe('Name and prompt are required');
+  });
+
+  it('should save prompt to Prompt table when creating session', async () => {
+    await prisma.prompt.deleteMany();
+
+    const request = new NextRequest(
+      `http://localhost:3000/api/projects/${project.id}/sessions`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: `sessionId=${authSession.id}`,
+        },
+        body: JSON.stringify({
+          name: 'New Session',
+          prompt: 'Implement user authentication',
+          model: 'sonnet',
+        }),
+      }
+    );
+
+    const response = await POST(request, { params: Promise.resolve({ project_id: project.id }) });
+    expect(response.status).toBe(201);
+
+    // プロンプトが保存されたか確認
+    const savedPrompt = await prisma.prompt.findFirst({
+      where: { content: 'Implement user authentication' },
+    });
+    expect(savedPrompt).toBeTruthy();
+    expect(savedPrompt?.used_count).toBe(1);
+    expect(savedPrompt?.last_used_at).toBeTruthy();
+  });
+
+  it('should increment used_count if prompt already exists', async () => {
+    await prisma.prompt.deleteMany();
+
+    // 既存のプロンプトを作成
+    const existingPrompt = await prisma.prompt.create({
+      data: {
+        content: 'Fix bug in authentication',
+        used_count: 3,
+        last_used_at: new Date('2025-12-10T10:00:00Z'),
+      },
+    });
+
+    const request = new NextRequest(
+      `http://localhost:3000/api/projects/${project.id}/sessions`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: `sessionId=${authSession.id}`,
+        },
+        body: JSON.stringify({
+          name: 'New Session',
+          prompt: 'Fix bug in authentication',
+          model: 'sonnet',
+        }),
+      }
+    );
+
+    const response = await POST(request, { params: Promise.resolve({ project_id: project.id }) });
+    expect(response.status).toBe(201);
+
+    // used_countがインクリメントされたか確認
+    const updatedPrompt = await prisma.prompt.findUnique({
+      where: { id: existingPrompt.id },
+    });
+    expect(updatedPrompt?.used_count).toBe(4);
+    expect(updatedPrompt?.last_used_at.getTime()).toBeGreaterThan(
+      existingPrompt.last_used_at.getTime()
+    );
+  });
+});

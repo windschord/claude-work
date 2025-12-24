@@ -2,7 +2,7 @@
 
 ## アーキテクチャ概要
 
-ClaudeWorkは、フロントエンド（Next.js）とバックエンド（FastAPI）の2層アーキテクチャを採用する。バックエンドはClaude Code CLIプロセスを管理し、WebSocket経由でリアルタイム通信を行う。
+ClaudeWorkは、Next.js統合アーキテクチャを採用する。フロントエンド（Pages/Components）、バックエンド（API Routes）、WebSocketサーバー（カスタムサーバー）を1つのNext.jsプロジェクトに統合し、`npx claude-work`コマンドで起動する。バックエンドはClaude Code CLIプロセスを管理し、WebSocket経由でリアルタイム通信を行う。
 
 ```mermaid
 graph TD
@@ -11,19 +11,24 @@ graph TD
         XTerm[XTerm.js]
     end
 
-    subgraph "フロントエンド（Next.js）"
-        Pages[Pages/Components]
-        WSClient[WebSocket Client]
-        State[Zustand Store]
-    end
+    subgraph "Next.js統合サーバー"
+        subgraph "フロントエンド"
+            Pages[Pages/Components]
+            State[Zustand Store]
+        end
 
-    subgraph "バックエンド（FastAPI）"
-        API[REST API]
-        WSServer[WebSocket Server]
-        SessionMgr[Session Manager]
-        ProcessMgr[Process Manager]
-        GitOps[Git Operations]
-        PTYMgr[PTY Manager]
+        subgraph "バックエンド"
+            APIRoutes[API Routes]
+            CustomServer[カスタムサーバー]
+            WSServer[WebSocket Server]
+        end
+
+        subgraph "サービス層"
+            SessionMgr[Session Manager]
+            ProcessMgr[Process Manager]
+            GitOps[Git Operations]
+            PTYMgr[PTY Manager]
+        end
     end
 
     subgraph "外部プロセス"
@@ -38,14 +43,13 @@ graph TD
     end
 
     Browser --> Pages
-    XTerm --> WSClient
-    Pages --> WSClient
+    XTerm --> WSServer
     Pages --> State
-    WSClient --> WSServer
-    Pages --> API
+    Pages --> APIRoutes
+    Browser --> WSServer
 
-    API --> SessionMgr
-    API --> GitOps
+    APIRoutes --> SessionMgr
+    APIRoutes --> GitOps
     WSServer --> SessionMgr
     WSServer --> PTYMgr
 
@@ -124,16 +128,18 @@ interface AppState {
 
 ### バックエンド
 
-#### コンポーネント: REST API
+#### コンポーネント: API Routes
 
 **目的**: CRUD操作とGit操作のエンドポイント提供
 
 **責務**:
-- プロジェクト管理API
-- セッション管理API
+- プロジェクト管理API（Next.js API Routes）
+- セッション管理API（Next.js API Routes）
 - Git操作API（diff、rebase、merge）
-- 認証API
+- 認証API（Next.js API Routes）
 - プロンプト履歴API
+
+**実装場所**: `src/app/api/`配下
 
 #### コンポーネント: WebSocket Server
 
@@ -144,6 +150,8 @@ interface AppState {
 - ユーザー入力のClaude Codeへの転送
 - ターミナル入出力の中継
 - 権限確認リクエストの送信
+
+**実装場所**: カスタムサーバー（`server.ts`）にws/socket.ioで実装
 
 #### コンポーネント: Session Manager
 
@@ -166,6 +174,8 @@ interface AppState {
 - サブエージェント出力の検出
 - プロセス異常終了の検出
 
+**実装場所**: `src/services/process-manager.ts`（Node.js child_process使用）
+
 #### コンポーネント: Git Operations
 
 **目的**: Git操作の実行
@@ -178,6 +188,8 @@ interface AppState {
 - コミット履歴取得
 - コミットへのリセット
 
+**実装場所**: `src/services/git-service.ts`（Node.js child_process使用）
+
 #### コンポーネント: PTY Manager
 
 **目的**: ターミナルセッションの管理
@@ -188,7 +200,66 @@ interface AppState {
 - セッションごとのPTY管理
 - ANSIエスケープシーケンスの透過的転送
 
+**実装場所**: `src/services/pty-manager.ts`（node-ptyライブラリ使用）
+
+#### コンポーネント: Environment Validator
+
+**目的**: サーバー起動時の環境検証
+
+**責務**:
+- CLAUDE_CODE_PATH環境変数のチェック
+- PATH環境変数からclaudeコマンドの自動検出
+- 既存のCLAUDE_CODE_PATHの有効性検証
+- claudeコマンドの実行可能性確認
+- 検出結果のログ出力
+
+**実装場所**: `src/lib/env-validation.ts`
+
+**検証フロー**:
+1. CLAUDE_CODE_PATH環境変数をチェック
+2. 設定済みの場合 → パスの有効性を検証
+3. 未設定の場合 → PATH環境変数から自動検出
+4. 検出/検証失敗時 → エラーメッセージを表示してプロセス終了
+5. 検出/検証成功時 → process.env.CLAUDE_CODE_PATHに設定してログ出力
+
 ## データフロー
+
+### シーケンス: サーバー起動時の環境検証
+
+```mermaid
+sequenceDiagram
+    participant Server as server.ts
+    participant Validator as Environment Validator
+    participant OS as OS (which command)
+    participant FS as File System
+
+    Server->>Validator: detectClaudePath()
+
+    alt CLAUDE_CODE_PATH が設定済み
+        Validator->>FS: existsSync(CLAUDE_CODE_PATH)
+        alt パスが存在する
+            FS-->>Validator: true
+            Validator->>Server: CLAUDE_CODE_PATH (検証済み)
+            Server->>Server: ログ出力: 検証成功
+        else パスが存在しない
+            FS-->>Validator: false
+            Validator->>Server: エラー: 無効なパス
+            Server->>Server: process.exit(1)
+        end
+    else CLAUDE_CODE_PATH が未設定
+        Validator->>OS: execSync('which claude')
+        alt claudeコマンドが見つかった
+            OS-->>Validator: /path/to/claude
+            Validator->>Validator: process.env.CLAUDE_CODE_PATH = path
+            Validator->>Server: /path/to/claude
+            Server->>Server: ログ出力: 自動検出成功
+        else claudeコマンドが見つからない
+            OS-->>Validator: エラー
+            Validator->>Server: エラー: claudeが見つからない
+            Server->>Server: process.exit(1)
+        end
+    end
+```
 
 ### シーケンス: セッション作成
 
@@ -196,7 +267,7 @@ interface AppState {
 sequenceDiagram
     participant U as ユーザー
     participant F as Frontend
-    participant API as REST API
+    participant API as API Routes
     participant SM as Session Manager
     participant PM as Process Manager
     participant Git as Git Ops
@@ -208,7 +279,7 @@ sequenceDiagram
     SM->>Git: createWorktree()
     Git-->>SM: worktree path
     SM->>PM: startClaudeCode(path, prompt)
-    PM->>CC: claude --print (subprocess)
+    PM->>CC: claude --print (child_process)
     CC-->>PM: プロセス開始
     PM-->>SM: process info
     SM->>SM: セッション情報をDB保存
@@ -304,6 +375,7 @@ sequenceDiagram
 **レスポンス（200）**:
 ```json
 {
+  "message": "Login successful",
   "session_id": "uuid",
   "expires_at": "2025-12-08T12:00:00Z"
 }
@@ -322,7 +394,7 @@ sequenceDiagram
 **レスポンス（200）**:
 ```json
 {
-  "message": "Logged out successfully"
+  "message": "Logout successful"
 }
 ```
 
@@ -366,9 +438,14 @@ sequenceDiagram
 **レスポンス（201）**:
 ```json
 {
-  "id": "uuid",
-  "name": "repo-name",
-  "path": "/path/to/git/repo"
+  "project": {
+    "id": "uuid",
+    "name": "repo-name",
+    "path": "/path/to/git/repo",
+    "default_model": "auto",
+    "run_scripts": [],
+    "created_at": "2025-12-01T00:00:00Z"
+  }
 }
 ```
 
@@ -376,6 +453,20 @@ sequenceDiagram
 ```json
 {
   "error": "Not a Git repository"
+}
+```
+
+**レスポンス（403）**:
+```json
+{
+  "error": "指定されたパスは許可されていません"
+}
+```
+
+**レスポンス（409）**:
+```json
+{
+  "error": "このパスは既に登録されています"
 }
 ```
 
@@ -389,6 +480,22 @@ sequenceDiagram
   "run_scripts": [
     {"name": "test", "command": "npm test"}
   ]
+}
+```
+
+**レスポンス（200）**:
+```json
+{
+  "project": {
+    "id": "uuid",
+    "name": "repo-name",
+    "path": "/path/to/git/repo",
+    "default_model": "sonnet",
+    "run_scripts": [
+      {"name": "test", "command": "npm test"}
+    ],
+    "created_at": "2025-12-01T00:00:00Z"
+  }
 }
 ```
 
@@ -447,27 +554,29 @@ sequenceDiagram
 **レスポンス（200）**:
 ```json
 {
-  "id": "uuid",
-  "name": "feature-auth",
-  "status": "waiting_input",
-  "git_status": "dirty",
-  "model": "sonnet",
-  "worktree_path": "/path/to/worktree",
-  "messages": [
-    {
-      "role": "user",
-      "content": "Implement auth",
-      "timestamp": "2025-12-08T10:00:00Z"
-    },
-    {
-      "role": "assistant",
-      "content": "I'll implement...",
-      "timestamp": "2025-12-08T10:00:05Z",
-      "sub_agents": [
-        {"name": "file_edit", "output": "..."}
-      ]
-    }
-  ]
+  "session": {
+    "id": "uuid",
+    "name": "feature-auth",
+    "status": "waiting_input",
+    "git_status": "dirty",
+    "model": "sonnet",
+    "worktree_path": "/path/to/worktree",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Implement auth",
+        "timestamp": "2025-12-08T10:00:00Z"
+      },
+      {
+        "role": "assistant",
+        "content": "I'll implement...",
+        "timestamp": "2025-12-08T10:00:05Z",
+        "sub_agents": [
+          {"name": "file_edit", "output": "..."}
+        ]
+      }
+    ]
+  }
 }
 ```
 
@@ -481,18 +590,54 @@ sequenceDiagram
 }
 ```
 
+**レスポンス（200）**:
+```json
+{
+  "message": {
+    "id": "msg-uuid",
+    "role": "user",
+    "content": "Please also add tests",
+    "timestamp": "2025-12-08T10:05:00Z"
+  }
+}
+```
+
 #### POST /api/sessions/{id}/approve
 **目的**: 権限承認
 
 **リクエスト**:
 ```json
 {
-  "approved": true
+  "action": "approve",
+  "permission_id": "perm-uuid"
+}
+```
+
+**レスポンス（200）**:
+```json
+{
+  "success": true,
+  "action": "approve"
 }
 ```
 
 #### POST /api/sessions/{id}/stop
 **目的**: セッション停止
+
+**レスポンス（200）**:
+```json
+{
+  "session": {
+    "id": "uuid",
+    "name": "feature-auth",
+    "status": "stopped",
+    "git_status": "dirty",
+    "model": "sonnet",
+    "worktree_path": "/path/to/worktree",
+    "created_at": "2025-12-08T10:00:00Z"
+  }
+}
+```
 
 #### DELETE /api/sessions/{id}
 **目的**: セッション削除（worktreeも削除）
@@ -505,25 +650,27 @@ sequenceDiagram
 **レスポンス（200）**:
 ```json
 {
-  "files": [
-    {
-      "path": "src/auth.ts",
-      "status": "modified",
-      "additions": 45,
-      "deletions": 12,
-      "hunks": [
-        {
-          "old_start": 10,
-          "old_lines": 5,
-          "new_start": 10,
-          "new_lines": 8,
-          "content": "@@ -10,5 +10,8 @@\n-old line\n+new line"
-        }
-      ]
-    }
-  ],
-  "total_additions": 45,
-  "total_deletions": 12
+  "diff": {
+    "files": [
+      {
+        "path": "src/auth.ts",
+        "status": "modified",
+        "additions": 45,
+        "deletions": 12,
+        "hunks": [
+          {
+            "old_start": 10,
+            "old_lines": 5,
+            "new_start": 10,
+            "new_lines": 8,
+            "content": "@@ -10,5 +10,8 @@\n-old line\n+new line"
+          }
+        ]
+      }
+    ],
+    "totalAdditions": 45,
+    "totalDeletions": 12
+  }
 }
 ```
 
@@ -559,13 +706,15 @@ sequenceDiagram
 **レスポンス（409）**:
 ```json
 {
-  "error": "Conflict detected",
-  "conflicting_files": ["src/auth.ts"]
+  "success": false,
+  "conflicts": ["src/auth.ts"]
 }
 ```
 
 #### POST /api/sessions/{id}/reset
 **目的**: 特定コミットへのリセット
+
+**注意**: このエンドポイントは未実装です。
 
 **リクエスト**:
 ```json
@@ -585,10 +734,27 @@ sequenceDiagram
 }
 ```
 
+**レスポンス（200）**:
+```json
+{
+  "success": true
+}
+```
+
+**レスポンス（409）**:
+```json
+{
+  "success": false,
+  "conflicts": ["src/auth.ts", "src/utils.ts"]
+}
+```
+
 ### ランスクリプト
 
 #### POST /api/sessions/{id}/run
 **目的**: ランスクリプト実行
+
+**注意**: このエンドポイントは未実装です。
 
 **リクエスト**:
 ```json
@@ -607,10 +773,14 @@ sequenceDiagram
 #### POST /api/sessions/{id}/run/{run_id}/stop
 **目的**: ランスクリプト停止
 
+**注意**: このエンドポイントは未実装です。
+
 ### プロンプト履歴
 
 #### GET /api/prompts
 **目的**: プロンプト履歴取得
+
+**注意**: このエンドポイントは未実装です。
 
 **レスポンス（200）**:
 ```json
@@ -628,6 +798,8 @@ sequenceDiagram
 
 #### DELETE /api/prompts/{id}
 **目的**: プロンプト履歴削除
+
+**注意**: このエンドポイントは未実装です。
 
 ## WebSocket API
 
@@ -686,9 +858,11 @@ ws://host/ws/terminal/{session_id}
 | name | TEXT | NOT NULL | プロジェクト名 |
 | path | TEXT | NOT NULL UNIQUE | Gitリポジトリパス |
 | default_model | TEXT | DEFAULT 'auto' | デフォルトモデル |
-| run_scripts | TEXT | | JSON形式のランスクリプト配列 |
 | created_at | TEXT | NOT NULL | 作成日時（ISO 8601） |
 | updated_at | TEXT | NOT NULL | 更新日時（ISO 8601） |
+
+**リレーション**:
+- `RunScript` テーブルと1対多のリレーション（project_id経由）
 
 ### テーブル: sessions
 
@@ -725,6 +899,24 @@ ws://host/ws/terminal/{session_id}
 | last_used_at | TEXT | NOT NULL | 最終使用日時 |
 | created_at | TEXT | NOT NULL | 作成日時 |
 
+### テーブル: run_scripts
+
+| カラム | 型 | 制約 | 説明 |
+|--------|------|------|------|
+| id | TEXT | PRIMARY KEY | UUID |
+| project_id | TEXT | FOREIGN KEY | プロジェクトID |
+| name | TEXT | NOT NULL | スクリプト名 |
+| description | TEXT | | スクリプトの説明 |
+| command | TEXT | NOT NULL | 実行するコマンド |
+| created_at | TEXT | NOT NULL | 作成日時（ISO 8601） |
+| updated_at | TEXT | NOT NULL | 更新日時（ISO 8601） |
+
+**インデックス**:
+- `project_id` にインデックス
+
+**リレーション**:
+- `Project` テーブルと多対1のリレーション（project_id経由）
+
 ### テーブル: auth_sessions
 
 | カラム | 型 | 制約 | 説明 |
@@ -736,21 +928,35 @@ ws://host/ws/terminal/{session_id}
 
 ## 技術的決定事項
 
-### 決定1: データベースにSQLiteを採用
+### 決定1: Next.js統合アーキテクチャを採用
+
+**検討した選択肢**:
+1. Next.js統合構成 - フロントエンドとバックエンドを1つのプロジェクトに統合
+2. Monorepo構成 - フロントエンド(Next.js) + バックエンド(Fastify)を別プロセスで実行
+
+**決定**: Next.js統合構成
+
+**根拠**:
+- `npx claude-work`1コマンドで起動できるシンプルさ
+- 技術スタックがTypeScriptに統一され、型共有が容易
+- デプロイが容易（単一プロセス）
+- Next.jsカスタムサーバーでWebSocket統合が可能
+
+### 決定2: データベースにSQLiteを採用
 
 **検討した選択肢**:
 1. SQLite - シンプル、ファイルベース、セットアップ不要
 2. PostgreSQL - 高機能、スケーラブル、複雑なクエリ対応
 
-**決定**: SQLite
+**決定**: SQLite（better-sqlite3）
 
-**根拠**: 
-- 単一ユーザー向けホームラボ環境では十分な性能
-- Docker Composeでの構成がシンプル
+**根拠**:
+- 単一ユーザー向けローカル環境では十分な性能
+- セットアップ不要でnpmインストールのみで完結
 - バックアップがファイルコピーで完了
-- 将来的にPostgreSQLへの移行も容易
+- better-sqlite3は高速で同期APIが使いやすい
 
-### 決定2: 状態管理にZustandを採用
+### 決定3: 状態管理にZustandを採用
 
 **検討した選択肢**:
 1. Zustand - シンプル、軽量、TypeScript親和性
@@ -764,20 +970,21 @@ ws://host/ws/terminal/{session_id}
 - TypeScriptとの相性が良い
 - 中規模アプリケーションに適切なサイズ
 
-### 決定3: プロセス管理にasyncio subprocessを採用
+### 決定4: プロセス管理にNode.js child_processを採用
 
 **検討した選択肢**:
-1. asyncio subprocess - Python標準、非同期I/O対応
-2. pty + select - 低レベル制御、複雑
+1. child_process - Node.js標準、非同期I/O対応
+2. node-pty - PTY制御、ターミナルエミュレーション
 
-**決定**: asyncio subprocess（Claude Code用）+ pty（ターミナル用）
+**決定**: child_process（Claude Code用）+ node-pty（ターミナル用）
 
 **根拠**:
 - Claude Codeはパイプベースで十分
-- ターミナル機能はPTYが必須
+- ターミナル機能はPTY（node-pty）が必須
 - 用途に応じた適切な選択
+- Node.js標準APIで追加依存が少ない
 
-### 決定4: 認証方式にトークンベース認証を採用
+### 決定5: 認証方式にトークンベース認証を採用
 
 **検討した選択肢**:
 1. トークンベース認証 - シンプル、環境変数で設定
@@ -791,6 +998,27 @@ ws://host/ws/terminal/{session_id}
 - 環境変数での設定が容易
 - リバースプロキシと組み合わせて使用
 
+### 決定6: Claude CLIパスの自動検出機能を実装
+
+**検討した選択肢**:
+1. PATH環境変数から自動検出 - ユーザーフレンドリー、設定不要
+2. CLAUDE_CODE_PATH必須 - 明示的だが設定が手間
+3. デフォルトパス検索 - 環境依存、メンテナンス困難
+
+**決定**: PATH環境変数から自動検出（CLAUDE_CODE_PATH設定時は検証のみ）
+
+**根拠**:
+- ユーザーがclaudeコマンドをインストール済みなら追加設定不要
+- CLAUDE_CODE_PATHが設定済みの場合は既存動作を維持
+- 起動時にパスを検証することでエラーを早期発見
+- macOS/Linux環境では`which`コマンドで確実に検出可能
+
+**実装方針**:
+- `src/lib/env-validation.ts`に検出ロジックを実装
+- `server.ts`起動時に自動的に実行
+- 検出失敗時はエラーメッセージを表示してサーバー起動停止
+- 検出成功時はログに検出されたパスを出力
+
 ## セキュリティ考慮事項
 
 ### 認証・認可
@@ -800,9 +1028,18 @@ ws://host/ws/terminal/{session_id}
 - セッションは24時間で期限切れ
 - HTTPOnlyクッキーでセッションID管理
 
+### プロジェクトパス制限
+
+- プロジェクトとして登録可能なパスは環境変数`ALLOWED_PROJECT_DIRS`で制限可能
+- `ALLOWED_PROJECT_DIRS`はカンマ区切りで複数のディレクトリパスを指定（例: `/home/user/projects,/var/www`）
+- 空文字列または未設定の場合、すべてのパスを許可（開発環境向け）
+- 設定されたパス配下のディレクトリのみプロジェクトとして登録可能
+- 許可外のパスを指定した場合、403 Forbiddenエラーを返す
+- 本番環境では必ず設定することを推奨（セキュリティリスク軽減）
+
 ### 通信
 
-- HTTPS終端はリバースプロキシ（Caddy推奨）で実施
+- 開発環境はHTTP、本番環境ではリバースプロキシ（Caddy/nginx推奨）でHTTPS化
 - WebSocket接続も認証済みセッションでのみ許可
 - CORS設定で許可オリジンを制限
 
@@ -839,6 +1076,23 @@ ws://host/ws/terminal/{session_id}
 - SQLite WALモードで読み取り性能向上
 
 ## エラー処理
+
+### 環境検証（サーバー起動時）
+
+- **claudeコマンド未検出**:
+  - エラーメッセージ: `Error: claude command not found in PATH. Please install Claude Code CLI or set CLAUDE_CODE_PATH environment variable.`
+  - サーバー起動を停止（process.exit(1)）
+  - ログレベル: error
+
+- **CLAUDE_CODE_PATH無効**:
+  - エラーメッセージ: `Error: CLAUDE_CODE_PATH is set but the path does not exist: ${path}`
+  - サーバー起動を停止（process.exit(1)）
+  - ログレベル: error
+
+- **Windows環境**:
+  - エラーメッセージ: `Error: Windows is not supported. Please use macOS or Linux.`
+  - サーバー起動を停止（process.exit(1)）
+  - ログレベル: error
 
 ### Claude Codeプロセス
 

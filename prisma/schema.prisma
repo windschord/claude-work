@@ -1,0 +1,79 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Project {
+  id            String   @id @default(uuid())
+  name          String
+  path          String   @unique
+  default_model String   @default("auto")
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  sessions      Session[]
+  scripts       RunScript[]
+}
+
+model Session {
+  id             String   @id @default(uuid())
+  project_id     String
+  name           String
+  status         String
+  model          String
+  worktree_path  String
+  branch_name    String
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  project        Project  @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  messages       Message[]
+}
+
+model Message {
+  id          String   @id @default(uuid())
+  session_id  String
+  role        String
+  content     String
+  sub_agents  String?  // JSON format
+  created_at  DateTime @default(now())
+
+  session     Session  @relation(fields: [session_id], references: [id], onDelete: Cascade)
+}
+
+model AuthSession {
+  id          String   @id
+  token_hash  String
+  expires_at  DateTime
+  created_at  DateTime @default(now())
+}
+
+model Prompt {
+  id           String   @id @default(uuid())
+  content      String   @unique
+  used_count   Int      @default(1)
+  last_used_at DateTime @default(now())
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+}
+
+model RunScript {
+  id          String   @id @default(uuid())
+  project_id  String
+  name        String
+  description String?
+  command     String
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  project     Project  @relation(fields: [project_id], references: [id], onDelete: Cascade)
+
+  @@index([project_id])
+}
