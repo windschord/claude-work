@@ -2162,6 +2162,8 @@ useEffect(() => {
 2. テスト実行: すべてのテストが失敗することを確認
 3. テストコミット: テストのみをコミット
 4. 実装: `src/components/common/NotificationSettings.tsx`を実装
+   - useEffect + useRef でドロップダウン外クリック検知を実装
+   - isOpen 状態の管理と外側クリック時のクローズ処理
 5. ヘッダーコンポーネント（`src/components/layout/Header.tsx`）にNotificationSettingsを追加
    - ThemeToggleの左側に配置
    - `import { NotificationSettings } from '@/components/common/NotificationSettings';`
