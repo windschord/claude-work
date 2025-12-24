@@ -1894,11 +1894,32 @@ export function requestPermission(): Promise<NotificationPermission>;
 export function sendNotification(event: NotificationEvent): void;
 export function isTabActive(): boolean;
 
-// sendNotification の通知ルーティングロジック（擬似コード）
-// 実装時は以下のヘルパー関数を定義する:
-// - getSettingKey(type): イベント種別 → 設定キー (例: 'taskComplete' → 'onTaskComplete')
-// - getTitle(event): 通知タイトル生成 (例: 'タスク完了: [セッション名]')
-// - getDefaultMessage(type): デフォルトメッセージ取得
+// ヘルパー関数の実装例
+function getSettingKey(type: NotificationEventType): keyof NotificationSettings {
+  switch (type) {
+    case 'taskComplete': return 'onTaskComplete';
+    case 'permissionRequest': return 'onPermissionRequest';
+    case 'error': return 'onError';
+  }
+}
+
+function getDefaultMessage(type: NotificationEventType): string {
+  switch (type) {
+    case 'taskComplete': return 'タスクが完了しました';
+    case 'permissionRequest': return '権限確認が必要です';
+    case 'error': return 'エラーが発生しました';
+  }
+}
+
+function getTitle(event: NotificationEvent): string {
+  switch (event.type) {
+    case 'taskComplete': return `タスク完了: ${event.sessionName}`;
+    case 'permissionRequest': return `アクション要求: ${event.sessionName}`;
+    case 'error': return `エラー発生: ${event.sessionName}`;
+  }
+}
+
+// sendNotification の通知ルーティングロジック
 function sendNotification(event: NotificationEvent): void {
   const settings = getSettings();
   const settingKey = getSettingKey(event.type);  // 'onTaskComplete' | 'onPermissionRequest' | 'onError'
@@ -2164,16 +2185,30 @@ src/components/common/__tests__/NotificationSettings.test.tsx
 // src/components/common/NotificationSettings.tsx
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Bell, BellOff } from 'lucide-react';
 import { useNotificationStore } from '@/store/notification';
 
 export function NotificationSettings() {
   const [isOpen, setIsOpen] = useState(false);
   const { permission, settings, updateSettings } = useNotificationStore();
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // ドロップダウン外クリックで閉じる
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isOpen]);
 
   return (
-    <div className="relative">
+    <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800"
