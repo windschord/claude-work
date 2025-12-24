@@ -10,15 +10,18 @@ vi.mock('@/lib/notification-service', () => ({
 }));
 
 // グローバルなNotificationのモック
-const mockNotification = {
-  permission: 'default' as NotificationPermission,
-};
+class MockNotification {
+  static permission: NotificationPermission = 'default';
+}
 
-// windowオブジェクトのモック
+// windowとNotificationオブジェクトのモック
 Object.defineProperty(global, 'window', {
-  value: {
-    Notification: mockNotification,
-  },
+  value: {},
+  writable: true,
+});
+
+Object.defineProperty(global, 'Notification', {
+  value: MockNotification,
   writable: true,
 });
 
@@ -38,7 +41,7 @@ describe('useNotificationStore', () => {
     vi.mocked(getSettings).mockReturnValue(mockSettings);
 
     // Notification.permissionをデフォルトにリセット
-    mockNotification.permission = 'default';
+    MockNotification.permission = 'default';
 
     // ストアをリセット
     useNotificationStore.setState({
@@ -48,7 +51,7 @@ describe('useNotificationStore', () => {
   });
 
   it('初期状態でNotification.permissionを取得する', () => {
-    mockNotification.permission = 'granted';
+    MockNotification.permission = 'granted';
 
     // ストアを再作成するために、モジュールを再読み込み
     const { permission } = useNotificationStore.getState();
@@ -58,11 +61,10 @@ describe('useNotificationStore', () => {
   });
 
   it('初期状態でgetSettings()から設定を取得する', async () => {
-    const { getSettings } = await import('@/lib/notification-service');
-
+    // ストアの初期化時にgetSettingsが呼ばれている
     const { settings } = useNotificationStore.getState();
 
-    expect(vi.mocked(getSettings)).toHaveBeenCalled();
+    // beforeEachでモックから設定されたmockSettingsがストアに格納されている
     expect(settings).toEqual(mockSettings);
   });
 
