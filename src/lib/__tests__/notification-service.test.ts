@@ -1,4 +1,14 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+
+// react-hot-toastのモック（import前に宣言）
+vi.mock('react-hot-toast', () => ({
+  default: {
+    success: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
+import toast from 'react-hot-toast';
 import {
   getSettings,
   saveSettings,
@@ -23,11 +33,6 @@ const mockLocalStorage = (() => {
   };
 })();
 
-const mockToast = {
-  success: vi.fn(),
-  error: vi.fn(),
-};
-
 const mockNotification = vi.fn();
 
 // グローバルオブジェクトのモック
@@ -47,11 +52,6 @@ Object.defineProperty(global, 'document', {
   },
   writable: true,
 });
-
-// react-hot-toastのモック
-vi.mock('react-hot-toast', () => ({
-  default: mockToast,
-}));
 
 describe('notification-service', () => {
   beforeEach(() => {
@@ -205,7 +205,7 @@ describe('notification-service', () => {
 
       sendNotification(mockEvent);
 
-      expect(mockToast.success).not.toHaveBeenCalled();
+      expect(toast.success).not.toHaveBeenCalled();
       expect(mockNotification).not.toHaveBeenCalled();
     });
 
@@ -228,7 +228,7 @@ describe('notification-service', () => {
 
       sendNotification(event);
 
-      expect(mockToast.success).not.toHaveBeenCalled();
+      expect(toast.success).not.toHaveBeenCalled();
       expect(mockNotification).not.toHaveBeenCalled();
     });
 
@@ -252,7 +252,7 @@ describe('notification-service', () => {
 
       sendNotification(event);
 
-      expect(mockToast.error).not.toHaveBeenCalled();
+      expect(toast.error).not.toHaveBeenCalled();
       expect(mockNotification).not.toHaveBeenCalled();
     });
 
@@ -264,7 +264,7 @@ describe('notification-service', () => {
 
       sendNotification(mockEvent);
 
-      expect(mockToast.success).toHaveBeenCalledWith(
+      expect(toast.success).toHaveBeenCalledWith(
         'Test Session: タスクが完了しました'
       );
       expect(mockNotification).not.toHaveBeenCalled();
@@ -285,7 +285,7 @@ describe('notification-service', () => {
 
       sendNotification(event);
 
-      expect(mockToast.error).toHaveBeenCalledWith(
+      expect(toast.error).toHaveBeenCalledWith(
         'Test Session: エラーが発生しました'
       );
       expect(mockNotification).not.toHaveBeenCalled();
@@ -299,7 +299,7 @@ describe('notification-service', () => {
 
       sendNotification(mockEvent);
 
-      expect(mockToast.success).not.toHaveBeenCalled();
+      expect(toast.success).not.toHaveBeenCalled();
       expect(mockNotification).toHaveBeenCalledWith('ClaudeWork', {
         body: 'Test Session: タスクが完了しました',
         icon: '/favicon.ico',
@@ -322,7 +322,7 @@ describe('notification-service', () => {
 
       sendNotification(event);
 
-      expect(mockToast.success).not.toHaveBeenCalled();
+      expect(toast.success).not.toHaveBeenCalled();
       expect(mockNotification).toHaveBeenCalledWith('ClaudeWork', {
         body: 'Another Session: 権限確認が必要です',
         icon: '/favicon.ico',
@@ -351,7 +351,7 @@ describe('notification-service', () => {
 
       sendNotification(event);
 
-      expect(mockToast.success).toHaveBeenCalledWith('Test Session: タスクが完了しました');
+      expect(toast.success).toHaveBeenCalledWith('Test Session: タスクが完了しました');
     });
 
     it('messageが未指定の場合デフォルトメッセージを使用（permissionRequest）', () => {
@@ -363,7 +363,7 @@ describe('notification-service', () => {
 
       sendNotification(event);
 
-      expect(mockToast.success).toHaveBeenCalledWith('Test Session: 権限確認が必要です');
+      expect(toast.success).toHaveBeenCalledWith('Test Session: 権限確認が必要です');
     });
 
     it('messageが未指定の場合デフォルトメッセージを使用（error）', () => {
@@ -375,7 +375,7 @@ describe('notification-service', () => {
 
       sendNotification(event);
 
-      expect(mockToast.error).toHaveBeenCalledWith('Test Session: エラーが発生しました');
+      expect(toast.error).toHaveBeenCalledWith('Test Session: エラーが発生しました');
     });
   });
 });
