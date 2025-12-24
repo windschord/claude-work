@@ -1894,23 +1894,32 @@ export function requestPermission(): Promise<NotificationPermission>;
 export function sendNotification(event: NotificationEvent): void;
 export function isTabActive(): boolean;
 
-// sendNotification の通知ルーティングロジック
+// sendNotification の通知ルーティングロジック（擬似コード）
+// 実装時は以下のヘルパー関数を定義する:
+// - getSettingKey(type): イベント種別 → 設定キー (例: 'taskComplete' → 'onTaskComplete')
+// - getTitle(event): 通知タイトル生成 (例: 'タスク完了: [セッション名]')
+// - getDefaultMessage(type): デフォルトメッセージ取得
 function sendNotification(event: NotificationEvent): void {
   const settings = getSettings();
-  // イベント種別に応じた設定チェック
-  if (!settings[getSettingKey(event.type)]) return;
+  const settingKey = getSettingKey(event.type);  // 'onTaskComplete' | 'onPermissionRequest' | 'onError'
+  if (!settings[settingKey]) return;
+
+  const message = event.message || getDefaultMessage(event.type);
+  const fullMessage = `${event.sessionName}: ${message}`;
 
   if (isTabActive()) {
     // タブがアクティブ → react-hot-toast で表示
     if (event.type === 'error') {
-      toast.error(message);
+      toast.error(fullMessage);
     } else {
-      toast.success(message);
+      toast.success(fullMessage);
     }
   } else {
     // タブがバックグラウンド → OS通知（Notification API）
     if (Notification.permission === 'granted') {
-      new Notification(title, { body, icon, tag });
+      const title = getTitle(event);  // 例: 'タスク完了: session-1'
+      const body = event.message || getDefaultMessage(event.type);
+      new Notification(title, { body, icon: '/icon.png', tag: `claudework-${event.sessionId}` });
     }
   }
 }
@@ -1991,7 +2000,17 @@ export const useNotificationStore = create<NotificationState>((set) => ({
 }));
 ```
 
-**注意**: `initializeFromStorage()`はNotificationSettingsコンポーネント（タスク34.5）のマウント時に呼び出す。これにより、ローカルストレージから設定が読み込まれ、UIと同期される。
+**注意**: `initializeFromStorage()`の呼び出しについて:
+- **呼び出し場所**: `src/components/common/NotificationSettings.tsx`
+- **タイミング**: コンポーネントのマウント時に`useEffect`内で1回呼び出す
+- **目的**: ローカルストレージから設定を読み込み、UIと同期する
+- **補足**: ストアの初期化時（`getSettings()`）にも読み込むため、実際には冗長だが、
+  他のタブでの設定変更を反映するためにマウント時にも呼び出す
+```typescript
+// NotificationSettings.tsx での呼び出し例
+const { initializeFromStorage } = useNotificationStore();
+useEffect(() => { initializeFromStorage(); }, [initializeFromStorage]);
+```
 
 **受入基準**:
 - [ ] テストファイル`src/store/__tests__/notification.test.ts`が存在する
@@ -2092,8 +2111,12 @@ useEffect(() => {
     requestPermission();
   }
 }, [permission, requestPermission]);
-// 注: sessionIdは依存配列に含めない。通知許可はブラウザ全体で1回のみリクエストすればよい。
-// セッション変更時に再リクエストは不要。
+// 依存配列の解説:
+// - permission: ストアから取得した現在の許可状態。変化を検知してエフェクトを再実行する。
+// - requestPermission: Zustandのアクションは安定（毎回同じ参照）なので無限ループにはならない。
+//   ESLintのexhaustive-depsルールに従い含める。
+// - sessionId: 含めない。通知許可はブラウザ全体で1回のみリクエストすればよく、
+//   セッション変更時に再リクエストは不要。
 ```
 
 **受入基準**:
@@ -2125,8 +2148,10 @@ useEffect(() => {
 
 **レイアウト**:
 - 配置: ヘッダー右側、ThemeToggleの左隣
-- ドロップダウン: `absolute right-0`で右寄せ、幅264px
-- レスポンシブ: モバイルでも同じ配置（ドロップダウンは画面内に収まる）
+- ドロップダウン: `absolute right-0`で右寄せ、`w-64`（256px）
+- レスポンシブ:
+  - モバイル（375px以下）: ドロップダウンは`right-0`で右端固定、画面内に収まる
+  - 特別な調整は不要（ドロップダウン幅256px < 375px）
 
 **ファイル構成**:
 ```text
