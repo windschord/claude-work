@@ -2417,12 +2417,18 @@ Web Speech APIのSpeechRecognitionをラップするReact Hookを作成する。
 **実装手順**:
 1. `src/lib/voice/browser-support.ts`を作成
    - `checkVoiceSupport()`関数でブラウザ互換性チェック
+   - VoiceInputButton, VoicePlayButton, VoiceSettingsPanelで共通利用
 2. `src/hooks/useSpeechRecognition.ts`を作成
    - `isListening`, `isSupported`, `error`, `transcript`, `interimTranscript`状態
    - `startListening()`, `stopListening()`, `resetTranscript()`アクション
    - 言語設定（ja-JP/en-US）
    - webkitSpeechRecognition/SpeechRecognition対応
-3. テスト作成: `src/hooks/__tests__/useSpeechRecognition.test.ts`
+3. エラーハンドリング実装
+   - `not-allowed`: マイク権限拒否時のユーザー通知
+   - `no-speech`: 無音タイムアウト（2000ms）後の自動停止
+   - `network`: ネットワークエラー時のオフライン案内
+   - `audio-capture`: マイクデバイスエラー時のメッセージ
+4. テスト作成: `src/hooks/__tests__/useSpeechRecognition.test.ts`
 
 **受入基準**:
 - [ ] `src/lib/voice/browser-support.ts`が作成されている
@@ -2430,6 +2436,7 @@ Web Speech APIのSpeechRecognitionをラップするReact Hookを作成する。
 - [ ] 非対応ブラウザで`isSupported: false`が返る（REQ-101）
 - [ ] 音声認識の開始/停止が正常に動作する（REQ-094, REQ-097）
 - [ ] 中間結果がリアルタイムで取得できる（REQ-096）
+- [ ] 各エラー種別に対して適切なエラーメッセージが設定される
 - [ ] テストが通過する
 - [ ] ESLintエラーがゼロである
 
@@ -2449,9 +2456,12 @@ Web Speech APIのSpeechSynthesisをラップするReact Hookを作成する。
    - `isSpeaking`, `isPaused`, `isSupported`, `voices`状態
    - `speak()`, `pause()`, `resume()`, `cancel()`アクション
    - 音声、速度、ピッチ、音量の設定
+   - 読み上げキュー管理（FIFO、新規メッセージをキュー末尾に追加）
 2. `src/lib/voice/text-processor.ts`を作成
-   - Markdownからプレーンテキストを抽出
-   - コードブロックのスキップ/含めるオプション
+   - Markdownからプレーンテキストを抽出（正規表現でタグ除去）
+   - コードブロック（```...```）のスキップ/含めるオプション
+   - インラインコード（`...`）は読み上げ対象
+   - リンクはテキスト部分のみ抽出
 3. テスト作成: `src/hooks/__tests__/useSpeechSynthesis.test.ts`
 
 **受入基準**:
@@ -2460,6 +2470,7 @@ Web Speech APIのSpeechSynthesisをラップするReact Hookを作成する。
 - [ ] 利用可能な音声一覧が取得できる（REQ-114）
 - [ ] 読み上げの開始/停止が正常に動作する（REQ-103, REQ-105）
 - [ ] 速度/ピッチの調整が機能する（REQ-107, REQ-115）
+- [ ] キューイングが正常に動作し、順番に読み上げられる（REQ-106）
 - [ ] テストが通過する
 - [ ] ESLintエラーがゼロである
 
