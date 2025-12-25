@@ -1823,3 +1823,552 @@ await processManager.startClaudeCode({
 - Claude Code CLIの`--print`モードの動作特性
 - Zustandストアのデバッグ手法
 - APIレスポンスとフロントエンド状態の整合性確認
+
+---
+
+## Phase 34: ブラウザ通知システム
+
+**目的**: Claude Codeのイベント発生時にブラウザ通知を送信する機能を実装する
+
+**対応要件**: REQ-084 〜 REQ-093
+
+**技術的文脈**:
+- フレームワーク: Next.js 15 (App Router)
+- 状態管理: Zustand
+- toast通知: react-hot-toast（既存）
+- OS通知: Web Notifications API
+
+---
+
+### タスク34.1: 通知サービスの実装
+
+**説明**:
+`src/lib/notification-service.ts`にブラウザ通知の基盤を実装する
+
+**実装手順（TDD）**:
+1. テスト作成: `src/lib/__tests__/notification-service.test.ts`にテストケースを作成
+   - 通知許可リクエストのテスト
+   - イベント別通知設定の有効/無効テスト
+   - タブのアクティブ/バックグラウンド状態でのルーティングテスト
+   - ローカルストレージへの設定保存/読込テスト
+2. テスト実行: すべてのテストが失敗することを確認
+3. テストコミット: テストのみをコミット
+4. 実装: `notification-service.ts`を実装してテストを通過させる
+5. 実装コミット: すべてのテストが通過したらコミット
+
+**ファイル構成**:
+```text
+src/lib/notification-service.ts
+src/lib/__tests__/notification-service.test.ts
+```
+
+**実装詳細**:
+```typescript
+// src/lib/notification-service.ts
+export type NotificationEventType = 'taskComplete' | 'permissionRequest' | 'error';
+
+export interface NotificationSettings {
+  onTaskComplete: boolean;
+  onPermissionRequest: boolean;
+  onError: boolean;
+}
+
+export interface NotificationEvent {
+  type: NotificationEventType;
+  sessionId: string;
+  sessionName: string;
+  message?: string;
+}
+
+const STORAGE_KEY = 'claudework:notification-settings';
+
+const DEFAULT_SETTINGS: NotificationSettings = {
+  onTaskComplete: true,
+  onPermissionRequest: true,
+  onError: true,
+};
+
+export function getSettings(): NotificationSettings;
+export function saveSettings(settings: NotificationSettings): void;
+export function requestPermission(): Promise<NotificationPermission>;
+export function sendNotification(event: NotificationEvent): void;
+export function isTabActive(): boolean;
+
+// ヘルパー関数の実装例
+function getSettingKey(type: NotificationEventType): keyof NotificationSettings {
+  switch (type) {
+    case 'taskComplete': return 'onTaskComplete';
+    case 'permissionRequest': return 'onPermissionRequest';
+    case 'error': return 'onError';
+  }
+}
+
+function getDefaultMessage(type: NotificationEventType): string {
+  switch (type) {
+    case 'taskComplete': return 'タスクが完了しました';
+    case 'permissionRequest': return '権限確認が必要です';
+    case 'error': return 'エラーが発生しました';
+  }
+}
+
+function getTitle(event: NotificationEvent): string {
+  switch (event.type) {
+    case 'taskComplete': return `タスク完了: ${event.sessionName}`;
+    case 'permissionRequest': return `アクション要求: ${event.sessionName}`;
+    case 'error': return `エラー発生: ${event.sessionName}`;
+  }
+}
+
+// sendNotification の通知ルーティングロジック
+function sendNotification(event: NotificationEvent): void {
+  const settings = getSettings();
+  const settingKey = getSettingKey(event.type);  // 'onTaskComplete' | 'onPermissionRequest' | 'onError'
+  if (!settings[settingKey]) return;
+
+  const message = event.message || getDefaultMessage(event.type);
+  const fullMessage = `${event.sessionName}: ${message}`;
+
+  if (isTabActive()) {
+    // タブがアクティブ → react-hot-toast で表示
+    if (event.type === 'error') {
+      toast.error(fullMessage);
+    } else {
+      toast.success(fullMessage);
+    }
+  } else {
+    // タブがバックグラウンド → OS通知（Notification API）
+    if (Notification.permission === 'granted') {
+      const title = getTitle(event);  // 例: 'タスク完了: session-1'
+      const body = event.message || getDefaultMessage(event.type);
+      new Notification(title, { body, icon: '/icon.png', tag: `claudework-${event.sessionId}` });
+    }
+  }
+}
+```
+
+**受入基準**:
+- [ ] テストファイル`src/lib/__tests__/notification-service.test.ts`が存在する
+- [ ] テストが8つ以上含まれている
+- [ ] 実装前にテストのみのコミットが存在する
+- [ ] `src/lib/notification-service.ts`が実装されている
+- [ ] `getSettings()`がローカルストレージから設定を読み込む
+- [ ] `saveSettings()`が設定をローカルストレージに保存する
+- [ ] `requestPermission()`がNotification.requestPermission()を呼び出す
+- [ ] `sendNotification()`がタブ状態に応じてtoast/OS通知を送信する
+- [ ] すべてのテストが通過する（`npm test`）
+- [ ] ESLintエラーがゼロである
+
+**依存関係**: なし
+**推定工数**: 45分（AIエージェント作業時間）
+**ステータス**: `TODO`
+
+---
+
+### タスク34.2: 通知ストアの実装
+
+**説明**:
+`src/store/notification.ts`にZustandストアを実装する
+
+**実装手順（TDD）**:
+1. テスト作成: `src/store/__tests__/notification.test.ts`にテストケースを作成
+2. テスト実行: すべてのテストが失敗することを確認
+3. テストコミット: テストのみをコミット
+4. 実装: `notification.ts`を実装してテストを通過させる
+5. 実装コミット: すべてのテストが通過したらコミット
+
+**ファイル構成**:
+```text
+src/store/notification.ts
+src/store/__tests__/notification.test.ts
+```
+
+**実装詳細**:
+```typescript
+// src/store/notification.ts
+import { create } from 'zustand';
+import {
+  NotificationSettings,
+  getSettings,
+  saveSettings,
+  requestPermission as requestPermissionService,
+} from '@/lib/notification-service';
+
+interface NotificationState {
+  permission: NotificationPermission;
+  settings: NotificationSettings;
+  requestPermission: () => Promise<void>;
+  updateSettings: (settings: Partial<NotificationSettings>) => void;
+  initializeFromStorage: () => void;
+}
+
+export const useNotificationStore = create<NotificationState>((set) => ({
+  permission: typeof window !== 'undefined' ? Notification.permission : 'default',
+  settings: getSettings(),
+  requestPermission: async () => {
+    const result = await requestPermissionService();
+    set({ permission: result });
+  },
+  updateSettings: (newSettings) => {
+    set((state) => {
+      const updated = { ...state.settings, ...newSettings };
+      saveSettings(updated);
+      return { settings: updated };
+    });
+  },
+  initializeFromStorage: () => {
+    set({ settings: getSettings() });
+  },
+}));
+```
+
+**注意**: `initializeFromStorage()`の呼び出しについて:
+- **呼び出し場所**: `src/components/common/NotificationSettings.tsx`
+- **タイミング**: コンポーネントのマウント時に`useEffect`内で1回呼び出す
+- **目的**: ローカルストレージから設定を読み込み、UIと同期する
+- **補足**: ストアの初期化時（`getSettings()`）にも読み込むため、実際には冗長だが、
+  他のタブでの設定変更を反映するためにマウント時にも呼び出す
+```typescript
+// NotificationSettings.tsx での呼び出し例
+const { initializeFromStorage } = useNotificationStore();
+useEffect(() => { initializeFromStorage(); }, [initializeFromStorage]);
+```
+
+**受入基準**:
+- [ ] テストファイル`src/store/__tests__/notification.test.ts`が存在する
+- [ ] テストが5つ以上含まれている
+- [ ] 実装前にテストのみのコミットが存在する
+- [ ] `src/store/notification.ts`が実装されている
+- [ ] `useNotificationStore`がエクスポートされている
+- [ ] `requestPermission`アクションが許可状態を更新する
+- [ ] `updateSettings`アクションが設定を更新しローカルストレージに保存する
+- [ ] すべてのテストが通過する（`npm test`）
+- [ ] ESLintエラーがゼロである
+
+**依存関係**: タスク34.1
+**推定工数**: 30分（AIエージェント作業時間）
+**ステータス**: `TODO`
+
+---
+
+### タスク34.3: WebSocketメッセージハンドラへの通知統合
+
+**説明**:
+`src/store/index.ts`の`handleWebSocketMessage`に通知トリガーを追加する
+
+**実装手順**:
+1. `src/store/index.ts`を修正
+2. `status_change`メッセージで`completed`または`error`の場合に通知を送信
+3. `permission_request`メッセージで通知を送信
+4. 既存のテストを更新
+
+**実装詳細**:
+```typescript
+// src/store/index.ts の handleWebSocketMessage 内に追加
+import { sendNotification } from '@/lib/notification-service';
+
+// status_change ハンドラ内
+if (message.type === 'status_change') {
+  if (message.status === 'completed') {
+    sendNotification({
+      type: 'taskComplete',
+      sessionId: currentSession?.id || '',
+      sessionName: currentSession?.name || '',
+    });
+  } else if (message.status === 'error') {
+    sendNotification({
+      type: 'error',
+      sessionId: currentSession?.id || '',
+      sessionName: currentSession?.name || '',
+      message: 'プロセスがエラーで終了しました',
+    });
+  }
+}
+
+// permission_request ハンドラ内
+if (message.type === 'permission_request') {
+  sendNotification({
+    type: 'permissionRequest',
+    sessionId: currentSession?.id || '',
+    sessionName: currentSession?.name || '',
+    message: message.permission?.action,
+  });
+}
+```
+
+**受入基準**:
+- [ ] `handleWebSocketMessage`が`status_change`で`completed`時に通知を送信する
+- [ ] `handleWebSocketMessage`が`status_change`で`error`時に通知を送信する
+- [ ] `handleWebSocketMessage`が`permission_request`時に通知を送信する
+- [ ] 既存のテストが通過する
+- [ ] ESLintエラーがゼロである
+
+**依存関係**: タスク34.1, タスク34.2
+**推定工数**: 20分（AIエージェント作業時間）
+**ステータス**: `TODO`
+
+---
+
+### タスク34.4: 通知許可リクエストの自動実行
+
+**説明**:
+セッションページ初回アクセス時に通知許可をリクエストする
+
+**実装手順**:
+1. `src/app/sessions/[id]/page.tsx`を修正
+2. useEffectで初回レンダリング時に許可リクエストを実行
+3. 許可状態が`default`の場合のみリクエスト
+
+**実装詳細**:
+```typescript
+// src/app/sessions/[id]/page.tsx
+import { useNotificationStore } from '@/store/notification';
+
+// コンポーネント内
+const { permission, requestPermission } = useNotificationStore();
+
+useEffect(() => {
+  if (permission === 'default') {
+    // 非同期処理だがawaitは不要（結果はストアに保存される）
+    requestPermission();
+  }
+}, [permission, requestPermission]);
+// 依存配列の解説:
+// - permission: ストアから取得した現在の許可状態。変化を検知してエフェクトを再実行する。
+// - requestPermission: Zustandのアクションは安定（毎回同じ参照）なので無限ループにはならない。
+//   ESLintのexhaustive-depsルールに従い含める。
+// - sessionId: 含めない。通知許可はブラウザ全体で1回のみリクエストすればよく、
+//   セッション変更時に再リクエストは不要。
+```
+
+**受入基準**:
+- [ ] セッションページ初回アクセス時に通知許可ダイアログが表示される
+- [ ] 許可/拒否後、再度ダイアログは表示されない
+- [ ] 許可状態がZustandストアに保存される
+- [ ] ESLintエラーがゼロである
+
+**依存関係**: タスク34.2
+**推定工数**: 15分（AIエージェント作業時間）
+**ステータス**: `TODO`
+
+---
+
+### タスク34.5: 通知設定UIの実装
+
+**説明**:
+ヘッダーに通知設定ドロップダウンを追加する
+
+**実装手順（TDD）**:
+1. テスト作成: `src/components/common/__tests__/NotificationSettings.test.tsx`
+2. テスト実行: すべてのテストが失敗することを確認
+3. テストコミット: テストのみをコミット
+4. 実装: `src/components/common/NotificationSettings.tsx`を実装
+   - useEffect + useRef でドロップダウン外クリック検知を実装
+   - isOpen 状態の管理と外側クリック時のクローズ処理
+5. ヘッダーコンポーネント（`src/components/layout/Header.tsx`）にNotificationSettingsを追加
+   - ThemeToggleの左側に配置
+   - `import { NotificationSettings } from '@/components/common/NotificationSettings';`
+6. 実装コミット: すべてのテストが通過したらコミット
+
+**レイアウト**:
+- 配置: ヘッダー右側、ThemeToggleの左隣
+- ドロップダウン: `absolute right-0`で右寄せ、`w-64`（256px）
+- レスポンシブ:
+  - モバイル（375px以下）: ドロップダウンは`right-0`で右端固定、画面内に収まる
+  - 特別な調整は不要（ドロップダウン幅256px < 375px）
+
+**ファイル構成**:
+```text
+src/components/common/NotificationSettings.tsx
+src/components/common/__tests__/NotificationSettings.test.tsx
+```
+
+**実装詳細**:
+```typescript
+// src/components/common/NotificationSettings.tsx
+'use client';
+
+import { useState, useEffect, useRef } from 'react';
+import { Bell, BellOff } from 'lucide-react';
+import { useNotificationStore } from '@/store/notification';
+
+export function NotificationSettings() {
+  const [isOpen, setIsOpen] = useState(false);
+  const { permission, settings, updateSettings } = useNotificationStore();
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // ドロップダウン外クリックで閉じる
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isOpen]);
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800"
+        aria-label="通知設定"
+      >
+        {permission === 'granted' ? (
+          <Bell className="w-5 h-5" />
+        ) : (
+          <BellOff className="w-5 h-5 text-gray-400" />
+        )}
+      </button>
+
+      {isOpen && (
+        <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border dark:border-gray-700 p-4">
+          <h3 className="font-medium mb-3">通知設定</h3>
+
+          <label className="flex items-center justify-between py-2">
+            <span className="text-sm">タスク完了</span>
+            <input
+              type="checkbox"
+              checked={settings.onTaskComplete}
+              onChange={(e) => updateSettings({ onTaskComplete: e.target.checked })}
+              className="rounded"
+            />
+          </label>
+
+          <label className="flex items-center justify-between py-2">
+            <span className="text-sm">権限要求</span>
+            <input
+              type="checkbox"
+              checked={settings.onPermissionRequest}
+              onChange={(e) => updateSettings({ onPermissionRequest: e.target.checked })}
+              className="rounded"
+            />
+          </label>
+
+          <label className="flex items-center justify-between py-2">
+            <span className="text-sm">エラー発生</span>
+            <input
+              type="checkbox"
+              checked={settings.onError}
+              onChange={(e) => updateSettings({ onError: e.target.checked })}
+              className="rounded"
+            />
+          </label>
+
+          {permission === 'denied' && (
+            <p className="text-xs text-red-500 mt-2">
+              ブラウザの通知がブロックされています
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+**受入基準**:
+- [ ] テストファイル`src/components/common/__tests__/NotificationSettings.test.tsx`が存在する
+- [ ] テストが5つ以上含まれている
+- [ ] 実装前にテストのみのコミットが存在する
+- [ ] `src/components/common/NotificationSettings.tsx`が実装されている
+- [ ] `src/components/layout/Header.tsx`にNotificationSettingsがインポート・配置されている
+- [ ] ヘッダーに通知アイコンが表示される（ThemeToggleの左隣）
+- [ ] クリックで設定ドロップダウンが開く
+- [ ] ドロップダウン外クリックで閉じる
+- [ ] チェックボックスで各イベントの通知をオン/オフできる
+- [ ] 設定変更が即座にローカルストレージに保存される
+- [ ] 通知がブロックされている場合に警告が表示される
+- [ ] すべてのテストが通過する（`npm test`）
+- [ ] ESLintエラーがゼロである
+
+**依存関係**: タスク34.2
+**推定工数**: 40分（AIエージェント作業時間）
+**ステータス**: `TODO`
+
+---
+
+### タスク34.6: OS通知クリック時のフォーカス処理
+
+**説明**:
+OS通知をクリックした時に該当セッションのタブにフォーカスする
+
+**実装手順**:
+1. `src/lib/notification-service.ts`の`sendNotification`を修正
+2. `Notification`オブジェクトの`onclick`ハンドラを設定
+3. `window.focus()`と`location.href`でセッションページに遷移
+
+**実装詳細**:
+```typescript
+// src/lib/notification-service.ts の sendNotification 内
+function showOSNotification(event: NotificationEvent): void {
+  const notification = new Notification(getTitle(event), {
+    body: event.message || getDefaultBody(event),
+    icon: '/icon.png',
+    tag: `claudework-${event.sessionId}`,
+  });
+
+  notification.onclick = () => {
+    window.focus();
+    window.location.href = `/sessions/${event.sessionId}`;
+    notification.close();
+  };
+}
+
+function getTitle(event: NotificationEvent): string {
+  switch (event.type) {
+    case 'taskComplete':
+      return `タスク完了: ${event.sessionName}`;
+    case 'permissionRequest':
+      return `アクション要求: ${event.sessionName}`;
+    case 'error':
+      return `エラー発生: ${event.sessionName}`;
+  }
+}
+```
+
+**受入基準**:
+- [ ] OS通知クリック時にウィンドウがフォーカスされる
+- [ ] OS通知クリック時に該当セッションページに遷移する
+- [ ] 通知が自動的に閉じる
+- [ ] ESLintエラーがゼロである
+
+**依存関係**: タスク34.1
+**推定工数**: 15分（AIエージェント作業時間）
+**ステータス**: `TODO`
+
+---
+
+### Phase 34完了基準
+
+- [ ] タスク34.1が完了している（通知サービス）
+- [ ] タスク34.2が完了している（通知ストア）
+- [ ] タスク34.3が完了している（WebSocketハンドラ統合）
+- [ ] タスク34.4が完了している（許可リクエスト自動実行）
+- [ ] タスク34.5が完了している（設定UI）
+- [ ] タスク34.6が完了している（通知クリックフォーカス）
+- [ ] タスク完了時にOS通知が送信される
+- [ ] 権限要求時にOS通知が送信される
+- [ ] エラー発生時にOS通知が送信される
+- [ ] タブがアクティブな場合はtoast通知が表示される
+- [ ] 通知設定UIで各イベントのオン/オフが可能
+- [ ] 設定がローカルストレージに永続化される
+- [ ] すべてのテストが通過している（`npm test`）
+- [ ] ESLintエラーがゼロである
+- [ ] すべてのコミットが作成されている
+
+### 解決される要件
+
+**docs/requirements.md**:
+- REQ-084: 初回アクセス時の通知許可要求
+- REQ-085: タスク完了時のOS通知
+- REQ-086: 権限要求時のOS通知
+- REQ-087: エラー発生時のOS通知
+- REQ-088: アクティブタブでのtoast通知
+- REQ-089: バックグラウンドタブでのOS通知
+- REQ-090: 通知クリック時のフォーカス
+- REQ-091: 通知設定のローカルストレージ保存
+- REQ-092: 設定変更の即時適用
+- REQ-093: イベント別オン/オフ設定
