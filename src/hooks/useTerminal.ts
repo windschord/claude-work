@@ -39,6 +39,7 @@ export function useTerminal(sessionId: string): UseTerminalReturn {
       return;
     }
 
+    let isMounted = true;
     let terminal: Terminal;
     let fitAddon: FitAddon;
     let ws: WebSocket;
@@ -48,6 +49,9 @@ export function useTerminal(sessionId: string): UseTerminalReturn {
         // 動的インポートでXTerm.jsとFitAddonを読み込む
         const { Terminal } = await import('@xterm/xterm');
         const { FitAddon } = await import('@xterm/addon-fit');
+
+        // アンマウント後は処理を中断
+        if (!isMounted) return;
 
         // ターミナルインスタンスを作成
         terminal = new Terminal({
@@ -80,6 +84,7 @@ export function useTerminal(sessionId: string): UseTerminalReturn {
 
         // 接続成功時
         ws.onopen = () => {
+          if (!isMounted) return;
           setIsConnected(true);
           // 初期リサイズメッセージを送信
           if (terminal.cols && terminal.rows) {
@@ -116,11 +121,13 @@ export function useTerminal(sessionId: string): UseTerminalReturn {
 
         // 接続切断時
         ws.onclose = () => {
+          if (!isMounted) return;
           setIsConnected(false);
         };
 
         // エラー発生時
         ws.onerror = (error: Event) => {
+          if (!isMounted) return;
           console.error('Terminal WebSocket error:', error);
           setIsConnected(false);
         };
@@ -138,6 +145,7 @@ export function useTerminal(sessionId: string): UseTerminalReturn {
         });
         onDataDisposableRef.current = onDataDisposable;
       } catch (err) {
+        if (!isMounted) return;
         console.error('Failed to initialize terminal:', err);
         setError(err instanceof Error ? err.message : 'Failed to initialize terminal');
       }
@@ -147,6 +155,7 @@ export function useTerminal(sessionId: string): UseTerminalReturn {
 
     // クリーンアップ
     return () => {
+      isMounted = false;
       if (onDataDisposableRef.current) {
         onDataDisposableRef.current.dispose();
       }
