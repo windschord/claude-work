@@ -1239,3 +1239,475 @@ ws://host/ws/terminal/{session_id}
 - すべてのAPIエラーは統一フォーマットで返却
 - エラーログはJSON形式で出力
 - クリティカルエラーは別ファイルにも記録
+
+## 音声機能
+
+### 概要
+
+ClaudeWorkに音声入力（Speech-to-Text）と音声読み上げ（Text-to-Speech）機能を追加し、ハンズフリーでのClaude Code操作を可能にする。
+
+**参考資料**:
+- [Web Speech API - MDN](https://developer.mozilla.org/en-US/docs/Web/API/Web_Speech_API)
+- [Whisper-Web (Transformers.js)](https://github.com/xenova/whisper-web)
+
+### 音声機能アーキテクチャ
+
+```mermaid
+graph TD
+    subgraph "ブラウザ (クライアント)"
+        Mic[🎤 マイク]
+        Speaker[🔊 スピーカー]
+
+        subgraph "音声入力モジュール"
+            MediaRecorder[MediaRecorder API]
+            SpeechRecognition[Web Speech API<br/>SpeechRecognition]
+            WhisperJS[Whisper.js<br/>オプション]
+        end
+
+        subgraph "音声出力モジュール"
+            SpeechSynthesis[Web Speech API<br/>SpeechSynthesis]
+        end
+
+        subgraph "既存コンポーネント"
+            InputForm[InputForm.tsx]
+            MessageBubble[MessageBubble.tsx]
+            WebSocketHook[useWebSocket.ts]
+            VoiceStore[Voice Store]
+        end
+    end
+
+    Mic --> MediaRecorder
+    MediaRecorder --> SpeechRecognition
+    MediaRecorder -.-> WhisperJS
+
+    SpeechRecognition --> InputForm
+    WhisperJS --> InputForm
+
+    InputForm --> WebSocketHook
+    WebSocketHook --> VoiceStore
+
+    VoiceStore --> MessageBubble
+    MessageBubble --> SpeechSynthesis
+    SpeechSynthesis --> Speaker
+```
+
+### 技術選定
+
+#### 音声入力（Speech-to-Text）
+
+| オプション | 利点 | 欠点 | 推奨度 |
+|-----------|------|------|--------|
+| **Web Speech API (SpeechRecognition)** | ブラウザ標準、実装容易、低コスト | Chrome/Edge限定、オンライン依存 | ⭐⭐⭐ **Phase 1推奨** |
+| Whisper.js (Transformers.js) | オフライン対応、高精度 | 初回ロード大、CPU負荷 | ⭐⭐ Phase 2 |
+| Whisper Server (OpenAI API) | 最高精度 | コスト発生、レイテンシ | ⭐ オプション |
+
+#### 音声出力（Text-to-Speech）
+
+| オプション | 利点 | 欠点 | 推奨度 |
+|-----------|------|------|--------|
+| **Web Speech API (SpeechSynthesis)** | ブラウザ標準、無料、オフライン対応 | 音声品質は環境依存 | ⭐⭐⭐ **推奨** |
+| OpenAI TTS API | 高品質音声 | コスト発生 | ⭐ オプション |
+
+### 音声機能コンポーネント
+
+#### 新規ファイル
+
+```
+src/
+├── types/
+│   └── voice.ts                      # 音声機能の型定義
+├── hooks/
+│   ├── useSpeechRecognition.ts       # 音声認識Hook
+│   └── useSpeechSynthesis.ts         # 音声合成Hook
+├── components/
+│   └── voice/
+│       ├── VoiceInputButton.tsx      # 音声入力ボタン
+│       ├── VoicePlayButton.tsx       # 読み上げボタン
+│       ├── VoiceIndicator.tsx        # 音声状態インジケーター
+│       └── VoiceSettingsPanel.tsx    # 音声設定パネル
+├── store/
+│   └── voice.ts                      # 音声状態管理
+└── lib/
+    └── voice/
+        ├── speech-recognition.ts     # SpeechRecognition ユーティリティ
+        ├── speech-synthesis.ts       # SpeechSynthesis ユーティリティ
+        └── text-processor.ts         # Markdown→プレーンテキスト変換
+```
+
+#### 既存ファイル変更
+
+| ファイル | 変更内容 |
+|----------|----------|
+| `src/components/session/InputForm.tsx` | VoiceInputButton 統合 |
+| `src/components/session/MessageBubble.tsx` | VoicePlayButton 統合 |
+| `src/components/layout/Header.tsx` | VoiceIndicator 追加 |
+| `src/components/common/NotificationSettings.tsx` | VoiceSettingsPanel へのリンク追加 |
+| `src/app/sessions/[id]/page.tsx` | 自動読み上げロジック追加 |
+
+### 音声機能の型定義
+
+```typescript
+// src/types/voice.ts
+
+/** 音声入力の状態 */
+export type VoiceInputStatus =
+  | 'idle'           // 待機中
+  | 'listening'      // 音声認識中
+  | 'processing'     // 処理中（Whisper使用時）
+  | 'error';         // エラー
+
+/** 音声認識結果 */
+export interface SpeechRecognitionResult {
+  transcript: string;      // 認識テキスト
+  confidence: number;      // 信頼度 (0-1)
+  isFinal: boolean;       // 確定結果かどうか
+}
+
+/** 音声入力設定 */
+export interface VoiceInputSettings {
+  enabled: boolean;                    // 音声入力有効
+  language: string;                    // 認識言語 (e.g., 'ja-JP', 'en-US')
+  continuous: boolean;                 // 連続認識モード
+  interimResults: boolean;             // 中間結果表示
+  autoSend: boolean;                   // 認識完了時に自動送信
+  silenceTimeout: number;              // 無音タイムアウト (ms)
+}
+
+/** 音声出力設定 */
+export interface VoiceOutputSettings {
+  enabled: boolean;                    // 音声読み上げ有効
+  voice: string | null;                // 使用する音声 (null = デフォルト)
+  rate: number;                        // 読み上げ速度 (0.1 - 10)
+  pitch: number;                       // ピッチ (0 - 2)
+  volume: number;                      // 音量 (0 - 1)
+  autoRead: boolean;                   // アシスタント応答を自動読み上げ
+  readCodeBlocks: boolean;             // コードブロックも読み上げ
+}
+```
+
+### 音声機能の状態管理
+
+```typescript
+// src/store/voice.ts
+
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+
+interface VoiceState {
+  // 音声入力設定
+  inputSettings: VoiceInputSettings;
+  inputStatus: VoiceInputStatus;
+
+  // 音声出力設定
+  outputSettings: VoiceOutputSettings;
+  currentlySpeakingMessageId: string | null;
+
+  // アクション
+  updateInputSettings: (settings: Partial<VoiceInputSettings>) => void;
+  updateOutputSettings: (settings: Partial<VoiceOutputSettings>) => void;
+  setInputStatus: (status: VoiceInputStatus) => void;
+  setSpeakingMessage: (messageId: string | null) => void;
+}
+
+export const useVoiceStore = create<VoiceState>()(
+  persist(
+    (set) => ({
+      inputSettings: {
+        enabled: false,
+        language: 'ja-JP',
+        continuous: true,
+        interimResults: true,
+        autoSend: false,
+        silenceTimeout: 2000,
+      },
+      inputStatus: 'idle',
+      outputSettings: {
+        enabled: false,
+        voice: null,
+        rate: 1.0,
+        pitch: 1.0,
+        volume: 1.0,
+        autoRead: false,
+        readCodeBlocks: false,
+      },
+      currentlySpeakingMessageId: null,
+
+      updateInputSettings: (settings) =>
+        set((state) => ({
+          inputSettings: { ...state.inputSettings, ...settings },
+        })),
+      updateOutputSettings: (settings) =>
+        set((state) => ({
+          outputSettings: { ...state.outputSettings, ...settings },
+        })),
+      setInputStatus: (status) => set({ inputStatus: status }),
+      setSpeakingMessage: (messageId) =>
+        set({ currentlySpeakingMessageId: messageId }),
+    }),
+    {
+      name: 'voice-settings',
+      partialize: (state) => ({
+        inputSettings: state.inputSettings,
+        outputSettings: state.outputSettings,
+      }),
+    }
+  )
+);
+```
+
+### 音声認識Hook
+
+```typescript
+// src/hooks/useSpeechRecognition.ts
+
+interface UseSpeechRecognitionReturn {
+  // 状態
+  isListening: boolean;
+  isSupported: boolean;
+  error: string | null;
+  transcript: string;
+  interimTranscript: string;
+
+  // アクション
+  startListening: () => void;
+  stopListening: () => void;
+  resetTranscript: () => void;
+
+  // 設定
+  setLanguage: (lang: string) => void;
+}
+
+export function useSpeechRecognition(
+  options?: Partial<VoiceInputSettings>
+): UseSpeechRecognitionReturn {
+  // Web Speech API SpeechRecognition を使用
+  // ブラウザ互換性: Chrome, Edge, Safari (webkit prefix)
+  // Firefox: 未サポート（フォールバック必要）
+}
+```
+
+### 音声合成Hook
+
+```typescript
+// src/hooks/useSpeechSynthesis.ts
+
+interface UseSpeechSynthesisReturn {
+  // 状態
+  isSpeaking: boolean;
+  isPaused: boolean;
+  isSupported: boolean;
+  voices: SpeechSynthesisVoice[];
+
+  // アクション
+  speak: (text: string, options?: SpeakOptions) => void;
+  pause: () => void;
+  resume: () => void;
+  cancel: () => void;
+
+  // 設定
+  setVoice: (voice: SpeechSynthesisVoice) => void;
+  setRate: (rate: number) => void;
+  setPitch: (pitch: number) => void;
+  setVolume: (volume: number) => void;
+}
+
+interface SpeakOptions {
+  voice?: SpeechSynthesisVoice;
+  rate?: number;
+  pitch?: number;
+  volume?: number;
+  onEnd?: () => void;
+  onError?: (error: Error) => void;
+}
+```
+
+### 音声入力データフロー
+
+```mermaid
+sequenceDiagram
+    participant User as ユーザー
+    participant Mic as マイク
+    participant VIB as VoiceInputButton
+    participant SR as SpeechRecognition
+    participant IF as InputForm
+    participant WS as WebSocket
+    participant CC as Claude Code
+
+    User->>VIB: クリック（録音開始）
+    VIB->>SR: startListening()
+    SR->>Mic: 音声キャプチャ開始
+
+    loop 音声認識中
+        Mic->>SR: 音声データ
+        SR->>VIB: onResult(interimTranscript)
+        VIB->>IF: 中間結果表示（オプション）
+    end
+
+    User->>VIB: クリック（録音停止）または無音タイムアウト
+    VIB->>SR: stopListening()
+    SR->>VIB: onResult(finalTranscript)
+    VIB->>IF: onTranscript(finalTranscript)
+
+    alt autoSend有効
+        IF->>WS: send({ type: 'input', content: transcript })
+        WS->>CC: ユーザー入力
+    else autoSend無効
+        IF->>IF: テキストエリアに追加
+        User->>IF: 送信ボタンクリック
+        IF->>WS: send({ type: 'input', content: message })
+    end
+```
+
+### 音声読み上げデータフロー
+
+```mermaid
+sequenceDiagram
+    participant CC as Claude Code
+    participant WS as WebSocket
+    participant Store as Zustand Store
+    participant MB as MessageBubble
+    participant VPB as VoicePlayButton
+    participant SS as SpeechSynthesis
+    participant Speaker as スピーカー
+
+    CC->>WS: 応答出力
+    WS->>Store: handleWebSocketMessage()
+    Store->>MB: 新メッセージ追加
+
+    alt autoRead有効
+        MB->>VPB: 自動トリガー
+        VPB->>SS: speak(plainText)
+        SS->>Speaker: 音声再生
+    else 手動再生
+        Note over MB,VPB: ユーザーが再生ボタンをクリック
+        VPB->>SS: speak(plainText)
+        SS->>Speaker: 音声再生
+    end
+
+    SS-->>VPB: onEnd()
+    VPB->>Store: setSpeakingMessage(null)
+```
+
+### 音声機能エラーハンドリング
+
+#### 音声入力エラー
+
+| エラー種別 | 原因 | 対処 |
+|-----------|------|------|
+| `not-allowed` | マイク権限拒否 | 権限リクエストダイアログ表示 |
+| `no-speech` | 音声未検出 | タイムアウト後に自動停止 |
+| `network` | ネットワークエラー | オフラインモード案内 |
+| `aborted` | ユーザーによる中断 | 正常終了として処理 |
+| `audio-capture` | マイクエラー | デバイス確認メッセージ |
+
+#### 音声読み上げエラー
+
+| エラー種別 | 原因 | 対処 |
+|-----------|------|------|
+| `canceled` | 別の読み上げ開始 | 無視 |
+| `interrupted` | システム割り込み | 自動再開オプション |
+| `synthesis-failed` | 合成エラー | エラーメッセージ表示 |
+
+### ブラウザ互換性
+
+#### 音声入力 (SpeechRecognition)
+
+| ブラウザ | サポート | 備考 |
+|----------|----------|------|
+| Chrome | ✅ 完全サポート | webkitSpeechRecognition |
+| Edge | ✅ 完全サポート | webkitSpeechRecognition |
+| Safari | ⚠️ 部分サポート | iOS/macOS のみ |
+| Firefox | ❌ 未サポート | フォールバック必要 |
+
+#### 音声読み上げ (SpeechSynthesis)
+
+| ブラウザ | サポート | 備考 |
+|----------|----------|------|
+| Chrome | ✅ 完全サポート | - |
+| Edge | ✅ 完全サポート | - |
+| Safari | ✅ 完全サポート | - |
+| Firefox | ✅ 完全サポート | - |
+
+#### 非対応ブラウザへの対応
+
+```typescript
+// src/lib/voice/browser-support.ts
+
+export function checkVoiceSupport() {
+  return {
+    speechRecognition:
+      'webkitSpeechRecognition' in window || 'SpeechRecognition' in window,
+    speechSynthesis: 'speechSynthesis' in window,
+  };
+}
+
+// 非対応の場合、音声ボタンを非表示またはグレーアウト
+// ツールチップで「お使いのブラウザは音声機能に対応していません」を表示
+```
+
+### 音声機能セキュリティ考慮事項
+
+#### マイク権限
+
+- HTTPS環境でのみマイク使用可能
+- ユーザーによる明示的な権限許可が必要
+- 権限状態を永続化し、拒否時は再リクエストしない
+
+#### プライバシー
+
+- 音声データはブラウザ内で処理（Web Speech API使用時）
+- サーバーへの音声送信はオプション（Whisper Server使用時のみ）
+- 設定でサーバー送信の有無を明示
+
+#### データ保存
+
+- 音声データは一時的なもので永続化しない
+- 認識結果テキストのみを通常のメッセージとして保存
+
+### 音声機能パフォーマンス考慮事項
+
+#### 音声認識
+
+- 連続認識モードでのメモリ使用量監視
+- 長時間使用時の自動タイムアウト（設定可能）
+- 認識中は他のリソース集約的処理を抑制
+
+#### 音声読み上げ
+
+- 長文テキストの分割読み上げ（文単位）
+- コードブロックのスキップオプション
+- 読み上げキューの管理
+
+### 音声機能実装フェーズ
+
+#### Phase 1: 基本機能（推奨開始点）
+
+1. 型定義 (`src/types/voice.ts`)
+2. 音声認識Hook (`useSpeechRecognition.ts`)
+3. 音声合成Hook (`useSpeechSynthesis.ts`)
+4. Voice Store (`src/store/voice.ts`)
+5. VoiceInputButton コンポーネント
+6. VoicePlayButton コンポーネント
+7. InputForm への統合
+8. MessageBubble への統合
+
+#### Phase 2: 設定UI
+
+1. VoiceSettingsPanel コンポーネント
+2. NotificationSettings への統合
+3. 言語選択
+4. 音声選択
+5. 速度/ピッチ調整
+
+#### Phase 3: 高度な機能（オプション）
+
+1. Whisper.js 統合（オフライン認識）
+2. 自動読み上げモード
+3. VoiceIndicator（ヘッダー表示）
+4. キーボードショートカット
+
+#### Phase 4: サーバーサイド拡張（オプション）
+
+1. Whisper Server 統合
+2. 高品質TTS API 統合
+3. 音声ファイル保存/再生
