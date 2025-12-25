@@ -217,6 +217,9 @@ describe('POST /api/projects', () => {
     const response = await POST(request);
     expect(response.status).toBe(400);
 
+    const data = await response.json();
+    expect(data.error).toBe('Gitリポジトリではありません');
+
     rmSync(invalidPath, { recursive: true, force: true });
   });
 

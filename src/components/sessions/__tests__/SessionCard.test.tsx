@@ -72,9 +72,9 @@ describe('SessionCard', () => {
   it('カードにhover効果が設定されている', () => {
     const { container } = render(<SessionCard session={mockSession} onClick={mockOnClick} />);
 
-    const card = container.querySelector('.hover\\:shadow-md');
+    const card = container.querySelector('.hover\\:shadow-lg');
     expect(card).toBeInTheDocument();
-    expect(card).toHaveClass('hover:shadow-md');
+    expect(card).toHaveClass('hover:shadow-lg');
   });
 
   it('子要素をクリックしても親要素のonClickが正しく呼ばれる', () => {
@@ -99,5 +99,33 @@ describe('SessionCard', () => {
     // onClickが呼ばれることを確認
     expect(mockOnClick).toHaveBeenCalledTimes(1);
     expect(mockOnClick).toHaveBeenCalledWith('test-session-id');
+  });
+
+  it('Enterキーを押すとonClickが呼ばれる', () => {
+    render(<SessionCard session={mockSession} onClick={mockOnClick} />);
+
+    const card = screen.getByTestId('session-card');
+    fireEvent.keyDown(card, { key: 'Enter', code: 'Enter' });
+
+    expect(mockOnClick).toHaveBeenCalledTimes(1);
+    expect(mockOnClick).toHaveBeenCalledWith('test-session-id');
+  });
+
+  it('スペースキーを押すとonClickが呼ばれる', () => {
+    render(<SessionCard session={mockSession} onClick={mockOnClick} />);
+
+    const card = screen.getByTestId('session-card');
+    fireEvent.keyDown(card, { key: ' ', code: 'Space' });
+
+    expect(mockOnClick).toHaveBeenCalledTimes(1);
+    expect(mockOnClick).toHaveBeenCalledWith('test-session-id');
+  });
+
+  it('カードにrole="button"とtabIndex=0が設定されている', () => {
+    render(<SessionCard session={mockSession} onClick={mockOnClick} />);
+
+    const card = screen.getByTestId('session-card');
+    expect(card).toHaveAttribute('role', 'button');
+    expect(card).toHaveAttribute('tabIndex', '0');
   });
 });

@@ -32,7 +32,7 @@ export interface Session {
   /** セッション名 */
   name: string;
   /** セッションの状態 */
-  status: 'initializing' | 'running' | 'waiting_input' | 'completed' | 'error';
+  status: 'initializing' | 'running' | 'waiting_input' | 'completed' | 'error' | 'stopped';
   /** 使用しているClaudeモデル */
   model: string;
   /** Git worktreeのパス */
@@ -480,10 +480,8 @@ export const useAppStore = create<AppState>((set) => ({
         const errorData = await response.json().catch(() => ({}));
 
         if (response.status === 400) {
-          if (errorData.error?.includes('Git') || errorData.error?.includes('リポジトリ')) {
-            throw new Error('指定されたパスはGitリポジトリではありません');
-          }
-          throw new Error('有効なパスを入力してください');
+          // APIから返されたエラーメッセージをそのまま使用
+          throw new Error(errorData.error || '有効なパスを入力してください');
         }
 
         if (response.status === 403) {

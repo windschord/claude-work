@@ -1,9 +1,9 @@
 'use client';
 
-import { Loader2, Play, Pause, CheckCircle, XCircle } from 'lucide-react';
+import { Loader2, Play, MessageCircle, CheckCircle, XCircle, StopCircle } from 'lucide-react';
 
 interface SessionStatusIconProps {
-  status: 'initializing' | 'running' | 'waiting_input' | 'completed' | 'error';
+  status: 'initializing' | 'running' | 'waiting_input' | 'completed' | 'error' | 'stopped';
 }
 
 /**
@@ -29,19 +29,24 @@ export function SessionStatusIcon({ status }: SessionStatusIconProps) {
       testId: 'status-icon-running',
     },
     waiting_input: {
-      Icon: Pause,
+      Icon: MessageCircle,
       className: 'w-5 h-5 text-yellow-500',
       testId: 'status-icon-waiting_input',
     },
     completed: {
       Icon: CheckCircle,
-      className: 'w-5 h-5 text-gray-500',
+      className: 'w-5 h-5 text-green-500',
       testId: 'status-icon-completed',
     },
     error: {
       Icon: XCircle,
       className: 'w-5 h-5 text-red-500',
       testId: 'status-icon-error',
+    },
+    stopped: {
+      Icon: StopCircle,
+      className: 'w-5 h-5 text-gray-500',
+      testId: 'status-icon-stopped',
     },
   };
 

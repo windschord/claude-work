@@ -16,6 +16,22 @@ describe('addProject', () => {
   });
 
   describe('エラーハンドリング', () => {
+    it('Gitリポジトリでない場合、適切なエラーメッセージがスローされる', async () => {
+      // 400エラー（Gitリポジトリでない）をモック
+      vi.mocked(global.fetch).mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        json: async () => ({ error: 'Gitリポジトリではありません' }),
+      } as Response);
+
+      const { addProject } = useAppStore.getState();
+
+      // エラーがスローされることを確認
+      await expect(addProject('/test/path')).rejects.toThrow(
+        'Gitリポジトリではありません'
+      );
+    });
+
     it('403エラーの場合、適切なエラーメッセージがスローされる', async () => {
       // 403エラーをモック
       vi.mocked(global.fetch).mockResolvedValueOnce({
