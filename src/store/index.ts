@@ -32,7 +32,7 @@ export interface Session {
   /** セッション名 */
   name: string;
   /** セッションの状態 */
-  status: 'initializing' | 'running' | 'waiting_input' | 'completed' | 'error';
+  status: 'initializing' | 'running' | 'waiting_input' | 'completed' | 'error' | 'stopped';
   /** 使用しているClaudeモデル */
   model: string;
   /** Git worktreeのパス */

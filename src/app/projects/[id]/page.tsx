@@ -35,6 +35,7 @@ export default function ProjectDetailPage() {
   }, [projectId, fetchSessions, checkAuth]);
 
   const handleSessionClick = (sessionId: string) => {
+    console.log('handleSessionClick called with sessionId:', sessionId);
     router.push(`/sessions/${sessionId}`);
   };
 

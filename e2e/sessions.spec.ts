@@ -99,4 +99,48 @@ test.describe('セッション機能', () => {
     await stopButton.click();
     await expect(page.locator('text=停止しました')).toBeVisible();
   });
+
+  test('セッション一覧からセッション詳細へ遷移できる (BUG-004)', async ({ page }) => {
+    // 最初のセッションを作成
+    await page.fill('input#session-name', '遷移テスト1');
+    await page.fill('textarea#session-prompt', '遷移テスト');
+    await page.click('button:has-text("セッション作成")');
+
+    // セッション詳細ページに遷移することを確認
+    await expect(page).toHaveURL(/\/sessions\/.+/);
+    const firstSessionUrl = page.url();
+    const firstSessionId = firstSessionUrl.split('/sessions/')[1];
+
+    // プロジェクト詳細ページに戻る
+    await page.goto(`/projects/${projectId}`);
+    await expect(page).toHaveURL(`/projects/${projectId}`);
+
+    // 2つ目のセッションを作成
+    await page.fill('input#session-name', '遷移テスト2');
+    await page.fill('textarea#session-prompt', '遷移テスト2');
+    await page.click('button:has-text("セッション作成")');
+    await expect(page).toHaveURL(/\/sessions\/.+/);
+
+    // 再びプロジェクト詳細ページに戻る
+    await page.goto(`/projects/${projectId}`);
+    await expect(page).toHaveURL(`/projects/${projectId}`);
+
+    // セッション一覧が表示されることを確認
+    await expect(page.locator('text=遷移テスト1')).toBeVisible();
+    await expect(page.locator('text=遷移テスト2')).toBeVisible();
+
+    // 最初のセッションカードをクリック
+    const firstSessionCard = page.locator('[data-testid="session-card"]').filter({ hasText: '遷移テスト1' });
+    await expect(firstSessionCard).toBeVisible();
+
+    // カードがクリック可能であることを確認（cursor-pointerクラスが設定されている）
+    await expect(firstSessionCard).toHaveClass(/cursor-pointer/);
+
+    // セッションカードをクリック
+    await firstSessionCard.click();
+
+    // セッション詳細ページに遷移することを確認
+    await expect(page).toHaveURL(`/sessions/${firstSessionId}`, { timeout: 5000 });
+    await expect(page.locator('h1')).toContainText('遷移テスト1');
+  });
 });

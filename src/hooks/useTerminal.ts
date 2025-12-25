@@ -14,115 +14,139 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { Terminal } from '@xterm/xterm';
-import { FitAddon } from '@xterm/addon-fit';
 
 export interface UseTerminalReturn {
-  terminal: Terminal | null;
+  terminal: any | null;
   isConnected: boolean;
   fit: () => void;
+  error: string | null;
 }
 
 export function useTerminal(sessionId: string): UseTerminalReturn {
-  const terminalRef = useRef<Terminal | null>(null);
-  const fitAddonRef = useRef<FitAddon | null>(null);
+  const terminalRef = useRef<any | null>(null);
+  const fitAddonRef = useRef<any | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // ターミナルインスタンスを作成
-    const terminal = new Terminal({
-      cursorBlink: true,
-      fontSize: 14,
-      fontFamily: 'Menlo, Monaco, "Courier New", monospace',
-      theme: {
-        background: '#1e1e1e',
-        foreground: '#d4d4d4',
-      },
-      cols: 80,
-      rows: 24,
-    });
+    // ブラウザ環境でのみXTerm.jsをロード
+    if (typeof window === 'undefined') {
+      return;
+    }
 
-    // FitAddonを追加
-    const fitAddon = new FitAddon();
-    terminal.loadAddon(fitAddon);
+    let terminal: any;
+    let fitAddon: any;
+    let ws: WebSocket;
 
-    terminalRef.current = terminal;
-    fitAddonRef.current = fitAddon;
-
-    // WebSocket URLを構築
-    const protocol = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = typeof window !== 'undefined' ? window.location.host : 'localhost:3000';
-    const wsUrl = `${protocol}//${host}/ws/terminal/${sessionId}`;
-
-    // WebSocket接続を作成
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
-
-    // 接続成功時
-    ws.onopen = () => {
-      setIsConnected(true);
-      // 初期リサイズメッセージを送信
-      if (terminal.cols && terminal.rows) {
-        ws.send(
-          JSON.stringify({
-            type: 'resize',
-            data: {
-              cols: terminal.cols,
-              rows: terminal.rows,
-            },
-          })
-        );
-      }
-    };
-
-    // メッセージ受信時
-    ws.onmessage = (event: MessageEvent) => {
+    const initTerminal = async () => {
       try {
-        const message = JSON.parse(event.data);
+        // 動的インポートでXTerm.jsとFitAddonを読み込む
+        const { Terminal } = await import('@xterm/xterm');
+        const { FitAddon } = await import('@xterm/addon-fit');
 
-        if (message.type === 'data') {
-          // ターミナルに出力を書き込む
-          terminal.write(message.content);
-        } else if (message.type === 'exit') {
-          // プロセス終了メッセージを表示
-          terminal.write(`\r\n[Process exited with code ${message.exitCode}]\r\n`);
-          // WebSocketを切断
-          ws.close();
-        }
-      } catch (error) {
-        console.error('Failed to parse terminal WebSocket message:', error);
+        // ターミナルインスタンスを作成
+        terminal = new Terminal({
+          cursorBlink: true,
+          fontSize: 14,
+          fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+          theme: {
+            background: '#1e1e1e',
+            foreground: '#d4d4d4',
+          },
+          cols: 80,
+          rows: 24,
+        });
+
+        // FitAddonを追加
+        fitAddon = new FitAddon();
+        terminal.loadAddon(fitAddon);
+
+        terminalRef.current = terminal;
+        fitAddonRef.current = fitAddon;
+
+        // WebSocket URLを構築
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const host = window.location.host;
+        const wsUrl = `${protocol}//${host}/ws/terminal/${sessionId}`;
+
+        // WebSocket接続を作成
+        ws = new WebSocket(wsUrl);
+        wsRef.current = ws;
+
+        // 接続成功時
+        ws.onopen = () => {
+          setIsConnected(true);
+          // 初期リサイズメッセージを送信
+          if (terminal.cols && terminal.rows) {
+            ws.send(
+              JSON.stringify({
+                type: 'resize',
+                data: {
+                  cols: terminal.cols,
+                  rows: terminal.rows,
+                },
+              })
+            );
+          }
+        };
+
+        // メッセージ受信時
+        ws.onmessage = (event: MessageEvent) => {
+          try {
+            const message = JSON.parse(event.data);
+
+            if (message.type === 'data') {
+              // ターミナルに出力を書き込む
+              terminal.write(message.content);
+            } else if (message.type === 'exit') {
+              // プロセス終了メッセージを表示
+              terminal.write(`\r\n[Process exited with code ${message.exitCode}]\r\n`);
+              // WebSocketを切断
+              ws.close();
+            }
+          } catch (error) {
+            console.error('Failed to parse terminal WebSocket message:', error);
+          }
+        };
+
+        // 接続切断時
+        ws.onclose = () => {
+          setIsConnected(false);
+        };
+
+        // エラー発生時
+        ws.onerror = (error: Event) => {
+          console.error('Terminal WebSocket error:', error);
+          setIsConnected(false);
+        };
+
+        // ターミナル入力 → WebSocket
+        terminal.onData((data: string) => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(
+              JSON.stringify({
+                type: 'input',
+                data,
+              })
+            );
+          }
+        });
+      } catch (err) {
+        console.error('Failed to initialize terminal:', err);
+        setError(err instanceof Error ? err.message : 'Failed to initialize terminal');
       }
     };
 
-    // 接続切断時
-    ws.onclose = () => {
-      setIsConnected(false);
-    };
-
-    // エラー発生時
-    ws.onerror = (error: Event) => {
-      console.error('Terminal WebSocket error:', error);
-      setIsConnected(false);
-    };
-
-    // ターミナル入力 → WebSocket
-    terminal.onData((data: string) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(
-          JSON.stringify({
-            type: 'input',
-            data,
-          })
-        );
-      }
-    });
+    initTerminal();
 
     // クリーンアップ
     return () => {
-      terminal.dispose();
-      if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
-        ws.close();
+      if (terminalRef.current) {
+        terminalRef.current.dispose();
+      }
+      if (wsRef.current && (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING)) {
+        wsRef.current.close();
       }
     };
   }, [sessionId]);
@@ -148,5 +172,6 @@ export function useTerminal(sessionId: string): UseTerminalReturn {
     terminal: terminalRef.current,
     isConnected,
     fit,
+    error,
   };
 }

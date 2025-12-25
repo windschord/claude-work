@@ -22,14 +22,23 @@ interface SessionCardProps {
  */
 export function SessionCard({ session, onClick }: SessionCardProps) {
   const handleClick = () => {
+    console.log('SessionCard clicked:', session.id);
     onClick(session.id);
   };
 
   return (
     <div
       data-testid="session-card"
-      className="border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg p-4 min-h-[120px] hover:shadow-md transition-shadow cursor-pointer active:bg-gray-50 dark:active:bg-gray-700"
+      className="border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg p-4 min-h-[120px] hover:shadow-lg hover:border-blue-300 dark:hover:border-blue-600 transition-all cursor-pointer active:bg-gray-50 dark:active:bg-gray-700 hover:scale-[1.02]"
       onClick={handleClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          handleClick();
+        }
+      }}
     >
       <div className="flex items-start justify-between mb-2">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{session.name}</h3>
