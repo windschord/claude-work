@@ -13,7 +13,7 @@
  * @returns ターミナルインスタンス、接続状態、fitメソッド
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import type { Terminal } from '@xterm/xterm';
 import type { FitAddon } from '@xterm/addon-fit';
 import type { IDisposable } from '@xterm/xterm';
@@ -32,6 +32,7 @@ export function useTerminal(sessionId: string): UseTerminalReturn {
   const onDataDisposableRef = useRef<IDisposable | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [terminal, setTerminal] = useState<Terminal | null>(null);
 
   useEffect(() => {
     // ブラウザ環境でのみXTerm.jsをロード
@@ -72,6 +73,7 @@ export function useTerminal(sessionId: string): UseTerminalReturn {
 
         terminalRef.current = terminal;
         fitAddonRef.current = fitAddon;
+        setTerminal(terminal);
 
         // WebSocket URLを構築
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -166,28 +168,29 @@ export function useTerminal(sessionId: string): UseTerminalReturn {
       if (wsRef.current && (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING)) {
         wsRef.current.close();
       }
+      setTerminal(null);
     };
   }, [sessionId]);
 
-  // リサイズ関数
-  const fit = () => {
+  // リサイズ関数（useCallbackでメモ化して不要な再レンダリングを防止）
+  const fit = useCallback(() => {
     if (fitAddonRef.current && wsRef.current?.readyState === WebSocket.OPEN && terminalRef.current) {
       fitAddonRef.current.fit();
-      const terminal = terminalRef.current;
+      const term = terminalRef.current;
       wsRef.current.send(
         JSON.stringify({
           type: 'resize',
           data: {
-            cols: terminal.cols,
-            rows: terminal.rows,
+            cols: term.cols,
+            rows: term.rows,
           },
         })
       );
     }
-  };
+  }, []);
 
   return {
-    terminal: terminalRef.current,
+    terminal,
     isConnected,
     fit,
     error,
