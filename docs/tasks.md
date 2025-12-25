@@ -2372,3 +2372,259 @@ function getTitle(event: NotificationEvent): string {
 - REQ-091: 通知設定のローカルストレージ保存
 - REQ-092: 設定変更の即時適用
 - REQ-093: イベント別オン/オフ設定
+
+
+---
+
+## Phase 35: 音声機能（Speech-to-Text / Text-to-Speech）
+
+音声入力と音声読み上げ機能を実装し、ハンズフリーでのClaude Code操作を可能にする。
+
+### タスク35.1: 音声機能の型定義とストア作成
+
+**説明**:
+音声機能で使用する型定義とZustand状態管理ストアを作成する。
+
+**実装手順**:
+1. `src/types/voice.ts`を作成
+   - `VoiceInputStatus`型（idle/listening/processing/error）
+   - `SpeechRecognitionResult`インターフェース
+   - `VoiceInputSettings`インターフェース
+   - `VoiceOutputSettings`インターフェース
+2. `src/store/voice.ts`を作成
+   - 入力設定・出力設定の状態管理
+   - persistミドルウェアでローカルストレージに永続化
+3. テスト作成: `src/store/__tests__/voice.test.ts`
+
+**受入基準**:
+- [ ] `src/types/voice.ts`が作成されている
+- [ ] `src/store/voice.ts`が作成されている
+- [ ] 設定がローカルストレージに永続化される（REQ-116）
+- [ ] テストが通過する
+- [ ] ESLintエラーがゼロである
+
+**依存関係**: なし
+**推定工数**: 30分
+**ステータス**: `TODO`
+
+---
+
+### タスク35.2: 音声認識Hook（useSpeechRecognition）の実装
+
+**説明**:
+Web Speech APIのSpeechRecognitionをラップするReact Hookを作成する。
+
+**実装手順**:
+1. `src/lib/voice/browser-support.ts`を作成
+   - `checkVoiceSupport()`関数でブラウザ互換性チェック
+   - VoiceInputButton, VoicePlayButton, VoiceSettingsPanelで共通利用
+2. `src/hooks/useSpeechRecognition.ts`を作成
+   - `isListening`, `isSupported`, `error`, `transcript`, `interimTranscript`状態
+   - `startListening()`, `stopListening()`, `resetTranscript()`アクション
+   - 言語設定（ja-JP/en-US）
+   - webkitSpeechRecognition/SpeechRecognition対応
+3. エラーハンドリング実装
+   - `not-allowed`: マイク権限拒否時のユーザー通知
+   - `no-speech`: 無音タイムアウト（2000ms）後の自動停止
+   - `network`: ネットワークエラー時のオフライン案内
+   - `audio-capture`: マイクデバイスエラー時のメッセージ
+4. テスト作成: `src/hooks/__tests__/useSpeechRecognition.test.ts`
+
+**受入基準**:
+- [ ] `src/lib/voice/browser-support.ts`が作成されている
+- [ ] `src/hooks/useSpeechRecognition.ts`が作成されている
+- [ ] 非対応ブラウザで`isSupported: false`が返る（REQ-101）
+- [ ] 音声認識の開始/停止が正常に動作する（REQ-094, REQ-097）
+- [ ] 中間結果がリアルタイムで取得できる（REQ-096）
+- [ ] 各エラー種別に対して適切なエラーメッセージが設定される
+- [ ] テストが通過する
+- [ ] ESLintエラーがゼロである
+
+**依存関係**: タスク35.1
+**推定工数**: 45分
+**ステータス**: `TODO`
+
+---
+
+### タスク35.3: 音声合成Hook（useSpeechSynthesis）の実装
+
+**説明**:
+Web Speech APIのSpeechSynthesisをラップするReact Hookを作成する。
+
+**実装手順**:
+1. `src/hooks/useSpeechSynthesis.ts`を作成
+   - `isSpeaking`, `isPaused`, `isSupported`, `voices`状態
+   - `speak()`, `pause()`, `resume()`, `cancel()`アクション
+   - 音声、速度、ピッチ、音量の設定
+   - 読み上げキュー管理（FIFO、新規メッセージをキュー末尾に追加）
+2. `src/lib/voice/text-processor.ts`を作成
+   - Markdownからプレーンテキストを抽出（正規表現でタグ除去）
+   - コードブロック（```...```）のスキップ/含めるオプション
+   - インラインコード（`...`）は読み上げ対象
+   - リンクはテキスト部分のみ抽出
+3. テスト作成: `src/hooks/__tests__/useSpeechSynthesis.test.ts`
+
+**受入基準**:
+- [ ] `src/hooks/useSpeechSynthesis.ts`が作成されている
+- [ ] `src/lib/voice/text-processor.ts`が作成されている
+- [ ] 利用可能な音声一覧が取得できる（REQ-114）
+- [ ] 読み上げの開始/停止が正常に動作する（REQ-103, REQ-105）
+- [ ] 速度/ピッチの調整が機能する（REQ-107, REQ-115）
+- [ ] キューイングが正常に動作し、順番に読み上げられる（REQ-106）
+- [ ] テストが通過する
+- [ ] ESLintエラーがゼロである
+
+**依存関係**: タスク35.1
+**推定工数**: 45分
+**ステータス**: `TODO`
+
+---
+
+### タスク35.4: VoiceInputButtonコンポーネントの実装
+
+**説明**:
+音声入力ボタンコンポーネントを作成し、InputFormに統合する。
+
+**実装手順**:
+1. `src/components/voice/VoiceInputButton.tsx`を作成
+   - マイクアイコン表示（Lucide icons使用）
+   - 録音中は赤い点滅アニメーション
+   - エラー時はエラー表示
+   - `onTranscript`コールバックで認識結果を親に通知
+2. `src/components/session/InputForm.tsx`を修正
+   - VoiceInputButtonを追加
+   - 音声認識結果をテキストエリアに挿入
+   - autoSend設定時は自動送信
+3. テスト作成: `src/components/voice/__tests__/VoiceInputButton.test.tsx`
+
+**受入基準**:
+- [ ] `src/components/voice/VoiceInputButton.tsx`が作成されている
+- [ ] InputFormに音声入力ボタンが表示される
+- [ ] 録音中であることが視覚的に分かる（REQ-095）
+- [ ] 認識結果が入力フォームに挿入される（REQ-098）
+- [ ] autoSend有効時に自動送信される（REQ-099）
+- [ ] 非対応ブラウザでボタンが非表示/グレーアウト（REQ-101）
+- [ ] テストが通過する
+- [ ] ESLintエラーがゼロである
+
+**依存関係**: タスク35.2
+**推定工数**: 45分
+**ステータス**: `TODO`
+
+---
+
+### タスク35.5: VoicePlayButtonコンポーネントの実装
+
+**説明**:
+読み上げボタンコンポーネントを作成し、MessageBubbleに統合する。
+
+**実装手順**:
+1. `src/components/voice/VoicePlayButton.tsx`を作成
+   - スピーカーアイコン表示
+   - 再生中は音波アニメーション + 停止ボタン
+   - テキストを受け取り、Markdownを処理して読み上げ
+2. `src/components/session/MessageBubble.tsx`を修正
+   - アシスタントメッセージに読み上げボタンを追加
+   - 音声出力が有効な場合のみ表示
+3. テスト作成: `src/components/voice/__tests__/VoicePlayButton.test.tsx`
+
+**受入基準**:
+- [ ] `src/components/voice/VoicePlayButton.tsx`が作成されている
+- [ ] アシスタントメッセージに読み上げボタンが表示される（REQ-102）
+- [ ] クリックで読み上げが開始される（REQ-103）
+- [ ] 再生中は視覚的に表示され、停止できる（REQ-104, REQ-105）
+- [ ] 非対応ブラウザでボタンが非表示/グレーアウト（REQ-109）
+- [ ] テストが通過する
+- [ ] ESLintエラーがゼロである
+
+**依存関係**: タスク35.3
+**推定工数**: 45分
+**ステータス**: `TODO`
+
+---
+
+### タスク35.6: VoiceSettingsPanelコンポーネントの実装
+
+**説明**:
+音声設定パネルを作成し、NotificationSettingsに統合する。
+
+**実装手順**:
+1. `src/components/voice/VoiceSettingsPanel.tsx`を作成
+   - 音声入力の有効/無効トグル（REQ-111）
+   - 認識言語選択（日本語/英語）（REQ-100, REQ-113）
+   - 自動送信トグル
+   - 音声読み上げの有効/無効トグル（REQ-112）
+   - 読み上げ音声選択（REQ-114）
+   - 読み上げ速度スライダー（REQ-115）
+   - 自動読み上げトグル
+   - コードブロック読み上げトグル（REQ-108）
+2. `src/components/common/NotificationSettings.tsx`を修正
+   - VoiceSettingsPanelへのリンク/タブを追加
+3. テスト作成: `src/components/voice/__tests__/VoiceSettingsPanel.test.tsx`
+
+**受入基準**:
+- [ ] `src/components/voice/VoiceSettingsPanel.tsx`が作成されている
+- [ ] 音声入力の有効/無効が切り替えられる（REQ-111）
+- [ ] 認識言語が選択できる（REQ-100, REQ-113）
+- [ ] 音声読み上げの有効/無効が切り替えられる（REQ-112）
+- [ ] 読み上げ音声が選択できる（REQ-114）
+- [ ] 読み上げ速度が調整できる（REQ-115）
+- [ ] 設定がローカルストレージに保存される（REQ-116）
+- [ ] テストが通過する
+- [ ] ESLintエラーがゼロである
+
+**依存関係**: タスク35.4, タスク35.5
+**推定工数**: 60分
+**ステータス**: `TODO`
+
+---
+
+### タスク35.7: 自動読み上げ機能の実装
+
+**説明**:
+新しいアシスタントメッセージを自動的に読み上げる機能を実装する。
+
+**実装手順**:
+1. `src/app/sessions/[id]/page.tsx`を修正
+   - 新しいアシスタントメッセージ受信時に自動読み上げ
+   - autoRead設定が有効な場合のみ
+   - 読み上げキューの管理（前の読み上げ中は待機）
+2. useVoiceStoreに`currentlySpeakingMessageId`状態を追加
+3. 動作確認: 応答受信時に自動読み上げされることを確認
+
+**受入基準**:
+- [ ] 新しいアシスタントメッセージが自動読み上げされる（REQ-106）
+- [ ] autoRead設定が無効な場合は自動読み上げされない
+- [ ] 複数メッセージが連続する場合は順番に読み上げる
+- [ ] ESLintエラーがゼロである
+
+**依存関係**: タスク35.5, タスク35.6
+**推定工数**: 30分
+**ステータス**: `TODO`
+
+---
+
+### Phase 35完了基準
+
+- [ ] タスク35.1が完了している（型定義・ストア）
+- [ ] タスク35.2が完了している（音声認識Hook）
+- [ ] タスク35.3が完了している（音声合成Hook）
+- [ ] タスク35.4が完了している（VoiceInputButton）
+- [ ] タスク35.5が完了している（VoicePlayButton）
+- [ ] タスク35.6が完了している（VoiceSettingsPanel）
+- [ ] タスク35.7が完了している（自動読み上げ）
+- [ ] 音声入力でメッセージ送信ができる
+- [ ] アシスタントメッセージを音声で読み上げできる
+- [ ] 音声設定UIで各種設定が変更できる
+- [ ] 設定がローカルストレージに永続化される
+- [ ] 非対応ブラウザで適切にフォールバックする
+- [ ] すべてのテストが通過している（`npm test`）
+- [ ] ESLintエラーがゼロである
+- [ ] すべてのコミットが作成されている
+
+### 解決される要件
+
+**docs/requirements.md**:
+- REQ-094 〜 REQ-101: 音声入力関連
+- REQ-102 〜 REQ-109: 音声読み上げ関連
+- REQ-110 〜 REQ-116: 音声設定関連
