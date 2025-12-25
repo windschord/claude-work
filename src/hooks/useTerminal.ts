@@ -102,6 +102,7 @@ export function useTerminal(sessionId: string): UseTerminalReturn {
 
         // メッセージ受信時
         ws.onmessage = (event: MessageEvent) => {
+          if (!isMounted) return;
           try {
             const message = JSON.parse(event.data);
 
