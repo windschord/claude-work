@@ -14,18 +14,22 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+import type { Terminal } from '@xterm/xterm';
+import type { FitAddon } from '@xterm/addon-fit';
+import type { IDisposable } from '@xterm/xterm';
 
 export interface UseTerminalReturn {
-  terminal: any | null;
+  terminal: Terminal | null;
   isConnected: boolean;
   fit: () => void;
   error: string | null;
 }
 
 export function useTerminal(sessionId: string): UseTerminalReturn {
-  const terminalRef = useRef<any | null>(null);
-  const fitAddonRef = useRef<any | null>(null);
+  const terminalRef = useRef<Terminal | null>(null);
+  const fitAddonRef = useRef<FitAddon | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const onDataDisposableRef = useRef<IDisposable | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,8 +39,8 @@ export function useTerminal(sessionId: string): UseTerminalReturn {
       return;
     }
 
-    let terminal: any;
-    let fitAddon: any;
+    let terminal: Terminal;
+    let fitAddon: FitAddon;
     let ws: WebSocket;
 
     const initTerminal = async () => {
@@ -122,7 +126,7 @@ export function useTerminal(sessionId: string): UseTerminalReturn {
         };
 
         // ターミナル入力 → WebSocket
-        terminal.onData((data: string) => {
+        const onDataDisposable = terminal.onData((data: string) => {
           if (ws.readyState === WebSocket.OPEN) {
             ws.send(
               JSON.stringify({
@@ -132,6 +136,7 @@ export function useTerminal(sessionId: string): UseTerminalReturn {
             );
           }
         });
+        onDataDisposableRef.current = onDataDisposable;
       } catch (err) {
         console.error('Failed to initialize terminal:', err);
         setError(err instanceof Error ? err.message : 'Failed to initialize terminal');
@@ -142,6 +147,9 @@ export function useTerminal(sessionId: string): UseTerminalReturn {
 
     // クリーンアップ
     return () => {
+      if (onDataDisposableRef.current) {
+        onDataDisposableRef.current.dispose();
+      }
       if (terminalRef.current) {
         terminalRef.current.dispose();
       }

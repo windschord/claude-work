@@ -22,7 +22,6 @@ interface SessionCardProps {
  */
 export function SessionCard({ session, onClick }: SessionCardProps) {
   const handleClick = () => {
-    console.log('SessionCard clicked:', session.id);
     onClick(session.id);
   };
 

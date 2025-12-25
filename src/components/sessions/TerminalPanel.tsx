@@ -33,10 +33,10 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
     if (terminal && containerRef.current && mounted) {
       try {
         terminal.open(containerRef.current);
-        // 初期リサイズ
-        setTimeout(() => {
+        // 初期リサイズ - DOMレンダリング完了後に実行
+        requestAnimationFrame(() => {
           fit();
-        }, 100);
+        });
       } catch (err) {
         console.error('Failed to open terminal:', err);
       }
