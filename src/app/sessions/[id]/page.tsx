@@ -15,6 +15,7 @@ import PermissionDialog from '@/components/session/PermissionDialog';
 import { FileList } from '@/components/git/FileList';
 import { DiffViewer } from '@/components/git/DiffViewer';
 import { RebaseButton } from '@/components/git/RebaseButton';
+import { CreatePRButton } from '@/components/git/CreatePRButton';
 import { MergeModal } from '@/components/git/MergeModal';
 import { ConflictDialog } from '@/components/git/ConflictDialog';
 import { DeleteWorktreeDialog } from '@/components/git/DeleteWorktreeDialog';
@@ -421,6 +422,7 @@ export default function SessionDetailPage() {
                 >
                   スカッシュしてマージ
                 </button>
+                <CreatePRButton sessionId={sessionId} />
               </div>
               {/* Diff Display */}
               <div className="flex-1 flex overflow-hidden">
