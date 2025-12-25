@@ -179,7 +179,7 @@ export async function POST(request: NextRequest) {
 
     if (result.error || result.status !== 0) {
       logger.warn('Invalid git repository', { path: absolutePath });
-      return NextResponse.json({ error: 'Not a valid git repository' }, { status: 400 });
+      return NextResponse.json({ error: 'Gitリポジトリではありません' }, { status: 400 });
     }
 
     const name = basename(absolutePath);
