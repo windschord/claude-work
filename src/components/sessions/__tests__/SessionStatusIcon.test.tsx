@@ -36,7 +36,7 @@ describe('SessionStatusIcon', () => {
 
     const icon = screen.getByTestId('status-icon-completed');
     expect(icon).toBeInTheDocument();
-    expect(icon).toHaveClass('text-gray-500');
+    expect(icon).toHaveClass('text-green-500');
   });
 
   it('errorステータスでエラーアイコンが表示される', () => {
@@ -54,13 +54,22 @@ describe('SessionStatusIcon', () => {
     expect(icon).toHaveClass('w-5', 'h-5');
   });
 
+  it('stoppedステータスで停止アイコンが表示される', () => {
+    render(<SessionStatusIcon status="stopped" />);
+
+    const icon = screen.getByTestId('status-icon-stopped');
+    expect(icon).toBeInTheDocument();
+    expect(icon).toHaveClass('text-gray-500');
+  });
+
   it('全てのステータスでアイコンが表示される', () => {
-    const statuses: Array<'initializing' | 'running' | 'waiting_input' | 'completed' | 'error'> = [
+    const statuses: Array<'initializing' | 'running' | 'waiting_input' | 'completed' | 'error' | 'stopped'> = [
       'initializing',
       'running',
       'waiting_input',
       'completed',
       'error',
+      'stopped',
     ];
 
     statuses.forEach((status) => {
@@ -76,8 +85,9 @@ describe('SessionStatusIcon', () => {
       { status: 'initializing' as const, color: 'text-blue-500' },
       { status: 'running' as const, color: 'text-green-500' },
       { status: 'waiting_input' as const, color: 'text-yellow-500' },
-      { status: 'completed' as const, color: 'text-gray-500' },
+      { status: 'completed' as const, color: 'text-green-500' },
       { status: 'error' as const, color: 'text-red-500' },
+      { status: 'stopped' as const, color: 'text-gray-500' },
     ];
 
     statusColorMap.forEach(({ status, color }) => {
