@@ -1244,11 +1244,13 @@ ws://host/ws/terminal/{session_id}
 
 ### 概要
 
-ClaudeWorkに音声入力（Speech-to-Text）と音声読み上げ（Text-to-Speech）機能を追加し、ハンズフリーでのClaude Code操作を可能にする。
+本セクションは音声機能のソフトウェア設計書（SDD: Software Design Document）である。
+
+ClaudeWorkに音声入力（Speech-to-Text）と音声読み上げ（Text-to-Speech）機能を追加し、ハンズフリーでのClaude Code CLI操作を可能にする。
 
 **参考資料**:
 - [Web Speech API - MDN](https://developer.mozilla.org/en-US/docs/Web/API/Web_Speech_API)
-- [Whisper-Web (Transformers.js)](https://github.com/xenova/whisper-web)
+- [Whisper.js (Transformers.js)](https://github.com/xenova/whisper-web)
 
 ### 音声機能アーキテクチャ
 
@@ -1312,7 +1314,7 @@ graph TD
 
 #### 新規ファイル
 
-```
+```text
 src/
 ├── types/
 │   └── voice.ts                      # 音声機能の型定義
@@ -1392,6 +1394,7 @@ export interface VoiceOutputSettings {
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import type { VoiceInputSettings, VoiceInputStatus, VoiceOutputSettings } from '@/types/voice';
 
 interface VoiceState {
   // 音声入力設定
@@ -1459,6 +1462,8 @@ export const useVoiceStore = create<VoiceState>()(
 
 ```typescript
 // src/hooks/useSpeechRecognition.ts
+
+import type { VoiceInputSettings } from '@/types/voice';
 
 interface UseSpeechRecognitionReturn {
   // 状態
@@ -1531,7 +1536,7 @@ sequenceDiagram
     participant SR as SpeechRecognition
     participant IF as InputForm
     participant WS as WebSocket
-    participant CC as Claude Code
+    participant CC as Claude Code CLI
 
     User->>VIB: クリック（録音開始）
     VIB->>SR: startListening()
@@ -1562,7 +1567,7 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant CC as Claude Code
+    participant CC as Claude Code CLI
     participant WS as WebSocket
     participant Store as Zustand Store
     participant MB as MessageBubble
@@ -1616,7 +1621,7 @@ sequenceDiagram
 |----------|----------|------|
 | Chrome | ✅ 完全サポート | webkitSpeechRecognition |
 | Edge | ✅ 完全サポート | webkitSpeechRecognition |
-| Safari | ⚠️ 部分サポート | iOS/macOS のみ |
+| Safari | ⚠️ 部分サポート | 14.1以降、連続認識に制限あり |
 | Firefox | ❌ 未サポート | フォールバック必要 |
 
 #### 音声読み上げ (SpeechSynthesis)
@@ -1710,4 +1715,4 @@ export function checkVoiceSupport() {
 
 1. Whisper Server 統合
 2. 高品質TTS API 統合
-3. 音声ファイル保存/再生
+3. TTS音声キャッシュ（クライアントローカルのみ）
