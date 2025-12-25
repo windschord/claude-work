@@ -99,7 +99,12 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
       </div>
 
       {/* ターミナルエリア */}
-      <div ref={containerRef} className="flex-1 p-2" />
+      <div
+        ref={containerRef}
+        className="flex-1 p-2"
+        role="application"
+        aria-label="Terminal"
+      />
     </div>
   );
 }
