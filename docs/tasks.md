@@ -2614,3 +2614,183 @@ Failed to check process status: Not Found
 - REQ-010: セッションクリックでセッション詳細に遷移
 - REQ-021~028: セッション詳細ページの各機能
 - REQ-077~083: セッション詳細の追加機能
+
+---
+
+## Phase 36: GitHub PR連携機能
+
+### 概要
+
+セッション詳細画面のDiffタブから直接GitHub PRを作成できる機能を実装する。ghコマンドを使用してPRを作成し、作成されたPRのURLをクリック可能なトースト通知で表示する。
+
+### タスク36.1: PR作成APIエンドポイントの実装
+
+**説明**:
+`src/app/api/sessions/[id]/pr/route.ts`にPR作成APIを実装する。ghコマンドを使用してPRを作成し、URLを返却する。
+
+**関連要件**: REQ-095
+
+**実装詳細**:
+
+**ファイルパス**: `src/app/api/sessions/[id]/pr/route.ts`
+
+```typescript
+// POST /api/sessions/{id}/pr
+// 1. セッション情報取得
+// 2. git push -u origin {branch_name}
+// 3. gh pr create --title "{session_name}" --body "..." --head {branch_name}
+// 4. PR URL抽出して返却
+```
+
+**処理フロー**:
+1. セッションIDからDBでセッション情報取得
+2. worktree_pathでgit pushを実行（ブランチをリモートにプッシュ）
+3. ghコマンドでPR作成
+4. 出力からPR URLを正規表現で抽出
+5. 成功: `{ success: true, pr_url: "..." }` を201で返却
+6. 失敗: `{ error: "...", details: "..." }` を400で返却
+
+**受入基準**:
+- [ ] `src/app/api/sessions/[id]/pr/route.ts`ファイルが作成されている
+- [ ] POSTハンドラが実装されている
+- [ ] セッション認証が実装されている
+- [ ] ghコマンドでPRが作成される
+- [ ] PR URLが正しく抽出される
+- [ ] エラーハンドリングが実装されている
+- [ ] テストが作成されている
+
+**依存関係**: なし
+**推定工数**: 30分
+**ステータス**: `TODO`
+
+---
+
+### タスク36.2: PR作成ボタンコンポーネントの実装
+
+**説明**:
+`src/components/git/CreatePRButton.tsx`にPR作成ボタンを実装する。クリックでAPIを呼び出し、成功時にリンク付きトーストを表示する。
+
+**関連要件**: REQ-094, REQ-096, REQ-097, REQ-098
+
+**実装詳細**:
+
+**ファイルパス**: `src/components/git/CreatePRButton.tsx`
+
+```typescript
+interface CreatePRButtonProps {
+  sessionId: string;
+}
+
+export function CreatePRButton({ sessionId }: CreatePRButtonProps) {
+  const [loading, setLoading] = useState(false);
+
+  const handleClick = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}/pr`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(
+          <span>
+            PRを作成しました:{' '}
+            <a href={data.pr_url} target="_blank" rel="noopener noreferrer"
+               className="underline text-blue-400">
+              {data.pr_url}
+            </a>
+          </span>,
+          { duration: 10000 }
+        );
+      } else {
+        toast.error(`PR作成失敗: ${data.error}`);
+      }
+    } catch (error) {
+      toast.error('PR作成に失敗しました');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <button onClick={handleClick} disabled={loading}
+            className="bg-purple-500 text-white rounded px-4 py-2 ...">
+      {loading ? 'PR作成中...' : 'PRを作成'}
+    </button>
+  );
+}
+```
+
+**受入基準**:
+- [ ] `src/components/git/CreatePRButton.tsx`ファイルが作成されている
+- [ ] ボタンクリックでAPIを呼び出す
+- [ ] ローディング状態が表示される
+- [ ] 成功時にリンク付きトーストが表示される
+- [ ] リンクをクリックで新しいタブでPRページが開く
+- [ ] 失敗時にエラートーストが表示される
+- [ ] テストが作成されている
+
+**依存関係**: タスク36.1
+**推定工数**: 25分
+**ステータス**: `TODO`
+
+---
+
+### タスク36.3: DiffタブへのPR作成ボタン配置
+
+**説明**:
+セッション詳細ページのDiffタブにCreatePRButtonを配置する。既存の「スカッシュしてマージ」ボタンの隣に配置。
+
+**関連要件**: REQ-094
+
+**実装詳細**:
+
+**ファイルパス**: `src/app/sessions/[id]/page.tsx`
+
+Diffタブ内のGit操作ボタンエリアにCreatePRButtonを追加:
+
+```typescript
+import { CreatePRButton } from '@/components/git/CreatePRButton';
+
+// Diffタブ内
+<div className="border-b ... flex gap-3">
+  <RebaseButton sessionId={sessionId} />
+  <button onClick={() => setIsMergeModalOpen(true)} ...>
+    スカッシュしてマージ
+  </button>
+  <CreatePRButton sessionId={sessionId} />  {/* 追加 */}
+</div>
+```
+
+**受入基準**:
+- [ ] Diffタブ内に「PRを作成」ボタンが表示される
+- [ ] ボタンが他のGit操作ボタンと同じ行に配置される
+- [ ] 視覚的に一貫したスタイリングである
+
+**依存関係**: タスク36.2
+**推定工数**: 10分
+**ステータス**: `TODO`
+
+---
+
+### Phase 36完了基準
+
+- [ ] タスク36.1が完了している（APIエンドポイント）
+- [ ] タスク36.2が完了している（ボタンコンポーネント）
+- [ ] タスク36.3が完了している（UI配置）
+- [ ] Diffタブに「PRを作成」ボタンが表示される
+- [ ] ボタンクリックでPRが作成される
+- [ ] 成功時にリンク付きトースト通知が表示される
+- [ ] リンククリックで新しいタブでPRページが開く
+- [ ] エラー時にエラーメッセージが表示される
+- [ ] すべてのテストが通過している
+
+### 解決される要件
+
+**docs/requirements.md**:
+- REQ-094: PR作成ボタンの表示
+- REQ-095: ghコマンドでPR作成
+- REQ-096: PR URL付きトースト通知
+- REQ-097: リンククリックで新しいタブ
+- REQ-098: エラー時のトースト通知

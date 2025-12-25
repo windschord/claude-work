@@ -923,6 +923,40 @@ sequenceDiagram
 
 **注意**: このエンドポイントは未実装です。
 
+### GitHub PR連携
+
+#### POST /api/sessions/{id}/pr
+**目的**: GitHub PRを作成する
+
+**処理フロー**:
+1. セッション情報（worktree_path, branch_name, name）を取得
+2. worktree_pathで`git push -u origin {branch_name}`を実行（未プッシュの場合）
+3. `gh pr create --title "{session_name}" --body "Created from ClaudeWork session" --head {branch_name}`を実行
+4. ghコマンドの出力からPR URLを抽出して返却
+
+**レスポンス（201）**:
+```json
+{
+  "success": true,
+  "pr_url": "https://github.com/owner/repo/pull/123"
+}
+```
+
+**エラーレスポンス（400）**:
+```json
+{
+  "error": "PR作成に失敗しました",
+  "details": "ghコマンドのエラーメッセージ"
+}
+```
+
+**エラーケース**:
+- ghコマンドが未インストール
+- GitHub認証が未設定
+- リモートリポジトリが未設定
+- 既にPRが存在する
+- ブランチに変更がない
+
 ## WebSocket API
 
 ### 接続
