@@ -31,10 +31,19 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
     onDelete(project);
   };
 
+  const handleNameClick = () => {
+    router.push(`/projects/${project.id}`);
+  };
+
   return (
     <div className="border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg p-4 hover:shadow-md transition-shadow">
       <div className="flex justify-between items-start mb-2">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{project.name}</h3>
+        <h3
+          className="text-lg font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+          onClick={handleNameClick}
+        >
+          {project.name}
+        </h3>
         <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded-full px-2 py-1 text-xs font-medium">
           {project.session_count}
         </span>

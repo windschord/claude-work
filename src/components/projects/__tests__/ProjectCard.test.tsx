@@ -93,4 +93,23 @@ describe('ProjectCard', () => {
     const openButton = screen.getByText('開く');
     expect(openButton).toHaveAttribute('type', 'button');
   });
+
+  it('プロジェクト名をクリックすると、router.pushが呼ばれる', () => {
+    render(<ProjectCard project={mockProject} onDelete={mockOnDelete} />);
+
+    const projectName = screen.getByText('Test Project');
+    fireEvent.click(projectName);
+
+    expect(mockPush).toHaveBeenCalledTimes(1);
+    expect(mockPush).toHaveBeenCalledWith('/projects/test-project-id');
+  });
+
+  it('プロジェクト名をクリックしても、onDeleteは呼ばれない', () => {
+    render(<ProjectCard project={mockProject} onDelete={mockOnDelete} />);
+
+    const projectName = screen.getByText('Test Project');
+    fireEvent.click(projectName);
+
+    expect(mockOnDelete).not.toHaveBeenCalled();
+  });
 });

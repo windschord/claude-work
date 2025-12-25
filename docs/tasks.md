@@ -2372,3 +2372,225 @@ function getTitle(event: NotificationEvent): string {
 - REQ-091: 通知設定のローカルストレージ保存
 - REQ-092: 設定変更の即時適用
 - REQ-093: イベント別オン/オフ設定
+
+---
+
+## Phase 35: 網羅的検証で発見された不具合修正
+
+検証レポート: `docs/verification-report-phase35.md`
+
+### 概要
+
+Phase 34完了後のnodejs-architectureブランチにおいて、仕様書（requirements.md）に基づく網羅的なUIテストを実施。プロジェクト管理、セッション管理、セッション詳細ページにおいて複数の不具合を発見。
+
+### タスク35.1: プロジェクト名クリックで遷移しない問題の修正 (BUG-001)
+
+**説明**:
+`src/components/projects/ProjectCard.tsx` のプロジェクト名（h3要素）をクリック可能にし、セッション一覧画面への遷移を実装する。
+
+**関連要件**: REQ-004
+**重要度**: Medium
+
+**再現手順**:
+1. ダッシュボードにログイン
+2. プロジェクト一覧でプロジェクト名（heading）をクリック
+
+**期待動作**: セッション一覧画面に遷移
+**実際の動作**: 何も起きない
+
+**修正方針**:
+1. `src/components/projects/ProjectCard.tsx` を確認
+2. プロジェクト名のh3要素にonClickハンドラを追加
+3. `router.push(/projects/${projectId})` でセッション一覧に遷移
+4. cursor: pointer スタイルを追加
+
+**実装詳細**:
+```typescript
+// src/components/projects/ProjectCard.tsx
+<h3
+  className="text-lg font-semibold cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"
+  onClick={() => onOpen(project.id)}
+>
+  {project.name}
+</h3>
+```
+
+**受入基準**:
+- [ ] プロジェクト名クリック時にセッション一覧画面に遷移する
+- [ ] ホバー時にカーソルがポインターになる
+- [ ] ホバー時に色が変わる（視覚的フィードバック）
+- [ ] ESLintエラーがゼロである
+
+**依存関係**: なし
+**推定工数**: 15分（AIエージェント作業時間）
+**ステータス**: `TODO`
+
+---
+
+### タスク35.2: 「開く」ボタンクリックで遷移しない問題の修正 (BUG-002)
+
+**説明**:
+`src/components/projects/ProjectCard.tsx` の「開く」ボタンのonClickハンドラが正しく動作するように修正する。
+
+**関連要件**: REQ-005
+**重要度**: Medium
+
+**再現手順**:
+1. ダッシュボードにログイン
+2. プロジェクト一覧で「開く」ボタンをクリック
+
+**期待動作**: プロジェクト詳細画面に遷移
+**実際の動作**: 何も起きない
+
+**回避策**: サイドバーのプロジェクトボタンからは遷移可能
+
+**修正方針**:
+1. `src/components/projects/ProjectCard.tsx` の「開く」ボタンを確認
+2. onClickハンドラの実装を検証
+3. イベント伝播の問題がないか確認（e.stopPropagation()の必要性）
+4. 必要に応じてボタンのtype属性を設定
+
+**調査ファイル**:
+- `src/components/projects/ProjectCard.tsx`
+- `src/app/page.tsx`（親コンポーネント）
+
+**受入基準**:
+- [ ] 「開く」ボタンクリック時にプロジェクト詳細画面に遷移する
+- [ ] ボタンが正しくクリック可能である
+- [ ] ESLintエラーがゼロである
+
+**依存関係**: なし
+**推定工数**: 20分（AIエージェント作業時間）
+**ステータス**: `TODO`
+
+---
+
+### タスク35.3: セッションカードクリックでセッション詳細に遷移しない問題の修正 (BUG-003)
+
+**説明**:
+`src/components/sessions/SessionCard.tsx` のクリックハンドラが正しく動作するように修正する。コードにはonClickが実装されているが、実際にクリックイベントが発火していない。
+
+**関連要件**: REQ-010
+**重要度**: High
+
+**再現手順**:
+1. プロジェクト詳細ページでセッション一覧を表示
+2. セッションカードをクリック
+
+**期待動作**: セッション詳細画面に遷移
+**実際の動作**: 何も起きない
+
+**原因調査**:
+- `src/components/sessions/SessionCard.tsx` にはonClickハンドラが実装されている
+- `onClick={handleClick}` が `<div>` に設定されている
+- イベント伝播やReactのイベントハンドリングに問題がある可能性
+
+**修正方針**:
+1. SessionCard.tsxのクリックハンドラの実装を確認
+2. 子要素がクリックイベントを阻害していないか確認
+3. tabIndex, role="button" の追加を検討
+4. イベントバブリングの問題を確認
+
+**調査ファイル**:
+- `src/components/sessions/SessionCard.tsx`
+- `src/components/sessions/SessionList.tsx`
+- `src/app/projects/[id]/page.tsx`
+
+**受入基準**:
+- [ ] セッションカードクリック時にセッション詳細画面に遷移する
+- [ ] カード全体がクリック可能である
+- [ ] キーボードアクセシビリティ（Enter/Spaceでクリック）
+- [ ] ESLintエラーがゼロである
+
+**依存関係**: なし
+**推定工数**: 30分（AIエージェント作業時間）
+**ステータス**: `TODO`
+
+---
+
+### タスク35.4: セッション詳細ページの読み込み問題の修正 (BUG-004)
+
+**説明**:
+セッション詳細ページ（`/sessions/{sessionId}`）が「読み込み中...」のまま止まる問題を修正する。WebSocket認証エラーとAPI 404エラーが発生している。
+
+**関連要件**: REQ-021~028, REQ-077~083
+**重要度**: Critical
+
+**再現手順**:
+1. `/sessions/{sessionId}` に直接アクセス
+2. または何らかの方法でセッション詳細に遷移
+
+**期待動作**: セッション詳細ページが表示される
+**実際の動作**: 「読み込み中...」のまま止まる
+
+**コンソールエラー**:
+```
+WebSocket connection to 'ws://localhost:3000/ws/sessions/{id}' failed: HTTP Authentication failed; no valid credentials available
+Failed to load resource: the server responded with a status of 404 (Not Found)
+Failed to fetch session detail: [error]
+Failed to check process status: Not Found
+```
+
+**原因分析**:
+1. WebSocket認証エラー: クッキーベースの認証がWebSocket接続時に失敗
+2. セッションAPI 404: `/api/sessions/{id}` が該当セッションを見つけられない
+3. プロセスステータスAPI 404: `/api/sessions/{id}/process` が失敗
+
+**修正方針**:
+
+**サブタスク35.4.1: WebSocket認証の調査と修正**
+- `src/lib/websocket/auth-middleware.ts` を確認
+- `server.ts` のWebSocket認証部分を確認
+- クッキー認証がWebSocket接続時に正しく渡されているか確認
+
+**サブタスク35.4.2: セッションAPI 404の調査と修正**
+- `src/app/api/sessions/[id]/route.ts` を確認
+- データベースにセッションが存在するか確認
+- クエリ条件（project_id等）が正しいか確認
+
+**サブタスク35.4.3: プロセスステータスAPI 404の調査と修正**
+- `src/app/api/sessions/[id]/process/route.ts` を確認
+- セッションIDの検証ロジックを確認
+
+**調査ファイル**:
+- `src/lib/websocket/auth-middleware.ts`
+- `src/app/api/sessions/[id]/route.ts`
+- `src/app/api/sessions/[id]/process/route.ts`
+- `server.ts` (WebSocket認証部分)
+- `src/app/sessions/[id]/page.tsx`
+
+**受入基準**:
+- [ ] セッション詳細ページが正常に読み込まれる
+- [ ] WebSocket接続が成功する
+- [ ] セッションAPIが正しいデータを返す
+- [ ] プロセスステータスAPIが正しいデータを返す
+- [ ] エラーメッセージがコンソールに出力されない
+- [ ] ESLintエラーがゼロである
+
+**依存関係**: なし
+**推定工数**: 60分（AIエージェント作業時間）
+**ステータス**: `TODO`
+
+---
+
+### Phase 35完了基準
+
+- [ ] タスク35.1が完了している（プロジェクト名クリック遷移）
+- [ ] タスク35.2が完了している（開くボタン遷移）
+- [ ] タスク35.3が完了している（セッションカードクリック遷移）
+- [ ] タスク35.4が完了している（セッション詳細ページ読み込み）
+- [ ] プロジェクト名クリックでセッション一覧に遷移できる
+- [ ] 「開く」ボタンクリックでプロジェクト詳細に遷移できる
+- [ ] セッションカードクリックでセッション詳細に遷移できる
+- [ ] セッション詳細ページが正常に読み込まれる
+- [ ] すべてのテストが通過している（`npm test`）
+- [ ] ESLintエラーがゼロである
+
+### 解決される要件
+
+**docs/requirements.md**:
+- REQ-004: プロジェクト名クリックでセッション一覧に遷移
+- REQ-005: 「開く」ボタンクリックでプロジェクト詳細に遷移
+- REQ-010: セッションクリックでセッション詳細に遷移
+- REQ-021~028: セッション詳細ページの各機能
+- REQ-077~083: セッション詳細の追加機能
