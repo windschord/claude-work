@@ -399,51 +399,54 @@ export default function SessionDetailPage() {
           </div>
 
           {/* Tab Content */}
-          {activeTab === 'chat' ? (
-            <>
-              {/* Messages */}
-              <MessageList messages={messages} />
+          {/* Chat Tab */}
+          <div className={`flex flex-col flex-1 ${activeTab === 'chat' ? '' : 'hidden'}`}>
+            {/* Messages */}
+            <MessageList messages={messages} />
 
-              {/* Input Form */}
-              <InputForm
-                onSubmit={handleSendMessage}
-                disabled={currentSession.status !== 'running' && currentSession.status !== 'waiting_input'}
-              />
-            </>
-          ) : activeTab === 'diff' ? (
-            <div className="flex-1 flex flex-col overflow-hidden">
-              {/* Git Operations Buttons */}
-              <div className="border-b border-gray-200 dark:border-gray-700 p-4 flex gap-3">
-                <RebaseButton sessionId={sessionId} />
-                <button
-                  onClick={() => setIsMergeModalOpen(true)}
-                  className="bg-green-500 text-white rounded px-4 py-2 min-h-[44px] hover:bg-green-600 transition-colors"
-                >
-                  スカッシュしてマージ
-                </button>
-              </div>
-              {/* Diff Display */}
-              <div className="flex-1 flex overflow-hidden">
-                <FileList />
-                <DiffViewer />
-              </div>
+            {/* Input Form */}
+            <InputForm
+              onSubmit={handleSendMessage}
+              disabled={currentSession.status !== 'running' && currentSession.status !== 'waiting_input'}
+            />
+          </div>
+
+          {/* Diff Tab */}
+          <div className={`flex-1 flex flex-col overflow-hidden ${activeTab === 'diff' ? '' : 'hidden'}`}>
+            {/* Git Operations Buttons */}
+            <div className="border-b border-gray-200 dark:border-gray-700 p-4 flex gap-3">
+              <RebaseButton sessionId={sessionId} />
+              <button
+                onClick={() => setIsMergeModalOpen(true)}
+                className="bg-green-500 text-white rounded px-4 py-2 min-h-[44px] hover:bg-green-600 transition-colors"
+              >
+                スカッシュしてマージ
+              </button>
             </div>
-          ) : activeTab === 'commits' ? (
-            <div className="flex-1 overflow-auto p-4">
-              {/* Commit History */}
-              <CommitHistory sessionId={sessionId} />
+            {/* Diff Display */}
+            <div className="flex-1 flex overflow-hidden">
+              <FileList />
+              <DiffViewer />
             </div>
-          ) : activeTab === 'terminal' ? (
-            <div className="flex-1 overflow-hidden">
-              {/* Terminal */}
-              <TerminalPanel sessionId={sessionId} />
-            </div>
-          ) : (
-            <div className="flex-1 overflow-hidden">
-              {/* Scripts */}
-              <ScriptsPanel sessionId={sessionId} projectId={currentSession.project_id} />
-            </div>
-          )}
+          </div>
+
+          {/* Commits Tab */}
+          <div className={`flex-1 overflow-auto p-4 ${activeTab === 'commits' ? '' : 'hidden'}`}>
+            {/* Commit History */}
+            <CommitHistory sessionId={sessionId} />
+          </div>
+
+          {/* Terminal Tab */}
+          <div className={`flex-1 overflow-hidden ${activeTab === 'terminal' ? '' : 'hidden'}`}>
+            {/* Terminal */}
+            <TerminalPanel sessionId={sessionId} />
+          </div>
+
+          {/* Scripts Tab */}
+          <div className={`flex-1 overflow-hidden ${activeTab === 'scripts' ? '' : 'hidden'}`}>
+            {/* Scripts */}
+            <ScriptsPanel sessionId={sessionId} projectId={currentSession.project_id} />
+          </div>
 
           {/* Permission Dialog */}
           <PermissionDialog

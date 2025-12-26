@@ -41,6 +41,7 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
       setDefaultModel(project.default_model || 'auto');
       fetchScripts(project.id);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, project]);
 
   const fetchScripts = async (projectId: string) => {
