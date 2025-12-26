@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, Fragment, useEffect } from 'react';
+import { useState, Fragment, useEffect, useCallback } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { Project, useAppStore } from '@/store';
 import toast from 'react-hot-toast';
@@ -36,15 +36,7 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    if (isOpen && project) {
-      setDefaultModel(project.default_model || 'auto');
-      fetchScripts(project.id);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, project]);
-
-  const fetchScripts = async (projectId: string) => {
+  const fetchScripts = useCallback(async (projectId: string) => {
     try {
       const response = await fetch(`/api/projects/${projectId}/scripts`);
       if (!response.ok) {
@@ -56,7 +48,14 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
       console.error('Failed to fetch scripts:', err);
       setScripts([]);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (isOpen && project) {
+      setDefaultModel(project.default_model || 'auto');
+      fetchScripts(project.id);
+    }
+  }, [isOpen, project, fetchScripts]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,6 +104,11 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
   const handleDeleteScript = async (index: number) => {
     const script = scripts[index];
     if (!project) return;
+
+    // 保存済みのスクリプトを削除する場合は確認ダイアログを表示
+    if (script.id && !window.confirm('このスクリプトを削除してもよろしいですか？')) {
+      return;
+    }
 
     if (script.id) {
       try {
