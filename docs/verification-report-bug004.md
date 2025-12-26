@@ -16,7 +16,7 @@ Task 38.2 (BUG-004): セッション一覧からセッション詳細への遷�
 
 ### 1. SessionCard.tsx の実装状況
 
-**ファイル**: `/Users/tsk/Sync/git/claude-work/src/components/sessions/SessionCard.tsx`
+**ファイル**: `src/components/sessions/SessionCard.tsx`
 
 #### クリックハンドラ
 ```typescript
@@ -55,7 +55,7 @@ onKeyDown={(e) => {
 
 ### 2. SessionList.tsx の実装状況
 
-**ファイル**: `/Users/tsk/Sync/git/claude-work/src/components/sessions/SessionList.tsx`
+**ファイル**: `src/components/sessions/SessionList.tsx`
 
 #### プロップの受け渡し
 ```typescript
@@ -65,7 +65,7 @@ onKeyDown={(e) => {
 
 ### 3. page.tsx の実装状況
 
-**ファイル**: `/Users/tsk/Sync/git/claude-work/src/app/projects/[id]/page.tsx`
+**ファイル**: `src/app/projects/[id]/page.tsx`
 
 #### 遷移ハンドラ
 ```typescript
@@ -84,7 +84,7 @@ const handleSessionClick = (sessionId: string) => {
 
 ### 4. E2Eテストの存在確認
 
-**ファイル**: `/Users/tsk/Sync/git/claude-work/e2e/sessions.spec.ts`
+**ファイル**: `e2e/sessions.spec.ts`
 
 #### テストケース
 ```typescript

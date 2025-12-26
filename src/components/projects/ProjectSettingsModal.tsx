@@ -46,6 +46,7 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
       setScripts(data.scripts || []);
     } catch (err) {
       console.error('Failed to fetch scripts:', err);
+      toast.error('スクリプトの取得に失敗しました');
       setScripts([]);
     }
   }, []);
@@ -281,6 +282,16 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
                                 value={script.name}
                                 onChange={(e) => handleScriptChange(index, 'name', e.target.value)}
                                 placeholder="名前"
+                                className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                                disabled={isLoading}
+                              />
+                            </div>
+                            <div>
+                              <input
+                                type="text"
+                                value={script.description || ''}
+                                onChange={(e) => handleScriptChange(index, 'description', e.target.value)}
+                                placeholder="説明（任意）"
                                 className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                                 disabled={isLoading}
                               />
