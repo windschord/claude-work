@@ -93,7 +93,9 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
   };
 
   const handleAddScript = () => {
-    setScripts([...scripts, { id: '', name: '', description: '', command: '' }]);
+    // 一時的なIDを生成（新規スクリプトの識別用）
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    setScripts([...scripts, { id: tempId, name: '', description: '', command: '' }]);
   };
 
   const handleScriptChange = (index: number, field: keyof RunScript, value: string) => {
@@ -139,13 +141,24 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
     setError('');
     setIsLoading(true);
 
+    // 不完全なスクリプトをカウント
+    const incompleteScripts = scripts.filter(
+      (s) => !s.name.trim() || !s.command.trim()
+    );
+    if (incompleteScripts.length > 0) {
+      toast.error(`${incompleteScripts.length}件のスクリプトは名前またはコマンドが未入力のためスキップされます`);
+    }
+
     try {
       for (const script of scripts) {
         if (!script.name.trim() || !script.command.trim()) {
           continue;
         }
 
-        if (!script.id) {
+        // 一時ID（temp-で始まる）は新規スクリプトとして扱う
+        const isNewScript = !script.id || script.id.startsWith('temp-');
+
+        if (isNewScript) {
           const response = await fetch(`/api/projects/${project.id}/scripts`, {
             method: 'POST',
             headers: {
@@ -272,7 +285,7 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
                     <div className="space-y-3 max-h-96 overflow-y-auto">
                       {scripts.map((script, index) => (
                         <div
-                          key={index}
+                          key={script.id}
                           className="border border-gray-300 dark:border-gray-600 rounded-md p-3 bg-gray-50 dark:bg-gray-700"
                         >
                           <div className="grid grid-cols-1 gap-2">
