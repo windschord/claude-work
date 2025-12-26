@@ -21,7 +21,7 @@ interface ProjectSettingsModalProps {
 /**
  * プロジェクト設定モーダルコンポーネント
  *
- * プロジェクトのデフォルトモデルとランスクリプトの設定を行うモーダルダイアログです。
+ * プロジェクトのデフォルトモデルと実行スクリプトの設定を行うモーダルダイアログです。
  *
  * @param props - コンポーネントのプロパティ
  * @param props.isOpen - モーダルの開閉状態
@@ -252,7 +252,7 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
                   <div className="mb-6">
                     <div className="flex justify-between items-center mb-2">
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        ランスクリプト
+                        実行スクリプト
                       </label>
                       <button
                         type="button"

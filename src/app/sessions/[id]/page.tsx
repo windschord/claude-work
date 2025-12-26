@@ -399,6 +399,13 @@ export default function SessionDetailPage() {
           </div>
 
           {/* Tab Content */}
+          {/*
+           * 注意: すべてのタブコンテンツはDOMに常にレンダリングされ、CSSのhiddenクラスで非表示にしています。
+           * これは特にTerminalタブのためのアーキテクチャ上の決定です。
+           * XTerm.jsターミナルは一度初期化されると、DOMから削除されると状態が失われます。
+           * 条件付きレンダリングではなくCSS非表示を使用することで、タブ切り替え時も
+           * ターミナルの接続状態と履歴が維持されます。
+           */}
           {/* Chat Tab */}
           <div className={`flex flex-col flex-1 ${activeTab === 'chat' ? '' : 'hidden'}`}>
             {/* Messages */}

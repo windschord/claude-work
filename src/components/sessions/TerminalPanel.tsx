@@ -31,6 +31,8 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
 
   // ターミナルをDOMにマウント
   useEffect(() => {
+    let timer: NodeJS.Timeout | null = null;
+
     if (terminal && containerRef.current && mounted && !isTerminalOpened) {
       try {
         // コンテナが可視状態か確認
@@ -48,7 +50,7 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
           });
         } else {
           // サイズがない場合は少し待ってから再試行
-          const timer = setTimeout(() => {
+          timer = setTimeout(() => {
             if (containerRef.current && terminal) {
               const newRect = containerRef.current.getBoundingClientRect();
               if (newRect.width > 0 && newRect.height > 0) {
@@ -60,12 +62,18 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
               }
             }
           }, 100);
-          return () => clearTimeout(timer);
         }
       } catch (err) {
         console.error('Failed to open terminal:', err);
       }
     }
+
+    // クリーンアップ: タイマーがセットされている場合のみクリア
+    return () => {
+      if (timer) {
+        clearTimeout(timer);
+      }
+    };
   }, [terminal, fit, mounted, isTerminalOpened]);
 
   // ウィンドウリサイズ時にターミナルをリサイズ
@@ -151,10 +159,9 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
       {/* ターミナルエリア */}
       <div
         ref={containerRef}
-        className="flex-1 p-2 min-h-0"
+        className="flex-1 p-2 min-h-0 w-full h-full"
         role="application"
         aria-label="Terminal"
-        style={{ width: '100%', height: '100%' }}
       />
     </div>
   );
