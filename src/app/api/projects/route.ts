@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
       absolutePath = realpathSync(resolve(projectPath));
     } catch (error) {
       logger.warn('Invalid path', { path: projectPath, error });
-      return NextResponse.json({ error: 'Invalid path' }, { status: 400 });
+      return NextResponse.json({ error: '有効なパスを入力してください' }, { status: 400 });
     }
 
     // 許可されたディレクトリのチェック

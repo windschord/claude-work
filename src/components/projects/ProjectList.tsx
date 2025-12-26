@@ -5,11 +5,12 @@ import { useAppStore, Project } from '@/store';
 import { ProjectCard } from './ProjectCard';
 import { AddProjectModal } from './AddProjectModal';
 import { DeleteProjectDialog } from './DeleteProjectDialog';
+import { ProjectSettingsModal } from './ProjectSettingsModal';
 
 /**
  * プロジェクト一覧コンポーネント
  *
- * プロジェクトの一覧表示、追加、削除の機能を提供します。
+ * プロジェクトの一覧表示、追加、削除、設定の機能を提供します。
  * プロジェクトがない場合は空の状態を表示します。
  *
  * @returns プロジェクト一覧のJSX要素
@@ -18,16 +19,28 @@ export function ProjectList() {
   const { projects } = useAppStore();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
+  const [projectToEdit, setProjectToEdit] = useState<Project | null>(null);
 
   const handleDeleteClick = (project: Project) => {
     setProjectToDelete(project);
     setIsDeleteDialogOpen(true);
   };
 
+  const handleSettingsClick = (project: Project) => {
+    setProjectToEdit(project);
+    setIsSettingsModalOpen(true);
+  };
+
   const handleDeleteDialogClose = () => {
     setIsDeleteDialogOpen(false);
     setProjectToDelete(null);
+  };
+
+  const handleSettingsModalClose = () => {
+    setIsSettingsModalOpen(false);
+    setProjectToEdit(null);
   };
 
   return (
@@ -56,6 +69,7 @@ export function ProjectList() {
               key={project.id}
               project={project}
               onDelete={handleDeleteClick}
+              onSettings={handleSettingsClick}
             />
           ))}
         </div>
@@ -70,6 +84,12 @@ export function ProjectList() {
         isOpen={isDeleteDialogOpen}
         onClose={handleDeleteDialogClose}
         project={projectToDelete}
+      />
+
+      <ProjectSettingsModal
+        isOpen={isSettingsModalOpen}
+        onClose={handleSettingsModalClose}
+        project={projectToEdit}
       />
     </div>
   );

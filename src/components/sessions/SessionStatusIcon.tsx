@@ -1,6 +1,6 @@
 'use client';
 
-import { Loader2, Play, MessageCircle, CheckCircle, XCircle, StopCircle } from 'lucide-react';
+import { Loader2, Play, MessageCircle, CheckCircle, XCircle, Square } from 'lucide-react';
 
 interface SessionStatusIconProps {
   status: 'initializing' | 'running' | 'waiting_input' | 'completed' | 'error' | 'stopped';
@@ -44,7 +44,7 @@ export function SessionStatusIcon({ status }: SessionStatusIconProps) {
       testId: 'status-icon-error',
     },
     stopped: {
-      Icon: StopCircle,
+      Icon: Square,
       className: 'w-5 h-5 text-gray-500',
       testId: 'status-icon-stopped',
     },

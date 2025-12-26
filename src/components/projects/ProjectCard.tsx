@@ -6,19 +6,21 @@ import { Project } from '@/store';
 interface ProjectCardProps {
   project: Project;
   onDelete: (project: Project) => void;
+  onSettings: (project: Project) => void;
 }
 
 /**
  * プロジェクトカードコンポーネント
  *
- * プロジェクトの情報を表示し、開くまたは削除のアクションを提供します。
+ * プロジェクトの情報を表示し、開く、設定、削除のアクションを提供します。
  *
  * @param props - コンポーネントのプロパティ
  * @param props.project - 表示するプロジェクト情報
  * @param props.onDelete - プロジェクトを削除するときのコールバック関数
+ * @param props.onSettings - プロジェクト設定を開くときのコールバック関数
  * @returns プロジェクトカードのJSX要素
  */
-export function ProjectCard({ project, onDelete }: ProjectCardProps) {
+export function ProjectCard({ project, onDelete, onSettings }: ProjectCardProps) {
   const router = useRouter();
 
   const handleOpen = (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -29,6 +31,11 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
   const handleDelete = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
     onDelete(project);
+  };
+
+  const handleSettings = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    onSettings(project);
   };
 
   const handleNameClick = () => {
@@ -56,6 +63,13 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
           className="flex-1 bg-blue-600 dark:bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 dark:hover:bg-blue-700 transition-colors"
         >
           開く
+        </button>
+        <button
+          type="button"
+          onClick={handleSettings}
+          className="flex-1 bg-gray-600 dark:bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 dark:hover:bg-gray-700 transition-colors"
+        >
+          設定
         </button>
         <button
           type="button"

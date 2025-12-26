@@ -22,6 +22,7 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { terminal, isConnected, fit, error } = useTerminal(sessionId);
   const [mounted, setMounted] = useState(false);
+  const [isTerminalOpened, setIsTerminalOpened] = useState(false);
 
   // クライアントサイドでのみレンダリング
   useEffect(() => {
@@ -30,22 +31,54 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
 
   // ターミナルをDOMにマウント
   useEffect(() => {
-    if (terminal && containerRef.current && mounted) {
+    let timer: NodeJS.Timeout | null = null;
+
+    if (terminal && containerRef.current && mounted && !isTerminalOpened) {
       try {
-        terminal.open(containerRef.current);
-        // 初期リサイズ - DOMレンダリング完了後に実行
-        requestAnimationFrame(() => {
-          fit();
-        });
+        // コンテナが可視状態か確認
+        const container = containerRef.current;
+        const rect = container.getBoundingClientRect();
+
+        // サイズがある場合のみopen()を実行
+        if (rect.width > 0 && rect.height > 0) {
+          terminal.open(container);
+          setIsTerminalOpened(true);
+
+          // 初期リサイズ - DOMレンダリング完了後に実行
+          requestAnimationFrame(() => {
+            fit();
+          });
+        } else {
+          // サイズがない場合は少し待ってから再試行
+          timer = setTimeout(() => {
+            if (containerRef.current && terminal) {
+              const newRect = containerRef.current.getBoundingClientRect();
+              if (newRect.width > 0 && newRect.height > 0) {
+                terminal.open(containerRef.current);
+                setIsTerminalOpened(true);
+                requestAnimationFrame(() => {
+                  fit();
+                });
+              }
+            }
+          }, 100);
+        }
       } catch (err) {
         console.error('Failed to open terminal:', err);
       }
     }
-  }, [terminal, fit, mounted]);
+
+    // クリーンアップ: タイマーがセットされている場合のみクリア
+    return () => {
+      if (timer) {
+        clearTimeout(timer);
+      }
+    };
+  }, [terminal, fit, mounted, isTerminalOpened]);
 
   // ウィンドウリサイズ時にターミナルをリサイズ
   useEffect(() => {
-    if (!mounted) return;
+    if (!mounted || !isTerminalOpened) return;
 
     const handleResize = () => {
       fit();
@@ -53,7 +86,32 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [fit, mounted]);
+  }, [fit, mounted, isTerminalOpened]);
+
+  // 表示状態が変わった時にリサイズ（IntersectionObserver使用）
+  useEffect(() => {
+    if (!mounted || !isTerminalOpened || !containerRef.current) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            // 表示されたらリサイズ
+            requestAnimationFrame(() => {
+              fit();
+            });
+          }
+        });
+      },
+      { threshold: 0.1 }
+    );
+
+    observer.observe(containerRef.current);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [fit, mounted, isTerminalOpened]);
 
   // SSR時は何も表示しない
   if (!mounted) {
@@ -101,7 +159,7 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
       {/* ターミナルエリア */}
       <div
         ref={containerRef}
-        className="flex-1 p-2"
+        className="flex-1 p-2 min-h-0 w-full h-full"
         role="application"
         aria-label="Terminal"
       />
