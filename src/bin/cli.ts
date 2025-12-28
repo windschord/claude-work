@@ -88,7 +88,7 @@ function generatePrismaClient(): boolean {
  * データベースファイルが存在するか確認
  */
 function checkDatabase(): boolean {
-  const dbPath = path.join(projectRoot, 'prisma', 'data', 'claudework.db');
+  const dbPath = path.join(projectRoot, 'data', 'claudework.db');
   return fs.existsSync(dbPath);
 }
 
@@ -99,7 +99,7 @@ function setupDatabase(): boolean {
   console.log('Setting up database...');
 
   // データベースディレクトリを作成
-  const dataDir = path.join(projectRoot, 'prisma', 'data');
+  const dataDir = path.join(projectRoot, 'data');
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
   }

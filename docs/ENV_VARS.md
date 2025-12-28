@@ -30,9 +30,9 @@ ClaudeWork で使用可能な環境変数の一覧です。
 ### DATABASE_URL
 
 - **説明**: SQLite データベースパス
-- **形式**: `file:./path/to/database.db`
-- **例**: `DATABASE_URL="file:./data/claudework.db"`
-- **デフォルト**: `file:./data/claudework.db`
+- **形式**: `file:../path/to/database.db`（prisma/schema.prisma からの相対パス）
+- **例**: `DATABASE_URL="file:../data/claudework.db"`（→ プロジェクトルートの `data/claudework.db`）
+- **デフォルト**: `file:../data/claudework.db`
 
 ### NODE_ENV
 
@@ -78,7 +78,7 @@ ClaudeWork で使用可能な環境変数の一覧です。
 CLAUDE_WORK_TOKEN=your-secret-token-here
 SESSION_SECRET=your-32-character-or-longer-secret-key-here
 PORT=3000
-DATABASE_URL=file:./data/claudework.db
+DATABASE_URL=file:../data/claudework.db
 NODE_ENV=production
 LOG_LEVEL=info
 ALLOWED_ORIGINS=http://localhost:3000

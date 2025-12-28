@@ -36,7 +36,7 @@ CLAUDE_WORK_TOKEN=your-secret-token
 SESSION_SECRET=your-32-character-or-longer-secret-key
 
 # データベースURL（通常は変更不要）
-DATABASE_URL=file:./data/claudework.db
+DATABASE_URL=file:../data/claudework.db
 
 # ポート（オプション）
 PORT=3000
@@ -69,7 +69,7 @@ Git リポジトリのパスを指定してプロジェクトを追加します:
 データベースファイルが破損した場合、削除して再起動します:
 
 ```bash
-rm -rf prisma/data/claudework.db
+rm -rf data/claudework.db
 npx claude-work
 ```
 

@@ -43,7 +43,7 @@ describe('環境変数バリデーション', () => {
   it('すべての必須環境変数が設定されている場合、エラーをスローしない', () => {
     process.env.CLAUDE_WORK_TOKEN = 'test-token';
     process.env.SESSION_SECRET = 'test-secret-32-characters-long!!';
-    process.env.DATABASE_URL = 'file:./prisma/data/test.db';
+    process.env.DATABASE_URL = 'file:../data/test.db';
 
     expect(() => {
       validateRequiredEnvVars();
@@ -53,7 +53,7 @@ describe('環境変数バリデーション', () => {
   it('CLAUDE_WORK_TOKENが未設定の場合、エラーをスローする', () => {
     delete process.env.CLAUDE_WORK_TOKEN;
     process.env.SESSION_SECRET = 'test-secret-32-characters-long!!';
-    process.env.DATABASE_URL = 'file:./prisma/data/test.db';
+    process.env.DATABASE_URL = 'file:../data/test.db';
 
     expect(() => {
       validateRequiredEnvVars();
@@ -63,7 +63,7 @@ describe('環境変数バリデーション', () => {
   it('SESSION_SECRETが未設定の場合、エラーをスローする', () => {
     process.env.CLAUDE_WORK_TOKEN = 'test-token';
     delete process.env.SESSION_SECRET;
-    process.env.DATABASE_URL = 'file:./prisma/data/test.db';
+    process.env.DATABASE_URL = 'file:../data/test.db';
 
     expect(() => {
       validateRequiredEnvVars();
@@ -73,7 +73,7 @@ describe('環境変数バリデーション', () => {
   it('SESSION_SECRETが32文字未満の場合、エラーをスローする', () => {
     process.env.CLAUDE_WORK_TOKEN = 'test-token';
     process.env.SESSION_SECRET = 'short';
-    process.env.DATABASE_URL = 'file:./prisma/data/test.db';
+    process.env.DATABASE_URL = 'file:../data/test.db';
 
     expect(() => {
       validateRequiredEnvVars();

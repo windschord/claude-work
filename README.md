@@ -55,7 +55,7 @@ CLAUDE_WORK_TOKEN=your-secret-token
 SESSION_SECRET=your-32-character-or-longer-secret
 
 # データベースURL（変更不要）
-DATABASE_URL=file:./data/claudework.db
+DATABASE_URL=file:../data/claudework.db
 ```
 
 ブラウザで `http://localhost:3000` を開き、設定したトークンでログインします。

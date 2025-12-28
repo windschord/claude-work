@@ -29,7 +29,7 @@ export default defineConfig({
     hookTimeout: 10000,
     env: {
       NODE_ENV: 'test',
-      DATABASE_URL: 'file:./prisma/data/test.db',
+      DATABASE_URL: 'file:../data/test.db',
     },
     // CI環境では並列化を制限してハングを防ぐ
     pool: process.env.CI ? 'threads' : 'forks',

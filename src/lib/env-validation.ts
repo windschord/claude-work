@@ -72,7 +72,7 @@ export function validateRequiredEnvVars(): void {
       '2. Edit .env and set the required variables:\n' +
       '   - CLAUDE_WORK_TOKEN: A secure random token for authentication\n' +
       '   - SESSION_SECRET: A 32+ character secret for session encryption\n' +
-      '   - DATABASE_URL: Database connection URL (e.g., file:./prisma/data/claudework.db)\n\n' +
+      '   - DATABASE_URL: Database connection URL (e.g., file:../data/claudework.db)\n\n' +
       'For more details, see README.md and docs/ENV_VARS.md'
     );
   }

@@ -7,7 +7,7 @@ if (!databaseUrl || databaseUrl.trim() === '') {
   throw new Error(
     'DATABASE_URL environment variable is not set. ' +
     'Please set it in your .env file. ' +
-    'Example: DATABASE_URL=file:./prisma/data/claudework.db'
+    'Example: DATABASE_URL=file:../data/claudework.db'
   );
 }
 
