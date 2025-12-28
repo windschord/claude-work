@@ -10,6 +10,11 @@ import toast from 'react-hot-toast';
  *
  * APIから取得したRunScriptと新規作成のスクリプトの両方を扱うため、
  * 編集に必要な最小限のフィールドのみを含みます。
+ *
+ * store/run-scripts.tsのRunScript型との違い:
+ * - project_id, created_at, updated_atは編集に不要なため省略
+ * - descriptionはstring（not string | null）：フォーム入力用に空文字に正規化
+ *
  * temp-で始まるIDは新規作成、それ以外は既存スクリプトを示します。
  */
 interface EditableScript {

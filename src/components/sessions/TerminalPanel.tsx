@@ -92,8 +92,12 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
 
   // 表示状態が変わった時にリサイズ（IntersectionObserver使用）
   useEffect(() => {
-    // エフェクト実行時のcontainerRef.currentをキャプチャ
-    // これにより、クリーンアップ時に正しい要素をunobserveできる
+    // エフェクト開始時にcontainerRef.currentをキャプチャ
+    // 注意: containerRef.currentは依存配列に含めません。理由:
+    // 1. Reactのルールでref.currentを依存配列に含めることは推奨されない（変更が再レンダリングをトリガーしないため）
+    // 2. このコンテナ要素はこのコンポーネント内でレンダリングされるため、親の再レンダリングで再作成されない
+    // 3. コンポーネントがアンマウント/再マウントされた場合、mountedとisTerminalOpenedの変更で
+    //    エフェクトが再実行され、新しいコンテナ要素を監視する
     const container = containerRef.current;
     if (!mounted || !isTerminalOpened || !container) return;
 
