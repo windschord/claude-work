@@ -166,7 +166,7 @@ export class SessionWebSocketHandler {
       // ステータス変更も通知
       const statusMessage: ServerMessage = {
         type: 'status_change',
-        status: 'paused',
+        status: 'stopped',
       };
       this.connectionManager.broadcast(sessionId, statusMessage);
     });

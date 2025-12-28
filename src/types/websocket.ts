@@ -45,7 +45,7 @@ export interface PermissionRequest {
 /**
  * セッションステータス
  */
-export type SessionStatus = 'initializing' | 'running' | 'waiting_input' | 'paused' | 'completed' | 'error';
+export type SessionStatus = 'initializing' | 'running' | 'waiting_input' | 'completed' | 'error' | 'stopped';
 
 /**
  * プロセス一時停止理由

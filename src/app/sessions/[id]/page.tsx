@@ -379,7 +379,7 @@ export default function SessionDetailPage() {
               >
                 戻る
               </button>
-              {currentSession.status === 'paused' && (
+              {currentSession.status === 'stopped' && (
                 <button
                   onClick={handleResumeSession}
                   disabled={processLoading}
