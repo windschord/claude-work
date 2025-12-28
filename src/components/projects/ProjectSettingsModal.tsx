@@ -5,10 +5,17 @@ import { Dialog, Transition } from '@headlessui/react';
 import { Project, useAppStore } from '@/store';
 import toast from 'react-hot-toast';
 
-interface RunScript {
+/**
+ * スクリプト編集用のローカル型定義
+ *
+ * APIから取得したRunScriptと新規作成のスクリプトの両方を扱うため、
+ * 編集に必要な最小限のフィールドのみを含みます。
+ * temp-で始まるIDは新規作成、それ以外は既存スクリプトを示します。
+ */
+interface EditableScript {
   id: string;
   name: string;
-  description?: string;
+  description: string;
   command: string;
 }
 
@@ -32,7 +39,7 @@ interface ProjectSettingsModalProps {
 export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettingsModalProps) {
   const { fetchProjects } = useAppStore();
   const [defaultModel, setDefaultModel] = useState('auto');
-  const [scripts, setScripts] = useState<RunScript[]>([]);
+  const [scripts, setScripts] = useState<EditableScript[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -43,7 +50,17 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
         throw new Error('Failed to fetch scripts');
       }
       const data = await response.json();
-      setScripts(data.scripts || []);
+      // APIレスポンスをEditableScript形式にマッピング
+      // description: string | null を description: string に変換
+      const editableScripts: EditableScript[] = (data.scripts || []).map(
+        (script: { id: string; name: string; description: string | null; command: string }) => ({
+          id: script.id,
+          name: script.name,
+          description: script.description || '',
+          command: script.command,
+        })
+      );
+      setScripts(editableScripts);
     } catch (err) {
       console.error('Failed to fetch scripts:', err);
       toast.error('スクリプトの取得に失敗しました');
@@ -98,7 +115,7 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
     setScripts([...scripts, { id: tempId, name: '', description: '', command: '' }]);
   };
 
-  const handleScriptChange = (index: number, field: keyof RunScript, value: string) => {
+  const handleScriptChange = (index: number, field: keyof EditableScript, value: string) => {
     const newScripts = [...scripts];
     newScripts[index] = { ...newScripts[index], [field]: value };
     setScripts(newScripts);

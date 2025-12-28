@@ -31,11 +31,17 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
 
   // ターミナルをDOMにマウント
   useEffect(() => {
-    let timer: NodeJS.Timeout | null = null;
+    // タイマー参照を保持（クリーンアップ用）
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    // コンポーネントがアンマウントされたかどうかを追跡
+    let isMounted = true;
 
-    if (terminal && containerRef.current && mounted && !isTerminalOpened) {
+    const tryOpenTerminal = () => {
+      if (!isMounted || !terminal || !containerRef.current || isTerminalOpened) {
+        return;
+      }
+
       try {
-        // コンテナが可視状態か確認
         const container = containerRef.current;
         const rect = container.getBoundingClientRect();
 
@@ -46,32 +52,28 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
 
           // 初期リサイズ - DOMレンダリング完了後に実行
           requestAnimationFrame(() => {
-            fit();
+            if (isMounted) {
+              fit();
+            }
           });
         } else {
           // サイズがない場合は少し待ってから再試行
-          timer = setTimeout(() => {
-            if (containerRef.current && terminal) {
-              const newRect = containerRef.current.getBoundingClientRect();
-              if (newRect.width > 0 && newRect.height > 0) {
-                terminal.open(containerRef.current);
-                setIsTerminalOpened(true);
-                requestAnimationFrame(() => {
-                  fit();
-                });
-              }
-            }
-          }, 100);
+          retryTimer = setTimeout(tryOpenTerminal, 100);
         }
       } catch (err) {
         console.error('Failed to open terminal:', err);
       }
+    };
+
+    if (terminal && containerRef.current && mounted && !isTerminalOpened) {
+      tryOpenTerminal();
     }
 
-    // クリーンアップ: タイマーがセットされている場合のみクリア
+    // クリーンアップ: タイマーとマウント状態をクリア
     return () => {
-      if (timer) {
-        clearTimeout(timer);
+      isMounted = false;
+      if (retryTimer !== undefined) {
+        clearTimeout(retryTimer);
       }
     };
   }, [terminal, fit, mounted, isTerminalOpened]);
@@ -90,7 +92,10 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
 
   // 表示状態が変わった時にリサイズ（IntersectionObserver使用）
   useEffect(() => {
-    if (!mounted || !isTerminalOpened || !containerRef.current) return;
+    // エフェクト実行時のcontainerRef.currentをキャプチャ
+    // これにより、クリーンアップ時に正しい要素をunobserveできる
+    const container = containerRef.current;
+    if (!mounted || !isTerminalOpened || !container) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -106,7 +111,7 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
       { threshold: 0.1 }
     );
 
-    observer.observe(containerRef.current);
+    observer.observe(container);
 
     return () => {
       observer.disconnect();
