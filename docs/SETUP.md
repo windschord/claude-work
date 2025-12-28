@@ -4,60 +4,53 @@
 
 - Node.js 20 以上
 - Git
-- Claude Code CLI（`npm install -g claude-code`）
+- Claude Code CLI（インストール済みであること）
 
-## インストール
-
-### npx で実行（推奨）
-
-グローバルインストール不要で実行できます:
+## クイックスタート
 
 ```bash
 npx claude-work
 ```
 
-### グローバルインストール
+これだけで起動できます。初回実行時は以下が自動的にセットアップされます:
 
-```bash
-npm install -g claude-work
-claude-work
-```
+| ステップ | 処理内容 |
+|---------|---------|
+| 1. 環境設定 | `.env` がなければ `.env.example` からコピー |
+| 2. Prisma | クライアントがなければ自動生成 |
+| 3. データベース | DBがなければ自動作成 |
+| 4. ビルド | `.next` がなければ自動ビルド |
+| 5. 起動 | サーバー起動 |
 
-## 初期設定
+サーバーが起動したら、ブラウザで `http://localhost:3000` を開きます。
 
-### 1. 認証トークン設定
+## 環境変数のカスタマイズ
 
-環境変数で認証トークンを設定します:
-
-```bash
-export CLAUDE_WORK_TOKEN="your-secret-token"
-export SESSION_SECRET="your-32-character-or-longer-secret-key"
-```
-
-または、`.env`ファイルを作成（最小構成）:
+デフォルト設定で動作しますが、本番環境では `.env` を編集してください:
 
 ```env
+# 認証トークン（ログインに使用）
 CLAUDE_WORK_TOKEN=your-secret-token
+
+# セッションシークレット（32文字以上）
 SESSION_SECRET=your-32-character-or-longer-secret-key
-PORT=3000
+
+# データベースURL（通常は変更不要）
 DATABASE_URL=file:./data/claudework.db
+
+# ポート（オプション）
+PORT=3000
 ```
 
 その他の環境変数については [ENV_VARS.md](ENV_VARS.md) を参照してください。
 
-### 2. サーバー起動
+## 使い方
 
-```bash
-npx claude-work
-```
+### 1. ログイン
 
-サーバーが起動したら、ブラウザで `http://localhost:3000` を開きます。
+設定した認証トークン（デフォルト: `your-secure-token-here`）でログインします。
 
-### 3. ログイン
-
-設定した認証トークンでログインします。
-
-### 4. プロジェクト追加
+### 2. プロジェクト追加
 
 Git リポジトリのパスを指定してプロジェクトを追加します:
 
@@ -65,7 +58,7 @@ Git リポジトリのパスを指定してプロジェクトを追加します:
 /path/to/your/git/repo
 ```
 
-### 5. セッション作成
+### 3. セッション作成
 
 プロジェクトを開き、セッション名とプロンプトを入力してセッションを作成します。
 
@@ -76,7 +69,7 @@ Git リポジトリのパスを指定してプロジェクトを追加します:
 データベースファイルが破損した場合、削除して再起動します:
 
 ```bash
-rm -rf data/claudework.db
+rm -rf prisma/data/claudework.db
 npx claude-work
 ```
 
