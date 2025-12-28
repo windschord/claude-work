@@ -9,7 +9,10 @@ import { SessionWebSocketHandler } from './src/lib/websocket/session-ws';
 import { setupTerminalWebSocket } from './src/lib/websocket/terminal-ws';
 import { logger } from './src/lib/logger';
 import { validateRequiredEnvVars, detectClaudePath } from './src/lib/env-validation';
-import { getProcessLifecycleManager } from './src/services/process-lifecycle-manager';
+import {
+  getProcessLifecycleManager,
+  ProcessLifecycleManager,
+} from './src/services/process-lifecycle-manager';
 
 // 環境変数を.envファイルから明示的にロード（PM2で設定されている場合はそちらを優先）
 const dotenvResult = dotenv.config();
@@ -202,6 +205,14 @@ app.prepare().then(() => {
       environment: dev ? 'development' : 'production',
     });
     console.log(`> Ready on http://${hostname}:${port}`);
+
+    // アイドルタイムアウトチェッカーを開始
+    const idleTimeoutMinutes = ProcessLifecycleManager.getIdleTimeoutMinutes();
+    const lifecycleManager = getProcessLifecycleManager();
+    lifecycleManager.startIdleChecker(idleTimeoutMinutes);
+    if (idleTimeoutMinutes > 0) {
+      logger.info('Idle timeout checker started', { timeoutMinutes: idleTimeoutMinutes });
+    }
   });
 
   // エラーハンドリング

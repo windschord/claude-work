@@ -2,6 +2,7 @@ import { WebSocket } from 'ws';
 import { ConnectionManager } from './connection-manager';
 import { getProcessManager } from '../../services/process-manager';
 import { getRunScriptManager } from '../../services/run-script-manager';
+import { getProcessLifecycleManager } from '../../services/process-lifecycle-manager';
 import { logger } from '../logger';
 import { prisma } from '../db';
 import type {
@@ -24,11 +25,13 @@ export class SessionWebSocketHandler {
   private connectionManager: ConnectionManager;
   private processManager: ReturnType<typeof getProcessManager>;
   private runScriptManager: ReturnType<typeof getRunScriptManager>;
+  private lifecycleManager: ReturnType<typeof getProcessLifecycleManager>;
 
   constructor(connectionManager: ConnectionManager) {
     this.connectionManager = connectionManager;
     this.processManager = getProcessManager();
     this.runScriptManager = getRunScriptManager();
+    this.lifecycleManager = getProcessLifecycleManager();
     this.setupProcessManagerListeners();
     this.setupRunScriptManagerListeners();
   }
@@ -156,6 +159,9 @@ export class SessionWebSocketHandler {
     // 接続を登録
     this.connectionManager.addConnection(sessionId, ws);
 
+    // アクティビティを更新（アイドルタイムアウトのリセット）
+    this.lifecycleManager.updateActivity(sessionId);
+
     logger.info('WebSocket connection established', { sessionId });
 
     // メッセージハンドラーを設定
@@ -215,6 +221,9 @@ export class SessionWebSocketHandler {
   ): Promise<void> {
     try {
       const message: ClientMessage = JSON.parse(data.toString());
+
+      // アクティビティを更新（アイドルタイムアウトのリセット）
+      this.lifecycleManager.updateActivity(sessionId);
 
       logger.debug('WebSocket message received', {
         sessionId,
