@@ -33,31 +33,30 @@ ClaudeWork は、Claude Code セッションをブラウザから管理するた
 npx claude-work
 ```
 
-### 環境変数の設定
+これだけで起動できます。初回実行時は以下が自動的にセットアップされます:
 
-**重要**: `.env`ファイルで`DATABASE_URL`を必ず設定してください。未設定の場合、アプリケーションは起動しません。
+| ステップ | 処理内容 |
+|---------|---------|
+| 1. 環境設定 | `.env` がなければ `.env.example` からコピー |
+| 2. Prisma | クライアントがなければ自動生成 |
+| 3. データベース | DBがなければ自動作成 |
+| 4. ビルド | `.next` がなければ自動ビルド |
+| 5. 起動 | サーバー起動 (`http://localhost:3000`) |
 
-1. `.env.example`をコピーして`.env`ファイルを作成:
-   ```bash
-   cp .env.example .env
-   ```
+### 環境変数のカスタマイズ
 
-2. `.env`ファイルで必須の環境変数を設定:
-   ```bash
-   # 必須: データベースURL
-   DATABASE_URL=file:./prisma/data/claudework.db
+デフォルト設定で動作しますが、本番環境では `.env` ファイルを編集してセキュリティ設定を変更してください:
 
-   # 必須: 認証トークン
-   CLAUDE_WORK_TOKEN=your-secret-token
+```bash
+# 認証トークン（ログインに使用）
+CLAUDE_WORK_TOKEN=your-secret-token
 
-   # 必須: セッションシークレット（32文字以上）
-   SESSION_SECRET=your-32-character-or-longer-secret
-   ```
+# セッションシークレット（32文字以上）
+SESSION_SECRET=your-32-character-or-longer-secret
 
-3. アプリケーションを起動:
-   ```bash
-   npx claude-work
-   ```
+# データベースURL（変更不要）
+DATABASE_URL=file:./data/claudework.db
+```
 
 ブラウザで `http://localhost:3000` を開き、設定したトークンでログインします。
 
