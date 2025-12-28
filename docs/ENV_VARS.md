@@ -62,6 +62,14 @@ ClaudeWork で使用可能な環境変数の一覧です。
 - **例**: `ALLOWED_PROJECT_DIRS="/home/user/projects,/opt/repos"`
 - **デフォルト**: なし（すべてのディレクトリを許可）
 
+### PROCESS_IDLE_TIMEOUT_MINUTES
+
+- **説明**: アイドル状態のClaude Codeプロセスを自動的に一時停止するまでの時間（分）
+- **形式**: 整数（0 = 無効、5以上の値を推奨）
+- **例**: `PROCESS_IDLE_TIMEOUT_MINUTES=30`
+- **デフォルト**: `30`
+- **備考**: 5分未満の値は自動的に5分に補正されます。0を設定するとアイドルタイムアウトは無効になります。
+
 ## 設定例
 
 ### .env ファイル
@@ -75,6 +83,7 @@ NODE_ENV=production
 LOG_LEVEL=info
 ALLOWED_ORIGINS=http://localhost:3000
 ALLOWED_PROJECT_DIRS=/home/user/projects
+PROCESS_IDLE_TIMEOUT_MINUTES=30
 ```
 
 ### コマンドライン

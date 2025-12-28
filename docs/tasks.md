@@ -47,6 +47,7 @@ MVP後に実装:
 | Phase 31 | セッション再起動機能 | verification-report-phase31.md |
 | Phase 33 | プロセス再起動・Diff表示修正 | verification-report-phase33.md |
 | Phase 35 | 網羅的検証で発見された不具合修正 | verification-report-phase35.md |
+| Phase 40 | プロセスライフサイクル管理 | - |
 
 ---
 
