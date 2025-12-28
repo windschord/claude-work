@@ -127,12 +127,31 @@ Configuration in `ecosystem.config.js` defines:
 
 ## Environment Setup
 
+### Running the Application
+
+**必ず `npx` を使用してください。** `npm run start` ではなく `npx claude-work` を使います。
+
+```bash
+# バックグラウンドで起動（推奨）
+npx claude-work start
+
+# 停止
+npx claude-work stop
+
+# その他のコマンド
+npx claude-work restart  # 再起動
+npx claude-work status   # 状態確認
+npx claude-work logs     # ログ表示
+npx claude-work help     # ヘルプ
+npx claude-work          # フォアグラウンドで起動（Ctrl+C で停止）
+```
+
 ### Required Environment Variables
 
 Create `.env` file with:
 
 ```bash
-DATABASE_URL=file:./prisma/data/claudework.db
+DATABASE_URL=file:../data/claudework.db
 CLAUDE_WORK_TOKEN=your-secret-token
 SESSION_SECRET=your-32-character-or-longer-secret
 ```
@@ -263,9 +282,9 @@ Phase 19 tasks (docs/tasks/phase19.md) implement fixes for issues 1–3; issues 
 ```text
 ├── server.ts                 # Custom Next.js server with WebSocket
 ├── ecosystem.config.js       # PM2 process configuration
+├── data/                     # SQLite database files (バックアップ対象)
 ├── prisma/
-│   ├── schema.prisma        # Database schema
-│   └── data/                # SQLite database files
+│   └── schema.prisma        # Database schema
 ├── src/
 │   ├── app/                 # Next.js App Router
 │   │   ├── api/            # API routes
