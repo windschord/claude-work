@@ -29,7 +29,11 @@ vi.mock('../process-manager', () => ({
     getInstance: vi.fn(() => ({
       getActiveProcesses: vi.fn(() => new Map()),
       stopProcess: vi.fn(),
-      startClaudeCode: vi.fn(),
+      startClaudeCode: vi.fn().mockResolvedValue({
+        sessionId: 'test-session',
+        pid: 12345,
+        status: 'running',
+      }),
       on: vi.fn(),
       off: vi.fn(),
     })),
@@ -180,6 +184,47 @@ describe('ProcessLifecycleManager', () => {
 
       expect(setIntervalSpy).toHaveBeenCalledTimes(2);
       expect(clearIntervalSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('セッション再開', () => {
+    it('resumeSession()でプロセスを再起動できるべき', async () => {
+      const manager = ProcessLifecycleManager.getInstance();
+
+      const result = await manager.resumeSession(
+        'test-session',
+        '/path/to/worktree',
+        'sonnet'
+      );
+
+      expect(result).toHaveProperty('pid');
+    });
+
+    it('resumeSession()でアクティビティが更新されるべき', async () => {
+      const manager = ProcessLifecycleManager.getInstance();
+
+      await manager.resumeSession(
+        'test-session-activity',
+        '/path/to/worktree'
+      );
+
+      const lastActivity = manager.getLastActivity('test-session-activity');
+      expect(lastActivity).toBeInstanceOf(Date);
+    });
+
+    it('resumeSession()でprocessResumedイベントが発火されるべき', async () => {
+      const manager = ProcessLifecycleManager.getInstance();
+      const eventHandler = vi.fn();
+      manager.on('processResumed', eventHandler);
+
+      await manager.resumeSession(
+        'test-session-event',
+        '/path/to/worktree',
+        undefined,
+        'claude-session-123'
+      );
+
+      expect(eventHandler).toHaveBeenCalledWith('test-session-event', true);
     });
   });
 

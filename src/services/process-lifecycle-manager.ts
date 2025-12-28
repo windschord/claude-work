@@ -258,6 +258,53 @@ export class ProcessLifecycleManager extends EventEmitter {
   }
 
   /**
+   * セッションを再開
+   * @param sessionId セッションID
+   * @param worktreePath ワークツリーのパス
+   * @param model モデル名（オプション）
+   * @param resumeSessionId Claude Codeの--resume用セッションID（オプション）
+   * @returns プロセス情報
+   */
+  async resumeSession(
+    sessionId: string,
+    worktreePath: string,
+    model?: string,
+    resumeSessionId?: string
+  ): Promise<{ pid: number }> {
+    logger.info(`Resuming session ${sessionId}`, {
+      hasResumeSessionId: !!resumeSessionId,
+    });
+
+    try {
+      const processManager = ProcessManager.getInstance();
+
+      // プロセスを起動
+      const processInfo = await processManager.startClaudeCode({
+        sessionId,
+        worktreePath,
+        model,
+        resumeSessionId,
+      });
+
+      // アクティビティを更新
+      this.updateActivity(sessionId);
+
+      // イベント発火
+      this.emit('processResumed', sessionId, !!resumeSessionId);
+
+      logger.info(`Session ${sessionId} resumed successfully`, {
+        pid: processInfo.pid,
+        resumedWithHistory: !!resumeSessionId,
+      });
+
+      return { pid: processInfo.pid };
+    } catch (error) {
+      logger.error(`Failed to resume session ${sessionId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
    * グレースフルシャットダウンを開始
    * @param signal シグナル名
    */
