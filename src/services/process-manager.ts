@@ -14,6 +14,8 @@ export interface StartOptions {
   prompt?: string;
   /** 使用するモデル名（オプション） */
   model?: string;
+  /** 再開するClaude CodeセッションID（--resumeオプション用） */
+  resumeSessionId?: string;
 }
 
 /**
@@ -137,7 +139,7 @@ export class ProcessManager extends EventEmitter {
    * @throws 同じsessionIdのプロセスが既に存在する場合にエラーをスロー
    */
   async startClaudeCode(options: StartOptions): Promise<ProcessInfo> {
-    const { sessionId, worktreePath, prompt, model } = options;
+    const { sessionId, worktreePath, prompt, model, resumeSessionId } = options;
 
     if (this.processes.has(sessionId)) {
       throw new Error(`Session ${sessionId} already exists`);
@@ -146,6 +148,9 @@ export class ProcessManager extends EventEmitter {
     const args = ['--print'];
     if (model) {
       args.push('--model', model);
+    }
+    if (resumeSessionId) {
+      args.push('--resume', resumeSessionId);
     }
 
     const claudeCodePath = process.env.CLAUDE_CODE_PATH || 'claude';
@@ -326,6 +331,40 @@ export class ProcessManager extends EventEmitter {
    */
   hasProcess(sessionId: string): boolean {
     return this.processes.has(sessionId);
+  }
+
+  /**
+   * プロセスを停止してMapから削除
+   *
+   * ProcessLifecycleManagerから使用されるメソッド。
+   * プロセスが存在しない場合は何もしません。
+   *
+   * @param sessionId - 停止するセッションID
+   */
+  async stopProcess(sessionId: string): Promise<void> {
+    const processData = this.processes.get(sessionId);
+    if (!processData) {
+      return;
+    }
+
+    processData.process.kill();
+    this.processes.delete(sessionId);
+  }
+
+  /**
+   * アクティブなプロセス一覧を取得
+   *
+   * 現在実行中のすべてのプロセスのMapを返します。
+   * ProcessLifecycleManagerでシャットダウン時に使用されます。
+   *
+   * @returns セッションIDをキーとするProcessInfoのMap
+   */
+  getActiveProcesses(): Map<string, ProcessInfo> {
+    const result = new Map<string, ProcessInfo>();
+    for (const [sessionId, processData] of this.processes) {
+      result.set(sessionId, processData.info);
+    }
+    return result;
   }
 }
 
