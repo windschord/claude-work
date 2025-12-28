@@ -23,18 +23,20 @@ model Project {
 }
 
 model Session {
-  id             String   @id @default(uuid())
-  project_id     String
-  name           String
-  status         String
-  model          String
-  worktree_path  String
-  branch_name    String
-  created_at     DateTime @default(now())
-  updated_at     DateTime @updatedAt
+  id                 String    @id @default(uuid())
+  project_id         String
+  name               String
+  status             String    // running, waiting_input, paused, completed, error
+  model              String
+  worktree_path      String
+  branch_name        String
+  resume_session_id  String?   // Claude Codeの--resume用セッションID（paused時に保存）
+  last_activity_at   DateTime? // 最終アクティビティ日時（アイドルタイムアウト計算用）
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
 
-  project        Project  @relation(fields: [project_id], references: [id], onDelete: Cascade)
-  messages       Message[]
+  project            Project   @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  messages           Message[]
 }
 
 model Message {
