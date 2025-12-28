@@ -17,7 +17,7 @@ vi.mock('@/lib/db', () => ({
 }));
 
 vi.mock('@/lib/logger', () => ({
-  default: {
+  logger: {
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),

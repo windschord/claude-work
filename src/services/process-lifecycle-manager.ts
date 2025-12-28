@@ -9,7 +9,7 @@
  */
 
 import { EventEmitter } from 'events';
-import logger from '@/lib/logger';
+import { logger } from '@/lib/logger';
 import { ProcessManager } from './process-manager';
 
 // globalThisパターン（Next.js Hot Reload対策）

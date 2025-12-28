@@ -9,6 +9,7 @@ import { SessionWebSocketHandler } from './src/lib/websocket/session-ws';
 import { setupTerminalWebSocket } from './src/lib/websocket/terminal-ws';
 import { logger } from './src/lib/logger';
 import { validateRequiredEnvVars, detectClaudePath } from './src/lib/env-validation';
+import { getProcessLifecycleManager } from './src/services/process-lifecycle-manager';
 
 // 環境変数を.envファイルから明示的にロード（PM2で設定されている場合はそちらを優先）
 const dotenvResult = dotenv.config();
@@ -209,32 +210,39 @@ app.prepare().then(() => {
     process.exit(1);
   });
 
-  // グレースフルシャットダウン
-  process.on('SIGTERM', () => {
-    logger.info('SIGTERM signal received: closing servers');
-    wss.close(() => {
-      logger.info('WebSocket server closed');
-    });
-    terminalWss.close(() => {
-      logger.info('Terminal WebSocket server closed');
-    });
-    server.close(() => {
-      logger.info('HTTP server closed');
-      process.exit(0);
-    });
-  });
+  // グレースフルシャットダウン処理
+  const gracefulShutdown = async (signal: 'SIGTERM' | 'SIGINT') => {
+    logger.info(`${signal} signal received: initiating graceful shutdown`);
 
-  process.on('SIGINT', () => {
-    logger.info('SIGINT signal received: closing servers');
+    try {
+      // プロセスライフサイクルマネージャーでClaude Codeプロセスを停止
+      const lifecycleManager = getProcessLifecycleManager();
+      await lifecycleManager.initiateShutdown(signal);
+    } catch (error) {
+      logger.error('Error during process lifecycle shutdown', { error });
+    }
+
+    // WebSocketサーバーを閉じる
     wss.close(() => {
       logger.info('WebSocket server closed');
     });
     terminalWss.close(() => {
       logger.info('Terminal WebSocket server closed');
     });
+
+    // HTTPサーバーを閉じる
     server.close(() => {
       logger.info('HTTP server closed');
       process.exit(0);
     });
-  });
+
+    // 10秒後に強制終了（サーバーが閉じない場合のフォールバック）
+    setTimeout(() => {
+      logger.warn('Forcing shutdown after timeout');
+      process.exit(1);
+    }, 10000);
+  };
+
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 });
