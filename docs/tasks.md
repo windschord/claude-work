@@ -2978,3 +2978,481 @@ Gitリポジトリでないパスを入力した場合のエラーメッセー�
 
 **docs/requirements.md**:
 - REQ-058: ターミナルタブでセッションのターミナルが表示される
+
+---
+
+## Phase 40: プロセスライフサイクル管理
+
+**目的**: Claude Codeプロセスの自動停止・再開機能を実装し、サーバーリソースの効率的な利用を実現する
+
+**関連要件**: REQ-094〜REQ-108（Story 17: プロセスライフサイクル管理）
+
+### タスク40.1: Prismaスキーマの更新
+
+**説明**:
+sessionsテーブルにプロセスライフサイクル管理用のカラムを追加する。
+
+**実装ファイル**:
+- `prisma/schema.prisma`
+
+**実装手順（TDD）**:
+1. Prismaスキーマを更新
+   - `resume_session_id` カラム追加（String?, Claude Codeの--resume用セッションID）
+   - `last_activity_at` カラム追加（DateTime?, 最終アクティビティ日時）
+   - `status`のコメントに`paused`を追加
+2. `npx prisma db push`でスキーマを反映
+3. `npx prisma generate`でクライアントを再生成
+
+**受入基準**:
+- [ ] `resume_session_id`カラムがsessionsテーブルに存在する
+- [ ] `last_activity_at`カラムがsessionsテーブルに存在する
+- [ ] Prismaクライアントが正しく生成される
+- [ ] 既存のセッションデータが保持される
+
+**依存関係**: なし
+**推定工数**: 15分（AIエージェント作業時間）
+**ステータス**: `TODO`
+
+---
+
+### タスク40.2: ProcessLifecycleManagerの実装
+
+**説明**:
+プロセスライフサイクル管理を担当する新しいサービスクラスを実装する。
+
+**実装ファイル**:
+- `src/services/process-lifecycle-manager.ts`（新規）
+- `src/services/__tests__/process-lifecycle-manager.test.ts`（新規）
+
+**実装手順（TDD）**:
+
+1. テスト作成: `src/services/__tests__/process-lifecycle-manager.test.ts`
+   - シングルトンインスタンスの取得テスト
+   - アクティビティ更新テスト
+   - アイドルプロセス検出テスト
+   - プロセス停止テスト
+   - グレースフルシャットダウンテスト
+
+2. テスト実行: すべてのテストが失敗することを確認
+
+3. 実装: `src/services/process-lifecycle-manager.ts`
+   ```typescript
+   interface ProcessLifecycleState {
+     sessionId: string;
+     lastActivityAt: Date;
+     isPaused: boolean;
+     resumeSessionId: string | null;
+   }
+
+   class ProcessLifecycleManager {
+     private static instance: ProcessLifecycleManager | null = null;
+     private activityMap: Map<string, Date> = new Map();
+     private idleCheckInterval: NodeJS.Timer | null = null;
+
+     static getInstance(): ProcessLifecycleManager;
+     updateActivity(sessionId: string): void;
+     getLastActivity(sessionId: string): Date | null;
+     startIdleChecker(): void;
+     stopIdleChecker(): void;
+     async pauseIdleProcesses(): Promise<string[]>;
+     async initiateShutdown(): Promise<void>;
+     async resumeSession(sessionId: string, resumeSessionId?: string): Promise<void>;
+   }
+   ```
+
+4. すべてのテストが通過するまで実装を修正
+
+**受入基準**:
+- [ ] ProcessLifecycleManagerクラスが実装されている
+- [ ] シングルトンパターン（globalThis対応）が実装されている
+- [ ] アクティビティトラッキング機能が実装されている
+- [ ] アイドルプロセス検出機能が実装されている
+- [ ] グレースフルシャットダウン機能が実装されている
+- [ ] すべてのテストが通過する（`npm test`）
+- [ ] ESLintエラーがゼロである
+
+**依存関係**: タスク40.1
+**推定工数**: 60分（AIエージェント作業時間）
+**ステータス**: `TODO`
+
+---
+
+### タスク40.3: ProcessManagerへの--resumeオプション追加
+
+**説明**:
+ProcessManagerのstartClaudeCodeメソッドに--resumeオプションのサポートを追加する。
+
+**実装ファイル**:
+- `src/services/process-manager.ts`
+- `src/services/__tests__/process-manager.test.ts`
+
+**実装手順（TDD）**:
+
+1. テスト追加: `src/services/__tests__/process-manager.test.ts`
+   - resumeオプション付きでプロセス起動するテスト
+   - resumeオプションなしの既存動作確認テスト
+
+2. テスト実行: 新しいテストが失敗することを確認
+
+3. 実装:
+   - StartOptionsインターフェースに`resume?: string`を追加
+   - startClaudeCodeメソッドで`--resume`オプションを処理
+   ```typescript
+   if (options.resume) {
+     args.push('--resume', options.resume);
+   }
+   ```
+
+4. すべてのテストが通過するまで実装を修正
+
+**受入基準**:
+- [ ] StartOptionsに`resume`プロパティが追加されている
+- [ ] `claude --resume <session-id>`形式でプロセスが起動できる
+- [ ] resumeオプションなしの既存動作が維持される
+- [ ] すべてのテストが通過する（`npm test`）
+- [ ] ESLintエラーがゼロである
+
+**依存関係**: なし
+**推定工数**: 30分（AIエージェント作業時間）
+**ステータス**: `TODO`
+
+---
+
+### タスク40.4: サーバーシャットダウンハンドラの実装
+
+**説明**:
+server.tsにSIGTERM/SIGINTシグナルハンドラを追加し、グレースフルシャットダウンを実装する。
+
+**実装ファイル**:
+- `server.ts`
+
+**実装内容**:
+1. ProcessLifecycleManagerのインポート
+2. SIGTERM/SIGINTシグナルハンドラの登録
+3. シャットダウン時の処理:
+   - 全WebSocket接続に`server_shutdown`メッセージ送信
+   - ProcessLifecycleManager.initiateShutdown()呼び出し
+   - 5秒のグレース期間後にprocess.exit(0)
+
+```typescript
+import { getProcessLifecycleManager } from './src/services/process-lifecycle-manager';
+
+const gracefulShutdown = async (signal: string) => {
+  logger.info(`Received ${signal}, initiating graceful shutdown...`);
+  
+  // WebSocket通知
+  connectionManager.broadcastAll({
+    type: 'server_shutdown',
+    reason: signal,
+    gracePeriodSeconds: 5
+  });
+  
+  // プロセス停止
+  const plm = getProcessLifecycleManager();
+  await plm.initiateShutdown();
+  
+  logger.info('Graceful shutdown completed');
+  process.exit(0);
+};
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+```
+
+**受入基準**:
+- [ ] SIGTERM受信時に全プロセスが停止される
+- [ ] SIGINT受信時に全プロセスが停止される
+- [ ] WebSocketクライアントにserver_shutdownメッセージが送信される
+- [ ] 5秒のグレース期間後にサーバーが終了する
+- [ ] ログに適切なシャットダウンメッセージが出力される
+- [ ] ESLintエラーがゼロである
+
+**依存関係**: タスク40.2
+**推定工数**: 30分（AIエージェント作業時間）
+**ステータス**: `TODO`
+
+---
+
+### タスク40.5: アイドルタイムアウトチェッカーの実装
+
+**説明**:
+定期的にアイドルプロセスをチェックし、タイムアウトしたプロセスを自動停止する機能を実装する。
+
+**実装ファイル**:
+- `src/services/process-lifecycle-manager.ts`（タスク40.2の拡張）
+- `src/services/__tests__/process-lifecycle-manager.test.ts`
+
+**環境変数**:
+- `PROCESS_IDLE_TIMEOUT_MINUTES`: アイドルタイムアウト（分）。デフォルト30。0で無効化。
+
+**実装手順（TDD）**:
+
+1. テスト追加:
+   - 環境変数からタイムアウト値を読み取るテスト
+   - タイムアウト0で無効化されるテスト
+   - タイムアウト超過プロセスが検出されるテスト
+   - WebSocket通知が送信されるテスト
+   - DB更新（status='paused'）が実行されるテスト
+
+2. テスト実行: 新しいテストが失敗することを確認
+
+3. 実装:
+   - 環境変数の読み取りとバリデーション
+   - setIntervalによる1分間隔のチェック
+   - アイドルプロセスの検出とstatus='paused'への更新
+   - WebSocket経由での通知
+
+4. すべてのテストが通過するまで実装を修正
+
+**受入基準**:
+- [ ] PROCESS_IDLE_TIMEOUT_MINUTES環境変数が読み取られる
+- [ ] 1分間隔でアイドルチェックが実行される
+- [ ] タイムアウト超過プロセスが停止される
+- [ ] セッションステータスが'paused'に更新される
+- [ ] WebSocketでprocess_pausedメッセージが送信される
+- [ ] resume_session_idがDBに保存される
+- [ ] タイムアウト0で機能が無効化される
+- [ ] すべてのテストが通過する（`npm test`）
+- [ ] ESLintエラーがゼロである
+
+**依存関係**: タスク40.2, タスク40.4
+**推定工数**: 45分（AIエージェント作業時間）
+**ステータス**: `TODO`
+
+---
+
+### タスク40.6: セッション再開APIの実装
+
+**説明**:
+POST /api/sessions/{id}/resumeエンドポイントを実装し、一時停止中のセッションを再開できるようにする。
+
+**実装ファイル**:
+- `src/app/api/sessions/[id]/resume/route.ts`（新規）
+- `src/app/api/sessions/[id]/resume/__tests__/route.test.ts`（新規）
+
+**実装手順（TDD）**:
+
+1. テスト作成:
+   - paused状態のセッションが再開できるテスト
+   - resume_session_id使用時に--resumeで起動するテスト
+   - paused以外の状態で400エラーを返すテスト
+   - 存在しないセッションで404エラーを返すテスト
+
+2. テスト実行: すべてのテストが失敗することを確認
+
+3. 実装:
+   ```typescript
+   export async function POST(
+     request: NextRequest,
+     { params }: { params: { id: string } }
+   ) {
+     // 認証チェック
+     // セッション取得
+     // status='paused'確認
+     // ProcessLifecycleManager.resumeSession()呼び出し
+     // レスポンス返却
+   }
+   ```
+
+4. すべてのテストが通過するまで実装を修正
+
+**受入基準**:
+- [ ] POST /api/sessions/{id}/resumeエンドポイントが実装されている
+- [ ] paused状態のセッションが再開できる
+- [ ] resume_session_idがある場合--resumeで起動される
+- [ ] 再開後のステータスがrunningになる
+- [ ] paused以外の状態で400エラーが返される
+- [ ] 存在しないセッションで404エラーが返される
+- [ ] すべてのテストが通過する（`npm test`）
+- [ ] ESLintエラーがゼロである
+
+**依存関係**: タスク40.2, タスク40.3
+**推定工数**: 45分（AIエージェント作業時間）
+**ステータス**: `TODO`
+
+---
+
+### タスク40.7: WebSocketライフサイクルメッセージの実装
+
+**説明**:
+WebSocketハンドラにプロセスライフサイクルイベントの通知機能を追加する。
+
+**実装ファイル**:
+- `src/types/websocket.ts`
+- `src/lib/websocket/session-websocket-handler.ts`
+- `src/lib/websocket/__tests__/session-websocket-handler.test.ts`
+
+**実装手順（TDD）**:
+
+1. テスト追加:
+   - process_pausedメッセージの送信テスト
+   - process_resumedメッセージの送信テスト
+   - server_shutdownメッセージの送信テスト
+
+2. テスト実行: 新しいテストが失敗することを確認
+
+3. 実装:
+   - WebSocketメッセージ型の拡張
+   ```typescript
+   type WebSocketMessageType =
+     | 'output'
+     | 'permission_request'
+     | 'status_change'
+     | 'error'
+     | 'process_paused'
+     | 'process_resumed'
+     | 'server_shutdown';
+   ```
+   - メッセージ送信メソッドの追加
+
+4. すべてのテストが通過するまで実装を修正
+
+**受入基準**:
+- [ ] WebSocketメッセージ型にライフサイクルイベントが追加されている
+- [ ] process_pausedメッセージが送信できる
+- [ ] process_resumedメッセージが送信できる
+- [ ] server_shutdownメッセージが送信できる
+- [ ] すべてのテストが通過する（`npm test`）
+- [ ] ESLintエラーがゼロである
+
+**依存関係**: なし
+**推定工数**: 30分（AIエージェント作業時間）
+**ステータス**: `TODO`
+
+---
+
+### タスク40.8: フロントエンドのライフサイクル対応
+
+**説明**:
+フロントエンドでプロセスライフサイクルイベントを処理し、適切なUIを表示する。
+
+**実装ファイル**:
+- `src/hooks/useWebSocket.ts`
+- `src/components/sessions/SessionDetail.tsx`
+- `src/app/sessions/[id]/page.tsx`
+
+**実装内容**:
+
+1. useWebSocketフックの拡張:
+   - process_pausedメッセージのハンドリング
+   - process_resumedメッセージのハンドリング
+   - server_shutdownメッセージのハンドリング
+
+2. セッション詳細ページの対応:
+   - paused状態の表示（「セッションは一時停止中です」）
+   - 再開ボタンの表示
+   - 再開ボタンクリックでPOST /api/sessions/{id}/resume呼び出し
+
+3. サーバーシャットダウン通知:
+   - server_shutdownメッセージ受信時にトースト表示
+   - 「サーバーがシャットダウンします」メッセージ
+
+**受入基準**:
+- [ ] paused状態のセッションで「一時停止中」が表示される
+- [ ] 再開ボタンが表示され、クリックでセッションが再開される
+- [ ] 再開後にチャット/ターミナルが利用可能になる
+- [ ] server_shutdown受信時にトースト通知が表示される
+- [ ] ESLintエラーがゼロである
+
+**依存関係**: タスク40.6, タスク40.7
+**推定工数**: 45分（AIエージェント作業時間）
+**ステータス**: `TODO`
+
+---
+
+### タスク40.9: 環境変数ドキュメントの更新
+
+**説明**:
+新しい環境変数をドキュメントに追加する。
+
+**実装ファイル**:
+- `docs/ENV_VARS.md`
+- `CLAUDE.md`
+
+**追加内容**:
+```markdown
+### プロセスライフサイクル
+
+- `PROCESS_IDLE_TIMEOUT_MINUTES`: アイドルタイムアウト時間（分）
+  - デフォルト: 30
+  - 最小値: 5（5未満は5に補正）
+  - 0: 無効化（タイムアウトなし）
+  
+- `PROCESS_SHUTDOWN_GRACE_SECONDS`: シャットダウン時のグレース期間（秒）
+  - デフォルト: 5
+```
+
+**受入基準**:
+- [ ] ENV_VARS.mdに新しい環境変数が記載されている
+- [ ] 各環境変数のデフォルト値と説明がある
+- [ ] CLAUDE.mdの該当セクションが更新されている
+
+**依存関係**: なし
+**推定工数**: 15分（AIエージェント作業時間）
+**ステータス**: `TODO`
+
+---
+
+### タスク40.10: 統合テストとE2Eテスト
+
+**説明**:
+プロセスライフサイクル管理機能の統合テストとE2Eテストを実装する。
+
+**実装ファイル**:
+- `e2e/process-lifecycle.spec.ts`（新規）
+
+**テストシナリオ**:
+
+1. アイドルタイムアウトテスト（短いタイムアウト値で）:
+   - セッション作成
+   - しばらく待機
+   - ステータスがpausedになることを確認
+   - WebSocket通知を確認
+
+2. セッション再開テスト:
+   - paused状態のセッション作成（またはモック）
+   - 再開ボタンクリック
+   - ステータスがrunningになることを確認
+   - チャットが利用可能になることを確認
+
+3. サーバーシャットダウン通知テスト:
+   - WebSocket接続
+   - server_shutdownメッセージをシミュレート
+   - トースト通知が表示されることを確認
+
+**受入基準**:
+- [ ] E2Eテストが作成されている
+- [ ] アイドルタイムアウトのテストが通過する
+- [ ] セッション再開のテストが通過する
+- [ ] サーバーシャットダウン通知のテストが通過する
+- [ ] すべてのE2Eテストが通過する（`npm run e2e`）
+
+**依存関係**: タスク40.1〜40.8
+**推定工数**: 60分（AIエージェント作業時間）
+**ステータス**: `TODO`
+
+---
+
+### Phase 40完了基準
+
+- [ ] タスク40.1が完了している（Prismaスキーマ更新）
+- [ ] タスク40.2が完了している（ProcessLifecycleManager実装）
+- [ ] タスク40.3が完了している（--resumeオプション追加）
+- [ ] タスク40.4が完了している（シャットダウンハンドラ）
+- [ ] タスク40.5が完了している（アイドルタイムアウトチェッカー）
+- [ ] タスク40.6が完了している（セッション再開API）
+- [ ] タスク40.7が完了している（WebSocketライフサイクルメッセージ）
+- [ ] タスク40.8が完了している（フロントエンド対応）
+- [ ] タスク40.9が完了している（ドキュメント更新）
+- [ ] タスク40.10が完了している（統合テスト）
+- [ ] すべてのテストが通過している（`npm test`）
+- [ ] すべてのE2Eテストが通過している（`npm run e2e`）
+- [ ] ESLintエラーがゼロである
+
+### 解決される要件
+
+**docs/requirements.md**:
+- REQ-094〜096: サーバーシャットダウン時のクリーンアップ
+- REQ-097〜101: アイドルタイムアウトによる自動停止
+- REQ-102〜106: セッション再開と会話履歴復元
+- REQ-107〜108: プロセス状態管理
