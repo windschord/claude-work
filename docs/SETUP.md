@@ -9,10 +9,17 @@
 ## クイックスタート
 
 ```bash
-npx claude-work
+npx claude-work start   # バックグラウンドで起動
+npx claude-work stop    # 停止
 ```
 
-これだけで起動できます。初回実行時は以下が自動的にセットアップされます:
+または、フォアグラウンドで起動:
+
+```bash
+npx claude-work         # Ctrl+C で停止
+```
+
+初回実行時は以下が自動的にセットアップされます:
 
 | ステップ | 処理内容 |
 |---------|---------|
@@ -23,6 +30,18 @@ npx claude-work
 | 5. 起動 | サーバー起動 |
 
 サーバーが起動したら、ブラウザで `http://localhost:3000` を開きます。
+
+### CLI コマンド
+
+```bash
+npx claude-work          # フォアグラウンドで起動
+npx claude-work start    # バックグラウンドで起動（pm2経由）
+npx claude-work stop     # 停止
+npx claude-work restart  # 再起動
+npx claude-work status   # 状態確認
+npx claude-work logs     # ログ表示
+npx claude-work help     # ヘルプ
+```
 
 ## 環境変数のカスタマイズ
 

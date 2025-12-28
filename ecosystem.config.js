@@ -3,6 +3,21 @@ require('dotenv').config();
 module.exports = {
   apps: [
     {
+      name: 'claude-work',
+      script: 'node',
+      args: 'dist/server.js',
+      cwd: __dirname,
+      env: {
+        NODE_ENV: 'production',
+      },
+      watch: false,
+      autorestart: true,
+      max_memory_restart: '1G',
+      error_file: './logs/pm2-error.log',
+      out_file: './logs/pm2-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+    },
+    {
       name: 'claude-work-dev',
       script: 'ts-node',
       args: '-r tsconfig-paths/register --project tsconfig.server.json server.ts',

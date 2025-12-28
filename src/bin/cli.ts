@@ -3,8 +3,13 @@
 /**
  * ClaudeWork CLI エントリーポイント
  *
- * npx claude-work で起動できるCLIパッケージ
- * Next.jsカスタムサーバーを起動します。
+ * コマンド:
+ *   npx claude-work         フォアグラウンドで起動
+ *   npx claude-work start   バックグラウンドで起動（pm2経由）
+ *   npx claude-work stop    停止
+ *   npx claude-work status  状態確認
+ *   npx claude-work logs    ログ表示
+ *   npx claude-work help    ヘルプ表示
  *
  * 自動セットアップ:
  * - .envファイルがない場合: .env.exampleからコピー
@@ -23,6 +28,43 @@ const currentDir = __dirname;
 
 // プロジェクトルートを解決（dist/src/bin/ から3階層上）
 const projectRoot = path.resolve(currentDir, '..', '..', '..');
+
+// コマンドライン引数を取得
+const args = process.argv.slice(2);
+const command = args[0] || '';
+
+// プラットフォーム固有のコマンド
+const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+const npxCmd = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+
+const PM2_APP_NAME = 'claude-work';
+
+/**
+ * ヘルプメッセージを表示
+ */
+function showHelp(): void {
+  console.log(`
+ClaudeWork - Claude Code セッション管理ツール
+
+使い方:
+  npx claude-work [command]
+
+コマンド:
+  (なし)    フォアグラウンドで起動（Ctrl+C で停止）
+  start     バックグラウンドで起動（pm2経由）
+  stop      バックグラウンドプロセスを停止
+  restart   バックグラウンドプロセスを再起動
+  status    プロセスの状態を表示
+  logs      ログを表示（Ctrl+C で終了）
+  help      このヘルプを表示
+
+例:
+  npx claude-work          # フォアグラウンドで起動
+  npx claude-work start    # バックグラウンドで起動
+  npx claude-work stop     # 停止
+  npx claude-work logs     # ログを確認
+`);
+}
 
 /**
  * .envファイルのセットアップ
@@ -48,13 +90,6 @@ function setupEnvFile(): void {
     console.warn('  Error:', dotenvResult.error.message);
   }
 }
-
-// 環境セットアップを実行
-setupEnvFile();
-
-const PORT = process.env.PORT || '3000';
-const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-const npxCmd = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 
 /**
  * Prismaクライアントが生成されているか確認
@@ -150,9 +185,41 @@ function buildNext(): boolean {
 }
 
 /**
- * サーバーを起動
+ * 初期セットアップを実行
  */
-function startServer(): void {
+function runSetup(): boolean {
+  // 1. Prismaクライアントの確認・生成
+  if (!checkPrismaClient()) {
+    console.log('Prisma client not found. Generating...');
+    if (!generatePrismaClient()) {
+      return false;
+    }
+  }
+
+  // 2. データベースの確認・セットアップ
+  if (!checkDatabase()) {
+    console.log('Database not found. Setting up...');
+    if (!setupDatabase()) {
+      return false;
+    }
+  }
+
+  // 3. Next.jsビルドの確認・実行
+  if (!checkNextBuild()) {
+    console.log('No production build found. Building...');
+    if (!buildNext()) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/**
+ * フォアグラウンドでサーバーを起動
+ */
+function startForeground(): void {
+  const PORT = process.env.PORT || '3000';
   console.log(`Starting ClaudeWork on port ${PORT}...`);
 
   // server.jsのパスを解決
@@ -177,38 +244,153 @@ function startServer(): void {
   });
 }
 
+/**
+ * pm2でバックグラウンド起動
+ */
+function startDaemon(): void {
+  const PORT = process.env.PORT || '3000';
+  console.log(`Starting ClaudeWork daemon on port ${PORT}...`);
+
+  const ecosystemPath = path.join(projectRoot, 'ecosystem.config.js');
+
+  const result = spawnSync(npxCmd, ['pm2', 'start', ecosystemPath, '--only', PM2_APP_NAME], {
+    cwd: projectRoot,
+    stdio: 'inherit',
+    env: { ...process.env, NODE_ENV: 'production', PORT },
+  });
+
+  if (result.status !== 0) {
+    console.error('Failed to start daemon');
+    process.exit(1);
+  }
+
+  console.log(`\nClaudeWork is running at http://localhost:${PORT}`);
+  console.log('Use "npx claude-work stop" to stop the server.');
+  console.log('Use "npx claude-work logs" to view logs.');
+}
+
+/**
+ * pm2プロセスを停止
+ */
+function stopDaemon(): void {
+  console.log('Stopping ClaudeWork daemon...');
+
+  const result = spawnSync(npxCmd, ['pm2', 'stop', PM2_APP_NAME], {
+    cwd: projectRoot,
+    stdio: 'inherit',
+  });
+
+  if (result.status !== 0) {
+    console.error('Failed to stop daemon (it may not be running)');
+    process.exit(1);
+  }
+
+  console.log('ClaudeWork daemon stopped.');
+}
+
+/**
+ * pm2プロセスを再起動
+ */
+function restartDaemon(): void {
+  console.log('Restarting ClaudeWork daemon...');
+
+  const ecosystemPath = path.join(projectRoot, 'ecosystem.config.js');
+
+  const result = spawnSync(npxCmd, ['pm2', 'restart', ecosystemPath, '--only', PM2_APP_NAME], {
+    cwd: projectRoot,
+    stdio: 'inherit',
+    env: { ...process.env, NODE_ENV: 'production' },
+  });
+
+  if (result.status !== 0) {
+    console.error('Failed to restart daemon');
+    process.exit(1);
+  }
+
+  console.log('ClaudeWork daemon restarted.');
+}
+
+/**
+ * pm2プロセスの状態を表示
+ */
+function showStatus(): void {
+  spawnSync(npxCmd, ['pm2', 'status'], {
+    cwd: projectRoot,
+    stdio: 'inherit',
+  });
+}
+
+/**
+ * pm2ログを表示
+ */
+function showLogs(): void {
+  console.log('Showing logs (Ctrl+C to exit)...\n');
+
+  const logs = spawn(npxCmd, ['pm2', 'logs', PM2_APP_NAME, '--lines', '50'], {
+    cwd: projectRoot,
+    stdio: 'inherit',
+  });
+
+  logs.on('exit', (code) => {
+    process.exit(code || 0);
+  });
+}
+
 // メイン処理
 function main(): void {
+  // help コマンドは環境セットアップ不要
+  if (command === 'help' || command === '-h' || command === '--help') {
+    showHelp();
+    return;
+  }
+
+  // status と logs は環境セットアップ不要
+  if (command === 'status') {
+    showStatus();
+    return;
+  }
+
+  if (command === 'logs') {
+    showLogs();
+    return;
+  }
+
+  // stop は環境セットアップ不要
+  if (command === 'stop') {
+    stopDaemon();
+    return;
+  }
+
+  // 以下のコマンドは環境セットアップが必要
   console.log('ClaudeWork - Starting up...\n');
 
-  // 1. Prismaクライアントの確認・生成
-  if (!checkPrismaClient()) {
-    console.log('Prisma client not found. Generating...');
-    if (!generatePrismaClient()) {
-      process.exit(1);
-    }
-  }
+  // 環境セットアップ
+  setupEnvFile();
 
-  // 2. データベースの確認・セットアップ
-  if (!checkDatabase()) {
-    console.log('Database not found. Setting up...');
-    if (!setupDatabase()) {
-      process.exit(1);
-    }
-  }
-
-  // 3. Next.jsビルドの確認・実行
-  if (!checkNextBuild()) {
-    console.log('No production build found. Building...');
-    if (!buildNext()) {
-      process.exit(1);
-    }
+  // 初期セットアップを実行
+  if (!runSetup()) {
+    process.exit(1);
   }
 
   console.log(''); // 空行
 
-  // サーバー起動
-  startServer();
+  // コマンドに応じて処理を分岐
+  switch (command) {
+    case 'start':
+      startDaemon();
+      break;
+    case 'restart':
+      restartDaemon();
+      break;
+    case '':
+      // 引数なしの場合はフォアグラウンドで起動
+      startForeground();
+      break;
+    default:
+      console.error(`Unknown command: ${command}`);
+      showHelp();
+      process.exit(1);
+  }
 }
 
 main();
