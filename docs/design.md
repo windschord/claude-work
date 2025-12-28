@@ -240,6 +240,63 @@ function sendNotification(event: NotificationEvent): void {
 
 **実装場所**: `src/services/process-manager.ts`（Node.js child_process使用）
 
+#### コンポーネント: Process Lifecycle Manager
+
+**目的**: Claude Codeプロセスのライフサイクル自動管理
+
+**責務**:
+- サーバーシャットダウン時の全プロセス自動停止
+- アイドルタイムアウトによるプロセス自動停止
+- アクティビティトラッキング（最終アクティビティ時刻の記録）
+- セッション再開時の--resumeオプション使用による会話履歴復元
+- プロセスライフサイクルイベントのWebSocket通知
+
+**実装場所**: `src/services/process-lifecycle-manager.ts`
+
+**状態定義**:
+```typescript
+interface ProcessLifecycleState {
+  sessionId: string;
+  lastActivityAt: Date;
+  isPaused: boolean;       // アイドルタイムアウトで停止された状態
+  resumeSessionId: string | null;  // Claude Codeの--resume用セッションID
+}
+
+// セッションステータスの拡張
+type SessionStatus =
+  | 'running'        // プロセス実行中
+  | 'waiting_input'  // ユーザー入力待ち
+  | 'paused'         // アイドルタイムアウトで一時停止（新規追加）
+  | 'completed'      // 正常終了
+  | 'error';         // エラー終了
+```
+
+**設定**:
+- `PROCESS_IDLE_TIMEOUT_MINUTES`: アイドルタイムアウト（分）。デフォルト30分。0で無効化。
+
+**シャットダウンフロー**:
+1. SIGTERM/SIGINTシグナルを受信
+2. 全アクティブプロセスにSIGTERMを送信
+3. 5秒のグレースフル終了待機
+4. タイムアウト後、残存プロセスにSIGKILLを送信
+5. サーバープロセス終了
+
+**アイドルタイムアウトフロー**:
+1. 定期的なアイドルチェック（1分間隔）
+2. 最終アクティビティからの経過時間を計算
+3. タイムアウト超過時:
+   - プロセスにSIGTERMを送信
+   - セッションステータスを`paused`に更新
+   - 接続中クライアントにWebSocket通知
+   - Claude Codeセッション識別子を保存
+
+**セッション再開フロー**:
+1. `paused`状態のセッションにユーザーがアクセス
+2. 保存されたセッション識別子を取得
+3. `claude --resume <session-id>`でプロセス再起動
+4. セッションステータスを`running`に更新
+5. WebSocket接続を再確立
+
 #### コンポーネント: Git Operations
 
 **目的**: Git操作の実行
@@ -478,6 +535,138 @@ sequenceDiagram
     else 許可状態が 'granted' or 'denied'
         NS-->>NS: リクエストスキップ
     end
+```
+
+### シーケンス: サーバーシャットダウン時のプロセス終了
+
+```mermaid
+sequenceDiagram
+    participant OS as OS Signal
+    participant Server as server.ts
+    participant PLM as Process Lifecycle Manager
+    participant PM as Process Manager
+    participant CC as Claude Code (複数)
+    participant WS as WebSocket
+
+    OS->>Server: SIGTERM/SIGINT
+    Server->>PLM: initiateShutdown()
+    PLM->>PM: getAllActiveProcesses()
+    PM-->>PLM: [sessionId1, sessionId2, ...]
+
+    par 並列処理: 全プロセスに通知
+        PLM->>WS: broadcast({type: 'server_shutdown'})
+        WS-->>WS: クライアントに通知
+    end
+
+    loop 各プロセス
+        PLM->>PM: stopProcess(sessionId)
+        PM->>CC: SIGTERM
+    end
+
+    PLM->>PLM: wait 5秒 (graceful timeout)
+
+    alt 残存プロセスあり
+        PLM->>PM: forceKillAll()
+        PM->>CC: SIGKILL
+    end
+
+    PLM-->>Server: shutdown complete
+    Server->>Server: process.exit(0)
+```
+
+### シーケンス: アイドルタイムアウトによるプロセス停止
+
+```mermaid
+sequenceDiagram
+    participant Timer as Interval Timer (1分)
+    participant PLM as Process Lifecycle Manager
+    participant PM as Process Manager
+    participant CC as Claude Code
+    participant DB as Database
+    participant WS as WebSocket
+
+    Timer->>PLM: checkIdleProcesses()
+    PLM->>PM: getProcessesWithActivity()
+    PM-->>PLM: [{sessionId, lastActivityAt}, ...]
+
+    loop 各プロセス
+        PLM->>PLM: 経過時間 = now - lastActivityAt
+        alt 経過時間 > IDLE_TIMEOUT
+            PLM->>CC: 現在のセッションIDを取得
+            CC-->>PLM: claude-session-id
+            PLM->>PM: stopProcess(sessionId)
+            PM->>CC: SIGTERM
+            CC-->>PM: プロセス終了
+            PLM->>DB: UPDATE sessions SET status='paused', resume_session_id=...
+            PLM->>WS: broadcast({type: 'process_paused', sessionId, reason: 'idle_timeout'})
+        end
+    end
+```
+
+### シーケンス: セッション再開（--resume使用）
+
+```mermaid
+sequenceDiagram
+    participant U as ユーザー
+    participant F as Frontend
+    participant API as API Routes
+    participant PLM as Process Lifecycle Manager
+    participant PM as Process Manager
+    participant CC as Claude Code
+    participant DB as Database
+    participant WS as WebSocket
+
+    U->>F: pausedセッションにアクセス
+    F->>API: POST /api/sessions/{id}/resume
+    API->>DB: SELECT * FROM sessions WHERE id = ?
+    DB-->>API: session (status='paused', resume_session_id=...)
+
+    alt resume_session_idが存在
+        API->>PLM: resumeSession(sessionId, resumeSessionId)
+        PLM->>PM: startClaudeCode(worktreePath, {resume: resumeSessionId})
+        PM->>CC: claude --resume <resumeSessionId> --print
+        CC-->>PM: プロセス開始
+        PLM->>DB: UPDATE sessions SET status='running', resume_session_id=NULL
+        PLM->>WS: broadcast({type: 'process_resumed', sessionId})
+        API-->>F: 200 OK {status: 'running'}
+    else resume_session_idがない
+        API->>PLM: resumeSession(sessionId)
+        PLM->>PM: startClaudeCode(worktreePath)
+        PM->>CC: claude --print (新規セッション)
+        CC-->>PM: プロセス開始
+        PLM->>DB: UPDATE sessions SET status='running'
+        API-->>F: 200 OK {status: 'running'}
+    end
+
+    F->>WS: connect(/ws/sessions/{id})
+    WS-->>F: 接続確立
+    F-->>U: セッション画面表示
+```
+
+### シーケンス: アクティビティトラッキング
+
+```mermaid
+sequenceDiagram
+    participant U as ユーザー
+    participant F as Frontend
+    participant WS as WebSocket
+    participant PLM as Process Lifecycle Manager
+    participant PM as Process Manager
+    participant CC as Claude Code
+
+    Note over PLM: アクティビティ発生条件:<br/>1. ユーザー入力<br/>2. プロセス出力<br/>3. WebSocket再接続
+
+    U->>F: メッセージ入力
+    F->>WS: send({type: 'input', content: '...'})
+    WS->>PLM: updateActivity(sessionId)
+    PLM->>PLM: lastActivityAt = Date.now()
+    WS->>PM: sendInput(sessionId, content)
+    PM->>CC: stdin write
+
+    CC-->>PM: stdout出力
+    PM->>PLM: updateActivity(sessionId)
+    PLM->>PLM: lastActivityAt = Date.now()
+    PM-->>WS: broadcast(output)
 ```
 
 ## API設計
@@ -761,6 +950,44 @@ sequenceDiagram
 }
 ```
 
+#### POST /api/sessions/{id}/resume
+**目的**: 一時停止中のセッションを再開
+
+**説明**: アイドルタイムアウトで一時停止（paused）されたセッションのClaude Codeプロセスを再起動します。resume_session_idが保存されている場合は`--resume`オプションを使用して会話履歴を復元します。
+
+**リクエスト**: なし（ボディ不要）
+
+**レスポンス（200）**:
+```json
+{
+  "session": {
+    "id": "uuid",
+    "name": "feature-auth",
+    "status": "running",
+    "git_status": "dirty",
+    "model": "sonnet",
+    "worktree_path": "/path/to/worktree",
+    "created_at": "2025-12-08T10:00:00Z"
+  },
+  "resumed_with_history": true
+}
+```
+
+**レスポンス（400）** - セッションがpaused状態でない場合:
+```json
+{
+  "error": "Session is not in paused state",
+  "current_status": "running"
+}
+```
+
+**レスポンス（404）** - セッションが存在しない場合:
+```json
+{
+  "error": "Session not found"
+}
+```
+
 #### DELETE /api/sessions/{id}
 **目的**: セッション削除（worktreeも削除）
 
@@ -947,7 +1174,7 @@ ws://host/ws/sessions/{session_id}
 
 ```json
 {
-  "type": "output" | "permission_request" | "status_change" | "error",
+  "type": "output" | "permission_request" | "status_change" | "error" | "process_paused" | "process_resumed" | "server_shutdown",
   "content": "string",
   "sub_agent": {
     "name": "string",
@@ -958,7 +1185,38 @@ ws://host/ws/sessions/{session_id}
     "action": "string",
     "details": "string"
   },
-  "status": "initializing" | "running" | "waiting_input" | "completed" | "error"
+  "status": "initializing" | "running" | "waiting_input" | "paused" | "completed" | "error"
+}
+```
+
+#### プロセスライフサイクルメッセージ
+
+**process_paused** - プロセスが一時停止された時:
+```json
+{
+  "type": "process_paused",
+  "sessionId": "uuid",
+  "reason": "idle_timeout" | "manual" | "server_shutdown",
+  "idleMinutes": 30,
+  "canResume": true
+}
+```
+
+**process_resumed** - プロセスが再開された時:
+```json
+{
+  "type": "process_resumed",
+  "sessionId": "uuid",
+  "resumedWithHistory": true
+}
+```
+
+**server_shutdown** - サーバーがシャットダウンする時:
+```json
+{
+  "type": "server_shutdown",
+  "reason": "SIGTERM" | "SIGINT",
+  "gracePeriodSeconds": 5
 }
 ```
 
@@ -993,10 +1251,12 @@ ws://host/ws/terminal/{session_id}
 | id | TEXT | PRIMARY KEY | UUID |
 | project_id | TEXT | FOREIGN KEY | プロジェクトID |
 | name | TEXT | NOT NULL | セッション名 |
-| status | TEXT | NOT NULL | ステータス |
+| status | TEXT | NOT NULL | ステータス（running/waiting_input/paused/completed/error） |
 | model | TEXT | NOT NULL | 使用モデル |
 | worktree_path | TEXT | NOT NULL | worktreeパス |
 | branch_name | TEXT | NOT NULL | ブランチ名 |
+| resume_session_id | TEXT | NULLABLE | Claude Codeの--resume用セッションID（paused時に保存） |
+| last_activity_at | TEXT | NULLABLE | 最終アクティビティ日時（アイドルタイムアウト計算用） |
 | created_at | TEXT | NOT NULL | 作成日時 |
 | updated_at | TEXT | NOT NULL | 更新日時 |
 
@@ -1141,6 +1401,35 @@ ws://host/ws/terminal/{session_id}
 - 検出失敗時はエラーメッセージを表示してサーバー起動停止
 - 検出成功時はログに検出されたパスを出力
 
+### 決定7: プロセスライフサイクル管理の自動化
+
+**検討した選択肢**:
+1. 手動管理のみ - ユーザーが明示的にプロセスを停止/再開
+2. 自動タイムアウト + 手動再開 - アイドル時に自動停止、再開は手動
+3. 完全自動管理 - アイドル停止、アクセス時に自動再開
+
+**決定**: 自動タイムアウト + 手動再開（オプション2）
+
+**根拠**:
+- サーバーリソースの効率的な利用（未使用プロセスの自動解放）
+- ユーザーが明示的に再開することで、意図しないプロセス起動を防止
+- Claude Codeの`--resume`オプションにより会話履歴を保持可能
+- 手動再開によりユーザーの意思確認が可能
+
+**設定項目**:
+- `PROCESS_IDLE_TIMEOUT_MINUTES`: アイドルタイムアウト時間（分）
+  - デフォルト: 30分
+  - 最小値: 5分
+  - 0: 無効化（タイムアウトなし）
+- `PROCESS_SHUTDOWN_GRACE_SECONDS`: シャットダウン時のグレース期間（秒）
+  - デフォルト: 5秒
+
+**実装方針**:
+- `src/services/process-lifecycle-manager.ts`に実装
+- ProcessManagerと連携してプロセス状態を管理
+- server.tsでSIGTERM/SIGINTハンドラを登録
+- 1分間隔でアイドルチェックを実行
+
 ## セキュリティ考慮事項
 
 ### 認証・認可
@@ -1221,6 +1510,25 @@ ws://host/ws/terminal/{session_id}
 - 異常終了時はステータスを「error」に更新
 - 終了コードとstderrをエラーメッセージとして保存
 - 自動再起動は行わない（ユーザーの明示的な操作を要求）
+
+### プロセスライフサイクル
+
+- **アイドルタイムアウト時**:
+  - セッションステータスを「paused」に更新
+  - 接続中のWebSocketクライアントに`process_paused`メッセージを送信
+  - resume_session_idを保存（--resumeで復元可能にする）
+  - ログレベル: info（`Session ${sessionId} paused due to idle timeout`）
+
+- **セッション再開失敗時**:
+  - Claude Codeの`--resume`が失敗した場合、新規セッションとして開始
+  - エラーをログに記録（ログレベル: warn）
+  - クライアントに`resumed_with_history: false`を返却
+
+- **サーバーシャットダウン時**:
+  - 全アクティブプロセスにSIGTERMを送信
+  - 5秒のグレース期間後、残存プロセスにSIGKILLを送信
+  - シャットダウン完了をログに記録
+  - 全WebSocket接続に`server_shutdown`メッセージを送信
 
 ### Git操作
 

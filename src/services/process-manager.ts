@@ -14,6 +14,8 @@ export interface StartOptions {
   prompt?: string;
   /** 使用するモデル名（オプション） */
   model?: string;
+  /** 再開するClaude CodeセッションID（--resumeオプション用） */
+  resumeSessionId?: string;
 }
 
 /**
@@ -51,6 +53,16 @@ interface ProcessData {
  *
  * シングルトンパターンを使用して、アプリケーション全体で単一のインスタンスを共有します。
  */
+
+/**
+ * グローバルスコープでProcessManagerインスタンスを保持するための型定義
+ * Next.jsの開発モードでHot Reloadが発生しても同じインスタンスを使い回すため
+ */
+declare global {
+  // eslint-disable-next-line no-var
+  var processManager: ProcessManager | undefined;
+}
+
 export class ProcessManager extends EventEmitter {
   private static instance: ProcessManager | null = null;
   private processes: Map<string, ProcessData> = new Map();
@@ -65,12 +77,26 @@ export class ProcessManager extends EventEmitter {
   /**
    * ProcessManagerのシングルトンインスタンスを取得
    *
+   * Next.jsの開発モードでHot Reloadが発生しても同じインスタンスを使い回すため、
+   * globalThisに保存します。
+   *
    * @returns ProcessManagerのインスタンス
    */
   static getInstance(): ProcessManager {
+    // globalThisから取得を試みる（Next.js Hot Reload対策）
+    if (globalThis.processManager) {
+      return globalThis.processManager;
+    }
+
     if (!ProcessManager.instance) {
       ProcessManager.instance = new ProcessManager();
     }
+
+    // 開発環境ではglobalThisに保存
+    if (process.env.NODE_ENV !== 'production') {
+      globalThis.processManager = ProcessManager.instance;
+    }
+
     return ProcessManager.instance;
   }
 
@@ -99,6 +125,8 @@ export class ProcessManager extends EventEmitter {
       ProcessManager.instance.removeAllListeners();
       // シングルトンをnullにリセット（次回getInstance()で新しいインスタンスを生成）
       ProcessManager.instance = null;
+      // globalThisからも削除
+      globalThis.processManager = undefined;
     }
   }
 
@@ -113,7 +141,7 @@ export class ProcessManager extends EventEmitter {
    * @throws 同じsessionIdのプロセスが既に存在する場合にエラーをスロー
    */
   async startClaudeCode(options: StartOptions): Promise<ProcessInfo> {
-    const { sessionId, worktreePath, prompt, model } = options;
+    const { sessionId, worktreePath, prompt, model, resumeSessionId } = options;
 
     if (this.processes.has(sessionId)) {
       throw new Error(`Session ${sessionId} already exists`);
@@ -122,6 +150,9 @@ export class ProcessManager extends EventEmitter {
     const args = ['--print'];
     if (model) {
       args.push('--model', model);
+    }
+    if (resumeSessionId) {
+      args.push('--resume', resumeSessionId);
     }
 
     const claudeCodePath = process.env.CLAUDE_CODE_PATH || 'claude';
@@ -302,6 +333,40 @@ export class ProcessManager extends EventEmitter {
    */
   hasProcess(sessionId: string): boolean {
     return this.processes.has(sessionId);
+  }
+
+  /**
+   * プロセスを停止してMapから削除
+   *
+   * ProcessLifecycleManagerから使用されるメソッド。
+   * プロセスが存在しない場合は何もしません。
+   *
+   * @param sessionId - 停止するセッションID
+   */
+  async stopProcess(sessionId: string): Promise<void> {
+    const processData = this.processes.get(sessionId);
+    if (!processData) {
+      return;
+    }
+
+    processData.process.kill();
+    this.processes.delete(sessionId);
+  }
+
+  /**
+   * アクティブなプロセス一覧を取得
+   *
+   * 現在実行中のすべてのプロセスのMapを返します。
+   * ProcessLifecycleManagerでシャットダウン時に使用されます。
+   *
+   * @returns セッションIDをキーとするProcessInfoのMap
+   */
+  getActiveProcesses(): Map<string, ProcessInfo> {
+    const result = new Map<string, ProcessInfo>();
+    for (const [sessionId, processData] of this.processes) {
+      result.set(sessionId, processData.info);
+    }
+    return result;
   }
 }
 

@@ -418,6 +418,122 @@ describe('ProcessManager', () => {
     });
   });
 
+  describe('startClaudeCode with resume option', () => {
+    it('should include --resume option when resumeSessionId is provided', async () => {
+      const options: StartOptions = {
+        sessionId: 'test-session-resume',
+        worktreePath: '/path/to/worktree',
+        resumeSessionId: 'claude-session-abc123',
+      };
+
+      await processManager.startClaudeCode(options);
+
+      expect(mockSpawn).toHaveBeenCalledWith(
+        'claude',
+        ['--print', '--resume', 'claude-session-abc123'],
+        expect.objectContaining({
+          stdio: ['pipe', 'pipe', 'pipe'],
+          cwd: '/path/to/worktree',
+        })
+      );
+    });
+
+    it('should include both --model and --resume options', async () => {
+      const options: StartOptions = {
+        sessionId: 'test-session-resume-model',
+        worktreePath: '/path/to/worktree',
+        model: 'opus',
+        resumeSessionId: 'claude-session-xyz789',
+      };
+
+      await processManager.startClaudeCode(options);
+
+      expect(mockSpawn).toHaveBeenCalledWith(
+        'claude',
+        ['--print', '--model', 'opus', '--resume', 'claude-session-xyz789'],
+        expect.objectContaining({
+          stdio: ['pipe', 'pipe', 'pipe'],
+          cwd: '/path/to/worktree',
+        })
+      );
+    });
+
+    it('should not include --resume option when resumeSessionId is not provided', async () => {
+      const options: StartOptions = {
+        sessionId: 'test-session-no-resume',
+        worktreePath: '/path/to/worktree',
+        model: 'sonnet',
+      };
+
+      await processManager.startClaudeCode(options);
+
+      const spawnCall = mockSpawn.mock.calls[mockSpawn.mock.calls.length - 1];
+      const args = spawnCall[1] as string[];
+      expect(args).not.toContain('--resume');
+    });
+  });
+
+  describe('stopProcess', () => {
+    it('should kill the process and remove from map', async () => {
+      const options: StartOptions = {
+        sessionId: 'test-session-stop-process',
+        worktreePath: '/path/to/worktree',
+        prompt: 'test prompt',
+      };
+      await processManager.startClaudeCode(options);
+
+      await processManager.stopProcess('test-session-stop-process');
+
+      expect(mockChildProcess.kill).toHaveBeenCalled();
+      expect(processManager.getStatus('test-session-stop-process')).toBeNull();
+    });
+
+    it('should not throw if session does not exist', async () => {
+      await expect(
+        processManager.stopProcess('non-existent-session')
+      ).resolves.not.toThrow();
+    });
+  });
+
+  describe('getActiveProcesses', () => {
+    it('should return empty map when no processes', () => {
+      const activeProcesses = processManager.getActiveProcesses();
+      expect(activeProcesses.size).toBe(0);
+    });
+
+    it('should return active process info', async () => {
+      const options: StartOptions = {
+        sessionId: 'active-session-check',
+        worktreePath: '/path/to/worktree',
+      };
+
+      await processManager.startClaudeCode(options);
+
+      const activeProcesses = processManager.getActiveProcesses();
+      expect(activeProcesses.size).toBe(1);
+      expect(activeProcesses.has('active-session-check')).toBe(true);
+      const info = activeProcesses.get('active-session-check');
+      expect(info).toEqual({
+        sessionId: 'active-session-check',
+        pid: 12345,
+        status: 'running',
+      });
+    });
+
+    it('should not include stopped processes', async () => {
+      const options: StartOptions = {
+        sessionId: 'will-be-stopped',
+        worktreePath: '/path/to/worktree',
+      };
+
+      await processManager.startClaudeCode(options);
+      await processManager.stopProcess('will-be-stopped');
+
+      const activeProcesses = processManager.getActiveProcesses();
+      expect(activeProcesses.has('will-be-stopped')).toBe(false);
+    });
+  });
+
   describe('events', () => {
     beforeEach(async () => {
       const options: StartOptions = {

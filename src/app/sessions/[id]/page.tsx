@@ -89,6 +89,25 @@ export default function SessionDetailPage() {
         const { endRun } = useScriptLogStore.getState();
         endRun(message.runId, message.exitCode, message.signal ?? null, message.executionTime);
       }
+
+      // ライフサイクルイベント処理
+      if (message.type === 'process_paused') {
+        const reasonText = message.reason === 'idle_timeout'
+          ? 'アイドルタイムアウト'
+          : message.reason === 'server_shutdown'
+          ? 'サーバーシャットダウン'
+          : '手動停止';
+        toast(`セッションが一時停止しました: ${reasonText}`, { icon: '⏸️' });
+        setProcessRunning(false);
+      } else if (message.type === 'process_resumed') {
+        const historyText = message.resumedWithHistory ? '（会話履歴を復元）' : '';
+        toast.success(`セッションを再開しました${historyText}`);
+        setProcessRunning(true);
+      } else if (message.type === 'server_shutdown') {
+        toast.error(`サーバーがシャットダウンします（${message.signal}）`, {
+          duration: 10000,
+        });
+      }
     },
     [handleWebSocketMessage]
   );
@@ -205,6 +224,35 @@ export default function SessionDetailPage() {
       setProcessLoading(false);
     }
   }, [sessionId]);
+
+  // 一時停止中のセッションを再開
+  const handleResumeSession = useCallback(async () => {
+    try {
+      setProcessLoading(true);
+      const response = await fetch(`/api/sessions/${sessionId}/resume`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.session) {
+          // セッション詳細を再取得
+          await fetchSessionDetail(sessionId);
+        }
+        setProcessRunning(true);
+        toast.success('セッションを再開しました');
+      } else {
+        const errorData = await response.json();
+        toast.error(`セッション再開に失敗しました: ${errorData.error || response.statusText}`);
+      }
+    } catch (error) {
+      console.error('Failed to resume session:', error);
+      toast.error('セッション再開に失敗しました');
+    } finally {
+      setProcessLoading(false);
+    }
+  }, [sessionId, fetchSessionDetail]);
 
   const handleSendMessage = useCallback(
     (content: string) => {
@@ -331,6 +379,15 @@ export default function SessionDetailPage() {
               >
                 戻る
               </button>
+              {currentSession.status === 'paused' && (
+                <button
+                  onClick={handleResumeSession}
+                  disabled={processLoading}
+                  className="px-4 py-2 min-h-[44px] rounded-lg bg-green-500 text-white hover:bg-green-600 disabled:opacity-50 transition-colors"
+                >
+                  {processLoading ? '再開中...' : '再開'}
+                </button>
+              )}
               {(currentSession.status === 'running' || currentSession.status === 'waiting_input') && (
                 <button
                   onClick={handleStopSession}
@@ -399,51 +456,61 @@ export default function SessionDetailPage() {
           </div>
 
           {/* Tab Content */}
-          {activeTab === 'chat' ? (
-            <>
-              {/* Messages */}
-              <MessageList messages={messages} />
+          {/*
+           * 注意: すべてのタブコンテンツはDOMに常にレンダリングされ、CSSのhiddenクラスで非表示にしています。
+           * これは特にTerminalタブのためのアーキテクチャ上の決定です。
+           * XTerm.jsターミナルは一度初期化されると、DOMから削除されると状態が失われます。
+           * 条件付きレンダリングではなくCSS非表示を使用することで、タブ切り替え時も
+           * ターミナルの接続状態と履歴が維持されます。
+           */}
+          {/* Chat Tab */}
+          <div className={`flex flex-col flex-1 ${activeTab === 'chat' ? '' : 'hidden'}`}>
+            {/* Messages */}
+            <MessageList messages={messages} />
 
-              {/* Input Form */}
-              <InputForm
-                onSubmit={handleSendMessage}
-                disabled={currentSession.status !== 'running' && currentSession.status !== 'waiting_input'}
-              />
-            </>
-          ) : activeTab === 'diff' ? (
-            <div className="flex-1 flex flex-col overflow-hidden">
-              {/* Git Operations Buttons */}
-              <div className="border-b border-gray-200 dark:border-gray-700 p-4 flex gap-3">
-                <RebaseButton sessionId={sessionId} />
-                <button
-                  onClick={() => setIsMergeModalOpen(true)}
-                  className="bg-green-500 text-white rounded px-4 py-2 min-h-[44px] hover:bg-green-600 transition-colors"
-                >
-                  スカッシュしてマージ
-                </button>
-              </div>
-              {/* Diff Display */}
-              <div className="flex-1 flex overflow-hidden">
-                <FileList />
-                <DiffViewer />
-              </div>
+            {/* Input Form */}
+            <InputForm
+              onSubmit={handleSendMessage}
+              disabled={currentSession.status !== 'running' && currentSession.status !== 'waiting_input'}
+            />
+          </div>
+
+          {/* Diff Tab */}
+          <div className={`flex-1 flex flex-col overflow-hidden ${activeTab === 'diff' ? '' : 'hidden'}`}>
+            {/* Git Operations Buttons */}
+            <div className="border-b border-gray-200 dark:border-gray-700 p-4 flex gap-3">
+              <RebaseButton sessionId={sessionId} />
+              <button
+                onClick={() => setIsMergeModalOpen(true)}
+                className="bg-green-500 text-white rounded px-4 py-2 min-h-[44px] hover:bg-green-600 transition-colors"
+              >
+                スカッシュしてマージ
+              </button>
             </div>
-          ) : activeTab === 'commits' ? (
-            <div className="flex-1 overflow-auto p-4">
-              {/* Commit History */}
-              <CommitHistory sessionId={sessionId} />
+            {/* Diff Display */}
+            <div className="flex-1 flex overflow-hidden">
+              <FileList />
+              <DiffViewer />
             </div>
-          ) : activeTab === 'terminal' ? (
-            <div className="flex-1 overflow-hidden">
-              {/* Terminal */}
-              <TerminalPanel sessionId={sessionId} />
-            </div>
-          ) : (
-            <div className="flex-1 overflow-hidden">
-              {/* Scripts */}
-              <ScriptsPanel sessionId={sessionId} projectId={currentSession.project_id} />
-            </div>
-          )}
+          </div>
+
+          {/* Commits Tab */}
+          <div className={`flex-1 overflow-auto p-4 ${activeTab === 'commits' ? '' : 'hidden'}`}>
+            {/* Commit History */}
+            <CommitHistory sessionId={sessionId} />
+          </div>
+
+          {/* Terminal Tab */}
+          <div className={`flex-1 overflow-hidden ${activeTab === 'terminal' ? '' : 'hidden'}`}>
+            {/* Terminal */}
+            <TerminalPanel sessionId={sessionId} />
+          </div>
+
+          {/* Scripts Tab */}
+          <div className={`flex-1 overflow-hidden ${activeTab === 'scripts' ? '' : 'hidden'}`}>
+            {/* Scripts */}
+            <ScriptsPanel sessionId={sessionId} projectId={currentSession.project_id} />
+          </div>
 
           {/* Permission Dialog */}
           <PermissionDialog

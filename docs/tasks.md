@@ -32,40 +32,22 @@ MVP後に実装:
 
 ---
 
-## フェーズ別タスク詳細
+## 完了済みフェーズ一覧
 
-### Phase 1: 基盤構築 ✅
-Next.js 15 + TypeScript + Prisma + SQLiteのプロジェクト基盤を構築。API Routes、データベーススキーマ、フロントエンド基本構成を設定。
+以下のフェーズは完了済みです。詳細は各検証レポートを参照してください。
 
-### Phase 2: バックエンドコア機能 ✅
-認証API、プロジェクトAPI、Git操作サービス、プロセスマネージャー、セッションAPIを実装。Claude Codeプロセス管理の基盤を構築。
-
-### Phase 3: フロントエンドコア機能 ✅
-認証画面、レイアウト、プロジェクト管理、セッション管理、Diff表示、Git操作UIを実装。MVP範囲のフロントエンド機能を完成。
-
-### Phase 4: リアルタイム通信とMVP統合 ✅
-WebSocketサーバー・クライアントを実装し、Claude Codeとのリアルタイム通信を確立。MVP E2Eテストを実施。
-
-### Phase 5: 拡張機能（セッション管理強化） ✅
-セッションテンプレート、プロンプト履歴、モデル選択、コミット履歴、Git状態インジケーター、詳細ステータス表示を実装。
-
-### Phase 6: 拡張機能（高度な機能） ✅
-ランスクリプト実行、ログフィルタリング、リッチ出力、サブエージェント出力表示、ターミナル統合（XTerm.js）を実装。
-
-### Phase 7: UI/UX改善とドキュメント ✅
-ライト/ダークモード、モバイルUI最適化、包括的なドキュメント（README、SETUP、ENV_VARS、API）を作成。
-
-### Phase 8: バグ修正（PR#2レビュー結果対応） ✅
-APIレスポンス形式修正、環境変数処理改善、エラーハンドリング強化、重複登録防止を実装。品質向上とセキュリティ強化。
-
-### Phase 9: マージ後バグ修正 ✅
-トースト通知表示修正、プロジェクト「開く」ボタン修正、Claude Codeパス設定機能追加。UI/UX改善。
-
-### Phase 10: 動作確認で発見されたバグ修正 ✅
-セッション作成500エラー修正、/projectsリダイレクト実装、設定ページレイアウト修正。動作安定性向上。
-
-### Phase 19: Critical Issue修正 ✅
-Process ManagerのClaude Code起動問題、WebSocket認証のセッションID不一致を修正。全機能の統合動作確認を実施。
+| フェーズ | 内容 | 検証レポート |
+|---------|------|-------------|
+| Phase 1-4 | MVP基盤構築（Next.js、認証、WebSocket） | - |
+| Phase 5-7 | 拡張機能（セッション管理、ターミナル、UI/UX） | - |
+| Phase 8-10 | バグ修正（PR#2対応、マージ後修正） | - |
+| Phase 19-20 | Critical Issue修正、SSRエラー修正 | verification-report-phase19.md |
+| Phase 21 | UI/UX改善（ロゴナビゲーション） | verification-report-comprehensive-phase21.md |
+| Phase 22 | Claude CLI自動検出機能 | - |
+| Phase 31 | セッション再起動機能 | verification-report-phase31.md |
+| Phase 33 | プロセス再起動・Diff表示修正 | verification-report-phase33.md |
+| Phase 35 | 網羅的検証で発見された不具合修正 | verification-report-phase35.md |
+| Phase 40 | プロセスライフサイクル管理 | - |
 
 ---
 
@@ -111,42 +93,6 @@ Process ManagerのClaude Code起動問題、WebSocket認証のセッションID�
 - コンフリクト発生時の明確な通知
 - 手動解決を促すUI（ターミナル統合で対応可能）
 
-## 備考
-
-### 技術スタック
-
-**フロントエンド**:
-- Next.js 14 (App Router)
-- TypeScript
-- Tailwind CSS
-- Zustand
-- react-diff-viewer-continued
-- XTerm.js（フェーズ6）
-- Playwright（E2E）
-
-**バックエンド（Next.js統合）**:
-- Next.js 15.1 API Routes
-- Next.jsカスタムサーバー（WebSocket統合）
-- TypeScript
-- Prisma 7.x
-- better-sqlite3
-- ws / socket.io（WebSocket）
-- winston（ロギング）
-- Vitest（テスト）
-
-**インフラ**:
-- Node.js 20+
-- SQLite
-- npxで実行可能（グローバルインストール不要）
-- リバースプロキシ（Caddy/nginx推奨、本番環境のみ）
-
-### コーディング規約
-
-- TypeScript: strict mode有効
-- ESLint + Prettier for linting/formatting
-- コミットメッセージ: Conventional Commits
-- ブランチ戦略: GitHub Flow
-
 ---
 
 ## セキュリティ・品質改善タスク
@@ -189,23 +135,6 @@ Process ManagerのClaude Code起動問題、WebSocket認証のセッションID�
 - タイムアウト時にエラーが返される
 - 既存テストが全て通る
 
-### タスク: プロジェクトpath重複登録の防止
-**優先度**: 中
-**ファイル**: `prisma/schema.prisma`, `src/app/api/projects/route.ts` (138-145行)
-
-**問題**:
-同一pathで複数のプロジェクトを登録できる。
-
-**実装内容**:
-1. Prismaスキーマで`path`フィールドに`@unique`制約を追加
-2. マイグレーション実行
-3. POST /api/projectsでUniqueConstraintErrorをハンドリング（409 Conflict）
-
-**受入基準**:
-- 同一pathで2回目の登録を試みると409エラー
-- エラーメッセージが明確（"Project already exists at this path"）
-- テストケースを追加
-
 ### タスク: プロジェクト所有権チェックの実装
 **優先度**: 高
 **ファイル**: `src/app/api/projects/[project_id]/route.ts` (53-60, 132-138行)
@@ -237,371 +166,13 @@ Process ManagerのClaude Code起動問題、WebSocket認証のセッションID�
 1. ログ出力時にcommitMessageを先頭80文字に制限
 2. 全体の文字数も記録（デバッグ用）
 
-**実装例**:
-```typescript
-logger.info('Merged session successfully', {
-  id,
-  commitMessagePreview: sanitizedMessage.slice(0, 80),
-  commitMessageLength: sanitizedMessage.length,
-});
-```
-
 **受入基準**:
 - ログに出力されるcommitMessageが80文字以内
 - 文字数情報が記録される
 
 ---
 
-### Phase 20: セッション詳細ページSSRエラー修正 ✅
-XTerm.jsのSSRエラーを修正。動的インポート（next/dynamic）とuseEffectでクライアントサイド限定読み込みを実装。
-
-## Phase 21: UI/UX改善（ロゴナビゲーション）
-
-**検証レポート**: docs/verification-report-comprehensive-phase21.md
-**実施期間**: 2025-12-21
-**優先度**: Low
-**推定期間**: 20分（AIエージェント作業時間）
-**MVP**: No
-
-### 背景
-
-Phase 20マージ後の網羅的検証（docs/verification-report-comprehensive-phase21.md）で、ClaudeWorkロゴボタンがページ遷移しない問題を発見。ヘッダーの「ClaudeWork」ロゴボタンをクリックしてもトップページ（/）に遷移せず、ユーザビリティに影響している。
-
-### 目的
-
-ヘッダーのClaudeWorkロゴボタンにナビゲーション機能を追加し、クリック時にトップページ（/）へ遷移できるようにする。
-
-### タスク
-
-#### タスク21.1: ClaudeWorkロゴボタンのナビゲーション機能追加（TDD）
-
-**説明**:
-TDDアプローチで`src/components/layout/Header.tsx`のClaudeWorkロゴボタンにナビゲーション機能を追加する。
-
-**実装手順（TDD）**:
-1. **テスト作成**: `src/components/layout/__tests__/Header.test.tsx`にテストケースを追加
-   - ClaudeWorkロゴボタンをクリックすると`router.push('/')`が呼ばれることを確認
-   - useRouterフックをモック化して動作を検証
-2. **テスト実行**: すべてのテストが失敗することを確認
-3. **テストコミット**: テストのみをコミット（`test: ClaudeWorkロゴボタンのナビゲーションテスト追加`）
-4. **実装**: `Header.tsx`を修正
-   - `next/navigation`から`useRouter`をインポート
-   - `router.push('/')`を呼ぶonClickハンドラーを追加
-   - ロゴボタン要素にonClickハンドラーを設定
-5. **テスト通過確認**: すべてのテストが通過することを確認（`npm test`）
-6. **実装コミット**: 実装をコミット（`feat: ClaudeWorkロゴボタンにホームページナビゲーション機能を追加`）
-
-**技術的文脈**:
-- フレームワーク: Next.js 15 (App Router)
-- ナビゲーション: next/navigation の useRouter フック
-- テストフレームワーク: Vitest
-- 既存のコンポーネントパターンは他のボタン実装を参照
-
-**受入基準**:
-- [ ] テストファイル`src/components/layout/__tests__/Header.test.tsx`が存在または更新されている
-- [ ] ロゴボタンクリック時のテストが追加されている
-- [ ] 実装前にテストのみのコミットが存在する
-- [ ] `Header.tsx`に`useRouter`フックが追加されている
-- [ ] ロゴボタンに`onClick`ハンドラーが設定されている
-- [ ] `onClick`ハンドラーで`router.push('/')`が呼ばれている
-- [ ] すべてのテストが通過する（`npm test`）
-- [ ] ESLintエラーがゼロである
-- [ ] 実装後のコミットが存在する
-
-**依存関係**: なし
-
-**推定工数**: 20分（AIエージェント作業時間）
-- テスト作成・コミット: 8分
-- 実装・テスト通過・コミット: 12分
-
-**ステータス**: `DONE`
-
-**情報の明確性**:
-
-**明示された情報**:
-- 対象ファイル: src/components/layout/Header.tsx
-- テストファイル: `src/components/layout/__tests__/Header.test.tsx`
-- 使用技術: Next.js 15 App Router, next/navigation useRouter
-- 期待動作: ロゴクリック時に router.push('/') でトップページに遷移
-- TDDアプローチ: テスト → 実装の順
-
-**不明/要確認の情報**: なし（検証レポートで仕様が明確）
-
-### Phase 21完了基準
-
-- [x] タスク21.1が完了している
-- [x] ClaudeWorkロゴボタンをクリックするとトップページ（/）に遷移する
-- [x] すべてのテストが通過している
-- [x] ESLintエラーがゼロである
-- [x] 2つのコミット（テスト、実装）が作成されている
-
-### 解決されるIssue
-
-**docs/verification-report-comprehensive-phase21.md**:
-- Low Issue #1: ClaudeWorkロゴボタンがページ遷移しない
-
-### 達成される要件
-
-- REQ-001: トップページ（プロジェクト一覧）の表示
-  - ヘッダーロゴからのナビゲーションが可能になる
-
-### 技術的な学び
-
-- Next.js App Router での useRouter フックの使用
-- Vitest でのルーターモックのテスト方法
-- ボタン要素へのナビゲーション機能の追加
-
----
-
-## Phase 22: Claude CLI自動検出機能の実装
-
-**実施期間**: 2025-12-21
-**優先度**: High
-**推定期間**: 60分（AIエージェント作業時間）
-**MVP**: Yes
-
-### 背景
-
-現在、Claude Code CLIのパスは環境変数`CLAUDE_CODE_PATH`で明示的に設定する必要がある。多くの環境では`claude`コマンドが既にPATH環境変数に含まれているため、自動検出機能を実装することでユーザーの設定負担を軽減する。また、CLAUDE_CODE_PATHが設定されている場合でも、そのパスが有効かどうかを検証することで、起動時のエラーを早期発見できる。
-
-### 目的
-
-- PATH環境変数から`claude`コマンドを自動検出する
-- CLAUDE_CODE_PATHが設定済みの場合は、パスの有効性を検証する
-- claudeコマンドが見つからない、または無効な場合はサーバー起動を停止する
-- macOS/Linux環境でのみ動作し、Windows環境ではエラーメッセージを表示する
-
-### タスク
-
-#### タスク22.1: Claude CLIパス検出関数のテスト作成（TDD Step 1）
-
-**説明**:
-TDDアプローチで`src/lib/env-validation.ts`にClaudeパス検出関数`detectClaudePath()`のテストを作成する。
-
-**実装手順（TDD）**:
-1. **テスト作成**: `src/lib/__tests__/env-validation.test.ts`にテストケースを追加
-   - CLAUDE_CODE_PATHが未設定でclaudeコマンドが見つかる場合、検出されたパスを返す
-   - CLAUDE_CODE_PATHが設定済みで有効なパスの場合、そのパスを返す
-   - CLAUDE_CODE_PATHが設定済みで無効なパスの場合、エラーをスローする
-   - CLAUDE_CODE_PATHが未設定でclaudeコマンドが見つからない場合、エラーをスローする
-   - Windows環境ではエラーをスローする
-2. **テスト実行**: すべてのテストが失敗することを確認
-3. **テストコミット**: テストのみをコミット
-
-**技術的文脈**:
-- テストフレームワーク: Vitest
-- モック対象: child_process.execSync, fs.existsSync, process.platform
-- テストファイルパターン: `src/lib/__tests__/env-validation.test.ts`
-
-**受入基準**:
-- [ ] テストファイル`src/lib/__tests__/env-validation.test.ts`が作成されている
-- [ ] 5つ以上のテストケースが含まれている
-- [ ] child_process.execSyncとfs.existsSyncがモック化されている
-- [ ] テスト実行で失敗することを確認済み（`npm test`）
-- [ ] ESLintエラーがゼロである
-- [ ] テストのみのコミットが存在する
-
-**依存関係**: なし
-
-**推定工数**: 20分（AIエージェント作業時間）
-
-**ステータス**: `DONE`
-
-**情報の明確性**:
-
-**明示された情報**:
-- 対象ファイル: src/lib/env-validation.ts
-- テストファイル: `src/lib/__tests__/env-validation.test.ts`
-- 関数名: detectClaudePath()
-- 使用技術: Node.js child_process.execSync, fs.existsSync
-- OS検出: process.platform
-- macOS/Linuxでwhichコマンドを使用
-
-**不明/要確認の情報**: なし
-
-#### タスク22.2: Claude CLIパス検出関数の実装（TDD Step 2）
-
-**説明**:
-`src/lib/env-validation.ts`に`detectClaudePath()`関数を実装し、テストを通過させる。
-
-**実装手順**:
-1. **実装**: `src/lib/env-validation.ts`にdetectClaudePath関数を追加
-   - process.platformがwin32の場合、エラーをスローする
-   - CLAUDE_CODE_PATH環境変数をチェック
-   - 設定済みの場合、fs.existsSyncで存在確認
-   - 存在しない場合はエラーをスローする
-   - 未設定の場合、execSync('which claude')で検出
-   - 検出成功時、trimしたパスを返す
-   - 検出失敗時はエラーをスローする
-2. **テスト通過確認**: すべてのテストが通過することを確認（`npm test`）
-3. **実装コミット**: 実装をコミット
-
-**技術的文脈**:
-- Node.js標準モジュール: child_process, fs
-- エラーハンドリング: try-catchでexecSyncの例外をキャッチ
-- 文字列処理: trim()で改行を除去
-
-**実装例**:
-```typescript
-import { execSync } from 'child_process';
-import { existsSync } from 'fs';
-
-export function detectClaudePath(): string {
-  // Windows環境チェック
-  if (process.platform === 'win32') {
-    throw new Error('Windows is not supported. Please use macOS or Linux.');
-  }
-
-  // CLAUDE_CODE_PATHが設定済みの場合
-  const envPath = process.env.CLAUDE_CODE_PATH;
-  if (envPath) {
-    if (!existsSync(envPath)) {
-      throw new Error(`CLAUDE_CODE_PATH is set but the path does not exist: ${envPath}`);
-    }
-    return envPath;
-  }
-
-  // PATH環境変数から自動検出
-  try {
-    const path = execSync('which claude', { encoding: 'utf-8' }).trim();
-    if (!path) {
-      throw new Error('claude command not found');
-    }
-    return path;
-  } catch (error) {
-    throw new Error(
-      'claude command not found in PATH. Please install Claude Code CLI or set CLAUDE_CODE_PATH environment variable.'
-    );
-  }
-}
-```
-
-**受入基準**:
-- [ ] `src/lib/env-validation.ts`にdetectClaudePath関数が実装されている
-- [ ] Windows環境でエラーをスローする
-- [ ] CLAUDE_CODE_PATH設定済みで有効な場合、そのパスを返す
-- [ ] CLAUDE_CODE_PATH設定済みで無効な場合、エラーをスローする
-- [ ] CLAUDE_CODE_PATH未設定でclaudeコマンドがある場合、検出パスを返す
-- [ ] CLAUDE_CODE_PATH未設定でclaudeコマンドがない場合、エラーをスローする
-- [ ] すべてのテストが通過する（`npm test`）
-- [ ] ESLintエラーがゼロである
-- [ ] 実装のコミットが存在する
-
-**依存関係**: タスク22.1（テスト作成）
-
-**推定工数**: 20分（AIエージェント作業時間）
-
-**ステータス**: `DONE`
-
-**情報の明確性**:
-
-**明示された情報**:
-- 関数シグネチャ: `detectClaudePath(): string`
-- エラーメッセージの内容（design.mdに記載）
-- whichコマンドの使用方法
-- 戻り値の型: string（claudeコマンドの絶対パス）
-
-**不明/要確認の情報**: なし
-
-#### タスク22.3: サーバー起動時の環境検証統合
-
-**説明**:
-`server.ts`起動時に`detectClaudePath()`を呼び出し、検出されたパスを`process.env.CLAUDE_CODE_PATH`に設定する。検出失敗時はエラーログを出力してサーバー起動を停止する。
-
-**実装手順**:
-1. **実装**: `server.ts`を修正
-   - `detectClaudePath`をインポート
-   - サーバー起動前（WebSocket設定前）にdetectClaudePath()を呼び出し
-   - 検出成功時、process.env.CLAUDE_CODE_PATHに設定
-   - logger.infoで検出されたパスをログ出力
-   - 検出失敗時、logger.errorでエラーログ出力
-   - process.exit(1)でサーバー起動を停止
-2. **動作確認**: `npm run dev`でサーバーが起動することを確認
-3. **ログ確認**: 検出されたパスがログに出力されることを確認
-4. **コミット**: 実装をコミット
-
-**技術的文脈**:
-- サーバーエントリーポイント: server.ts
-- ログライブラリ: winston（既存のloggerを使用）
-- 起動シーケンス: 環境検証 → WebSocket設定 → Next.js起動
-
-**実装例**:
-```typescript
-import { detectClaudePath } from './src/lib/env-validation';
-
-// 環境検証
-try {
-  const claudePath = detectClaudePath();
-  process.env.CLAUDE_CODE_PATH = claudePath;
-  logger.info('Claude Code CLI detected', { path: claudePath });
-} catch (error) {
-  logger.error('Failed to detect Claude Code CLI', {
-    error: error instanceof Error ? error.message : String(error),
-  });
-  process.exit(1);
-}
-```
-
-**受入基準**:
-- [ ] `server.ts`にdetectClaudePathのインポートが追加されている
-- [ ] サーバー起動前にdetectClaudePath()が呼ばれている
-- [ ] 検出成功時、process.env.CLAUDE_CODE_PATHに設定される
-- [ ] 検出成功時、logger.infoでパスがログ出力される
-- [ ] 検出失敗時、logger.errorでエラーログ出力される
-- [ ] 検出失敗時、process.exit(1)が呼ばれる
-- [ ] `npm run dev`でサーバーが正常起動する
-- [ ] ログに検出されたclaudeパスが表示される
-- [ ] ESLintエラーがゼロである
-- [ ] コミットが存在する
-
-**依存関係**: タスク22.2（検出関数の実装）
-
-**推定工数**: 20分（AIエージェント作業時間）
-
-**ステータス**: `DONE`
-
-**情報の明確性**:
-
-**明示された情報**:
-- 対象ファイル: server.ts
-- インポート元: src/lib/env-validation.ts
-- ログライブラリ: winston（既存のlogger）
-- エラー時の動作: process.exit(1)
-
-**不明/要確認の情報**: なし
-
-### Phase 22完了基準
-
-- [x] タスク22.1が完了している（テスト作成）
-- [x] タスク22.2が完了している（検出関数実装）
-- [x] タスク22.3が完了している（サーバー統合）
-- [x] すべてのテストが通過している（`npm test`）
-- [x] ESLintエラーがゼロである
-- [x] サーバーが正常起動し、claudeパスがログに出力される
-- [x] 3つのコミット（テスト、実装、統合）が作成されている
-- [x] CLAUDE_CODE_PATH未設定でもサーバーが起動する
-- [x] claudeコマンドが見つからない環境ではエラーメッセージが表示される
-
-### 解決される要件
-
-**docs/requirements.md**:
-- REQ-070: サーバー起動時、CLAUDE_CODE_PATH環境変数が設定されていない場合、システムはPATH環境変数からclaudeコマンドのパスを自動検出しなければならない
-- REQ-071: サーバー起動時、CLAUDE_CODE_PATH環境変数が既に設定されている場合、システムはそのパスの有効性を検証しなければならない
-- REQ-072: claudeコマンドが見つからない場合、システムはエラーメッセージを表示してサーバー起動を停止しなければならない
-- REQ-073: CLAUDE_CODE_PATHが無効なパスの場合、システムはエラーメッセージを表示してサーバー起動を停止しなければならない
-- REQ-074: claudeコマンドが正常に検出された時、システムは検出されたパスをログに出力しなければならない
-- REQ-075: システムはmacOSとLinuxでwhichコマンドを使用してclaude コマンドを検出しなければならない
-- REQ-076: システムはWindows環境での動作をサポートしなければならない（将来的な拡張のため、現状はエラーで停止）
-
-### 技術的な学び
-
-- Node.js child_processでのコマンド実行
-- 環境変数の検証パターン
-- PATH環境変数からのコマンド検出
-- TDDでのシステムコマンドモック化
-- サーバー起動時の環境検証ベストプラクティス
-
----
+## 未完了フェーズ詳細
 
 ## Phase 23: Critical Issues修正（動作検証で発見）
 
@@ -742,6 +313,7 @@ try {
 - PM2環境変数設定との競合解決
 
 ---
+
 
 ## Phase 24: High Priority UIコンポーネント実装（動作検証で発見）
 
@@ -1015,6 +587,7 @@ TDDで`src/components/git/CommitHistory.tsx`を実装する。テスト仕様は
 
 ---
 
+
 ## Phase 25: Medium Priority機能改善（動作検証で発見）
 
 **目的**: 部分的に実装されているが、UI表示やユーザー体験が不完全な2つの機能を改善する。
@@ -1152,6 +725,7 @@ TDDで`src/components/git/CommitHistory.tsx`を実装する。テスト仕様は
 
 ---
 
+
 ## Phase 30: E2Eテスト環境変数修正
 
 ### 概要
@@ -1288,543 +862,6 @@ const token = process.env.CLAUDE_WORK_TOKEN || 'test-token';
 
 ---
 
-## Phase 31: 既存セッションのClaude Codeプロセス再起動機能
-
-**目的**: サーバー再起動後も既存セッションでClaude Codeと対話できるようにする
-
-**背景**:
-- Claude Codeプロセスはセッション作成時のみProcessManager.startClaudeCode()で起動される
-- サーバー再起動後、既存セッションにアクセスしてもプロセスは自動的には再起動されない
-- プロセスがないセッションにメッセージを送信しても何も起きない（エラーも出ない）
-- ユーザーは既存セッションで作業を継続したいが、現状それができない
-
-**技術的制約**:
-- ProcessManager.startClaudeCode(sessionId, worktreePath, model)を使用してプロセスを起動
-- セッションのworktree_pathとproject情報はDBから取得可能
-- WebSocket接続経由でメッセージを送受信
-- SessionWebSocketHandlerでプロセス状態を管理
-
-**検証レポート**: なし（新規機能）
-
----
-
-### タスク31.1: プロセス状態確認APIの実装（TDD）
-
-**説明**:
-セッションのClaude Codeプロセスが実行中かどうかを確認するAPIエンドポイントを実装する。
-
-**実装手順（TDD）**:
-1. **テスト作成**: `src/app/api/sessions/[id]/process/__tests__/route.test.ts`にテストケースを作成
-   - プロセスが実行中の場合、`{ running: true }`を返す
-   - プロセスが停止中の場合、`{ running: false }`を返す
-   - 認証されていない場合、401エラーを返す
-   - セッションが存在しない場合、404エラーを返す
-2. **テスト実行**: すべてのテストが失敗することを確認
-3. **テストコミット**: テストのみをコミット
-4. **実装**: `src/app/api/sessions/[id]/process/route.ts`を作成
-   - GET: ProcessManager.hasProcess(sessionId)でプロセス状態を確認
-   - 認証チェック（getIronSession）
-   - セッション存在チェック（prisma.session.findUnique）
-5. **テスト通過確認**: すべてのテストが通過することを確認
-6. **実装コミット**: 実装をコミット
-
-**技術的文脈**:
-- ProcessManagerにhasProcess(sessionId)メソッドを追加する必要がある
-- 既存のProcessManager.processes Mapを参照
-
-**受入基準**:
-- [ ] `src/app/api/sessions/[id]/process/route.ts`ファイルが作成されている
-- [ ] GET `/api/sessions/:id/process`がプロセス状態を返す
-- [ ] ProcessManager.hasProcess(sessionId)メソッドが実装されている
-- [ ] 認証チェックが実装されている
-- [ ] テストがすべて通過する
-- [ ] ESLintエラーがゼロである
-- [ ] 2つのコミット（テスト、実装）が存在する
-
-**依存関係**: なし
-
-**推定工数**: 30分（AIエージェント作業時間）
-- テスト作成・コミット: 15分
-- 実装・テスト通過・コミット: 15分
-
-**ステータス**: `DONE`
-
-**情報の明確性**:
-
-**明示された情報**:
-- 対象ファイル: src/app/api/sessions/[id]/process/route.ts（新規作成）
-- ProcessManager: src/services/process-manager.ts
-- 認証: src/lib/auth.ts (getIronSession)
-- レスポンス形式: `{ running: boolean }`
-
-**不明/要確認の情報**: なし
-
----
-
-### タスク31.2: プロセス再起動APIの実装（TDD）
-
-**説明**:
-停止中のセッションのClaude Codeプロセスを再起動するAPIエンドポイントを実装する。
-
-**実装手順（TDD）**:
-1. **テスト作成**: `src/app/api/sessions/[id]/process/__tests__/route.test.ts`にPOSTのテストケースを追加
-   - プロセスが正常に起動した場合、`{ success: true, running: true }`を返す
-   - 既にプロセスが実行中の場合、`{ success: true, running: true, message: 'Process already running' }`を返す
-   - 起動に失敗した場合、500エラーを返す
-   - 認証されていない場合、401エラーを返す
-   - セッションが存在しない場合、404エラーを返す
-2. **テスト実行**: すべてのテストが失敗することを確認
-3. **テストコミット**: テストのみをコミット
-4. **実装**: `src/app/api/sessions/[id]/process/route.ts`にPOSTハンドラーを追加
-   - 認証チェック
-   - セッション取得（worktree_path, projectのdefault_model）
-   - ProcessManager.hasProcess()でプロセス状態確認
-   - 停止中の場合、ProcessManager.startClaudeCode()で起動
-   - 結果を返す
-5. **テスト通過確認**: すべてのテストが通過することを確認
-6. **実装コミット**: 実装をコミット
-
-**技術的文脈**:
-- ProcessManager.startClaudeCode(sessionId, worktreePath, model)を使用
-- セッションのworktree_pathとproject.default_modelをDBから取得
-- 既にプロセスが実行中の場合は再起動せず成功を返す
-
-**受入基準**:
-- [ ] POST `/api/sessions/:id/process`でプロセスを起動できる
-- [ ] セッションのworktree_pathを使用してプロセスが起動される
-- [ ] 既にプロセスが実行中の場合、エラーにならず成功を返す
-- [ ] 起動失敗時、適切なエラーメッセージを返す
-- [ ] テストがすべて通過する
-- [ ] ESLintエラーがゼロである
-- [ ] 2つのコミット（テスト、実装）が存在する
-
-**依存関係**: タスク31.1（プロセス状態確認API）
-
-**推定工数**: 30分（AIエージェント作業時間）
-- テスト作成・コミット: 15分
-- 実装・テスト通過・コミット: 15分
-
-**ステータス**: `DONE`
-
-**情報の明確性**:
-
-**明示された情報**:
-- 対象ファイル: src/app/api/sessions/[id]/process/route.ts
-- ProcessManager.startClaudeCode(sessionId, worktreePath, model)
-- セッションスキーマ: worktree_path, project関連
-
-**不明/要確認の情報**: なし
-
----
-
-### タスク31.3: プロセス状態表示コンポーネントの実装（TDD）
-
-**説明**:
-セッション詳細ページにClaude Codeプロセスの状態を表示し、再起動ボタンを提供するコンポーネントを実装する。
-
-**実装手順（TDD）**:
-1. **テスト作成**: `src/components/sessions/__tests__/ProcessStatus.test.tsx`にテストケースを作成
-   - プロセスが実行中の場合、緑のバッジと「実行中」を表示
-   - プロセスが停止中の場合、赤のバッジと「停止」、「再起動」ボタンを表示
-   - 再起動ボタンクリックでonRestart()コールバックが呼ばれる
-   - ローディング中の表示
-2. **テスト実行**: すべてのテストが失敗することを確認
-3. **テストコミット**: テストのみをコミット
-4. **実装**: `src/components/sessions/ProcessStatus.tsx`を作成
-   - Props: `running: boolean`, `loading: boolean`, `onRestart: () => void`
-   - 実行中: 緑のバッジ + 「実行中」テキスト
-   - 停止中: 赤のバッジ + 「停止」テキスト + 「再起動」ボタン
-   - ローディング: スピナー表示
-   - Tailwind CSSでスタイリング
-5. **テスト通過確認**: すべてのテストが通過することを確認
-6. **実装コミット**: 実装をコミット
-
-**技術的文脈**:
-- スタイリング: Tailwind CSS
-- アイコン: Lucide React（PlayCircle, StopCircle等）
-- 再起動ボタンは停止中のみ表示
-
-**受入基準**:
-- [ ] `src/components/sessions/ProcessStatus.tsx`ファイルが作成されている
-- [ ] プロセス実行中は緑のバッジと「実行中」が表示される
-- [ ] プロセス停止中は赤のバッジと「停止」が表示される
-- [ ] 停止中のみ「再起動」ボタンが表示される
-- [ ] 再起動ボタンクリックでonRestart()が呼ばれる
-- [ ] ローディング中はスピナーが表示される
-- [ ] テストがすべて通過する
-- [ ] ESLintエラーがゼロである
-- [ ] 2つのコミット（テスト、実装）が存在する
-
-**依存関係**: なし
-
-**推定工数**: 25分（AIエージェント作業時間）
-- テスト作成・コミット: 10分
-- 実装・テスト通過・コミット: 15分
-
-**ステータス**: `DONE`
-
-**情報の明確性**:
-
-**明示された情報**:
-- 対象ファイル: src/components/sessions/ProcessStatus.tsx（新規作成）
-- Props: running, loading, onRestart
-- スタイリング: Tailwind CSS
-- アイコン: Lucide React
-
-**不明/要確認の情報**: なし
-
----
-
-### タスク31.4: セッション詳細ページへのプロセス状態統合
-
-**説明**:
-セッション詳細ページ（`src/app/sessions/[id]/page.tsx`）にProcessStatusコンポーネントを統合し、プロセス状態確認と再起動機能を実装する。
-
-**実装手順**:
-1. **状態管理追加**: useStateでprocessRunning, processLoadingを管理
-2. **プロセス状態確認ロジック追加**:
-   - useEffectでマウント時にGET `/api/sessions/:id/process`を呼び出し
-   - WebSocket接続確立時にもプロセス状態を確認
-3. **再起動ハンドラー実装**:
-   - POST `/api/sessions/:id/process`を呼び出し
-   - 成功時、processRunningをtrueに更新
-   - 失敗時、トースト通知でエラーメッセージ表示
-4. **ProcessStatusコンポーネント配置**:
-   - ヘッダーエリアまたはメッセージ入力欄の上に配置
-   - running, loading, onRestartをpropsとして渡す
-5. **メッセージ送信時のエラーハンドリング**:
-   - プロセスが停止中の場合、送信を阻止してエラーメッセージ表示
-   - 「プロセスを再起動してください」と案内
-6. **動作確認**: サーバー再起動後、既存セッションでプロセス再起動が機能することを確認
-7. **コミット**: 実装をコミット
-
-**技術的文脈**:
-- 既存のuseWebSocketフックとの連携
-- トースト通知: react-hot-toast（既存使用）
-- fetch APIでAPIを呼び出し
-
-**受入基準**:
-- [ ] セッション詳細ページにProcessStatusコンポーネントが表示される
-- [ ] ページ読み込み時にプロセス状態が確認される
-- [ ] プロセスが停止中の場合、再起動ボタンが表示される
-- [ ] 再起動ボタンクリックでプロセスが起動される
-- [ ] プロセス起動成功後、状態が「実行中」に更新される
-- [ ] プロセス起動失敗時、エラートーストが表示される
-- [ ] プロセス停止中にメッセージ送信すると、エラーメッセージが表示される
-- [ ] ESLintエラーがゼロである
-- [ ] コミットが存在する
-
-**依存関係**:
-- タスク31.1（プロセス状態確認API）
-- タスク31.2（プロセス再起動API）
-- タスク31.3（ProcessStatusコンポーネント）
-
-**推定工数**: 40分（AIエージェント作業時間）
-- 状態管理・ロジック実装: 25分
-- 動作確認・コミット: 15分
-
-**ステータス**: `DONE`
-
-**情報の明確性**:
-
-**明示された情報**:
-- 対象ファイル: src/app/sessions/[id]/page.tsx
-- API: GET/POST /api/sessions/:id/process
-- コンポーネント: ProcessStatus
-- トースト: react-hot-toast
-
-**不明/要確認の情報**: なし
-
----
-
-### タスク31.5: WebSocketメッセージ送信時のプロセス確認
-
-**説明**:
-サーバーサイドのSessionWebSocketHandlerでメッセージ送信時にプロセスの存在を確認し、存在しない場合はエラーメッセージを返す。
-
-**実装手順**:
-1. **調査**: `src/lib/websocket/session-ws.ts`のメッセージハンドリングを確認
-2. **実装**:
-   - `input`メッセージ受信時、ProcessManager.hasProcess(sessionId)を確認
-   - プロセスが存在しない場合、エラーメッセージを返す
-   - `{ type: 'error', message: 'Claude Code process is not running. Please restart the process.' }`
-3. **クライアント対応**: useWebSocket.tsでerrorメッセージを処理
-   - エラーメッセージをトースト通知で表示
-4. **テスト追加**: WebSocketハンドラーのテストにプロセス未存在ケースを追加
-5. **コミット**: 実装をコミット
-
-**技術的文脈**:
-- SessionWebSocketHandler: src/lib/websocket/session-ws.ts
-- ProcessManager.sendInput()はプロセスが存在しない場合何もしない（現状）
-- エラーメッセージはWebSocket経由でクライアントに送信
-
-**受入基準**:
-- [ ] メッセージ送信時にプロセスの存在が確認される
-- [ ] プロセスが存在しない場合、errorメッセージがクライアントに送信される
-- [ ] クライアントでエラーメッセージがトースト通知で表示される
-- [ ] テストが追加され、すべて通過する
-- [ ] ESLintエラーがゼロである
-- [ ] コミットが存在する
-
-**依存関係**: タスク31.1（hasProcessメソッド）
-
-**推定工数**: 25分（AIエージェント作業時間）
-- サーバーサイド実装: 15分
-- クライアント対応・テスト: 10分
-
-**ステータス**: `DONE`
-
-**情報の明確性**:
-
-**明示された情報**:
-- 対象ファイル:
-  - src/lib/websocket/session-ws.ts（サーバー）
-  - src/hooks/useWebSocket.ts（クライアント）
-- エラーメッセージ形式: `{ type: 'error', message: '...' }`
-
-**不明/要確認の情報**: なし
-
----
-
-### Phase 31完了基準
-
-- [x] タスク31.1が完了している（プロセス状態確認API）
-- [x] タスク31.2が完了している（プロセス再起動API）
-- [x] タスク31.3が完了している（ProcessStatusコンポーネント）
-- [x] タスク31.4が完了している（セッション詳細ページ統合）
-- [x] タスク31.5が完了している（WebSocketエラーハンドリング）
-- [x] セッション詳細ページでプロセス状態が表示される
-- [x] プロセスが停止中の場合、再起動ボタンで起動できる
-- [x] プロセス停止中のメッセージ送信でエラーが表示される
-- [x] すべてのテストが通過している（`npm test`）
-- [x] ESLintエラーがゼロである
-- [x] すべてのコミットが作成されている
-
-### 解決される要件
-
-**docs/requirements.md**:
-- REQ-077: セッション詳細ページを表示した時、システムはClaude Codeプロセスの状態をUIで表示しなければならない
-- REQ-078: Claude Codeプロセスが停止している場合、システムは「プロセス再起動」ボタンを表示しなければならない
-- REQ-079: ユーザーが「プロセス再起動」ボタンをクリックした時、システムはClaude Codeプロセスを起動しなければならない
-- REQ-080: プロセスが正常に起動した時、システムはプロセス状態表示を「実行中」に更新しなければならない
-- REQ-081: プロセスの起動に失敗した場合、システムはエラーメッセージをユーザーに表示しなければならない
-- REQ-082: メッセージ送信時にプロセスが停止している場合、システムはエラーメッセージを表示しなければならない
-- REQ-083: WebSocket接続確立時、システムはプロセス状態を自動的に確認しなければならない
-
-### 技術的な学び
-
-- ProcessManagerでのプロセス状態管理
-- WebSocketとREST APIの連携パターン
-- リアルタイム状態同期のベストプラクティス
-- エラーハンドリングとユーザーフィードバック
-
----
-
-## Phase 33: プロセス再起動とDiff表示の不具合修正
-
-**目的**: Phase 32の総合検証で発見されたBUG-001（プロセス再起動失敗）とBUG-002（Diff表示不具合）を修正する
-
-**関連する検証レポート**: docs/verification-report-phase32.md
-
-### タスク33.1: プロセス再起動時の空プロンプト問題修正（BUG-001）
-
-**説明**:
-プロセス再起動APIが空のプロンプト（`prompt: ''`）でClaude Codeを起動するため、Claude Codeが入力待ちのまま即座に終了する問題を修正する。
-
-**現象**:
-- プロセス再起動ボタンをクリック → 「プロセスを起動しました」トースト表示
-- プロセス状態が「実行中」に変わる
-- しかしメッセージ送信時に「Claude Codeプロセスが実行されていません」エラー
-
-**原因**:
-`src/app/api/sessions/[id]/process/route.ts:154`で空のプロンプトを渡している：
-```typescript
-await processManager.startClaudeCode({
-  sessionId: targetSession.id,
-  worktreePath: targetSession.worktree_path,
-  prompt: '', // 空のプロンプトで起動 → 即座に終了
-  model: targetSession.model || undefined,
-});
-```
-
-**影響を受ける要件**:
-- REQ-079: プロセス再起動
-- REQ-080: プロセス状態更新
-- REQ-021: メッセージ送信
-
-**実装手順（TDD）**:
-
-1. **テスト作成**: `src/app/api/sessions/[id]/process/__tests__/route.test.ts`
-   - プロセス再起動後、プロセスが継続して実行中であることを確認するテスト
-   - プロセス再起動後、メッセージ送信が可能であることを確認するテスト
-
-2. **テスト実行**: テストが失敗することを確認
-
-3. **テストコミット**: テストのみをコミット
-
-4. **実装案の検討**:
-   - 案A: `--print`オプションなしでインタラクティブモードで起動（複雑：出力パース変更が必要）
-   - 案B: promptをオプショナルにし、未指定時はstdinへの書き込みをスキップ（推奨：最もシンプル）
-   - 案C: ダミープロンプト（例: "waiting for input"）で起動（不要な処理が発生）
-
-5. **実装**: 案Bを採用 - promptをオプショナルにし、空の場合はstdin書き込みをスキップ
-
-6. **実装コミット**: すべてのテストが通過したらコミット
-
-**技術的文脈**:
-- ProcessManager: src/services/process-manager.ts
-- プロセス再起動API: src/app/api/sessions/[id]/process/route.ts
-- Claude Code CLIは`--print`オプション時、stdinからの入力を待つ
-
-**受入基準**:
-- [ ] テストファイルが存在する
-- [ ] プロセス再起動後、プロセスが継続して実行中である
-- [ ] プロセス再起動後、メッセージ送信が可能である
-- [ ] すべてのテストが通過する（`npm test`）
-- [ ] ESLintエラーがゼロである
-- [ ] コミットが存在する
-
-**依存関係**: なし
-
-**推定工数**: 45分（AIエージェント作業時間）
-- テスト作成・コミット: 15分
-- 調査・実装案検討: 15分
-- 実装・テスト通過・コミット: 15分
-
-**ステータス**: `DONE`
-
-**情報の明確性**:
-
-**明示された情報**:
-- 原因箇所: src/app/api/sessions/[id]/process/route.ts:154
-- 問題: 空プロンプトでの起動
-
-**不明/要確認の情報**:
-- Claude Codeの`--print`モードでプロセスを維持する正しい方法
-- インタラクティブモードでの起動が適切かどうか
-
----
-
-### タスク33.2: Diff表示の読み込み中フリーズ問題修正（BUG-002）
-
-**説明**:
-セッション詳細画面のDiffタブで「差分を読み込み中...」と表示されたまま止まる問題を修正する。
-
-**現象**:
-- Diffタブをクリック → 「差分を読み込み中...」表示
-- ファイルリストも差分ビューワーも読み込み中のまま止まる
-- ページリロード後も同様
-
-**サーバーログ分析**:
-```text
-07:38:00 [info]: Got diff for session { id: "58df9ef1-4409-4e95-87f4-ce2c726b528c" }
-```
-サーバー側では正常にデータ取得完了している。
-
-**原因推測**:
-- フロントエンドの状態管理に問題がある可能性
-- Zustandストアの更新がUIに反映されていない可能性
-- APIレスポンスの形式がフロントエンドの期待と異なる可能性
-
-**影響を受ける要件**:
-- REQ-044: Diff表示
-- REQ-045: 追加行/削除行のハイライト
-- REQ-046: ファイル選択でのdiff表示
-- REQ-047: ファイル一覧サイドバー
-
-**実装手順（TDD）**:
-
-1. **調査**: ブラウザのコンソールログを確認し、エラーの有無を調べる
-   - 確認項目: ネットワークタブでAPI応答を確認
-   - 確認項目: `fetchDiff`のPromiseがresolve/rejectしているか
-   - 確認項目: ストアの`diff`プロパティが設定されているか
-
-2. **テスト作成**: `src/store/__tests__/diff-store.test.ts`または関連するテストファイル
-   - APIレスポンスが正しくストアに格納されるテスト
-   - ストア更新がUIコンポーネントに反映されるテスト
-
-3. **テスト実行**: テストが失敗することを確認
-
-4. **テストコミット**: テストのみをコミット
-
-5. **デバッグ**:
-   - `src/store/index.ts`の`fetchDiff`関数を確認
-   - APIレスポンス形式: `{ diff: { files: [], totalAdditions, totalDeletions } }`
-   - ストアが期待する形式: 同上（`data.diff`をそのまま設定）
-   - 問題発見: エラー時/例外時にローディング状態がリセットされない
-
-6. **実装**: 問題箇所を修正
-   - `isDiffLoading`と`diffError`状態を追加
-   - ローディング開始時に`isDiffLoading: true`を設定
-   - 成功/失敗時に`isDiffLoading: false`を設定
-   - エラー時は`diffError`にメッセージを設定
-
-7. **実装コミット**: すべてのテストが通過したらコミット
-
-**技術的文脈**:
-- Diffストア: src/store/index.ts
-- Diff取得API: src/app/api/sessions/[id]/diff/route.ts
-- Diffコンポーネント: src/components/git/DiffViewer.tsx
-
-**受入基準**:
-- [ ] テストファイルが存在する
-- [ ] Diffタブでファイル一覧が表示される
-- [ ] ファイルを選択するとdiff内容が表示される
-- [ ] 追加行/削除行が正しくハイライトされる
-- [ ] すべてのテストが通過する（`npm test`）
-- [ ] ESLintエラーがゼロである
-- [ ] コミットが存在する
-
-**依存関係**: なし
-
-**推定工数**: 40分（AIエージェント作業時間）
-- 調査・原因特定: 15分
-- テスト作成・コミット: 10分
-- 実装・テスト通過・コミット: 15分
-
-**ステータス**: `DONE`
-
-**情報の明確性**:
-
-**明示された情報**:
-- サーバー側は正常動作（ログ確認済み）
-- フロントエンドで問題発生
-
-**不明/要確認の情報**:
-- ブラウザコンソールのエラー内容
-- APIレスポンスの正確な形式
-- Zustandストアの実際の状態
-
----
-
-### Phase 33完了基準
-
-- [x] タスク33.1が完了している（プロセス再起動修正）
-- [x] タスク33.2が完了している（Diff表示修正）
-- [x] プロセス再起動後にメッセージ送信が可能である
-- [x] Diffタブでファイル一覧と差分が表示される
-- [x] すべてのテストが通過している（`npm test`）
-- [x] ESLintエラーがゼロである
-- [x] すべてのコミットが作成されている
-
-### 解決される要件
-
-**docs/requirements.md**:
-- REQ-021: メッセージ送信（BUG-001修正により完全動作）
-- REQ-044: Diff表示
-- REQ-045: 追加行/削除行のハイライト
-- REQ-046: ファイル選択でのdiff表示
-- REQ-047: ファイル一覧サイドバー
-- REQ-079: プロセス再起動（BUG-001修正）
-- REQ-080: プロセス状態更新（BUG-001修正）
-
-### 技術的な学び
-
-- Claude Code CLIの`--print`モードの動作特性
-- Zustandストアのデバッグ手法
-- APIレスポンスとフロントエンド状態の整合性確認
-
----
 
 ## Phase 34: ブラウザ通知システム
 
@@ -2375,247 +1412,6 @@ function getTitle(event: NotificationEvent): string {
 
 ---
 
-## Phase 35: 網羅的検証で発見された不具合修正
-
-検証レポート: `docs/verification-report-phase35.md`
-
-### 概要
-
-Phase 34完了後のnodejs-architectureブランチにおいて、仕様書（requirements.md）に基づく網羅的なUIテストを実施。プロジェクト管理、セッション管理、セッション詳細ページにおいて複数の不具合を発見。
-
-### タスク35.1: プロジェクト名クリックで遷移しない問題の修正 (BUG-001)
-
-**説明**:
-`src/components/projects/ProjectCard.tsx` のプロジェクト名（h3要素）をクリック可能にし、セッション一覧画面への遷移を実装する。
-
-**関連要件**: REQ-004
-**重要度**: Medium
-
-**再現手順**:
-1. ダッシュボードにログイン
-2. プロジェクト一覧でプロジェクト名（heading）をクリック
-
-**期待動作**: セッション一覧画面に遷移
-**実際の動作**: 何も起きない
-
-**修正方針**:
-1. `src/components/projects/ProjectCard.tsx` を確認
-2. プロジェクト名のh3要素にonClickハンドラを追加
-3. `router.push(/projects/${projectId})` でセッション一覧に遷移
-4. cursor: pointer スタイルを追加
-
-**実装詳細**:
-```typescript
-// src/components/projects/ProjectCard.tsx
-<h3
-  className="text-lg font-semibold cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"
-  onClick={() => onOpen(project.id)}
->
-  {project.name}
-</h3>
-```
-
-**受入基準**:
-- [ ] プロジェクト名クリック時にセッション一覧画面に遷移する
-- [ ] ホバー時にカーソルがポインターになる
-- [ ] ホバー時に色が変わる（視覚的フィードバック）
-- [ ] ESLintエラーがゼロである
-
-**依存関係**: なし
-**推定工数**: 15分（AIエージェント作業時間）
-**ステータス**: `DONE`
-
-**完了日**: 2025-12-25
-**修正内容**:
-- `handleNameClick`関数を追加
-- h3要素にonClickハンドラとホバースタイルを追加
-- テストを2件追加
-
----
-
-### タスク35.2: 「開く」ボタンクリックで遷移しない問題の修正 (BUG-002) [誤検出]
-
-**説明**:
-`src/components/projects/ProjectCard.tsx` の「開く」ボタンのonClickハンドラが正しく動作するように修正する。
-
-**関連要件**: REQ-005
-**重要度**: Medium
-
-**再現手順**:
-1. ダッシュボードにログイン
-2. プロジェクト一覧で「開く」ボタンをクリック
-
-**期待動作**: プロジェクト詳細画面に遷移
-**実際の動作**: 何も起きない
-
-**回避策**: サイドバーのプロジェクトボタンからは遷移可能
-
-**修正方針**:
-1. `src/components/projects/ProjectCard.tsx` の「開く」ボタンを確認
-2. onClickハンドラの実装を検証
-3. イベント伝播の問題がないか確認（e.stopPropagation()の必要性）
-4. 必要に応じてボタンのtype属性を設定
-
-**調査ファイル**:
-- `src/components/projects/ProjectCard.tsx`
-- `src/app/page.tsx`（親コンポーネント）
-
-**受入基準**:
-- [ ] 「開く」ボタンクリック時にプロジェクト詳細画面に遷移する
-- [ ] ボタンが正しくクリック可能である
-- [ ] ESLintエラーがゼロである
-
-**依存関係**: なし
-**推定工数**: 20分（AIエージェント作業時間）
-**ステータス**: `N/A`
-
-**理由**: 誤検出。再検証の結果、「開く」ボタンは正常に動作していた。Chrome DevTools MCPのスナップショット取得遅延により、遷移が確認できていなかっただけ。
-
----
-
-### タスク35.3: セッションカードクリックでセッション詳細に遷移しない問題の修正 (BUG-003) [誤検出]
-
-**説明**:
-`src/components/sessions/SessionCard.tsx` のクリックハンドラが正しく動作するように修正する。コードにはonClickが実装されているが、実際にクリックイベントが発火していない。
-
-**関連要件**: REQ-010
-**重要度**: High
-
-**再現手順**:
-1. プロジェクト詳細ページでセッション一覧を表示
-2. セッションカードをクリック
-
-**期待動作**: セッション詳細画面に遷移
-**実際の動作**: 何も起きない
-
-**原因調査**:
-- `src/components/sessions/SessionCard.tsx` にはonClickハンドラが実装されている
-- `onClick={handleClick}` が `<div>` に設定されている
-- イベント伝播やReactのイベントハンドリングに問題がある可能性
-
-**修正方針**:
-1. SessionCard.tsxのクリックハンドラの実装を確認
-2. 子要素がクリックイベントを阻害していないか確認
-3. tabIndex, role="button" の追加を検討
-4. イベントバブリングの問題を確認
-
-**調査ファイル**:
-- `src/components/sessions/SessionCard.tsx`
-- `src/components/sessions/SessionList.tsx`
-- `src/app/projects/[id]/page.tsx`
-
-**受入基準**:
-- [ ] セッションカードクリック時にセッション詳細画面に遷移する
-- [ ] カード全体がクリック可能である
-- [ ] キーボードアクセシビリティ（Enter/Spaceでクリック）
-- [ ] ESLintエラーがゼロである
-
-**依存関係**: なし
-**推定工数**: 30分（AIエージェント作業時間）
-**ステータス**: `N/A`
-
-**理由**: 誤検出。再検証の結果、セッションカードクリックは正常に動作していた。Chrome DevTools MCPのスナップショット取得遅延により、遷移が確認できていなかっただけ。
-
----
-
-### タスク35.4: セッション詳細ページの読み込み問題の修正 (BUG-004) [部分解決]
-
-**説明**:
-セッション詳細ページ（`/sessions/{sessionId}`）が「読み込み中...」のまま止まる問題を修正する。WebSocket認証エラーとAPI 404エラーが発生している。
-
-**関連要件**: REQ-021~028, REQ-077~083
-**重要度**: Critical
-
-**再現手順**:
-1. `/sessions/{sessionId}` に直接アクセス
-2. または何らかの方法でセッション詳細に遷移
-
-**期待動作**: セッション詳細ページが表示される
-**実際の動作**: 「読み込み中...」のまま止まる
-
-**コンソールエラー**:
-```
-WebSocket connection to 'ws://localhost:3000/ws/sessions/{id}' failed: HTTP Authentication failed; no valid credentials available
-Failed to load resource: the server responded with a status of 404 (Not Found)
-Failed to fetch session detail: [error]
-Failed to check process status: Not Found
-```
-
-**原因分析**:
-1. WebSocket認証エラー: クッキーベースの認証がWebSocket接続時に失敗
-2. セッションAPI 404: `/api/sessions/{id}` が該当セッションを見つけられない
-3. プロセスステータスAPI 404: `/api/sessions/{id}/process` が失敗
-
-**修正方針**:
-
-**サブタスク35.4.1: WebSocket認証の調査と修正**
-- `src/lib/websocket/auth-middleware.ts` を確認
-- `server.ts` のWebSocket認証部分を確認
-- クッキー認証がWebSocket接続時に正しく渡されているか確認
-
-**サブタスク35.4.2: セッションAPI 404の調査と修正**
-- `src/app/api/sessions/[id]/route.ts` を確認
-- データベースにセッションが存在するか確認
-- クエリ条件（project_id等）が正しいか確認
-
-**サブタスク35.4.3: プロセスステータスAPI 404の調査と修正**
-- `src/app/api/sessions/[id]/process/route.ts` を確認
-- セッションIDの検証ロジックを確認
-
-**調査ファイル**:
-- `src/lib/websocket/auth-middleware.ts`
-- `src/app/api/sessions/[id]/route.ts`
-- `src/app/api/sessions/[id]/process/route.ts`
-- `server.ts` (WebSocket認証部分)
-- `src/app/sessions/[id]/page.tsx`
-
-**受入基準**:
-- [ ] セッション詳細ページが正常に読み込まれる
-- [ ] WebSocket接続が成功する
-- [ ] セッションAPIが正しいデータを返す
-- [ ] プロセスステータスAPIが正しいデータを返す
-- [ ] エラーメッセージがコンソールに出力されない
-- [ ] ESLintエラーがゼロである
-
-**依存関係**: なし
-**推定工数**: 60分（AIエージェント作業時間）
-**ステータス**: `PARTIAL`
-
-**部分解決日**: 2025-12-25
-**調査結果**:
-- ページ自体は正常に読み込まれる（「読み込み中...」で止まらない）
-- セッション情報、タブ、入力フォームが表示される
-- WebSocket接続に警告が出るが、ページの基本機能は動作する
-
-**残存問題**:
-- WebSocket接続時に警告: "WebSocket is closed before the connection is established"
-- WebSocketステータスが「disconnected」と表示される
-
----
-
-### Phase 35完了基準
-
-- [x] タスク35.1が完了している（プロジェクト名クリック遷移）
-- [x] タスク35.2が完了している（開くボタン遷移）※誤検出、元々動作していた
-- [x] タスク35.3が完了している（セッションカードクリック遷移）※誤検出、元々動作していた
-- [x] タスク35.4が部分完了（ページ読み込みは成功、WebSocket警告のみ残存）
-- [x] プロジェクト名クリックでセッション一覧に遷移できる
-- [x] 「開く」ボタンクリックでプロジェクト詳細に遷移できる
-- [x] セッションカードクリックでセッション詳細に遷移できる
-- [x] セッション詳細ページが正常に読み込まれる
-- [ ] すべてのテストが通過している（`npm test`）
-- [ ] ESLintエラーがゼロである
-
-### 解決される要件
-
-**docs/requirements.md**:
-- REQ-004: プロジェクト名クリックでセッション一覧に遷移
-- REQ-005: 「開く」ボタンクリックでプロジェクト詳細に遷移
-- REQ-010: セッションクリックでセッション詳細に遷移
-- REQ-021~028: セッション詳細ページの各機能
-- REQ-077~083: セッション詳細の追加機能
-
----
 
 ## Phase 38: 包括的UI検証で発見された不具合修正
 
@@ -2900,3 +1696,561 @@ Gitリポジトリでないパスを入力した場合のエラーメッセー�
 - REQ-014: セッション選択でセッション詳細表示
 - REQ-015: セッションステータスアイコン表示
 - REQ-058-062: ターミナル機能
+
+---
+
+
+## Phase 39: ターミナル表示不具合修正
+
+**目的**: Phase 38総合検証で発見されたターミナル表示の不具合を修正する
+
+### タスク39.1: Terminalタブでターミナルコンテンツが表示されない問題の修正 (BUG-006)
+
+**説明**:
+セッション詳細画面のTerminalタブを選択しても、ターミナルUIが空白のまま表示されない問題を修正する。
+
+**関連要件**: REQ-058
+**重要度**: High
+
+**期待動作**:
+- REQ-058: ターミナルタブでセッションのターミナルが表示される
+- ターミナルヘッダー（「Terminal」タイトル、接続状態インジケーター）が表示される
+- XTerm.jsターミナルが描画される
+
+**実際の動作**:
+- Terminalタブを選択するとコンテンツエリアが完全に空白
+- ヘッダーも接続状態インジケーターも表示されない
+- XTerm.jsの描画が行われない
+
+**スクリーンショット**: `test-screenshots/comprehensive-test/terminal-tab.png`
+
+**調査ファイル**:
+- `src/components/sessions/TerminalPanel.tsx` - ターミナルパネルコンポーネント
+- `src/hooks/useTerminal.ts` - ターミナルフック
+- `src/app/sessions/[id]/page.tsx` - セッション詳細ページ
+
+**調査ポイント**:
+1. TerminalPanelコンポーネントが正しくレンダリングされているか
+2. useTerminalフックが正しく初期化されているか
+3. タブ切り替え時のコンポーネントマウント/アンマウントが正しく処理されているか
+4. XTerm.jsのopen()呼び出しが成功しているか
+5. コンテナ要素のサイズが0になっていないか
+
+**修正方針**:
+1. コンソールログを追加してデバッグ情報を収集
+2. TerminalPanelのマウント状態を確認
+3. XTerm.jsの初期化シーケンスを検証
+4. CSSでの表示/非表示制御を確認
+
+**実装手順**:
+1. 原因調査: ブラウザのDevToolsでコンポーネントの状態を確認
+2. 問題箇所の特定: レンダリング、初期化、またはスタイリングの問題を特定
+3. 修正実装: 特定された問題を修正
+4. テスト: 手動でTerminalタブの動作を確認
+5. リグレッションテスト: 既存のテストが通過することを確認
+
+**受入基準**:
+- [ ] Terminalタブをクリックするとターミナルヘッダーが表示される
+- [ ] 接続状態インジケーター（Connected/Disconnected）が表示される
+- [ ] XTerm.jsターミナルが描画される
+- [ ] ターミナルへの入力が可能である
+- [ ] WebSocket経由でPTYと通信できる
+- [ ] ウィンドウリサイズ時にターミナルがリサイズされる
+- [ ] ESLintエラーがゼロである
+
+**依存関係**: なし
+**推定工数**: 60分（AIエージェント作業時間）
+**ステータス**: `TODO`
+
+---
+
+### Phase 39完了基準
+
+- [ ] タスク39.1が完了している（ターミナル表示修正）
+- [ ] Terminalタブでターミナルが正常に表示される
+- [ ] すべてのテストが通過している（`npm test`）
+- [ ] ESLintエラーがゼロである
+
+### 解決される要件
+
+**docs/requirements.md**:
+- REQ-058: ターミナルタブでセッションのターミナルが表示される
+
+---
+
+
+## Phase 40: プロセスライフサイクル管理
+
+**目的**: Claude Codeプロセスの自動停止・再開機能を実装し、サーバーリソースの効率的な利用を実現する
+
+**関連要件**: REQ-094〜REQ-108（Story 17: プロセスライフサイクル管理）
+
+### タスク40.1: Prismaスキーマの更新
+
+**説明**:
+sessionsテーブルにプロセスライフサイクル管理用のカラムを追加する。
+
+**実装ファイル**:
+- `prisma/schema.prisma`
+
+**実装手順（TDD）**:
+1. Prismaスキーマを更新
+   - `resume_session_id` カラム追加（String?, Claude Codeの--resume用セッションID）
+   - `last_activity_at` カラム追加（DateTime?, 最終アクティビティ日時）
+   - `status`のコメントに`paused`を追加
+2. `npx prisma db push`でスキーマを反映
+3. `npx prisma generate`でクライアントを再生成
+
+**受入基準**:
+- [ ] `resume_session_id`カラムがsessionsテーブルに存在する
+- [ ] `last_activity_at`カラムがsessionsテーブルに存在する
+- [ ] Prismaクライアントが正しく生成される
+- [ ] 既存のセッションデータが保持される
+
+**依存関係**: なし
+**推定工数**: 15分（AIエージェント作業時間）
+**ステータス**: `TODO`
+
+---
+
+### タスク40.2: ProcessLifecycleManagerの実装
+
+**説明**:
+プロセスライフサイクル管理を担当する新しいサービスクラスを実装する。
+
+**実装ファイル**:
+- `src/services/process-lifecycle-manager.ts`（新規）
+- `src/services/__tests__/process-lifecycle-manager.test.ts`（新規）
+
+**実装手順（TDD）**:
+
+1. テスト作成: `src/services/__tests__/process-lifecycle-manager.test.ts`
+   - シングルトンインスタンスの取得テスト
+   - アクティビティ更新テスト
+   - アイドルプロセス検出テスト
+   - プロセス停止テスト
+   - グレースフルシャットダウンテスト
+
+2. テスト実行: すべてのテストが失敗することを確認
+
+3. 実装: `src/services/process-lifecycle-manager.ts`
+   ```typescript
+   interface ProcessLifecycleState {
+     sessionId: string;
+     lastActivityAt: Date;
+     isPaused: boolean;
+     resumeSessionId: string | null;
+   }
+
+   class ProcessLifecycleManager {
+     private static instance: ProcessLifecycleManager | null = null;
+     private activityMap: Map<string, Date> = new Map();
+     private idleCheckInterval: NodeJS.Timer | null = null;
+
+     static getInstance(): ProcessLifecycleManager;
+     updateActivity(sessionId: string): void;
+     getLastActivity(sessionId: string): Date | null;
+     startIdleChecker(): void;
+     stopIdleChecker(): void;
+     async pauseIdleProcesses(): Promise<string[]>;
+     async initiateShutdown(): Promise<void>;
+     async resumeSession(sessionId: string, resumeSessionId?: string): Promise<void>;
+   }
+   ```
+
+4. すべてのテストが通過するまで実装を修正
+
+**受入基準**:
+- [ ] ProcessLifecycleManagerクラスが実装されている
+- [ ] シングルトンパターン（globalThis対応）が実装されている
+- [ ] アクティビティトラッキング機能が実装されている
+- [ ] アイドルプロセス検出機能が実装されている
+- [ ] グレースフルシャットダウン機能が実装されている
+- [ ] すべてのテストが通過する（`npm test`）
+- [ ] ESLintエラーがゼロである
+
+**依存関係**: タスク40.1
+**推定工数**: 60分（AIエージェント作業時間）
+**ステータス**: `TODO`
+
+---
+
+### タスク40.3: ProcessManagerへの--resumeオプション追加
+
+**説明**:
+ProcessManagerのstartClaudeCodeメソッドに--resumeオプションのサポートを追加する。
+
+**実装ファイル**:
+- `src/services/process-manager.ts`
+- `src/services/__tests__/process-manager.test.ts`
+
+**実装手順（TDD）**:
+
+1. テスト追加: `src/services/__tests__/process-manager.test.ts`
+   - resumeオプション付きでプロセス起動するテスト
+   - resumeオプションなしの既存動作確認テスト
+
+2. テスト実行: 新しいテストが失敗することを確認
+
+3. 実装:
+   - StartOptionsインターフェースに`resume?: string`を追加
+   - startClaudeCodeメソッドで`--resume`オプションを処理
+   ```typescript
+   if (options.resume) {
+     args.push('--resume', options.resume);
+   }
+   ```
+
+4. すべてのテストが通過するまで実装を修正
+
+**受入基準**:
+- [ ] StartOptionsに`resume`プロパティが追加されている
+- [ ] `claude --resume <session-id>`形式でプロセスが起動できる
+- [ ] resumeオプションなしの既存動作が維持される
+- [ ] すべてのテストが通過する（`npm test`）
+- [ ] ESLintエラーがゼロである
+
+**依存関係**: なし
+**推定工数**: 30分（AIエージェント作業時間）
+**ステータス**: `TODO`
+
+---
+
+### タスク40.4: サーバーシャットダウンハンドラの実装
+
+**説明**:
+server.tsにSIGTERM/SIGINTシグナルハンドラを追加し、グレースフルシャットダウンを実装する。
+
+**実装ファイル**:
+- `server.ts`
+
+**実装内容**:
+1. ProcessLifecycleManagerのインポート
+2. SIGTERM/SIGINTシグナルハンドラの登録
+3. シャットダウン時の処理:
+   - 全WebSocket接続に`server_shutdown`メッセージ送信
+   - ProcessLifecycleManager.initiateShutdown()呼び出し
+   - 5秒のグレース期間後にprocess.exit(0)
+
+```typescript
+import { getProcessLifecycleManager } from './src/services/process-lifecycle-manager';
+
+const gracefulShutdown = async (signal: string) => {
+  logger.info(`Received ${signal}, initiating graceful shutdown...`);
+  
+  // WebSocket通知
+  connectionManager.broadcastAll({
+    type: 'server_shutdown',
+    reason: signal,
+    gracePeriodSeconds: 5
+  });
+  
+  // プロセス停止
+  const plm = getProcessLifecycleManager();
+  await plm.initiateShutdown();
+  
+  logger.info('Graceful shutdown completed');
+  process.exit(0);
+};
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+```
+
+**受入基準**:
+- [ ] SIGTERM受信時に全プロセスが停止される
+- [ ] SIGINT受信時に全プロセスが停止される
+- [ ] WebSocketクライアントにserver_shutdownメッセージが送信される
+- [ ] 5秒のグレース期間後にサーバーが終了する
+- [ ] ログに適切なシャットダウンメッセージが出力される
+- [ ] ESLintエラーがゼロである
+
+**依存関係**: タスク40.2
+**推定工数**: 30分（AIエージェント作業時間）
+**ステータス**: `TODO`
+
+---
+
+### タスク40.5: アイドルタイムアウトチェッカーの実装
+
+**説明**:
+定期的にアイドルプロセスをチェックし、タイムアウトしたプロセスを自動停止する機能を実装する。
+
+**実装ファイル**:
+- `src/services/process-lifecycle-manager.ts`（タスク40.2の拡張）
+- `src/services/__tests__/process-lifecycle-manager.test.ts`
+
+**環境変数**:
+- `PROCESS_IDLE_TIMEOUT_MINUTES`: アイドルタイムアウト（分）。デフォルト30。0で無効化。
+
+**実装手順（TDD）**:
+
+1. テスト追加:
+   - 環境変数からタイムアウト値を読み取るテスト
+   - タイムアウト0で無効化されるテスト
+   - タイムアウト超過プロセスが検出されるテスト
+   - WebSocket通知が送信されるテスト
+   - DB更新（status='paused'）が実行されるテスト
+
+2. テスト実行: 新しいテストが失敗することを確認
+
+3. 実装:
+   - 環境変数の読み取りとバリデーション
+   - setIntervalによる1分間隔のチェック
+   - アイドルプロセスの検出とstatus='paused'への更新
+   - WebSocket経由での通知
+
+4. すべてのテストが通過するまで実装を修正
+
+**受入基準**:
+- [ ] PROCESS_IDLE_TIMEOUT_MINUTES環境変数が読み取られる
+- [ ] 1分間隔でアイドルチェックが実行される
+- [ ] タイムアウト超過プロセスが停止される
+- [ ] セッションステータスが'paused'に更新される
+- [ ] WebSocketでprocess_pausedメッセージが送信される
+- [ ] resume_session_idがDBに保存される
+- [ ] タイムアウト0で機能が無効化される
+- [ ] すべてのテストが通過する（`npm test`）
+- [ ] ESLintエラーがゼロである
+
+**依存関係**: タスク40.2, タスク40.4
+**推定工数**: 45分（AIエージェント作業時間）
+**ステータス**: `TODO`
+
+---
+
+### タスク40.6: セッション再開APIの実装
+
+**説明**:
+POST /api/sessions/{id}/resumeエンドポイントを実装し、一時停止中のセッションを再開できるようにする。
+
+**実装ファイル**:
+- `src/app/api/sessions/[id]/resume/route.ts`（新規）
+- `src/app/api/sessions/[id]/resume/__tests__/route.test.ts`（新規）
+
+**実装手順（TDD）**:
+
+1. テスト作成:
+   - paused状態のセッションが再開できるテスト
+   - resume_session_id使用時に--resumeで起動するテスト
+   - paused以外の状態で400エラーを返すテスト
+   - 存在しないセッションで404エラーを返すテスト
+
+2. テスト実行: すべてのテストが失敗することを確認
+
+3. 実装:
+   ```typescript
+   export async function POST(
+     request: NextRequest,
+     { params }: { params: { id: string } }
+   ) {
+     // 認証チェック
+     // セッション取得
+     // status='paused'確認
+     // ProcessLifecycleManager.resumeSession()呼び出し
+     // レスポンス返却
+   }
+   ```
+
+4. すべてのテストが通過するまで実装を修正
+
+**受入基準**:
+- [ ] POST /api/sessions/{id}/resumeエンドポイントが実装されている
+- [ ] paused状態のセッションが再開できる
+- [ ] resume_session_idがある場合--resumeで起動される
+- [ ] 再開後のステータスがrunningになる
+- [ ] paused以外の状態で400エラーが返される
+- [ ] 存在しないセッションで404エラーが返される
+- [ ] すべてのテストが通過する（`npm test`）
+- [ ] ESLintエラーがゼロである
+
+**依存関係**: タスク40.2, タスク40.3
+**推定工数**: 45分（AIエージェント作業時間）
+**ステータス**: `TODO`
+
+---
+
+### タスク40.7: WebSocketライフサイクルメッセージの実装
+
+**説明**:
+WebSocketハンドラにプロセスライフサイクルイベントの通知機能を追加する。
+
+**実装ファイル**:
+- `src/types/websocket.ts`
+- `src/lib/websocket/session-websocket-handler.ts`
+- `src/lib/websocket/__tests__/session-websocket-handler.test.ts`
+
+**実装手順（TDD）**:
+
+1. テスト追加:
+   - process_pausedメッセージの送信テスト
+   - process_resumedメッセージの送信テスト
+   - server_shutdownメッセージの送信テスト
+
+2. テスト実行: 新しいテストが失敗することを確認
+
+3. 実装:
+   - WebSocketメッセージ型の拡張
+   ```typescript
+   type WebSocketMessageType =
+     | 'output'
+     | 'permission_request'
+     | 'status_change'
+     | 'error'
+     | 'process_paused'
+     | 'process_resumed'
+     | 'server_shutdown';
+   ```
+   - メッセージ送信メソッドの追加
+
+4. すべてのテストが通過するまで実装を修正
+
+**受入基準**:
+- [ ] WebSocketメッセージ型にライフサイクルイベントが追加されている
+- [ ] process_pausedメッセージが送信できる
+- [ ] process_resumedメッセージが送信できる
+- [ ] server_shutdownメッセージが送信できる
+- [ ] すべてのテストが通過する（`npm test`）
+- [ ] ESLintエラーがゼロである
+
+**依存関係**: なし
+**推定工数**: 30分（AIエージェント作業時間）
+**ステータス**: `TODO`
+
+---
+
+### タスク40.8: フロントエンドのライフサイクル対応
+
+**説明**:
+フロントエンドでプロセスライフサイクルイベントを処理し、適切なUIを表示する。
+
+**実装ファイル**:
+- `src/hooks/useWebSocket.ts`
+- `src/components/sessions/SessionDetail.tsx`
+- `src/app/sessions/[id]/page.tsx`
+
+**実装内容**:
+
+1. useWebSocketフックの拡張:
+   - process_pausedメッセージのハンドリング
+   - process_resumedメッセージのハンドリング
+   - server_shutdownメッセージのハンドリング
+
+2. セッション詳細ページの対応:
+   - paused状態の表示（「セッションは一時停止中です」）
+   - 再開ボタンの表示
+   - 再開ボタンクリックでPOST /api/sessions/{id}/resume呼び出し
+
+3. サーバーシャットダウン通知:
+   - server_shutdownメッセージ受信時にトースト表示
+   - 「サーバーがシャットダウンします」メッセージ
+
+**受入基準**:
+- [ ] paused状態のセッションで「一時停止中」が表示される
+- [ ] 再開ボタンが表示され、クリックでセッションが再開される
+- [ ] 再開後にチャット/ターミナルが利用可能になる
+- [ ] server_shutdown受信時にトースト通知が表示される
+- [ ] ESLintエラーがゼロである
+
+**依存関係**: タスク40.6, タスク40.7
+**推定工数**: 45分（AIエージェント作業時間）
+**ステータス**: `TODO`
+
+---
+
+### タスク40.9: 環境変数ドキュメントの更新
+
+**説明**:
+新しい環境変数をドキュメントに追加する。
+
+**実装ファイル**:
+- `docs/ENV_VARS.md`
+- `CLAUDE.md`
+
+**追加内容**:
+```markdown
+### プロセスライフサイクル
+
+- `PROCESS_IDLE_TIMEOUT_MINUTES`: アイドルタイムアウト時間（分）
+  - デフォルト: 30
+  - 最小値: 5（5未満は5に補正）
+  - 0: 無効化（タイムアウトなし）
+  
+- `PROCESS_SHUTDOWN_GRACE_SECONDS`: シャットダウン時のグレース期間（秒）
+  - デフォルト: 5
+```
+
+**受入基準**:
+- [ ] ENV_VARS.mdに新しい環境変数が記載されている
+- [ ] 各環境変数のデフォルト値と説明がある
+- [ ] CLAUDE.mdの該当セクションが更新されている
+
+**依存関係**: なし
+**推定工数**: 15分（AIエージェント作業時間）
+**ステータス**: `TODO`
+
+---
+
+### タスク40.10: 統合テストとE2Eテスト
+
+**説明**:
+プロセスライフサイクル管理機能の統合テストとE2Eテストを実装する。
+
+**実装ファイル**:
+- `e2e/process-lifecycle.spec.ts`（新規）
+
+**テストシナリオ**:
+
+1. アイドルタイムアウトテスト（短いタイムアウト値で）:
+   - セッション作成
+   - しばらく待機
+   - ステータスがpausedになることを確認
+   - WebSocket通知を確認
+
+2. セッション再開テスト:
+   - paused状態のセッション作成（またはモック）
+   - 再開ボタンクリック
+   - ステータスがrunningになることを確認
+   - チャットが利用可能になることを確認
+
+3. サーバーシャットダウン通知テスト:
+   - WebSocket接続
+   - server_shutdownメッセージをシミュレート
+   - トースト通知が表示されることを確認
+
+**受入基準**:
+- [ ] E2Eテストが作成されている
+- [ ] アイドルタイムアウトのテストが通過する
+- [ ] セッション再開のテストが通過する
+- [ ] サーバーシャットダウン通知のテストが通過する
+- [ ] すべてのE2Eテストが通過する（`npm run e2e`）
+
+**依存関係**: タスク40.1〜40.8
+**推定工数**: 60分（AIエージェント作業時間）
+**ステータス**: `TODO`
+
+---
+
+### Phase 40完了基準
+
+- [ ] タスク40.1が完了している（Prismaスキーマ更新）
+- [ ] タスク40.2が完了している（ProcessLifecycleManager実装）
+- [ ] タスク40.3が完了している（--resumeオプション追加）
+- [ ] タスク40.4が完了している（シャットダウンハンドラ）
+- [ ] タスク40.5が完了している（アイドルタイムアウトチェッカー）
+- [ ] タスク40.6が完了している（セッション再開API）
+- [ ] タスク40.7が完了している（WebSocketライフサイクルメッセージ）
+- [ ] タスク40.8が完了している（フロントエンド対応）
+- [ ] タスク40.9が完了している（ドキュメント更新）
+- [ ] タスク40.10が完了している（統合テスト）
+- [ ] すべてのテストが通過している（`npm test`）
+- [ ] すべてのE2Eテストが通過している（`npm run e2e`）
+- [ ] ESLintエラーがゼロである
+
+### 解決される要件
+
+**docs/requirements.md**:
+- REQ-094〜096: サーバーシャットダウン時のクリーンアップ
+- REQ-097〜101: アイドルタイムアウトによる自動停止
+- REQ-102〜106: セッション再開と会話履歴復元
+- REQ-107〜108: プロセス状態管理

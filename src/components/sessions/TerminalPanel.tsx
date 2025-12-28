@@ -22,6 +22,7 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { terminal, isConnected, fit, error } = useTerminal(sessionId);
   const [mounted, setMounted] = useState(false);
+  const [isTerminalOpened, setIsTerminalOpened] = useState(false);
 
   // クライアントサイドでのみレンダリング
   useEffect(() => {
@@ -30,22 +31,56 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
 
   // ターミナルをDOMにマウント
   useEffect(() => {
-    if (terminal && containerRef.current && mounted) {
+    // タイマー参照を保持（クリーンアップ用）
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    // コンポーネントがアンマウントされたかどうかを追跡
+    let isMounted = true;
+
+    const tryOpenTerminal = () => {
+      if (!isMounted || !terminal || !containerRef.current || isTerminalOpened) {
+        return;
+      }
+
       try {
-        terminal.open(containerRef.current);
-        // 初期リサイズ - DOMレンダリング完了後に実行
-        requestAnimationFrame(() => {
-          fit();
-        });
+        const container = containerRef.current;
+        const rect = container.getBoundingClientRect();
+
+        // サイズがある場合のみopen()を実行
+        if (rect.width > 0 && rect.height > 0) {
+          terminal.open(container);
+          setIsTerminalOpened(true);
+
+          // 初期リサイズ - DOMレンダリング完了後に実行
+          requestAnimationFrame(() => {
+            if (isMounted) {
+              fit();
+            }
+          });
+        } else {
+          // サイズがない場合は少し待ってから再試行
+          retryTimer = setTimeout(tryOpenTerminal, 100);
+        }
       } catch (err) {
         console.error('Failed to open terminal:', err);
       }
+    };
+
+    if (terminal && containerRef.current && mounted && !isTerminalOpened) {
+      tryOpenTerminal();
     }
-  }, [terminal, fit, mounted]);
+
+    // クリーンアップ: タイマーとマウント状態をクリア
+    return () => {
+      isMounted = false;
+      if (retryTimer !== undefined) {
+        clearTimeout(retryTimer);
+      }
+    };
+  }, [terminal, fit, mounted, isTerminalOpened]);
 
   // ウィンドウリサイズ時にターミナルをリサイズ
   useEffect(() => {
-    if (!mounted) return;
+    if (!mounted || !isTerminalOpened) return;
 
     const handleResize = () => {
       fit();
@@ -53,7 +88,39 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [fit, mounted]);
+  }, [fit, mounted, isTerminalOpened]);
+
+  // 表示状態が変わった時にリサイズ（IntersectionObserver使用）
+  useEffect(() => {
+    // エフェクト開始時にcontainerRef.currentをキャプチャ
+    // 注意: containerRef.currentは依存配列に含めません。理由:
+    // 1. Reactのルールでref.currentを依存配列に含めることは推奨されない（変更が再レンダリングをトリガーしないため）
+    // 2. このコンテナ要素はこのコンポーネント内でレンダリングされるため、親の再レンダリングで再作成されない
+    // 3. コンポーネントがアンマウント/再マウントされた場合、mountedとisTerminalOpenedの変更で
+    //    エフェクトが再実行され、新しいコンテナ要素を監視する
+    const container = containerRef.current;
+    if (!mounted || !isTerminalOpened || !container) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            // 表示されたらリサイズ
+            requestAnimationFrame(() => {
+              fit();
+            });
+          }
+        });
+      },
+      { threshold: 0.1 }
+    );
+
+    observer.observe(container);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [fit, mounted, isTerminalOpened]);
 
   // SSR時は何も表示しない
   if (!mounted) {
@@ -101,7 +168,7 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
       {/* ターミナルエリア */}
       <div
         ref={containerRef}
-        className="flex-1 p-2"
+        className="flex-1 p-2 min-h-0 w-full h-full"
         role="application"
         aria-label="Terminal"
       />

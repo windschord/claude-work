@@ -115,6 +115,40 @@ export class ConnectionManager {
   }
 
   /**
+   * 全クライアントにメッセージをブロードキャスト
+   *
+   * 全てのセッションの全てのクライアントにメッセージを送信します。
+   * サーバーシャットダウン通知などグローバルなイベントに使用します。
+   *
+   * @param message - 送信するメッセージ（ServerMessage型）
+   */
+  broadcastAll(message: ServerMessage): void {
+    const messageStr = JSON.stringify(message);
+    let totalSent = 0;
+
+    this.connections.forEach((sessionConnections, sessionId) => {
+      sessionConnections.forEach((ws) => {
+        try {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(messageStr);
+            totalSent++;
+          }
+        } catch (error) {
+          logger.error('Failed to send message to WebSocket', {
+            sessionId,
+            error,
+          });
+        }
+      });
+    });
+
+    logger.info('Message broadcasted to all clients', {
+      recipientCount: totalSent,
+      messageType: message.type,
+    });
+  }
+
+  /**
    * セッションの接続数を取得
    *
    * 指定されたセッションIDに接続されているクライアント数を返します。
