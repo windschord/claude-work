@@ -180,12 +180,16 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
     const script = scripts[index];
     if (!project) return;
 
+    // temp-で始まるIDは未保存のスクリプト
+    const isSavedScript = script.id && !script.id.startsWith('temp-');
+
     // 保存済みのスクリプトを削除する場合は確認ダイアログを表示
-    if (script.id && !window.confirm('このスクリプトを削除してもよろしいですか？')) {
+    if (isSavedScript && !window.confirm('このスクリプトを削除してもよろしいですか？')) {
       return;
     }
 
-    if (script.id) {
+    // 保存済みのスクリプトのみAPI経由で削除
+    if (isSavedScript) {
       try {
         const response = await fetch(`/api/projects/${project.id}/scripts/${script.id}`, {
           method: 'DELETE',
