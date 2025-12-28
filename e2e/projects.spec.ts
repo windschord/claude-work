@@ -6,7 +6,7 @@ test.describe('プロジェクト管理機能', () => {
 
   // 各テストの前にログイン
   test.beforeEach(async ({ page }) => {
-    const token = process.env.AUTH_TOKEN || 'test-token';
+    const token = process.env.CLAUDE_WORK_TOKEN || 'test-token';
     await page.goto('/login');
     await page.fill('input#token', token);
     await page.click('button[type="submit"]');

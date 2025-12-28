@@ -13,7 +13,7 @@ test.describe('ログイン機能', () => {
     await page.goto('/login');
 
     // 環境変数からトークンを取得
-    const token = process.env.AUTH_TOKEN || 'test-token';
+    const token = process.env.CLAUDE_WORK_TOKEN || 'test-token';
 
     await page.fill('input#token', token);
     await page.click('button[type="submit"]');

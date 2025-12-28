@@ -25,7 +25,7 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
     env: {
-      AUTH_TOKEN: process.env.AUTH_TOKEN || 'test-token',
+      CLAUDE_WORK_TOKEN: process.env.CLAUDE_WORK_TOKEN || 'test-token',
       SESSION_SECRET: process.env.SESSION_SECRET || 'test-session-secret-key-for-e2e-testing-purposes-only',
       PORT: '3001',
     },
