@@ -89,6 +89,25 @@ export default function SessionDetailPage() {
         const { endRun } = useScriptLogStore.getState();
         endRun(message.runId, message.exitCode, message.signal ?? null, message.executionTime);
       }
+
+      // ライフサイクルイベント処理
+      if (message.type === 'process_paused') {
+        const reasonText = message.reason === 'idle_timeout'
+          ? 'アイドルタイムアウト'
+          : message.reason === 'server_shutdown'
+          ? 'サーバーシャットダウン'
+          : '手動停止';
+        toast(`セッションが一時停止しました: ${reasonText}`, { icon: '⏸️' });
+        setProcessRunning(false);
+      } else if (message.type === 'process_resumed') {
+        const historyText = message.resumedWithHistory ? '（会話履歴を復元）' : '';
+        toast.success(`セッションを再開しました${historyText}`);
+        setProcessRunning(true);
+      } else if (message.type === 'server_shutdown') {
+        toast.error(`サーバーがシャットダウンします（${message.signal}）`, {
+          duration: 10000,
+        });
+      }
     },
     [handleWebSocketMessage]
   );
@@ -205,6 +224,35 @@ export default function SessionDetailPage() {
       setProcessLoading(false);
     }
   }, [sessionId]);
+
+  // 一時停止中のセッションを再開
+  const handleResumeSession = useCallback(async () => {
+    try {
+      setProcessLoading(true);
+      const response = await fetch(`/api/sessions/${sessionId}/resume`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.session) {
+          // セッション詳細を再取得
+          await fetchSessionDetail(sessionId);
+        }
+        setProcessRunning(true);
+        toast.success('セッションを再開しました');
+      } else {
+        const errorData = await response.json();
+        toast.error(`セッション再開に失敗しました: ${errorData.error || response.statusText}`);
+      }
+    } catch (error) {
+      console.error('Failed to resume session:', error);
+      toast.error('セッション再開に失敗しました');
+    } finally {
+      setProcessLoading(false);
+    }
+  }, [sessionId, fetchSessionDetail]);
 
   const handleSendMessage = useCallback(
     (content: string) => {
@@ -331,6 +379,15 @@ export default function SessionDetailPage() {
               >
                 戻る
               </button>
+              {currentSession.status === 'paused' && (
+                <button
+                  onClick={handleResumeSession}
+                  disabled={processLoading}
+                  className="px-4 py-2 min-h-[44px] rounded-lg bg-green-500 text-white hover:bg-green-600 disabled:opacity-50 transition-colors"
+                >
+                  {processLoading ? '再開中...' : '再開'}
+                </button>
+              )}
               {(currentSession.status === 'running' || currentSession.status === 'waiting_input') && (
                 <button
                   onClick={handleStopSession}
