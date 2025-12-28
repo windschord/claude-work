@@ -53,13 +53,15 @@ interface ProcessData {
  *
  * シングルトンパターンを使用して、アプリケーション全体で単一のインスタンスを共有します。
  */
+
 /**
  * グローバルスコープでProcessManagerインスタンスを保持するための型定義
  * Next.jsの開発モードでHot Reloadが発生しても同じインスタンスを使い回すため
  */
-const globalForProcessManager = globalThis as unknown as {
-  processManager: ProcessManager | undefined;
-};
+declare global {
+  // eslint-disable-next-line no-var
+  var processManager: ProcessManager | undefined;
+}
 
 export class ProcessManager extends EventEmitter {
   private static instance: ProcessManager | null = null;
@@ -82,8 +84,8 @@ export class ProcessManager extends EventEmitter {
    */
   static getInstance(): ProcessManager {
     // globalThisから取得を試みる（Next.js Hot Reload対策）
-    if (globalForProcessManager.processManager) {
-      return globalForProcessManager.processManager;
+    if (globalThis.processManager) {
+      return globalThis.processManager;
     }
 
     if (!ProcessManager.instance) {
@@ -92,7 +94,7 @@ export class ProcessManager extends EventEmitter {
 
     // 開発環境ではglobalThisに保存
     if (process.env.NODE_ENV !== 'production') {
-      globalForProcessManager.processManager = ProcessManager.instance;
+      globalThis.processManager = ProcessManager.instance;
     }
 
     return ProcessManager.instance;
@@ -124,7 +126,7 @@ export class ProcessManager extends EventEmitter {
       // シングルトンをnullにリセット（次回getInstance()で新しいインスタンスを生成）
       ProcessManager.instance = null;
       // globalThisからも削除
-      globalForProcessManager.processManager = undefined;
+      globalThis.processManager = undefined;
     }
   }
 

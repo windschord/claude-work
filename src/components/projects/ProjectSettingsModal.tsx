@@ -75,7 +75,10 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
     }
   }, [isOpen, project, fetchScripts]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  /**
+   * すべての設定を保存（モデル設定とスクリプト）
+   */
+  const handleSaveAll = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!project) return;
 
@@ -83,7 +86,8 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
     setIsLoading(true);
 
     try {
-      const response = await fetch(`/api/projects/${project.id}`, {
+      // 1. モデル設定を保存
+      const modelResponse = await fetch(`/api/projects/${project.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -93,15 +97,66 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
         }),
       });
 
-      if (!response.ok) {
+      if (!modelResponse.ok) {
         throw new Error('Failed to update project settings');
       }
 
+      // 2. スクリプトを保存
+      const incompleteScripts = scripts.filter(
+        (s) => !s.name.trim() || !s.command.trim()
+      );
+      if (incompleteScripts.length > 0) {
+        toast.error(`${incompleteScripts.length}件のスクリプトは名前またはコマンドが未入力のためスキップされます`);
+      }
+
+      for (const script of scripts) {
+        if (!script.name.trim() || !script.command.trim()) {
+          continue;
+        }
+
+        const isNewScript = !script.id || script.id.startsWith('temp-');
+
+        if (isNewScript) {
+          const response = await fetch(`/api/projects/${project.id}/scripts`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              name: script.name,
+              description: script.description || '',
+              command: script.command,
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error('Failed to create script');
+          }
+        } else {
+          const response = await fetch(`/api/projects/${project.id}/scripts/${script.id}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              name: script.name,
+              description: script.description || '',
+              command: script.command,
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error('Failed to update script');
+          }
+        }
+      }
+
       await fetchProjects();
-      toast.success('プロジェクト設定を保存しました');
+      await fetchScripts(project.id);
+      toast.success('設定を保存しました');
       onClose();
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'プロジェクト設定の保存に失敗しました';
+      const errorMessage = err instanceof Error ? err.message : '設定の保存に失敗しました';
       setError(errorMessage);
       toast.error(errorMessage);
     } finally {
@@ -152,75 +207,6 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
     setScripts(newScripts);
   };
 
-  const handleSaveScripts = async () => {
-    if (!project) return;
-
-    setError('');
-    setIsLoading(true);
-
-    // 不完全なスクリプトをカウント
-    const incompleteScripts = scripts.filter(
-      (s) => !s.name.trim() || !s.command.trim()
-    );
-    if (incompleteScripts.length > 0) {
-      toast.error(`${incompleteScripts.length}件のスクリプトは名前またはコマンドが未入力のためスキップされます`);
-    }
-
-    try {
-      for (const script of scripts) {
-        if (!script.name.trim() || !script.command.trim()) {
-          continue;
-        }
-
-        // 一時ID（temp-で始まる）は新規スクリプトとして扱う
-        const isNewScript = !script.id || script.id.startsWith('temp-');
-
-        if (isNewScript) {
-          const response = await fetch(`/api/projects/${project.id}/scripts`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              name: script.name,
-              description: script.description || '',
-              command: script.command,
-            }),
-          });
-
-          if (!response.ok) {
-            throw new Error('Failed to create script');
-          }
-        } else {
-          const response = await fetch(`/api/projects/${project.id}/scripts/${script.id}`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              name: script.name,
-              description: script.description || '',
-              command: script.command,
-            }),
-          });
-
-          if (!response.ok) {
-            throw new Error('Failed to update script');
-          }
-        }
-      }
-
-      await fetchScripts(project.id);
-      toast.success('スクリプトを保存しました');
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'スクリプトの保存に失敗しました';
-      setError(errorMessage);
-      toast.error(errorMessage);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleClose = () => {
     setError('');
     onClose();
@@ -262,7 +248,7 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
                   プロジェクト設定
                 </Dialog.Title>
 
-                <form onSubmit={handleSubmit}>
+                <form onSubmit={handleSaveAll}>
                   <div className="mb-6">
                     <label
                       htmlFor="default-model"
@@ -368,19 +354,11 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
                       キャンセル
                     </button>
                     <button
-                      type="button"
-                      onClick={handleSaveScripts}
-                      className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      disabled={isLoading}
-                    >
-                      {isLoading ? 'スクリプト保存中...' : 'スクリプトを保存'}
-                    </button>
-                    <button
                       type="submit"
                       className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       disabled={isLoading}
                     >
-                      {isLoading ? '保存中...' : '保存'}
+                      {isLoading ? '保存中...' : 'すべて保存'}
                     </button>
                   </div>
                 </form>
