@@ -20,7 +20,10 @@ export type ServerMessage =
   | { type: 'status_change'; status: SessionStatus }
   | { type: 'error'; content: string }
   | { type: 'run_script_log'; runId: string; level: 'info' | 'error'; content: string; timestamp: number }
-  | { type: 'run_script_exit'; runId: string; exitCode: number | null; signal: string | null; executionTime: number };
+  | { type: 'run_script_exit'; runId: string; exitCode: number | null; signal: string | null; executionTime: number }
+  | { type: 'process_paused'; reason: ProcessPauseReason }
+  | { type: 'process_resumed'; resumedWithHistory: boolean }
+  | { type: 'server_shutdown'; signal: 'SIGTERM' | 'SIGINT' };
 
 /**
  * サブエージェント情報
@@ -42,7 +45,12 @@ export interface PermissionRequest {
 /**
  * セッションステータス
  */
-export type SessionStatus = 'initializing' | 'running' | 'waiting_input' | 'completed' | 'error';
+export type SessionStatus = 'initializing' | 'running' | 'waiting_input' | 'paused' | 'completed' | 'error';
+
+/**
+ * プロセス一時停止理由
+ */
+export type ProcessPauseReason = 'idle_timeout' | 'manual' | 'server_shutdown';
 
 /**
  * ProcessManagerイベントデータ型

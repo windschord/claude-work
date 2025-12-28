@@ -13,6 +13,7 @@ import type {
   ProcessManagerErrorEvent,
   ProcessManagerExitEvent,
   SessionStatus,
+  ProcessPauseReason,
 } from '@/types/websocket';
 
 /**
@@ -34,6 +35,7 @@ export class SessionWebSocketHandler {
     this.lifecycleManager = getProcessLifecycleManager();
     this.setupProcessManagerListeners();
     this.setupRunScriptManagerListeners();
+    this.setupLifecycleManagerListeners();
   }
 
   /**
@@ -143,6 +145,55 @@ export class SessionWebSocketHandler {
         executionTime: data.executionTime,
       };
       this.connectionManager.broadcast(data.sessionId, message);
+    });
+  }
+
+  /**
+   * ProcessLifecycleManagerのイベントリスナーをセットアップ
+   *
+   * ライフサイクルイベントをWebSocketメッセージに変換し、
+   * クライアントにブロードキャストします。
+   */
+  private setupLifecycleManagerListeners(): void {
+    // プロセス一時停止をブロードキャスト
+    this.lifecycleManager.on('processPaused', (sessionId: string, reason: ProcessPauseReason) => {
+      const message: ServerMessage = {
+        type: 'process_paused',
+        reason,
+      };
+      this.connectionManager.broadcast(sessionId, message);
+
+      // ステータス変更も通知
+      const statusMessage: ServerMessage = {
+        type: 'status_change',
+        status: 'paused',
+      };
+      this.connectionManager.broadcast(sessionId, statusMessage);
+    });
+
+    // プロセス再開をブロードキャスト
+    this.lifecycleManager.on('processResumed', (sessionId: string, resumedWithHistory: boolean) => {
+      const message: ServerMessage = {
+        type: 'process_resumed',
+        resumedWithHistory,
+      };
+      this.connectionManager.broadcast(sessionId, message);
+
+      // ステータス変更も通知
+      const statusMessage: ServerMessage = {
+        type: 'status_change',
+        status: 'running',
+      };
+      this.connectionManager.broadcast(sessionId, statusMessage);
+    });
+
+    // サーバーシャットダウンをブロードキャスト（全クライアントに通知）
+    this.lifecycleManager.on('serverShutdown', (signal: 'SIGTERM' | 'SIGINT') => {
+      const message: ServerMessage = {
+        type: 'server_shutdown',
+        signal,
+      };
+      this.connectionManager.broadcastAll(message);
     });
   }
 
