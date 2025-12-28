@@ -43,16 +43,35 @@ export class SessionWebSocketHandler {
    *
    * ProcessManagerからのイベントをWebSocketメッセージに変換し、
    * クライアントにブロードキャストします。
+   * 出力メッセージはデータベースにも保存されます。
    */
   private setupProcessManagerListeners(): void {
-    // Claude Codeの出力をブロードキャスト
-    this.processManager.on('output', (data: ProcessManagerOutputEvent) => {
+    // Claude Codeの出力をブロードキャストし、データベースに保存
+    this.processManager.on('output', async (data: ProcessManagerOutputEvent) => {
       const message: ServerMessage = {
         type: 'output',
         content: data.content,
         subAgent: data.subAgent,
       };
       this.connectionManager.broadcast(data.sessionId, message);
+
+      // メッセージをデータベースに保存
+      try {
+        await prisma.message.create({
+          data: {
+            session_id: data.sessionId,
+            role: 'assistant',
+            content: data.content,
+            sub_agents: data.subAgent ? JSON.stringify(data.subAgent) : null,
+          },
+        });
+        logger.debug('Output message saved to database', { sessionId: data.sessionId });
+      } catch (error) {
+        logger.error('Failed to save output message to database', {
+          sessionId: data.sessionId,
+          error,
+        });
+      }
     });
 
     // 権限確認リクエストをブロードキャスト
@@ -317,7 +336,7 @@ export class SessionWebSocketHandler {
   /**
    * 入力メッセージを処理
    *
-   * ユーザーからの入力をProcessManagerに転送します。
+   * ユーザーからの入力をProcessManagerに転送し、データベースに保存します。
    *
    * @param sessionId - セッションID
    * @param content - 入力内容
@@ -336,6 +355,23 @@ export class SessionWebSocketHandler {
         };
         this.connectionManager.broadcast(sessionId, errorMessage);
         return;
+      }
+
+      // ユーザーメッセージをデータベースに保存
+      try {
+        await prisma.message.create({
+          data: {
+            session_id: sessionId,
+            role: 'user',
+            content,
+          },
+        });
+        logger.debug('User message saved to database', { sessionId });
+      } catch (dbError) {
+        logger.error('Failed to save user message to database', {
+          sessionId,
+          error: dbError,
+        });
       }
 
       await this.processManager.sendInput(sessionId, content);

@@ -214,6 +214,15 @@ export async function POST(
     }
 
     try {
+      // 初期プロンプトをユーザーメッセージとして保存
+      await prisma.message.create({
+        data: {
+          session_id: newSession.id,
+          role: 'user',
+          content: prompt,
+        },
+      });
+
       await processManager.startClaudeCode({
         sessionId: newSession.id,
         worktreePath,
