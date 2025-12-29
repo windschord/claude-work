@@ -237,8 +237,22 @@ function sendNotification(event: NotificationEvent): void {
 - 権限確認リクエストの検出
 - サブエージェント出力の検出
 - プロセス異常終了の検出
+- stream-jsonメッセージのフィルタリング（`user`タイプ、認識されないタイプは出力しない）
 
 **実装場所**: `src/services/process-manager.ts`（Node.js child_process使用）
+
+**stream-jsonメッセージ処理**:
+
+| メッセージタイプ | 処理 |
+|-----------------|------|
+| `assistant` | テキストを抽出して`output`イベント発火 |
+| `content_block_delta` | デルタテキストを`output`イベント発火 |
+| `system` | `[System]`接頭辞付きで`output`イベント発火 |
+| `error` | `error`イベント発火 |
+| `permission_request` | `permission`イベント発火 |
+| `result` | スキップ（既にテキスト送信済み） |
+| `user` | ログのみ（クライアントに送信しない） |
+| その他 | ログのみ（クライアントに送信しない） |
 
 #### コンポーネント: Process Lifecycle Manager
 
