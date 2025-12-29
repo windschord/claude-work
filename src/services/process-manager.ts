@@ -83,7 +83,7 @@ export class ProcessManager extends EventEmitter {
    * @returns ProcessManagerのインスタンス
    */
   static getInstance(): ProcessManager {
-    // globalThisから取得を試みる（Next.js Hot Reload対策）
+    // globalThisから取得を試みる（モジュール間でシングルトンを共有）
     if (globalThis.processManager) {
       return globalThis.processManager;
     }
@@ -92,10 +92,8 @@ export class ProcessManager extends EventEmitter {
       ProcessManager.instance = new ProcessManager();
     }
 
-    // 開発環境ではglobalThisに保存
-    if (process.env.NODE_ENV !== 'production') {
-      globalThis.processManager = ProcessManager.instance;
-    }
+    // globalThisに保存（本番環境でもモジュール間で共有するため）
+    globalThis.processManager = ProcessManager.instance;
 
     return ProcessManager.instance;
   }

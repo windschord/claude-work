@@ -212,6 +212,8 @@ export default function SessionDetailPage() {
       if (response.ok) {
         const data = await response.json();
         setProcessRunning(data.running);
+        // セッション詳細を再取得してステータスを更新
+        await fetchSessionDetail(sessionId);
         toast.success('プロセスを起動しました');
       } else {
         const errorData = await response.json();
@@ -223,7 +225,7 @@ export default function SessionDetailPage() {
     } finally {
       setProcessLoading(false);
     }
-  }, [sessionId]);
+  }, [sessionId, fetchSessionDetail]);
 
   // 一時停止中のセッションを再開
   const handleResumeSession = useCallback(async () => {
