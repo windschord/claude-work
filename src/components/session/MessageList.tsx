@@ -42,8 +42,13 @@ export default function MessageList({ messages, isLoading = false }: MessageList
         ))}
       </ul>
       {isLoading && (
-        <div className="flex items-center gap-3 p-4 text-gray-500 dark:text-gray-400">
-          <div className="flex gap-1">
+        <div
+          role="status"
+          aria-live="polite"
+          aria-label="読み込み中"
+          className="flex items-center gap-3 p-4 text-gray-500 dark:text-gray-400"
+        >
+          <div className="flex gap-1" aria-hidden="true">
             <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
             <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
             <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />

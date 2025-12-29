@@ -68,6 +68,14 @@ export default function SessionDetailPage() {
   const [processLoading, setProcessLoading] = useState(false);
   const [isWaitingResponse, setIsWaitingResponse] = useState(false);
 
+  // セッション変更時やアンマウント時にレスポンス待ち状態をリセット
+  useEffect(() => {
+    setIsWaitingResponse(false);
+    return () => {
+      setIsWaitingResponse(false);
+    };
+  }, [sessionId]);
+
   // WebSocketメッセージハンドラ（useCallbackで最適化）
   const onMessage = useCallback(
     (message: ServerMessage) => {

@@ -281,6 +281,8 @@ export class ProcessManager extends EventEmitter {
           });
         }
       }
+      // 以降で誤って再利用されないよう、バッファをクリアする
+      buffer = '';
 
       const processData = this.processes.get(sessionId);
       if (processData) {

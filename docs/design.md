@@ -272,7 +272,7 @@ function sendNotification(event: NotificationEvent): void {
 interface ProcessLifecycleState {
   sessionId: string;
   lastActivityAt: Date;
-  isPaused: boolean;       // アイドルタイムアウトで停止された状態
+  isStopped: boolean;      // アイドルタイムアウトで停止された状態
   resumeSessionId: string | null;  // Claude Codeの--resume用セッションID
 }
 
