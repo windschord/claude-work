@@ -248,9 +248,9 @@ export class ProcessLifecycleManager extends EventEmitter {
       // イベント発火
       this.emit('processPaused', sessionId, reason);
 
-      logger.info(`Session ${sessionId} paused successfully`);
+      logger.info(`Session ${sessionId} stopped successfully`);
     } catch (error) {
-      logger.error(`Failed to pause session ${sessionId}:`, error);
+      logger.error(`Failed to stop session ${sessionId}:`, error);
       throw error;
     }
   }

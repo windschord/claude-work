@@ -5,9 +5,9 @@ import { getProcessLifecycleManager } from '@/services/process-lifecycle-manager
 import { logger } from '@/lib/logger';
 
 /**
- * POST /api/sessions/[id]/resume - 一時停止中のセッションを再開
+ * POST /api/sessions/[id]/resume - 停止中のセッションを再開
  *
- * paused状態のセッションのClaude Codeプロセスを再起動します。
+ * stopped状態のセッションのClaude Codeプロセスを再起動します。
  * resume_session_idが保存されている場合は--resumeオプションを使用して
  * 会話履歴を復元します。
  *
@@ -16,7 +16,7 @@ import { logger } from '@/lib/logger';
  *
  * @returns
  * - 200: セッション再開成功
- * - 400: セッションがpaused状態でない
+ * - 400: セッションがstopped状態でない
  * - 401: 認証されていない
  * - 404: セッションが見つからない
  * - 500: サーバーエラー
@@ -48,10 +48,10 @@ export async function POST(
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });
     }
 
-    // paused状態のみ再開可能
-    if (targetSession.status !== 'paused') {
+    // stopped状態のみ再開可能
+    if (targetSession.status !== 'stopped') {
       return NextResponse.json(
-        { error: 'Session is not paused' },
+        { error: 'Session is not stopped' },
         { status: 400 }
       );
     }

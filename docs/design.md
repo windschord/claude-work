@@ -278,11 +278,12 @@ interface ProcessLifecycleState {
 
 // セッションステータスの拡張
 type SessionStatus =
+  | 'initializing'   // 初期化中
   | 'running'        // プロセス実行中
   | 'waiting_input'  // ユーザー入力待ち
-  | 'paused'         // アイドルタイムアウトで一時停止（新規追加）
   | 'completed'      // 正常終了
-  | 'error';         // エラー終了
+  | 'error'          // エラー終了
+  | 'stopped';       // 停止中（アイドルタイムアウトなど）
 ```
 
 **設定**:
@@ -300,12 +301,12 @@ type SessionStatus =
 2. 最終アクティビティからの経過時間を計算
 3. タイムアウト超過時:
    - プロセスにSIGTERMを送信
-   - セッションステータスを`paused`に更新
+   - セッションステータスを`stopped`に更新
    - 接続中クライアントにWebSocket通知
    - Claude Codeセッション識別子を保存
 
 **セッション再開フロー**:
-1. `paused`状態のセッションにユーザーがアクセス
+1. `stopped`状態のセッションにユーザーがアクセス
 2. 保存されたセッション識別子を取得
 3. `claude --resume <session-id>`でプロセス再起動
 4. セッションステータスを`running`に更新
@@ -611,7 +612,7 @@ sequenceDiagram
             PLM->>PM: stopProcess(sessionId)
             PM->>CC: SIGTERM
             CC-->>PM: プロセス終了
-            PLM->>DB: UPDATE sessions SET status='paused', resume_session_id=...
+            PLM->>DB: UPDATE sessions SET status='stopped', resume_session_id=...
             PLM->>WS: broadcast({type: 'process_paused', sessionId, reason: 'idle_timeout'})
         end
     end
@@ -630,10 +631,10 @@ sequenceDiagram
     participant DB as Database
     participant WS as WebSocket
 
-    U->>F: pausedセッションにアクセス
+    U->>F: stoppedセッションにアクセス
     F->>API: POST /api/sessions/{id}/resume
     API->>DB: SELECT * FROM sessions WHERE id = ?
-    DB-->>API: session (status='paused', resume_session_id=...)
+    DB-->>API: session (status='stopped', resume_session_id=...)
 
     alt resume_session_idが存在
         API->>PLM: resumeSession(sessionId, resumeSessionId)
@@ -967,7 +968,7 @@ sequenceDiagram
 #### POST /api/sessions/{id}/resume
 **目的**: 一時停止中のセッションを再開
 
-**説明**: アイドルタイムアウトで一時停止（paused）されたセッションのClaude Codeプロセスを再起動します。resume_session_idが保存されている場合は`--resume`オプションを使用して会話履歴を復元します。
+**説明**: アイドルタイムアウトで停止（stopped）されたセッションのClaude Codeプロセスを再起動します。resume_session_idが保存されている場合は`--resume`オプションを使用して会話履歴を復元します。
 
 **リクエスト**: なし（ボディ不要）
 
@@ -987,10 +988,10 @@ sequenceDiagram
 }
 ```
 
-**レスポンス（400）** - セッションがpaused状態でない場合:
+**レスポンス（400）** - セッションがstopped状態でない場合:
 ```json
 {
-  "error": "Session is not in paused state",
+  "error": "Session is not stopped",
   "current_status": "running"
 }
 ```
@@ -1199,7 +1200,7 @@ ws://host/ws/sessions/{session_id}
     "action": "string",
     "details": "string"
   },
-  "status": "initializing" | "running" | "waiting_input" | "paused" | "completed" | "error"
+  "status": "initializing" | "running" | "waiting_input" | "completed" | "error" | "stopped"
 }
 ```
 
@@ -1265,11 +1266,11 @@ ws://host/ws/terminal/{session_id}
 | id | TEXT | PRIMARY KEY | UUID |
 | project_id | TEXT | FOREIGN KEY | プロジェクトID |
 | name | TEXT | NOT NULL | セッション名 |
-| status | TEXT | NOT NULL | ステータス（running/waiting_input/paused/completed/error） |
+| status | TEXT | NOT NULL | ステータス（initializing/running/waiting_input/completed/error/stopped） |
 | model | TEXT | NOT NULL | 使用モデル |
 | worktree_path | TEXT | NOT NULL | worktreeパス |
 | branch_name | TEXT | NOT NULL | ブランチ名 |
-| resume_session_id | TEXT | NULLABLE | Claude Codeの--resume用セッションID（paused時に保存） |
+| resume_session_id | TEXT | NULLABLE | Claude Codeの--resume用セッションID（stopped時に保存） |
 | last_activity_at | TEXT | NULLABLE | 最終アクティビティ日時（アイドルタイムアウト計算用） |
 | created_at | TEXT | NOT NULL | 作成日時 |
 | updated_at | TEXT | NOT NULL | 更新日時 |
@@ -1528,10 +1529,10 @@ ws://host/ws/terminal/{session_id}
 ### プロセスライフサイクル
 
 - **アイドルタイムアウト時**:
-  - セッションステータスを「paused」に更新
+  - セッションステータスを「stopped」に更新
   - 接続中のWebSocketクライアントに`process_paused`メッセージを送信
   - resume_session_idを保存（--resumeで復元可能にする）
-  - ログレベル: info（`Session ${sessionId} paused due to idle timeout`）
+  - ログレベル: info（`Session ${sessionId} stopped due to idle timeout`）
 
 - **セッション再開失敗時**:
   - Claude Codeの`--resume`が失敗した場合、新規セッションとして開始
