@@ -78,12 +78,12 @@ describe('ProcessLifecycleManager', () => {
     });
 
     it('getInstance()はglobalThisにインスタンスを保存すべき', () => {
-      // Reset any existing instance
+      // 既存インスタンスをリセット
       ProcessLifecycleManager.resetForTesting();
       const globalForTest = globalThis as { processLifecycleManager?: ProcessLifecycleManager };
       globalForTest.processLifecycleManager = undefined;
 
-      // Get instance - should be stored in globalThis
+      // インスタンス取得時にglobalThisに保存される
       const instance = ProcessLifecycleManager.getInstance();
       expect(globalForTest.processLifecycleManager).toBe(instance);
     });
@@ -92,11 +92,11 @@ describe('ProcessLifecycleManager', () => {
       ProcessLifecycleManager.resetForTesting();
       const globalForTest = globalThis as { processLifecycleManager?: ProcessLifecycleManager };
 
-      // Create and store instance
+      // インスタンスを作成して保存
       const firstInstance = ProcessLifecycleManager.getInstance();
       expect(globalForTest.processLifecycleManager).toBe(firstInstance);
 
-      // Subsequent calls should return the same instance
+      // 後続の呼び出しは同一インスタンスを返す
       const secondInstance = ProcessLifecycleManager.getInstance();
       expect(secondInstance).toBe(firstInstance);
     });

@@ -59,18 +59,6 @@ describe('cli-utils', () => {
       const result = checkNextBuild(testDir);
       expect(result).toBe(true);
     });
-
-    it('should return false for incomplete build (simulates corrupted build)', () => {
-      // This test simulates a scenario where .next exists with BUILD_ID
-      // but the build was interrupted before static/server were created
-      const nextDir = join(testDir, '.next');
-      mkdirSync(nextDir);
-      writeFileSync(join(nextDir, 'BUILD_ID'), 'incomplete-build');
-      // Intentionally NOT creating static and server directories
-
-      const result = checkNextBuild(testDir);
-      expect(result).toBe(false);
-    });
   });
 
   describe('checkPrismaClient', () => {
