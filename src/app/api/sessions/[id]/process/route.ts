@@ -154,6 +154,15 @@ export async function POST(
       model: targetSession.model || undefined,
     });
 
+    // セッションのステータスをrunningに更新
+    await prisma.session.update({
+      where: { id: targetSession.id },
+      data: {
+        status: 'running',
+        last_activity_at: new Date(),
+      },
+    });
+
     logger.info('Process started successfully', { session_id: id });
     return NextResponse.json({ success: true, running: true });
   } catch (error) {
