@@ -385,12 +385,18 @@ export class ProcessManager extends EventEmitter {
         });
         break;
 
+      case 'user':
+        // userタイプはClaude CLIが会話履歴として出力するもの
+        // クライアントには既にユーザー入力が表示されているため、無視する
+        logger.debug('Stream-json user message received (ignored)', { sessionId });
+        break;
+
       default:
-        // その他のメッセージタイプはそのまま出力
-        this.emit('output', {
+        // 認識されないメッセージタイプはログのみ出力し、クライアントには送信しない
+        logger.debug('Unknown stream-json message type (ignored)', {
           sessionId,
-          type: 'output',
-          content: JSON.stringify(json),
+          messageType,
+          json,
         });
     }
   }
