@@ -155,12 +155,36 @@ function setupDatabase(): boolean {
 }
 
 /**
- * Next.jsビルドが存在するか確認
+ * Next.jsビルドが存在し、完全かどうかを確認
+ * BUILD_ID、static、serverディレクトリの存在を検証
  */
 function checkNextBuild(): boolean {
   const nextDir = path.join(projectRoot, '.next');
   const buildIdPath = path.join(nextDir, 'BUILD_ID');
-  return fs.existsSync(nextDir) && fs.existsSync(buildIdPath);
+  const staticDir = path.join(nextDir, 'static');
+  const serverDir = path.join(nextDir, 'server');
+
+  // 必須ファイル・ディレクトリが全て存在するか確認
+  if (!fs.existsSync(nextDir)) {
+    return false;
+  }
+
+  if (!fs.existsSync(buildIdPath)) {
+    console.log('Build incomplete: BUILD_ID not found');
+    return false;
+  }
+
+  if (!fs.existsSync(staticDir)) {
+    console.log('Build incomplete: static directory not found');
+    return false;
+  }
+
+  if (!fs.existsSync(serverDir)) {
+    console.log('Build incomplete: server directory not found');
+    return false;
+  }
+
+  return true;
 }
 
 /**
