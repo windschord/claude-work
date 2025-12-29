@@ -265,13 +265,28 @@ export default function SessionDetailPage() {
       }
 
       try {
+        // ユーザーメッセージをローカル状態に即座に追加（楽観的更新）
+        const userMessage = {
+          id: typeof crypto !== 'undefined' && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+          session_id: sessionId,
+          role: 'user' as const,
+          content,
+          sub_agents: null,
+          created_at: new Date().toISOString(),
+        };
+        useAppStore.setState((state) => ({
+          messages: [...state.messages, userMessage],
+        }));
+
         // WebSocket経由でメッセージ送信
         send({ type: 'input', content });
       } catch (error) {
         console.error('Failed to send message:', error);
       }
     },
-    [send, processRunning]
+    [send, processRunning, sessionId]
   );
 
   const handleApprove = useCallback(
