@@ -654,5 +654,70 @@ describe('ProcessManager', () => {
       }
       await exitPromise;
     });
+
+    it('should NOT emit output event for user type stream-json message', async () => {
+      // userタイプのメッセージはClaude CLIが会話履歴として出力するもの
+      // クライアントには既にユーザー入力が表示されているため、outputイベントは発火しない
+      const userMessage = {
+        type: 'user',
+        message: { role: 'user', content: [{ type: 'text', text: 'test message' }] },
+        session_id: 'default',
+      };
+
+      const outputHandler = vi.fn();
+      processManager.on('output', outputHandler);
+
+      mockChildProcess.stdout.emit('data', Buffer.from(JSON.stringify(userMessage) + '\n'));
+
+      // 少し待ってからoutputイベントが発火されていないことを確認
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(outputHandler).not.toHaveBeenCalled();
+
+      processManager.off('output', outputHandler);
+    });
+
+    it('should NOT emit output event for unknown type stream-json message', async () => {
+      // 認識されないメッセージタイプはログのみ出力し、クライアントには送信しない
+      const unknownMessage = {
+        type: 'unknown_type',
+        data: { foo: 'bar' },
+      };
+
+      const outputHandler = vi.fn();
+      processManager.on('output', outputHandler);
+
+      mockChildProcess.stdout.emit('data', Buffer.from(JSON.stringify(unknownMessage) + '\n'));
+
+      // 少し待ってからoutputイベントが発火されていないことを確認
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(outputHandler).not.toHaveBeenCalled();
+
+      processManager.off('output', outputHandler);
+    });
+
+    it('should emit output event for assistant type stream-json message', async () => {
+      // assistantタイプのメッセージはテキストを抽出してoutputイベントで発火
+      const assistantMessage = {
+        type: 'assistant',
+        message: {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'Hello, I am Claude.' }],
+        },
+      };
+
+      const outputPromise = new Promise((resolve) => {
+        processManager.once('output', (data) => {
+          expect(data).toEqual({
+            sessionId: 'test-session-events',
+            type: 'output',
+            content: 'Hello, I am Claude.',
+          });
+          resolve(undefined);
+        });
+      });
+
+      mockChildProcess.stdout.emit('data', Buffer.from(JSON.stringify(assistantMessage) + '\n'));
+      await outputPromise;
+    });
   });
 });
