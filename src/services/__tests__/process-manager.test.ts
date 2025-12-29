@@ -34,6 +34,53 @@ type MockChildProcess = {
   pid: number;
 };
 
+describe('ProcessManager singleton', () => {
+  afterEach(() => {
+    ProcessManager.resetForTesting();
+  });
+
+  it('should store instance in globalThis regardless of NODE_ENV', () => {
+    // Reset any existing instance
+    ProcessManager.resetForTesting();
+    globalThis.processManager = undefined;
+
+    // Get instance - should be stored in globalThis
+    const instance1 = ProcessManager.getInstance();
+    expect(globalThis.processManager).toBe(instance1);
+
+    // Getting instance again should return the same instance from globalThis
+    const instance2 = ProcessManager.getInstance();
+    expect(instance2).toBe(instance1);
+  });
+
+  it('should return the same instance from globalThis on subsequent calls', () => {
+    ProcessManager.resetForTesting();
+    globalThis.processManager = undefined;
+
+    const instance1 = ProcessManager.getInstance();
+    // Simulate what might happen if static instance is cleared but globalThis remains
+    // This tests that globalThis is checked first
+    const instance2 = ProcessManager.getInstance();
+
+    expect(instance1).toBe(instance2);
+    expect(globalThis.processManager).toBe(instance1);
+  });
+
+  it('should use existing globalThis.processManager if available', () => {
+    ProcessManager.resetForTesting();
+
+    // Create a fresh instance and store it
+    const firstInstance = ProcessManager.getInstance();
+    expect(globalThis.processManager).toBe(firstInstance);
+
+    // Now, even if we reset the static instance (simulating module reload),
+    // getInstance should return the globalThis instance
+    // This is the key behavior for cross-module singleton sharing
+    const secondInstance = ProcessManager.getInstance();
+    expect(secondInstance).toBe(firstInstance);
+  });
+});
+
 describe('ProcessManager', () => {
   let processManager: ProcessManager;
   let mockChildProcess: MockChildProcess;

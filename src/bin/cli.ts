@@ -22,6 +22,11 @@ import { spawn, spawnSync } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import dotenv from 'dotenv';
+import {
+  checkNextBuild as checkNextBuildUtil,
+  checkPrismaClient as checkPrismaClientUtil,
+  checkDatabase as checkDatabaseUtil,
+} from './cli-utils';
 
 // CommonJSビルド時は__dirnameが利用可能
 const currentDir = __dirname;
@@ -95,8 +100,7 @@ function setupEnvFile(): void {
  * Prismaクライアントが生成されているか確認
  */
 function checkPrismaClient(): boolean {
-  const prismaClientPath = path.join(projectRoot, 'node_modules', '.prisma', 'client');
-  return fs.existsSync(prismaClientPath);
+  return checkPrismaClientUtil(projectRoot);
 }
 
 /**
@@ -123,8 +127,7 @@ function generatePrismaClient(): boolean {
  * データベースファイルが存在するか確認
  */
 function checkDatabase(): boolean {
-  const dbPath = path.join(projectRoot, 'data', 'claudework.db');
-  return fs.existsSync(dbPath);
+  return checkDatabaseUtil(projectRoot);
 }
 
 /**
@@ -159,32 +162,7 @@ function setupDatabase(): boolean {
  * BUILD_ID、static、serverディレクトリの存在を検証
  */
 function checkNextBuild(): boolean {
-  const nextDir = path.join(projectRoot, '.next');
-  const buildIdPath = path.join(nextDir, 'BUILD_ID');
-  const staticDir = path.join(nextDir, 'static');
-  const serverDir = path.join(nextDir, 'server');
-
-  // 必須ファイル・ディレクトリが全て存在するか確認
-  if (!fs.existsSync(nextDir)) {
-    return false;
-  }
-
-  if (!fs.existsSync(buildIdPath)) {
-    console.log('Build incomplete: BUILD_ID not found');
-    return false;
-  }
-
-  if (!fs.existsSync(staticDir)) {
-    console.log('Build incomplete: static directory not found');
-    return false;
-  }
-
-  if (!fs.existsSync(serverDir)) {
-    console.log('Build incomplete: server directory not found');
-    return false;
-  }
-
-  return true;
+  return checkNextBuildUtil(projectRoot);
 }
 
 /**

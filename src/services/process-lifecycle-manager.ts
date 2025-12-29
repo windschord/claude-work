@@ -64,7 +64,7 @@ export class ProcessLifecycleManager extends EventEmitter {
    * シングルトンインスタンスを取得
    */
   static getInstance(): ProcessLifecycleManager {
-    // globalThisから取得を試みる（Next.js Hot Reload対策）
+    // globalThisから取得を試みる（モジュール間でシングルトンを共有）
     if (globalForProcessLifecycleManager.processLifecycleManager) {
       return globalForProcessLifecycleManager.processLifecycleManager;
     }
@@ -73,11 +73,9 @@ export class ProcessLifecycleManager extends EventEmitter {
       ProcessLifecycleManager.instance = new ProcessLifecycleManager();
     }
 
-    // 開発環境ではglobalThisに保存
-    if (process.env.NODE_ENV !== 'production') {
-      globalForProcessLifecycleManager.processLifecycleManager =
-        ProcessLifecycleManager.instance;
-    }
+    // globalThisに保存（本番環境でもモジュール間で共有するため）
+    globalForProcessLifecycleManager.processLifecycleManager =
+      ProcessLifecycleManager.instance;
 
     return ProcessLifecycleManager.instance;
   }

@@ -76,6 +76,30 @@ describe('ProcessLifecycleManager', () => {
       const instance2 = ProcessLifecycleManager.getInstance();
       expect(instance1).not.toBe(instance2);
     });
+
+    it('getInstance()はglobalThisにインスタンスを保存すべき', () => {
+      // Reset any existing instance
+      ProcessLifecycleManager.resetForTesting();
+      const globalForTest = globalThis as { processLifecycleManager?: ProcessLifecycleManager };
+      globalForTest.processLifecycleManager = undefined;
+
+      // Get instance - should be stored in globalThis
+      const instance = ProcessLifecycleManager.getInstance();
+      expect(globalForTest.processLifecycleManager).toBe(instance);
+    });
+
+    it('globalThisに既存インスタンスがある場合はそれを返すべき', () => {
+      ProcessLifecycleManager.resetForTesting();
+      const globalForTest = globalThis as { processLifecycleManager?: ProcessLifecycleManager };
+
+      // Create and store instance
+      const firstInstance = ProcessLifecycleManager.getInstance();
+      expect(globalForTest.processLifecycleManager).toBe(firstInstance);
+
+      // Subsequent calls should return the same instance
+      const secondInstance = ProcessLifecycleManager.getInstance();
+      expect(secondInstance).toBe(firstInstance);
+    });
   });
 
   describe('アクティビティ管理', () => {
