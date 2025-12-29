@@ -66,15 +66,22 @@ export default function SessionDetailPage() {
   const [isDeleteWorktreeDialogOpen, setIsDeleteWorktreeDialogOpen] = useState(false);
   const [processRunning, setProcessRunning] = useState(false);
   const [processLoading, setProcessLoading] = useState(false);
+  const [isWaitingResponse, setIsWaitingResponse] = useState(false);
 
   // WebSocketメッセージハンドラ（useCallbackで最適化）
   const onMessage = useCallback(
     (message: ServerMessage) => {
       handleWebSocketMessage(message);
 
-      // errorメッセージをトースト通知で表示
+      // Claudeからの応答を受信したらスピナーを停止
+      if (message.type === 'output') {
+        setIsWaitingResponse(false);
+      }
+
+      // errorメッセージをトースト通知で表示し、スピナーを停止
       if (message.type === 'error') {
         toast.error(message.content);
+        setIsWaitingResponse(false);
       }
 
       // スクリプトログメッセージを処理（script-logsストアを更新）
@@ -280,10 +287,14 @@ export default function SessionDetailPage() {
           messages: [...state.messages, userMessage],
         }));
 
+        // スピナーを開始
+        setIsWaitingResponse(true);
+
         // WebSocket経由でメッセージ送信
         send({ type: 'input', content });
       } catch (error) {
         console.error('Failed to send message:', error);
+        setIsWaitingResponse(false);
       }
     },
     [send, processRunning, sessionId]
@@ -483,7 +494,7 @@ export default function SessionDetailPage() {
           {/* Chat Tab */}
           <div className={`flex flex-col flex-1 ${activeTab === 'chat' ? '' : 'hidden'}`}>
             {/* Messages */}
-            <MessageList messages={messages} />
+            <MessageList messages={messages} isLoading={isWaitingResponse} />
 
             {/* Input Form */}
             <InputForm
