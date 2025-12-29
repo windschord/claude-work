@@ -2,12 +2,12 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { EventEmitter } from 'events';
 import type { ChildProcess } from 'child_process';
 
-// Create hoisted mock
+// ホイストされたモックを作成
 const { mockSpawn } = vi.hoisted(() => ({
   mockSpawn: vi.fn(),
 }));
 
-// Mock child_process module
+// child_processモジュールをモック
 vi.mock('child_process', async () => {
   const { EventEmitter } = await import('events');
   const mockExports = {
@@ -106,7 +106,7 @@ describe('ProcessManager', () => {
   });
 
   afterEach(async () => {
-    // Reset ProcessManager singleton and clear all processes
+    // ProcessManagerシングルトンをリセットし、全プロセスをクリア
     ProcessManager.resetForTesting();
     vi.clearAllMocks();
   });
@@ -198,7 +198,7 @@ describe('ProcessManager', () => {
         })
       );
 
-      // Restore original value
+      // 元の値を復元
       if (originalPath !== undefined) {
         process.env.CLAUDE_CODE_PATH = originalPath;
       } else {
@@ -228,7 +228,7 @@ describe('ProcessManager', () => {
         })
       );
 
-      // Restore original value
+      // 元の値を復元
       if (originalPath !== undefined) {
         process.env.CLAUDE_CODE_PATH = originalPath;
       }
@@ -640,14 +640,14 @@ describe('ProcessManager', () => {
             signal: null,
           });
 
-          // Process should be removed from map when exit
+          // exitイベント発火後、プロセスはマップから削除されるべき
           const status = processManager.getStatus('test-session-events');
           expect(status).toBeNull();
           resolve(undefined);
         });
       });
 
-      // Trigger exit event by calling the registered handler
+      // 登録されたハンドラを呼び出してexitイベントを発火
       const exitHandler = eventHandlers['exit'];
       if (exitHandler) {
         exitHandler(0, null);
