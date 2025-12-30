@@ -274,7 +274,7 @@ describe('POST /api/projects/[project_id]/sessions', () => {
     expect(response.status).toBe(401);
   });
 
-  it('should return 400 if name is missing', async () => {
+  it('should auto-generate session name if name is missing', async () => {
     const request = new NextRequest(
       `http://localhost:3000/api/projects/${project.id}/sessions`,
       {
@@ -290,9 +290,11 @@ describe('POST /api/projects/[project_id]/sessions', () => {
     );
 
     const response = await POST(request, { params: Promise.resolve({ project_id: project.id }) });
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(201);
     const data = await response.json();
-    expect(data.error).toBe('Name and prompt are required');
+    expect(data.session).toBeTruthy();
+    // 自動生成された名前は「形容詞-動物名」形式
+    expect(data.session.name).toMatch(/^[a-z]+-[a-z]+$/);
   });
 
   it('should return 400 if prompt is missing', async () => {
@@ -313,7 +315,7 @@ describe('POST /api/projects/[project_id]/sessions', () => {
     const response = await POST(request, { params: Promise.resolve({ project_id: project.id }) });
     expect(response.status).toBe(400);
     const data = await response.json();
-    expect(data.error).toBe('Name and prompt are required');
+    expect(data.error).toBe('Prompt is required');
   });
 
   it('should save prompt to Prompt table when creating session', async () => {

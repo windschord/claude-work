@@ -4,6 +4,7 @@ import { getSession } from '@/lib/auth';
 import { GitService } from '@/services/git-service';
 import { ProcessManager } from '@/services/process-manager';
 import { logger } from '@/lib/logger';
+import { generateSessionName } from '@/lib/session-name-generator';
 
 const processManager = ProcessManager.getInstance();
 
@@ -82,7 +83,7 @@ export async function GET(
  * Git worktreeとブランチが自動的に作成され、Claude Codeプロセスが起動されます。
  * 認証が必要です。
  *
- * @param request - リクエストボディに`name`、`prompt`、`model`（オプション）を含むJSON、sessionIdクッキー
+ * @param request - リクエストボディに`prompt`（必須）、`name`（オプション）、`model`（オプション）を含むJSON、sessionIdクッキー
  * @param params.project_id - プロジェクトID
  *
  * @returns
@@ -146,12 +147,16 @@ export async function POST(
 
     const { name, prompt, model = 'auto' } = body;
 
-    if (!name || !prompt) {
+    // プロンプトのみ必須（nameは任意、未指定時は自動生成）
+    if (!prompt) {
       return NextResponse.json(
-        { error: 'Name and prompt are required' },
+        { error: 'Prompt is required' },
         { status: 400 }
       );
     }
+
+    // セッション名が未指定の場合は自動生成
+    const sessionDisplayName = name?.trim() || generateSessionName();
 
     const project = await prisma.project.findUnique({
       where: { id: project_id },
@@ -182,7 +187,7 @@ export async function POST(
     const newSession = await prisma.session.create({
       data: {
         project_id,
-        name,
+        name: sessionDisplayName,
         status: 'running',
         model: model || project.default_model,
         worktree_path: worktreePath,
@@ -232,7 +237,7 @@ export async function POST(
 
       logger.info('Session created', {
         id: newSession.id,
-        name,
+        name: sessionDisplayName,
         project_id,
         worktree_path: worktreePath,
       });
