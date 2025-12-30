@@ -58,20 +58,6 @@ export interface CreateSessionData {
 }
 
 /**
- * 一括セッション作成時のデータ型定義
- */
-export interface CreateBulkSessionsData {
-  /** セッション名（各セッションに-1, -2などのサフィックスが付与される） */
-  name: string;
-  /** プロンプト */
-  prompt: string;
-  /** 使用するClaudeモデル（デフォルト: 'auto'） */
-  model?: string;
-  /** 作成するセッション数（2-10） */
-  count: number;
-}
-
-/**
  * メッセージの型定義
  */
 export interface Message {
@@ -233,8 +219,6 @@ export interface AppState {
   fetchSessions: (projectId: string) => Promise<void>;
   /** セッションを作成 */
   createSession: (projectId: string, data: CreateSessionData) => Promise<void>;
-  /** 一括セッションを作成 */
-  createBulkSessions: (projectId: string, data: CreateBulkSessionsData) => Promise<void>;
   /** セッション一覧を設定 */
   setSessions: (sessions: Session[]) => void;
   /** 選択中のセッションIDを設定 */
@@ -627,41 +611,6 @@ export const useAppStore = create<AppState>((set) => ({
       set((state) => ({
         sessions: [...state.sessions, responseData.session],
       }));
-    } catch (error) {
-      if (error instanceof Error) {
-        if (error.message.includes('Failed to fetch') || error.message.includes('Network')) {
-          throw new Error('ネットワークエラーが発生しました');
-        }
-        throw error;
-      }
-      throw new Error('セッションの作成に失敗しました');
-    }
-  },
-
-  createBulkSessions: async (projectId: string, data: CreateBulkSessionsData) => {
-    try {
-      const response = await fetch(`/api/projects/${projectId}/sessions/bulk`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        if (response.status === 400) {
-          throw new Error('セッションの作成に失敗しました');
-        }
-        if (response.status === 500) {
-          throw new Error('セッションの作成に失敗しました');
-        }
-        throw new Error('セッションの作成に失敗しました');
-      }
-
-      // セッション一覧を再取得
-      const get = useAppStore.getState();
-      await get.fetchSessions(projectId);
     } catch (error) {
       if (error instanceof Error) {
         if (error.message.includes('Failed to fetch') || error.message.includes('Network')) {
