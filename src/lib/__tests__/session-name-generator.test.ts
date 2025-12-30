@@ -50,11 +50,7 @@ describe('session-name-generator', () => {
     });
 
     it('最大試行回数に達した場合はタイムスタンプ付きの名前を返す', () => {
-      // すべての組み合わせを既存名として渡す（実際には不可能だが、maxAttemptsでシミュレート）
-      const existingNames = ['test-name'];
-
-      // maxAttempts=1で、最初の生成が既存名と一致する場合のテスト
-      // この場合、タイムスタンプ付きの名前が返される
+      // 多数の既存名を用意（実際にはすべてとは一致しないが、テストの意図を示す）
       const mockExistingNames = Array.from(
         { length: 100 },
         (_, i) => `name-${i}`
