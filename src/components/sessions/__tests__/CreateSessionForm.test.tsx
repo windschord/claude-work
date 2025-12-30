@@ -23,7 +23,8 @@ describe('CreateSessionForm', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockCreateSession.mockResolvedValue(undefined);
+    // createSessionは作成されたセッションIDを返す
+    mockCreateSession.mockResolvedValue('new-session-id');
     (useAppStore as unknown as ReturnType<typeof vi.fn>).mockImplementation((selector) =>
       selector({
         createSession: mockCreateSession,
@@ -114,7 +115,8 @@ describe('CreateSessionForm', () => {
         prompt: 'Test prompt',
         model: 'sonnet',
       });
-      expect(mockOnCreate).toHaveBeenCalled();
+      // onSuccessにセッションIDが渡される
+      expect(mockOnCreate).toHaveBeenCalledWith('new-session-id');
     });
   });
 
@@ -135,7 +137,8 @@ describe('CreateSessionForm', () => {
         prompt: 'Test prompt',
         model: 'sonnet',
       });
-      expect(mockOnCreate).toHaveBeenCalled();
+      // onSuccessにセッションIDが渡される
+      expect(mockOnCreate).toHaveBeenCalledWith('new-session-id');
     });
   });
 

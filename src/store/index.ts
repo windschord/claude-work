@@ -217,8 +217,8 @@ export interface AppState {
   setSelectedProjectId: (projectId: string | null) => void;
   /** セッション一覧を取得 */
   fetchSessions: (projectId: string) => Promise<void>;
-  /** セッションを作成 */
-  createSession: (projectId: string, data: CreateSessionData) => Promise<void>;
+  /** セッションを作成し、作成されたセッションのIDを返す */
+  createSession: (projectId: string, data: CreateSessionData) => Promise<string>;
   /** セッション一覧を設定 */
   setSessions: (sessions: Session[]) => void;
   /** 選択中のセッションIDを設定 */
@@ -611,6 +611,9 @@ export const useAppStore = create<AppState>((set) => ({
       set((state) => ({
         sessions: [...state.sessions, responseData.session],
       }));
+
+      // 作成されたセッションのIDを返す
+      return responseData.session.id;
     } catch (error) {
       if (error instanceof Error) {
         if (error.message.includes('Failed to fetch') || error.message.includes('Network')) {
@@ -873,6 +876,11 @@ export const useAppStore = create<AppState>((set) => ({
         }
         throw new Error('セッションの削除に失敗しました');
       }
+
+      // 削除成功後、ローカルのsessions配列から削除
+      set((state) => ({
+        sessions: state.sessions.filter((s) => s.id !== sessionId),
+      }));
     } catch (error) {
       if (error instanceof Error) {
         if (error.message.includes('Failed to fetch') || error.message.includes('Network')) {

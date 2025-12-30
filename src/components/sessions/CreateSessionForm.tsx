@@ -6,7 +6,8 @@ import { PromptHistoryDropdown } from './PromptHistoryDropdown';
 
 interface CreateSessionFormProps {
   projectId: string;
-  onSuccess?: () => void;
+  /** セッション作成成功時のコールバック。作成されたセッションIDが渡される */
+  onSuccess?: (sessionId: string) => void;
   onError?: (error: Error) => void;
 }
 
@@ -19,7 +20,7 @@ interface CreateSessionFormProps {
  *
  * @param props - コンポーネントのプロパティ
  * @param props.projectId - セッションを作成するプロジェクトのID
- * @param props.onSuccess - セッション作成成功時のコールバック関数（オプション）
+ * @param props.onSuccess - セッション作成成功時のコールバック関数。作成されたセッションIDが引数として渡される（オプション）
  * @param props.onError - セッション作成失敗時のコールバック関数（オプション）
  * @returns セッション作成フォームのJSX要素
  */
@@ -64,7 +65,7 @@ export function CreateSessionForm({ projectId, onSuccess, onError }: CreateSessi
     setIsLoading(true);
 
     try {
-      await createSession(projectId, {
+      const sessionId = await createSession(projectId, {
         name: sessionName,
         prompt: prompt.trim(),
         model,
@@ -76,7 +77,7 @@ export function CreateSessionForm({ projectId, onSuccess, onError }: CreateSessi
       setModel(defaultModel);
 
       if (onSuccess) {
-        onSuccess();
+        onSuccess(sessionId);
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'セッションの作成に失敗しました';
