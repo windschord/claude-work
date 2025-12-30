@@ -22,6 +22,11 @@ import { spawn, spawnSync } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import dotenv from 'dotenv';
+import {
+  checkNextBuild as checkNextBuildUtil,
+  checkPrismaClient as checkPrismaClientUtil,
+  checkDatabase as checkDatabaseUtil,
+} from './cli-utils';
 
 // CommonJSビルド時は__dirnameが利用可能
 const currentDir = __dirname;
@@ -95,8 +100,7 @@ function setupEnvFile(): void {
  * Prismaクライアントが生成されているか確認
  */
 function checkPrismaClient(): boolean {
-  const prismaClientPath = path.join(projectRoot, 'node_modules', '.prisma', 'client');
-  return fs.existsSync(prismaClientPath);
+  return checkPrismaClientUtil(projectRoot);
 }
 
 /**
@@ -123,8 +127,7 @@ function generatePrismaClient(): boolean {
  * データベースファイルが存在するか確認
  */
 function checkDatabase(): boolean {
-  const dbPath = path.join(projectRoot, 'data', 'claudework.db');
-  return fs.existsSync(dbPath);
+  return checkDatabaseUtil(projectRoot);
 }
 
 /**
@@ -155,12 +158,11 @@ function setupDatabase(): boolean {
 }
 
 /**
- * Next.jsビルドが存在するか確認
+ * Next.jsビルドが存在し、完全かどうかを確認
+ * BUILD_ID、static、serverディレクトリの存在を検証
  */
 function checkNextBuild(): boolean {
-  const nextDir = path.join(projectRoot, '.next');
-  const buildIdPath = path.join(nextDir, 'BUILD_ID');
-  return fs.existsSync(nextDir) && fs.existsSync(buildIdPath);
+  return checkNextBuildUtil(projectRoot);
 }
 
 /**

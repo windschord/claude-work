@@ -249,9 +249,72 @@ describe('POST /api/sessions/[id]/process', () => {
     expect(mockStartClaudeCode).toHaveBeenCalledWith({
       sessionId: session.id,
       worktreePath: session.worktree_path,
-      prompt: '',
       model: session.model,
     });
+  });
+
+  it('should update session status to running in database after starting process', async () => {
+    // セッションのステータスを 'stopped' に設定
+    await prisma.session.update({
+      where: { id: session.id },
+      data: { status: 'stopped' },
+    });
+
+    mockHasProcess.mockReturnValue(false);
+    mockStartClaudeCode.mockResolvedValue({
+      sessionId: session.id,
+      pid: 12345,
+      status: 'running',
+    });
+
+    const request = new NextRequest(
+      `http://localhost:3000/api/sessions/${session.id}/process`,
+      {
+        method: 'POST',
+        headers: {
+          cookie: `sessionId=${authSession.id}`,
+        },
+      }
+    );
+
+    const response = await POST(request, { params: Promise.resolve({ id: session.id }) });
+    expect(response.status).toBe(200);
+
+    // データベースのセッションステータスが 'running' に更新されていることを確認
+    const updatedSession = await prisma.session.findUnique({
+      where: { id: session.id },
+    });
+    expect(updatedSession?.status).toBe('running');
+  });
+
+  it('should update last_activity_at after starting process', async () => {
+    const beforeTime = new Date();
+
+    mockHasProcess.mockReturnValue(false);
+    mockStartClaudeCode.mockResolvedValue({
+      sessionId: session.id,
+      pid: 12345,
+      status: 'running',
+    });
+
+    const request = new NextRequest(
+      `http://localhost:3000/api/sessions/${session.id}/process`,
+      {
+        method: 'POST',
+        headers: {
+          cookie: `sessionId=${authSession.id}`,
+        },
+      }
+    );
+
+    await POST(request, { params: Promise.resolve({ id: session.id }) });
+
+    // last_activity_at が更新されていることを確認
+    const updatedSession = await prisma.session.findUnique({
+      where: { id: session.id },
+    });
+    expect(updatedSession?.last_activity_at).not.toBeNull();
+    expect(new Date(updatedSession!.last_activity_at!).getTime()).toBeGreaterThanOrEqual(beforeTime.getTime());
   });
 
   it('should return { success: true, running: true, message: "Process already running" } when process is already running', async () => {

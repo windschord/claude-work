@@ -30,6 +30,12 @@ export default function InputForm({ onSubmit, disabled = false }: InputFormProps
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    // IME変換中（日本語入力など）の場合は送信しない
+    // keyCode 229はIME処理中を示す特殊なキーコード
+    // 一部の古いブラウザではisComposingが正しく動作しないため、フォールバックとして併用
+    if (e.nativeEvent.isComposing || e.keyCode === 229) {
+      return;
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSubmit(e);

@@ -154,6 +154,27 @@ export async function POST(
       model: targetSession.model || undefined,
     });
 
+    // セッションのステータスをrunningに更新
+    try {
+      await prisma.session.update({
+        where: { id: targetSession.id },
+        data: {
+          status: 'running',
+          last_activity_at: new Date(),
+        },
+      });
+    } catch (dbError) {
+      logger.error('Failed to update session status after starting process', {
+        error: dbError,
+        session_id: targetSession.id,
+      });
+      // プロセスを停止してクリーンアップ
+      await processManager.stopProcess(targetSession.id).catch((err) => {
+        logger.error('Failed to stop process after DB update failure', { error: err });
+      });
+      throw dbError;
+    }
+
     logger.info('Process started successfully', { session_id: id });
     return NextResponse.json({ success: true, running: true });
   } catch (error) {

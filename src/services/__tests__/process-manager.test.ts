@@ -2,12 +2,12 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { EventEmitter } from 'events';
 import type { ChildProcess } from 'child_process';
 
-// Create hoisted mock
+// ホイストされたモックを作成
 const { mockSpawn } = vi.hoisted(() => ({
   mockSpawn: vi.fn(),
 }));
 
-// Mock child_process module
+// child_processモジュールをモック
 vi.mock('child_process', async () => {
   const { EventEmitter } = await import('events');
   const mockExports = {
@@ -33,6 +33,38 @@ type MockChildProcess = {
   kill: ReturnType<typeof vi.fn>;
   pid: number;
 };
+
+describe('ProcessManager singleton', () => {
+  afterEach(() => {
+    ProcessManager.resetForTesting();
+  });
+
+  it('getInstance()はglobalThisにインスタンスを保存すべき', () => {
+    ProcessManager.resetForTesting();
+    globalThis.processManager = undefined;
+
+    // インスタンス取得時にglobalThisに保存される
+    const instance1 = ProcessManager.getInstance();
+    expect(globalThis.processManager).toBe(instance1);
+
+    // 2回目の呼び出しでも同じインスタンスを返す
+    const instance2 = ProcessManager.getInstance();
+    expect(instance2).toBe(instance1);
+  });
+
+  it('globalThisに既存インスタンスがある場合はそれを返すべき', () => {
+    ProcessManager.resetForTesting();
+    globalThis.processManager = undefined;
+
+    // インスタンスを作成
+    const firstInstance = ProcessManager.getInstance();
+    expect(globalThis.processManager).toBe(firstInstance);
+
+    // モジュール間でシングルトンが共有される（本番環境での重要な動作）
+    const secondInstance = ProcessManager.getInstance();
+    expect(secondInstance).toBe(firstInstance);
+  });
+});
 
 describe('ProcessManager', () => {
   let processManager: ProcessManager;
@@ -74,7 +106,7 @@ describe('ProcessManager', () => {
   });
 
   afterEach(async () => {
-    // Reset ProcessManager singleton and clear all processes
+    // ProcessManagerシングルトンをリセットし、全プロセスをクリア
     ProcessManager.resetForTesting();
     vi.clearAllMocks();
   });
@@ -166,7 +198,7 @@ describe('ProcessManager', () => {
         })
       );
 
-      // Restore original value
+      // 元の値を復元
       if (originalPath !== undefined) {
         process.env.CLAUDE_CODE_PATH = originalPath;
       } else {
@@ -196,7 +228,7 @@ describe('ProcessManager', () => {
         })
       );
 
-      // Restore original value
+      // 元の値を復元
       if (originalPath !== undefined) {
         process.env.CLAUDE_CODE_PATH = originalPath;
       }
@@ -608,19 +640,84 @@ describe('ProcessManager', () => {
             signal: null,
           });
 
-          // Process should be removed from map when exit
+          // exitイベント発火後、プロセスはマップから削除されるべき
           const status = processManager.getStatus('test-session-events');
           expect(status).toBeNull();
           resolve(undefined);
         });
       });
 
-      // Trigger exit event by calling the registered handler
+      // 登録されたハンドラを呼び出してexitイベントを発火
       const exitHandler = eventHandlers['exit'];
       if (exitHandler) {
         exitHandler(0, null);
       }
       await exitPromise;
+    });
+
+    it('should NOT emit output event for user type stream-json message', async () => {
+      // userタイプのメッセージはClaude CLIが会話履歴として出力するもの
+      // クライアントには既にユーザー入力が表示されているため、outputイベントは発火しない
+      const userMessage = {
+        type: 'user',
+        message: { role: 'user', content: [{ type: 'text', text: 'test message' }] },
+        session_id: 'default',
+      };
+
+      const outputHandler = vi.fn();
+      processManager.on('output', outputHandler);
+
+      mockChildProcess.stdout.emit('data', Buffer.from(JSON.stringify(userMessage) + '\n'));
+
+      // 少し待ってからoutputイベントが発火されていないことを確認
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(outputHandler).not.toHaveBeenCalled();
+
+      processManager.off('output', outputHandler);
+    });
+
+    it('should NOT emit output event for unknown type stream-json message', async () => {
+      // 認識されないメッセージタイプはログのみ出力し、クライアントには送信しない
+      const unknownMessage = {
+        type: 'unknown_type',
+        data: { foo: 'bar' },
+      };
+
+      const outputHandler = vi.fn();
+      processManager.on('output', outputHandler);
+
+      mockChildProcess.stdout.emit('data', Buffer.from(JSON.stringify(unknownMessage) + '\n'));
+
+      // 少し待ってからoutputイベントが発火されていないことを確認
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(outputHandler).not.toHaveBeenCalled();
+
+      processManager.off('output', outputHandler);
+    });
+
+    it('should emit output event for assistant type stream-json message', async () => {
+      // assistantタイプのメッセージはテキストを抽出してoutputイベントで発火
+      const assistantMessage = {
+        type: 'assistant',
+        message: {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'Hello, I am Claude.' }],
+        },
+      };
+
+      const outputPromise = new Promise((resolve) => {
+        processManager.once('output', (data) => {
+          expect(data).toEqual({
+            sessionId: 'test-session-events',
+            type: 'output',
+            content: 'Hello, I am Claude.',
+          });
+          resolve(undefined);
+        });
+      });
+
+      mockChildProcess.stdout.emit('data', Buffer.from(JSON.stringify(assistantMessage) + '\n'));
+      await outputPromise;
     });
   });
 });

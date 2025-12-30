@@ -66,15 +66,30 @@ export default function SessionDetailPage() {
   const [isDeleteWorktreeDialogOpen, setIsDeleteWorktreeDialogOpen] = useState(false);
   const [processRunning, setProcessRunning] = useState(false);
   const [processLoading, setProcessLoading] = useState(false);
+  const [isWaitingResponse, setIsWaitingResponse] = useState(false);
+
+  // セッション変更時やアンマウント時にレスポンス待ち状態をリセット
+  useEffect(() => {
+    setIsWaitingResponse(false);
+    return () => {
+      setIsWaitingResponse(false);
+    };
+  }, [sessionId]);
 
   // WebSocketメッセージハンドラ（useCallbackで最適化）
   const onMessage = useCallback(
     (message: ServerMessage) => {
       handleWebSocketMessage(message);
 
-      // errorメッセージをトースト通知で表示
+      // Claudeからの応答を受信したらスピナーを停止
+      if (message.type === 'output') {
+        setIsWaitingResponse(false);
+      }
+
+      // errorメッセージをトースト通知で表示し、スピナーを停止
       if (message.type === 'error') {
         toast.error(message.content);
+        setIsWaitingResponse(false);
       }
 
       // スクリプトログメッセージを処理（script-logsストアを更新）
@@ -212,6 +227,8 @@ export default function SessionDetailPage() {
       if (response.ok) {
         const data = await response.json();
         setProcessRunning(data.running);
+        // セッション詳細を再取得してステータスを更新
+        await fetchSessionDetail(sessionId);
         toast.success('プロセスを起動しました');
       } else {
         const errorData = await response.json();
@@ -223,7 +240,7 @@ export default function SessionDetailPage() {
     } finally {
       setProcessLoading(false);
     }
-  }, [sessionId]);
+  }, [sessionId, fetchSessionDetail]);
 
   // 一時停止中のセッションを再開
   const handleResumeSession = useCallback(async () => {
@@ -263,13 +280,32 @@ export default function SessionDetailPage() {
       }
 
       try {
+        // ユーザーメッセージをローカル状態に即座に追加（楽観的更新）
+        const userMessage = {
+          id: typeof crypto !== 'undefined' && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+          session_id: sessionId,
+          role: 'user' as const,
+          content,
+          sub_agents: null,
+          created_at: new Date().toISOString(),
+        };
+        useAppStore.setState((state) => ({
+          messages: [...state.messages, userMessage],
+        }));
+
+        // スピナーを開始
+        setIsWaitingResponse(true);
+
         // WebSocket経由でメッセージ送信
         send({ type: 'input', content });
       } catch (error) {
         console.error('Failed to send message:', error);
+        setIsWaitingResponse(false);
       }
     },
-    [send, processRunning]
+    [send, processRunning, sessionId]
   );
 
   const handleApprove = useCallback(
@@ -466,7 +502,7 @@ export default function SessionDetailPage() {
           {/* Chat Tab */}
           <div className={`flex flex-col flex-1 ${activeTab === 'chat' ? '' : 'hidden'}`}>
             {/* Messages */}
-            <MessageList messages={messages} />
+            <MessageList messages={messages} isLoading={isWaitingResponse} />
 
             {/* Input Form */}
             <InputForm

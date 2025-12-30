@@ -94,7 +94,7 @@ describe('POST /api/sessions/[id]/resume', () => {
     expect(data.error).toBe('Session not found');
   });
 
-  it('paused以外のステータスの場合は400を返すべき', async () => {
+  it('stopped以外のステータスの場合は400を返すべき', async () => {
     const request = createMockRequest('valid-session');
     const params = Promise.resolve({ id: 'session-123' });
 
@@ -103,7 +103,7 @@ describe('POST /api/sessions/[id]/resume', () => {
       id: 'session-123',
       project_id: 'project-1',
       name: 'Test Session',
-      status: 'running', // paused以外
+      status: 'running', // stopped以外
       model: 'sonnet',
       worktree_path: '/path/to/worktree',
       branch_name: 'feature/test',
@@ -117,10 +117,10 @@ describe('POST /api/sessions/[id]/resume', () => {
     const data = await response.json();
 
     expect(response.status).toBe(400);
-    expect(data.error).toBe('Session is not paused');
+    expect(data.error).toBe('Session is not stopped');
   });
 
-  it('paused状態のセッションを正常に再開できるべき', async () => {
+  it('stopped状態のセッションを正常に再開できるべき', async () => {
     const request = createMockRequest('valid-session');
     const params = Promise.resolve({ id: 'session-123' });
 
@@ -129,7 +129,7 @@ describe('POST /api/sessions/[id]/resume', () => {
       id: 'session-123',
       project_id: 'project-1',
       name: 'Test Session',
-      status: 'paused',
+      status: 'stopped',
       model: 'sonnet',
       worktree_path: '/path/to/worktree',
       branch_name: 'feature/test',
@@ -173,7 +173,7 @@ describe('POST /api/sessions/[id]/resume', () => {
       id: 'session-123',
       project_id: 'project-1',
       name: 'Test Session',
-      status: 'paused',
+      status: 'stopped',
       model: 'opus',
       worktree_path: '/path/to/worktree',
       branch_name: 'feature/test',
@@ -220,7 +220,7 @@ describe('POST /api/sessions/[id]/resume', () => {
       id: 'session-123',
       project_id: 'project-1',
       name: 'Test Session',
-      status: 'paused',
+      status: 'stopped',
       model: 'sonnet',
       worktree_path: '/path/to/worktree',
       branch_name: 'feature/test',

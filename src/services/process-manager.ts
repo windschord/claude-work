@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 import { spawn } from 'child_process';
 import type { ChildProcess } from 'child_process';
+import { logger } from '@/lib/logger';
 
 /**
  * Claude Codeプロセスの起動オプション
@@ -83,7 +84,7 @@ export class ProcessManager extends EventEmitter {
    * @returns ProcessManagerのインスタンス
    */
   static getInstance(): ProcessManager {
-    // globalThisから取得を試みる（Next.js Hot Reload対策）
+    // globalThisから取得を試みる（モジュール間でシングルトンを共有）
     if (globalThis.processManager) {
       return globalThis.processManager;
     }
@@ -92,10 +93,8 @@ export class ProcessManager extends EventEmitter {
       ProcessManager.instance = new ProcessManager();
     }
 
-    // 開発環境ではglobalThisに保存
-    if (process.env.NODE_ENV !== 'production') {
-      globalThis.processManager = ProcessManager.instance;
-    }
+    // globalThisに保存（本番環境でもモジュール間で共有するため）
+    globalThis.processManager = ProcessManager.instance;
 
     return ProcessManager.instance;
   }
@@ -147,8 +146,12 @@ export class ProcessManager extends EventEmitter {
       throw new Error(`Session ${sessionId} already exists`);
     }
 
-    const args = ['--print'];
-    if (model) {
+    // stream-jsonフォーマットで双方向通信を有効にする
+    // --output-format=stream-json には --verbose が必要
+    const args = ['--print', '--verbose', '--input-format', 'stream-json', '--output-format', 'stream-json'];
+    // "auto" はアプリケーション独自の値で、Claude CLIには渡さない
+    // Claude CLIのデフォルトモデルを使用する
+    if (model && model !== 'auto') {
       args.push('--model', model);
     }
     if (resumeSessionId) {
@@ -156,6 +159,8 @@ export class ProcessManager extends EventEmitter {
     }
 
     const claudeCodePath = process.env.CLAUDE_CODE_PATH || 'claude';
+
+    logger.info('Starting Claude process', { sessionId, claudeCodePath, args, worktreePath });
 
     const childProc = spawn(claudeCodePath, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -193,8 +198,16 @@ export class ProcessManager extends EventEmitter {
         this.setupProcessListeners(sessionId, childProc);
 
         // promptが指定されている場合のみstdinに書き込む
+        // stream-json形式では以下の形式でメッセージを送信する:
+        // {"type":"user","message":{"role":"user","content":"..."},"session_id":"default","parent_tool_use_id":null}
         if (prompt !== undefined && prompt !== '') {
-          childProc.stdin.write(`${prompt}\n`);
+          const jsonMessage = JSON.stringify({
+            type: 'user',
+            message: { role: 'user', content: prompt },
+            session_id: 'default',
+            parent_tool_use_id: null,
+          });
+          childProc.stdin.write(`${jsonMessage}\n`);
         }
 
         resolve(info);
@@ -208,40 +221,44 @@ export class ProcessManager extends EventEmitter {
    *
    * stdout、stderr、exitイベントをリッスンし、
    * ProcessManagerのイベントとして再発火します。
-   * stdoutの出力がJSON形式の権限リクエストの場合は、
-   * 'permission'イベントとして発火します。
+   * stream-json形式の出力はNDJSON（改行区切りのJSON）として処理します。
    *
    * @param sessionId - セッションID
    * @param childProc - 監視する子プロセス
    */
   private setupProcessListeners(sessionId: string, childProc: ChildProcess): void {
+    // NDJSON用のバッファ（複数のdataイベントにまたがるJSONを処理するため）
+    let buffer = '';
+
     childProc.stdout?.on('data', (data: Buffer) => {
-      const output = data.toString().trim();
+      buffer += data.toString();
 
-      try {
-        const json = JSON.parse(output);
-        if (json.type === 'permission_request') {
-          this.emit('permission', {
+      // 改行で分割してNDJSONを処理
+      const lines = buffer.split('\n');
+      // 最後の行は不完全な可能性があるのでバッファに保持
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        const trimmedLine = line.trim();
+        if (!trimmedLine) continue;
+
+        try {
+          const json = JSON.parse(trimmedLine);
+          this.handleStreamJsonMessage(sessionId, json);
+        } catch {
+          // JSONパースに失敗した場合はそのまま出力
+          this.emit('output', {
             sessionId,
-            requestId: json.requestId,
-            action: json.action,
-            details: json.details,
+            type: 'output',
+            content: trimmedLine,
           });
-          return;
         }
-      } catch {
-        // Not JSON, treat as normal output
       }
-
-      this.emit('output', {
-        sessionId,
-        type: 'output',
-        content: output,
-      });
     });
 
     childProc.stderr?.on('data', (data: Buffer) => {
       const error = data.toString().trim();
+      logger.error('Claude process stderr', { sessionId, error });
       this.emit('error', {
         sessionId,
         content: error,
@@ -249,6 +266,24 @@ export class ProcessManager extends EventEmitter {
     });
 
     childProc.on('exit', (exitCode: number | null, signal: string | null) => {
+      logger.info('Claude process exited', { sessionId, exitCode, signal, remainingBuffer: buffer.trim() });
+
+      // バッファに残っているデータを処理
+      if (buffer.trim()) {
+        try {
+          const json = JSON.parse(buffer.trim());
+          this.handleStreamJsonMessage(sessionId, json);
+        } catch {
+          this.emit('output', {
+            sessionId,
+            type: 'output',
+            content: buffer.trim(),
+          });
+        }
+      }
+      // 以降で誤って再利用されないよう、バッファをクリアする
+      buffer = '';
+
       const processData = this.processes.get(sessionId);
       if (processData) {
         processData.info.status = 'stopped';
@@ -265,10 +300,115 @@ export class ProcessManager extends EventEmitter {
   }
 
   /**
+   * stream-json形式のメッセージを処理
+   *
+   * Claude CLIのstream-json出力には以下のタイプがあります:
+   * - assistant: アシスタントの応答テキスト
+   * - system: システムメッセージ
+   * - result: 最終結果
+   * - permission_request: 権限リクエスト
+   *
+   * @param sessionId - セッションID
+   * @param json - パースされたJSONオブジェクト
+   */
+  private handleStreamJsonMessage(sessionId: string, json: Record<string, unknown>): void {
+    const messageType = json.type as string;
+    logger.debug('Received stream-json message', { sessionId, messageType, json });
+
+    switch (messageType) {
+      case 'permission_request':
+        this.emit('permission', {
+          sessionId,
+          requestId: json.requestId,
+          action: json.action,
+          details: json.details,
+        });
+        break;
+
+      case 'assistant':
+        // アシスタントの応答メッセージ
+        if (json.message && typeof json.message === 'object') {
+          const message = json.message as Record<string, unknown>;
+          const content = message.content;
+          if (Array.isArray(content)) {
+            // content配列からテキストを抽出
+            for (const block of content) {
+              if (typeof block === 'object' && block !== null) {
+                const textBlock = block as Record<string, unknown>;
+                if (textBlock.type === 'text' && typeof textBlock.text === 'string') {
+                  this.emit('output', {
+                    sessionId,
+                    type: 'output',
+                    content: textBlock.text,
+                  });
+                }
+              }
+            }
+          }
+        }
+        break;
+
+      case 'content_block_delta':
+        // ストリーミング中のテキストデルタ
+        if (json.delta && typeof json.delta === 'object') {
+          const delta = json.delta as Record<string, unknown>;
+          if (delta.type === 'text_delta' && typeof delta.text === 'string') {
+            this.emit('output', {
+              sessionId,
+              type: 'output',
+              content: delta.text,
+            });
+          }
+        }
+        break;
+
+      case 'result':
+        // 最終結果 - assistantメッセージで既にテキストは送信済みなのでスキップ
+        // resultは会話の完了を示すのみ
+        logger.debug('Stream-json result received (skipped)', { sessionId });
+        break;
+
+      case 'system':
+        // システムメッセージ
+        if (json.message && typeof json.message === 'string') {
+          this.emit('output', {
+            sessionId,
+            type: 'output',
+            content: `[System] ${json.message}`,
+          });
+        }
+        break;
+
+      case 'error':
+        // エラーメッセージ
+        this.emit('error', {
+          sessionId,
+          content: JSON.stringify(json),
+        });
+        break;
+
+      case 'user':
+        // userタイプはClaude CLIが会話履歴として出力するもの
+        // クライアントには既にユーザー入力が表示されているため、無視する
+        logger.debug('Stream-json user message received (ignored)', { sessionId });
+        break;
+
+      default:
+        // 認識されないメッセージタイプはログのみ出力し、クライアントには送信しない
+        logger.debug('Unknown stream-json message type (ignored)', {
+          sessionId,
+          messageType,
+          json,
+        });
+    }
+  }
+
+  /**
    * プロセスに入力を送信
    *
-   * 指定されたセッションのプロセスの標準入力に文字列を送信します。
-   * 入力の末尾には自動的に改行文字が追加されます。
+   * 指定されたセッションのプロセスの標準入力にJSON形式でメッセージを送信します。
+   * stream-json形式では、以下の形式で送信します:
+   * {"type":"user","message":{"role":"user","content":"..."},"session_id":"default","parent_tool_use_id":null}
    *
    * @param sessionId - 入力を送信するセッションID
    * @param input - 送信する入力文字列
@@ -284,7 +424,14 @@ export class ProcessManager extends EventEmitter {
       throw new Error(`Session ${sessionId} stdin is not available`);
     }
 
-    processData.process.stdin.write(`${input}\n`);
+    // stream-json形式でJSON形式のメッセージを送信
+    const jsonMessage = JSON.stringify({
+      type: 'user',
+      message: { role: 'user', content: input },
+      session_id: 'default',
+      parent_tool_use_id: null,
+    });
+    processData.process.stdin.write(`${jsonMessage}\n`);
   }
 
   /**

@@ -26,11 +26,11 @@ model Session {
   id                 String    @id @default(uuid())
   project_id         String
   name               String
-  status             String    // running, waiting_input, paused, completed, error
+  status             String    // initializing, running, waiting_input, completed, error, stopped
   model              String
   worktree_path      String
   branch_name        String
-  resume_session_id  String?   // Claude Codeの--resume用セッションID（paused時に保存）
+  resume_session_id  String?   // Claude Codeの--resume用セッションID（stopped時に保存）
   last_activity_at   DateTime? // 最終アクティビティ日時（アイドルタイムアウト計算用）
   created_at         DateTime  @default(now())
   updated_at         DateTime  @updatedAt
