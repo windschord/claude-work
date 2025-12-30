@@ -51,7 +51,8 @@
 
 **依存関係**: なし
 **推定工数**: 30分
-**ステータス**: `TODO`
+**ステータス**: `DONE`
+**完了サマリー**: generateSessionName()とgenerateUniqueSessionName()を実装。50語の形容詞リストと50語の動物名リストを用意。10件のテストが全て通過。
 
 ---
 
@@ -92,7 +93,8 @@
 
 **依存関係**: なし
 **推定工数**: 30分
-**ステータス**: `TODO`
+**ステータス**: `DONE`
+**完了サマリー**: Headless UIのDialogを使用してDeleteSessionDialogを実装。7件のテストが全て通過。
 
 ---
 
@@ -128,7 +130,8 @@
 
 **依存関係**: タスク2.1
 **推定工数**: 20分
-**ステータス**: `TODO`
+**ステータス**: `DONE`
+**完了サマリー**: SessionCardにTrash2アイコンの削除ボタンを追加。DeleteSessionDialogと連携して確認後に削除を実行。16件のテストが全て通過。
 
 ---
 
@@ -168,7 +171,8 @@
 
 **依存関係**: タスク1.1
 **推定工数**: 25分
-**ステータス**: `TODO`
+**ステータス**: `DONE`
+**完了サマリー**: CreateSessionFormからセッション数選択UIを削除。セッション名入力を任意化し、未入力時はgenerateSessionName()で自動生成。16件のテストが全て通過。
 
 ---
 
@@ -201,7 +205,8 @@
 
 **依存関係**: タスク1.1
 **推定工数**: 15分
-**ステータス**: `TODO`
+**ステータス**: `DONE`
+**完了サマリー**: POST /api/projects/:id/sessionsのnameパラメータを任意化。未指定時はサーバー側でもgenerateSessionName()を使用して自動生成。エラーメッセージを「Prompt is required」に変更。10件のテストが全て通過。
 
 ---
 
@@ -230,7 +235,8 @@
 
 **依存関係**: なし
 **推定工数**: 5分
-**ステータス**: `TODO`
+**ステータス**: `DONE`
+**完了サマリー**: src/app/api/projects/[project_id]/sessions/bulk/ディレクトリ全体を削除。ビルド成功を確認。
 
 ---
 
@@ -256,7 +262,8 @@
 
 **依存関係**: タスク4.1
 **推定工数**: 10分
-**ステータス**: `TODO`
+**ステータス**: `DONE`
+**完了サマリー**: CreateBulkSessionsData型とcreateBulkSessionsメソッドをsrc/store/index.tsから削除。関連するテストファイル（bulk-create.test.tsx）も削除。ビルドとテスト成功。
 
 ---
 
