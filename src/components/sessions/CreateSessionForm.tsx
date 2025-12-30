@@ -6,7 +6,8 @@ import { PromptHistoryDropdown } from './PromptHistoryDropdown';
 
 interface CreateSessionFormProps {
   projectId: string;
-  onSuccess?: () => void;
+  /** セッション作成成功時のコールバック。作成されたセッションIDが渡される */
+  onSuccess?: (sessionId: string) => void;
   onError?: (error: Error) => void;
 }
 
@@ -14,11 +15,12 @@ interface CreateSessionFormProps {
  * セッション作成フォームコンポーネント
  *
  * 新しいセッションを作成するためのフォームです。
- * セッション名、プロンプト、モデル、作成数を入力し、バリデーションとエラーハンドリングを行います。
+ * セッション名（任意）、プロンプト、モデルを入力し、バリデーションとエラーハンドリングを行います。
+ * セッション名が未入力の場合は自動生成されます。
  *
  * @param props - コンポーネントのプロパティ
  * @param props.projectId - セッションを作成するプロジェクトのID
- * @param props.onSuccess - セッション作成成功時のコールバック関数（オプション）
+ * @param props.onSuccess - セッション作成成功時のコールバック関数。作成されたセッションIDが引数として渡される（オプション）
  * @param props.onError - セッション作成失敗時のコールバック関数（オプション）
  * @returns セッション作成フォームのJSX要素
  */
@@ -26,12 +28,10 @@ export function CreateSessionForm({ projectId, onSuccess, onError }: CreateSessi
   const [name, setName] = useState('');
   const [prompt, setPrompt] = useState('');
   const [model, setModel] = useState('auto');
-  const [count, setCount] = useState(1);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const createSession = useAppStore((state) => state.createSession);
-  const createBulkSessions = useAppStore((state) => state.createBulkSessions);
   const projects = useAppStore((state) => state.projects);
 
   // プロジェクトのデフォルトモデルを取得
@@ -47,43 +47,37 @@ export function CreateSessionForm({ projectId, onSuccess, onError }: CreateSessi
     e.preventDefault();
     setError('');
 
-    // バリデーション
-    if (!name.trim()) {
-      setError('セッション名を入力してください');
-      return;
-    }
-
+    // バリデーション（プロンプトのみ必須）
     if (!prompt.trim()) {
       setError('プロンプトを入力してください');
       return;
     }
 
+    // セッション名が空白のみの場合はエラーとする（ユーザーに明示的なフィードバックを表示）
+    if (name && !name.trim()) {
+      setError('セッション名は空白のみでは入力できません。空欄にするか、有効な名前を入力してください');
+      return;
+    }
+
+    // セッション名が未入力の場合はサーバー側で一意な名前を自動生成
+    const sessionName = name.trim() || undefined;
+
     setIsLoading(true);
 
     try {
-      if (count === 1) {
-        await createSession(projectId, {
-          name: name.trim(),
-          prompt: prompt.trim(),
-          model,
-        });
-      } else {
-        await createBulkSessions(projectId, {
-          name: name.trim(),
-          prompt: prompt.trim(),
-          model,
-          count,
-        });
-      }
+      const sessionId = await createSession(projectId, {
+        name: sessionName,
+        prompt: prompt.trim(),
+        model,
+      });
 
       // 成功時: フォームをクリア
       setName('');
       setPrompt('');
       setModel(defaultModel);
-      setCount(1);
 
       if (onSuccess) {
-        onSuccess();
+        onSuccess(sessionId);
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'セッションの作成に失敗しました';
@@ -116,7 +110,7 @@ export function CreateSessionForm({ projectId, onSuccess, onError }: CreateSessi
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="セッション名を入力"
+          placeholder="セッション名（未入力の場合は自動生成）"
           className="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
           disabled={isLoading}
         />
@@ -155,25 +149,6 @@ export function CreateSessionForm({ projectId, onSuccess, onError }: CreateSessi
           <option value="opus">Opus</option>
           <option value="sonnet">Sonnet</option>
           <option value="haiku">Haiku</option>
-        </select>
-      </div>
-
-      <div>
-        <label htmlFor="session-count" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-          作成するセッション数
-        </label>
-        <select
-          id="session-count"
-          value={count}
-          onChange={(e) => setCount(Number(e.target.value))}
-          className="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
-          disabled={isLoading}
-        >
-          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
-            <option key={num} value={num}>
-              {num}
-            </option>
-          ))}
         </select>
       </div>
 

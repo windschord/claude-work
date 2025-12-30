@@ -38,9 +38,9 @@ export default function ProjectDetailPage() {
     router.push(`/sessions/${sessionId}`);
   };
 
-  const handleSessionCreated = async () => {
-    // セッション作成後、一覧を再取得
-    await fetchSessions(projectId);
+  const handleSessionCreated = (sessionId: string) => {
+    // セッション作成後、作成したセッションの詳細ページに遷移
+    router.push(`/sessions/${sessionId}`);
   };
 
   return (

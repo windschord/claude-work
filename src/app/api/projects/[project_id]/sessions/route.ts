@@ -4,6 +4,7 @@ import { getSession } from '@/lib/auth';
 import { GitService } from '@/services/git-service';
 import { ProcessManager } from '@/services/process-manager';
 import { logger } from '@/lib/logger';
+import { generateUniqueSessionName } from '@/lib/session-name-generator';
 
 const processManager = ProcessManager.getInstance();
 
@@ -80,9 +81,10 @@ export async function GET(
  *
  * 指定されたプロジェクトに新しいセッションを作成します。
  * Git worktreeとブランチが自動的に作成され、Claude Codeプロセスが起動されます。
+ * セッション名が未指定の場合は「形容詞-動物名」形式で自動生成されます。
  * 認証が必要です。
  *
- * @param request - リクエストボディに`name`、`prompt`、`model`（オプション）を含むJSON、sessionIdクッキー
+ * @param request - リクエストボディに`prompt`（必須）、`name`（オプション、未指定時は自動生成）、`model`（オプション）を含むJSON、sessionIdクッキー
  * @param params.project_id - プロジェクトID
  *
  * @returns
@@ -146,11 +148,36 @@ export async function POST(
 
     const { name, prompt, model = 'auto' } = body;
 
-    if (!name || !prompt) {
+    // プロンプトのみ必須（nameは任意、未指定時は自動生成）
+    if (!prompt) {
       return NextResponse.json(
-        { error: 'Name and prompt are required' },
+        { error: 'Prompt is required' },
         { status: 400 }
       );
+    }
+
+    // セッション名が未指定の場合は一意な名前を自動生成
+    let sessionDisplayName: string;
+    if (name?.trim()) {
+      sessionDisplayName = name.trim();
+      // ユーザー指定の名前も重複チェック
+      const existingSession = await prisma.session.findFirst({
+        where: { project_id, name: sessionDisplayName },
+      });
+      if (existingSession) {
+        return NextResponse.json(
+          { error: 'Session name already exists in this project' },
+          { status: 400 }
+        );
+      }
+    } else {
+      // 既存のセッション名を取得して重複を避ける
+      const existingSessions = await prisma.session.findMany({
+        where: { project_id },
+        select: { name: true },
+      });
+      const existingNames = existingSessions.map((s) => s.name);
+      sessionDisplayName = generateUniqueSessionName(existingNames);
     }
 
     const project = await prisma.project.findUnique({
@@ -182,7 +209,7 @@ export async function POST(
     const newSession = await prisma.session.create({
       data: {
         project_id,
-        name,
+        name: sessionDisplayName,
         status: 'running',
         model: model || project.default_model,
         worktree_path: worktreePath,
@@ -232,7 +259,7 @@ export async function POST(
 
       logger.info('Session created', {
         id: newSession.id,
-        name,
+        name: sessionDisplayName,
         project_id,
         worktree_path: worktreePath,
       });
