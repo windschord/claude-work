@@ -4,7 +4,7 @@ import { getSession } from '@/lib/auth';
 import { GitService } from '@/services/git-service';
 import { ProcessManager } from '@/services/process-manager';
 import { logger } from '@/lib/logger';
-import { generateSessionName } from '@/lib/session-name-generator';
+import { generateUniqueSessionName } from '@/lib/session-name-generator';
 
 const processManager = ProcessManager.getInstance();
 
@@ -155,8 +155,19 @@ export async function POST(
       );
     }
 
-    // セッション名が未指定の場合は自動生成
-    const sessionDisplayName = name?.trim() || generateSessionName();
+    // セッション名が未指定の場合は一意な名前を自動生成
+    let sessionDisplayName: string;
+    if (name?.trim()) {
+      sessionDisplayName = name.trim();
+    } else {
+      // 既存のセッション名を取得して重複を避ける
+      const existingSessions = await prisma.session.findMany({
+        where: { project_id },
+        select: { name: true },
+      });
+      const existingNames = existingSessions.map((s) => s.name);
+      sessionDisplayName = generateUniqueSessionName(existingNames);
+    }
 
     const project = await prisma.project.findUnique({
       where: { id: project_id },

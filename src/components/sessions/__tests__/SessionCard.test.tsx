@@ -9,9 +9,7 @@ vi.mock('@/store', async () => {
   const actual = await vi.importActual('@/store');
   return {
     ...actual,
-    useStore: vi.fn(() => ({
-      deleteSession: mockDeleteSession,
-    })),
+    useAppStore: vi.fn(() => mockDeleteSession),
   };
 });
 

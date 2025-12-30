@@ -53,6 +53,12 @@ export function CreateSessionForm({ projectId, onSuccess, onError }: CreateSessi
       return;
     }
 
+    // セッション名が空白のみの場合はエラーとする（ユーザーに明示的なフィードバックを表示）
+    if (name && !name.trim()) {
+      setError('セッション名は空白のみでは入力できません。空欄にするか、有効な名前を入力してください');
+      return;
+    }
+
     // セッション名が未入力の場合は自動生成
     const sessionName = name.trim() || generateSessionName();
 

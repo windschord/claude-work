@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Trash2 } from 'lucide-react';
-import { Session, useStore } from '@/store';
+import { Session, useAppStore } from '@/store';
 import { SessionStatusIcon } from './SessionStatusIcon';
 import { GitStatusBadge } from './GitStatusBadge';
 import { DeleteSessionDialog } from './DeleteSessionDialog';
@@ -26,7 +26,8 @@ interface SessionCardProps {
 export function SessionCard({ session, onClick }: SessionCardProps) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const { deleteSession } = useStore();
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const deleteSession = useAppStore((state) => state.deleteSession);
 
   const handleClick = () => {
     onClick(session.id);
@@ -39,11 +40,15 @@ export function SessionCard({ session, onClick }: SessionCardProps) {
 
   const handleDeleteConfirm = async () => {
     setIsDeleting(true);
+    setDeleteError(null);
     try {
       await deleteSession(session.id);
+      setIsDeleteDialogOpen(false);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'セッションの削除に失敗しました';
+      setDeleteError(errorMessage);
     } finally {
       setIsDeleting(false);
-      setIsDeleteDialogOpen(false);
     }
   };
 
@@ -104,6 +109,7 @@ export function SessionCard({ session, onClick }: SessionCardProps) {
         onConfirm={handleDeleteConfirm}
         onCancel={handleDeleteCancel}
         isDeleting={isDeleting}
+        error={deleteError}
       />
     </>
   );

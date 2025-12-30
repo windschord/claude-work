@@ -8,6 +8,7 @@ interface DeleteSessionDialogProps {
   onConfirm: () => void;
   onCancel: () => void;
   isDeleting: boolean;
+  error?: string | null;
 }
 
 /**
@@ -30,6 +31,7 @@ export function DeleteSessionDialog({
   onConfirm,
   onCancel,
   isDeleting,
+  error,
 }: DeleteSessionDialogProps) {
   return (
     <Dialog open={isOpen} onClose={onCancel} className="relative z-50">
@@ -39,9 +41,14 @@ export function DeleteSessionDialog({
           <DialogTitle className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">
             セッションを削除
           </DialogTitle>
-          <p className="text-gray-700 dark:text-gray-300 mb-6">
+          <p className="text-gray-700 dark:text-gray-300 mb-4">
             セッション「{sessionName}」を削除しますか？この操作は取り消せません。
           </p>
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 rounded text-sm">
+              {error}
+            </div>
+          )}
           <div className="flex justify-end gap-3">
             <button
               onClick={onCancel}
