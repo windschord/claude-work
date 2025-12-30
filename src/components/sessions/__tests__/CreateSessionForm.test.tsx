@@ -10,6 +10,11 @@ vi.mock('../PromptHistoryDropdown', () => ({
   ),
 }));
 
+// session-name-generatorのモック
+vi.mock('@/lib/session-name-generator', () => ({
+  generateSessionName: vi.fn(() => 'gentle-panda'),
+}));
+
 // Zustandストアのモック
 vi.mock('@/store', () => ({
   useAppStore: vi.fn(),
@@ -19,16 +24,13 @@ describe('CreateSessionForm', () => {
   const mockOnCreate = vi.fn();
   const mockOnError = vi.fn();
   const mockCreateSession = vi.fn();
-  const mockCreateBulkSessions = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
     mockCreateSession.mockResolvedValue(undefined);
-    mockCreateBulkSessions.mockResolvedValue(undefined);
     (useAppStore as unknown as ReturnType<typeof vi.fn>).mockImplementation((selector) =>
       selector({
         createSession: mockCreateSession,
-        createBulkSessions: mockCreateBulkSessions,
         projects: [
           {
             id: 'project-1',
@@ -56,6 +58,19 @@ describe('CreateSessionForm', () => {
     expect(screen.getByRole('button', { name: /作成|セッション作成/ })).toBeInTheDocument();
   });
 
+  it('セッション数選択UIが表示されない', () => {
+    render(<CreateSessionForm projectId="project-1" onSuccess={mockOnCreate} />);
+
+    expect(screen.queryByLabelText(/作成するセッション数/)).not.toBeInTheDocument();
+  });
+
+  it('セッション名入力が任意である（required属性なし）', () => {
+    render(<CreateSessionForm projectId="project-1" onSuccess={mockOnCreate} />);
+
+    const nameInput = screen.getByPlaceholderText(/セッション名/) as HTMLInputElement;
+    expect(nameInput).not.toHaveAttribute('required');
+  });
+
   it('名前入力フィールドが正しく動作する', () => {
     render(<CreateSessionForm projectId="project-1" onSuccess={mockOnCreate} />);
 
@@ -74,18 +89,7 @@ describe('CreateSessionForm', () => {
     expect(promptInput.value).toBe('Test prompt');
   });
 
-  it('空のフィールドで送信すると名前のバリデーションエラーが表示される', async () => {
-    render(<CreateSessionForm projectId="project-1" onSuccess={mockOnCreate} />);
-
-    const createButton = screen.getByRole('button', { name: /作成|セッション作成/ });
-    fireEvent.click(createButton);
-
-    await waitFor(() => {
-      expect(screen.getByText('セッション名を入力してください')).toBeInTheDocument();
-    });
-  });
-
-  it('名前のみ入力で送信するとプロンプトのバリデーションエラーが表示される', async () => {
+  it('プロンプトのみ空で送信するとバリデーションエラーが表示される', async () => {
     render(<CreateSessionForm projectId="project-1" onSuccess={mockOnCreate} />);
 
     const nameInput = screen.getByPlaceholderText(/セッション名/);
@@ -96,6 +100,25 @@ describe('CreateSessionForm', () => {
 
     await waitFor(() => {
       expect(screen.getByText('プロンプトを入力してください')).toBeInTheDocument();
+    });
+  });
+
+  it('名前未入力でプロンプトありの場合、自動生成名でセッションが作成される', async () => {
+    render(<CreateSessionForm projectId="project-1" onSuccess={mockOnCreate} />);
+
+    const promptInput = screen.getByPlaceholderText(/プロンプト/);
+    const createButton = screen.getByRole('button', { name: /作成|セッション作成/ });
+
+    fireEvent.change(promptInput, { target: { value: 'Test prompt' } });
+    fireEvent.click(createButton);
+
+    await waitFor(() => {
+      expect(mockCreateSession).toHaveBeenCalledWith('project-1', {
+        name: 'gentle-panda', // 自動生成された名前
+        prompt: 'Test prompt',
+        model: 'sonnet',
+      });
+      expect(mockOnCreate).toHaveBeenCalled();
     });
   });
 
@@ -219,96 +242,10 @@ describe('CreateSessionForm', () => {
     expect(modelSelect.value).toBe('opus');
   });
 
-  it('作成数選択フィールドが表示される', () => {
+  it('placeholderに自動生成の説明が含まれる', () => {
     render(<CreateSessionForm projectId="project-1" onSuccess={mockOnCreate} />);
 
-    const countSelect = screen.getByLabelText(/作成するセッション数/);
-    expect(countSelect).toBeInTheDocument();
-    expect(countSelect).toHaveValue('1'); // デフォルト値
-  });
-
-  it('作成数選択が正しく動作する', () => {
-    render(<CreateSessionForm projectId="project-1" onSuccess={mockOnCreate} />);
-
-    const countSelect = screen.getByLabelText(/作成するセッション数/) as HTMLSelectElement;
-    fireEvent.change(countSelect, { target: { value: '3' } });
-
-    expect(countSelect.value).toBe('3');
-  });
-
-  it('作成数が1の場合は単一セッション作成が呼ばれる', async () => {
-    render(<CreateSessionForm projectId="project-1" onSuccess={mockOnCreate} />);
-
-    const nameInput = screen.getByPlaceholderText(/セッション名/);
-    const promptInput = screen.getByPlaceholderText(/プロンプト/);
-    const modelSelect = screen.getByLabelText(/モデル/);
-    const countSelect = screen.getByLabelText(/作成するセッション数/);
-    const createButton = screen.getByRole('button', { name: /作成|セッション作成/ });
-
-    fireEvent.change(nameInput, { target: { value: 'New Session' } });
-    fireEvent.change(promptInput, { target: { value: 'Test prompt' } });
-    fireEvent.change(modelSelect, { target: { value: 'opus' } });
-    fireEvent.change(countSelect, { target: { value: '1' } });
-    fireEvent.click(createButton);
-
-    await waitFor(() => {
-      expect(mockCreateSession).toHaveBeenCalledWith('project-1', {
-        name: 'New Session',
-        prompt: 'Test prompt',
-        model: 'opus',
-      });
-      expect(mockCreateBulkSessions).not.toHaveBeenCalled();
-      expect(mockOnCreate).toHaveBeenCalled();
-    });
-  });
-
-  it('作成数が2以上の場合は一括セッション作成が呼ばれる', async () => {
-    render(<CreateSessionForm projectId="project-1" onSuccess={mockOnCreate} />);
-
-    const nameInput = screen.getByPlaceholderText(/セッション名/);
-    const promptInput = screen.getByPlaceholderText(/プロンプト/);
-    const modelSelect = screen.getByLabelText(/モデル/);
-    const countSelect = screen.getByLabelText(/作成するセッション数/);
-    const createButton = screen.getByRole('button', { name: /作成|セッション作成/ });
-
-    fireEvent.change(nameInput, { target: { value: 'Bulk Session' } });
-    fireEvent.change(promptInput, { target: { value: 'Test prompt' } });
-    fireEvent.change(modelSelect, { target: { value: 'haiku' } });
-    fireEvent.change(countSelect, { target: { value: '5' } });
-    fireEvent.click(createButton);
-
-    await waitFor(() => {
-      expect(mockCreateBulkSessions).toHaveBeenCalledWith('project-1', {
-        name: 'Bulk Session',
-        prompt: 'Test prompt',
-        model: 'haiku',
-        count: 5,
-      });
-      expect(mockCreateSession).not.toHaveBeenCalled();
-      expect(mockOnCreate).toHaveBeenCalled();
-    });
-  });
-
-  it('一括セッション作成後、フォームがクリアされる', async () => {
-    render(<CreateSessionForm projectId="project-1" onSuccess={mockOnCreate} />);
-
-    const nameInput = screen.getByPlaceholderText(/セッション名/) as HTMLInputElement;
-    const promptInput = screen.getByPlaceholderText(/プロンプト/) as HTMLTextAreaElement;
-    const modelSelect = screen.getByLabelText(/モデル/) as HTMLSelectElement;
-    const countSelect = screen.getByLabelText(/作成するセッション数/) as HTMLSelectElement;
-    const createButton = screen.getByRole('button', { name: /作成|セッション作成/ });
-
-    fireEvent.change(nameInput, { target: { value: 'Bulk Session' } });
-    fireEvent.change(promptInput, { target: { value: 'Test prompt' } });
-    fireEvent.change(modelSelect, { target: { value: 'opus' } });
-    fireEvent.change(countSelect, { target: { value: '3' } });
-    fireEvent.click(createButton);
-
-    await waitFor(() => {
-      expect(nameInput.value).toBe('');
-      expect(promptInput.value).toBe('');
-      expect(modelSelect.value).toBe('sonnet'); // デフォルトモデルに戻る
-      expect(countSelect.value).toBe('1'); // デフォルト値に戻る
-    });
+    const nameInput = screen.getByPlaceholderText(/未入力の場合は自動生成/);
+    expect(nameInput).toBeInTheDocument();
   });
 });
