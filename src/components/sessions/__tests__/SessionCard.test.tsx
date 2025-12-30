@@ -1,7 +1,19 @@
-import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Session } from '@/store';
 import { SessionCard } from '../SessionCard';
+
+// Zustand storeのモック
+const mockDeleteSession = vi.fn();
+vi.mock('@/store', async () => {
+  const actual = await vi.importActual('@/store');
+  return {
+    ...actual,
+    useStore: vi.fn(() => ({
+      deleteSession: mockDeleteSession,
+    })),
+  };
+});
 
 describe('SessionCard', () => {
   const mockSession: Session = {
@@ -127,5 +139,80 @@ describe('SessionCard', () => {
     const card = screen.getByTestId('session-card');
     expect(card).toHaveAttribute('role', 'button');
     expect(card).toHaveAttribute('tabIndex', '0');
+  });
+
+  describe('削除機能', () => {
+    beforeEach(() => {
+      mockDeleteSession.mockReset();
+      mockDeleteSession.mockResolvedValue(undefined);
+    });
+
+    it('削除ボタンが表示される', () => {
+      render(<SessionCard session={mockSession} onClick={mockOnClick} />);
+
+      const deleteButton = screen.getByTestId('delete-session-button');
+      expect(deleteButton).toBeInTheDocument();
+    });
+
+    it('削除ボタンクリックでダイアログが開く', async () => {
+      render(<SessionCard session={mockSession} onClick={mockOnClick} />);
+
+      const deleteButton = screen.getByTestId('delete-session-button');
+      fireEvent.click(deleteButton);
+
+      // ダイアログが表示される
+      await waitFor(() => {
+        expect(screen.getByText('セッションを削除')).toBeInTheDocument();
+      });
+    });
+
+    it('削除ボタンクリック時にカードのonClickが呼ばれない', () => {
+      render(<SessionCard session={mockSession} onClick={mockOnClick} />);
+
+      const deleteButton = screen.getByTestId('delete-session-button');
+      fireEvent.click(deleteButton);
+
+      // カードのonClickは呼ばれない
+      expect(mockOnClick).not.toHaveBeenCalled();
+    });
+
+    it('削除確認後にdeleteSessionが呼ばれる', async () => {
+      render(<SessionCard session={mockSession} onClick={mockOnClick} />);
+
+      // 削除ボタンクリック
+      const deleteButton = screen.getByTestId('delete-session-button');
+      fireEvent.click(deleteButton);
+
+      // ダイアログの削除ボタンをクリック
+      await waitFor(() => {
+        expect(screen.getByText('セッションを削除')).toBeInTheDocument();
+      });
+
+      const confirmButton = screen.getByRole('button', { name: '削除' });
+      fireEvent.click(confirmButton);
+
+      await waitFor(() => {
+        expect(mockDeleteSession).toHaveBeenCalledWith('test-session-id');
+      });
+    });
+
+    it('キャンセルでダイアログが閉じdeleteSessionが呼ばれない', async () => {
+      render(<SessionCard session={mockSession} onClick={mockOnClick} />);
+
+      // 削除ボタンクリック
+      const deleteButton = screen.getByTestId('delete-session-button');
+      fireEvent.click(deleteButton);
+
+      // ダイアログのキャンセルボタンをクリック
+      await waitFor(() => {
+        expect(screen.getByText('セッションを削除')).toBeInTheDocument();
+      });
+
+      const cancelButton = screen.getByRole('button', { name: 'キャンセル' });
+      fireEvent.click(cancelButton);
+
+      // deleteSessionは呼ばれない
+      expect(mockDeleteSession).not.toHaveBeenCalled();
+    });
   });
 });

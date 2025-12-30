@@ -1,8 +1,11 @@
 'use client';
 
-import { Session } from '@/store';
+import { useState } from 'react';
+import { Trash2 } from 'lucide-react';
+import { Session, useStore } from '@/store';
 import { SessionStatusIcon } from './SessionStatusIcon';
 import { GitStatusBadge } from './GitStatusBadge';
+import { DeleteSessionDialog } from './DeleteSessionDialog';
 
 interface SessionCardProps {
   session: Session;
@@ -21,27 +24,61 @@ interface SessionCardProps {
  * @returns セッションカードのJSX要素
  */
 export function SessionCard({ session, onClick }: SessionCardProps) {
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const { deleteSession } = useStore();
+
   const handleClick = () => {
     onClick(session.id);
   };
 
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    setIsDeleting(true);
+    try {
+      await deleteSession(session.id);
+    } finally {
+      setIsDeleting(false);
+      setIsDeleteDialogOpen(false);
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setIsDeleteDialogOpen(false);
+  };
+
   return (
-    <div
-      data-testid="session-card"
-      className="border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg p-4 min-h-[120px] hover:shadow-lg hover:border-blue-300 dark:hover:border-blue-600 transition-all cursor-pointer active:bg-gray-50 dark:active:bg-gray-700 hover:scale-[1.02]"
-      onClick={handleClick}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          handleClick();
-        }
-      }}
-    >
-      <div className="flex items-start justify-between mb-2">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{session.name}</h3>
-        <SessionStatusIcon status={session.status} />
+    <>
+      <div
+        data-testid="session-card"
+        className="border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg p-4 min-h-[120px] hover:shadow-lg hover:border-blue-300 dark:hover:border-blue-600 transition-all cursor-pointer active:bg-gray-50 dark:active:bg-gray-700 hover:scale-[1.02]"
+        onClick={handleClick}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleClick();
+          }
+        }}
+      >
+        <div className="flex items-start justify-between mb-2">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{session.name}</h3>
+          <div className="flex items-center gap-2">
+            <button
+              data-testid="delete-session-button"
+              onClick={handleDeleteClick}
+              className="p-1 text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400 transition-colors"
+              aria-label="セッションを削除"
+            >
+              <Trash2 size={16} />
+            </button>
+            <SessionStatusIcon status={session.status} />
+          </div>
       </div>
       <div className="space-y-1">
         <div className="flex items-center gap-2">
@@ -60,6 +97,14 @@ export function SessionCard({ session, onClick }: SessionCardProps) {
           作成日時: {new Date(session.created_at).toLocaleString('ja-JP')}
         </p>
       </div>
-    </div>
+      </div>
+      <DeleteSessionDialog
+        isOpen={isDeleteDialogOpen}
+        sessionName={session.name}
+        onConfirm={handleDeleteConfirm}
+        onCancel={handleDeleteCancel}
+        isDeleting={isDeleting}
+      />
+    </>
   );
 }
