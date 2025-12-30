@@ -81,9 +81,10 @@ export async function GET(
  *
  * 指定されたプロジェクトに新しいセッションを作成します。
  * Git worktreeとブランチが自動的に作成され、Claude Codeプロセスが起動されます。
+ * セッション名が未指定の場合は「形容詞-動物名」形式で自動生成されます。
  * 認証が必要です。
  *
- * @param request - リクエストボディに`prompt`（必須）、`name`（オプション）、`model`（オプション）を含むJSON、sessionIdクッキー
+ * @param request - リクエストボディに`prompt`（必須）、`name`（オプション、未指定時は自動生成）、`model`（オプション）を含むJSON、sessionIdクッキー
  * @param params.project_id - プロジェクトID
  *
  * @returns
@@ -159,6 +160,16 @@ export async function POST(
     let sessionDisplayName: string;
     if (name?.trim()) {
       sessionDisplayName = name.trim();
+      // ユーザー指定の名前も重複チェック
+      const existingSession = await prisma.session.findFirst({
+        where: { project_id, name: sessionDisplayName },
+      });
+      if (existingSession) {
+        return NextResponse.json(
+          { error: 'Session name already exists in this project' },
+          { status: 400 }
+        );
+      }
     } else {
       // 既存のセッション名を取得して重複を避ける
       const existingSessions = await prisma.session.findMany({

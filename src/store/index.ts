@@ -49,8 +49,8 @@ export interface Session {
  * セッション作成時のデータ型定義
  */
 export interface CreateSessionData {
-  /** セッション名 */
-  name: string;
+  /** セッション名（未指定時はサーバー側で自動生成） */
+  name?: string;
   /** プロンプト */
   prompt: string;
   /** 使用するClaudeモデル（デフォルト: 'auto'） */

@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { useAppStore } from '@/store';
 import { PromptHistoryDropdown } from './PromptHistoryDropdown';
-import { generateSessionName } from '@/lib/session-name-generator';
 
 interface CreateSessionFormProps {
   projectId: string;
@@ -59,8 +58,8 @@ export function CreateSessionForm({ projectId, onSuccess, onError }: CreateSessi
       return;
     }
 
-    // セッション名が未入力の場合は自動生成
-    const sessionName = name.trim() || generateSessionName();
+    // セッション名が未入力の場合はサーバー側で一意な名前を自動生成
+    const sessionName = name.trim() || undefined;
 
     setIsLoading(true);
 

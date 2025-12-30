@@ -53,6 +53,7 @@ export function SessionCard({ session, onClick }: SessionCardProps) {
   };
 
   const handleDeleteCancel = () => {
+    setDeleteError(null);
     setIsDeleteDialogOpen(false);
   };
 

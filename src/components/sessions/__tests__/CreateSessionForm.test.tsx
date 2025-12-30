@@ -10,10 +10,6 @@ vi.mock('../PromptHistoryDropdown', () => ({
   ),
 }));
 
-// session-name-generatorのモック
-vi.mock('@/lib/session-name-generator', () => ({
-  generateSessionName: vi.fn(() => 'gentle-panda'),
-}));
 
 // Zustandストアのモック
 vi.mock('@/store', () => ({
@@ -103,7 +99,7 @@ describe('CreateSessionForm', () => {
     });
   });
 
-  it('名前未入力でプロンプトありの場合、自動生成名でセッションが作成される', async () => {
+  it('名前未入力でプロンプトありの場合、サーバー側で名前が自動生成される', async () => {
     render(<CreateSessionForm projectId="project-1" onSuccess={mockOnCreate} />);
 
     const promptInput = screen.getByPlaceholderText(/プロンプト/);
@@ -114,7 +110,7 @@ describe('CreateSessionForm', () => {
 
     await waitFor(() => {
       expect(mockCreateSession).toHaveBeenCalledWith('project-1', {
-        name: 'gentle-panda', // 自動生成された名前
+        name: undefined, // サーバー側で自動生成
         prompt: 'Test prompt',
         model: 'sonnet',
       });
