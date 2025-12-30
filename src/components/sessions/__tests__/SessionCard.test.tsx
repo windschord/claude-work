@@ -9,7 +9,14 @@ vi.mock('@/store', async () => {
   const actual = await vi.importActual('@/store');
   return {
     ...actual,
-    useAppStore: vi.fn(() => mockDeleteSession),
+    // useAppStore(selector)の形式でセレクタ関数が渡されるため、
+    // モックストアオブジェクトにセレクタを適用して結果を返す
+    useAppStore: vi.fn((selector) => {
+      const mockState = {
+        deleteSession: mockDeleteSession,
+      };
+      return selector(mockState);
+    }),
   };
 });
 

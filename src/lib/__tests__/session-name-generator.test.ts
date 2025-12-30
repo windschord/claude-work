@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   generateSessionName,
   generateUniqueSessionName,
@@ -50,13 +50,29 @@ describe('session-name-generator', () => {
     });
 
     it('最大試行回数に達した場合はタイムスタンプ付きの名前を返す', () => {
-      // 多数の既存名を用意（実際にはすべてとは一致しないが、テストの意図を示す）
+      // Math.randomをモックして常に0を返すようにする（常に"swift-panda"が生成される）
+      const mockRandom = vi.spyOn(Math, 'random').mockReturnValue(0);
+
+      try {
+        // "swift-panda"を既存名として渡し、maxAttempts=3で全て重複させる
+        const existingNames = ['swift-panda'];
+        const name = generateUniqueSessionName(existingNames, 3);
+
+        // タイムスタンプ形式の名前が返されることを確認
+        expect(name).toMatch(/^session-\d+$/);
+      } finally {
+        mockRandom.mockRestore();
+      }
+    });
+
+    it('通常の生成では形容詞-動物名形式が返される', () => {
+      // 重複しない既存名を用意
       const mockExistingNames = Array.from(
         { length: 100 },
         (_, i) => `name-${i}`
       );
 
-      // 通常の生成ではタイムスタンプ形式にならないことを確認
+      // 形容詞-動物名形式が返されることを確認
       const normalName = generateUniqueSessionName(mockExistingNames);
       expect(normalName).toMatch(/^[a-z]+-[a-z]+$/);
     });
