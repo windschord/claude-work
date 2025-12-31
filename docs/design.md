@@ -1250,7 +1250,7 @@ ClaudeWorkに音声入力（Speech-to-Text）と音声読み上げ（Text-to-Spe
 
 **参考資料**:
 - [Web Speech API - MDN](https://developer.mozilla.org/en-US/docs/Web/API/Web_Speech_API)
-- [Whisper.js (Transformers.js)](https://github.com/xenova/whisper-web)
+- [Whisper-Web (Transformers.js)](https://github.com/xenova/whisper-web)
 
 ### 音声機能アーキテクチャ
 
@@ -1300,7 +1300,7 @@ graph TD
 | オプション | 利点 | 欠点 | 推奨度 |
 |-----------|------|------|--------|
 | **Web Speech API (SpeechRecognition)** | ブラウザ標準、実装容易、低コスト | Chrome/Edge限定、オンライン依存 | ⭐⭐⭐ **Phase 1推奨** |
-| Whisper.js (Transformers.js) | オフライン対応、高精度 | 初回ロード大、CPU負荷 | ⭐⭐ Phase 2 |
+| Whisper-Web (Transformers.js) | オフライン対応、高精度 | 初回ロード大、CPU負荷 | ⭐⭐ Phase 2 |
 | Whisper Server (OpenAI API) | 最高精度 | コスト発生、レイテンシ | ⭐ オプション |
 
 #### 音声出力（Text-to-Speech）
@@ -1706,7 +1706,7 @@ export function checkVoiceSupport() {
 
 #### Phase 3: 高度な機能（オプション）
 
-1. Whisper.js 統合（オフライン認識）
+1. Whisper-Web 統合（オフライン認識）
 2. 自動読み上げモード
 3. VoiceIndicator（ヘッダー表示）
 4. キーボードショートカット
