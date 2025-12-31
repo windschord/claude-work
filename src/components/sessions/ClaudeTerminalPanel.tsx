@@ -25,7 +25,7 @@ function ClaudeTerminalPanel({
   isVisible,
 }: ClaudeTerminalPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const { terminal, isConnected, fit, restart, error } =
+  const { terminal, isConnected, fit, restart, reconnect, error } =
     useClaudeTerminal(sessionId);
   const [mounted, setMounted] = useState(false);
   const [isTerminalOpened, setIsTerminalOpened] = useState(false);
@@ -174,6 +174,17 @@ function ClaudeTerminalPanel({
           Claude Code
         </h3>
         <div className="flex items-center gap-3">
+          {/* 再接続ボタン（切断時のみ表示） */}
+          {!isConnected && (
+            <button
+              onClick={reconnect}
+              className="flex items-center gap-1 px-2 py-1 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-100 hover:bg-blue-100 dark:hover:bg-blue-800 rounded transition-colors"
+              title="Reconnect to Server"
+            >
+              <RotateCcw className="w-4 h-4" />
+              <span>Reconnect</span>
+            </button>
+          )}
           {/* 再起動ボタン */}
           <button
             onClick={restart}
