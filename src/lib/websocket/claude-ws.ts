@@ -100,8 +100,31 @@ export function setupClaudeWebSocket(
 
       // Claude PTY作成（既に存在する場合はスキップ）
       if (!claudePtyManager.hasSession(sessionId)) {
-        claudePtyManager.createSession(sessionId, session.worktree_path);
-        logger.info('Claude PTY created for session', { sessionId });
+        // 最初のユーザーメッセージを取得（初期プロンプト）
+        const firstMessage = await prisma.message.findFirst({
+          where: {
+            session_id: sessionId,
+            role: 'user',
+          },
+          orderBy: { created_at: 'asc' },
+        });
+
+        // Claude PTYを作成し、初期プロンプトを送信
+        claudePtyManager.createSession(
+          sessionId,
+          session.worktree_path,
+          firstMessage?.content
+        );
+        logger.info('Claude PTY created for session', {
+          sessionId,
+          hasInitialPrompt: !!firstMessage,
+        });
+
+        // セッションステータスを'running'に更新
+        await prisma.session.update({
+          where: { id: sessionId },
+          data: { status: 'running' },
+        });
       }
 
       // PTY出力 → WebSocket

@@ -2,11 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { GitService } from '@/services/git-service';
-import { ProcessManager } from '@/services/process-manager';
 import { logger } from '@/lib/logger';
 import { generateUniqueSessionName } from '@/lib/session-name-generator';
-
-const processManager = ProcessManager.getInstance();
 
 /**
  * GET /api/projects/[project_id]/sessions - プロジェクトのセッション一覧取得
@@ -210,7 +207,7 @@ export async function POST(
       data: {
         project_id,
         name: sessionDisplayName,
-        status: 'running',
+        status: 'initializing',  // PTY接続時に'running'に変更される
         model: model || project.default_model,
         worktree_path: worktreePath,
         branch_name: branchName,
@@ -240,47 +237,24 @@ export async function POST(
       });
     }
 
-    try {
-      // 初期プロンプトをユーザーメッセージとして保存
-      await prisma.message.create({
-        data: {
-          session_id: newSession.id,
-          role: 'user',
-          content: prompt,
-        },
-      });
-
-      await processManager.startClaudeCode({
-        sessionId: newSession.id,
-        worktreePath,
-        prompt,
-        model: newSession.model,
-      });
-
-      logger.info('Session created', {
-        id: newSession.id,
-        name: sessionDisplayName,
-        project_id,
-        worktree_path: worktreePath,
-      });
-
-      return NextResponse.json({ session: newSession }, { status: 201 });
-    } catch (processError) {
-      // プロセス起動失敗時はworktreeをクリーンアップ
-      gitService.deleteWorktree(sessionName);
-
-      await prisma.session.update({
-        where: { id: newSession.id },
-        data: { status: 'error' },
-      });
-
-      logger.error('Failed to start Claude Code process', {
-        error: processError,
+    // 初期プロンプトをユーザーメッセージとして保存
+    // WebSocket接続時にこのメッセージがClaude PTYに送信される
+    await prisma.message.create({
+      data: {
         session_id: newSession.id,
-      });
+        role: 'user',
+        content: prompt,
+      },
+    });
 
-      throw processError;
-    }
+    logger.info('Session created', {
+      id: newSession.id,
+      name: sessionDisplayName,
+      project_id,
+      worktree_path: worktreePath,
+    });
+
+    return NextResponse.json({ session: newSession }, { status: 201 });
   } catch (error) {
     const { project_id: errorProjectId } = await params;
     logger.error('Failed to create session', { error, project_id: errorProjectId });

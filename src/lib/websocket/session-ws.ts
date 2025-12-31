@@ -1,6 +1,5 @@
 import { WebSocket } from 'ws';
 import { ConnectionManager } from './connection-manager';
-import { getProcessManager } from '../../services/process-manager';
 import { getRunScriptManager } from '../../services/run-script-manager';
 import { getProcessLifecycleManager } from '../../services/process-lifecycle-manager';
 import { logger } from '../logger';
@@ -8,10 +7,6 @@ import { prisma } from '../db';
 import type {
   ClientMessage,
   ServerMessage,
-  ProcessManagerOutputEvent,
-  ProcessManagerPermissionEvent,
-  ProcessManagerErrorEvent,
-  ProcessManagerExitEvent,
   SessionStatus,
   ProcessPauseReason,
 } from '@/types/websocket';
@@ -20,90 +15,20 @@ import type {
  * セッション用WebSocketハンドラー
  *
  * WebSocket接続の処理、メッセージのルーティング、
- * ProcessManagerとの統合を担当します。
+ * RunScriptManagerとの統合を担当します。
+ * Claude Codeとの通信はClaudeWebSocketHandler（/ws/claude/:id）で処理されます。
  */
 export class SessionWebSocketHandler {
   private connectionManager: ConnectionManager;
-  private processManager: ReturnType<typeof getProcessManager>;
   private runScriptManager: ReturnType<typeof getRunScriptManager>;
   private lifecycleManager: ReturnType<typeof getProcessLifecycleManager>;
 
   constructor(connectionManager: ConnectionManager) {
     this.connectionManager = connectionManager;
-    this.processManager = getProcessManager();
     this.runScriptManager = getRunScriptManager();
     this.lifecycleManager = getProcessLifecycleManager();
-    this.setupProcessManagerListeners();
     this.setupRunScriptManagerListeners();
     this.setupLifecycleManagerListeners();
-  }
-
-  /**
-   * ProcessManagerのイベントリスナーをセットアップ
-   *
-   * ProcessManagerからのイベントをWebSocketメッセージに変換し、
-   * クライアントにブロードキャストします。
-   * 出力メッセージはデータベースにも保存されます。
-   */
-  private setupProcessManagerListeners(): void {
-    // Claude Codeの出力をブロードキャストし、データベースに保存
-    this.processManager.on('output', async (data: ProcessManagerOutputEvent) => {
-      const message: ServerMessage = {
-        type: 'output',
-        content: data.content,
-        subAgent: data.subAgent,
-      };
-      this.connectionManager.broadcast(data.sessionId, message);
-
-      // メッセージをデータベースに保存
-      try {
-        await prisma.message.create({
-          data: {
-            session_id: data.sessionId,
-            role: 'assistant',
-            content: data.content,
-            sub_agents: data.subAgent ? JSON.stringify(data.subAgent) : null,
-          },
-        });
-        logger.debug('Output message saved to database', { sessionId: data.sessionId });
-      } catch (error) {
-        logger.error('Failed to save output message to database', {
-          sessionId: data.sessionId,
-          error,
-        });
-      }
-    });
-
-    // 権限確認リクエストをブロードキャスト
-    this.processManager.on('permission', (data: ProcessManagerPermissionEvent) => {
-      const message: ServerMessage = {
-        type: 'permission_request',
-        permission: {
-          requestId: data.requestId,
-          action: data.action,
-          details: data.details,
-        },
-      };
-      this.connectionManager.broadcast(data.sessionId, message);
-    });
-
-    // エラーをブロードキャスト
-    this.processManager.on('error', (data: ProcessManagerErrorEvent) => {
-      const message: ServerMessage = {
-        type: 'error',
-        content: data.content,
-      };
-      this.connectionManager.broadcast(data.sessionId, message);
-    });
-
-    // プロセス終了時にステータス変更を通知
-    this.processManager.on('exit', (data: ProcessManagerExitEvent) => {
-      const message: ServerMessage = {
-        type: 'status_change',
-        status: data.exitCode === 0 ? 'completed' : 'error',
-      };
-      this.connectionManager.broadcast(data.sessionId, message);
-    });
   }
 
   /**
@@ -279,6 +204,7 @@ export class SessionWebSocketHandler {
    * クライアントからのメッセージを処理
    *
    * メッセージをパースし、タイプに応じて適切な処理を実行します。
+   * 注意: Claude Codeへの入力はClaudeWebSocketHandler（/ws/claude/:id）で処理されます。
    *
    * @param ws - WebSocketインスタンス
    * @param sessionId - セッションID
@@ -300,169 +226,24 @@ export class SessionWebSocketHandler {
         messageType: message.type,
       });
 
-      switch (message.type) {
-        case 'input':
-          await this.handleInputMessage(sessionId, message.content);
-          break;
-
-        case 'approve':
-          await this.handleApproveMessage(sessionId, message.requestId);
-          break;
-
-        case 'deny':
-          await this.handleDenyMessage(sessionId, message.requestId);
-          break;
-
-        default: {
-          logger.warn('Unknown message type', { sessionId, message });
-          const errorMessage: ServerMessage = {
-            type: 'error',
-            content: 'Unknown message type',
-          };
-          ws.send(JSON.stringify(errorMessage));
-          break;
-        }
-      }
+      // このWebSocketはRunScriptログとライフサイクルイベント用
+      // Claude Codeへの入力はClaudeWebSocketHandler（/ws/claude/:id）で処理
+      logger.warn('Message type not handled on this endpoint', { sessionId, type: message.type });
+      const errorMessage: ServerMessage = {
+        type: 'error',
+        content: 'Use /ws/claude/:sessionId for Claude Code input',
+      };
+      ws.send(JSON.stringify(errorMessage));
     } catch (error) {
-      logger.error('Failed to parse WebSocket message', { sessionId, error });
+      logger.error('Failed to parse WebSocket message', {
+        sessionId,
+        error,
+      });
       const errorMessage: ServerMessage = {
         type: 'error',
         content: 'Invalid message format',
       };
       ws.send(JSON.stringify(errorMessage));
-    }
-  }
-
-  /**
-   * 入力メッセージを処理
-   *
-   * ユーザーからの入力をProcessManagerに転送し、データベースに保存します。
-   *
-   * @param sessionId - セッションID
-   * @param content - 入力内容
-   */
-  private async handleInputMessage(
-    sessionId: string,
-    content: string
-  ): Promise<void> {
-    try {
-      // プロセスの存在を確認
-      if (!this.processManager.hasProcess(sessionId)) {
-        logger.warn('Claude Code process not running', { sessionId });
-        const errorMessage: ServerMessage = {
-          type: 'error',
-          content: 'Claude Codeプロセスが実行されていません。プロセスを再起動してください。',
-        };
-        this.connectionManager.broadcast(sessionId, errorMessage);
-        return;
-      }
-
-      // ユーザーメッセージをデータベースに保存
-      try {
-        await prisma.message.create({
-          data: {
-            session_id: sessionId,
-            role: 'user',
-            content,
-          },
-        });
-        logger.debug('User message saved to database', { sessionId });
-      } catch (dbError) {
-        logger.error('Failed to save user message to database', {
-          sessionId,
-          error: dbError,
-        });
-      }
-
-      await this.processManager.sendInput(sessionId, content);
-      logger.info('Input sent to Claude Code', { sessionId });
-    } catch (error) {
-      logger.error('Failed to send input to Claude Code', { sessionId, error });
-      const errorMessage: ServerMessage = {
-        type: 'error',
-        content: 'Failed to send input',
-      };
-      this.connectionManager.broadcast(sessionId, errorMessage);
-    }
-  }
-
-  /**
-   * 承認メッセージを処理
-   *
-   * 権限確認リクエストに対する承認をProcessManagerに転送します。
-   *
-   * @param sessionId - セッションID
-   * @param requestId - リクエストID
-   */
-  private async handleApproveMessage(
-    sessionId: string,
-    requestId: string
-  ): Promise<void> {
-    try {
-      // プロセスの存在を確認
-      if (!this.processManager.hasProcess(sessionId)) {
-        logger.warn('Claude Code process not running', { sessionId });
-        const errorMessage: ServerMessage = {
-          type: 'error',
-          content: 'Claude Codeプロセスが実行されていません。プロセスを再起動してください。',
-        };
-        this.connectionManager.broadcast(sessionId, errorMessage);
-        return;
-      }
-
-      await this.processManager.sendInput(sessionId, `approve:${requestId}`);
-      logger.info('Approval sent to Claude Code', { sessionId, requestId });
-    } catch (error) {
-      logger.error('Failed to send approval to Claude Code', {
-        sessionId,
-        requestId,
-        error,
-      });
-      const errorMessage: ServerMessage = {
-        type: 'error',
-        content: 'Failed to send approval',
-      };
-      this.connectionManager.broadcast(sessionId, errorMessage);
-    }
-  }
-
-  /**
-   * 拒否メッセージを処理
-   *
-   * 権限確認リクエストに対する拒否をProcessManagerに転送します。
-   *
-   * @param sessionId - セッションID
-   * @param requestId - リクエストID
-   */
-  private async handleDenyMessage(
-    sessionId: string,
-    requestId: string
-  ): Promise<void> {
-    try {
-      // プロセスの存在を確認
-      if (!this.processManager.hasProcess(sessionId)) {
-        logger.warn('Claude Code process not running', { sessionId });
-        const errorMessage: ServerMessage = {
-          type: 'error',
-          content: 'Claude Codeプロセスが実行されていません。プロセスを再起動してください。',
-        };
-        this.connectionManager.broadcast(sessionId, errorMessage);
-        return;
-      }
-
-      await this.processManager.sendInput(sessionId, `deny:${requestId}`);
-      logger.info('Denial sent to Claude Code', { sessionId, requestId });
-    } catch (error) {
-      logger.error('Failed to send denial to Claude Code', {
-        sessionId,
-        requestId,
-        error,
-      });
-      const errorMessage: ServerMessage = {
-        type: 'error',
-        content: 'Failed to send denial',
-      };
-      this.connectionManager.broadcast(sessionId, errorMessage);
     }
   }
 }
