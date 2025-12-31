@@ -279,30 +279,36 @@ export default function SessionDetailPage() {
         return;
       }
 
+      // ユーザーメッセージをローカル状態に即座に追加（楽観的更新）
+      const userMessageId = typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      const userMessage = {
+        id: userMessageId,
+        session_id: sessionId,
+        role: 'user' as const,
+        content,
+        sub_agents: null,
+        created_at: new Date().toISOString(),
+      };
+      useAppStore.setState((state) => ({
+        messages: [...state.messages, userMessage],
+      }));
+
+      // スピナーを開始
+      setIsWaitingResponse(true);
+
       try {
-        // ユーザーメッセージをローカル状態に即座に追加（楽観的更新）
-        const userMessage = {
-          id: typeof crypto !== 'undefined' && crypto.randomUUID
-            ? crypto.randomUUID()
-            : `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-          session_id: sessionId,
-          role: 'user' as const,
-          content,
-          sub_agents: null,
-          created_at: new Date().toISOString(),
-        };
-        useAppStore.setState((state) => ({
-          messages: [...state.messages, userMessage],
-        }));
-
-        // スピナーを開始
-        setIsWaitingResponse(true);
-
         // WebSocket経由でメッセージ送信
         send({ type: 'input', content });
       } catch (error) {
         console.error('Failed to send message:', error);
+        // 送信失敗時は楽観的更新で追加したメッセージを削除
+        useAppStore.setState((state) => ({
+          messages: state.messages.filter((msg) => msg.id !== userMessageId),
+        }));
         setIsWaitingResponse(false);
+        toast.error('メッセージの送信に失敗しました');
       }
     },
     [send, processRunning, sessionId]

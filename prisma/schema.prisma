@@ -26,7 +26,7 @@ model Session {
   id                 String    @id @default(uuid())
   project_id         String
   name               String
-  status             String    // initializing, running, waiting_input, completed, error, stopped
+  status             String    // initializing, running, waiting_input, completed, error, stopped (paused: deprecated, use stopped)
   model              String
   worktree_path      String
   branch_name        String
