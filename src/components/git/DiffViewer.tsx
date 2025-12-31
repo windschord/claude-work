@@ -5,9 +5,18 @@ import dynamic from 'next/dynamic';
 import { useMemo } from 'react';
 
 // react-diff-viewer-continuedを動的インポート（SSRを無効化）
-const ReactDiffViewer = dynamic(() => import('react-diff-viewer-continued'), {
-  ssr: false,
-});
+// ESMモジュールのdefault exportを明示的に取得
+const ReactDiffViewer = dynamic(
+  () => import('react-diff-viewer-continued').then((mod) => mod.default),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center p-8">
+        <p className="text-gray-500 dark:text-gray-400">差分ビューアを読み込み中...</p>
+      </div>
+    ),
+  }
+);
 
 /**
  * Diffビューアコンポーネント
