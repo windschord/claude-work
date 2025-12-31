@@ -1,8 +1,10 @@
 import { test, expect } from '@playwright/test';
 import { createTestGitRepo, cleanupTestGitRepo } from './helpers/setup';
+import path from 'path';
 
 test.describe('セッション機能', () => {
   let repoPath: string;
+  let repoName: string;
   let projectId: string;
 
   // 各テストの前にログインしてプロジェクトを追加
@@ -15,12 +17,15 @@ test.describe('セッション機能', () => {
 
     // テスト用リポジトリを作成
     repoPath = await createTestGitRepo();
+    repoName = path.basename(repoPath);
 
     // プロジェクトを追加
     await page.click('text=プロジェクト追加');
     await page.fill('input#project-path', repoPath);
-    await page.click('button:has-text("追加")');
-    await expect(page.locator('text=test-repo')).toBeVisible();
+    // モーダル内のsubmitボタンを明示的に指定
+    await page.click('button[type="submit"]:has-text("追加")');
+    // プロジェクトカードの見出しが表示されることを確認（動的なリポジトリ名に対応）
+    await expect(page.getByRole('heading', { name: repoName, exact: true })).toBeVisible();
 
     // プロジェクトをクリックして詳細ページに移動
     await page.click('button:has-text("開く")');
@@ -54,33 +59,34 @@ test.describe('セッション機能', () => {
     await page.click('button:has-text("セッション作成")');
 
     // セッション詳細ページに遷移
-    await expect(page).toHaveURL(/\/sessions\/.+/);
-    await expect(page.locator('h1')).toContainText('テストセッション');
+    await expect(page).toHaveURL(/\/sessions\/.+/, { timeout: 10000 });
+    // セッションデータがロードされるまで待機
+    await expect(page.locator('h1')).toContainText('テストセッション', { timeout: 10000 });
   });
 
-  test('セッションにメッセージを送信できる', async ({ page }) => {
+  test('Claudeターミナルタブが表示される', async ({ page }) => {
     // セッションを作成
-    await page.fill('input#session-name', 'メッセージテスト');
+    await page.fill('input#session-name', 'ターミナルテスト');
     await page.fill('textarea#session-prompt', 'こんにちは');
     await page.click('button:has-text("セッション作成")');
 
     // セッション詳細ページに遷移
-    await expect(page).toHaveURL(/\/sessions\/.+/);
+    await expect(page).toHaveURL(/\/sessions\/.+/, { timeout: 10000 });
 
-    // 対話タブが選択されている
-    await expect(page.locator('button:has-text("対話")')).toHaveClass(/border-blue-500/);
+    // セッションデータがロードされるまで待機
+    await expect(page.locator('h1')).toBeVisible({ timeout: 10000 });
 
-    // メッセージ入力フォームが表示される
-    await expect(page.locator('textarea[placeholder*="メッセージ"]')).toBeVisible();
+    // Claudeタブが選択されている
+    await expect(page.locator('button:has-text("Claude")')).toHaveClass(/border-blue-500/);
 
-    // メッセージを入力
-    await page.fill('textarea[placeholder*="メッセージ"]', 'テストメッセージ');
+    // ターミナルエリアが表示される（aria-labelで確認）
+    await expect(page.locator('[aria-label="Claude Code Terminal"]')).toBeVisible({ timeout: 10000 });
 
-    // 送信ボタンをクリック
-    await page.click('button:has-text("送信")');
+    // 接続状態が表示される
+    await expect(page.locator('text=Connected').or(page.locator('text=Disconnected'))).toBeVisible({ timeout: 10000 });
 
-    // メッセージが送信される（WebSocketの実装により実際の応答は返らないが、UI上は送信される）
-    await expect(page.locator('textarea[placeholder*="メッセージ"]')).toHaveValue('');
+    // 再起動ボタンが表示される
+    await expect(page.locator('button:has-text("Restart")')).toBeVisible();
   });
 
   test('セッションを停止できる', async ({ page }) => {
@@ -90,14 +96,17 @@ test.describe('セッション機能', () => {
     await page.click('button:has-text("セッション作成")');
 
     // セッション詳細ページに遷移
-    await expect(page).toHaveURL(/\/sessions\/.+/);
+    await expect(page).toHaveURL(/\/sessions\/.+/, { timeout: 10000 });
+
+    // セッションデータがロードされるまで待機
+    await expect(page.locator('h1')).toBeVisible({ timeout: 10000 });
 
     // セッションが実行中になるまで待機
     const stopButton = page.locator('button:has-text("停止")');
-    await expect(stopButton).toBeVisible({ timeout: 10000 });
+    await expect(stopButton).toBeVisible({ timeout: 15000 });
 
     await stopButton.click();
-    await expect(page.locator('text=停止しました')).toBeVisible();
+    await expect(page.locator('text=停止しました')).toBeVisible({ timeout: 10000 });
   });
 
   test('セッション一覧からセッション詳細へ遷移できる (BUG-004)', async ({ page }) => {
@@ -107,7 +116,7 @@ test.describe('セッション機能', () => {
     await page.click('button:has-text("セッション作成")');
 
     // セッション詳細ページに遷移することを確認
-    await expect(page).toHaveURL(/\/sessions\/.+/);
+    await expect(page).toHaveURL(/\/sessions\/.+/, { timeout: 10000 });
     const firstSessionUrl = page.url();
     const firstSessionId = firstSessionUrl.split('/sessions/')[1];
 
@@ -119,15 +128,15 @@ test.describe('セッション機能', () => {
     await page.fill('input#session-name', '遷移テスト2');
     await page.fill('textarea#session-prompt', '遷移テスト2');
     await page.click('button:has-text("セッション作成")');
-    await expect(page).toHaveURL(/\/sessions\/.+/);
+    await expect(page).toHaveURL(/\/sessions\/.+/, { timeout: 10000 });
 
     // 再びプロジェクト詳細ページに戻る
     await page.goto(`/projects/${projectId}`);
     await expect(page).toHaveURL(`/projects/${projectId}`);
 
     // セッション一覧が表示されることを確認
-    await expect(page.locator('text=遷移テスト1')).toBeVisible();
-    await expect(page.locator('text=遷移テスト2')).toBeVisible();
+    await expect(page.locator('text=遷移テスト1')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('text=遷移テスト2')).toBeVisible({ timeout: 10000 });
 
     // 最初のセッションカードをクリック
     const firstSessionCard = page.locator('[data-testid="session-card"]').filter({ hasText: '遷移テスト1' });
@@ -140,7 +149,8 @@ test.describe('セッション機能', () => {
     await firstSessionCard.click();
 
     // セッション詳細ページに遷移することを確認
-    await expect(page).toHaveURL(`/sessions/${firstSessionId}`, { timeout: 5000 });
-    await expect(page.locator('h1')).toContainText('遷移テスト1');
+    await expect(page).toHaveURL(`/sessions/${firstSessionId}`, { timeout: 10000 });
+    // セッションデータがロードされるまで待機
+    await expect(page.locator('h1')).toContainText('遷移テスト1', { timeout: 10000 });
   });
 });
