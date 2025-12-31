@@ -265,7 +265,8 @@ Claude Code専用のターミナルパネルコンポーネントを実装する
 
 ### タスク3.1: 不要なコンポーネントの削除
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
+**完了サマリー**: MessageList, MessageBubble, InputForm, PermissionDialog, MessageDisplay, CodeBlock, ChatOutput等の不要コンポーネントとテストファイルを削除。
 **推定工数**: 20分
 
 **説明**:
@@ -291,7 +292,8 @@ Claude Code専用のターミナルパネルコンポーネントを実装する
 
 ### タスク3.2: Zustandストアの簡略化
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
+**完了サマリー**: Message, PermissionRequest型を削除。messages, permissionRequest状態を削除。sendMessage, approvePermission関数を削除。handleWebSocketMessage, fetchSessionDetailを簡略化。
 **推定工数**: 25分
 
 **説明**:
@@ -324,7 +326,8 @@ Claude Code専用のターミナルパネルコンポーネントを実装する
 
 ### タスク3.3: ProcessManagerの簡略化
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
+**完了サマリー**: セッション作成からProcessManager.startClaudeCode()を削除。初期ステータスを'initializing'に変更。PTY起動をWebSocket接続時に変更。SessionWebSocketHandlerからProcessManager関連コードを削除。
 **推定工数**: 20分
 
 **説明**:
@@ -351,7 +354,8 @@ ProcessManagerから不要なコードを削除する。
 
 ### タスク4.1: テスト更新
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
+**完了サマリー**: process-manager.test.tsをstream-json形式に対応更新。claude-pty-manager.test.ts（25テスト）、useClaudeTerminal.test.ts（12テスト）、ClaudeTerminalPanel.test.tsx（11テスト）を新規作成。合計85テストがパス。
 **推定工数**: 40分
 
 **説明**:
