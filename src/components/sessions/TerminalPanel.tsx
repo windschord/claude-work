@@ -12,6 +12,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useTerminal } from '@/hooks/useTerminal';
+import { RotateCcw } from 'lucide-react';
 import '@xterm/xterm/css/xterm.css';
 
 interface TerminalPanelProps {
@@ -20,7 +21,7 @@ interface TerminalPanelProps {
 
 function TerminalPanel({ sessionId }: TerminalPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const { terminal, isConnected, fit, error } = useTerminal(sessionId);
+  const { terminal, isConnected, fit, reconnect, error } = useTerminal(sessionId);
   const [mounted, setMounted] = useState(false);
   const [isTerminalOpened, setIsTerminalOpened] = useState(false);
 
@@ -153,15 +154,27 @@ function TerminalPanel({ sessionId }: TerminalPanelProps) {
       {/* ヘッダー */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-gray-700">
         <h3 className="font-semibold text-gray-900 dark:text-gray-100">Terminal</h3>
-        <div className="flex items-center gap-2">
-          <span
-            className={`w-2 h-2 rounded-full ${
-              isConnected ? 'bg-green-500' : 'bg-red-500'
-            }`}
-          />
-          <span className="text-sm text-gray-600 dark:text-gray-400">
-            {isConnected ? 'Connected' : 'Disconnected'}
-          </span>
+        <div className="flex items-center gap-3">
+          {/* 再接続ボタン */}
+          <button
+            onClick={reconnect}
+            className="flex items-center gap-1 px-2 py-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors"
+            title="Reconnect Terminal"
+          >
+            <RotateCcw className="w-4 h-4" />
+            <span>Reconnect</span>
+          </button>
+          {/* 接続状態 */}
+          <div className="flex items-center gap-2">
+            <span
+              className={`w-2 h-2 rounded-full ${
+                isConnected ? 'bg-green-500' : 'bg-red-500'
+              }`}
+            />
+            <span className="text-sm text-gray-600 dark:text-gray-400">
+              {isConnected ? 'Connected' : 'Disconnected'}
+            </span>
+          </div>
         </div>
       </div>
 
