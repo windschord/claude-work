@@ -15,7 +15,8 @@
 
 ### タスク1.1: ClaudePTYManager実装
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
+**完了サマリー**: node-ptyを使用したClaudePTYManagerを実装。createSession, write, resize, destroySession, restartSession, hasSession, getWorkingDirメソッドを実装。
 **推定工数**: 40分
 
 **説明**:
@@ -86,7 +87,8 @@ export class ClaudePTYManager extends EventEmitter {
 
 ### タスク1.2: ClaudeWebSocketHandler実装
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
+**完了サマリー**: ClaudePTYManagerと連携するWebSocketハンドラーを実装。入力、リサイズ、再起動メッセージを処理。
 **推定工数**: 30分
 
 **説明**:
@@ -147,7 +149,8 @@ export class ClaudeWebSocketHandler {
 
 ### タスク1.3: server.tsにClaudeWebSocketを追加
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
+**完了サマリー**: /ws/claude/:sessionId エンドポイントを追加。認証、UUID検証、グレースフルシャットダウン対応を実装。
 **推定工数**: 20分
 
 **説明**:
@@ -173,7 +176,8 @@ export class ClaudeWebSocketHandler {
 
 ### タスク2.1: useClaudeTerminal Hook実装
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
+**完了サマリー**: useTerminal.tsを参考にuseClaudeTerminal.tsを実装。restart()関数を追加。
 **推定工数**: 30分
 
 **説明**:
@@ -200,7 +204,8 @@ Claude Codeターミナル用のReact Hookを実装する。
 
 ### タスク2.2: ClaudeTerminalPanel実装
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
+**完了サマリー**: TerminalPanel.tsxを参考にClaudeTerminalPanel.tsxを実装。再起動ボタン、isVisible prop、接続状態表示を追加。
 **推定工数**: 25分
 
 **説明**:
@@ -226,7 +231,8 @@ Claude Code専用のターミナルパネルコンポーネントを実装する
 
 ### タスク2.3: SessionDetailPage変更
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
+**完了サマリー**: タブ構成をClaude/Shell/Diff/Commits/Scriptsに変更。ClaudeTerminalPanelを導入、MessageList/InputFormを削除。
 **推定工数**: 40分
 
 **説明**:
