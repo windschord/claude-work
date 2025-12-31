@@ -58,38 +58,6 @@ export interface CreateSessionData {
 }
 
 /**
- * メッセージの型定義
- */
-export interface Message {
-  /** メッセージID */
-  id: string;
-  /** 所属するセッションのID */
-  session_id: string;
-  /** メッセージの役割 */
-  role: 'user' | 'assistant';
-  /** メッセージ内容 */
-  content: string;
-  /** サブエージェント情報（JSON形式） */
-  sub_agents: string | null;
-  /** 作成日時 */
-  created_at: string;
-}
-
-/**
- * 権限リクエストの型定義
- */
-export interface PermissionRequest {
-  /** 権限リクエストID */
-  id: string;
-  /** 権限タイプ */
-  type: string;
-  /** 説明 */
-  description: string;
-  /** 詳細 */
-  details: string;
-}
-
-/**
  * Diffファイルの型定義
  */
 export interface DiffFile {
@@ -161,10 +129,6 @@ export interface AppState {
 
   /** 現在表示中のセッション詳細 */
   currentSession: Session | null;
-  /** メッセージ一覧 */
-  messages: Message[];
-  /** 権限リクエスト */
-  permissionRequest: PermissionRequest | null;
 
   /** Diff情報 */
   diff: DiffData | null;
@@ -225,10 +189,6 @@ export interface AppState {
   setSelectedSessionId: (sessionId: string | null) => void;
   /** セッション詳細を取得 */
   fetchSessionDetail: (sessionId: string) => Promise<void>;
-  /** メッセージを送信 */
-  sendMessage: (sessionId: string, content: string) => Promise<void>;
-  /** 権限リクエストを承認 */
-  approvePermission: (sessionId: string, permissionId: string, action: 'approve' | 'reject') => Promise<void>;
   /** セッションを停止 */
   stopSession: (sessionId: string) => Promise<void>;
   /** Diffを取得 */
@@ -270,8 +230,6 @@ const initialState = {
   sessions: [],
   selectedSessionId: null,
   currentSession: null,
-  messages: [],
-  permissionRequest: null,
   diff: null,
   selectedFile: null,
   isDiffLoading: false,
@@ -637,16 +595,7 @@ export const useAppStore = create<AppState>((set) => ({
       }
 
       const data = await response.json();
-
-      // Fetch messages for this session
-      const messagesResponse = await fetch(`/api/sessions/${sessionId}/messages`);
-      let messages = [];
-      if (messagesResponse.ok) {
-        const messagesData = await messagesResponse.json();
-        messages = messagesData.messages || [];
-      }
-
-      set({ currentSession: data.session, messages });
+      set({ currentSession: data.session });
     } catch (error) {
       if (error instanceof Error) {
         if (error.message.includes('Failed to fetch') || error.message.includes('Network')) {
@@ -655,62 +604,6 @@ export const useAppStore = create<AppState>((set) => ({
         throw error;
       }
       throw new Error('セッション詳細の取得に失敗しました');
-    }
-  },
-
-  sendMessage: async (sessionId: string, content: string) => {
-    try {
-      const response = await fetch(`/api/sessions/${sessionId}/input`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ content }),
-      });
-
-      if (!response.ok) {
-        throw new Error('メッセージの送信に失敗しました');
-      }
-
-      const data = await response.json();
-      set((state) => ({
-        messages: [...state.messages, data.message],
-      }));
-    } catch (error) {
-      if (error instanceof Error) {
-        if (error.message.includes('Failed to fetch') || error.message.includes('Network')) {
-          throw new Error('ネットワークエラーが発生しました');
-        }
-        throw error;
-      }
-      throw new Error('メッセージの送信に失敗しました');
-    }
-  },
-
-  approvePermission: async (sessionId: string, permissionId: string, action: 'approve' | 'reject') => {
-    try {
-      const response = await fetch(`/api/sessions/${sessionId}/approve`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ permission_id: permissionId, action }),
-      });
-
-      if (!response.ok) {
-        throw new Error('権限リクエストの処理に失敗しました');
-      }
-
-      // Clear permission request after handling
-      set({ permissionRequest: null });
-    } catch (error) {
-      if (error instanceof Error) {
-        if (error.message.includes('Failed to fetch') || error.message.includes('Network')) {
-          throw new Error('ネットワークエラーが発生しました');
-        }
-        throw error;
-      }
-      throw new Error('権限リクエストの処理に失敗しました');
     }
   },
 
@@ -893,57 +786,7 @@ export const useAppStore = create<AppState>((set) => ({
   },
 
   handleWebSocketMessage: (message) => {
-    const MAX_MESSAGES = 1000;
-
     switch (message.type) {
-      case 'output':
-        set((state) => {
-          const newMessage: Message = {
-            id: typeof crypto !== 'undefined' && crypto.randomUUID
-              ? crypto.randomUUID()
-              : `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-            session_id: state.currentSession?.id || state.selectedSessionId || '',
-            role: 'assistant',
-            content: message.content,
-            sub_agents: message.subAgent ? JSON.stringify(message.subAgent) : null,
-            created_at: new Date().toISOString(),
-          };
-
-          const updatedMessages = [...state.messages, newMessage];
-
-          // メッセージが1000件を超えたら古いメッセージを削除
-          if (updatedMessages.length > MAX_MESSAGES) {
-            return {
-              messages: updatedMessages.slice(updatedMessages.length - MAX_MESSAGES),
-            };
-          }
-
-          return { messages: updatedMessages };
-        });
-        break;
-
-      case 'permission_request':
-        {
-          const state = useAppStore.getState();
-          // 通知を送信（状態更新の前に実行）
-          sendNotification({
-            type: 'permissionRequest',
-            sessionId: state.currentSession?.id || '',
-            sessionName: state.currentSession?.name || '',
-            message: message.permission?.action,
-          });
-
-          set({
-            permissionRequest: {
-              id: message.permission.requestId,
-              type: message.permission.action,
-              description: message.permission.action,
-              details: message.permission.details,
-            },
-          });
-        }
-        break;
-
       case 'status_change':
         {
           const state = useAppStore.getState();

@@ -9,7 +9,6 @@ import { useNotificationStore } from '@/store/notification';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { AuthGuard } from '@/components/AuthGuard';
 import { MainLayout } from '@/components/layout/MainLayout';
-import PermissionDialog from '@/components/session/PermissionDialog';
 import { FileList } from '@/components/git/FileList';
 import { DiffViewer } from '@/components/git/DiffViewer';
 import { RebaseButton } from '@/components/git/RebaseButton';
@@ -50,7 +49,6 @@ export default function SessionDetailPage() {
 
   const {
     currentSession,
-    permissionRequest,
     conflictFiles,
     fetchSessionDetail,
     fetchDiff,
@@ -62,7 +60,6 @@ export default function SessionDetailPage() {
 
   const { permission, requestPermission } = useNotificationStore();
 
-  const [isPermissionDialogOpen, setIsPermissionDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'claude' | 'shell' | 'diff' | 'commits' | 'scripts'>('claude');
   const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
   const [isConflictDialogOpen, setIsConflictDialogOpen] = useState(false);
@@ -115,8 +112,8 @@ export default function SessionDetailPage() {
     [handleWebSocketMessage]
   );
 
-  // WebSocket接続
-  const { send, status: wsStatus } = useWebSocket(sessionId, onMessage);
+  // WebSocket接続（スクリプトログとライフサイクルイベント用）
+  const { status: wsStatus } = useWebSocket(sessionId, onMessage);
 
   // 初回データ取得
   useEffect(() => {
@@ -163,13 +160,6 @@ export default function SessionDetailPage() {
       checkProcessStatus();
     }
   }, [wsStatus, checkProcessStatus]);
-
-  // Show permission dialog when permission request is available
-  useEffect(() => {
-    if (permissionRequest) {
-      setIsPermissionDialogOpen(true);
-    }
-  }, [permissionRequest]);
 
   useEffect(() => {
     checkAuth();
@@ -258,34 +248,6 @@ export default function SessionDetailPage() {
       setProcessLoading(false);
     }
   }, [sessionId, fetchSessionDetail]);
-
-  const handleApprove = useCallback(
-    (permissionId: string) => {
-      try {
-        // WebSocket経由で権限承認を送信
-        send({ type: 'approve', requestId: permissionId });
-        // ダイアログを閉じる
-        setIsPermissionDialogOpen(false);
-      } catch (error) {
-        console.error('Failed to approve permission:', error);
-      }
-    },
-    [send]
-  );
-
-  const handleReject = useCallback(
-    (permissionId: string) => {
-      try {
-        // WebSocket経由で権限拒否を送信
-        send({ type: 'deny', requestId: permissionId });
-        // ダイアログを閉じる
-        setIsPermissionDialogOpen(false);
-      } catch (error) {
-        console.error('Failed to reject permission:', error);
-      }
-    },
-    [send]
-  );
 
   const handleStopSession = async () => {
     try {
@@ -492,15 +454,6 @@ export default function SessionDetailPage() {
             {/* Scripts */}
             <ScriptsPanel sessionId={sessionId} projectId={currentSession.project_id} />
           </div>
-
-          {/* Permission Dialog */}
-          <PermissionDialog
-            isOpen={isPermissionDialogOpen}
-            permission={permissionRequest}
-            onApprove={handleApprove}
-            onReject={handleReject}
-            onClose={() => setIsPermissionDialogOpen(false)}
-          />
 
           {/* Merge Modal */}
           <MergeModal
