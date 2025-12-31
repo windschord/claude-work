@@ -11,17 +11,19 @@ ClaudeWork is a web-based tool for managing multiple Claude Code sessions throug
 ### Core Components
 
 **Server Architecture** (server.ts):
-- Custom Next.js server with dual WebSocket servers:
-  - Session WebSocket (`/ws/sessions/:id`): Claude Code process communication
-  - Terminal WebSocket (`/ws/terminal/:id`): PTY terminal sessions
+- Custom Next.js server with multiple WebSocket servers:
+  - Claude WebSocket (`/ws/claude/:id`): Claude Code PTY terminal (interactive mode)
+  - Session WebSocket (`/ws/sessions/:id`): Session events and script execution
+  - Terminal WebSocket (`/ws/terminal/:id`): Shell PTY sessions
 - WebSocket authentication via iron-session cookies
 - Connection pooling via ConnectionManager
 
 **Session Management**:
 - Each session creates an isolated Git worktree under `.worktrees/<session-name>/`
-- ProcessManager spawns Claude Code processes with `--print` flag for JSON output
-- PTYManager handles terminal sessions using node-pty
+- ClaudePTYManager spawns Claude Code in interactive mode using node-pty
+- PTYManager handles shell terminal sessions using node-pty
 - Sessions are persisted in SQLite via Prisma
+- UI provides a thin wrapper around Claude Code terminal (XTerm.js)
 
 **Git Integration** (src/services/git-service.ts):
 - Manages worktree creation/deletion
@@ -29,11 +31,12 @@ ClaudeWork is a web-based tool for managing multiple Claude Code sessions throug
 - Path traversal protection via name validation
 - All worktrees isolated in `.worktrees/` directory
 
-**WebSocket Flow**:
-1. Client connects to `/ws/sessions/:sessionId`
-2. Session authenticated via cookie sessionId comparison
-3. ConnectionManager routes messages to correct ProcessManager
-4. Claude Code output streamed back via WebSocket
+**WebSocket Flow** (Claude Terminal):
+1. Client connects to `/ws/claude/:sessionId`
+2. Connection authenticated via iron-session cookie
+3. ClaudePTYManager creates PTY session for Claude Code (interactive mode)
+4. XTerm.js on client displays raw terminal output from Claude Code
+5. User input from terminal sent to PTY via WebSocket
 
 ### Database Schema
 
@@ -48,7 +51,8 @@ Key models (prisma/schema.prisma):
 
 - Next.js 15 App Router with TypeScript
 - State management: Zustand stores in `src/store/`
-- WebSocket hooks: `useWebSocket.ts`, `useTerminal.ts`
+- WebSocket hooks: `useClaudeTerminal.ts`, `useTerminal.ts`, `useWebSocket.ts`
+- Terminal: XTerm.js for Claude Code and shell terminals
 - Theme support: next-themes (light/dark/system)
 - UI: Tailwind CSS, Headless UI, Lucide icons
 
@@ -181,17 +185,17 @@ Both WebSocket servers authenticate via:
 
 Implementation: `src/lib/websocket/auth-middleware.ts`
 
-### Process Management Security
+### Claude Code Process Management
 
-ProcessManager spawns Claude Code with:
-- `--print` flag for JSON-structured output
-- `--model` flag if specified (auto/opus/sonnet/haiku)
-- Working directory set via spawn `cwd` option to the worktree path
+ClaudePTYManager spawns Claude Code in interactive mode using node-pty:
+- Interactive terminal mode (no `--print` flag)
+- Working directory set to the worktree path via PTY spawn options
+- Raw terminal I/O streamed via WebSocket to XTerm.js client
 
-Claude Code output is parsed for:
-- Regular output (streamed to WebSocket)
-- Permission requests (special handling)
-- Error messages (logged and forwarded)
+The thin wrapper architecture means:
+- No parsing of Claude Code output on the server
+- User interacts directly with Claude Code's native terminal interface
+- All Claude Code features (tool use, permissions, etc.) work natively
 
 ### Git Worktree Isolation
 
@@ -297,9 +301,10 @@ Phase 19 tasks (docs/tasks/phase19.md) implement fixes for issues 1–3; issues 
 │   │   ├── auth.ts         # Authentication
 │   │   └── logger.ts       # Winston logger
 │   ├── services/           # Business logic
-│   │   ├── git-service.ts      # Git operations
-│   │   ├── process-manager.ts  # Claude Code processes
-│   │   └── pty-manager.ts      # Terminal sessions
+│   │   ├── git-service.ts        # Git operations
+│   │   ├── claude-pty-manager.ts # Claude Code PTY sessions
+│   │   ├── process-manager.ts    # Session status management
+│   │   └── pty-manager.ts        # Shell terminal sessions
 │   ├── store/              # Zustand state stores
 │   └── types/              # TypeScript types
 ├── docs/                   # Documentation
