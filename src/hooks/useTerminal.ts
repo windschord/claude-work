@@ -14,9 +14,11 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import type { Terminal } from '@xterm/xterm';
-import type { FitAddon } from '@xterm/addon-fit';
-import type { IDisposable } from '@xterm/xterm';
+// 静的インポート（動的インポートは開発モードでwebpackチャンク問題を引き起こすため）
+// Note: このhookは 'use client' コンポーネントでのみ使用され、
+// useEffect内でブラウザ環境チェックを行うため安全
+import { Terminal, type IDisposable } from '@xterm/xterm';
+import { FitAddon } from '@xterm/addon-fit';
 
 export interface UseTerminalReturn {
   terminal: Terminal | null;
@@ -45,12 +47,8 @@ export function useTerminal(sessionId: string): UseTerminalReturn {
     let fitAddon: FitAddon;
     let ws: WebSocket;
 
-    const initTerminal = async () => {
+    const initTerminal = () => {
       try {
-        // 動的インポートでXTerm.jsとFitAddonを読み込む
-        const { Terminal } = await import('@xterm/xterm');
-        const { FitAddon } = await import('@xterm/addon-fit');
-
         // アンマウント後は処理を中断
         if (!isMounted) return;
 

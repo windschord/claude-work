@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import dynamic from 'next/dynamic';
 import { useAppStore } from '@/store';
 import { useScriptLogStore } from '@/store/script-logs';
 import { useNotificationStore } from '@/store/notification';
@@ -20,18 +19,46 @@ import { ScriptsPanel } from '@/components/scripts/ScriptsPanel';
 import { ProcessStatus } from '@/components/sessions/ProcessStatus';
 import { Toaster, toast } from 'react-hot-toast';
 import type { ServerMessage } from '@/types/websocket';
+// 静的インポート（ただしSSR時は動作しないxtermを遅延レンダリング）
+// Note: 動的インポートは開発モードでwebpackのチャンク問題が発生するため、
+// 静的インポートを使用し、クライアントサイドでのみレンダリングする
+import { TerminalPanel } from '@/components/sessions/TerminalPanel';
+import { ClaudeTerminalPanel } from '@/components/sessions/ClaudeTerminalPanel';
 
-// TerminalPanelをSSRなしで動的インポート（xtermはブラウザ専用）
-const TerminalPanel = dynamic(
-  () => import('@/components/sessions/TerminalPanel').then((mod) => mod.TerminalPanel),
-  { ssr: false }
+// ローディングコンポーネント
+const TerminalLoading = () => (
+  <div className="flex items-center justify-center h-full">
+    <p className="text-gray-500 dark:text-gray-400">Loading terminal...</p>
+  </div>
 );
 
-// ClaudeTerminalPanelをSSRなしで動的インポート（xtermはブラウザ専用）
-const ClaudeTerminalPanel = dynamic(
-  () => import('@/components/sessions/ClaudeTerminalPanel').then((mod) => mod.ClaudeTerminalPanel),
-  { ssr: false }
-);
+interface LazyTerminalProps {
+  sessionId: string;
+  isVisible?: boolean;
+}
+
+// クライアントサイドでのみレンダリングするラッパー
+function LazyTerminalPanel({ sessionId }: LazyTerminalProps) {
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  if (!isMounted) return <TerminalLoading />;
+  return <TerminalPanel sessionId={sessionId} />;
+}
+
+function LazyClaudeTerminalPanel({ sessionId, isVisible = true }: LazyTerminalProps) {
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  if (!isMounted) return <TerminalLoading />;
+  return <ClaudeTerminalPanel sessionId={sessionId} isVisible={isVisible} />;
+}
 
 /**
  * セッション詳細ページ
@@ -415,7 +442,7 @@ export default function SessionDetailPage() {
           {/* Claude Tab */}
           <div className={`flex-1 overflow-hidden ${activeTab === 'claude' ? '' : 'hidden'}`}>
             {/* Claude Code Terminal */}
-            <ClaudeTerminalPanel sessionId={sessionId} isVisible={activeTab === 'claude'} />
+            <LazyClaudeTerminalPanel sessionId={sessionId} isVisible={activeTab === 'claude'} />
           </div>
 
           {/* Diff Tab */}
@@ -446,7 +473,7 @@ export default function SessionDetailPage() {
           {/* Shell Tab */}
           <div className={`flex-1 overflow-hidden ${activeTab === 'shell' ? '' : 'hidden'}`}>
             {/* Shell Terminal */}
-            <TerminalPanel sessionId={sessionId} />
+            <LazyTerminalPanel sessionId={sessionId} />
           </div>
 
           {/* Scripts Tab */}

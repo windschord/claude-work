@@ -20,7 +20,7 @@ interface ClaudeTerminalPanelProps {
   isVisible: boolean;
 }
 
-export function ClaudeTerminalPanel({
+function ClaudeTerminalPanel({
   sessionId,
   isVisible,
 }: ClaudeTerminalPanelProps) {
@@ -207,3 +207,9 @@ export function ClaudeTerminalPanel({
     </div>
   );
 }
+
+// Named export for backward compatibility
+export { ClaudeTerminalPanel };
+
+// Default export for dynamic import
+export default ClaudeTerminalPanel;

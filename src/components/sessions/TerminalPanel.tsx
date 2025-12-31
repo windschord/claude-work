@@ -18,7 +18,7 @@ interface TerminalPanelProps {
   sessionId: string;
 }
 
-export function TerminalPanel({ sessionId }: TerminalPanelProps) {
+function TerminalPanel({ sessionId }: TerminalPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { terminal, isConnected, fit, error } = useTerminal(sessionId);
   const [mounted, setMounted] = useState(false);
@@ -175,3 +175,9 @@ export function TerminalPanel({ sessionId }: TerminalPanelProps) {
     </div>
   );
 }
+
+// Named export for backward compatibility
+export { TerminalPanel };
+
+// Default export for dynamic import
+export default TerminalPanel;
