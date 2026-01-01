@@ -3,12 +3,14 @@ import toast from 'react-hot-toast';
 export type NotificationEventType =
   | 'taskComplete'
   | 'permissionRequest'
-  | 'error';
+  | 'error'
+  | 'actionRequired';
 
 export interface NotificationSettings {
   onTaskComplete: boolean;
   onPermissionRequest: boolean;
   onError: boolean;
+  onActionRequired: boolean;
 }
 
 export interface NotificationEvent {
@@ -24,6 +26,7 @@ export const DEFAULT_SETTINGS: NotificationSettings = {
   onTaskComplete: true,
   onPermissionRequest: true,
   onError: true,
+  onActionRequired: true,
 };
 
 /**
@@ -50,6 +53,10 @@ export function getSettings(): NotificationSettings {
       typeof parsed.onError !== 'boolean'
     ) {
       return DEFAULT_SETTINGS;
+    }
+    // onActionRequiredが存在しない場合はデフォルト値を追加（既存設定との後方互換性）
+    if (typeof parsed.onActionRequired !== 'boolean') {
+      parsed.onActionRequired = true;
     }
     return parsed;
   } catch {
@@ -119,6 +126,8 @@ function getDefaultMessage(type: NotificationEventType): string {
       return '権限確認が必要です';
     case 'error':
       return 'エラーが発生しました';
+    case 'actionRequired':
+      return 'アクションが必要です';
   }
 }
 
@@ -136,6 +145,8 @@ function getSettingKey(type: NotificationEventType): keyof NotificationSettings 
       return 'onPermissionRequest';
     case 'error':
       return 'onError';
+    case 'actionRequired':
+      return 'onActionRequired';
   }
 }
 
@@ -153,6 +164,8 @@ function getTitle(event: NotificationEvent): string {
       return `アクション要求: ${event.sessionName}`;
     case 'error':
       return `エラー発生: ${event.sessionName}`;
+    case 'actionRequired':
+      return `アクション要求: ${event.sessionName}`;
   }
 }
 

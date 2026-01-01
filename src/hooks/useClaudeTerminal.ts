@@ -20,9 +20,12 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 // 型のみ静的インポート（実行時には影響しない）
 import type { Terminal, IDisposable } from '@xterm/xterm';
 import type { FitAddon } from '@xterm/addon-fit';
+import { detectActionRequest, createCooldownChecker } from '@/lib/action-detector';
+import { sendNotification } from '@/lib/notification-service';
 
 export interface UseClaudeTerminalOptions {
   isVisible?: boolean;
+  sessionName?: string;
 }
 
 export interface UseClaudeTerminalReturn {
@@ -38,12 +41,13 @@ export interface UseClaudeTerminalReturn {
 const RECONNECT_DELAY = 1000; // 再接続までの待機時間（ミリ秒）
 const MAX_RECONNECT_ATTEMPTS = 5; // 最大再接続試行回数
 const RESIZE_DEBOUNCE_DELAY = 300; // リサイズデバウンス遅延（ミリ秒）
+const NOTIFICATION_COOLDOWN = 5000; // 通知クールダウン期間（ミリ秒）
 
 export function useClaudeTerminal(
   sessionId: string,
   options: UseClaudeTerminalOptions = {}
 ): UseClaudeTerminalReturn {
-  const { isVisible = true } = options;
+  const { isVisible = true, sessionName = 'Claude Session' } = options;
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -53,6 +57,11 @@ export function useClaudeTerminal(
   const reconnectAttemptsRef = useRef(0);
   const isMountedRef = useRef(true);
   const prevIsVisibleRef = useRef(isVisible);
+  // アクション要求通知のクールダウンチェッカー（初期化時に1回だけ作成）
+  const notificationCooldownRef = useRef<(() => boolean) | null>(null);
+  if (notificationCooldownRef.current === null) {
+    notificationCooldownRef.current = createCooldownChecker(NOTIFICATION_COOLDOWN);
+  }
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [terminal, setTerminal] = useState<Terminal | null>(null);
@@ -109,6 +118,20 @@ export function useClaudeTerminal(
         if (message.type === 'data') {
           // ターミナルに出力を書き込む
           terminalRef.current?.write(message.content);
+
+          // アクション要求パターンを検出して通知を送信
+          if (
+            detectActionRequest(message.content) &&
+            notificationCooldownRef.current &&
+            notificationCooldownRef.current()
+          ) {
+            sendNotification({
+              type: 'actionRequired',
+              sessionId,
+              sessionName,
+              message: 'Claudeがアクションを求めています',
+            });
+          }
         } else if (message.type === 'exit') {
           // プロセス終了メッセージを表示
           terminalRef.current?.write(
@@ -153,7 +176,7 @@ export function useClaudeTerminal(
     };
 
     return ws;
-  }, [sessionId]);
+  }, [sessionId, sessionName]);
 
   // ターミナル初期化
   useEffect(() => {

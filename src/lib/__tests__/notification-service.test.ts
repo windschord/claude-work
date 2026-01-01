@@ -71,6 +71,7 @@ describe('notification-service', () => {
         onTaskComplete: false,
         onPermissionRequest: false,
         onError: true,
+        onActionRequired: false,
       };
       mockLocalStorage.setItem(
         'claudework:notification-settings',
@@ -89,6 +90,7 @@ describe('notification-service', () => {
         onTaskComplete: true,
         onPermissionRequest: true,
         onError: true,
+        onActionRequired: true,
       });
     });
 
@@ -104,6 +106,7 @@ describe('notification-service', () => {
         onTaskComplete: true,
         onPermissionRequest: true,
         onError: true,
+        onActionRequired: true,
       });
     });
   });
@@ -376,6 +379,86 @@ describe('notification-service', () => {
       sendNotification(event);
 
       expect(toast.error).toHaveBeenCalledWith('Test Session: エラーが発生しました');
+    });
+
+    // Task 43.19: actionRequiredイベントタイプのテスト
+    it('actionRequiredイベントが処理される', () => {
+      Object.defineProperty(document, 'visibilityState', {
+        value: 'visible',
+        writable: true,
+      });
+
+      const event: NotificationEvent = {
+        type: 'actionRequired',
+        sessionId: 'session-123',
+        sessionName: 'Test Session',
+        message: 'Claudeがアクションを求めています',
+      };
+
+      sendNotification(event);
+
+      expect(toast.success).toHaveBeenCalledWith(
+        'Test Session: Claudeがアクションを求めています'
+      );
+    });
+
+    it('設定が無効の場合actionRequiredをスキップ', () => {
+      const settings: NotificationSettings = {
+        onTaskComplete: true,
+        onPermissionRequest: true,
+        onError: true,
+        onActionRequired: false,
+      };
+      mockLocalStorage.setItem(
+        'claudework:notification-settings',
+        JSON.stringify(settings)
+      );
+
+      const event: NotificationEvent = {
+        type: 'actionRequired',
+        sessionId: 'session-123',
+        sessionName: 'Test Session',
+      };
+
+      sendNotification(event);
+
+      expect(toast.success).not.toHaveBeenCalled();
+      expect(mockNotification).not.toHaveBeenCalled();
+    });
+
+    it('messageが未指定の場合デフォルトメッセージを使用（actionRequired）', () => {
+      const event: NotificationEvent = {
+        type: 'actionRequired',
+        sessionId: 'session-123',
+        sessionName: 'Test Session',
+      };
+
+      sendNotification(event);
+
+      expect(toast.success).toHaveBeenCalledWith('Test Session: アクションが必要です');
+    });
+
+    it('タブがバックグラウンドの場合OS通知を表示（actionRequired）', () => {
+      Object.defineProperty(document, 'visibilityState', {
+        value: 'hidden',
+        writable: true,
+      });
+
+      const event: NotificationEvent = {
+        type: 'actionRequired',
+        sessionId: 'session-action',
+        sessionName: 'Action Session',
+        message: '確認が必要です',
+      };
+
+      sendNotification(event);
+
+      expect(toast.success).not.toHaveBeenCalled();
+      expect(mockNotification).toHaveBeenCalledWith('アクション要求: Action Session', {
+        body: '確認が必要です',
+        icon: '/icon.png',
+        tag: 'claudework-session-action',
+      });
     });
 
     it('OS通知クリック時にウィンドウがフォーカスされセッションページに遷移する（taskComplete）', () => {
