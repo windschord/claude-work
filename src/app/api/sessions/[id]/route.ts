@@ -168,3 +168,96 @@ export async function DELETE(
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
+
+/**
+ * PATCH /api/sessions/[id] - セッション情報更新
+ *
+ * 指定されたIDのセッション情報を更新します。
+ * 現在はセッション名の更新のみサポートしています。
+ * 認証が必要です。
+ *
+ * @param request - sessionIdクッキーを含むリクエスト、ボディにnameを含む
+ * @param params.id - セッションID
+ *
+ * @returns
+ * - 200: 更新成功（セッション情報を含む）
+ * - 400: 名前が空またはバリデーションエラー
+ * - 401: 認証されていない
+ * - 404: セッションが見つからない
+ * - 500: サーバーエラー
+ *
+ * @example
+ * ```typescript
+ * // リクエスト
+ * PATCH /api/sessions/session-uuid
+ * Cookie: sessionId=<uuid>
+ * Content-Type: application/json
+ * { "name": "新しいセッション名" }
+ *
+ * // レスポンス
+ * {
+ *   "session": {
+ *     "id": "session-uuid",
+ *     "name": "新しいセッション名",
+ *     ...
+ *   }
+ * }
+ * ```
+ */
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const sessionId = request.cookies.get('sessionId')?.value;
+    if (!sessionId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const session = await getSession(sessionId);
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { id } = await params;
+
+    // リクエストボディの解析
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
+    }
+
+    const { name } = body;
+
+    // 名前のバリデーション
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+    }
+
+    const trimmedName = name.trim();
+
+    // セッションが存在するか確認
+    const existingSession = await prisma.session.findUnique({
+      where: { id },
+    });
+
+    if (!existingSession) {
+      return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+    }
+
+    // セッション名を更新
+    const updatedSession = await prisma.session.update({
+      where: { id },
+      data: { name: trimmedName },
+    });
+
+    logger.info('Session name updated', { id, name: trimmedName });
+    return NextResponse.json({ session: updatedSession });
+  } catch (error) {
+    const { id: errorId } = await params;
+    logger.error('Failed to update session', { error, session_id: errorId });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
