@@ -20,7 +20,6 @@ export function Sidebar() {
   const {
     projects,
     sessions,
-    selectedProjectId,
     currentSessionId,
     setSelectedProjectId,
     setCurrentSessionId,
@@ -55,17 +54,6 @@ export function Sidebar() {
       return next;
     });
   }, []);
-
-  // プロジェクトクリック時の処理
-  const handleProjectClick = useCallback(
-    (projectId: string) => {
-      setSelectedProjectId(projectId);
-      router.push(`/projects/${projectId}`);
-      // モバイル時はプロジェクト選択後にサイドバーを閉じる
-      setIsSidebarOpen(false);
-    },
-    [router, setSelectedProjectId, setIsSidebarOpen]
-  );
 
   // セッションクリック時の処理
   const handleSessionClick = useCallback(
