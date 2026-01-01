@@ -7,6 +7,12 @@ vi.mock('@/lib/notification-service', () => ({
   getSettings: vi.fn(),
   saveSettings: vi.fn(),
   requestPermission: vi.fn(),
+  DEFAULT_SETTINGS: {
+    onTaskComplete: true,
+    onPermissionRequest: true,
+    onError: true,
+    onActionRequired: true,
+  },
 }));
 
 // グローバルなNotificationのモック
@@ -30,6 +36,7 @@ describe('useNotificationStore', () => {
     onTaskComplete: true,
     onPermissionRequest: true,
     onError: true,
+    onActionRequired: true,
   };
 
   beforeEach(async () => {
@@ -107,6 +114,7 @@ describe('useNotificationStore', () => {
       onTaskComplete: false,
       onPermissionRequest: false,
       onError: false,
+      onActionRequired: false,
     };
 
     vi.mocked(getSettings).mockReturnValue(updatedSettings);

@@ -22,8 +22,10 @@ describe('NotificationSettings', () => {
         onTaskComplete: true,
         onPermissionRequest: true,
         onError: true,
+        onActionRequired: true,
       },
       updateSettings: mockUpdateSettings,
+      initializeFromStorage: vi.fn(),
     });
 
     render(<NotificationSettings />);
@@ -43,8 +45,10 @@ describe('NotificationSettings', () => {
         onTaskComplete: true,
         onPermissionRequest: true,
         onError: true,
+        onActionRequired: true,
       },
       updateSettings: mockUpdateSettings,
+      initializeFromStorage: vi.fn(),
     });
 
     render(<NotificationSettings />);
@@ -64,8 +68,10 @@ describe('NotificationSettings', () => {
         onTaskComplete: true,
         onPermissionRequest: true,
         onError: true,
+        onActionRequired: true,
       },
       updateSettings: mockUpdateSettings,
+      initializeFromStorage: vi.fn(),
     });
 
     render(<NotificationSettings />);
@@ -82,6 +88,63 @@ describe('NotificationSettings', () => {
     expect(screen.getByText('タスク完了')).toBeInTheDocument();
     expect(screen.getByText('権限要求')).toBeInTheDocument();
     expect(screen.getByText('エラー発生')).toBeInTheDocument();
+    expect(screen.getByText('アクション要求')).toBeInTheDocument();
+  });
+
+  // Task 43.20: アクション要求チェックボックスのテスト
+  it('アクション要求チェックボックスが表示される', () => {
+    mockUseNotificationStore.mockReturnValue({
+      permission: 'granted',
+      settings: {
+        onTaskComplete: true,
+        onPermissionRequest: true,
+        onError: true,
+        onActionRequired: true,
+      },
+      updateSettings: mockUpdateSettings,
+      initializeFromStorage: vi.fn(),
+    });
+
+    render(<NotificationSettings />);
+
+    // ドロップダウンを開く
+    const button = screen.getByLabelText('通知設定');
+    fireEvent.click(button);
+
+    // アクション要求チェックボックスが表示される
+    expect(screen.getByText('アクション要求')).toBeInTheDocument();
+  });
+
+  it('アクション要求チェックボックスの変更でupdateSettingsが呼ばれる', () => {
+    mockUseNotificationStore.mockReturnValue({
+      permission: 'granted',
+      settings: {
+        onTaskComplete: true,
+        onPermissionRequest: true,
+        onError: true,
+        onActionRequired: true,
+      },
+      updateSettings: mockUpdateSettings,
+      initializeFromStorage: vi.fn(),
+    });
+
+    render(<NotificationSettings />);
+
+    // ドロップダウンを開く
+    const button = screen.getByLabelText('通知設定');
+    fireEvent.click(button);
+
+    // アクション要求チェックボックスを取得
+    const actionRequiredLabel = screen.getByText('アクション要求').closest('label');
+    const checkbox = actionRequiredLabel?.querySelector('input[type="checkbox"]') as HTMLInputElement;
+
+    expect(checkbox).toBeInTheDocument();
+    expect(checkbox.checked).toBe(true);
+
+    // チェックを外す
+    fireEvent.click(checkbox);
+
+    expect(mockUpdateSettings).toHaveBeenCalledWith({ onActionRequired: false });
   });
 
   it('タスク完了チェックボックスの変更でupdateSettingsが呼ばれる', () => {
@@ -91,8 +154,10 @@ describe('NotificationSettings', () => {
         onTaskComplete: true,
         onPermissionRequest: true,
         onError: true,
+        onActionRequired: true,
       },
       updateSettings: mockUpdateSettings,
+      initializeFromStorage: vi.fn(),
     });
 
     render(<NotificationSettings />);
@@ -121,8 +186,10 @@ describe('NotificationSettings', () => {
         onTaskComplete: true,
         onPermissionRequest: true,
         onError: true,
+        onActionRequired: true,
       },
       updateSettings: mockUpdateSettings,
+      initializeFromStorage: vi.fn(),
     });
 
     render(<NotificationSettings />);
@@ -151,8 +218,10 @@ describe('NotificationSettings', () => {
         onTaskComplete: true,
         onPermissionRequest: true,
         onError: true,
+        onActionRequired: true,
       },
       updateSettings: mockUpdateSettings,
+      initializeFromStorage: vi.fn(),
     });
 
     render(<NotificationSettings />);
@@ -181,8 +250,10 @@ describe('NotificationSettings', () => {
         onTaskComplete: true,
         onPermissionRequest: true,
         onError: true,
+        onActionRequired: true,
       },
       updateSettings: mockUpdateSettings,
+      initializeFromStorage: vi.fn(),
     });
 
     render(<NotificationSettings />);
@@ -202,8 +273,10 @@ describe('NotificationSettings', () => {
         onTaskComplete: true,
         onPermissionRequest: true,
         onError: true,
+        onActionRequired: true,
       },
       updateSettings: mockUpdateSettings,
+      initializeFromStorage: vi.fn(),
     });
 
     render(<NotificationSettings />);
@@ -223,8 +296,10 @@ describe('NotificationSettings', () => {
         onTaskComplete: true,
         onPermissionRequest: true,
         onError: true,
+        onActionRequired: true,
       },
       updateSettings: mockUpdateSettings,
+      initializeFromStorage: vi.fn(),
     });
 
     render(<NotificationSettings />);

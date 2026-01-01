@@ -75,6 +75,16 @@ export function NotificationSettings() {
             />
           </label>
 
+          <label className="flex items-center justify-between py-2">
+            <span className="text-sm">アクション要求</span>
+            <input
+              type="checkbox"
+              checked={settings.onActionRequired}
+              onChange={(e) => updateSettings({ onActionRequired: e.target.checked })}
+              className="rounded"
+            />
+          </label>
+
           {permission === 'denied' && (
             <p className="text-xs text-red-500 mt-2">
               ブラウザの通知がブロックされています
