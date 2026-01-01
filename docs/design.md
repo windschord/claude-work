@@ -1501,6 +1501,805 @@ ws://host/ws/terminal/{session_id}
 - 古いメッセージは定期的にアーカイブ
 - SQLite WALモードで読み取り性能向上
 
+---
+
+## ストーリー18〜22: UX改善機能の設計
+
+### 概要
+
+以下の5つの機能追加に対する技術設計を定義します：
+- ストーリー18: ターミナルサイズの自動調整 (REQ-114〜118)
+- ストーリー19: Claudeセッション復帰機能 (REQ-119〜122)
+- ストーリー20: セッション一覧のTree表示化 (REQ-123〜128)
+- ストーリー21: セッション作成の簡略化 (REQ-129〜136)
+- ストーリー22: ユーザーアクション要求時のブラウザ通知強化 (REQ-137〜141)
+
+---
+
+### ストーリー18: ターミナルサイズの自動調整
+
+#### コンポーネント変更
+
+**変更対象**: `src/hooks/useClaudeTerminal.ts`, `src/hooks/useTerminal.ts`
+
+```typescript
+// XTerm.js FitAddon の追加
+import { FitAddon } from 'xterm-addon-fit';
+
+interface UseTerminalOptions {
+  sessionId: string;
+  onResize?: (cols: number, rows: number) => void;
+}
+
+// ターミナル初期化時にFitAddonを追加
+const fitAddon = new FitAddon();
+terminal.loadAddon(fitAddon);
+
+// 初期フィット実行
+useEffect(() => {
+  if (terminalRef.current && isConnected) {
+    fitAddon.fit();
+    // サーバーにリサイズイベント送信
+    sendResize(terminal.cols, terminal.rows);
+  }
+}, [isConnected, isVisible]);
+
+// ウィンドウリサイズ時のデバウンス付きリサイズ
+useEffect(() => {
+  const handleResize = debounce(() => {
+    if (terminalRef.current) {
+      fitAddon.fit();
+      sendResize(terminal.cols, terminal.rows);
+    }
+  }, 300);
+
+  window.addEventListener('resize', handleResize);
+  return () => window.removeEventListener('resize', handleResize);
+}, []);
+```
+
+**変更対象**: `src/components/sessions/ClaudeTerminalPanel.tsx`, `src/components/sessions/TerminalPanel.tsx`
+
+- `isVisible` prop を hooks に渡してタブ切り替え時のリサイズをトリガー
+- コンテナに `ref` を設定し、ResizeObserver でサイズ変更を検知
+
+#### WebSocket メッセージ拡張
+
+```typescript
+// クライアント → サーバー
+interface ResizeMessage {
+  type: 'resize';
+  cols: number;
+  rows: number;
+}
+```
+
+**サーバー側変更**: `src/services/claude-pty-manager.ts`, `src/services/pty-manager.ts`
+
+```typescript
+// リサイズメッセージ受信時
+handleMessage(sessionId: string, message: WebSocketMessage) {
+  if (message.type === 'resize') {
+    const pty = this.getPty(sessionId);
+    if (pty) {
+      pty.resize(message.cols, message.rows);
+    }
+  }
+}
+```
+
+#### 依存パッケージ追加
+
+```bash
+npm install xterm-addon-fit
+```
+
+---
+
+### ストーリー19: Claudeセッション復帰機能
+
+#### コンポーネント変更
+
+**変更対象**: `src/services/claude-pty-manager.ts`
+
+```typescript
+interface StartOptions {
+  worktreePath: string;
+  model?: string;
+  prompt?: string;
+  resumeSessionId?: string;  // 追加
+}
+
+async startClaude(sessionId: string, options: StartOptions): Promise<void> {
+  const args: string[] = [];
+
+  // --resume オプションの追加
+  if (options.resumeSessionId) {
+    args.push('--resume', options.resumeSessionId);
+  }
+
+  // モデル指定
+  if (options.model && options.model !== 'auto') {
+    args.push('--model', options.model);
+  }
+
+  // PTY起動
+  const pty = spawn(CLAUDE_CODE_PATH, args, {
+    cwd: options.worktreePath,
+    // ...
+  });
+
+  // セッションID抽出（Claude CLI出力からパース）
+  this.extractAndSaveSessionId(sessionId, pty);
+}
+
+private extractAndSaveSessionId(sessionId: string, pty: IPty): void {
+  // Claude CLIの出力からセッションIDを抽出
+  // パターン: "Session ID: xxxx" または類似形式
+  pty.onData((data) => {
+    const match = data.match(/session[:\s]+([a-f0-9-]+)/i);
+    if (match) {
+      this.updateResumeSessionId(sessionId, match[1]);
+    }
+  });
+}
+```
+
+**変更対象**: `src/app/api/sessions/[id]/resume/route.ts`
+
+```typescript
+export async function POST(request: Request, { params }: { params: { id: string } }) {
+  const session = await prisma.session.findUnique({
+    where: { id: params.id }
+  });
+
+  if (!session) {
+    return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+  }
+
+  if (session.status !== 'stopped') {
+    return NextResponse.json({
+      error: 'Session is not stopped',
+      current_status: session.status
+    }, { status: 400 });
+  }
+
+  // resume_session_id を使用して再開
+  await claudePtyManager.startClaude(session.id, {
+    worktreePath: session.worktree_path,
+    model: session.model,
+    resumeSessionId: session.resume_session_id || undefined
+  });
+
+  await prisma.session.update({
+    where: { id: params.id },
+    data: { status: 'running' }
+  });
+
+  return NextResponse.json({
+    session: { ...session, status: 'running' },
+    resumed_with_history: !!session.resume_session_id
+  });
+}
+```
+
+#### データベース
+
+既存の `resume_session_id` フィールドを活用（変更不要）
+
+---
+
+### ストーリー20: セッション一覧のTree表示化
+
+#### 新規コンポーネント
+
+**新規**: `src/components/layout/ProjectTreeItem.tsx`
+
+```typescript
+interface ProjectTreeItemProps {
+  project: Project;
+  sessions: Session[];
+  isExpanded: boolean;
+  onToggle: () => void;
+  currentSessionId?: string;
+}
+
+export function ProjectTreeItem({
+  project,
+  sessions,
+  isExpanded,
+  onToggle,
+  currentSessionId
+}: ProjectTreeItemProps) {
+  const router = useRouter();
+
+  return (
+    <div className="select-none">
+      {/* プロジェクトノード */}
+      <button
+        onClick={onToggle}
+        className="flex items-center gap-2 w-full px-2 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+      >
+        <ChevronRight
+          className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+        />
+        <FolderGit2 className="w-4 h-4" />
+        <span className="truncate">{project.name}</span>
+        {/* クイック作成ボタン */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleQuickCreate(project.id);
+          }}
+          className="ml-auto p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"
+        >
+          <Plus className="w-3 h-3" />
+        </button>
+      </button>
+
+      {/* セッションリスト */}
+      {isExpanded && (
+        <div className="ml-4 border-l border-gray-200 dark:border-gray-700">
+          {sessions.map((session) => (
+            <SessionTreeItem
+              key={session.id}
+              session={session}
+              isActive={session.id === currentSessionId}
+              onClick={() => router.push(`/sessions/${session.id}`)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+**新規**: `src/components/layout/SessionTreeItem.tsx`
+
+```typescript
+interface SessionTreeItemProps {
+  session: Session;
+  isActive: boolean;
+  onClick: () => void;
+}
+
+export function SessionTreeItem({ session, isActive, onClick }: SessionTreeItemProps) {
+  return (
+    <button
+      onClick={onClick}
+      className={`
+        flex items-center gap-2 w-full px-2 py-1 text-sm
+        hover:bg-gray-100 dark:hover:bg-gray-700 rounded
+        ${isActive ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : ''}
+      `}
+    >
+      <SessionStatusIcon status={session.status} size={14} />
+      <span className="truncate">{session.name}</span>
+    </button>
+  );
+}
+```
+
+**変更対象**: `src/components/layout/Sidebar.tsx`
+
+```typescript
+export function Sidebar() {
+  const { projects, sessions, currentSessionId } = useAppStore();
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+
+  // プロジェクトごとのセッションをグループ化
+  const sessionsByProject = useMemo(() => {
+    return sessions.reduce((acc, session) => {
+      if (!acc[session.project_id]) {
+        acc[session.project_id] = [];
+      }
+      acc[session.project_id].push(session);
+      return acc;
+    }, {} as Record<string, Session[]>);
+  }, [sessions]);
+
+  return (
+    <aside className="...">
+      <h2 className="...">プロジェクト</h2>
+      <div className="overflow-y-auto">
+        {projects.map((project) => (
+          <ProjectTreeItem
+            key={project.id}
+            project={project}
+            sessions={sessionsByProject[project.id] || []}
+            isExpanded={expandedProjects.has(project.id)}
+            onToggle={() => toggleProject(project.id)}
+            currentSessionId={currentSessionId}
+          />
+        ))}
+      </div>
+    </aside>
+  );
+}
+```
+
+#### ストア変更
+
+**変更対象**: `src/store/index.ts`
+
+```typescript
+interface AppState {
+  // 既存フィールド
+  // ...
+
+  // 追加: 全プロジェクトのセッションをキャッシュ
+  allSessions: Session[];
+  currentSessionId: string | null;
+
+  // アクション追加
+  fetchAllSessions: () => Promise<void>;
+  setCurrentSessionId: (id: string | null) => void;
+}
+```
+
+---
+
+### ストーリー21: セッション作成の簡略化
+
+#### 新規コンポーネント
+
+**新規**: `src/components/sessions/QuickCreateButton.tsx`
+
+```typescript
+interface QuickCreateButtonProps {
+  projectId: string;
+  onSuccess?: (sessionId: string) => void;
+}
+
+export function QuickCreateButton({ projectId, onSuccess }: QuickCreateButtonProps) {
+  const { createSession } = useAppStore();
+  const { defaultModel } = useSettingsStore();
+  const [isCreating, setIsCreating] = useState(false);
+
+  const handleClick = async () => {
+    setIsCreating(true);
+    try {
+      const sessionId = await createSession(projectId, {
+        name: '', // 自動生成
+        prompt: '', // 空
+        model: defaultModel
+      });
+      onSuccess?.(sessionId);
+    } catch (error) {
+      toast.error('セッション作成に失敗しました');
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleClick}
+      disabled={isCreating}
+      className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"
+      title="新しいセッションを作成"
+    >
+      {isCreating ? (
+        <Loader2 className="w-4 h-4 animate-spin" />
+      ) : (
+        <Plus className="w-4 h-4" />
+      )}
+    </button>
+  );
+}
+```
+
+**新規**: `src/components/common/ModelSelector.tsx`
+
+```typescript
+interface ModelSelectorProps {
+  value: string;
+  onChange: (model: string) => void;
+  compact?: boolean;
+}
+
+export function ModelSelector({ value, onChange, compact = false }: ModelSelectorProps) {
+  const models = ['auto', 'opus', 'sonnet', 'haiku'];
+
+  if (compact) {
+    return (
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="text-xs p-1 border rounded"
+      >
+        {models.map((m) => (
+          <option key={m} value={m}>{m.charAt(0).toUpperCase() + m.slice(1)}</option>
+        ))}
+      </select>
+    );
+  }
+
+  return (
+    <div className="flex gap-1">
+      {models.map((m) => (
+        <button
+          key={m}
+          onClick={() => onChange(m)}
+          className={`px-2 py-1 text-xs rounded ${
+            value === m ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-gray-700'
+          }`}
+        >
+          {m.charAt(0).toUpperCase() + m.slice(1)}
+        </button>
+      ))}
+    </div>
+  );
+}
+```
+
+**新規**: `src/components/sessions/SessionNameEditor.tsx`
+
+```typescript
+interface SessionNameEditorProps {
+  sessionId: string;
+  currentName: string;
+}
+
+export function SessionNameEditor({ sessionId, currentName }: SessionNameEditorProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [name, setName] = useState(currentName);
+  const { updateSession } = useAppStore();
+
+  const handleSave = async () => {
+    if (name.trim() && name !== currentName) {
+      await updateSession(sessionId, { name: name.trim() });
+    }
+    setIsEditing(false);
+  };
+
+  if (isEditing) {
+    return (
+      <input
+        type="text"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onBlur={handleSave}
+        onKeyDown={(e) => e.key === 'Enter' && handleSave()}
+        className="text-2xl font-bold bg-transparent border-b border-blue-500 outline-none"
+        autoFocus
+      />
+    );
+  }
+
+  return (
+    <h1
+      onClick={() => setIsEditing(true)}
+      className="text-2xl font-bold cursor-pointer hover:text-blue-500"
+      title="クリックして編集"
+    >
+      {currentName}
+      <Pencil className="inline-block w-4 h-4 ml-2 opacity-50" />
+    </h1>
+  );
+}
+```
+
+#### 新規ストア
+
+**新規**: `src/store/settings.ts`
+
+```typescript
+interface SettingsState {
+  defaultModel: 'auto' | 'opus' | 'sonnet' | 'haiku';
+  setDefaultModel: (model: string) => void;
+}
+
+export const useSettingsStore = create<SettingsState>()(
+  persist(
+    (set) => ({
+      defaultModel: 'auto',
+      setDefaultModel: (model) => set({ defaultModel: model as SettingsState['defaultModel'] }),
+    }),
+    {
+      name: 'claudework:settings',
+    }
+  )
+);
+```
+
+#### API変更
+
+**変更対象**: `src/app/api/projects/[id]/sessions/route.ts`
+
+```typescript
+// POST: セッション作成
+export async function POST(request: Request, { params }: { params: { id: string } }) {
+  const body = await request.json();
+
+  // プロンプトを必須から任意に変更
+  const { name, prompt = '', model = 'auto' } = body;
+
+  // セッション名の自動生成（既存ロジックを維持）
+  const sessionName = name || `session-${Date.now()}`;
+
+  // ...既存の作成ロジック
+}
+```
+
+**新規**: `src/app/api/sessions/[id]/route.ts` (PATCH追加)
+
+```typescript
+// PATCH: セッション名更新
+export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+  const body = await request.json();
+  const { name } = body;
+
+  if (!name?.trim()) {
+    return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+  }
+
+  const session = await prisma.session.update({
+    where: { id: params.id },
+    data: { name: name.trim() }
+  });
+
+  return NextResponse.json({ session });
+}
+```
+
+---
+
+### ストーリー22: ユーザーアクション要求時のブラウザ通知強化
+
+#### 新規ユーティリティ
+
+**新規**: `src/lib/action-detector.ts`
+
+```typescript
+// ANSIエスケープシーケンス除去
+export function stripAnsi(str: string): string {
+  return str.replace(/\x1B\[[0-9;]*[A-Za-z]/g, '');
+}
+
+// ユーザーアクション要求パターン
+const ACTION_PATTERNS = [
+  // Allow/Deny選択
+  /\[A\]llow.*\[D\]eny/i,
+  /Allow.*Deny/i,
+  // ツール実行確認
+  /Do you want to/i,
+  /Would you like to/i,
+  /Confirm/i,
+  // 入力待ち
+  /\?$/,
+  /Enter.*:/i,
+  /Press.*to continue/i,
+];
+
+// 重複通知抑制用
+let lastNotificationTime = 0;
+const NOTIFICATION_COOLDOWN = 5000; // 5秒
+
+export function detectActionRequest(output: string): boolean {
+  const cleanOutput = stripAnsi(output);
+
+  for (const pattern of ACTION_PATTERNS) {
+    if (pattern.test(cleanOutput)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function shouldNotify(): boolean {
+  const now = Date.now();
+  if (now - lastNotificationTime < NOTIFICATION_COOLDOWN) {
+    return false;
+  }
+  lastNotificationTime = now;
+  return true;
+}
+```
+
+#### フック変更
+
+**変更対象**: `src/hooks/useClaudeTerminal.ts`
+
+```typescript
+import { detectActionRequest, shouldNotify, stripAnsi } from '@/lib/action-detector';
+import { sendNotification } from '@/lib/notification-service';
+
+export function useClaudeTerminal(sessionId: string) {
+  // ...既存コード
+
+  // 出力受信時の処理を拡張
+  const handleOutput = useCallback((data: string) => {
+    terminal?.write(data);
+
+    // アクション要求パターン検出
+    if (detectActionRequest(data) && shouldNotify()) {
+      sendNotification({
+        type: 'permissionRequest',
+        sessionId,
+        sessionName: currentSession?.name || 'Unknown',
+        message: 'Claudeがユーザーアクションを待っています'
+      });
+    }
+  }, [terminal, sessionId, currentSession]);
+
+  // WebSocketメッセージハンドラ
+  useEffect(() => {
+    if (!ws) return;
+
+    ws.onmessage = (event) => {
+      const data = event.data;
+      if (typeof data === 'string') {
+        try {
+          const message = JSON.parse(data);
+          if (message.type === 'data') {
+            handleOutput(message.content);
+          }
+        } catch {
+          // バイナリデータとして処理
+          handleOutput(data);
+        }
+      }
+    };
+  }, [ws, handleOutput]);
+
+  // ...
+}
+```
+
+#### 通知サービス変更
+
+**変更対象**: `src/lib/notification-service.ts`
+
+```typescript
+// 既存のNotificationEventTypeを拡張
+export type NotificationEventType =
+  | 'taskComplete'
+  | 'permissionRequest'
+  | 'error'
+  | 'actionRequired';  // 追加
+
+// デフォルトメッセージに追加
+const DEFAULT_MESSAGES: Record<NotificationEventType, string> = {
+  taskComplete: 'タスクが完了しました',
+  permissionRequest: '権限確認が必要です',
+  error: 'エラーが発生しました',
+  actionRequired: 'ユーザーアクションが必要です',  // 追加
+};
+
+// 通知設定にactionRequiredを追加
+export interface NotificationSettings {
+  onTaskComplete: boolean;
+  onPermissionRequest: boolean;
+  onError: boolean;
+  onActionRequired: boolean;  // 追加（初期値: true）
+}
+```
+
+---
+
+### シーケンス図: ターミナルリサイズフロー
+
+```mermaid
+sequenceDiagram
+    participant U as ユーザー
+    participant XT as XTerm.js
+    participant FA as FitAddon
+    participant WS as WebSocket
+    participant PTY as PTY Manager
+    participant Shell as Shell/Claude PTY
+
+    Note over U,Shell: ウィンドウリサイズ時
+
+    U->>U: ウィンドウリサイズ
+    U->>XT: resize event
+    XT->>FA: fit() (debounced 300ms)
+    FA->>FA: 新しいcols/rows計算
+    FA->>XT: terminal.resize(cols, rows)
+    XT->>WS: send({type: 'resize', cols, rows})
+    WS->>PTY: handleResize(sessionId, cols, rows)
+    PTY->>Shell: pty.resize(cols, rows)
+    Shell-->>PTY: 完了
+```
+
+### シーケンス図: ワンクリックセッション作成
+
+```mermaid
+sequenceDiagram
+    participant U as ユーザー
+    participant SB as Sidebar
+    participant QC as QuickCreateButton
+    participant Store as Zustand Store
+    participant API as API Routes
+    participant DB as Database
+    participant PM as Process Manager
+
+    U->>SB: プロジェクト横の「+」をクリック
+    SB->>QC: onClick
+    QC->>Store: createSession(projectId, {name: '', prompt: '', model: defaultModel})
+    Store->>API: POST /api/projects/{id}/sessions
+    API->>API: セッション名自動生成
+    API->>DB: INSERT session
+    API->>PM: startClaude(options)
+    PM-->>API: success
+    API-->>Store: {sessionId}
+    Store-->>QC: sessionId
+    QC->>QC: router.push(`/sessions/${sessionId}`)
+```
+
+### シーケンス図: アクション要求検出と通知
+
+```mermaid
+sequenceDiagram
+    participant CC as Claude Code
+    participant PTY as PTY Manager
+    participant WS as WebSocket
+    participant Hook as useClaudeTerminal
+    participant AD as Action Detector
+    participant NS as Notification Service
+    participant Browser as ブラウザ
+
+    CC->>PTY: 出力: "Do you want to allow this? [A]llow [D]eny"
+    PTY->>WS: broadcast({type: 'data', content: ...})
+    WS->>Hook: onmessage
+    Hook->>AD: detectActionRequest(output)
+    AD->>AD: stripAnsi() + パターンマッチ
+    AD-->>Hook: true (アクション検出)
+    Hook->>AD: shouldNotify()
+
+    alt クールダウン期間外
+        AD-->>Hook: true
+        Hook->>NS: sendNotification({type: 'permissionRequest', ...})
+
+        alt タブがバックグラウンド
+            NS->>Browser: new Notification(...)
+            Browser-->>Browser: OS通知表示
+        else タブがアクティブ
+            NS->>NS: toast.info(...)
+        end
+    else クールダウン期間内
+        AD-->>Hook: false (通知スキップ)
+    end
+```
+
+---
+
+## 要件との整合性チェック
+
+| 要件ID | 要件内容 | 設計対応 |
+|--------|----------|----------|
+| REQ-114 | コンテナサイズに合わせたターミナルサイズ計算 | FitAddon + ResizeObserver |
+| REQ-115 | ウィンドウリサイズ時の300ms以内再計算 | debounce(300ms) + fit() |
+| REQ-116 | タブ切り替え時のリサイズ | isVisible prop + useEffect |
+| REQ-117 | WebSocketでリサイズイベント送信 | ResizeMessage + pty.resize() |
+| REQ-118 | Claude/Shell両方に同じリサイズ動作 | 共通フック実装 |
+| REQ-119 | --resumeオプションでの復帰 | ClaudePTYManager.startClaude() |
+| REQ-120 | 初回は新規セッション起動 | resumeSessionId未設定時 |
+| REQ-121 | resume_session_idの更新 | extractAndSaveSessionId() |
+| REQ-122 | Claude CLI出力からID抽出 | 正規表現パース |
+| REQ-123 | プロジェクト配下のTree表示 | ProjectTreeItem + SessionTreeItem |
+| REQ-124 | 展開/折りたたみ切り替え | expandedProjects state |
+| REQ-125 | セッションクリックで遷移 | router.push() |
+| REQ-126 | 現在セッションのハイライト | isActive prop |
+| REQ-127 | セッション名+ステータスアイコン | SessionStatusIcon |
+| REQ-128 | プロジェクトページの既存グリッド維持 | 変更なし |
+| REQ-129 | プロジェクト横の「+」ボタン | QuickCreateButton |
+| REQ-130 | 自動生成セッション名 | 既存ロジック維持 |
+| REQ-131 | グローバルデフォルトモデル使用 | useSettingsStore |
+| REQ-132 | プロンプト空で作成 | prompt: '' |
+| REQ-133 | セッション名編集機能 | SessionNameEditor |
+| REQ-134 | グローバルデフォルトモデル設定 | useSettingsStore |
+| REQ-135 | セッション作成時のモデル選択UI | ModelSelector (compact) |
+| REQ-136 | 既存フォーム維持 | 変更なし |
+| REQ-137 | パターン検出で通知送信 | action-detector.ts |
+| REQ-138 | Allow/Deny等のパターン検出 | ACTION_PATTERNS配列 |
+| REQ-139 | ANSIエスケープ除去後に検出 | stripAnsi() |
+| REQ-140 | 5秒以内の重複通知抑制 | NOTIFICATION_COOLDOWN |
+| REQ-141 | 設定オフ時は通知しない | isEventEnabled()チェック |
+
+---
+
 ## エラー処理
 
 ### 環境検証（サーバー起動時）
