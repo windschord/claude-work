@@ -284,4 +284,95 @@ describe('useClaudeTerminal', () => {
       );
     });
   });
+
+  describe('リサイズ機能', () => {
+    it('ウィンドウリサイズ時に300msデバウンスでfit()が実行される', async () => {
+      vi.useFakeTimers();
+      const sessionId = 'test-session-window-resize';
+      const { result } = renderHook(() => useClaudeTerminal(sessionId));
+
+      // 接続完了を待つ
+      await vi.waitFor(() => {
+        expect(result.current.isConnected).toBe(true);
+      });
+
+      // sendのカウントをリセット
+      mockWebSocketInstance!.send.mockClear();
+
+      // ウィンドウリサイズイベントを発火
+      window.dispatchEvent(new Event('resize'));
+
+      // 300ms前はまだリサイズメッセージが送信されていない
+      vi.advanceTimersByTime(200);
+      expect(mockWebSocketInstance?.send).not.toHaveBeenCalledWith(
+        expect.stringContaining('"type":"resize"')
+      );
+
+      // 300ms後にリサイズメッセージが送信される
+      vi.advanceTimersByTime(100);
+      expect(mockWebSocketInstance?.send).toHaveBeenCalledWith(
+        expect.stringContaining('"type":"resize"')
+      );
+
+      vi.useRealTimers();
+    });
+
+    it('isVisible=trueになったときにfit()が実行される', async () => {
+      const sessionId = 'test-session-visibility';
+      const { result, rerender } = renderHook(
+        ({ isVisible }) => useClaudeTerminal(sessionId, { isVisible }),
+        { initialProps: { isVisible: false } }
+      );
+
+      // 接続完了を待つ
+      await waitFor(() => {
+        expect(result.current.isConnected).toBe(true);
+      });
+
+      // sendのカウントをリセット
+      mockWebSocketInstance!.send.mockClear();
+
+      // isVisible=trueに変更
+      rerender({ isVisible: true });
+
+      // リサイズメッセージが送信される
+      await waitFor(() => {
+        expect(mockWebSocketInstance?.send).toHaveBeenCalledWith(
+          expect.stringContaining('"type":"resize"')
+        );
+      });
+    });
+
+    it('連続したリサイズイベントがデバウンスされる', async () => {
+      vi.useFakeTimers();
+      const sessionId = 'test-session-debounce';
+      const { result } = renderHook(() => useClaudeTerminal(sessionId));
+
+      // 接続完了を待つ
+      await vi.waitFor(() => {
+        expect(result.current.isConnected).toBe(true);
+      });
+
+      // sendのカウントをリセット
+      mockWebSocketInstance!.send.mockClear();
+
+      // 複数のリサイズイベントを発火
+      window.dispatchEvent(new Event('resize'));
+      vi.advanceTimersByTime(100);
+      window.dispatchEvent(new Event('resize'));
+      vi.advanceTimersByTime(100);
+      window.dispatchEvent(new Event('resize'));
+
+      // 300ms待つ
+      vi.advanceTimersByTime(300);
+
+      // 1回だけリサイズメッセージが送信される
+      const resizeCalls = mockWebSocketInstance?.send.mock.calls.filter(
+        (call) => call[0].includes('"type":"resize"')
+      );
+      expect(resizeCalls?.length).toBe(1);
+
+      vi.useRealTimers();
+    });
+  });
 });
