@@ -80,12 +80,19 @@ class ClaudePTYManager extends EventEmitter {
   /**
    * Claude Codeプロセスを作成
    *
+   * 注意: このメソッドは同一sessionIdに対して同時に呼び出すべきではありません。
+   * Node.jsはシングルスレッドですが、非同期コールバックにより競合が発生する可能性があります。
+   * createSession呼び出しは必ず直列化してください。
+   *
    * @param sessionId - セッションID
    * @param workingDir - 作業ディレクトリ（worktreeパス）
    * @param initialPrompt - 初期プロンプト（任意）
+   * @throws 同一sessionIdで作成中の場合、またはworkingDirが無効な場合
    */
   createSession(sessionId: string, workingDir: string, initialPrompt?: string): void {
     // 作成中のセッションがある場合はエラー
+    // Note: Node.jsはシングルスレッドのため、hasとaddの間に他のcreateSession呼び出しが割り込むことはありません。
+    // ただし、このメソッドを同一sessionIdに対して同時に呼び出すことは避けてください。
     if (this.creating.has(sessionId)) {
       throw new Error(`Claude PTY creation already in progress for session ${sessionId}`);
     }

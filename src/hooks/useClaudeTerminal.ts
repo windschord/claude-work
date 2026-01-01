@@ -16,9 +16,12 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-// 静的インポート（動的インポートは開発モードでwebpackチャンク問題を引き起こすため）
-// Note: このhookは 'use client' コンポーネントでのみ使用され、
-// useEffect内でブラウザ環境チェックを行うため安全
+// 静的インポートを使用（動的インポートは開発モードでwebpackチャンク問題を引き起こすため）
+// NOTE: バンドルサイズの考慮
+// - このhookは 'use client' コンポーネント（ClaudeTerminalPanel）でのみ使用される
+// - ClaudeTerminalPanelはNext.js dynamic()でssr:falseとして遅延ロードされる
+// - したがって、xtermモジュールはサーバー側バンドルに含まれない
+// - FitAddonは new FitAddon() でインスタンス化するため、値インポートが必要（型インポート不可）
 import { Terminal, type IDisposable } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 
@@ -59,6 +62,9 @@ export function useClaudeTerminal(sessionId: string): UseClaudeTerminalReturn {
     }
 
     // WebSocket URLを構築（Claude Code用エンドポイント）
+    // NOTE: window.location.hostを使用してポート番号を含める（開発環境での異なるポートに対応）
+    // 本番環境でリバースプロキシを使用する場合は、Hostヘッダーが正しく設定されていることを確認してください。
+    // ホストヘッダーインジェクション攻撃を防ぐため、サーバー側で許可されたホストを検証してください。
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
     const wsUrl = `${protocol}//${host}/ws/claude/${sessionId}`;
