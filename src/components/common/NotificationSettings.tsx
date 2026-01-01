@@ -6,8 +6,13 @@ import { useNotificationStore } from '@/store/notification';
 
 export function NotificationSettings() {
   const [isOpen, setIsOpen] = useState(false);
-  const { permission, settings, updateSettings } = useNotificationStore();
+  const { permission, settings, updateSettings, initializeFromStorage } = useNotificationStore();
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // クライアントサイドでストアを初期化
+  useEffect(() => {
+    initializeFromStorage();
+  }, [initializeFromStorage]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {

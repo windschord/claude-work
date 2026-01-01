@@ -20,7 +20,7 @@ export interface NotificationEvent {
 
 const STORAGE_KEY = 'claudework:notification-settings';
 
-const DEFAULT_SETTINGS: NotificationSettings = {
+export const DEFAULT_SETTINGS: NotificationSettings = {
   onTaskComplete: true,
   onPermissionRequest: true,
   onError: true,
