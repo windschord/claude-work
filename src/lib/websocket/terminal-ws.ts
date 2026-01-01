@@ -37,6 +37,17 @@ interface TerminalExitMessage {
   signal: number | null;
 }
 
+// サーバー → クライアント（エラー）
+interface TerminalErrorMessage {
+  type: 'error';
+  message: string;
+}
+
+export type TerminalServerMessage =
+  | TerminalDataMessage
+  | TerminalExitMessage
+  | TerminalErrorMessage;
+
 
 /**
  * ターミナルWebSocketサーバーをセットアップ
@@ -80,8 +91,28 @@ export function setupTerminalWebSocket(
 
       // PTY作成（既に存在する場合はスキップ）
       if (!ptyManager.hasSession(sessionId)) {
-        ptyManager.createPTY(sessionId, session.worktree_path);
-        logger.info('PTY created for session', { sessionId });
+        try {
+          ptyManager.createPTY(sessionId, session.worktree_path);
+          logger.info('PTY created for session', { sessionId, worktreePath: session.worktree_path });
+        } catch (ptyError) {
+          // PTY作成エラーをクライアントに通知
+          const errorMessage = ptyError instanceof Error ? ptyError.message : 'Failed to create PTY';
+          logger.error('Terminal WebSocket: Failed to create PTY', {
+            sessionId,
+            error: errorMessage,
+            worktreePath: session.worktree_path,
+          });
+
+          // クライアントにエラーメッセージを送信
+          const errorMsg: TerminalErrorMessage = {
+            type: 'error',
+            message: `PTY creation failed: ${errorMessage}`,
+          };
+          ws.send(JSON.stringify(errorMsg));
+          // コード1000で閉じることで、クライアントが再接続を試みないようにする
+          ws.close(1000, 'PTY creation failed');
+          return;
+        }
       }
 
       // PTY出力 → WebSocket

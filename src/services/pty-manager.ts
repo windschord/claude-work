@@ -87,11 +87,21 @@ class PTYManager extends EventEmitter {
 
     // workingDirの検証
     const resolvedCwd = path.resolve(workingDir);
-    const resolvedRoot = path.resolve(process.cwd());
-    if (!resolvedCwd.startsWith(resolvedRoot + path.sep) && resolvedCwd !== resolvedRoot) {
-      this.creating.delete(sessionId);
-      throw new Error(`workingDir is outside allowed root: ${resolvedCwd}`);
+
+    // ALLOWED_PROJECT_DIRSが設定されている場合は、その中のディレクトリのみ許可
+    // 設定されていない場合は、すべてのディレクトリを許可（パスの存在確認のみ）
+    const allowedDirs = process.env.ALLOWED_PROJECT_DIRS;
+    if (allowedDirs) {
+      const allowedPaths = allowedDirs.split(',').map(d => path.resolve(d.trim()));
+      const isAllowed = allowedPaths.some(allowedPath =>
+        resolvedCwd.startsWith(allowedPath + path.sep) || resolvedCwd === allowedPath
+      );
+      if (!isAllowed) {
+        this.creating.delete(sessionId);
+        throw new Error(`workingDir is outside allowed directories: ${resolvedCwd}`);
+      }
     }
+
     let st: fs.Stats;
     try {
       st = fs.statSync(resolvedCwd);

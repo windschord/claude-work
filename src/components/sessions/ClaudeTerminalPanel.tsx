@@ -13,7 +13,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useClaudeTerminal } from '@/hooks/useClaudeTerminal';
 import { RotateCcw } from 'lucide-react';
-import '@xterm/xterm/css/xterm.css';
+
+// xterm CSSはuseEffect内で動的にロード（SSRを避けるため）
 
 interface ClaudeTerminalPanelProps {
   sessionId: string;
@@ -30,9 +31,14 @@ function ClaudeTerminalPanel({
   const [mounted, setMounted] = useState(false);
   const [isTerminalOpened, setIsTerminalOpened] = useState(false);
 
-  // クライアントサイドでのみレンダリング
+  // クライアントサイドでのみレンダリング & CSS動的ロード
   useEffect(() => {
     setMounted(true);
+    // xterm CSSを動的にインポート（SSRを避けるため）
+    // @ts-expect-error - CSSモジュールの動的インポートは型定義がない
+    void import('@xterm/xterm/css/xterm.css').catch((err: unknown) => {
+      console.error('Failed to load xterm CSS:', err);
+    });
   }, []);
 
   // ターミナルをDOMにマウント
