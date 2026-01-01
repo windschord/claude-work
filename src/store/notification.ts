@@ -13,6 +13,20 @@ interface NotificationState {
   isInitialized: boolean;
   requestPermission: () => Promise<void>;
   updateSettings: (settings: Partial<NotificationSettings>) => void;
+  /**
+   * ブラウザAPIから通知設定を初期化する
+   *
+   * SSR時はブラウザAPIが利用できないため、クライアントサイドでのみ実行される。
+   * 通知状態（permission、settings）にアクセスするコンポーネントは、
+   * useEffectフック内でマウント時にこの関数を呼び出す必要がある。
+   *
+   * @example
+   * ```tsx
+   * useEffect(() => {
+   *   initializeFromStorage();
+   * }, [initializeFromStorage]);
+   * ```
+   */
   initializeFromStorage: () => void;
 }
 
