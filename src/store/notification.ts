@@ -1,17 +1,11 @@
 import { create } from 'zustand';
 import {
   NotificationSettings,
+  DEFAULT_SETTINGS,
   getSettings,
   saveSettings,
   requestPermission as requestPermissionService,
 } from '@/lib/notification-service';
-
-// SSR対応: デフォルト設定（サーバーサイドでも安全に使用可能）
-const DEFAULT_SETTINGS: NotificationSettings = {
-  onTaskComplete: true,
-  onPermissionRequest: true,
-  onError: true,
-};
 
 interface NotificationState {
   permission: NotificationPermission;
