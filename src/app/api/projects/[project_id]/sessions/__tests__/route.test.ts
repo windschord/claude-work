@@ -297,7 +297,7 @@ describe('POST /api/projects/[project_id]/sessions', () => {
     expect(data.session.name).toMatch(/^[a-z]+-[a-z]+$/);
   });
 
-  it('should return 400 if prompt is missing', async () => {
+  it('should create session without prompt (prompt is optional)', async () => {
     const request = new NextRequest(
       `http://localhost:3000/api/projects/${project.id}/sessions`,
       {
@@ -307,15 +307,65 @@ describe('POST /api/projects/[project_id]/sessions', () => {
           cookie: `sessionId=${authSession.id}`,
         },
         body: JSON.stringify({
-          name: 'New Session',
+          name: 'No Prompt Session',
+          model: 'sonnet',
         }),
       }
     );
 
     const response = await POST(request, { params: Promise.resolve({ project_id: project.id }) });
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(201);
     const data = await response.json();
-    expect(data.error).toBe('Prompt is required');
+    expect(data.session).toBeTruthy();
+    expect(data.session.name).toBe('No Prompt Session');
+  });
+
+  it('should create session with empty prompt', async () => {
+    const request = new NextRequest(
+      `http://localhost:3000/api/projects/${project.id}/sessions`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: `sessionId=${authSession.id}`,
+        },
+        body: JSON.stringify({
+          name: 'Empty Prompt Session',
+          prompt: '',
+          model: 'sonnet',
+        }),
+      }
+    );
+
+    const response = await POST(request, { params: Promise.resolve({ project_id: project.id }) });
+    expect(response.status).toBe(201);
+    const data = await response.json();
+    expect(data.session).toBeTruthy();
+    expect(data.session.name).toBe('Empty Prompt Session');
+  });
+
+  it('should still work with prompt provided (backward compatibility)', async () => {
+    const request = new NextRequest(
+      `http://localhost:3000/api/projects/${project.id}/sessions`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: `sessionId=${authSession.id}`,
+        },
+        body: JSON.stringify({
+          name: 'With Prompt Session',
+          prompt: 'test prompt for backward compatibility',
+          model: 'sonnet',
+        }),
+      }
+    );
+
+    const response = await POST(request, { params: Promise.resolve({ project_id: project.id }) });
+    expect(response.status).toBe(201);
+    const data = await response.json();
+    expect(data.session).toBeTruthy();
+    expect(data.session.name).toBe('With Prompt Session');
   });
 
   it('should save prompt to Prompt table when creating session', async () => {

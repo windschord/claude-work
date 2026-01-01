@@ -143,15 +143,7 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
 
-    const { name, prompt, model = 'auto' } = body;
-
-    // プロンプトのみ必須（nameは任意、未指定時は自動生成）
-    if (!prompt) {
-      return NextResponse.json(
-        { error: 'Prompt is required' },
-        { status: 400 }
-      );
-    }
+    const { name, prompt = '', model = 'auto' } = body;
 
     // セッション名が未指定の場合は一意な名前を自動生成
     let sessionDisplayName: string;
@@ -214,38 +206,40 @@ export async function POST(
       },
     });
 
-    // プロンプトを保存または更新
-    const existingPrompt = await prisma.prompt.findFirst({
-      where: { content: prompt },
-    });
-
-    if (existingPrompt) {
-      await prisma.prompt.update({
-        where: { id: existingPrompt.id },
-        data: {
-          used_count: { increment: 1 },
-          last_used_at: new Date(),
-        },
+    // プロンプトが存在する場合のみ保存または更新
+    if (prompt && prompt.trim()) {
+      const existingPrompt = await prisma.prompt.findFirst({
+        where: { content: prompt },
       });
-    } else {
-      await prisma.prompt.create({
+
+      if (existingPrompt) {
+        await prisma.prompt.update({
+          where: { id: existingPrompt.id },
+          data: {
+            used_count: { increment: 1 },
+            last_used_at: new Date(),
+          },
+        });
+      } else {
+        await prisma.prompt.create({
+          data: {
+            content: prompt,
+            used_count: 1,
+            last_used_at: new Date(),
+          },
+        });
+      }
+
+      // 初期プロンプトをユーザーメッセージとして保存
+      // WebSocket接続時にこのメッセージがClaude PTYに送信される
+      await prisma.message.create({
         data: {
+          session_id: newSession.id,
+          role: 'user',
           content: prompt,
-          used_count: 1,
-          last_used_at: new Date(),
         },
       });
     }
-
-    // 初期プロンプトをユーザーメッセージとして保存
-    // WebSocket接続時にこのメッセージがClaude PTYに送信される
-    await prisma.message.create({
-      data: {
-        session_id: newSession.id,
-        role: 'user',
-        content: prompt,
-      },
-    });
 
     logger.info('Session created', {
       id: newSession.id,
