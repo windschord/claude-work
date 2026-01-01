@@ -3,6 +3,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAppStore } from '@/store';
+import { useSettingsStore } from '@/store/settings';
 import { ProjectTreeItem } from './ProjectTreeItem';
 
 /**
@@ -25,7 +26,10 @@ export function Sidebar() {
     setCurrentSessionId,
     isSidebarOpen,
     setIsSidebarOpen,
+    fetchSessions,
   } = useAppStore();
+  const { defaultModel } = useSettingsStore();
+  const [isCreating, setIsCreating] = useState(false);
 
   // プロジェクトの展開状態を管理
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
@@ -67,14 +71,40 @@ export function Sidebar() {
     [router, setCurrentSessionId, setSelectedProjectId, setIsSidebarOpen]
   );
 
-  // 新規セッション追加時の処理
+  // 新規セッション追加時の処理（ワンクリック作成）
   const handleAddSession = useCallback(
-    (projectId: string) => {
+    async (projectId: string) => {
+      if (isCreating) return;
+
+      setIsCreating(true);
       setSelectedProjectId(projectId);
-      router.push(`/projects/${projectId}?action=create-session`);
-      setIsSidebarOpen(false);
+
+      try {
+        const response = await fetch(`/api/projects/${projectId}/sessions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: defaultModel,
+            prompt: '',
+          }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.session) {
+          // セッション一覧を更新
+          await fetchSessions(projectId);
+          // 新しいセッションに遷移
+          router.push(`/sessions/${data.session.id}`);
+          setIsSidebarOpen(false);
+        }
+      } catch (error) {
+        console.error('Failed to create session:', error);
+      } finally {
+        setIsCreating(false);
+      }
     },
-    [router, setSelectedProjectId, setIsSidebarOpen]
+    [isCreating, defaultModel, setSelectedProjectId, fetchSessions, router, setIsSidebarOpen]
   );
 
   return (
