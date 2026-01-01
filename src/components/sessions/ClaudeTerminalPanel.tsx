@@ -1,27 +1,32 @@
 /**
- * ターミナルパネルコンポーネント
- * タスク6.7: ターミナル統合(フロントエンド)実装
+ * Claude Codeターミナルパネルコンポーネント
  *
- * XTerm.jsを使用したターミナルUIを提供します。
- * - ターミナル表示
+ * XTerm.jsを使用したClaude Code専用ターミナルUIを提供します。
+ * - Claude Codeとの対話的なターミナル表示
  * - 接続状態インジケーター
+ * - 再起動機能
  * - 自動リサイズ
  */
 
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useTerminal } from '@/hooks/useTerminal';
+import { useClaudeTerminal } from '@/hooks/useClaudeTerminal';
 import { RotateCcw } from 'lucide-react';
 import '@xterm/xterm/css/xterm.css';
 
-interface TerminalPanelProps {
+interface ClaudeTerminalPanelProps {
   sessionId: string;
+  isVisible: boolean;
 }
 
-function TerminalPanel({ sessionId }: TerminalPanelProps) {
+function ClaudeTerminalPanel({
+  sessionId,
+  isVisible,
+}: ClaudeTerminalPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const { terminal, isConnected, fit, reconnect, error } = useTerminal(sessionId);
+  const { terminal, isConnected, fit, restart, reconnect, error } =
+    useClaudeTerminal(sessionId);
   const [mounted, setMounted] = useState(false);
   const [isTerminalOpened, setIsTerminalOpened] = useState(false);
 
@@ -62,7 +67,7 @@ function TerminalPanel({ sessionId }: TerminalPanelProps) {
           retryTimer = setTimeout(tryOpenTerminal, 100);
         }
       } catch (err) {
-        console.error('Failed to open terminal:', err);
+        console.error('Failed to open Claude terminal:', err);
       }
     };
 
@@ -91,14 +96,18 @@ function TerminalPanel({ sessionId }: TerminalPanelProps) {
     return () => window.removeEventListener('resize', handleResize);
   }, [fit, mounted, isTerminalOpened]);
 
+  // 表示状態が変わった時にリサイズ
+  useEffect(() => {
+    if (!mounted || !isTerminalOpened || !isVisible) return;
+
+    // 表示されたらリサイズ
+    requestAnimationFrame(() => {
+      fit();
+    });
+  }, [fit, mounted, isTerminalOpened, isVisible]);
+
   // 表示状態が変わった時にリサイズ（IntersectionObserver使用）
   useEffect(() => {
-    // エフェクト開始時にcontainerRef.currentをキャプチャ
-    // 注意: containerRef.currentは依存配列に含めません。理由:
-    // 1. Reactのルールでref.currentを依存配列に含めることは推奨されない（変更が再レンダリングをトリガーしないため）
-    // 2. このコンテナ要素はこのコンポーネント内でレンダリングされるため、親の再レンダリングで再作成されない
-    // 3. コンポーネントがアンマウント/再マウントされた場合、mountedとisTerminalOpenedの変更で
-    //    エフェクトが再実行され、新しいコンテナ要素を監視する
     const container = containerRef.current;
     if (!mounted || !isTerminalOpened || !container) return;
 
@@ -126,8 +135,12 @@ function TerminalPanel({ sessionId }: TerminalPanelProps) {
   // SSR時は何も表示しない
   if (!mounted) {
     return (
-      <div className="h-full flex flex-col items-center justify-center">
-        <p className="text-gray-500 dark:text-gray-400">Loading terminal...</p>
+      <div
+        className={`h-full flex flex-col items-center justify-center ${
+          isVisible ? '' : 'hidden'
+        }`}
+      >
+        <p className="text-gray-500 dark:text-gray-400">Loading Claude Code...</p>
       </div>
     );
   }
@@ -135,13 +148,17 @@ function TerminalPanel({ sessionId }: TerminalPanelProps) {
   // エラー時の表示
   if (error) {
     return (
-      <div className="h-full flex flex-col">
+      <div className={`h-full flex flex-col ${isVisible ? '' : 'hidden'}`}>
         <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="font-semibold text-gray-900 dark:text-gray-100">Terminal</h3>
+          <h3 className="font-semibold text-gray-900 dark:text-gray-100">
+            Claude Code
+          </h3>
         </div>
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
-            <p className="text-red-500 font-semibold mb-2">Failed to initialize terminal</p>
+            <p className="text-red-500 font-semibold mb-2">
+              Failed to initialize Claude terminal
+            </p>
             <p className="text-sm text-gray-600 dark:text-gray-400">{error}</p>
           </div>
         </div>
@@ -150,19 +167,32 @@ function TerminalPanel({ sessionId }: TerminalPanelProps) {
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className={`h-full flex flex-col ${isVisible ? '' : 'hidden'}`}>
       {/* ヘッダー */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-gray-700">
-        <h3 className="font-semibold text-gray-900 dark:text-gray-100">Terminal</h3>
+        <h3 className="font-semibold text-gray-900 dark:text-gray-100">
+          Claude Code
+        </h3>
         <div className="flex items-center gap-3">
-          {/* 再接続ボタン */}
+          {/* 再接続ボタン（切断時のみ表示） */}
+          {!isConnected && (
+            <button
+              onClick={reconnect}
+              className="flex items-center gap-1 px-2 py-1 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-100 hover:bg-blue-100 dark:hover:bg-blue-800 rounded transition-colors"
+              title="Reconnect to Server"
+            >
+              <RotateCcw className="w-4 h-4" />
+              <span>Reconnect</span>
+            </button>
+          )}
+          {/* 再起動ボタン */}
           <button
-            onClick={reconnect}
+            onClick={restart}
             className="flex items-center gap-1 px-2 py-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors"
-            title="Reconnect Terminal"
+            title="Restart Claude Code"
           >
             <RotateCcw className="w-4 h-4" />
-            <span>Reconnect</span>
+            <span>Restart</span>
           </button>
           {/* 接続状態 */}
           <div className="flex items-center gap-2">
@@ -183,14 +213,14 @@ function TerminalPanel({ sessionId }: TerminalPanelProps) {
         ref={containerRef}
         className="flex-1 p-2 min-h-0 w-full h-full"
         role="application"
-        aria-label="Terminal"
+        aria-label="Claude Code Terminal"
       />
     </div>
   );
 }
 
 // Named export for backward compatibility
-export { TerminalPanel };
+export { ClaudeTerminalPanel };
 
 // Default export for dynamic import
-export default TerminalPanel;
+export default ClaudeTerminalPanel;

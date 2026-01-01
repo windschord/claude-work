@@ -168,7 +168,7 @@ describe('ProcessManager', () => {
       });
       expect(mockSpawn).toHaveBeenCalledWith(
         'claude',
-        ['--print', '--model', 'sonnet'],
+        ['--print', '--verbose', '--input-format', 'stream-json', '--output-format', 'stream-json', '--model', 'sonnet'],
         expect.objectContaining({
           stdio: ['pipe', 'pipe', 'pipe'],
           cwd: '/path/to/worktree',
@@ -191,7 +191,7 @@ describe('ProcessManager', () => {
 
       expect(mockSpawn).toHaveBeenCalledWith(
         '/custom/path/to/claude',
-        ['--print', '--model', 'sonnet'],
+        ['--print', '--verbose', '--input-format', 'stream-json', '--output-format', 'stream-json', '--model', 'sonnet'],
         expect.objectContaining({
           stdio: ['pipe', 'pipe', 'pipe'],
           cwd: '/path/to/worktree',
@@ -221,7 +221,7 @@ describe('ProcessManager', () => {
 
       expect(mockSpawn).toHaveBeenCalledWith(
         'claude',
-        ['--print', '--model', 'sonnet'],
+        ['--print', '--verbose', '--input-format', 'stream-json', '--output-format', 'stream-json', '--model', 'sonnet'],
         expect.objectContaining({
           stdio: ['pipe', 'pipe', 'pipe'],
           cwd: '/path/to/worktree',
@@ -285,7 +285,7 @@ describe('ProcessManager', () => {
 
       expect(mockSpawn).toHaveBeenCalledWith(
         'claude',
-        ['--print', '--model', 'sonnet'],
+        ['--print', '--verbose', '--input-format', 'stream-json', '--output-format', 'stream-json', '--model', 'sonnet'],
         expect.objectContaining({
           stdio: ['pipe', 'pipe', 'pipe'],
           cwd: '/path/to/worktree',
@@ -293,7 +293,7 @@ describe('ProcessManager', () => {
       );
     });
 
-    it('should send initial prompt to stdin', async () => {
+    it('should send initial prompt to stdin in stream-json format', async () => {
       const options: StartOptions = {
         sessionId: 'test-session-stdin',
         worktreePath: '/path/to/worktree',
@@ -302,7 +302,14 @@ describe('ProcessManager', () => {
 
       await processManager.startClaudeCode(options);
 
-      expect(mockChildProcess.stdin.write).toHaveBeenCalledWith('test prompt\n');
+      // stream-json形式ではJSON形式でプロンプトを送信する
+      const expectedMessage = JSON.stringify({
+        type: 'user',
+        message: { role: 'user', content: 'test prompt' },
+        session_id: 'default',
+        parent_tool_use_id: null,
+      });
+      expect(mockChildProcess.stdin.write).toHaveBeenCalledWith(`${expectedMessage}\n`);
     });
 
     it('should return process info', async () => {
@@ -362,7 +369,14 @@ describe('ProcessManager', () => {
 
       await processManager.sendInput('test-session-no-prompt-then-input', 'delayed prompt');
 
-      expect(mockChildProcess.stdin.write).toHaveBeenCalledWith('delayed prompt\n');
+      // stream-json形式ではJSON形式でメッセージを送信する
+      const expectedMessage = JSON.stringify({
+        type: 'user',
+        message: { role: 'user', content: 'delayed prompt' },
+        session_id: 'default',
+        parent_tool_use_id: null,
+      });
+      expect(mockChildProcess.stdin.write).toHaveBeenCalledWith(`${expectedMessage}\n`);
     });
   });
 
@@ -377,10 +391,17 @@ describe('ProcessManager', () => {
       vi.clearAllMocks();
     });
 
-    it('should write input to stdin', async () => {
+    it('should write input to stdin in stream-json format', async () => {
       await processManager.sendInput('test-session-send-input', 'test input');
 
-      expect(mockChildProcess.stdin.write).toHaveBeenCalledWith('test input\n');
+      // stream-json形式ではJSON形式でメッセージを送信する
+      const expectedMessage = JSON.stringify({
+        type: 'user',
+        message: { role: 'user', content: 'test input' },
+        session_id: 'default',
+        parent_tool_use_id: null,
+      });
+      expect(mockChildProcess.stdin.write).toHaveBeenCalledWith(`${expectedMessage}\n`);
     });
 
     it('should reject if session not found', async () => {
@@ -462,7 +483,7 @@ describe('ProcessManager', () => {
 
       expect(mockSpawn).toHaveBeenCalledWith(
         'claude',
-        ['--print', '--resume', 'claude-session-abc123'],
+        ['--print', '--verbose', '--input-format', 'stream-json', '--output-format', 'stream-json', '--resume', 'claude-session-abc123'],
         expect.objectContaining({
           stdio: ['pipe', 'pipe', 'pipe'],
           cwd: '/path/to/worktree',
@@ -482,7 +503,7 @@ describe('ProcessManager', () => {
 
       expect(mockSpawn).toHaveBeenCalledWith(
         'claude',
-        ['--print', '--model', 'opus', '--resume', 'claude-session-xyz789'],
+        ['--print', '--verbose', '--input-format', 'stream-json', '--output-format', 'stream-json', '--model', 'opus', '--resume', 'claude-session-xyz789'],
         expect.objectContaining({
           stdio: ['pipe', 'pipe', 'pipe'],
           cwd: '/path/to/worktree',

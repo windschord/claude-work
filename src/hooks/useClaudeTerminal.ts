@@ -1,31 +1,35 @@
 /**
- * ターミナルWebSocket接続フック
- * タスク6.7: ターミナル統合(フロントエンド)実装
+ * Claude CodeターミナルWebSocket接続フック
  *
  * 機能:
  * - XTerm.jsターミナルの初期化
- * - PTYバックエンドとのWebSocket接続
+ * - Claude Code PTYバックエンドとのWebSocket接続
  * - ターミナル入出力の中継
  * - リサイズ対応
  * - 接続状態の管理
+ * - 再起動機能
  * - 自動再接続（異常切断時）
  * - 手動再接続
  *
  * @param sessionId - セッションID
- * @returns ターミナルインスタンス、接続状態、fit/reconnectメソッド
+ * @returns ターミナルインスタンス、接続状態、fit/restart/reconnectメソッド
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-// 静的インポート（動的インポートは開発モードでwebpackチャンク問題を引き起こすため）
-// Note: このhookは 'use client' コンポーネントでのみ使用され、
-// useEffect内でブラウザ環境チェックを行うため安全
+// 静的インポートを使用（動的インポートは開発モードでwebpackチャンク問題を引き起こすため）
+// NOTE: バンドルサイズの考慮
+// - このhookは 'use client' コンポーネント（ClaudeTerminalPanel）でのみ使用される
+// - ClaudeTerminalPanelはNext.js dynamic()でssr:falseとして遅延ロードされる
+// - したがって、xtermモジュールはサーバー側バンドルに含まれない
+// - FitAddonは new FitAddon() でインスタンス化するため、値インポートが必要（型インポート不可）
 import { Terminal, type IDisposable } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 
-export interface UseTerminalReturn {
+export interface UseClaudeTerminalReturn {
   terminal: Terminal | null;
   isConnected: boolean;
   fit: () => void;
+  restart: () => void;
   reconnect: () => void;
   error: string | null;
 }
@@ -34,7 +38,7 @@ export interface UseTerminalReturn {
 const RECONNECT_DELAY = 1000; // 再接続までの待機時間（ミリ秒）
 const MAX_RECONNECT_ATTEMPTS = 5; // 最大再接続試行回数
 
-export function useTerminal(sessionId: string): UseTerminalReturn {
+export function useClaudeTerminal(sessionId: string): UseClaudeTerminalReturn {
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -57,10 +61,13 @@ export function useTerminal(sessionId: string): UseTerminalReturn {
       wsRef.current.close();
     }
 
-    // WebSocket URLを構築
+    // WebSocket URLを構築（Claude Code用エンドポイント）
+    // NOTE: window.location.hostを使用してポート番号を含める（開発環境での異なるポートに対応）
+    // 本番環境でリバースプロキシを使用する場合は、Hostヘッダーが正しく設定されていることを確認してください。
+    // ホストヘッダーインジェクション攻撃を防ぐため、サーバー側で許可されたホストを検証してください。
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
-    const wsUrl = `${protocol}//${host}/ws/terminal/${sessionId}`;
+    const wsUrl = `${protocol}//${host}/ws/claude/${sessionId}`;
 
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
@@ -97,12 +104,18 @@ export function useTerminal(sessionId: string): UseTerminalReturn {
           terminalRef.current?.write(message.content);
         } else if (message.type === 'exit') {
           // プロセス終了メッセージを表示
-          terminalRef.current?.write(`\r\n[Process exited with code ${message.exitCode}]\r\n`);
-          // WebSocketを正常終了として切断
-          ws.close(1000, 'Process exited');
+          terminalRef.current?.write(
+            `\r\n[Claude Code exited with code ${message.exitCode}]\r\n`
+          );
+          terminalRef.current?.write('[Click Restart button to restart Claude Code]\r\n');
+          // 接続は維持（再起動可能にするため）
+        } else if (message.type === 'error') {
+          // エラーメッセージを表示
+          terminalRef.current?.write(`\r\n[Error: ${message.message}]\r\n`);
+          setError(message.message);
         }
       } catch (err) {
-        console.error('Failed to parse terminal WebSocket message:', err);
+        console.error('Failed to parse Claude WebSocket message:', err);
       }
     };
 
@@ -114,7 +127,7 @@ export function useTerminal(sessionId: string): UseTerminalReturn {
       // 正常終了（コード1000）以外の場合は自動再接続を試みる
       if (event.code !== 1000 && reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS) {
         reconnectAttemptsRef.current++;
-        console.log(`Terminal WebSocket disconnected unexpectedly, attempting reconnect (${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS})...`);
+        console.log(`Claude WebSocket disconnected unexpectedly, attempting reconnect (${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS})...`);
 
         // 再接続タイマーをセット
         reconnectTimerRef.current = setTimeout(() => {
@@ -128,7 +141,7 @@ export function useTerminal(sessionId: string): UseTerminalReturn {
     // エラー発生時
     ws.onerror = (err: Event) => {
       if (!isMountedRef.current) return;
-      console.error('Terminal WebSocket error:', err);
+      console.error('Claude WebSocket error:', err);
       setIsConnected(false);
     };
 
@@ -188,8 +201,10 @@ export function useTerminal(sessionId: string): UseTerminalReturn {
         createWebSocket();
       } catch (err) {
         if (!isMountedRef.current) return;
-        console.error('Failed to initialize terminal:', err);
-        setError(err instanceof Error ? err.message : 'Failed to initialize terminal');
+        console.error('Failed to initialize Claude terminal:', err);
+        setError(
+          err instanceof Error ? err.message : 'Failed to initialize terminal'
+        );
       }
     };
 
@@ -220,7 +235,11 @@ export function useTerminal(sessionId: string): UseTerminalReturn {
 
   // リサイズ関数（useCallbackでメモ化して不要な再レンダリングを防止）
   const fit = useCallback(() => {
-    if (fitAddonRef.current && wsRef.current?.readyState === WebSocket.OPEN && terminalRef.current) {
+    if (
+      fitAddonRef.current &&
+      wsRef.current?.readyState === WebSocket.OPEN &&
+      terminalRef.current
+    ) {
       fitAddonRef.current.fit();
       const term = terminalRef.current;
       wsRef.current.send(
@@ -246,14 +265,53 @@ export function useTerminal(sessionId: string): UseTerminalReturn {
       reconnectTimerRef.current = null;
     }
 
+    // ターミナルに再接続メッセージを表示
+    if (terminalRef.current) {
+      terminalRef.current.write('\r\n[Reconnecting to server...]\r\n');
+    }
+
     // 新しい接続を作成
     createWebSocket();
+  }, [createWebSocket]);
+
+  // 再起動関数
+  const restart = useCallback(() => {
+    // WebSocketが接続されている場合は再起動メッセージを送信
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: 'restart',
+        })
+      );
+      // ターミナルに再起動メッセージを表示
+      if (terminalRef.current) {
+        terminalRef.current.write('\r\n[Restarting Claude Code...]\r\n');
+      }
+    } else {
+      // WebSocketが切断されている場合は、まず再接続してから再起動
+      if (terminalRef.current) {
+        terminalRef.current.write('\r\n[Reconnecting and restarting Claude Code...]\r\n');
+      }
+
+      // 再接続カウンタをリセット
+      reconnectAttemptsRef.current = 0;
+
+      // 既存の再接続タイマーをクリア
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+
+      // 新しい接続を作成
+      createWebSocket();
+    }
   }, [createWebSocket]);
 
   return {
     terminal,
     isConnected,
     fit,
+    restart,
     reconnect,
     error,
   };

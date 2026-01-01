@@ -218,4 +218,188 @@ describe('useTerminal', () => {
       expect(mockWebSocketInstance?.close).toHaveBeenCalled();
     });
   });
+
+  describe('再接続ロジック', () => {
+    it('WebSocket切断後に自動再接続を試みる', async () => {
+      const sessionId = 'test-session-reconnect';
+      let connectionCount = 0;
+
+      // WebSocketコンストラクタをスパイして接続回数をカウント
+      const originalMock = global.WebSocket;
+      global.WebSocket = function (url: string) {
+        connectionCount++;
+        const instance = new MockWebSocket(url);
+        mockWebSocketInstance = instance;
+        return instance;
+      } as unknown as typeof WebSocket;
+      Object.assign(global.WebSocket, {
+        CONNECTING: MockWebSocket.CONNECTING,
+        OPEN: MockWebSocket.OPEN,
+        CLOSING: MockWebSocket.CLOSING,
+        CLOSED: MockWebSocket.CLOSED,
+      });
+
+      const { result } = renderHook(() => useTerminal(sessionId));
+
+      // 初回接続
+      expect(connectionCount).toBe(1);
+
+      // 接続完了を待つ
+      await waitFor(() => {
+        expect(result.current.isConnected).toBe(true);
+      });
+
+      // 予期せぬ切断をシミュレート（コード1006はabnormal closure）
+      if (mockWebSocketInstance) {
+        mockWebSocketInstance.readyState = MockWebSocket.CLOSED;
+        if (mockWebSocketInstance.onclose) {
+          mockWebSocketInstance.onclose(new CloseEvent('close', { code: 1006 }));
+        }
+      }
+
+      // 再接続が試みられるまで待つ（1秒後）
+      await waitFor(() => {
+        expect(connectionCount).toBe(2);
+      }, { timeout: 3000 });
+
+      global.WebSocket = originalMock;
+    });
+
+    it('正常終了（コード1000）時は再接続しない', async () => {
+      const sessionId = 'test-session-normal-close';
+      let connectionCount = 0;
+
+      const originalMock = global.WebSocket;
+      global.WebSocket = function (url: string) {
+        connectionCount++;
+        const instance = new MockWebSocket(url);
+        mockWebSocketInstance = instance;
+        return instance;
+      } as unknown as typeof WebSocket;
+      Object.assign(global.WebSocket, {
+        CONNECTING: MockWebSocket.CONNECTING,
+        OPEN: MockWebSocket.OPEN,
+        CLOSING: MockWebSocket.CLOSING,
+        CLOSED: MockWebSocket.CLOSED,
+      });
+
+      const { result } = renderHook(() => useTerminal(sessionId));
+
+      expect(connectionCount).toBe(1);
+
+      await waitFor(() => {
+        expect(result.current.isConnected).toBe(true);
+      });
+
+      // 正常終了をシミュレート（コード1000）
+      if (mockWebSocketInstance) {
+        mockWebSocketInstance.readyState = MockWebSocket.CLOSED;
+        if (mockWebSocketInstance.onclose) {
+          mockWebSocketInstance.onclose(new CloseEvent('close', { code: 1000 }));
+        }
+      }
+
+      // 切断されたことを確認
+      await waitFor(() => {
+        expect(result.current.isConnected).toBe(false);
+      });
+
+      // 少し待っても再接続しないことを確認
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      expect(connectionCount).toBe(1);
+
+      global.WebSocket = originalMock;
+    });
+
+    it('reconnect関数で手動再接続ができる', async () => {
+      const sessionId = 'test-session-manual-reconnect';
+      let connectionCount = 0;
+
+      const originalMock = global.WebSocket;
+      global.WebSocket = function (url: string) {
+        connectionCount++;
+        const instance = new MockWebSocket(url);
+        mockWebSocketInstance = instance;
+        return instance;
+      } as unknown as typeof WebSocket;
+      Object.assign(global.WebSocket, {
+        CONNECTING: MockWebSocket.CONNECTING,
+        OPEN: MockWebSocket.OPEN,
+        CLOSING: MockWebSocket.CLOSING,
+        CLOSED: MockWebSocket.CLOSED,
+      });
+
+      const { result } = renderHook(() => useTerminal(sessionId));
+
+      expect(connectionCount).toBe(1);
+
+      await waitFor(() => {
+        expect(result.current.isConnected).toBe(true);
+      });
+
+      // 切断
+      if (mockWebSocketInstance) {
+        mockWebSocketInstance.readyState = MockWebSocket.CLOSED;
+        if (mockWebSocketInstance.onclose) {
+          mockWebSocketInstance.onclose(new CloseEvent('close', { code: 1000 }));
+        }
+      }
+
+      await waitFor(() => {
+        expect(result.current.isConnected).toBe(false);
+      });
+
+      // 手動再接続
+      result.current.reconnect();
+
+      // 再接続が試みられることを確認
+      await waitFor(() => {
+        expect(connectionCount).toBe(2);
+      });
+
+      global.WebSocket = originalMock;
+    });
+
+    it('アンマウント時に再接続タイマーがキャンセルされる', async () => {
+      const sessionId = 'test-session-unmount-reconnect';
+      let connectionCount = 0;
+
+      const originalMock = global.WebSocket;
+      global.WebSocket = function (url: string) {
+        connectionCount++;
+        const instance = new MockWebSocket(url);
+        mockWebSocketInstance = instance;
+        return instance;
+      } as unknown as typeof WebSocket;
+      Object.assign(global.WebSocket, {
+        CONNECTING: MockWebSocket.CONNECTING,
+        OPEN: MockWebSocket.OPEN,
+        CLOSING: MockWebSocket.CLOSING,
+        CLOSED: MockWebSocket.CLOSED,
+      });
+
+      const { result, unmount } = renderHook(() => useTerminal(sessionId));
+
+      await waitFor(() => {
+        expect(result.current.isConnected).toBe(true);
+      });
+
+      // 切断（再接続がスケジュールされる）
+      if (mockWebSocketInstance) {
+        mockWebSocketInstance.readyState = MockWebSocket.CLOSED;
+        if (mockWebSocketInstance.onclose) {
+          mockWebSocketInstance.onclose(new CloseEvent('close', { code: 1006 }));
+        }
+      }
+
+      // アンマウント（再接続タイマーがキャンセルされる）
+      unmount();
+
+      // 少し待っても再接続しないことを確認
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      expect(connectionCount).toBe(1);
+
+      global.WebSocket = originalMock;
+    });
+  });
 });

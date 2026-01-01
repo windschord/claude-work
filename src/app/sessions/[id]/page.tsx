@@ -2,16 +2,12 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import dynamic from 'next/dynamic';
 import { useAppStore } from '@/store';
 import { useScriptLogStore } from '@/store/script-logs';
 import { useNotificationStore } from '@/store/notification';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { AuthGuard } from '@/components/AuthGuard';
 import { MainLayout } from '@/components/layout/MainLayout';
-import MessageList from '@/components/session/MessageList';
-import InputForm from '@/components/session/InputForm';
-import PermissionDialog from '@/components/session/PermissionDialog';
 import { FileList } from '@/components/git/FileList';
 import { DiffViewer } from '@/components/git/DiffViewer';
 import { RebaseButton } from '@/components/git/RebaseButton';
@@ -23,12 +19,46 @@ import { ScriptsPanel } from '@/components/scripts/ScriptsPanel';
 import { ProcessStatus } from '@/components/sessions/ProcessStatus';
 import { Toaster, toast } from 'react-hot-toast';
 import type { ServerMessage } from '@/types/websocket';
+// 静的インポート（ただしSSR時は動作しないxtermを遅延レンダリング）
+// Note: 動的インポートは開発モードでwebpackのチャンク問題が発生するため、
+// 静的インポートを使用し、クライアントサイドでのみレンダリングする
+import { TerminalPanel } from '@/components/sessions/TerminalPanel';
+import { ClaudeTerminalPanel } from '@/components/sessions/ClaudeTerminalPanel';
 
-// TerminalPanelをSSRなしで動的インポート（xtermはブラウザ専用）
-const TerminalPanel = dynamic(
-  () => import('@/components/sessions/TerminalPanel').then((mod) => mod.TerminalPanel),
-  { ssr: false }
+// ローディングコンポーネント
+const TerminalLoading = () => (
+  <div className="flex items-center justify-center h-full">
+    <p className="text-gray-500 dark:text-gray-400">Loading terminal...</p>
+  </div>
 );
+
+interface LazyTerminalProps {
+  sessionId: string;
+  isVisible?: boolean;
+}
+
+// クライアントサイドでのみレンダリングするラッパー
+function LazyTerminalPanel({ sessionId }: LazyTerminalProps) {
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  if (!isMounted) return <TerminalLoading />;
+  return <TerminalPanel sessionId={sessionId} />;
+}
+
+function LazyClaudeTerminalPanel({ sessionId, isVisible = true }: LazyTerminalProps) {
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  if (!isMounted) return <TerminalLoading />;
+  return <ClaudeTerminalPanel sessionId={sessionId} isVisible={isVisible} />;
+}
 
 /**
  * セッション詳細ページ
@@ -46,8 +76,6 @@ export default function SessionDetailPage() {
 
   const {
     currentSession,
-    messages,
-    permissionRequest,
     conflictFiles,
     fetchSessionDetail,
     fetchDiff,
@@ -59,37 +87,21 @@ export default function SessionDetailPage() {
 
   const { permission, requestPermission } = useNotificationStore();
 
-  const [isPermissionDialogOpen, setIsPermissionDialogOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'chat' | 'diff' | 'commits' | 'terminal' | 'scripts'>('chat');
+  const [activeTab, setActiveTab] = useState<'claude' | 'shell' | 'diff' | 'commits' | 'scripts'>('claude');
   const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
   const [isConflictDialogOpen, setIsConflictDialogOpen] = useState(false);
   const [isDeleteWorktreeDialogOpen, setIsDeleteWorktreeDialogOpen] = useState(false);
   const [processRunning, setProcessRunning] = useState(false);
   const [processLoading, setProcessLoading] = useState(false);
-  const [isWaitingResponse, setIsWaitingResponse] = useState(false);
-
-  // セッション変更時やアンマウント時にレスポンス待ち状態をリセット
-  useEffect(() => {
-    setIsWaitingResponse(false);
-    return () => {
-      setIsWaitingResponse(false);
-    };
-  }, [sessionId]);
 
   // WebSocketメッセージハンドラ（useCallbackで最適化）
   const onMessage = useCallback(
     (message: ServerMessage) => {
       handleWebSocketMessage(message);
 
-      // Claudeからの応答を受信したらスピナーを停止
-      if (message.type === 'output') {
-        setIsWaitingResponse(false);
-      }
-
-      // errorメッセージをトースト通知で表示し、スピナーを停止
+      // errorメッセージをトースト通知で表示
       if (message.type === 'error') {
         toast.error(message.content);
-        setIsWaitingResponse(false);
       }
 
       // スクリプトログメッセージを処理（script-logsストアを更新）
@@ -127,8 +139,8 @@ export default function SessionDetailPage() {
     [handleWebSocketMessage]
   );
 
-  // WebSocket接続
-  const { send, status: wsStatus } = useWebSocket(sessionId, onMessage);
+  // WebSocket接続（スクリプトログとライフサイクルイベント用）
+  const { status: wsStatus } = useWebSocket(sessionId, onMessage);
 
   // 初回データ取得
   useEffect(() => {
@@ -175,13 +187,6 @@ export default function SessionDetailPage() {
       checkProcessStatus();
     }
   }, [wsStatus, checkProcessStatus]);
-
-  // Show permission dialog when permission request is available
-  useEffect(() => {
-    if (permissionRequest) {
-      setIsPermissionDialogOpen(true);
-    }
-  }, [permissionRequest]);
 
   useEffect(() => {
     checkAuth();
@@ -270,71 +275,6 @@ export default function SessionDetailPage() {
       setProcessLoading(false);
     }
   }, [sessionId, fetchSessionDetail]);
-
-  const handleSendMessage = useCallback(
-    (content: string) => {
-      // プロセスが停止している場合は送信を阻止
-      if (!processRunning) {
-        toast.error('プロセスが停止しています。再起動してください');
-        return;
-      }
-
-      try {
-        // ユーザーメッセージをローカル状態に即座に追加（楽観的更新）
-        const userMessage = {
-          id: typeof crypto !== 'undefined' && crypto.randomUUID
-            ? crypto.randomUUID()
-            : `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-          session_id: sessionId,
-          role: 'user' as const,
-          content,
-          sub_agents: null,
-          created_at: new Date().toISOString(),
-        };
-        useAppStore.setState((state) => ({
-          messages: [...state.messages, userMessage],
-        }));
-
-        // スピナーを開始
-        setIsWaitingResponse(true);
-
-        // WebSocket経由でメッセージ送信
-        send({ type: 'input', content });
-      } catch (error) {
-        console.error('Failed to send message:', error);
-        setIsWaitingResponse(false);
-      }
-    },
-    [send, processRunning, sessionId]
-  );
-
-  const handleApprove = useCallback(
-    (permissionId: string) => {
-      try {
-        // WebSocket経由で権限承認を送信
-        send({ type: 'approve', requestId: permissionId });
-        // ダイアログを閉じる
-        setIsPermissionDialogOpen(false);
-      } catch (error) {
-        console.error('Failed to approve permission:', error);
-      }
-    },
-    [send]
-  );
-
-  const handleReject = useCallback(
-    (permissionId: string) => {
-      try {
-        // WebSocket経由で権限拒否を送信
-        send({ type: 'deny', requestId: permissionId });
-        // ダイアログを閉じる
-        setIsPermissionDialogOpen(false);
-      } catch (error) {
-        console.error('Failed to reject permission:', error);
-      }
-    },
-    [send]
-  );
 
   const handleStopSession = async () => {
     try {
@@ -439,14 +379,24 @@ export default function SessionDetailPage() {
           <div className="border-b border-gray-200 dark:border-gray-700">
             <div className="flex">
               <button
-                onClick={() => setActiveTab('chat')}
+                onClick={() => setActiveTab('claude')}
                 className={`px-6 py-3 min-h-[44px] font-medium transition-colors ${
-                  activeTab === 'chat'
+                  activeTab === 'claude'
                     ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400'
                     : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
                 }`}
               >
-                対話
+                Claude
+              </button>
+              <button
+                onClick={() => setActiveTab('shell')}
+                className={`px-6 py-3 min-h-[44px] font-medium transition-colors ${
+                  activeTab === 'shell'
+                    ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                }`}
+              >
+                Shell
               </button>
               <button
                 onClick={() => setActiveTab('diff')}
@@ -469,16 +419,6 @@ export default function SessionDetailPage() {
                 Commits
               </button>
               <button
-                onClick={() => setActiveTab('terminal')}
-                className={`px-6 py-3 min-h-[44px] font-medium transition-colors ${
-                  activeTab === 'terminal'
-                    ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400'
-                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-                }`}
-              >
-                Terminal
-              </button>
-              <button
                 onClick={() => setActiveTab('scripts')}
                 className={`px-6 py-3 min-h-[44px] font-medium transition-colors ${
                   activeTab === 'scripts'
@@ -494,21 +434,15 @@ export default function SessionDetailPage() {
           {/* Tab Content */}
           {/*
            * 注意: すべてのタブコンテンツはDOMに常にレンダリングされ、CSSのhiddenクラスで非表示にしています。
-           * これは特にTerminalタブのためのアーキテクチャ上の決定です。
+           * これは特にターミナルタブのためのアーキテクチャ上の決定です。
            * XTerm.jsターミナルは一度初期化されると、DOMから削除されると状態が失われます。
            * 条件付きレンダリングではなくCSS非表示を使用することで、タブ切り替え時も
            * ターミナルの接続状態と履歴が維持されます。
            */}
-          {/* Chat Tab */}
-          <div className={`flex flex-col flex-1 ${activeTab === 'chat' ? '' : 'hidden'}`}>
-            {/* Messages */}
-            <MessageList messages={messages} isLoading={isWaitingResponse} />
-
-            {/* Input Form */}
-            <InputForm
-              onSubmit={handleSendMessage}
-              disabled={currentSession.status !== 'running' && currentSession.status !== 'waiting_input'}
-            />
+          {/* Claude Tab */}
+          <div className={`flex-1 overflow-hidden ${activeTab === 'claude' ? '' : 'hidden'}`}>
+            {/* Claude Code Terminal */}
+            <LazyClaudeTerminalPanel sessionId={sessionId} isVisible={activeTab === 'claude'} />
           </div>
 
           {/* Diff Tab */}
@@ -536,10 +470,10 @@ export default function SessionDetailPage() {
             <CommitHistory sessionId={sessionId} />
           </div>
 
-          {/* Terminal Tab */}
-          <div className={`flex-1 overflow-hidden ${activeTab === 'terminal' ? '' : 'hidden'}`}>
-            {/* Terminal */}
-            <TerminalPanel sessionId={sessionId} />
+          {/* Shell Tab */}
+          <div className={`flex-1 overflow-hidden ${activeTab === 'shell' ? '' : 'hidden'}`}>
+            {/* Shell Terminal */}
+            <LazyTerminalPanel sessionId={sessionId} />
           </div>
 
           {/* Scripts Tab */}
@@ -547,15 +481,6 @@ export default function SessionDetailPage() {
             {/* Scripts */}
             <ScriptsPanel sessionId={sessionId} projectId={currentSession.project_id} />
           </div>
-
-          {/* Permission Dialog */}
-          <PermissionDialog
-            isOpen={isPermissionDialogOpen}
-            permission={permissionRequest}
-            onApprove={handleApprove}
-            onReject={handleReject}
-            onClose={() => setIsPermissionDialogOpen(false)}
-          />
 
           {/* Merge Modal */}
           <MergeModal

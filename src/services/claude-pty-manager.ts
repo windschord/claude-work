@@ -1,0 +1,263 @@
+import * as pty from 'node-pty';
+import { EventEmitter } from 'events';
+import * as path from 'path';
+import * as fs from 'fs';
+import { logger } from '@/lib/logger';
+
+/**
+ * Claude PTYセッション情報
+ */
+interface ClaudePTYSession {
+  ptyProcess: pty.IPty;
+  sessionId: string;
+  workingDir: string;
+  initialPrompt?: string;
+}
+
+/**
+ * PTYプロセス終了情報
+ */
+export interface ClaudePTYExitInfo {
+  exitCode: number;
+  signal?: number;
+}
+
+/**
+ * Claude PTY用の安全な環境変数を構築
+ */
+function buildClaudePtyEnv(): Record<string, string> {
+  const allow = new Set([
+    'PATH',
+    'HOME',
+    'USER',
+    'SHELL',
+    'LANG',
+    'LC_ALL',
+    'TERM',
+    'COLORTERM',
+    'TMPDIR',
+    'TEMP',
+    'TMP',
+    'NODE_ENV',
+    // Claude Code用の環境変数
+    'ANTHROPIC_API_KEY',
+    'CLAUDE_CODE_USE_BEDROCK',
+    'CLAUDE_CODE_USE_VERTEX',
+  ]);
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(process.env)) {
+    if (!v) continue;
+    if (!allow.has(k)) continue;
+    out[k] = v;
+  }
+  // ターミナル設定を追加
+  out['TERM'] = 'xterm-256color';
+  out['COLORTERM'] = 'truecolor';
+  return out;
+}
+
+/**
+ * ClaudePTYManager
+ *
+ * Claude CodeプロセスをPTYで管理するサービス。
+ * 対話モードでClaude Codeを起動し、ターミナルとして直接操作可能にする。
+ *
+ * イベント:
+ * - 'data': PTYからの出力 (sessionId: string, data: string)
+ * - 'exit': PTYプロセス終了 (sessionId: string, info: ClaudePTYExitInfo)
+ * - 'error': エラー発生 (sessionId: string, error: Error)
+ */
+class ClaudePTYManager extends EventEmitter {
+  private sessions: Map<string, ClaudePTYSession> = new Map();
+  private creating: Set<string> = new Set();
+  private claudePath: string;
+
+  constructor() {
+    super();
+    this.claudePath = process.env.CLAUDE_CODE_PATH || 'claude';
+  }
+
+  /**
+   * Claude Codeプロセスを作成
+   *
+   * 注意: このメソッドは同一sessionIdに対して同時に呼び出すべきではありません。
+   * Node.jsはシングルスレッドですが、非同期コールバックにより競合が発生する可能性があります。
+   * createSession呼び出しは必ず直列化してください。
+   *
+   * @param sessionId - セッションID
+   * @param workingDir - 作業ディレクトリ（worktreeパス）
+   * @param initialPrompt - 初期プロンプト（任意）
+   * @throws 同一sessionIdで作成中の場合、またはworkingDirが無効な場合
+   */
+  createSession(sessionId: string, workingDir: string, initialPrompt?: string): void {
+    // 作成中のセッションがある場合はエラー
+    // Note: Node.jsはシングルスレッドのため、hasとaddの間に他のcreateSession呼び出しが割り込むことはありません。
+    // ただし、このメソッドを同一sessionIdに対して同時に呼び出すことは避けてください。
+    if (this.creating.has(sessionId)) {
+      throw new Error(`Claude PTY creation already in progress for session ${sessionId}`);
+    }
+
+    // 既存のセッションがあればクリーンアップ
+    if (this.sessions.has(sessionId)) {
+      this.destroySession(sessionId);
+    }
+
+    // 作成中フラグを立てる
+    this.creating.add(sessionId);
+
+    // workingDirの検証
+    const resolvedCwd = path.resolve(workingDir);
+    let st: fs.Stats;
+    try {
+      st = fs.statSync(resolvedCwd);
+    } catch {
+      this.creating.delete(sessionId);
+      throw new Error(`workingDir does not exist: ${resolvedCwd}`);
+    }
+    if (!st.isDirectory()) {
+      this.creating.delete(sessionId);
+      throw new Error(`workingDir is not a directory: ${resolvedCwd}`);
+    }
+
+    try {
+      logger.info('Creating Claude PTY session', { sessionId, workingDir: resolvedCwd });
+
+      // Claude Codeプロセスを生成（対話モード）
+      const ptyProcess = pty.spawn(this.claudePath, [], {
+        name: 'xterm-256color',
+        cols: 80,
+        rows: 24,
+        cwd: resolvedCwd,
+        env: buildClaudePtyEnv(),
+      });
+
+      // セッションを登録
+      this.sessions.set(sessionId, {
+        ptyProcess,
+        sessionId,
+        workingDir: resolvedCwd,
+        initialPrompt,
+      });
+      // 作成完了フラグをクリア
+      this.creating.delete(sessionId);
+
+      // PTY出力をイベントとして発火
+      ptyProcess.onData((data: string) => {
+        this.emit('data', sessionId, data);
+      });
+
+      // PTY終了時の処理
+      ptyProcess.onExit(({ exitCode, signal }) => {
+        logger.info('Claude PTY exited', { sessionId, exitCode, signal });
+        this.emit('exit', sessionId, { exitCode, signal });
+        this.sessions.delete(sessionId);
+      });
+
+      // 初期プロンプトがあれば送信（少し待ってから）
+      if (initialPrompt) {
+        setTimeout(() => {
+          if (this.sessions.has(sessionId)) {
+            logger.info('Sending initial prompt', { sessionId });
+            ptyProcess.write(initialPrompt + '\n');
+          }
+        }, 1000); // Claude Codeの起動を待つ
+      }
+
+      logger.info('Claude PTY session created', { sessionId });
+    } catch (error) {
+      // エラー時も作成中フラグをクリア
+      this.creating.delete(sessionId);
+
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('Failed to create Claude PTY session', { sessionId, error: errorMessage });
+      this.emit('error', sessionId, new Error(`Failed to spawn Claude process: ${errorMessage}`));
+      throw new Error(
+        `Failed to spawn Claude process for session ${sessionId}: ${errorMessage}`
+      );
+    }
+  }
+
+  /**
+   * PTYに入力を送信
+   *
+   * @param sessionId - セッションID
+   * @param data - 入力データ
+   */
+  write(sessionId: string, data: string): void {
+    const session = this.sessions.get(sessionId);
+    if (session) {
+      session.ptyProcess.write(data);
+    }
+  }
+
+  /**
+   * PTYのサイズを変更
+   *
+   * @param sessionId - セッションID
+   * @param cols - 列数
+   * @param rows - 行数
+   */
+  resize(sessionId: string, cols: number, rows: number): void {
+    const session = this.sessions.get(sessionId);
+    if (session) {
+      session.ptyProcess.resize(cols, rows);
+    }
+  }
+
+  /**
+   * セッションを終了
+   *
+   * @param sessionId - セッションID
+   */
+  destroySession(sessionId: string): void {
+    const session = this.sessions.get(sessionId);
+    if (session) {
+      logger.info('Destroying Claude PTY session', { sessionId });
+      session.ptyProcess.kill();
+      this.sessions.delete(sessionId);
+    }
+  }
+
+  /**
+   * セッションを再起動
+   *
+   * @param sessionId - セッションID
+   */
+  restartSession(sessionId: string): void {
+    const session = this.sessions.get(sessionId);
+    if (session) {
+      const { workingDir, initialPrompt } = session;
+      logger.info('Restarting Claude PTY session', { sessionId });
+      this.destroySession(sessionId);
+      // 少し待ってから再作成
+      setTimeout(() => {
+        this.createSession(sessionId, workingDir, initialPrompt);
+      }, 500);
+    }
+  }
+
+  /**
+   * セッションが存在するか確認
+   *
+   * @param sessionId - セッションID
+   * @returns セッションが存在する場合はtrue
+   */
+  hasSession(sessionId: string): boolean {
+    return this.sessions.has(sessionId);
+  }
+
+  /**
+   * セッションの作業ディレクトリを取得
+   *
+   * @param sessionId - セッションID
+   * @returns 作業ディレクトリ、存在しない場合はundefined
+   */
+  getWorkingDir(sessionId: string): string | undefined {
+    return this.sessions.get(sessionId)?.workingDir;
+  }
+}
+
+/**
+ * グローバルClaude PTYマネージャーインスタンス
+ */
+export const claudePtyManager = new ClaudePTYManager();
