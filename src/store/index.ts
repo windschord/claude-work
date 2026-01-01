@@ -127,6 +127,9 @@ export interface AppState {
   /** 選択中のセッションID */
   selectedSessionId: string | null;
 
+  /** 現在アクティブなセッションID（Tree表示用） */
+  currentSessionId: string | null;
+
   /** 現在表示中のセッション詳細 */
   currentSession: Session | null;
 
@@ -187,6 +190,8 @@ export interface AppState {
   setSessions: (sessions: Session[]) => void;
   /** 選択中のセッションIDを設定 */
   setSelectedSessionId: (sessionId: string | null) => void;
+  /** 現在アクティブなセッションIDを設定（Tree表示用） */
+  setCurrentSessionId: (sessionId: string | null) => void;
   /** セッション詳細を取得 */
   fetchSessionDetail: (sessionId: string) => Promise<void>;
   /** セッションを停止 */
@@ -229,6 +234,7 @@ const initialState = {
   selectedProjectId: null,
   sessions: [],
   selectedSessionId: null,
+  currentSessionId: null,
   currentSession: null,
   diff: null,
   selectedFile: null,
@@ -377,6 +383,9 @@ export const useAppStore = create<AppState>((set) => ({
 
   setSelectedSessionId: (sessionId) =>
     set({ selectedSessionId: sessionId }),
+
+  setCurrentSessionId: (sessionId) =>
+    set({ currentSessionId: sessionId }),
 
   setTheme: (theme) =>
     set({ theme }),
