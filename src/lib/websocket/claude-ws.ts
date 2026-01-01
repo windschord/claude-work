@@ -215,9 +215,32 @@ export function setupClaudeWebSocket(
         }
       };
 
+      // Claude CodeセッションID抽出時にDBに保存
+      const claudeSessionIdHandler = async (sid: string, claudeSessionId: string) => {
+        if (sid === sessionId) {
+          try {
+            await prisma.session.update({
+              where: { id: sessionId },
+              data: { resume_session_id: claudeSessionId },
+            });
+            logger.info('Claude session ID saved to database', {
+              sessionId,
+              claudeSessionId,
+            });
+          } catch (error) {
+            logger.error('Failed to save Claude session ID to database', {
+              sessionId,
+              claudeSessionId,
+              error,
+            });
+          }
+        }
+      };
+
       claudePtyManager.on('data', dataHandler);
       claudePtyManager.on('exit', exitHandler);
       claudePtyManager.on('error', errorHandler);
+      claudePtyManager.on('claudeSessionId', claudeSessionIdHandler);
 
       // WebSocket入力 → PTY
       ws.on('message', (message: Buffer) => {
@@ -289,6 +312,7 @@ export function setupClaudeWebSocket(
         claudePtyManager.off('data', dataHandler);
         claudePtyManager.off('exit', exitHandler);
         claudePtyManager.off('error', errorHandler);
+        claudePtyManager.off('claudeSessionId', claudeSessionIdHandler);
 
         // 接続数を減らす
         const connections = activeConnections.get(sessionId) || 0;

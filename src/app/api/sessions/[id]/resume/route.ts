@@ -86,12 +86,17 @@ export async function POST(
       },
     });
 
+    const resumedWithHistory = !!targetSession.resume_session_id;
+
     logger.info('Session resumed', {
       id,
-      hadResumeSessionId: !!targetSession.resume_session_id,
+      resumedWithHistory,
     });
 
-    return NextResponse.json({ session: updatedSession });
+    return NextResponse.json({
+      session: updatedSession,
+      resumed_with_history: resumedWithHistory,
+    });
   } catch (error) {
     const { id: errorId } = await params;
     logger.error('Failed to resume session', { error, session_id: errorId });
