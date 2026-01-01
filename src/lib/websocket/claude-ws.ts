@@ -169,6 +169,9 @@ export function setupClaudeWebSocket(
             message: `PTY creation failed: ${errorMessage}`,
           };
           ws.send(JSON.stringify(errorMsg));
+          // PTYが作成できなかったため、このWebSocket接続はこれ以上利用できない
+          // クライアント側の状態と整合性を取るため、接続をクローズする
+          ws.close(1000, 'PTY creation failed');
 
           // セッションステータスをエラーに更新
           await prisma.session.update({

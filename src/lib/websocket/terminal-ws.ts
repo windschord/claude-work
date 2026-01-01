@@ -43,6 +43,11 @@ interface TerminalErrorMessage {
   message: string;
 }
 
+export type TerminalServerMessage =
+  | TerminalDataMessage
+  | TerminalExitMessage
+  | TerminalErrorMessage;
+
 
 /**
  * ターミナルWebSocketサーバーをセットアップ
@@ -104,7 +109,8 @@ export function setupTerminalWebSocket(
             message: `PTY creation failed: ${errorMessage}`,
           };
           ws.send(JSON.stringify(errorMsg));
-          ws.close(1011, 'PTY creation failed');
+          // コード1000で閉じることで、クライアントが再接続を試みないようにする
+          ws.close(1000, 'PTY creation failed');
           return;
         }
       }

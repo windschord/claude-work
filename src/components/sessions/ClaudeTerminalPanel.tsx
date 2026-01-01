@@ -36,7 +36,9 @@ function ClaudeTerminalPanel({
     setMounted(true);
     // xterm CSSを動的にインポート（SSRを避けるため）
     // @ts-expect-error - CSSモジュールの動的インポートは型定義がない
-    import('@xterm/xterm/css/xterm.css');
+    void import('@xterm/xterm/css/xterm.css').catch((err: unknown) => {
+      console.error('Failed to load xterm CSS:', err);
+    });
   }, []);
 
   // ターミナルをDOMにマウント
