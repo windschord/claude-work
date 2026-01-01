@@ -100,6 +100,10 @@ export function useTerminal(sessionId: string): UseTerminalReturn {
           terminalRef.current?.write(`\r\n[Process exited with code ${message.exitCode}]\r\n`);
           // WebSocketを正常終了として切断
           ws.close(1000, 'Process exited');
+        } else if (message.type === 'error') {
+          // エラーメッセージを表示
+          terminalRef.current?.write(`\r\n[Error: ${message.message}]\r\n`);
+          setError(message.message);
         }
       } catch (err) {
         console.error('Failed to parse terminal WebSocket message:', err);

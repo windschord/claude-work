@@ -153,14 +153,24 @@ class ClaudePTYManager extends EventEmitter {
         this.sessions.delete(sessionId);
       });
 
-      // 初期プロンプトがあれば送信（少し待ってから）
+      // 初期プロンプトがあれば送信（Claude Codeの起動を待ってから）
+      // Claude Codeは起動時に設定読み込み、API接続などを行うため、3秒待機
       if (initialPrompt) {
+        logger.info('Initial prompt will be sent after delay', {
+          sessionId,
+          promptLength: initialPrompt.length,
+        });
         setTimeout(() => {
           if (this.sessions.has(sessionId)) {
-            logger.info('Sending initial prompt', { sessionId });
+            logger.info('Sending initial prompt to Claude Code', {
+              sessionId,
+              promptPreview: initialPrompt.substring(0, 100),
+            });
             ptyProcess.write(initialPrompt + '\n');
+          } else {
+            logger.warn('Session no longer exists, skipping initial prompt', { sessionId });
           }
-        }, 1000); // Claude Codeの起動を待つ
+        }, 3000); // Claude Codeの起動を待つ（3秒）
       }
 
       logger.info('Claude PTY session created', { sessionId });

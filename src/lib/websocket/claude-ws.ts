@@ -130,22 +130,53 @@ export function setupClaudeWebSocket(
           orderBy: { created_at: 'asc' },
         });
 
-        // Claude PTYを作成し、初期プロンプトを送信
-        claudePtyManager.createSession(
-          sessionId,
-          session.worktree_path,
-          firstMessage?.content
-        );
-        logger.info('Claude PTY created for session', {
+        logger.info('Claude WebSocket: Fetched initial prompt from database', {
           sessionId,
           hasInitialPrompt: !!firstMessage,
+          promptLength: firstMessage?.content?.length,
+          worktreePath: session.worktree_path,
         });
 
-        // セッションステータスを'running'に更新
-        await prisma.session.update({
-          where: { id: sessionId },
-          data: { status: 'running' },
-        });
+        // Claude PTYを作成し、初期プロンプトを送信
+        try {
+          claudePtyManager.createSession(
+            sessionId,
+            session.worktree_path,
+            firstMessage?.content
+          );
+          logger.info('Claude PTY created for session', {
+            sessionId,
+            hasInitialPrompt: !!firstMessage,
+          });
+
+          // セッションステータスを'running'に更新
+          await prisma.session.update({
+            where: { id: sessionId },
+            data: { status: 'running' },
+          });
+        } catch (ptyError) {
+          // PTY作成エラーをクライアントに通知
+          const errorMessage = ptyError instanceof Error ? ptyError.message : 'Failed to create PTY';
+          logger.error('Claude WebSocket: Failed to create PTY', {
+            sessionId,
+            error: errorMessage,
+            worktreePath: session.worktree_path,
+          });
+
+          // クライアントにエラーメッセージを送信
+          const errorMsg: ClaudeErrorMessage = {
+            type: 'error',
+            message: `PTY creation failed: ${errorMessage}`,
+          };
+          ws.send(JSON.stringify(errorMsg));
+
+          // セッションステータスをエラーに更新
+          await prisma.session.update({
+            where: { id: sessionId },
+            data: { status: 'error' },
+          });
+          return;
+        }
       }
 
       // PTY出力 → WebSocket
