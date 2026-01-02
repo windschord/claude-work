@@ -30,6 +30,22 @@ describe('stripAnsi', () => {
   it('空文字列を処理できる', () => {
     expect(stripAnsi('')).toBe('');
   });
+
+  // Phase 44: 追加テスト
+  it('OSCシーケンス（ウィンドウタイトル等）を除去する', () => {
+    const input = '\u001b]0;Window Title\u0007Content';
+    expect(stripAnsi(input)).toBe('Content');
+  });
+
+  it('DCSシーケンスを除去する', () => {
+    const input = '\u001bPsome data\u001b\\Visible Text';
+    expect(stripAnsi(input)).toBe('Visible Text');
+  });
+
+  it('複合的なエスケープシーケンスを除去する', () => {
+    const input = '\u001b[32m\u001b]0;Title\u0007Green\u001b[0m';
+    expect(stripAnsi(input)).toBe('Green');
+  });
 });
 
 describe('detectActionRequest', () => {
@@ -75,6 +91,32 @@ describe('detectActionRequest', () => {
 
   it('空文字列では検出されない', () => {
     expect(detectActionRequest('')).toBe(false);
+  });
+
+  // Phase 44: 追加テスト
+  it('"Yes to confirm"パターンを検出する', () => {
+    const text = 'Type Yes to confirm this action:';
+    expect(detectActionRequest(text)).toBe(true);
+  });
+
+  it('"Confirm with yes"パターンを検出する', () => {
+    const text = 'Confirm with yes to proceed';
+    expect(detectActionRequest(text)).toBe(true);
+  });
+
+  it('短すぎる出力は無視される', () => {
+    const text = 'y/n'; // 3文字だけ
+    expect(detectActionRequest(text)).toBe(false);
+  });
+
+  it('十分な長さがあれば検出される', () => {
+    const text = 'Please confirm (y/n)'; // 20文字
+    expect(detectActionRequest(text)).toBe(true);
+  });
+
+  it('Allow|Denyパターン（パイプ区切り）を検出する', () => {
+    const text = 'Do you allow this? Allow|Deny';
+    expect(detectActionRequest(text)).toBe(true);
   });
 });
 
