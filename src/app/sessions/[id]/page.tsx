@@ -19,6 +19,7 @@ import { CommitHistory } from '@/components/git/CommitHistory';
 import { ScriptsPanel } from '@/components/scripts/ScriptsPanel';
 import { ProcessStatus } from '@/components/sessions/ProcessStatus';
 import { DeleteSessionButton } from '@/components/sessions/DeleteSessionButton';
+import { PRSection } from '@/components/sessions/PRSection';
 import { Toaster, toast } from 'react-hot-toast';
 import type { ServerMessage } from '@/types/websocket';
 
@@ -334,6 +335,16 @@ export default function SessionDetailPage() {
                   running={processRunning}
                   loading={processLoading}
                   onRestart={handleRestartProcess}
+                />
+              </div>
+              <div className="mt-3">
+                <PRSection
+                  sessionId={sessionId}
+                  branchName={currentSession.branch_name}
+                  prUrl={currentSession.pr_url}
+                  prNumber={currentSession.pr_number}
+                  prStatus={currentSession.pr_status}
+                  onPRCreated={() => fetchSessionDetail(sessionId)}
                 />
               </div>
             </div>

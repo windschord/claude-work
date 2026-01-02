@@ -39,6 +39,14 @@ export interface Session {
   worktree_path: string;
   /** Gitブランチ名 */
   branch_name: string;
+  /** PR URL（オプショナル：PRが作成されていない場合はnull） */
+  pr_url?: string | null;
+  /** PR番号（オプショナル） */
+  pr_number?: number | null;
+  /** PRステータス（open, merged, closed） */
+  pr_status?: string | null;
+  /** PR情報更新日時 */
+  pr_updated_at?: string | null;
   /** 作成日時 */
   created_at: string;
   /** 更新日時（オプショナル：既存データとの互換性のため） */
