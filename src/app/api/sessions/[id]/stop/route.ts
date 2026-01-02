@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { getSession } from '@/lib/auth';
 import { ProcessManager } from '@/services/process-manager';
 import { logger } from '@/lib/logger';
 
@@ -10,14 +9,11 @@ const processManager = ProcessManager.getInstance();
  * POST /api/sessions/[id]/stop - セッションの停止
  *
  * 指定されたセッションの実行中プロセスを停止し、ステータスを'completed'に更新します。
- * 認証が必要です。
  *
- * @param request - sessionIdクッキーを含むリクエスト
  * @param params.id - セッションID
  *
  * @returns
  * - 200: セッション停止成功（統一形式）
- * - 401: 認証されていない
  * - 404: セッションが見つからない
  * - 500: サーバーエラー
  *
@@ -25,7 +21,6 @@ const processManager = ProcessManager.getInstance();
  * ```typescript
  * // リクエスト
  * POST /api/sessions/session-uuid/stop
- * Cookie: sessionId=<uuid>
  *
  * // レスポンス
  * {
@@ -43,20 +38,10 @@ const processManager = ProcessManager.getInstance();
  * ```
  */
 export async function POST(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const sessionId = request.cookies.get('sessionId')?.value;
-    if (!sessionId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const session = await getSession(sessionId);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { id } = await params;
 
     const targetSession = await prisma.session.findUnique({

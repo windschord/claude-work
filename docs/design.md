@@ -3268,3 +3268,338 @@ sequenceDiagram
 | REQ-168 | 新規タブでPRページ | target="_blank" |
 | REQ-169 | PRステータス表示 | PRStatusBadge |
 | REQ-170 | gh CLI未インストール時ボタン無効化 | disabled={!ghAvailable} |
+
+---
+
+## ストーリー28: 認証機能の削除
+
+### 概要
+
+シングルユーザー向けアプリケーションとして、認証機能を完全に削除する。これにより、コードベースの簡略化と利便性の向上を実現する。
+
+### 変更概要図
+
+```mermaid
+graph TD
+    subgraph "削除対象（赤）"
+        style LoginPage fill:#ffcccc
+        style AuthGuard fill:#ffcccc
+        style AuthAPI fill:#ffcccc
+        style AuthStore fill:#ffcccc
+        style WSAuth fill:#ffcccc
+        style AuthSession fill:#ffcccc
+
+        LoginPage["/login ページ"]
+        AuthGuard["AuthGuard コンポーネント"]
+        AuthAPI["/api/auth/* API"]
+        AuthStore["認証ストア状態"]
+        WSAuth["WebSocket認証"]
+        AuthSession["AuthSession テーブル"]
+    end
+
+    subgraph "変更対象（黄）"
+        style Header fill:#ffffcc
+        style APIRoutes fill:#ffffcc
+        style ServerTS fill:#ffffcc
+        style EnvVars fill:#ffffcc
+
+        Header["Header（ログアウトボタン削除）"]
+        APIRoutes["APIルート（認証チェック削除）"]
+        ServerTS["server.ts（環境変数チェック削除）"]
+        EnvVars["環境変数（必須→オプション）"]
+    end
+```
+
+### 削除対象ファイル一覧
+
+| ファイルパス | 種別 | 説明 |
+|-------------|------|------|
+| `src/app/login/page.tsx` | 削除 | ログインページ |
+| `src/app/api/auth/login/route.ts` | 削除 | ログインAPI |
+| `src/app/api/auth/logout/route.ts` | 削除 | ログアウトAPI |
+| `src/app/api/auth/check/route.ts` | 削除 | 認証チェックAPI |
+| `src/components/AuthGuard.tsx` | 削除 | 認証ガードコンポーネント |
+| `src/lib/auth.ts` | 削除 | 認証ユーティリティ |
+| `src/lib/websocket/auth-middleware.ts` | 削除 | WebSocket認証ミドルウェア |
+
+### 変更対象ファイル一覧
+
+| ファイルパス | 変更内容 |
+|-------------|----------|
+| `src/store/index.ts` | 認証関連状態・アクションを削除 |
+| `src/components/layout/Header.tsx` | ログアウトボタンを削除 |
+| `src/app/page.tsx` | AuthGuardラッパーを削除 |
+| `src/app/sessions/[id]/page.tsx` | AuthGuardラッパーを削除 |
+| `src/app/projects/[id]/page.tsx` | AuthGuardラッパーを削除 |
+| `src/app/projects/[id]/settings/page.tsx` | AuthGuardラッパーを削除 |
+| `src/app/api/*/route.ts` | 認証チェック処理を削除（約20ファイル） |
+| `server.ts` | 環境変数必須チェックを削除、WebSocket認証を削除 |
+| `prisma/schema.prisma` | AuthSessionモデルを削除 |
+| `.env.example` | CLAUDE_WORK_TOKEN, SESSION_SECRETをオプションに変更 |
+| `src/middleware.ts` | 認証リダイレクトロジックを削除 |
+
+### コンポーネント設計
+
+#### 1. ストア変更（src/store/index.ts）
+
+**削除する状態:**
+```typescript
+// 削除
+isAuthenticated: boolean;
+token: string | null;
+sessionId: string | null;
+expiresAt: string | null;
+```
+
+**削除するアクション:**
+```typescript
+// 削除
+login: (token: string) => Promise<void>;
+logout: () => Promise<void>;
+checkAuth: () => Promise<void>;
+```
+
+#### 2. Header変更（src/components/layout/Header.tsx）
+
+**削除する要素:**
+- ログアウトボタン
+- 認証状態に基づく条件分岐
+
+**変更後の構成:**
+```tsx
+export function Header() {
+  return (
+    <header>
+      <Logo />
+      <Navigation />
+      <div className="flex items-center gap-4">
+        <NotificationButton />
+        <ThemeToggle />
+        {/* ログアウトボタンを削除 */}
+      </div>
+    </header>
+  );
+}
+```
+
+#### 3. ページコンポーネント変更
+
+**変更前:**
+```tsx
+export default function Page() {
+  return (
+    <AuthGuard>
+      <MainLayout>
+        <Content />
+      </MainLayout>
+    </AuthGuard>
+  );
+}
+```
+
+**変更後:**
+```tsx
+export default function Page() {
+  return (
+    <MainLayout>
+      <Content />
+    </MainLayout>
+  );
+}
+```
+
+#### 4. /loginページのリダイレクト
+
+`src/app/login/page.tsx`を削除し、`src/middleware.ts`で/loginへのアクセスを/にリダイレクト:
+
+```typescript
+// src/middleware.ts
+export function middleware(request: NextRequest) {
+  // /loginへのアクセスは/にリダイレクト
+  if (request.nextUrl.pathname === '/login') {
+    return NextResponse.redirect(new URL('/', request.url));
+  }
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: ['/login'],
+};
+```
+
+### API設計
+
+#### 認証チェック削除パターン
+
+**変更前:**
+```typescript
+export async function GET(request: NextRequest) {
+  const sessionId = request.cookies.get('sessionId')?.value;
+  if (!sessionId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  const session = await getSession(sessionId);
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  // ... 処理
+}
+```
+
+**変更後:**
+```typescript
+export async function GET(request: NextRequest) {
+  // 認証チェックなし、直接処理を実行
+  // ... 処理
+}
+```
+
+#### 影響を受けるAPIエンドポイント
+
+| エンドポイント | 変更内容 |
+|---------------|----------|
+| `GET /api/projects` | 認証チェック削除 |
+| `POST /api/projects` | 認証チェック削除 |
+| `GET /api/projects/[id]` | 認証チェック削除 |
+| `DELETE /api/projects/[id]` | 認証チェック削除 |
+| `PUT /api/projects/[id]/settings` | 認証チェック削除 |
+| `GET /api/projects/[id]/sessions` | 認証チェック削除 |
+| `POST /api/projects/[id]/sessions` | 認証チェック削除 |
+| `GET /api/sessions/[id]` | 認証チェック削除 |
+| `DELETE /api/sessions/[id]` | 認証チェック削除 |
+| `GET /api/sessions/[id]/diff` | 認証チェック削除 |
+| `POST /api/sessions/[id]/rebase` | 認証チェック削除 |
+| `POST /api/sessions/[id]/merge` | 認証チェック削除 |
+| `POST /api/sessions/[id]/reset` | 認証チェック削除 |
+| `GET /api/sessions/[id]/commits` | 認証チェック削除 |
+| `GET /api/sessions/[id]/process` | 認証チェック削除 |
+| `POST /api/sessions/[id]/process` | 認証チェック削除 |
+| `POST /api/sessions/[id]/stop` | 認証チェック削除 |
+| `POST /api/sessions/[id]/resume` | 認証チェック削除 |
+| `POST /api/sessions/[id]/pr` | 認証チェック削除 |
+| `GET /api/sessions/[id]/pr` | 認証チェック削除 |
+
+### WebSocket設計
+
+#### 認証ミドルウェア削除
+
+**server.ts変更:**
+```typescript
+// 削除: import { authenticateWebSocket } from './src/lib/websocket/auth-middleware';
+
+// 変更前
+wss.on('connection', async (ws, request) => {
+  const authResult = await authenticateWebSocket(request);
+  if (!authResult.authenticated) {
+    ws.close(4001, 'Unauthorized');
+    return;
+  }
+  // ...
+});
+
+// 変更後
+wss.on('connection', async (ws, request) => {
+  // 認証なしで直接接続を許可
+  // ...
+});
+```
+
+### データベース設計
+
+#### AuthSessionテーブル削除
+
+**変更前 (prisma/schema.prisma):**
+```prisma
+model AuthSession {
+  id         String   @id @default(uuid())
+  token_hash String
+  expires_at DateTime
+  created_at DateTime @default(now())
+}
+```
+
+**変更後:**
+AuthSessionモデルを完全に削除。
+
+**マイグレーション:**
+```bash
+# AuthSessionテーブルを削除
+npx prisma db push
+```
+
+### 環境変数設計
+
+#### 必須からオプションへ変更
+
+**変更前 (.env.example):**
+```bash
+# 必須
+CLAUDE_WORK_TOKEN=your-secure-token-here
+SESSION_SECRET=your-session-secret-at-least-32-characters-long
+```
+
+**変更後 (.env.example):**
+```bash
+# オプション（認証機能削除により不要）
+# CLAUDE_WORK_TOKEN=your-secure-token-here
+# SESSION_SECRET=your-session-secret-at-least-32-characters-long
+```
+
+#### server.ts環境変数チェック削除
+
+**変更前:**
+```typescript
+const requiredEnvVars = ['CLAUDE_WORK_TOKEN', 'SESSION_SECRET', 'DATABASE_URL'];
+for (const envVar of requiredEnvVars) {
+  if (!process.env[envVar]) {
+    throw new Error(`${envVar} is required`);
+  }
+}
+```
+
+**変更後:**
+```typescript
+const requiredEnvVars = ['DATABASE_URL'];
+for (const envVar of requiredEnvVars) {
+  if (!process.env[envVar]) {
+    throw new Error(`${envVar} is required`);
+  }
+}
+```
+
+### シーケンス図: 認証削除後のアクセスフロー
+
+```mermaid
+sequenceDiagram
+    participant U as ユーザー
+    participant B as ブラウザ
+    participant S as Server
+    participant DB as Database
+
+    U->>B: http://localhost:3000/ にアクセス
+    B->>S: GET /
+    Note over S: 認証チェックなし
+    S->>DB: プロジェクト取得
+    DB-->>S: プロジェクト一覧
+    S-->>B: HTML（ホームページ）
+    B-->>U: ホームページ表示
+
+    U->>B: /login にアクセス
+    B->>S: GET /login
+    S-->>B: 302 Redirect to /
+    B->>S: GET /
+    S-->>B: HTML（ホームページ）
+    B-->>U: ホームページ表示
+```
+
+### 要件との整合性チェック（ストーリー28）
+
+| 要件ID | 要件内容 | 設計対応 |
+|--------|----------|----------|
+| REQ-171 | ルートURL認証なしアクセス | AuthGuard削除、認証チェック削除 |
+| REQ-172 | API認証チェック削除 | 全APIルートから認証コード削除 |
+| REQ-173 | WebSocket認証チェック削除 | auth-middleware.ts削除 |
+| REQ-174 | ログアウトボタン非表示 | Header.tsxから削除 |
+| REQ-175 | /loginリダイレクト | middleware.tsでリダイレクト |
+| REQ-176 | AuthSession未使用 | schema.prismaから削除 |
+| REQ-177 | 環境変数オプション化 | server.ts必須チェック削除 |

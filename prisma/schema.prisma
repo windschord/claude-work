@@ -54,12 +54,6 @@ model Message {
   session     Session  @relation(fields: [session_id], references: [id], onDelete: Cascade)
 }
 
-model AuthSession {
-  id          String   @id
-  token_hash  String
-  expires_at  DateTime
-  created_at  DateTime @default(now())
-}
 
 model Prompt {
   id           String   @id @default(uuid())

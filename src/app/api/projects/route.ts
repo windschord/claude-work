@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { Prisma } from '@prisma/client';
-import { getSession } from '@/lib/auth';
 import { spawnSync } from 'child_process';
 import { basename, relative, resolve } from 'path';
 import { realpathSync } from 'fs';
@@ -11,20 +10,15 @@ import { logger } from '@/lib/logger';
  * GET /api/projects - プロジェクト一覧取得
  *
  * 登録されているすべてのプロジェクトを作成日時の降順で取得します。
- * 認証が必要です。
- *
- * @param request - sessionIdクッキーを含むリクエスト
  *
  * @returns
  * - 200: プロジェクト一覧（統一形式）
- * - 401: 認証されていない
  * - 500: サーバーエラー
  *
  * @example
  * ```typescript
  * // リクエスト
  * GET /api/projects
- * Cookie: sessionId=<uuid>
  *
  * // レスポンス
  * {
@@ -41,24 +35,22 @@ import { logger } from '@/lib/logger';
  * }
  * ```
  */
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
-    const sessionId = request.cookies.get('sessionId')?.value;
-    if (!sessionId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const session = await getSession(sessionId);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const projects = await prisma.project.findMany({
       orderBy: { created_at: 'desc' },
+      include: {
+        sessions: {
+          orderBy: { created_at: 'desc' },
+        },
+      },
     });
 
-    logger.debug('Projects retrieved', { count: projects.length });
-    return NextResponse.json({ projects });
+    // セッションをフラット化して返す
+    const allSessions = projects.flatMap((project) => project.sessions);
+
+    logger.debug('Projects retrieved', { count: projects.length, sessions: allSessions.length });
+    return NextResponse.json({ projects, sessions: allSessions });
   } catch (error) {
     logger.error('Failed to get projects', { error });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -70,21 +62,18 @@ export async function GET(request: NextRequest) {
  *
  * 指定されたパスのGitリポジトリをプロジェクトとして登録します。
  * パスは有効なGitリポジトリである必要があります。
- * 認証が必要です。
  *
- * @param request - リクエストボディに`path`フィールドを含むJSON、sessionIdクッキー
+ * @param request - リクエストボディに`path`フィールドを含むJSON
  *
  * @returns
  * - 201: プロジェクト作成成功
  * - 400: pathが指定されていない、または有効なGitリポジトリではない
- * - 401: 認証されていない
  * - 500: サーバーエラー
  *
  * @example
  * ```typescript
  * // リクエスト
  * POST /api/projects
- * Cookie: sessionId=<uuid>
  * Content-Type: application/json
  * { "path": "/path/to/git/repo" }
  *
@@ -103,16 +92,6 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const sessionId = request.cookies.get('sessionId')?.value;
-    if (!sessionId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const session = await getSession(sessionId);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     let body;
     try {
       body = await request.json();

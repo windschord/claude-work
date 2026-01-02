@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { getSession } from '@/lib/auth';
 import { GitService } from '@/services/git-service';
 import { ProcessManager } from '@/services/process-manager';
 import { logger } from '@/lib/logger';
@@ -11,14 +10,11 @@ const processManager = ProcessManager.getInstance();
  * GET /api/sessions/[id] - セッション詳細取得
  *
  * 指定されたIDのセッション情報を取得します。
- * 認証が必要です。
  *
- * @param request - sessionIdクッキーを含むリクエスト
  * @param params.id - セッションID
  *
  * @returns
  * - 200: セッション情報（統一形式）
- * - 401: 認証されていない
  * - 404: セッションが見つからない
  * - 500: サーバーエラー
  *
@@ -26,7 +22,6 @@ const processManager = ProcessManager.getInstance();
  * ```typescript
  * // リクエスト
  * GET /api/sessions/session-uuid
- * Cookie: sessionId=<uuid>
  *
  * // レスポンス
  * {
@@ -44,20 +39,10 @@ const processManager = ProcessManager.getInstance();
  * ```
  */
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const sessionId = request.cookies.get('sessionId')?.value;
-    if (!sessionId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const session = await getSession(sessionId);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { id } = await params;
 
     const targetSession = await prisma.session.findUnique({
@@ -82,14 +67,11 @@ export async function GET(
  *
  * 指定されたIDのセッションを削除します。
  * 実行中のプロセスは停止され、Git worktreeが削除され、データベースからセッションが削除されます。
- * 認証が必要です。
  *
- * @param request - sessionIdクッキーを含むリクエスト
  * @param params.id - セッションID
  *
  * @returns
  * - 204: 削除成功（レスポンスボディなし）
- * - 401: 認証されていない
  * - 404: セッションが見つからない
  * - 500: サーバーエラー
  *
@@ -97,27 +79,16 @@ export async function GET(
  * ```typescript
  * // リクエスト
  * DELETE /api/sessions/session-uuid
- * Cookie: sessionId=<uuid>
  *
  * // レスポンス
  * 204 No Content
  * ```
  */
 export async function DELETE(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const sessionId = request.cookies.get('sessionId')?.value;
-    if (!sessionId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const session = await getSession(sessionId);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { id } = await params;
 
     const targetSession = await prisma.session.findUnique({
@@ -174,15 +145,13 @@ export async function DELETE(
  *
  * 指定されたIDのセッション情報を更新します。
  * 現在はセッション名の更新のみサポートしています。
- * 認証が必要です。
  *
- * @param request - sessionIdクッキーを含むリクエスト、ボディにnameを含む
+ * @param request - ボディにnameを含むリクエスト
  * @param params.id - セッションID
  *
  * @returns
  * - 200: 更新成功（セッション情報を含む）
  * - 400: 名前が空またはバリデーションエラー
- * - 401: 認証されていない
  * - 404: セッションが見つからない
  * - 500: サーバーエラー
  *
@@ -190,7 +159,6 @@ export async function DELETE(
  * ```typescript
  * // リクエスト
  * PATCH /api/sessions/session-uuid
- * Cookie: sessionId=<uuid>
  * Content-Type: application/json
  * { "name": "新しいセッション名" }
  *
@@ -209,16 +177,6 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const sessionId = request.cookies.get('sessionId')?.value;
-    if (!sessionId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const session = await getSession(sessionId);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { id } = await params;
 
     // リクエストボディの解析

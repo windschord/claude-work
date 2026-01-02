@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { getSession } from '@/lib/auth';
 import { RunScriptManager } from '@/services/run-script-manager';
 import { logger } from '@/lib/logger';
 
@@ -10,16 +9,12 @@ const runScriptManager = RunScriptManager.getInstance();
  * POST /api/sessions/[id]/run/[run_id]/stop - ランスクリプトの停止
  *
  * 実行中のランスクリプトを停止します。
- * 認証が必要です。
  *
- * @param request - sessionIdクッキーを含むリクエスト
  * @param params.id - セッションID
  * @param params.run_id - 実行ID
  *
  * @returns
  * - 200: ランスクリプト停止成功
- * - 401: 認証されていない
- * - 403: セッションへのアクセス権限がない
  * - 404: セッションまたはrun_idが見つからない
  * - 500: サーバーエラー
  *
@@ -27,7 +22,6 @@ const runScriptManager = RunScriptManager.getInstance();
  * ```typescript
  * // リクエスト
  * POST /api/sessions/session-uuid/run/run-uuid/stop
- * Cookie: sessionId=<uuid>
  *
  * // レスポンス
  * {
@@ -36,20 +30,10 @@ const runScriptManager = RunScriptManager.getInstance();
  * ```
  */
 export async function POST(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string; run_id: string }> }
 ) {
   try {
-    const sessionId = request.cookies.get('sessionId')?.value;
-    if (!sessionId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const authSession = await getSession(sessionId);
-    if (!authSession) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { id, run_id } = await params;
 
     const targetSession = await prisma.session.findUnique({

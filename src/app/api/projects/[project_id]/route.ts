@@ -1,20 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { getSession } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 
 /**
  * PUT /api/projects/[project_id] - プロジェクト更新
  *
  * 指定されたプロジェクトの設定を更新します。
- * 認証が必要です。
  *
- * @param request - リクエストボディに更新フィールドを含むJSON、sessionIdクッキー
+ * @param request - リクエストボディに更新フィールドを含むJSON
  * @param params - project_idを含むパスパラメータ
  *
  * @returns
  * - 200: プロジェクト更新成功
- * - 401: 認証されていない
  * - 404: プロジェクトが見つからない
  * - 500: サーバーエラー
  *
@@ -22,7 +19,6 @@ import { logger } from '@/lib/logger';
  * ```typescript
  * // リクエスト
  * PUT /api/projects/uuid-123
- * Cookie: sessionId=<uuid>
  * Content-Type: application/json
  * {
  *   "name": "Updated Project",
@@ -36,16 +32,6 @@ export async function PUT(
   { params }: { params: Promise<{ project_id: string }> }
 ) {
   try {
-    const sessionId = request.cookies.get('sessionId')?.value;
-    if (!sessionId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const session = await getSession(sessionId);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { project_id } = await params;
 
     let body;
@@ -85,14 +71,11 @@ export async function PUT(
  * DELETE /api/projects/[project_id] - プロジェクト削除
  *
  * 指定されたプロジェクトを削除します。
- * 認証が必要です。
  *
- * @param request - sessionIdクッキーを含むリクエスト
  * @param params - project_idを含むパスパラメータ
  *
  * @returns
  * - 204: プロジェクト削除成功（レスポンスボディなし）
- * - 401: 認証されていない
  * - 404: プロジェクトが見つからない
  * - 500: サーバーエラー
  *
@@ -100,27 +83,16 @@ export async function PUT(
  * ```typescript
  * // リクエスト
  * DELETE /api/projects/uuid-123
- * Cookie: sessionId=<uuid>
  *
  * // レスポンス
  * 204 No Content
  * ```
  */
 export async function DELETE(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ project_id: string }> }
 ) {
   try {
-    const sessionId = request.cookies.get('sessionId')?.value;
-    if (!sessionId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const session = await getSession(sessionId);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { project_id } = await params;
 
     const existing = await prisma.project.findUnique({

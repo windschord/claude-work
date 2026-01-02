@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { Sidebar } from '../Sidebar';
 import { useAppStore } from '@/store';
-import { useUIStore } from '@/store/ui';
 import type { Project, Session } from '@/store';
 
 // Zustandストアをモック

@@ -1,21 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { getSession } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 
 /**
  * POST /api/sessions/[id]/input - セッションへのメッセージ送信
  *
  * ユーザーからのメッセージをセッションに送信します。
- * 認証が必要です。
  *
- * @param request - sessionIdクッキーを含むリクエスト
+ * @param request - リクエスト
  * @param params.id - セッションID
  *
  * @returns
  * - 201: メッセージ作成成功（統一形式）
  * - 400: リクエストボディが不正
- * - 401: 認証されていない
  * - 404: セッションが見つからない
  * - 500: サーバーエラー
  *
@@ -23,7 +20,6 @@ import { logger } from '@/lib/logger';
  * ```typescript
  * // リクエスト
  * POST /api/sessions/session-uuid/input
- * Cookie: sessionId=<uuid>
  * {
  *   "content": "Hello, Claude!"
  * }
@@ -46,16 +42,6 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const sessionId = request.cookies.get('sessionId')?.value;
-    if (!sessionId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const session = await getSession(sessionId);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { id } = await params;
 
     const targetSession = await prisma.session.findUnique({

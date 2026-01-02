@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { getIronSession } from '@/lib/auth';
 import { createPR, getPRStatus, extractPRNumber } from '@/services/gh-cli';
 
 type RouteParams = {
@@ -13,12 +12,6 @@ type RouteParams = {
  */
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
-    // 認証チェック
-    const session = await getIronSession(request);
-    if (!session.isAuthenticated) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { id } = await params;
 
     // セッション取得
@@ -109,14 +102,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
  * GET /api/sessions/[id]/pr
  * PRのステータスを取得・更新する
  */
-export async function GET(request: NextRequest, { params }: RouteParams) {
+export async function GET(_request: NextRequest, { params }: RouteParams) {
   try {
-    // 認証チェック
-    const session = await getIronSession(request);
-    if (!session.isAuthenticated) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { id } = await params;
 
     // セッション取得

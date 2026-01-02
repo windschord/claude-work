@@ -48,6 +48,7 @@ MVP後に実装:
 | Phase 24 | High Priority UIコンポーネント実装 | - |
 | Phase 25 | Medium Priority機能改善 | - |
 | Phase 30 | E2Eテスト環境変数修正 | - |
+| Phase 45 | 認証機能の削除（ストーリー28） | - |
 | Phase 31 | セッション再起動機能 | verification-report-phase31.md |
 | Phase 33 | プロセス再起動・Diff表示修正 | verification-report-phase33.md |
 | Phase 34 | ブラウザ通知システム | - |
@@ -1352,3 +1353,463 @@ Phase 44完了後は、以下の追加改善を検討:
 - PRコメントの表示
 
 **検証レポート**: `docs/verification-issues.md`
+
+---
+
+## Phase 45: 認証機能の削除（ストーリー28）
+
+**関連要件**: REQ-171〜REQ-177
+
+### 概要
+
+シングルユーザー向けアプリケーションとして、認証機能を完全に削除する。これにより：
+- コードベースの簡略化
+- ログイン手順の省略による利便性向上
+- メンテナンス負荷の軽減
+
+### 変更サマリ
+
+| カテゴリ | 対象 | 数量 |
+|---------|------|------|
+| 削除ファイル | ログインページ、認証API、AuthGuard、auth.ts、auth-middleware.ts | 7 |
+| 修正ファイル | ストア、Header、ページ、APIルート、server.ts、schema.prisma | 約30 |
+
+---
+
+### フェーズ1: バックエンド認証コードの削除
+
+#### タスク45.1: 認証APIルートの削除
+
+**ステータス**: `DONE`
+**推定工数**: 10分
+
+**説明**:
+- 削除対象ディレクトリ: `src/app/api/auth/`
+- 含まれるファイル:
+  - `src/app/api/auth/login/route.ts`
+  - `src/app/api/auth/logout/route.ts`
+  - `src/app/api/auth/session/route.ts`
+
+**実装手順**:
+```bash
+rm -rf src/app/api/auth/
+```
+
+**受入基準**:
+- [ ] `src/app/api/auth/`ディレクトリが削除される
+- [ ] 関連テストファイルも削除される
+
+---
+
+#### タスク45.2: 認証ライブラリの削除
+
+**ステータス**: `DONE`
+**推定工数**: 10分
+**依存関係**: タスク45.3
+
+**説明**:
+- 削除対象ファイル:
+  - `src/lib/auth.ts`
+  - `src/lib/websocket/auth-middleware.ts`
+- 関連テストファイルも削除
+
+**実装手順**:
+```bash
+rm src/lib/auth.ts
+rm src/lib/websocket/auth-middleware.ts
+rm -rf src/lib/__tests__/auth.test.ts
+rm -rf src/lib/websocket/__tests__/auth-middleware.test.ts
+```
+
+**受入基準**:
+- [ ] 認証関連ライブラリファイルが削除される
+- [ ] 関連テストファイルも削除される
+
+---
+
+#### タスク45.3: 全APIルートから認証チェックを削除
+
+**ステータス**: `DONE`
+**推定工数**: 45分
+
+**説明**:
+- 対象ファイル: 全APIルート（約20ファイル）
+- 各ファイルから以下のパターンを削除:
+  - `import { getSession } from '@/lib/auth';` の削除
+  - `sessionId`のcookieチェック処理の削除
+  - `Unauthorized` (401) レスポンスの削除
+
+**対象ファイル一覧**:
+1. `src/app/api/projects/route.ts`
+2. `src/app/api/projects/[project_id]/route.ts`
+3. `src/app/api/projects/[project_id]/scripts/route.ts`
+4. `src/app/api/projects/[project_id]/scripts/[scriptId]/route.ts`
+5. `src/app/api/projects/[project_id]/sessions/route.ts`
+6. `src/app/api/sessions/[id]/route.ts`
+7. `src/app/api/sessions/[id]/commits/route.ts`
+8. `src/app/api/sessions/[id]/diff/route.ts`
+9. `src/app/api/sessions/[id]/input/route.ts`
+10. `src/app/api/sessions/[id]/merge/route.ts`
+11. `src/app/api/sessions/[id]/messages/route.ts`
+12. `src/app/api/sessions/[id]/rebase/route.ts`
+13. `src/app/api/sessions/[id]/reset/route.ts`
+14. `src/app/api/sessions/[id]/stop/route.ts`
+15. `src/app/api/sessions/[id]/process/route.ts`
+16. `src/app/api/sessions/[id]/resume/route.ts`
+17. `src/app/api/sessions/[id]/approve/route.ts`
+18. `src/app/api/sessions/[id]/run/route.ts`
+19. `src/app/api/sessions/[id]/run/[run_id]/stop/route.ts`
+20. `src/app/api/sessions/[id]/pr/route.ts`
+21. `src/app/api/prompts/route.ts`
+22. `src/app/api/prompts/[id]/route.ts`
+
+**変更パターン**:
+```typescript
+// 削除前
+export async function GET(request: NextRequest) {
+  const sessionId = request.cookies.get('sessionId')?.value;
+  if (!sessionId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  const session = await getSession(sessionId);
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  // ... 処理
+}
+
+// 削除後
+export async function GET(request: NextRequest) {
+  // 認証チェックなし、直接処理を実行
+  // ... 処理
+}
+```
+
+**受入基準**:
+- [ ] 全APIルートから認証チェックコードが削除される
+- [ ] `import { getSession } from '@/lib/auth';`が削除される
+- [ ] 401レスポンスが削除される
+- [ ] APIが認証なしでアクセス可能になる
+
+---
+
+#### タスク45.4: server.tsからWebSocket認証を削除
+
+**ステータス**: `DONE`
+**推定工数**: 20分
+**依存関係**: タスク45.2
+
+**説明**:
+- 対象ファイル: `server.ts`
+- WebSocket認証ミドルウェアのインポートと使用を削除
+- 環境変数の必須チェックから`CLAUDE_WORK_TOKEN`と`SESSION_SECRET`を削除
+
+**変更内容**:
+1. `authenticateWebSocket`のインポートを削除
+2. WebSocket接続時の認証チェックを削除
+3. 環境変数の必須チェックを修正:
+   ```typescript
+   // 変更前
+   const requiredEnvVars = ['CLAUDE_WORK_TOKEN', 'SESSION_SECRET', 'DATABASE_URL'];
+   // 変更後
+   const requiredEnvVars = ['DATABASE_URL'];
+   ```
+
+**受入基準**:
+- [ ] WebSocket認証が削除される
+- [ ] 環境変数チェックが修正される
+- [ ] サーバーがCLAUDE_WORK_TOKENなしで起動できる
+
+---
+
+### フェーズ2: フロントエンド認証コードの削除
+
+#### タスク45.5: ログインページの削除とリダイレクト設定
+
+**ステータス**: `DONE`
+**推定工数**: 15分
+
+**説明**:
+- 削除対象: `src/app/login/page.tsx`
+- middlewareで/loginへのアクセスを/にリダイレクト
+
+**実装手順**:
+1. `src/app/login/page.tsx`を削除
+2. `src/middleware.ts`を修正:
+   ```typescript
+   import { NextResponse } from 'next/server';
+   import type { NextRequest } from 'next/server';
+
+   export function middleware(request: NextRequest) {
+     // /loginへのアクセスは/にリダイレクト
+     if (request.nextUrl.pathname === '/login') {
+       return NextResponse.redirect(new URL('/', request.url));
+     }
+     return NextResponse.next();
+   }
+
+   export const config = {
+     matcher: ['/login'],
+   };
+   ```
+
+**受入基準**:
+- [ ] ログインページが削除される
+- [ ] /loginにアクセスすると/にリダイレクトされる
+
+---
+
+#### タスク45.6: AuthGuardコンポーネントの削除
+
+**ステータス**: `DONE`
+**推定工数**: 10分
+
+**説明**:
+- 削除対象: `src/components/AuthGuard.tsx`
+- 関連テストファイルも削除
+
+**実装手順**:
+```bash
+rm src/components/AuthGuard.tsx
+rm -rf src/components/__tests__/AuthGuard.test.tsx
+```
+
+**受入基準**:
+- [ ] AuthGuardコンポーネントが削除される
+- [ ] 関連テストファイルも削除される
+
+---
+
+#### タスク45.7: ストアから認証関連状態を削除
+
+**ステータス**: `DONE`
+**推定工数**: 20分
+
+**説明**:
+- 対象ファイル: `src/store/index.ts`
+- 削除する状態:
+  - `isAuthenticated`
+  - `token`
+  - `sessionId`
+  - `expiresAt`
+- 削除するアクション:
+  - `login`
+  - `logout`
+  - `checkAuth`
+
+**受入基準**:
+- [ ] 認証関連の状態が削除される
+- [ ] 認証関連のアクションが削除される
+- [ ] ストアのテストが更新される
+- [ ] 型定義から認証関連を削除
+
+---
+
+#### タスク45.8: Headerからログアウトボタンを削除
+
+**ステータス**: `DONE`
+**推定工数**: 15分
+**依存関係**: タスク45.7
+
+**説明**:
+- 対象ファイル: `src/components/layout/Header.tsx`
+- ログアウトボタンと関連するストア呼び出しを削除
+
+**受入基準**:
+- [ ] ログアウトボタンが削除される
+- [ ] 認証状態に基づく条件分岐が削除される
+- [ ] Headerのテストが更新される
+
+---
+
+#### タスク45.9: ページコンポーネントからAuthGuardを削除
+
+**ステータス**: `DONE`
+**推定工数**: 20分
+**依存関係**: タスク45.6
+
+**説明**:
+- 対象ファイル:
+  - `src/app/page.tsx`
+  - `src/app/sessions/[id]/page.tsx`
+  - `src/app/projects/[id]/page.tsx`
+  - `src/app/projects/[id]/settings/page.tsx`
+  - `src/app/projects/page.tsx`
+- 各ファイルからAuthGuardラッパーを削除
+
+**変更パターン**:
+```tsx
+// 変更前
+export default function Page() {
+  return (
+    <AuthGuard>
+      <MainLayout>
+        <Content />
+      </MainLayout>
+    </AuthGuard>
+  );
+}
+
+// 変更後
+export default function Page() {
+  return (
+    <MainLayout>
+      <Content />
+    </MainLayout>
+  );
+}
+```
+
+**受入基準**:
+- [ ] 全ページからAuthGuardが削除される
+- [ ] ページが認証なしで表示される
+
+---
+
+### フェーズ3: データベース・環境変数の更新
+
+#### タスク45.10: Prismaスキーマからfrom AuthSessionを削除
+
+**ステータス**: `DONE`
+**推定工数**: 15分
+
+**説明**:
+- 対象ファイル: `prisma/schema.prisma`
+- AuthSessionモデルを削除
+
+**変更内容**:
+```prisma
+// 削除
+model AuthSession {
+  id         String   @id @default(uuid())
+  token_hash String
+  expires_at DateTime
+  created_at DateTime @default(now())
+}
+```
+
+**実装手順**:
+1. schema.prismaからAuthSessionモデルを削除
+2. `npx prisma db push`で適用
+3. `npx prisma generate`でクライアント再生成
+
+**受入基準**:
+- [ ] AuthSessionモデルが削除される
+- [ ] マイグレーションが成功する
+- [ ] Prismaクライアントが再生成される
+
+---
+
+#### タスク45.11: 環境変数ドキュメントの更新
+
+**ステータス**: `DONE`
+**推定工数**: 10分
+
+**説明**:
+- 対象ファイル:
+  - `.env.example`
+  - `docs/ENV_VARS.md`
+  - `CLAUDE.md`
+- CLAUDE_WORK_TOKENとSESSION_SECRETをオプションに変更
+
+**受入基準**:
+- [ ] `.env.example`が更新される
+- [ ] ドキュメントが更新される
+- [ ] 環境変数が必須でないことが明記される
+
+---
+
+### フェーズ4: テストとクリーンアップ
+
+#### タスク45.12: 認証関連テストの削除・更新
+
+**ステータス**: `DONE`
+**推定工数**: 30分
+**依存関係**: タスク45.1〜45.11
+
+**説明**:
+- 認証関連のテストファイルを削除
+- 残存するテストから認証関連のモックを削除
+- 全テストが通ることを確認
+
+**対象**:
+- `src/lib/__tests__/auth.test.ts` - 削除
+- `src/lib/websocket/__tests__/auth-middleware.test.ts` - 削除
+- `src/components/__tests__/AuthGuard.test.tsx` - 削除
+- `src/store/__tests__/index.test.ts` - 認証関連テストを削除
+- APIルートテスト - 認証モックを削除
+
+**受入基準**:
+- [ ] 認証関連テストファイルが削除される
+- [ ] 残存テストから認証モックが削除される
+- [ ] `npm test`が全て通る
+
+---
+
+#### タスク45.13: ビルドとLint確認
+
+**ステータス**: `DONE`
+**推定工数**: 15分
+**依存関係**: タスク45.12
+
+**説明**:
+- ビルドが成功することを確認
+- Lintエラーがないことを確認
+- 未使用インポートを削除
+
+**実装手順**:
+```bash
+npm run lint
+npm run build
+```
+
+**受入基準**:
+- [ ] `npm run lint`がエラーなし
+- [ ] `npm run build`が成功
+- [ ] 未使用インポートがない
+
+---
+
+#### タスク45.14: 動作確認
+
+**ステータス**: `DONE`
+**推定工数**: 20分
+**依存関係**: タスク45.13
+
+**説明**:
+- 開発サーバーを起動して動作確認
+- 以下を確認:
+  - ルートURLに直接アクセスできる
+  - 全ページが認証なしで表示される
+  - 全APIが認証なしで動作する
+  - WebSocketが認証なしで接続できる
+  - /loginがリダイレクトされる
+
+**受入基準**:
+- [ ] ルートURL(/)に認証なしでアクセスできる
+- [ ] 全ページが表示される
+- [ ] 全APIが動作する
+- [ ] WebSocketが接続できる
+- [ ] /loginが/にリダイレクトされる
+- [ ] ログアウトボタンが表示されない
+
+---
+
+## 要件との整合性チェック（Phase 45）
+
+| 要件ID | 対応タスク | 確認内容 |
+|--------|-----------|----------|
+| REQ-171 | タスク45.9, 45.14 | ルートURLに認証なしでアクセス可能 |
+| REQ-172 | タスク45.3 | 全APIから認証チェック削除 |
+| REQ-173 | タスク45.4 | WebSocket認証チェック削除 |
+| REQ-174 | タスク45.8 | ログアウトボタン非表示 |
+| REQ-175 | タスク45.5 | /loginが/にリダイレクト |
+| REQ-176 | タスク45.10 | AuthSessionテーブル削除 |
+| REQ-177 | タスク45.4, 45.11 | 環境変数がオプション化 |
+
+---
+
+## 注意事項
+
+- 認証削除後はネットワーク境界での保護（VPN、ファイアウォール等）を推奨
+- 将来的に認証が必要になった場合は、OAuth/OIDC等の標準的な認証方式を検討

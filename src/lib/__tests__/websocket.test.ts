@@ -3,8 +3,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ConnectionManager } from '../websocket/connection-manager';
 import { SessionWebSocketHandler } from '../websocket/session-ws';
-import { authenticateWebSocket } from '../websocket/auth-middleware';
-import { IncomingMessage } from 'http';
 import type { ServerMessage } from '@/types/websocket';
 
 describe('WebSocket Server', () => {
@@ -133,30 +131,6 @@ describe('WebSocket Server', () => {
       expect(mockWs.send).toHaveBeenCalledWith(
         expect.stringContaining('status_change')
       );
-    });
-  });
-
-  describe('認証ミドルウェア', () => {
-    it('sessionIdクッキーがない場合はnullを返す', async () => {
-      const mockRequest = {
-        headers: {},
-      } as IncomingMessage;
-
-      const result = await authenticateWebSocket(mockRequest, 'test-session-id');
-      expect(result).toBeNull();
-    });
-
-    it('クッキーをパースできる', async () => {
-      const mockRequest = {
-        headers: {
-          cookie: 'sessionId=test-session-id; other=value',
-        },
-      } as IncomingMessage;
-
-      // getSessionがモックされていないため、nullが返される
-      const result = await authenticateWebSocket(mockRequest, 'test-session-id');
-      // 実際のデータベースチェックが必要なため、テスト環境ではnullが返される
-      expect(result).toBeNull();
     });
   });
 

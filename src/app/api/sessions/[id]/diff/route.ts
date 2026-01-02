@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { getSession } from '@/lib/auth';
 import { GitService } from '@/services/git-service';
 import { logger } from '@/lib/logger';
 import { basename } from 'path';
@@ -9,14 +8,11 @@ import { basename } from 'path';
  * GET /api/sessions/[id]/diff - セッションの差分取得
  *
  * 指定されたセッションのGit差分（mainブランチとの比較）を取得します。
- * 認証が必要です。
  *
- * @param request - sessionIdクッキーを含むリクエスト
  * @param params.id - セッションID
  *
  * @returns
  * - 200: 差分情報（統一形式）
- * - 401: 認証されていない
  * - 404: セッションが見つからない
  * - 500: サーバーエラー
  *
@@ -24,7 +20,6 @@ import { basename } from 'path';
  * ```typescript
  * // リクエスト
  * GET /api/sessions/session-uuid/diff
- * Cookie: sessionId=<uuid>
  *
  * // レスポンス
  * {
@@ -46,20 +41,10 @@ import { basename } from 'path';
  * ```
  */
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const sessionId = request.cookies.get('sessionId')?.value;
-    if (!sessionId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const session = await getSession(sessionId);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { id } = await params;
 
     const targetSession = await prisma.session.findUnique({

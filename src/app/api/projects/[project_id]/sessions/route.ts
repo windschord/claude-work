@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { getSession } from '@/lib/auth';
 import { GitService } from '@/services/git-service';
 import { logger } from '@/lib/logger';
 import { generateUniqueSessionName } from '@/lib/session-name-generator';
@@ -9,21 +8,17 @@ import { generateUniqueSessionName } from '@/lib/session-name-generator';
  * GET /api/projects/[project_id]/sessions - プロジェクトのセッション一覧取得
  *
  * 指定されたプロジェクトに属するすべてのセッションを作成日時の降順で取得します。
- * 認証が必要です。
  *
- * @param request - sessionIdクッキーを含むリクエスト
  * @param params.project_id - プロジェクトID
  *
  * @returns
  * - 200: セッション一覧（統一形式）
- * - 401: 認証されていない
  * - 500: サーバーエラー
  *
  * @example
  * ```typescript
  * // リクエスト
  * GET /api/projects/uuid-1234/sessions
- * Cookie: sessionId=<uuid>
  *
  * // レスポンス
  * {
@@ -43,20 +38,10 @@ import { generateUniqueSessionName } from '@/lib/session-name-generator';
  * ```
  */
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ project_id: string }> }
 ) {
   try {
-    const sessionId = request.cookies.get('sessionId')?.value;
-    if (!sessionId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const session = await getSession(sessionId);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { project_id } = await params;
 
     const sessions = await prisma.session.findMany({
@@ -79,15 +64,13 @@ export async function GET(
  * 指定されたプロジェクトに新しいセッションを作成します。
  * Git worktreeとブランチが自動的に作成され、Claude Codeプロセスが起動されます。
  * セッション名が未指定の場合は「形容詞-動物名」形式で自動生成されます。
- * 認証が必要です。
  *
- * @param request - リクエストボディに`prompt`（必須）、`name`（オプション、未指定時は自動生成）、`model`（オプション）を含むJSON、sessionIdクッキー
+ * @param request - リクエストボディに`prompt`（必須）、`name`（オプション、未指定時は自動生成）、`model`（オプション）を含むJSON
  * @param params.project_id - プロジェクトID
  *
  * @returns
  * - 201: セッション作成成功
  * - 400: nameまたはpromptが指定されていない
- * - 401: 認証されていない
  * - 404: プロジェクトが見つからない
  * - 500: サーバーエラー
  *
@@ -95,7 +78,6 @@ export async function GET(
  * ```typescript
  * // リクエスト
  * POST /api/projects/uuid-1234/sessions
- * Cookie: sessionId=<uuid>
  * Content-Type: application/json
  * {
  *   "name": "新機能実装",
@@ -123,16 +105,6 @@ export async function POST(
   { params }: { params: Promise<{ project_id: string }> }
 ) {
   try {
-    const sessionId = request.cookies.get('sessionId')?.value;
-    if (!sessionId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const session = await getSession(sessionId);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { project_id } = await params;
 
     let body;

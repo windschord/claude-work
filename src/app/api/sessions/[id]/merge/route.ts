@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { getSession } from '@/lib/auth';
 import { GitService } from '@/services/git-service';
 import { logger } from '@/lib/logger';
 import { basename } from 'path';
@@ -10,15 +9,13 @@ import { basename } from 'path';
  *
  * 指定されたセッションのブランチをmainブランチにスカッシュマージします。
  * コンフリクトが発生した場合は409を返し、コンフリクトファイルのリストを含めます。
- * 認証が必要です。
  *
- * @param request - リクエストボディに`commitMessage`を含むJSON、sessionIdクッキー
+ * @param request - リクエストボディに`commitMessage`を含むJSON
  * @param params.id - セッションID
  *
  * @returns
  * - 200: マージ成功
  * - 400: commitMessageが指定されていない
- * - 401: 認証されていない
  * - 404: セッションが見つからない
  * - 409: コンフリクトが発生（コンフリクトファイルのリストを含む）
  * - 500: サーバーエラー
@@ -27,7 +24,6 @@ import { basename } from 'path';
  * ```typescript
  * // リクエスト（成功時）
  * POST /api/sessions/session-uuid/merge
- * Cookie: sessionId=<uuid>
  * Content-Type: application/json
  * { "commitMessage": "新機能を実装" }
  *
@@ -46,16 +42,6 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const sessionId = request.cookies.get('sessionId')?.value;
-    if (!sessionId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const session = await getSession(sessionId);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { id } = await params;
 
     const targetSession = await prisma.session.findUnique({

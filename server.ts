@@ -3,7 +3,6 @@ import { createServer, IncomingMessage } from 'http';
 import { parse } from 'url';
 import next from 'next';
 import { WebSocketServer, WebSocket } from 'ws';
-import { authenticateWebSocket } from './src/lib/websocket/auth-middleware';
 import { ConnectionManager } from './src/lib/websocket/connection-manager';
 import { SessionWebSocketHandler } from './src/lib/websocket/session-ws';
 import { setupTerminalWebSocket } from './src/lib/websocket/terminal-ws';
@@ -24,8 +23,6 @@ if (dotenvResult.error) {
 
 // 環境変数のロード状況を確認（デバッグログ）
 console.log('Environment variables loaded:');
-console.log('  CLAUDE_WORK_TOKEN:', process.env.CLAUDE_WORK_TOKEN ? `${process.env.CLAUDE_WORK_TOKEN.substring(0, 4)}****` : 'NOT SET');
-console.log('  SESSION_SECRET:', process.env.SESSION_SECRET ? `${process.env.SESSION_SECRET.substring(0, 4)}****` : 'NOT SET');
 console.log('  DATABASE_URL:', process.env.DATABASE_URL ? 'SET' : 'NOT SET');
 
 // 環境変数のバリデーション（サーバー起動前）
@@ -142,16 +139,7 @@ app.prepare().then(() => {
           return;
         }
 
-        // 認証チェック
-        const authenticatedSessionId = await authenticateWebSocket(request, sessionId);
-        if (!authenticatedSessionId) {
-          logger.warn('Terminal WebSocket authentication failed', { sessionId });
-          socket.write('HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\n\r\n');
-          socket.destroy();
-          return;
-        }
-
-        // ターミナルWebSocketアップグレード
+        // ターミナルWebSocketアップグレード（認証なし）
         terminalWss.handleUpgrade(request, socket, head, (ws: WebSocket) => {
           terminalWss.emit('connection', ws, request);
         });
@@ -178,16 +166,7 @@ app.prepare().then(() => {
           return;
         }
 
-        // 認証チェック
-        const authenticatedSessionId = await authenticateWebSocket(request, sessionId);
-        if (!authenticatedSessionId) {
-          logger.warn('Claude WebSocket authentication failed', { sessionId });
-          socket.write('HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\n\r\n');
-          socket.destroy();
-          return;
-        }
-
-        // Claude WebSocketアップグレード
+        // Claude WebSocketアップグレード（認証なし）
         claudeWss.handleUpgrade(request, socket, head, (ws: WebSocket) => {
           claudeWss.emit('connection', ws, request);
         });
@@ -211,16 +190,7 @@ app.prepare().then(() => {
         return;
       }
 
-      // 認証チェック（URLパスのsessionIdを渡して照合）
-      const authenticatedSessionId = await authenticateWebSocket(request, sessionId);
-      if (!authenticatedSessionId) {
-        logger.warn('WebSocket authentication failed', { sessionId });
-        socket.write('HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\n\r\n');
-        socket.destroy();
-        return;
-      }
-
-      // WebSocketアップグレードを実行
+      // WebSocketアップグレードを実行（認証なし）
       wss.handleUpgrade(request, socket, head, (ws: WebSocket) => {
         wss.emit('connection', ws, request, sessionId);
       });

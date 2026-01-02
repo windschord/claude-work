@@ -15,10 +15,6 @@ vi.mock('@/lib/db', () => ({
   },
 }));
 
-vi.mock('@/lib/auth', () => ({
-  getSession: vi.fn(),
-}));
-
 vi.mock('@/lib/logger', () => ({
   logger: {
     info: vi.fn(),
@@ -36,7 +32,6 @@ vi.mock('@/services/process-lifecycle-manager', () => ({
 
 import { POST } from '../route';
 import { prisma } from '@/lib/db';
-import { getSession } from '@/lib/auth';
 import { getProcessLifecycleManager } from '@/services/process-lifecycle-manager';
 
 describe('POST /api/sessions/[id]/resume', () => {
@@ -44,47 +39,16 @@ describe('POST /api/sessions/[id]/resume', () => {
     vi.clearAllMocks();
   });
 
-  const createMockRequest = (sessionId?: string) => {
-    const cookies = new Map();
-    if (sessionId) {
-      cookies.set('sessionId', { value: sessionId });
-    }
-    return {
-      cookies: {
-        get: (name: string) => cookies.get(name),
-      },
-    } as unknown as NextRequest;
+  const createMockRequest = () => {
+    return new NextRequest('http://localhost:3000/api/sessions/session-123/resume', {
+      method: 'POST',
+    });
   };
 
-  it('認証されていない場合は401を返すべき', async () => {
-    const request = createMockRequest();
-    const params = Promise.resolve({ id: 'session-123' });
-
-    const response = await POST(request, { params });
-    const data = await response.json();
-
-    expect(response.status).toBe(401);
-    expect(data.error).toBe('Unauthorized');
-  });
-
-  it('無効なセッションIDの場合は401を返すべき', async () => {
-    const request = createMockRequest('invalid-session');
-    const params = Promise.resolve({ id: 'session-123' });
-
-    vi.mocked(getSession).mockResolvedValue(null);
-
-    const response = await POST(request, { params });
-    const data = await response.json();
-
-    expect(response.status).toBe(401);
-    expect(data.error).toBe('Unauthorized');
-  });
-
   it('セッションが見つからない場合は404を返すべき', async () => {
-    const request = createMockRequest('valid-session');
+    const request = createMockRequest();
     const params = Promise.resolve({ id: 'nonexistent-session' });
 
-    vi.mocked(getSession).mockResolvedValue({ id: 'valid-session' });
     vi.mocked(prisma.session.findUnique).mockResolvedValue(null);
 
     const response = await POST(request, { params });
@@ -95,10 +59,9 @@ describe('POST /api/sessions/[id]/resume', () => {
   });
 
   it('stopped以外のステータスの場合は400を返すべき', async () => {
-    const request = createMockRequest('valid-session');
+    const request = createMockRequest();
     const params = Promise.resolve({ id: 'session-123' });
 
-    vi.mocked(getSession).mockResolvedValue({ id: 'valid-session' });
     vi.mocked(prisma.session.findUnique).mockResolvedValue({
       id: 'session-123',
       project_id: 'project-1',
@@ -109,6 +72,10 @@ describe('POST /api/sessions/[id]/resume', () => {
       branch_name: 'feature/test',
       resume_session_id: null,
       last_activity_at: null,
+      pr_url: null,
+      pr_number: null,
+      pr_status: null,
+      pr_updated_at: null,
       created_at: new Date(),
       updated_at: new Date(),
     });
@@ -121,10 +88,9 @@ describe('POST /api/sessions/[id]/resume', () => {
   });
 
   it('stopped状態のセッションを正常に再開できるべき', async () => {
-    const request = createMockRequest('valid-session');
+    const request = createMockRequest();
     const params = Promise.resolve({ id: 'session-123' });
 
-    vi.mocked(getSession).mockResolvedValue({ id: 'valid-session' });
     vi.mocked(prisma.session.findUnique).mockResolvedValue({
       id: 'session-123',
       project_id: 'project-1',
@@ -135,6 +101,10 @@ describe('POST /api/sessions/[id]/resume', () => {
       branch_name: 'feature/test',
       resume_session_id: null,
       last_activity_at: null,
+      pr_url: null,
+      pr_number: null,
+      pr_status: null,
+      pr_updated_at: null,
       created_at: new Date(),
       updated_at: new Date(),
     });
@@ -148,6 +118,10 @@ describe('POST /api/sessions/[id]/resume', () => {
       branch_name: 'feature/test',
       resume_session_id: null,
       last_activity_at: new Date(),
+      pr_url: null,
+      pr_number: null,
+      pr_status: null,
+      pr_updated_at: null,
       created_at: new Date(),
       updated_at: new Date(),
     });
@@ -160,7 +134,7 @@ describe('POST /api/sessions/[id]/resume', () => {
   });
 
   it('resume_session_idがある場合、resumeSessionに渡されるべき', async () => {
-    const request = createMockRequest('valid-session');
+    const request = createMockRequest();
     const params = Promise.resolve({ id: 'session-123' });
     const mockResumeSession = vi.fn().mockResolvedValue({ pid: 12345 });
 
@@ -168,7 +142,6 @@ describe('POST /api/sessions/[id]/resume', () => {
       resumeSession: mockResumeSession,
     } as ReturnType<typeof getProcessLifecycleManager>);
 
-    vi.mocked(getSession).mockResolvedValue({ id: 'valid-session' });
     vi.mocked(prisma.session.findUnique).mockResolvedValue({
       id: 'session-123',
       project_id: 'project-1',
@@ -179,6 +152,10 @@ describe('POST /api/sessions/[id]/resume', () => {
       branch_name: 'feature/test',
       resume_session_id: 'claude-session-abc123',
       last_activity_at: null,
+      pr_url: null,
+      pr_number: null,
+      pr_status: null,
+      pr_updated_at: null,
       created_at: new Date(),
       updated_at: new Date(),
     });
@@ -192,6 +169,10 @@ describe('POST /api/sessions/[id]/resume', () => {
       branch_name: 'feature/test',
       resume_session_id: 'claude-session-abc123',
       last_activity_at: new Date(),
+      pr_url: null,
+      pr_number: null,
+      pr_status: null,
+      pr_updated_at: null,
       created_at: new Date(),
       updated_at: new Date(),
     });
@@ -207,7 +188,7 @@ describe('POST /api/sessions/[id]/resume', () => {
   });
 
   it('プロセス起動失敗時は500を返すべき', async () => {
-    const request = createMockRequest('valid-session');
+    const request = createMockRequest();
     const params = Promise.resolve({ id: 'session-123' });
     const mockResumeSession = vi.fn().mockRejectedValue(new Error('Process start failed'));
 
@@ -215,7 +196,6 @@ describe('POST /api/sessions/[id]/resume', () => {
       resumeSession: mockResumeSession,
     } as ReturnType<typeof getProcessLifecycleManager>);
 
-    vi.mocked(getSession).mockResolvedValue({ id: 'valid-session' });
     vi.mocked(prisma.session.findUnique).mockResolvedValue({
       id: 'session-123',
       project_id: 'project-1',
@@ -226,6 +206,10 @@ describe('POST /api/sessions/[id]/resume', () => {
       branch_name: 'feature/test',
       resume_session_id: null,
       last_activity_at: null,
+      pr_url: null,
+      pr_number: null,
+      pr_status: null,
+      pr_updated_at: null,
       created_at: new Date(),
       updated_at: new Date(),
     });

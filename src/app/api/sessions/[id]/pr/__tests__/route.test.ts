@@ -12,10 +12,6 @@ vi.mock('@/lib/db', () => ({
   },
 }));
 
-vi.mock('@/lib/auth', () => ({
-  getIronSession: vi.fn(),
-}));
-
 vi.mock('@/services/gh-cli', () => ({
   createPR: vi.fn(),
   getPRStatus: vi.fn(),
@@ -23,7 +19,6 @@ vi.mock('@/services/gh-cli', () => ({
 }));
 
 import { prisma } from '@/lib/db';
-import { getIronSession } from '@/lib/auth';
 import { createPR, getPRStatus, extractPRNumber } from '@/services/gh-cli';
 
 const mockPrisma = prisma as unknown as {
@@ -33,7 +28,6 @@ const mockPrisma = prisma as unknown as {
   };
 };
 
-const mockGetIronSession = getIronSession as unknown as ReturnType<typeof vi.fn>;
 const mockCreatePR = createPR as unknown as ReturnType<typeof vi.fn>;
 const mockGetPRStatus = getPRStatus as unknown as ReturnType<typeof vi.fn>;
 const mockExtractPRNumber = extractPRNumber as unknown as ReturnType<typeof vi.fn>;
@@ -56,7 +50,6 @@ describe('PR API Route', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetIronSession.mockResolvedValue({ isAuthenticated: true });
   });
 
   describe('POST /api/sessions/[id]/pr', () => {
@@ -92,27 +85,6 @@ describe('PR API Route', () => {
       expect(data.pr_url).toBe('https://github.com/owner/repo/pull/123');
       expect(data.pr_number).toBe(123);
       expect(data.pr_status).toBe('open');
-    });
-
-    it('認証されていない場合は401を返す', async () => {
-      mockGetIronSession.mockResolvedValue({ isAuthenticated: false });
-
-      const request = new NextRequest(
-        'http://localhost:3000/api/sessions/session-123/pr',
-        {
-          method: 'POST',
-          headers: {
-            'content-type': 'application/json',
-          },
-          body: JSON.stringify({
-            title: 'Test PR',
-          }),
-        }
-      );
-
-      const response = await POST(request, { params: Promise.resolve({ id: 'session-123' }) });
-
-      expect(response.status).toBe(401);
     });
 
     it('セッションが見つからない場合は404を返す', async () => {
@@ -246,16 +218,5 @@ describe('PR API Route', () => {
       expect(response.status).toBe(404);
     });
 
-    it('認証されていない場合は401を返す', async () => {
-      mockGetIronSession.mockResolvedValue({ isAuthenticated: false });
-
-      const request = new NextRequest(
-        'http://localhost:3000/api/sessions/session-123/pr'
-      );
-
-      const response = await GET(request, { params: Promise.resolve({ id: 'session-123' }) });
-
-      expect(response.status).toBe(401);
-    });
   });
 });
