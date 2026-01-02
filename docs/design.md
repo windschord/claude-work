@@ -2361,3 +2361,910 @@ sequenceDiagram
 - すべてのAPIエラーは統一フォーマットで返却
 - エラーログはJSON形式で出力
 - クリティカルエラーは別ファイルにも記録
+
+---
+
+## ストーリー23〜27: UI/UX改善機能の設計
+
+### 概要
+
+以下の5つの機能追加に対する技術設計を定義します：
+- ストーリー23: セッション一覧ページの廃止とTree表示への統一 (REQ-142〜145)
+- ストーリー24: Tree表示のデフォルト展開 (REQ-146〜149)
+- ストーリー25: セッション詳細ページからのセッション削除 (REQ-150〜155)
+- ストーリー26: アクション要求時ブラウザ通知の修正 (REQ-156〜160)
+- ストーリー27: セッション画面からのPR作成とリンク (REQ-161〜170)
+
+---
+
+### ストーリー23: セッション一覧ページの廃止とTree表示への統一
+
+#### 変更対象ファイル
+
+1. **削除**: `src/app/sessions/page.tsx`
+2. **変更**: `src/components/layout/Navigation.tsx` - Sessionsリンク削除
+3. **新規**: `src/app/sessions/route.ts` - リダイレクト処理
+
+#### 実装詳細
+
+**リダイレクト処理**: `src/app/sessions/page.tsx`
+
+```typescript
+import { redirect } from 'next/navigation';
+
+export default function SessionsPage() {
+  redirect('/');
+}
+```
+
+**Navigation変更**: `src/components/layout/Navigation.tsx`
+
+```typescript
+// 削除するリンク
+// { href: '/sessions', label: 'Sessions', icon: Terminal }
+
+// 変更後のナビゲーション項目
+const navItems = [
+  { href: '/', label: 'Projects', icon: FolderGit2 },
+  { href: '/settings', label: 'Settings', icon: Settings },
+];
+```
+
+**Sidebar変更**: `src/components/layout/Sidebar.tsx`
+
+既存のTree表示実装を維持。REQ-144に対応し、プロジェクト配下のセッションを常に表示。
+
+---
+
+### ストーリー24: Tree表示のデフォルト展開
+
+#### 変更対象ファイル
+
+1. **変更**: `src/components/layout/Sidebar.tsx`
+2. **新規**: `src/store/ui.ts` - UI状態管理ストア
+
+#### 実装詳細
+
+**UIストア**: `src/store/ui.ts`
+
+```typescript
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+
+interface UIState {
+  // プロジェクトの展開状態（true = 展開、false = 折りたたみ）
+  expandedProjects: Record<string, boolean>;
+
+  // アクション
+  toggleProject: (projectId: string) => void;
+  setProjectExpanded: (projectId: string, expanded: boolean) => void;
+  isProjectExpanded: (projectId: string) => boolean;
+}
+
+export const useUIStore = create<UIState>()(
+  persist(
+    (set, get) => ({
+      expandedProjects: {},
+
+      toggleProject: (projectId) => {
+        set((state) => ({
+          expandedProjects: {
+            ...state.expandedProjects,
+            [projectId]: !(state.expandedProjects[projectId] ?? true), // デフォルトは展開
+          },
+        }));
+      },
+
+      setProjectExpanded: (projectId, expanded) => {
+        set((state) => ({
+          expandedProjects: {
+            ...state.expandedProjects,
+            [projectId]: expanded,
+          },
+        }));
+      },
+
+      // デフォルトは展開（true）
+      isProjectExpanded: (projectId) => {
+        const state = get();
+        return state.expandedProjects[projectId] ?? true;
+      },
+    }),
+    {
+      name: 'claudework:ui-state',
+    }
+  )
+);
+```
+
+**Sidebar変更**: `src/components/layout/Sidebar.tsx`
+
+```typescript
+import { useUIStore } from '@/store/ui';
+
+export function Sidebar() {
+  const { isProjectExpanded, toggleProject } = useUIStore();
+
+  return (
+    <aside>
+      {projects.map((project) => (
+        <ProjectTreeItem
+          key={project.id}
+          project={project}
+          sessions={sessionsByProject[project.id] || []}
+          isExpanded={isProjectExpanded(project.id)} // デフォルトtrue
+          onToggle={() => toggleProject(project.id)}
+          currentSessionId={currentSessionId}
+        />
+      ))}
+    </aside>
+  );
+}
+```
+
+---
+
+### ストーリー25: セッション詳細ページからのセッション削除
+
+#### 変更対象ファイル
+
+1. **変更**: `src/app/sessions/[id]/page.tsx` - 削除ボタン追加
+2. **新規**: `src/components/sessions/DeleteSessionButton.tsx`
+3. **新規**: `src/components/sessions/DeleteSessionDialog.tsx`
+
+#### 実装詳細
+
+**DeleteSessionButton**: `src/components/sessions/DeleteSessionButton.tsx`
+
+```typescript
+interface DeleteSessionButtonProps {
+  sessionId: string;
+  sessionName: string;
+  worktreePath: string;
+  projectId: string;
+}
+
+export function DeleteSessionButton({
+  sessionId,
+  sessionName,
+  worktreePath,
+  projectId,
+}: DeleteSessionButtonProps) {
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+
+  return (
+    <>
+      <button
+        onClick={() => setIsDialogOpen(true)}
+        className="flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
+      >
+        <Trash2 className="w-4 h-4" />
+        セッション削除
+      </button>
+
+      <DeleteSessionDialog
+        isOpen={isDialogOpen}
+        onClose={() => setIsDialogOpen(false)}
+        sessionId={sessionId}
+        sessionName={sessionName}
+        worktreePath={worktreePath}
+        projectId={projectId}
+      />
+    </>
+  );
+}
+```
+
+**DeleteSessionDialog**: `src/components/sessions/DeleteSessionDialog.tsx`
+
+```typescript
+import { Dialog } from '@headlessui/react';
+import { useRouter } from 'next/navigation';
+import { toast } from 'react-hot-toast';
+
+interface DeleteSessionDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+  sessionId: string;
+  sessionName: string;
+  worktreePath: string;
+  projectId: string;
+}
+
+export function DeleteSessionDialog({
+  isOpen,
+  onClose,
+  sessionId,
+  sessionName,
+  worktreePath,
+  projectId,
+}: DeleteSessionDialogProps) {
+  const router = useRouter();
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to delete session');
+      }
+
+      toast.success('セッションを削除しました');
+      router.push(`/projects/${projectId}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '削除に失敗しました');
+    } finally {
+      setIsDeleting(false);
+      onClose();
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onClose={onClose} className="relative z-50">
+      <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
+      <div className="fixed inset-0 flex items-center justify-center p-4">
+        <Dialog.Panel className="w-full max-w-md rounded-lg bg-white dark:bg-gray-800 p-6 shadow-xl">
+          <Dialog.Title className="text-lg font-bold text-red-600">
+            セッションを削除しますか？
+          </Dialog.Title>
+
+          <div className="mt-4 space-y-2 text-sm">
+            <p><strong>セッション名:</strong> {sessionName}</p>
+            <p><strong>Worktreeパス:</strong> {worktreePath}</p>
+            <p className="text-red-500">
+              この操作は取り消せません。Worktreeも削除されます。
+            </p>
+          </div>
+
+          <div className="mt-6 flex justify-end gap-3">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+              disabled={isDeleting}
+            >
+              キャンセル
+            </button>
+            <button
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded disabled:opacity-50"
+            >
+              {isDeleting ? '削除中...' : '削除'}
+            </button>
+          </div>
+        </Dialog.Panel>
+      </div>
+    </Dialog>
+  );
+}
+```
+
+**セッションページ変更**: `src/app/sessions/[id]/page.tsx`
+
+ヘッダー部分に`DeleteSessionButton`を追加
+
+---
+
+### ストーリー26: アクション要求時ブラウザ通知の修正
+
+#### 変更対象ファイル
+
+1. **変更**: `src/lib/action-detector.ts` - パターン改善
+2. **変更**: `src/hooks/useClaudeTerminal.ts` - 通知トリガー修正
+
+#### 実装詳細
+
+**action-detector.ts の改善**:
+
+```typescript
+// ANSIエスケープシーケンス除去（より完全なパターン）
+export function stripAnsi(str: string): string {
+  // CSI sequences, OSC sequences, その他のコントロールシーケンスを除去
+  return str
+    .replace(/\x1B\[[0-9;]*[A-Za-z]/g, '')  // CSI
+    .replace(/\x1B\][^\x07]*\x07/g, '')      // OSC
+    .replace(/\x1B[PX^_][^\x1B]*\x1B\\/g, '') // DCS, SOS, PM, APC
+    .replace(/\x1B[\x40-\x5F]/g, '');         // C1 control codes
+}
+
+// ユーザーアクション要求パターン（Claude CLI実際の出力に対応）
+const ACTION_PATTERNS = [
+  // Allow/Deny選択（Claude CLIの実際のパターン）
+  /Allow|Deny/,
+  /\[Y\]es.*\[N\]o/i,
+  /Yes.*to confirm/i,
+  /Press Enter to continue/i,
+  // ツール実行確認
+  /Do you want to/i,
+  /Would you like to/i,
+  /Shall I/i,
+  // 入力待ちプロンプト
+  /\?[\s]*$/,
+  /Enter your/i,
+  /Type your/i,
+  // Claude特有のパターン
+  /waiting for.*input/i,
+  /requires.*confirmation/i,
+];
+
+// 通知クールダウンをクロージャで実装
+export function createCooldownChecker(cooldownMs: number = 5000): () => boolean {
+  let lastTime = 0;
+  return () => {
+    const now = Date.now();
+    if (now - lastTime >= cooldownMs) {
+      lastTime = now;
+      return true;
+    }
+    return false;
+  };
+}
+
+export function detectActionRequest(output: string): boolean {
+  const cleanOutput = stripAnsi(output);
+
+  // 短すぎる出力は無視
+  if (cleanOutput.trim().length < 5) {
+    return false;
+  }
+
+  for (const pattern of ACTION_PATTERNS) {
+    if (pattern.test(cleanOutput)) {
+      return true;
+    }
+  }
+  return false;
+}
+```
+
+**useClaudeTerminal.ts の変更**:
+
+```typescript
+// クールダウンチェッカーを初期化時に一度だけ作成
+const notificationCooldownRef = useRef<(() => boolean) | null>(null);
+if (!notificationCooldownRef.current) {
+  notificationCooldownRef.current = createCooldownChecker(5000);
+}
+
+// WebSocketメッセージ受信時
+ws.onmessage = (event) => {
+  const message = JSON.parse(event.data);
+
+  if (message.type === 'data') {
+    terminal?.write(message.content);
+
+    // アクション要求パターン検出
+    if (
+      detectActionRequest(message.content) &&
+      notificationCooldownRef.current &&
+      notificationCooldownRef.current()
+    ) {
+      sendNotification({
+        type: 'actionRequired',
+        sessionId,
+        sessionName,
+        message: 'Claudeがアクションを求めています',
+      });
+    }
+  }
+};
+```
+
+---
+
+### ストーリー27: セッション画面からのPR作成とリンク
+
+#### 新規ファイル
+
+1. **新規API**: `src/app/api/sessions/[id]/pr/route.ts`
+2. **新規コンポーネント**: `src/components/sessions/PRSection.tsx`
+3. **新規コンポーネント**: `src/components/sessions/CreatePRDialog.tsx`
+
+#### データベース変更
+
+**Prisma schema追加**:
+
+```prisma
+model Session {
+  // 既存フィールド
+  // ...
+
+  // PR関連フィールド追加
+  pr_url        String?   // GitHub PR URL
+  pr_number     Int?      // PR番号
+  pr_status     String?   // open, merged, closed
+  pr_updated_at DateTime? // PRステータス最終確認日時
+}
+```
+
+#### API設計
+
+**POST /api/sessions/[id]/pr** - PR作成
+
+リクエスト:
+```json
+{
+  "title": "feat: Add new feature",
+  "body": "## Description\n..."
+}
+```
+
+レスポンス (201):
+```json
+{
+  "pr": {
+    "url": "https://github.com/owner/repo/pull/123",
+    "number": 123,
+    "status": "open"
+  }
+}
+```
+
+**GET /api/sessions/[id]/pr** - PRステータス取得
+
+レスポンス (200):
+```json
+{
+  "pr": {
+    "url": "https://github.com/owner/repo/pull/123",
+    "number": 123,
+    "status": "merged",
+    "title": "feat: Add new feature"
+  }
+}
+```
+
+#### 実装詳細
+
+**PR APIエンドポイント**: `src/app/api/sessions/[id]/pr/route.ts`
+
+```typescript
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
+
+export async function POST(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  const session = await prisma.session.findUnique({
+    where: { id: params.id },
+    include: { project: true },
+  });
+
+  if (!session) {
+    return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+  }
+
+  const { title, body } = await request.json();
+
+  try {
+    // gh CLI でPR作成
+    const { stdout } = await execAsync(
+      `gh pr create --title "${title.replace(/"/g, '\\"')}" --body "${body.replace(/"/g, '\\"')}" --head "${session.branch_name}"`,
+      { cwd: session.worktree_path, timeout: 30000 }
+    );
+
+    // PRのURLを抽出
+    const prUrlMatch = stdout.match(/https:\/\/github\.com\/[^\s]+\/pull\/\d+/);
+    const prNumberMatch = stdout.match(/pull\/(\d+)/);
+
+    if (!prUrlMatch) {
+      throw new Error('Failed to parse PR URL from gh output');
+    }
+
+    const prUrl = prUrlMatch[0];
+    const prNumber = prNumberMatch ? parseInt(prNumberMatch[1], 10) : null;
+
+    // セッションにPR情報を保存
+    await prisma.session.update({
+      where: { id: params.id },
+      data: {
+        pr_url: prUrl,
+        pr_number: prNumber,
+        pr_status: 'open',
+        pr_updated_at: new Date(),
+      },
+    });
+
+    return NextResponse.json({
+      pr: { url: prUrl, number: prNumber, status: 'open' },
+    }, { status: 201 });
+  } catch (error) {
+    // gh CLIが利用できない場合のエラーハンドリング
+    if (error instanceof Error && error.message.includes('gh: command not found')) {
+      return NextResponse.json(
+        { error: 'GitHub CLI (gh) is not installed or not in PATH' },
+        { status: 503 }
+      );
+    }
+    throw error;
+  }
+}
+
+export async function GET(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  const session = await prisma.session.findUnique({
+    where: { id: params.id },
+  });
+
+  if (!session) {
+    return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+  }
+
+  if (!session.pr_url) {
+    return NextResponse.json({ pr: null });
+  }
+
+  // PRステータスを更新（キャッシュが古い場合）
+  const cacheAge = session.pr_updated_at
+    ? Date.now() - session.pr_updated_at.getTime()
+    : Infinity;
+
+  if (cacheAge > 60000) { // 1分以上経過していたら更新
+    try {
+      const { stdout } = await execAsync(
+        `gh pr view ${session.pr_number} --json state`,
+        { cwd: session.worktree_path, timeout: 10000 }
+      );
+      const { state } = JSON.parse(stdout);
+      const prStatus = state.toLowerCase(); // OPEN, MERGED, CLOSED
+
+      await prisma.session.update({
+        where: { id: params.id },
+        data: {
+          pr_status: prStatus,
+          pr_updated_at: new Date(),
+        },
+      });
+
+      return NextResponse.json({
+        pr: {
+          url: session.pr_url,
+          number: session.pr_number,
+          status: prStatus,
+        },
+      });
+    } catch {
+      // ステータス取得に失敗した場合はキャッシュを返す
+    }
+  }
+
+  return NextResponse.json({
+    pr: {
+      url: session.pr_url,
+      number: session.pr_number,
+      status: session.pr_status,
+    },
+  });
+}
+```
+
+**PRSection コンポーネント**: `src/components/sessions/PRSection.tsx`
+
+```typescript
+interface PRSectionProps {
+  sessionId: string;
+  branchName: string;
+}
+
+export function PRSection({ sessionId, branchName }: PRSectionProps) {
+  const [pr, setPR] = useState<PR | null>(null);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [ghAvailable, setGhAvailable] = useState(true);
+
+  useEffect(() => {
+    fetchPRStatus();
+  }, [sessionId]);
+
+  const fetchPRStatus = async () => {
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}/pr`);
+      const data = await response.json();
+      setPR(data.pr);
+    } catch {
+      setGhAvailable(false);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (isLoading) {
+    return <Skeleton className="h-10" />;
+  }
+
+  return (
+    <div className="flex items-center gap-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+      {pr ? (
+        // PR存在時: リンクとステータス表示
+        <>
+          <a
+            href={pr.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 text-blue-600 hover:underline"
+          >
+            <GitPullRequest className="w-4 h-4" />
+            PR #{pr.number}
+            <ExternalLink className="w-3 h-3" />
+          </a>
+          <PRStatusBadge status={pr.status} />
+        </>
+      ) : (
+        // PR未作成時: 作成ボタン
+        <button
+          onClick={() => setIsCreateDialogOpen(true)}
+          disabled={!ghAvailable}
+          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+          title={ghAvailable ? 'PRを作成' : 'gh CLIが利用できません'}
+        >
+          <GitPullRequest className="w-4 h-4" />
+          PRを作成
+        </button>
+      )}
+
+      <CreatePRDialog
+        isOpen={isCreateDialogOpen}
+        onClose={() => setIsCreateDialogOpen(false)}
+        sessionId={sessionId}
+        branchName={branchName}
+        onSuccess={(newPR) => {
+          setPR(newPR);
+          setIsCreateDialogOpen(false);
+        }}
+      />
+    </div>
+  );
+}
+
+function PRStatusBadge({ status }: { status: string }) {
+  const styles = {
+    open: 'bg-green-100 text-green-800',
+    merged: 'bg-purple-100 text-purple-800',
+    closed: 'bg-red-100 text-red-800',
+  };
+
+  return (
+    <span className={`px-2 py-1 text-xs font-medium rounded ${styles[status] || ''}`}>
+      {status.toUpperCase()}
+    </span>
+  );
+}
+```
+
+**CreatePRDialog コンポーネント**: `src/components/sessions/CreatePRDialog.tsx`
+
+```typescript
+interface CreatePRDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+  sessionId: string;
+  branchName: string;
+  onSuccess: (pr: PR) => void;
+}
+
+export function CreatePRDialog({
+  isOpen,
+  onClose,
+  sessionId,
+  branchName,
+  onSuccess,
+}: CreatePRDialogProps) {
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
+
+  const handleCreate = async () => {
+    if (!title.trim()) {
+      toast.error('タイトルを入力してください');
+      return;
+    }
+
+    setIsCreating(true);
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}/pr`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, body }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to create PR');
+      }
+
+      const data = await response.json();
+      toast.success('PRを作成しました');
+      onSuccess(data.pr);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'PR作成に失敗しました');
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onClose={onClose} className="relative z-50">
+      <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
+      <div className="fixed inset-0 flex items-center justify-center p-4">
+        <Dialog.Panel className="w-full max-w-lg rounded-lg bg-white dark:bg-gray-800 p-6 shadow-xl">
+          <Dialog.Title className="text-lg font-bold">
+            Pull Request を作成
+          </Dialog.Title>
+
+          <div className="mt-4 space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                ソースブランチ
+              </label>
+              <input
+                type="text"
+                value={branchName}
+                disabled
+                className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                タイトル <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="feat: Add new feature"
+                className="w-full px-3 py-2 border rounded dark:bg-gray-700"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                説明
+              </label>
+              <textarea
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                rows={6}
+                placeholder="## 概要&#10;&#10;## 変更内容&#10;&#10;## テスト方法"
+                className="w-full px-3 py-2 border rounded dark:bg-gray-700"
+              />
+            </div>
+          </div>
+
+          <div className="mt-6 flex justify-end gap-3">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+              disabled={isCreating}
+            >
+              キャンセル
+            </button>
+            <button
+              onClick={handleCreate}
+              disabled={isCreating || !title.trim()}
+              className="px-4 py-2 bg-green-600 text-white hover:bg-green-700 rounded disabled:opacity-50"
+            >
+              {isCreating ? (
+                <>
+                  <Loader2 className="inline w-4 h-4 mr-2 animate-spin" />
+                  作成中...
+                </>
+              ) : (
+                'PRを作成'
+              )}
+            </button>
+          </div>
+        </Dialog.Panel>
+      </div>
+    </Dialog>
+  );
+}
+```
+
+---
+
+### シーケンス図: セッション削除フロー
+
+```mermaid
+sequenceDiagram
+    participant U as ユーザー
+    participant SP as SessionPage
+    participant Dialog as DeleteSessionDialog
+    participant API as DELETE /api/sessions/{id}
+    participant Git as GitService
+    participant DB as Database
+
+    U->>SP: 削除ボタンをクリック
+    SP->>Dialog: isOpen=true
+    Dialog-->>U: 確認ダイアログ表示
+
+    U->>Dialog: 削除を確認
+    Dialog->>API: DELETE /api/sessions/{id}
+    API->>Git: deleteWorktree(worktreePath)
+    Git-->>API: 完了
+    API->>DB: DELETE FROM sessions WHERE id=?
+    DB-->>API: 完了
+    API-->>Dialog: 200 OK
+    Dialog->>Dialog: router.push(/projects/{projectId})
+    Dialog-->>U: プロジェクトページにリダイレクト
+```
+
+### シーケンス図: PR作成フロー
+
+```mermaid
+sequenceDiagram
+    participant U as ユーザー
+    participant PRS as PRSection
+    participant Dialog as CreatePRDialog
+    participant API as POST /api/sessions/{id}/pr
+    participant GH as gh CLI
+    participant DB as Database
+
+    U->>PRS: 「PRを作成」をクリック
+    PRS->>Dialog: isOpen=true
+    Dialog-->>U: PR作成フォーム表示
+
+    U->>Dialog: タイトル・説明を入力
+    U->>Dialog: 「PRを作成」をクリック
+    Dialog->>API: POST {title, body}
+    API->>GH: gh pr create --title "..." --body "..."
+
+    alt gh CLI成功
+        GH-->>API: PR URL出力
+        API->>DB: UPDATE sessions SET pr_url=...
+        DB-->>API: 完了
+        API-->>Dialog: 201 Created {pr}
+        Dialog->>PRS: onSuccess(pr)
+        PRS-->>U: PRリンク表示
+    else gh CLI失敗
+        GH-->>API: エラー
+        API-->>Dialog: 503 Service Unavailable
+        Dialog-->>U: エラートースト表示
+    end
+```
+
+---
+
+### 要件との整合性チェック（ストーリー23〜27）
+
+| 要件ID | 要件内容 | 設計対応 |
+|--------|----------|----------|
+| REQ-142 | /sessions/アクセス時リダイレクト | redirect('/') in sessions/page.tsx |
+| REQ-143 | Sessionsリンク削除 | navItems配列から削除 |
+| REQ-144 | Tree表示でセッション常時表示 | 既存Sidebar実装維持 |
+| REQ-145 | セッションクリックで詳細ページ遷移 | router.push() |
+| REQ-146 | デフォルトで全プロジェクト展開 | isProjectExpanded() デフォルトtrue |
+| REQ-147 | 折りたたみ状態をローカルストレージ保存 | zustand persist |
+| REQ-148 | 展開状態の復元 | persist middleware |
+| REQ-149 | 新規プロジェクトは展開状態で表示 | デフォルトtrue |
+| REQ-150 | 削除ボタン表示 | DeleteSessionButton |
+| REQ-151 | 確認ダイアログ表示 | DeleteSessionDialog |
+| REQ-152 | セッション名とパス表示 | Dialog内のpタグ |
+| REQ-153 | セッションとworktree削除 | DELETE API |
+| REQ-154 | 削除後プロジェクトページへ | router.push() |
+| REQ-155 | エラー時トースト表示 | toast.error() |
+| REQ-156 | ユーザー入力待機時に通知 | detectActionRequest() |
+| REQ-157 | Yes/Noパターン検出 | ACTION_PATTERNS |
+| REQ-158 | ANSIエスケープ除去 | stripAnsi()改善 |
+| REQ-159 | バックグラウンド時のみOS通知 | sendNotification()内部 |
+| REQ-160 | 5秒クールダウン | createCooldownChecker() |
+| REQ-161 | PR作成ボタン表示 | PRSection |
+| REQ-162 | PR作成フォーム表示 | CreatePRDialog |
+| REQ-163 | タイトル・説明入力フィールド | input, textarea |
+| REQ-164 | ブランチ名自動設定 | branchName prop |
+| REQ-165 | gh pr create実行 | execAsync() |
+| REQ-166 | PRのURL保存 | prisma.session.update() |
+| REQ-167 | PRリンク表示 | PRSection内のaタグ |
+| REQ-168 | 新規タブでPRページ | target="_blank" |
+| REQ-169 | PRステータス表示 | PRStatusBadge |
+| REQ-170 | gh CLI未インストール時ボタン無効化 | disabled={!ghAvailable} |
