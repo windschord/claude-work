@@ -6,6 +6,7 @@ describe('DeleteSessionDialog', () => {
   const defaultProps = {
     isOpen: true,
     sessionName: 'test-session',
+    worktreePath: '/path/to/.worktrees/test-session',
     onConfirm: vi.fn(),
     onCancel: vi.fn(),
     isDeleting: false,
@@ -15,9 +16,7 @@ describe('DeleteSessionDialog', () => {
     render(<DeleteSessionDialog {...defaultProps} />);
 
     expect(screen.getByText('セッションを削除')).toBeInTheDocument();
-    expect(
-      screen.getByText(/「test-session」を削除しますか/)
-    ).toBeInTheDocument();
+    expect(screen.getByText(/以下のセッションを削除しますか/)).toBeInTheDocument();
   });
 
   it('セッション名がダイアログに表示される', () => {
@@ -25,9 +24,13 @@ describe('DeleteSessionDialog', () => {
       <DeleteSessionDialog {...defaultProps} sessionName="my-custom-session" />
     );
 
-    expect(
-      screen.getByText(/「my-custom-session」を削除しますか/)
-    ).toBeInTheDocument();
+    expect(screen.getByText('my-custom-session')).toBeInTheDocument();
+  });
+
+  it('worktreeパスがダイアログに表示される', () => {
+    render(<DeleteSessionDialog {...defaultProps} />);
+
+    expect(screen.getByText('/path/to/.worktrees/test-session')).toBeInTheDocument();
   });
 
   it('キャンセルボタンでonCancelが呼ばれる', () => {

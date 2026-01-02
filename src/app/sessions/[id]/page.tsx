@@ -18,6 +18,7 @@ import { DeleteWorktreeDialog } from '@/components/git/DeleteWorktreeDialog';
 import { CommitHistory } from '@/components/git/CommitHistory';
 import { ScriptsPanel } from '@/components/scripts/ScriptsPanel';
 import { ProcessStatus } from '@/components/sessions/ProcessStatus';
+import { DeleteSessionButton } from '@/components/sessions/DeleteSessionButton';
 import { Toaster, toast } from 'react-hot-toast';
 import type { ServerMessage } from '@/types/websocket';
 
@@ -360,6 +361,7 @@ export default function SessionDetailPage() {
                   停止
                 </button>
               )}
+              <DeleteSessionButton session={currentSession} />
             </div>
           </div>
 
