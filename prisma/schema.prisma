@@ -32,6 +32,10 @@ model Session {
   branch_name        String
   resume_session_id  String?   // Claude Codeの--resume用セッションID（stopped時に保存）
   last_activity_at   DateTime? // 最終アクティビティ日時（アイドルタイムアウト計算用）
+  pr_url             String?   // PR URL (e.g., https://github.com/owner/repo/pull/123)
+  pr_number          Int?      // PR number (e.g., 123)
+  pr_status          String?   // PR status: open, merged, closed
+  pr_updated_at      DateTime? // 最終PR情報更新日時
   created_at         DateTime  @default(now())
   updated_at         DateTime  @updatedAt
 
