@@ -6,8 +6,7 @@ import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { execSync } from 'child_process';
-import { randomUUID } from 'crypto';
-import type { AuthSession, Project, Session } from '@prisma/client';
+import type { Project, Session } from '@prisma/client';
 
 vi.mock('@/services/process-manager', () => ({
   ProcessManager: {
@@ -29,22 +28,12 @@ vi.mock('@/services/process-manager', () => ({
 
 describe('GET /api/sessions/[id]', () => {
   let testRepoPath: string;
-  let authSession: AuthSession;
   let project: Project;
   let session: Session;
 
   beforeEach(async () => {
     await prisma.session.deleteMany();
     await prisma.project.deleteMany();
-    await prisma.authSession.deleteMany();
-
-    authSession = await prisma.authSession.create({
-      data: {
-        id: randomUUID(),
-        token_hash: 'test-hash',
-        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      },
-    });
 
     testRepoPath = mkdtempSync(join(tmpdir(), 'session-test-'));
     execSync('git init', { cwd: testRepoPath });
@@ -78,18 +67,13 @@ describe('GET /api/sessions/[id]', () => {
   afterEach(async () => {
     await prisma.session.deleteMany();
     await prisma.project.deleteMany();
-    await prisma.authSession.deleteMany();
     if (testRepoPath) {
       rmSync(testRepoPath, { recursive: true, force: true });
     }
   });
 
   it('should return 200 and session details', async () => {
-    const request = new NextRequest(`http://localhost:3000/api/sessions/${session.id}`, {
-      headers: {
-        cookie: `sessionId=${authSession.id}`,
-      },
-    });
+    const request = new NextRequest(`http://localhost:3000/api/sessions/${session.id}`);
 
     const response = await GET(request, { params: Promise.resolve({ id: session.id }) });
     expect(response.status).toBe(200);
@@ -103,42 +87,21 @@ describe('GET /api/sessions/[id]', () => {
   });
 
   it('should return 404 for non-existent session', async () => {
-    const request = new NextRequest('http://localhost:3000/api/sessions/non-existent', {
-      headers: {
-        cookie: `sessionId=${authSession.id}`,
-      },
-    });
+    const request = new NextRequest('http://localhost:3000/api/sessions/non-existent');
 
     const response = await GET(request, { params: Promise.resolve({ id: 'non-existent' }) });
     expect(response.status).toBe(404);
-  });
-
-  it('should return 401 if not authenticated', async () => {
-    const request = new NextRequest(`http://localhost:3000/api/sessions/${session.id}`);
-
-    const response = await GET(request, { params: Promise.resolve({ id: session.id }) });
-    expect(response.status).toBe(401);
   });
 });
 
 describe('DELETE /api/sessions/[id]', () => {
   let testRepoPath: string;
-  let authSession: AuthSession;
   let project: Project;
   let session: Session;
 
   beforeEach(async () => {
     await prisma.session.deleteMany();
     await prisma.project.deleteMany();
-    await prisma.authSession.deleteMany();
-
-    authSession = await prisma.authSession.create({
-      data: {
-        id: randomUUID(),
-        token_hash: 'test-hash',
-        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      },
-    });
 
     testRepoPath = mkdtempSync(join(tmpdir(), 'session-test-'));
     execSync('git init', { cwd: testRepoPath });
@@ -172,7 +135,6 @@ describe('DELETE /api/sessions/[id]', () => {
   afterEach(async () => {
     await prisma.session.deleteMany();
     await prisma.project.deleteMany();
-    await prisma.authSession.deleteMany();
     if (testRepoPath) {
       rmSync(testRepoPath, { recursive: true, force: true });
     }
@@ -181,9 +143,6 @@ describe('DELETE /api/sessions/[id]', () => {
   it('should delete session and return 204', async () => {
     const request = new NextRequest(`http://localhost:3000/api/sessions/${session.id}`, {
       method: 'DELETE',
-      headers: {
-        cookie: `sessionId=${authSession.id}`,
-      },
     });
 
     const response = await DELETE(request, { params: Promise.resolve({ id: session.id }) });
@@ -198,43 +157,21 @@ describe('DELETE /api/sessions/[id]', () => {
   it('should return 404 for non-existent session', async () => {
     const request = new NextRequest('http://localhost:3000/api/sessions/non-existent', {
       method: 'DELETE',
-      headers: {
-        cookie: `sessionId=${authSession.id}`,
-      },
     });
 
     const response = await DELETE(request, { params: Promise.resolve({ id: 'non-existent' }) });
     expect(response.status).toBe(404);
   });
-
-  it('should return 401 if not authenticated', async () => {
-    const request = new NextRequest(`http://localhost:3000/api/sessions/${session.id}`, {
-      method: 'DELETE',
-    });
-
-    const response = await DELETE(request, { params: Promise.resolve({ id: session.id }) });
-    expect(response.status).toBe(401);
-  });
 });
 
 describe('PATCH /api/sessions/[id]', () => {
   let testRepoPath: string;
-  let authSession: AuthSession;
   let project: Project;
   let session: Session;
 
   beforeEach(async () => {
     await prisma.session.deleteMany();
     await prisma.project.deleteMany();
-    await prisma.authSession.deleteMany();
-
-    authSession = await prisma.authSession.create({
-      data: {
-        id: randomUUID(),
-        token_hash: 'test-hash',
-        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      },
-    });
 
     testRepoPath = mkdtempSync(join(tmpdir(), 'session-test-'));
     execSync('git init', { cwd: testRepoPath });
@@ -268,7 +205,6 @@ describe('PATCH /api/sessions/[id]', () => {
   afterEach(async () => {
     await prisma.session.deleteMany();
     await prisma.project.deleteMany();
-    await prisma.authSession.deleteMany();
     if (testRepoPath) {
       rmSync(testRepoPath, { recursive: true, force: true });
     }
@@ -279,7 +215,6 @@ describe('PATCH /api/sessions/[id]', () => {
       method: 'PATCH',
       headers: {
         'content-type': 'application/json',
-        cookie: `sessionId=${authSession.id}`,
       },
       body: JSON.stringify({ name: 'Updated Name' }),
     });
@@ -291,7 +226,6 @@ describe('PATCH /api/sessions/[id]', () => {
     expect(data).toHaveProperty('session');
     expect(data.session.name).toBe('Updated Name');
 
-    // データベースも更新されていることを確認
     const updatedSession = await prisma.session.findUnique({
       where: { id: session.id },
     });
@@ -303,7 +237,6 @@ describe('PATCH /api/sessions/[id]', () => {
       method: 'PATCH',
       headers: {
         'content-type': 'application/json',
-        cookie: `sessionId=${authSession.id}`,
       },
       body: JSON.stringify({ name: '' }),
     });
@@ -320,7 +253,6 @@ describe('PATCH /api/sessions/[id]', () => {
       method: 'PATCH',
       headers: {
         'content-type': 'application/json',
-        cookie: `sessionId=${authSession.id}`,
       },
       body: JSON.stringify({ name: '   ' }),
     });
@@ -337,7 +269,6 @@ describe('PATCH /api/sessions/[id]', () => {
       method: 'PATCH',
       headers: {
         'content-type': 'application/json',
-        cookie: `sessionId=${authSession.id}`,
       },
       body: JSON.stringify({ name: 'New Name' }),
     });
@@ -346,25 +277,11 @@ describe('PATCH /api/sessions/[id]', () => {
     expect(response.status).toBe(404);
   });
 
-  it('should return 401 if not authenticated', async () => {
-    const request = new NextRequest(`http://localhost:3000/api/sessions/${session.id}`, {
-      method: 'PATCH',
-      headers: {
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({ name: 'New Name' }),
-    });
-
-    const response = await PATCH(request, { params: Promise.resolve({ id: session.id }) });
-    expect(response.status).toBe(401);
-  });
-
   it('should trim whitespace from name', async () => {
     const request = new NextRequest(`http://localhost:3000/api/sessions/${session.id}`, {
       method: 'PATCH',
       headers: {
         'content-type': 'application/json',
-        cookie: `sessionId=${authSession.id}`,
       },
       body: JSON.stringify({ name: '  Trimmed Name  ' }),
     });
