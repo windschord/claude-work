@@ -7,7 +7,6 @@ import { useAppStore } from '@/store';
 import { useScriptLogStore } from '@/store/script-logs';
 import { useNotificationStore } from '@/store/notification';
 import { useWebSocket } from '@/hooks/useWebSocket';
-import { AuthGuard } from '@/components/AuthGuard';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { FileList } from '@/components/git/FileList';
 import { DiffViewer } from '@/components/git/DiffViewer';
@@ -71,7 +70,6 @@ export default function SessionDetailPage() {
     fetchDiff,
     stopSession,
     deleteSession,
-    checkAuth,
     handleWebSocketMessage,
   } = useAppStore();
 
@@ -177,10 +175,6 @@ export default function SessionDetailPage() {
       checkProcessStatus();
     }
   }, [wsStatus, checkProcessStatus]);
-
-  useEffect(() => {
-    checkAuth();
-  }, [checkAuth]);
 
   // Request notification permission on first visit
   useEffect(() => {
@@ -295,20 +289,17 @@ export default function SessionDetailPage() {
 
   if (!currentSession) {
     return (
-      <AuthGuard>
-        <MainLayout>
-          <div className="flex items-center justify-center h-full">
-            <p className="text-gray-500 dark:text-gray-400">読み込み中...</p>
-          </div>
-        </MainLayout>
-      </AuthGuard>
+      <MainLayout>
+        <div className="flex items-center justify-center h-full">
+          <p className="text-gray-500 dark:text-gray-400">読み込み中...</p>
+        </div>
+      </MainLayout>
     );
   }
 
   return (
-    <AuthGuard>
-      <MainLayout>
-        <div className="flex flex-col h-full">
+    <MainLayout>
+      <div className="flex flex-col h-full">
           {/* Header */}
           <div className="border-b border-gray-200 dark:border-gray-700 p-4 flex items-center justify-between">
             <div>
@@ -508,7 +499,6 @@ export default function SessionDetailPage() {
           {/* Toast Notifications */}
           <Toaster position="top-right" />
         </div>
-      </MainLayout>
-    </AuthGuard>
+    </MainLayout>
   );
 }
