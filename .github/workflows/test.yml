@@ -86,7 +86,7 @@ jobs:
       run: npx prisma generate
 
     - name: Run backend tests
-      run: npx vitest run src/app/api src/lib src/services src/bin --reporter=verbose --forceExit
+      run: npx vitest run src/app/api src/lib src/services src/bin --reporter=verbose
       timeout-minutes: 8
 
   # Frontend tests - components, pages, hooks
@@ -129,7 +129,7 @@ jobs:
       run: npx prisma generate
 
     - name: Run frontend tests
-      run: npx vitest run src/components src/hooks src/store src/app --exclude='src/app/api/**' --reporter=verbose --forceExit
+      run: npx vitest run src/components src/hooks src/store src/app --exclude='src/app/api/**' --reporter=verbose
       timeout-minutes: 8
 
   # Build job - depends on all tests passing
