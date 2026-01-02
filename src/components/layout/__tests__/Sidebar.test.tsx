@@ -2,11 +2,29 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { Sidebar } from '../Sidebar';
 import { useAppStore } from '@/store';
+import { useUIStore } from '@/store/ui';
 import type { Project, Session } from '@/store';
 
 // Zustandストアをモック
 vi.mock('@/store', () => ({
   useAppStore: vi.fn(),
+}));
+
+// UIストアをモック（デフォルト展開動作）
+const mockToggleProject = vi.fn();
+const collapsedProjectsSet = new Set<string>();
+
+vi.mock('@/store/ui', () => ({
+  useUIStore: vi.fn(() => ({
+    isProjectExpanded: (projectId: string) => !collapsedProjectsSet.has(projectId),
+    toggleProject: mockToggleProject.mockImplementation((projectId: string) => {
+      if (collapsedProjectsSet.has(projectId)) {
+        collapsedProjectsSet.delete(projectId);
+      } else {
+        collapsedProjectsSet.add(projectId);
+      }
+    }),
+  })),
 }));
 
 // Next.js routerをモック
@@ -79,6 +97,8 @@ describe('Sidebar', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // collapsedProjectsSetをクリア（デフォルトは全展開）
+    collapsedProjectsSet.clear();
     (useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       projects: mockProjects,
       sessions: mockSessions,
@@ -112,15 +132,15 @@ describe('Sidebar', () => {
   it('プロジェクトのトグルボタンが展開/折りたたみを切り替える', () => {
     render(<Sidebar />);
 
-    // 初期状態ではセッションは非表示
-    expect(screen.queryByText('セッション1')).not.toBeInTheDocument();
+    // デフォルトで展開されているのでセッションが表示される
+    expect(screen.getByText('セッション1')).toBeInTheDocument();
 
-    // トグルボタンをクリックしてプロジェクトを展開
+    // トグルボタンをクリックしてプロジェクトを折りたたむ
     const toggleButtons = screen.getAllByTestId('project-toggle');
     fireEvent.click(toggleButtons[0]);
 
-    // セッションが表示される
-    expect(screen.getByText('セッション1')).toBeInTheDocument();
+    // toggleProjectが呼ばれたことを確認
+    expect(mockToggleProject).toHaveBeenCalledWith('project-1');
   });
 
   it('セッションをクリックすると詳細ページに遷移する', () => {
@@ -128,10 +148,7 @@ describe('Sidebar', () => {
 
     render(<Sidebar />);
 
-    // プロジェクトを展開
-    const toggleButtons = screen.getAllByTestId('project-toggle');
-    fireEvent.click(toggleButtons[0]);
-
+    // デフォルトで展開されているのでセッションが表示される
     // セッションをクリック
     fireEvent.click(screen.getByText('セッション1'));
 
@@ -155,10 +172,7 @@ describe('Sidebar', () => {
 
     render(<Sidebar />);
 
-    // プロジェクトを展開
-    const toggleButtons = screen.getAllByTestId('project-toggle');
-    fireEvent.click(toggleButtons[0]);
-
+    // デフォルトで展開されているので、ハイライトを確認
     // bg-blue-50クラスを持つボタンを探す
     const sessionButtons = screen.getAllByRole('button');
     const highlightedButton = sessionButtons.find(btn => btn.textContent?.includes('セッション1'));
@@ -238,10 +252,7 @@ describe('Sidebar', () => {
 
     render(<Sidebar />);
 
-    // プロジェクトを展開
-    const toggleButtons = screen.getAllByTestId('project-toggle');
-    fireEvent.click(toggleButtons[0]);
-
+    // デフォルトで展開されているのでセッションが表示される
     // セッションをクリック
     fireEvent.click(screen.getByText('セッション1'));
 
@@ -287,10 +298,7 @@ describe('Sidebar', () => {
 
     render(<Sidebar />);
 
-    // プロジェクトBを展開
-    const toggleButtons = screen.getAllByTestId('project-toggle');
-    fireEvent.click(toggleButtons[1]);
-
+    // デフォルトで展開されているのでセッション3が表示される
     // セッション3をクリック
     fireEvent.click(screen.getByText('セッション3'));
 
@@ -300,28 +308,19 @@ describe('Sidebar', () => {
   });
 
   describe('Tree表示', () => {
-    it('プロジェクトを展開するとセッションが表示される', () => {
+    it('デフォルトでプロジェクトが展開されセッションが表示される', () => {
       render(<Sidebar />);
 
-      // 初期状態ではセッションは非表示
-      expect(screen.queryByText('セッション1')).not.toBeInTheDocument();
-
-      // プロジェクトAのトグルボタンをクリック
-      const toggleButtons = screen.getAllByTestId('project-toggle');
-      fireEvent.click(toggleButtons[0]);
-
-      // セッションが表示される
+      // デフォルトで展開されているのでセッションが表示される
       expect(screen.getByText('セッション1')).toBeInTheDocument();
       expect(screen.getByText('セッション2')).toBeInTheDocument();
+      expect(screen.getByText('セッション3')).toBeInTheDocument();
     });
 
     it('展開状態が保持される', () => {
       const { rerender } = render(<Sidebar />);
 
-      // プロジェクトAを展開
-      const toggleButtons = screen.getAllByTestId('project-toggle');
-      fireEvent.click(toggleButtons[0]);
-
+      // デフォルトで展開されている
       expect(screen.getByText('セッション1')).toBeInTheDocument();
 
       // 再レンダリング
@@ -334,10 +333,7 @@ describe('Sidebar', () => {
     it('セッションクリック時にcurrentSessionIdが更新される', () => {
       render(<Sidebar />);
 
-      // プロジェクトAを展開
-      const toggleButtons = screen.getAllByTestId('project-toggle');
-      fireEvent.click(toggleButtons[0]);
-
+      // デフォルトで展開されているのでセッションが表示される
       // セッションをクリック
       fireEvent.click(screen.getByText('セッション1'));
 
@@ -359,11 +355,7 @@ describe('Sidebar', () => {
 
       render(<Sidebar />);
 
-      // プロジェクトAを展開
-      const toggleButtons = screen.getAllByTestId('project-toggle');
-      fireEvent.click(toggleButtons[0]);
-
-      // セッション1がハイライトされている
+      // デフォルトで展開されているので、ハイライトを確認
       const sessionButtons = screen.getAllByRole('button');
       const session1Button = sessionButtons.find(btn => btn.textContent?.includes('セッション1'));
       expect(session1Button).toHaveClass('bg-blue-50');
@@ -379,19 +371,9 @@ describe('Sidebar', () => {
     it('プロジェクトごとにセッションがグループ化される', () => {
       render(<Sidebar />);
 
-      // プロジェクトAを展開
-      const toggleButtons = screen.getAllByTestId('project-toggle');
-      fireEvent.click(toggleButtons[0]);
-
-      // プロジェクトAのセッションのみ表示
+      // デフォルトで両プロジェクトが展開されているので、全セッションが表示される
       expect(screen.getByText('セッション1')).toBeInTheDocument();
       expect(screen.getByText('セッション2')).toBeInTheDocument();
-      expect(screen.queryByText('セッション3')).not.toBeInTheDocument();
-
-      // プロジェクトBを展開
-      fireEvent.click(toggleButtons[1]);
-
-      // プロジェクトBのセッションも表示
       expect(screen.getByText('セッション3')).toBeInTheDocument();
     });
   });

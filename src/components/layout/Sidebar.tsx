@@ -4,6 +4,7 @@ import { useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAppStore } from '@/store';
 import { useSettingsStore } from '@/store/settings';
+import { useUIStore } from '@/store/ui';
 import { ProjectTreeItem } from './ProjectTreeItem';
 
 /**
@@ -29,10 +30,8 @@ export function Sidebar() {
     fetchSessions,
   } = useAppStore();
   const { defaultModel } = useSettingsStore();
+  const { isProjectExpanded, toggleProject } = useUIStore();
   const [isCreating, setIsCreating] = useState(false);
-
-  // プロジェクトの展開状態を管理
-  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
 
   // プロジェクトごとにセッションをグループ化
   const sessionsByProject = useMemo(() => {
@@ -48,16 +47,8 @@ export function Sidebar() {
 
   // プロジェクト展開/折りたたみ切り替え
   const handleProjectToggle = useCallback((projectId: string) => {
-    setExpandedProjects((prev) => {
-      const next = new Set(prev);
-      if (next.has(projectId)) {
-        next.delete(projectId);
-      } else {
-        next.add(projectId);
-      }
-      return next;
-    });
-  }, []);
+    toggleProject(projectId);
+  }, [toggleProject]);
 
   // セッションクリック時の処理
   const handleSessionClick = useCallback(
@@ -146,7 +137,7 @@ export function Sidebar() {
                     key={project.id}
                     project={project}
                     sessions={sessionsByProject.get(project.id) || []}
-                    isExpanded={expandedProjects.has(project.id)}
+                    isExpanded={isProjectExpanded(project.id)}
                     currentSessionId={currentSessionId}
                     onToggle={() => handleProjectToggle(project.id)}
                     onSessionClick={(sessionId) =>
