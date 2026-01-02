@@ -2,27 +2,6 @@
 
 ClaudeWork の REST API とWebSocket API の概要です。
 
-## 認証
-
-すべての API リクエストには、セッションクッキーが必要です。
-
-### ログイン
-
-```http
-POST /api/auth/login
-Content-Type: application/json
-
-{
-  "token": "your-auth-token"
-}
-```
-
-### ログアウト
-
-```http
-POST /api/auth/logout
-```
-
 ## プロジェクト API
 
 ### プロジェクト一覧取得
