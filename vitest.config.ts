@@ -33,11 +33,6 @@ export default defineConfig({
     },
     // CI環境では並列化を制限してハングを防ぐ
     pool: 'forks',
-    poolOptions: {
-      forks: {
-        singleFork: process.env.CI ? true : false,
-      },
-    },
     maxConcurrency: process.env.CI ? 1 : 5,
     isolate: true,
     // APIテストの認証セッション競合を防ぐためファイル並列実行を無効化
