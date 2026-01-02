@@ -37,6 +37,7 @@ export interface UseTerminalReturn {
 const RECONNECT_DELAY = 1000; // 再接続までの待機時間（ミリ秒）
 const MAX_RECONNECT_ATTEMPTS = 5; // 最大再接続試行回数
 const RESIZE_DEBOUNCE_DELAY = 300; // リサイズデバウンス遅延（ミリ秒）
+const INIT_DEBOUNCE_DELAY = 100; // 初期化デバウンス遅延（ミリ秒）- React Strict Mode対策
 
 export function useTerminal(
   sessionId: string,
@@ -49,8 +50,10 @@ export function useTerminal(
   const onDataDisposableRef = useRef<IDisposable | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const initTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const isMountedRef = useRef(true);
+  const isInitializingRef = useRef(false);
   const prevIsVisibleRef = useRef(isVisible);
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -156,6 +159,11 @@ export function useTerminal(
       return;
     }
 
+    // 既に初期化中の場合はスキップ（React Strict Mode対策）
+    if (isInitializingRef.current) {
+      return;
+    }
+
     isMountedRef.current = true;
     reconnectAttemptsRef.current = 0;
 
@@ -163,6 +171,9 @@ export function useTerminal(
       try {
         // アンマウント後は処理を中断
         if (!isMountedRef.current) return;
+
+        // 初期化中フラグを設定
+        isInitializingRef.current = true;
 
         // xterm.jsを動的インポート（ブラウザ専用ライブラリ）
         const [{ Terminal }, { FitAddon }] = await Promise.all([
@@ -213,14 +224,27 @@ export function useTerminal(
         if (!isMountedRef.current) return;
         console.error('Failed to initialize terminal:', err);
         setError(err instanceof Error ? err.message : 'Failed to initialize terminal');
+      } finally {
+        // 初期化完了（成功/失敗に関わらず）
+        isInitializingRef.current = false;
       }
     };
 
-    initTerminal();
+    // デバウンス付きで初期化を実行（React Strict Mode対策）
+    // 短時間での複数回の初期化呼び出しを防止
+    initTimerRef.current = setTimeout(() => {
+      initTerminal();
+    }, INIT_DEBOUNCE_DELAY);
 
     // クリーンアップ
     return () => {
       isMountedRef.current = false;
+
+      // 初期化タイマーをクリア（初期化前にアンマウントされた場合）
+      if (initTimerRef.current) {
+        clearTimeout(initTimerRef.current);
+        initTimerRef.current = null;
+      }
 
       // 再接続タイマーをクリア
       if (reconnectTimerRef.current) {
@@ -244,7 +268,11 @@ export function useTerminal(
         wsRef.current.close();
       }
       setTerminal(null);
+
+      // 初期化フラグをリセット（次のマウント時に再初期化可能にする）
+      isInitializingRef.current = false;
     };
+    // NOTE: createWebSocketは内部でsessionIdを参照するため、sessionIdのみを依存配列に含める
   }, [sessionId, createWebSocket]);
 
   // リサイズ関数（useCallbackでメモ化して不要な再レンダリングを防止）

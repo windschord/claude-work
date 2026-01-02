@@ -241,8 +241,10 @@ describe('useTerminal', () => {
 
       const { result } = renderHook(() => useTerminal(sessionId));
 
-      // 初回接続
-      expect(connectionCount).toBe(1);
+      // 初回接続（デバウンス後）
+      await waitFor(() => {
+        expect(connectionCount).toBe(1);
+      });
 
       // 接続完了を待つ
       await waitFor(() => {
@@ -285,7 +287,10 @@ describe('useTerminal', () => {
 
       const { result } = renderHook(() => useTerminal(sessionId));
 
-      expect(connectionCount).toBe(1);
+      // デバウンス後に接続されることを確認
+      await waitFor(() => {
+        expect(connectionCount).toBe(1);
+      });
 
       await waitFor(() => {
         expect(result.current.isConnected).toBe(true);
@@ -331,7 +336,10 @@ describe('useTerminal', () => {
 
       const { result } = renderHook(() => useTerminal(sessionId));
 
-      expect(connectionCount).toBe(1);
+      // デバウンス後に接続されることを確認
+      await waitFor(() => {
+        expect(connectionCount).toBe(1);
+      });
 
       await waitFor(() => {
         expect(result.current.isConnected).toBe(true);
