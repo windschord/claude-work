@@ -56,6 +56,7 @@ MVP後に実装:
 | Phase 39 | ターミナル表示不具合修正 | - |
 | Phase 40 | プロセスライフサイクル管理 | - |
 | Phase 41 | JSON表示問題修正（stream-jsonフィルタリング） | - |
+| Phase 43 | UX改善機能（ターミナルリサイズ、セッション復帰、Tree表示、ワンクリック作成、通知強化） | - |
 
 ---
 
@@ -268,7 +269,7 @@ MVP後に実装:
 
 #### タスク43.1: xterm-addon-fitパッケージの追加
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
 **推定工数**: 5分
 
 **説明**:
@@ -287,7 +288,7 @@ npm install xterm-addon-fit
 
 #### タスク43.2: useClaudeTerminalフックのリサイズ機能実装
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
 **推定工数**: 40分
 **依存関係**: タスク43.1
 
@@ -325,7 +326,7 @@ npm install xterm-addon-fit
 
 #### タスク43.3: useTerminalフックのリサイズ機能実装
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
 **推定工数**: 30分
 **依存関係**: タスク43.1, タスク43.2
 
@@ -348,7 +349,7 @@ npm install xterm-addon-fit
 
 #### タスク43.4: PTYマネージャーのリサイズ対応
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
 **推定工数**: 30分
 **依存関係**: タスク43.2
 
@@ -375,7 +376,7 @@ npm install xterm-addon-fit
 
 #### タスク43.5: ClaudePTYManagerの--resumeオプション対応
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
 **推定工数**: 45分
 
 **説明**:
@@ -407,7 +408,7 @@ npm install xterm-addon-fit
 
 #### タスク43.6: resume APIエンドポイントの修正
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
 **推定工数**: 30分
 **依存関係**: タスク43.5
 
@@ -436,7 +437,7 @@ npm install xterm-addon-fit
 
 #### タスク43.7: SessionTreeItemコンポーネントの作成
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
 **推定工数**: 30分
 
 **説明**:
@@ -470,7 +471,7 @@ npm install xterm-addon-fit
 
 #### タスク43.8: ProjectTreeItemコンポーネントの作成
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
 **推定工数**: 40分
 **依存関係**: タスク43.7
 
@@ -500,7 +501,7 @@ npm install xterm-addon-fit
 
 #### タスク43.9: Sidebarコンポーネントの修正
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
 **推定工数**: 45分
 **依存関係**: タスク43.7, タスク43.8
 
@@ -528,7 +529,7 @@ npm install xterm-addon-fit
 
 #### タスク43.10: ストアにcurrentSessionId追加
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
 **推定工数**: 20分
 
 **説明**:
@@ -554,7 +555,7 @@ npm install xterm-addon-fit
 
 #### タスク43.11: useSettingsStoreの作成
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
 **推定工数**: 25分
 
 **説明**:
@@ -585,7 +586,7 @@ npm install xterm-addon-fit
 
 #### タスク43.12: QuickCreateButtonコンポーネントの作成
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
 **推定工数**: 35分
 **依存関係**: タスク43.11
 
@@ -614,7 +615,7 @@ npm install xterm-addon-fit
 
 #### タスク43.13: ModelSelectorコンポーネントの作成
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
 **推定工数**: 25分
 
 **説明**:
@@ -642,7 +643,7 @@ npm install xterm-addon-fit
 
 #### タスク43.14: SessionNameEditorコンポーネントの作成
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
 **推定工数**: 30分
 
 **説明**:
@@ -671,7 +672,7 @@ npm install xterm-addon-fit
 
 #### タスク43.15: セッション作成APIのプロンプト任意化
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
 **推定工数**: 20分
 
 **説明**:
@@ -697,7 +698,7 @@ npm install xterm-addon-fit
 
 #### タスク43.16: セッション名更新API（PATCH）の追加
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
 **推定工数**: 25分
 
 **説明**:
@@ -726,7 +727,7 @@ npm install xterm-addon-fit
 
 #### タスク43.17: action-detector.tsの作成
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
 **推定工数**: 30分
 
 **説明**:
@@ -755,7 +756,7 @@ npm install xterm-addon-fit
 
 #### タスク43.18: useClaudeTerminalへの通知機能統合
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
 **推定工数**: 35分
 **依存関係**: タスク43.17
 
@@ -783,7 +784,7 @@ npm install xterm-addon-fit
 
 #### タスク43.19: 通知サービスの拡張
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
 **推定工数**: 20分
 
 **説明**:
@@ -808,7 +809,7 @@ npm install xterm-addon-fit
 
 #### タスク43.20: 通知設定UIの更新
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
 **推定工数**: 20分
 **依存関係**: タスク43.19
 
@@ -836,7 +837,7 @@ npm install xterm-addon-fit
 
 #### タスク43.21: 全機能の統合テスト
 
-**ステータス**: `TODO`
+**ステータス**: `DONE`
 **推定工数**: 60分
 **依存関係**: タスク43.1〜43.20
 
