@@ -6,27 +6,16 @@ import { mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { execSync } from 'child_process';
-import { randomUUID } from 'crypto';
-import type { AuthSession, Project, Session } from '@prisma/client';
+import type { Project, Session } from '@prisma/client';
 
 describe('GET /api/sessions/[id]/diff', () => {
   let testRepoPath: string;
-  let authSession: AuthSession;
   let project: Project;
   let session: Session;
 
   beforeEach(async () => {
     await prisma.session.deleteMany();
     await prisma.project.deleteMany();
-    await prisma.authSession.deleteMany();
-
-    authSession = await prisma.authSession.create({
-      data: {
-        id: randomUUID(),
-        token_hash: 'test-hash',
-        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      },
-    });
 
     testRepoPath = mkdtempSync(join(tmpdir(), 'diff-test-'));
     execSync('git init', { cwd: testRepoPath });
@@ -72,7 +61,6 @@ describe('GET /api/sessions/[id]/diff', () => {
   afterEach(async () => {
     await prisma.session.deleteMany();
     await prisma.project.deleteMany();
-    await prisma.authSession.deleteMany();
     if (testRepoPath) {
       rmSync(testRepoPath, { recursive: true, force: true });
     }
@@ -83,9 +71,6 @@ describe('GET /api/sessions/[id]/diff', () => {
       `http://localhost:3000/api/sessions/${session.id}/diff`,
       {
         method: 'GET',
-        headers: {
-          cookie: `sessionId=${authSession.id}`,
-        },
       }
     );
 
@@ -118,28 +103,11 @@ describe('GET /api/sessions/[id]/diff', () => {
   it('should return 404 for non-existent session', async () => {
     const request = new NextRequest('http://localhost:3000/api/sessions/non-existent/diff', {
       method: 'GET',
-      headers: {
-        cookie: `sessionId=${authSession.id}`,
-      },
     });
 
     const response = await GET(request, {
       params: Promise.resolve({ id: 'non-existent' }),
     });
     expect(response.status).toBe(404);
-  });
-
-  it('should return 401 if not authenticated', async () => {
-    const request = new NextRequest(
-      `http://localhost:3000/api/sessions/${session.id}/diff`,
-      {
-        method: 'GET',
-      }
-    );
-
-    const response = await GET(request, {
-      params: Promise.resolve({ id: session.id }),
-    });
-    expect(response.status).toBe(401);
   });
 });

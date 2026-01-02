@@ -6,12 +6,10 @@ import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync } from 'fs
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { execSync } from 'child_process';
-import { randomUUID } from 'crypto';
-import type { AuthSession, Project, Session } from '@prisma/client';
+import type { Project, Session } from '@prisma/client';
 
 describe('POST /api/sessions/[id]/reset', () => {
   let testRepoPath: string;
-  let authSession: AuthSession;
   let project: Project;
   let session: Session;
   let commitHashes: string[] = [];
@@ -19,15 +17,6 @@ describe('POST /api/sessions/[id]/reset', () => {
   beforeEach(async () => {
     await prisma.session.deleteMany();
     await prisma.project.deleteMany();
-    await prisma.authSession.deleteMany();
-
-    authSession = await prisma.authSession.create({
-      data: {
-        id: randomUUID(),
-        token_hash: 'test-hash',
-        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      },
-    });
 
     testRepoPath = mkdtempSync(join(tmpdir(), 'reset-test-'));
     execSync('git init', { cwd: testRepoPath });
@@ -103,7 +92,6 @@ describe('POST /api/sessions/[id]/reset', () => {
   afterEach(async () => {
     await prisma.session.deleteMany();
     await prisma.project.deleteMany();
-    await prisma.authSession.deleteMany();
     if (testRepoPath) {
       rmSync(testRepoPath, { recursive: true, force: true });
     }
@@ -118,7 +106,6 @@ describe('POST /api/sessions/[id]/reset', () => {
       {
         method: 'POST',
         headers: {
-          cookie: `sessionId=${authSession.id}`,
           'content-type': 'application/json',
         },
         body: JSON.stringify({ commit_hash: targetCommit }),
@@ -148,7 +135,6 @@ describe('POST /api/sessions/[id]/reset', () => {
       {
         method: 'POST',
         headers: {
-          cookie: `sessionId=${authSession.id}`,
           'content-type': 'application/json',
         },
         body: JSON.stringify({ commit_hash: targetCommit }),
@@ -180,7 +166,6 @@ describe('POST /api/sessions/[id]/reset', () => {
       {
         method: 'POST',
         headers: {
-          cookie: `sessionId=${authSession.id}`,
           'content-type': 'application/json',
         },
         body: JSON.stringify({ commit_hash: targetCommit }),
@@ -212,7 +197,6 @@ describe('POST /api/sessions/[id]/reset', () => {
       {
         method: 'POST',
         headers: {
-          cookie: `sessionId=${authSession.id}`,
           'content-type': 'application/json',
         },
         body: JSON.stringify({ commit_hash: targetCommit }),
@@ -234,7 +218,6 @@ describe('POST /api/sessions/[id]/reset', () => {
       {
         method: 'POST',
         headers: {
-          cookie: `sessionId=${authSession.id}`,
           'content-type': 'application/json',
         },
         body: JSON.stringify({ commit_hash: 'invalid-hash' }),
@@ -253,7 +236,6 @@ describe('POST /api/sessions/[id]/reset', () => {
       {
         method: 'POST',
         headers: {
-          cookie: `sessionId=${authSession.id}`,
           'content-type': 'application/json',
         },
         body: JSON.stringify({ commit_hash: fakeHash }),
@@ -270,7 +252,6 @@ describe('POST /api/sessions/[id]/reset', () => {
       {
         method: 'POST',
         headers: {
-          cookie: `sessionId=${authSession.id}`,
           'content-type': 'application/json',
         },
         body: JSON.stringify({}),
@@ -285,7 +266,6 @@ describe('POST /api/sessions/[id]/reset', () => {
     const request = new NextRequest('http://localhost:3000/api/sessions/non-existent/reset', {
       method: 'POST',
       headers: {
-        cookie: `sessionId=${authSession.id}`,
         'content-type': 'application/json',
       },
       body: JSON.stringify({ commit_hash: commitHashes[0] }),
@@ -293,22 +273,6 @@ describe('POST /api/sessions/[id]/reset', () => {
 
     const response = await POST(request, { params: Promise.resolve({ id: 'non-existent' }) });
     expect(response.status).toBe(404);
-  });
-
-  it('should return 401 if not authenticated', async () => {
-    const request = new NextRequest(
-      `http://localhost:3000/api/sessions/${session.id}/reset`,
-      {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({ commit_hash: commitHashes[0] }),
-      }
-    );
-
-    const response = await POST(request, { params: Promise.resolve({ id: session.id }) });
-    expect(response.status).toBe(401);
   });
 
   it('should accept both full and short commit hashes', async () => {
@@ -320,7 +284,6 @@ describe('POST /api/sessions/[id]/reset', () => {
       {
         method: 'POST',
         headers: {
-          cookie: `sessionId=${authSession.id}`,
           'content-type': 'application/json',
         },
         body: JSON.stringify({ commit_hash: shortHash }),

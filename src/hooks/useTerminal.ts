@@ -272,7 +272,7 @@ export function useTerminal(
       // 初期化フラグをリセット（次のマウント時に再初期化可能にする）
       isInitializingRef.current = false;
     };
-    // NOTE: createWebSocketは内部でsessionIdを参照するため、sessionIdのみを依存配列に含める
+    // NOTE: sessionIdとcreateWebSocketを依存配列に含める（createWebSocketはuseCallbackでメモ化済み）
   }, [sessionId, createWebSocket]);
 
   // リサイズ関数（useCallbackでメモ化して不要な再レンダリングを防止）

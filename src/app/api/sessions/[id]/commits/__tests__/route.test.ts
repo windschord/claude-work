@@ -6,27 +6,16 @@ import { mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { execSync } from 'child_process';
-import { randomUUID } from 'crypto';
-import type { AuthSession, Project, Session } from '@prisma/client';
+import type { Project, Session } from '@prisma/client';
 
 describe('GET /api/sessions/{id}/commits', () => {
   let testRepoPath: string;
-  let authSession: AuthSession;
   let project: Project;
   let session: Session;
 
   beforeEach(async () => {
     await prisma.session.deleteMany();
     await prisma.project.deleteMany();
-    await prisma.authSession.deleteMany();
-
-    authSession = await prisma.authSession.create({
-      data: {
-        id: randomUUID(),
-        token_hash: 'test-hash',
-        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      },
-    });
 
     testRepoPath = mkdtempSync(join(tmpdir(), 'commits-test-'));
     execSync('git init', { cwd: testRepoPath });
@@ -76,30 +65,14 @@ describe('GET /api/sessions/{id}/commits', () => {
   afterEach(async () => {
     await prisma.session.deleteMany();
     await prisma.project.deleteMany();
-    await prisma.authSession.deleteMany();
     if (testRepoPath) {
       rmSync(testRepoPath, { recursive: true, force: true });
     }
   });
 
-  it('認証されていない場合は401を返す', async () => {
-    const request = new NextRequest(
-      `http://localhost:3000/api/sessions/${session.id}/commits`,
-      {
-        method: 'GET',
-      }
-    );
-
-    const response = await GET(request, { params: Promise.resolve({ id: session.id }) });
-    expect(response.status).toBe(401);
-  });
-
   it('セッションが見つからない場合は404を返す', async () => {
     const request = new NextRequest('http://localhost:3000/api/sessions/non-existent/commits', {
       method: 'GET',
-      headers: {
-        cookie: `sessionId=${authSession.id}`,
-      },
     });
 
     const response = await GET(request, { params: Promise.resolve({ id: 'non-existent' }) });
@@ -111,9 +84,6 @@ describe('GET /api/sessions/{id}/commits', () => {
       `http://localhost:3000/api/sessions/${session.id}/commits`,
       {
         method: 'GET',
-        headers: {
-          cookie: `sessionId=${authSession.id}`,
-        },
       }
     );
 

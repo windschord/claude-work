@@ -6,29 +6,17 @@ import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { execSync } from 'child_process';
-import { randomUUID } from 'crypto';
-import type { AuthSession } from '@prisma/client';
 
 describe('GET /api/projects', () => {
   let testRepoPath: string;
-  let authSession: AuthSession;
   let originalAllowedDirs: string | undefined;
 
   beforeEach(async () => {
     await prisma.project.deleteMany();
-    await prisma.authSession.deleteMany();
 
     // 環境変数をバックアップして無効化（テストごとに制御するため）
     originalAllowedDirs = process.env.ALLOWED_PROJECT_DIRS;
     delete process.env.ALLOWED_PROJECT_DIRS;
-
-    authSession = await prisma.authSession.create({
-      data: {
-        id: randomUUID(),
-        token_hash: 'test-hash',
-        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      },
-    });
 
     testRepoPath = mkdtempSync(join(tmpdir(), 'project-test-'));
     execSync('git init', { cwd: testRepoPath });
@@ -43,7 +31,6 @@ describe('GET /api/projects', () => {
 
   afterEach(async () => {
     await prisma.project.deleteMany();
-    await prisma.authSession.deleteMany();
     if (testRepoPath) {
       rmSync(testRepoPath, { recursive: true, force: true });
     }
@@ -63,11 +50,7 @@ describe('GET /api/projects', () => {
       },
     });
 
-    const request = new NextRequest('http://localhost:3000/api/projects', {
-      headers: {
-        cookie: `sessionId=${authSession.id}`,
-      },
-    });
+    const request = new NextRequest('http://localhost:3000/api/projects');
 
     const response = await GET(request);
     expect(response.status).toBe(200);
@@ -79,13 +62,6 @@ describe('GET /api/projects', () => {
     expect(data.projects[0].path).toBe(testRepoPath);
   });
 
-  it('should return 401 if not authenticated', async () => {
-    const request = new NextRequest('http://localhost:3000/api/projects');
-
-    const response = await GET(request);
-    expect(response.status).toBe(401);
-  });
-
   it('should return response in {projects: [...]} format when projects exist', async () => {
     await prisma.project.create({
       data: {
@@ -94,11 +70,7 @@ describe('GET /api/projects', () => {
       },
     });
 
-    const request = new NextRequest('http://localhost:3000/api/projects', {
-      headers: {
-        cookie: `sessionId=${authSession.id}`,
-      },
-    });
+    const request = new NextRequest('http://localhost:3000/api/projects');
 
     const response = await GET(request);
     expect(response.status).toBe(200);
@@ -112,11 +84,7 @@ describe('GET /api/projects', () => {
   });
 
   it('should return {projects: []} format when no projects exist', async () => {
-    const request = new NextRequest('http://localhost:3000/api/projects', {
-      headers: {
-        cookie: `sessionId=${authSession.id}`,
-      },
-    });
+    const request = new NextRequest('http://localhost:3000/api/projects');
 
     const response = await GET(request);
     expect(response.status).toBe(200);
@@ -130,24 +98,14 @@ describe('GET /api/projects', () => {
 
 describe('POST /api/projects', () => {
   let testRepoPath: string;
-  let authSession: AuthSession;
   let originalAllowedDirs: string | undefined;
 
   beforeEach(async () => {
     await prisma.project.deleteMany();
-    await prisma.authSession.deleteMany();
 
     // 環境変数をバックアップして無効化（テストごとに制御するため）
     originalAllowedDirs = process.env.ALLOWED_PROJECT_DIRS;
     delete process.env.ALLOWED_PROJECT_DIRS;
-
-    authSession = await prisma.authSession.create({
-      data: {
-        id: randomUUID(),
-        token_hash: 'test-hash',
-        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      },
-    });
 
     testRepoPath = mkdtempSync(join(tmpdir(), 'project-test-'));
     execSync('git init', { cwd: testRepoPath });
@@ -162,7 +120,6 @@ describe('POST /api/projects', () => {
 
   afterEach(async () => {
     await prisma.project.deleteMany();
-    await prisma.authSession.deleteMany();
     if (testRepoPath) {
       rmSync(testRepoPath, { recursive: true, force: true });
     }
@@ -179,7 +136,6 @@ describe('POST /api/projects', () => {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        cookie: `sessionId=${authSession.id}`,
       },
       body: JSON.stringify({
         path: testRepoPath,
@@ -207,7 +163,6 @@ describe('POST /api/projects', () => {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        cookie: `sessionId=${authSession.id}`,
       },
       body: JSON.stringify({
         path: invalidPath,
@@ -223,28 +178,12 @@ describe('POST /api/projects', () => {
     rmSync(invalidPath, { recursive: true, force: true });
   });
 
-  it('should return 401 if not authenticated', async () => {
-    const request = new NextRequest('http://localhost:3000/api/projects', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        path: testRepoPath,
-      }),
-    });
-
-    const response = await POST(request);
-    expect(response.status).toBe(401);
-  });
-
   it('should return 409 when adding duplicate project path', async () => {
     // 最初のプロジェクト作成
     const firstRequest = new NextRequest('http://localhost:3000/api/projects', {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        cookie: `sessionId=${authSession.id}`,
       },
       body: JSON.stringify({
         path: testRepoPath,
@@ -259,7 +198,6 @@ describe('POST /api/projects', () => {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        cookie: `sessionId=${authSession.id}`,
       },
       body: JSON.stringify({
         path: testRepoPath,
@@ -278,7 +216,6 @@ describe('POST /api/projects', () => {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        cookie: `sessionId=${authSession.id}`,
       },
       body: JSON.stringify({
         path: testRepoPath,
@@ -316,7 +253,6 @@ describe('POST /api/projects', () => {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          cookie: `sessionId=${authSession.id}`,
         },
         body: JSON.stringify({
           path: testRepoPath,
@@ -334,7 +270,6 @@ describe('POST /api/projects', () => {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          cookie: `sessionId=${authSession.id}`,
         },
         body: JSON.stringify({
           path: testRepoPath,
@@ -362,7 +297,6 @@ describe('POST /api/projects', () => {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          cookie: `sessionId=${authSession.id}`,
         },
         body: JSON.stringify({
           path: allowedPath,
@@ -392,7 +326,6 @@ describe('POST /api/projects', () => {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          cookie: `sessionId=${authSession.id}`,
         },
         body: JSON.stringify({
           path: disallowedPath,

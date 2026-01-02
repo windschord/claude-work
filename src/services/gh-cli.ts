@@ -3,7 +3,7 @@
  * PR作成やステータス取得を行う
  */
 
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 
 export interface PRInfo {
   url: string;
@@ -21,7 +21,7 @@ export interface PRStatus {
  */
 export function isGhAvailable(): boolean {
   try {
-    execSync('gh --version', { stdio: 'pipe' });
+    execFileSync('gh', ['--version'], { stdio: 'pipe' });
     return true;
   } catch {
     return false;
@@ -42,16 +42,14 @@ export function createPR(options: {
 }): string {
   const { title, body, branchName, cwd } = options;
 
-  const escapedTitle = title.replace(/"/g, '\\"');
-  const escapedBody = body?.replace(/"/g, '\\"') || '';
-
-  let command = `gh pr create --title "${escapedTitle}" --head "${branchName}"`;
+  // execFileSyncを使用してシェルインジェクションを防止
+  const args = ['pr', 'create', '--title', title, '--head', branchName];
   if (body) {
-    command += ` --body "${escapedBody}"`;
+    args.push('--body', body);
   }
 
   try {
-    const result = execSync(command, {
+    const result = execFileSync('gh', args, {
       cwd,
       encoding: 'utf-8',
     });
@@ -74,8 +72,7 @@ export function createPR(options: {
  * @returns PRステータス
  */
 export function getPRStatus(prNumber: number, cwd: string): PRStatus {
-  const command = `gh pr view ${prNumber} --json state,merged`;
-  const result = execSync(command, {
+  const result = execFileSync('gh', ['pr', 'view', String(prNumber), '--json', 'state,merged'], {
     cwd,
     encoding: 'utf-8',
   });

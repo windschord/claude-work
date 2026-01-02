@@ -3,19 +3,17 @@ import { PUT, DELETE } from '../route';
 import { prisma } from '@/lib/db';
 import { NextRequest } from 'next/server';
 import { randomUUID } from 'crypto';
-import type { AuthSession, Project, RunScript } from '@prisma/client';
+import type { Project, RunScript } from '@prisma/client';
 import { setupTestEnvironment, cleanupTestEnvironment } from '../../__tests__/test-helpers';
 
 // 共通テストセットアップ
 let testRepoPath: string;
-let authSession: AuthSession;
 let project: Project;
 let script: RunScript;
 
 beforeEach(async () => {
   const env = await setupTestEnvironment();
   testRepoPath = env.testRepoPath;
-  authSession = env.authSession;
   project = env.project;
 
   script = await prisma.runScript.create({
@@ -41,7 +39,6 @@ describe('PUT /api/projects/[project_id]/scripts/[scriptId]', () => {
         method: 'PUT',
         headers: {
           'content-type': 'application/json',
-          cookie: `sessionId=${authSession.id}`,
         },
         body: JSON.stringify({
           name: 'Test Updated',
@@ -74,7 +71,6 @@ describe('PUT /api/projects/[project_id]/scripts/[scriptId]', () => {
         method: 'PUT',
         headers: {
           'content-type': 'application/json',
-          cookie: `sessionId=${authSession.id}`,
         },
         body: JSON.stringify({
           name: 'Test Updated',
@@ -101,7 +97,6 @@ describe('PUT /api/projects/[project_id]/scripts/[scriptId]', () => {
         method: 'PUT',
         headers: {
           'content-type': 'application/json',
-          cookie: `sessionId=${authSession.id}`,
         },
         body: JSON.stringify({
           name: 'Test Updated',
@@ -114,26 +109,6 @@ describe('PUT /api/projects/[project_id]/scripts/[scriptId]', () => {
     });
     expect(response.status).toBe(404);
   });
-
-  it('should return 401 if not authenticated', async () => {
-    const request = new NextRequest(
-      `http://localhost:3000/api/projects/${project.id}/scripts/${script.id}`,
-      {
-        method: 'PUT',
-        headers: {
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: 'Test Updated',
-        }),
-      }
-    );
-
-    const response = await PUT(request, {
-      params: Promise.resolve({ project_id: project.id, scriptId: script.id }),
-    });
-    expect(response.status).toBe(401);
-  });
 });
 
 describe('DELETE /api/projects/[project_id]/scripts/[scriptId]', () => {
@@ -143,9 +118,6 @@ describe('DELETE /api/projects/[project_id]/scripts/[scriptId]', () => {
       `http://localhost:3000/api/projects/${project.id}/scripts/${script.id}`,
       {
         method: 'DELETE',
-        headers: {
-          cookie: `sessionId=${authSession.id}`,
-        },
       }
     );
 
@@ -166,9 +138,6 @@ describe('DELETE /api/projects/[project_id]/scripts/[scriptId]', () => {
       `http://localhost:3000/api/projects/${project.id}/scripts/${fakeId}`,
       {
         method: 'DELETE',
-        headers: {
-          cookie: `sessionId=${authSession.id}`,
-        },
       }
     );
 
@@ -176,19 +145,5 @@ describe('DELETE /api/projects/[project_id]/scripts/[scriptId]', () => {
       params: Promise.resolve({ project_id: project.id, scriptId: fakeId }),
     });
     expect(response.status).toBe(404);
-  });
-
-  it('should return 401 if not authenticated', async () => {
-    const request = new NextRequest(
-      `http://localhost:3000/api/projects/${project.id}/scripts/${script.id}`,
-      {
-        method: 'DELETE',
-      }
-    );
-
-    const response = await DELETE(request, {
-      params: Promise.resolve({ project_id: project.id, scriptId: script.id }),
-    });
-    expect(response.status).toBe(401);
   });
 });

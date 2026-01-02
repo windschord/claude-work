@@ -76,6 +76,7 @@ export function SessionNameEditor({
         const errorMessage = data.error || 'Failed to update session name';
         onError?.(errorMessage);
         setName(initialName);
+        setIsEditing(false);
         return;
       }
 
@@ -85,6 +86,7 @@ export function SessionNameEditor({
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       onError?.(errorMessage);
       setName(initialName);
+      setIsEditing(false);
     } finally {
       setIsLoading(false);
     }

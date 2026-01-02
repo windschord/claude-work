@@ -21,10 +21,26 @@ jobs:
         node-version: '20'
         cache: 'npm'
 
+    - name: Cache node_modules
+      id: cache-node-modules
+      uses: actions/cache@v4
+      with:
+        path: node_modules
+        key: node-modules-${{ hashFiles('package-lock.json') }}
+
     - name: Install dependencies
+      if: steps.cache-node-modules.outputs.cache-hit != 'true'
       run: npm ci
 
+    - name: Cache Prisma Client
+      id: cache-prisma
+      uses: actions/cache@v4
+      with:
+        path: node_modules/.prisma
+        key: prisma-${{ hashFiles('prisma/schema.prisma') }}
+
     - name: Generate Prisma Client
+      if: steps.cache-prisma.outputs.cache-hit != 'true'
       run: npx prisma generate
 
     - name: Run linter
@@ -47,10 +63,26 @@ jobs:
         node-version: '20'
         cache: 'npm'
 
+    - name: Cache node_modules
+      id: cache-node-modules
+      uses: actions/cache@v4
+      with:
+        path: node_modules
+        key: node-modules-${{ hashFiles('package-lock.json') }}
+
     - name: Install dependencies
+      if: steps.cache-node-modules.outputs.cache-hit != 'true'
       run: npm ci
 
+    - name: Cache Prisma Client
+      id: cache-prisma
+      uses: actions/cache@v4
+      with:
+        path: node_modules/.prisma
+        key: prisma-${{ hashFiles('prisma/schema.prisma') }}
+
     - name: Generate Prisma Client
+      if: steps.cache-prisma.outputs.cache-hit != 'true'
       run: npx prisma generate
 
     - name: Run backend tests
@@ -74,21 +106,37 @@ jobs:
         node-version: '20'
         cache: 'npm'
 
+    - name: Cache node_modules
+      id: cache-node-modules
+      uses: actions/cache@v4
+      with:
+        path: node_modules
+        key: node-modules-${{ hashFiles('package-lock.json') }}
+
     - name: Install dependencies
+      if: steps.cache-node-modules.outputs.cache-hit != 'true'
       run: npm ci
 
+    - name: Cache Prisma Client
+      id: cache-prisma
+      uses: actions/cache@v4
+      with:
+        path: node_modules/.prisma
+        key: prisma-${{ hashFiles('prisma/schema.prisma') }}
+
     - name: Generate Prisma Client
+      if: steps.cache-prisma.outputs.cache-hit != 'true'
       run: npx prisma generate
 
     - name: Run frontend tests
       run: npx vitest run src/components src/hooks src/store src/app --exclude='src/app/api/**' --reporter=verbose
       timeout-minutes: 8
 
-  # Build job - depends on lint passing
+  # Build job - depends on all tests passing
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: [lint]
+    needs: [lint, test-backend, test-frontend]
 
     env:
       DATABASE_URL: file:./data/test.db
@@ -102,10 +150,26 @@ jobs:
         node-version: '20'
         cache: 'npm'
 
+    - name: Cache node_modules
+      id: cache-node-modules
+      uses: actions/cache@v4
+      with:
+        path: node_modules
+        key: node-modules-${{ hashFiles('package-lock.json') }}
+
     - name: Install dependencies
+      if: steps.cache-node-modules.outputs.cache-hit != 'true'
       run: npm ci
 
+    - name: Cache Prisma Client
+      id: cache-prisma
+      uses: actions/cache@v4
+      with:
+        path: node_modules/.prisma
+        key: prisma-${{ hashFiles('prisma/schema.prisma') }}
+
     - name: Generate Prisma Client
+      if: steps.cache-prisma.outputs.cache-hit != 'true'
       run: npx prisma generate
 
     - name: Build

@@ -6,8 +6,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { execSync } from 'child_process';
-import { randomUUID } from 'crypto';
-import type { AuthSession, Project, Session } from '@prisma/client';
+import type { Project, Session } from '@prisma/client';
 
 const { mockStop, mockGetStatus } = vi.hoisted(() => ({
   mockStop: vi.fn().mockResolvedValue(undefined),
@@ -26,7 +25,6 @@ vi.mock('@/services/run-script-manager', () => ({
 
 describe('POST /api/sessions/[id]/run/[run_id]/stop', () => {
   let testRepoPath: string;
-  let authSession: AuthSession;
   let project: Project;
   let session: Session;
 
@@ -35,15 +33,6 @@ describe('POST /api/sessions/[id]/run/[run_id]/stop', () => {
 
     await prisma.session.deleteMany();
     await prisma.project.deleteMany();
-    await prisma.authSession.deleteMany();
-
-    authSession = await prisma.authSession.create({
-      data: {
-        id: randomUUID(),
-        token_hash: 'test-hash',
-        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      },
-    });
 
     testRepoPath = mkdtempSync(join(tmpdir(), 'run-script-stop-test-'));
     execSync('git init', { cwd: testRepoPath });
@@ -88,7 +77,6 @@ describe('POST /api/sessions/[id]/run/[run_id]/stop', () => {
   afterEach(async () => {
     await prisma.session.deleteMany();
     await prisma.project.deleteMany();
-    await prisma.authSession.deleteMany();
     if (testRepoPath) {
       rmSync(testRepoPath, { recursive: true, force: true });
     }
@@ -99,9 +87,6 @@ describe('POST /api/sessions/[id]/run/[run_id]/stop', () => {
       `http://localhost:3000/api/sessions/${session.id}/run/test-run-id/stop`,
       {
         method: 'POST',
-        headers: {
-          cookie: `sessionId=${authSession.id}`,
-        },
       }
     );
 
@@ -116,28 +101,11 @@ describe('POST /api/sessions/[id]/run/[run_id]/stop', () => {
     expect(mockStop).toHaveBeenCalledWith('test-run-id');
   });
 
-  it('should return 401 if not authenticated', async () => {
-    const request = new NextRequest(
-      `http://localhost:3000/api/sessions/${session.id}/run/test-run-id/stop`,
-      {
-        method: 'POST',
-      }
-    );
-
-    const response = await POST(request, {
-      params: Promise.resolve({ id: session.id, run_id: 'test-run-id' }),
-    });
-    expect(response.status).toBe(401);
-  });
-
   it('should return 404 if session not found', async () => {
     const request = new NextRequest(
       'http://localhost:3000/api/sessions/non-existent/run/test-run-id/stop',
       {
         method: 'POST',
-        headers: {
-          cookie: `sessionId=${authSession.id}`,
-        },
       }
     );
 
@@ -154,9 +122,6 @@ describe('POST /api/sessions/[id]/run/[run_id]/stop', () => {
       `http://localhost:3000/api/sessions/${session.id}/run/non-existent-run-id/stop`,
       {
         method: 'POST',
-        headers: {
-          cookie: `sessionId=${authSession.id}`,
-        },
       }
     );
 

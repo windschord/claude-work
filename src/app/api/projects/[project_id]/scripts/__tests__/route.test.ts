@@ -2,18 +2,16 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { GET, POST } from '../route';
 import { prisma } from '@/lib/db';
 import { NextRequest } from 'next/server';
-import type { AuthSession, Project } from '@prisma/client';
+import type { Project } from '@prisma/client';
 import { setupTestEnvironment, cleanupTestEnvironment } from './test-helpers';
 
 describe('GET /api/projects/[project_id]/scripts', () => {
   let testRepoPath: string;
-  let authSession: AuthSession;
   let project: Project;
 
   beforeEach(async () => {
     const env = await setupTestEnvironment();
     testRepoPath = env.testRepoPath;
-    authSession = env.authSession;
     project = env.project;
   });
 
@@ -40,12 +38,7 @@ describe('GET /api/projects/[project_id]/scripts', () => {
     });
 
     const request = new NextRequest(
-      `http://localhost:3000/api/projects/${project.id}/scripts`,
-      {
-        headers: {
-          cookie: `sessionId=${authSession.id}`,
-        },
-      }
+      `http://localhost:3000/api/projects/${project.id}/scripts`
     );
 
     const response = await GET(request, {
@@ -62,12 +55,7 @@ describe('GET /api/projects/[project_id]/scripts', () => {
 
   it('should return empty array when no scripts exist', async () => {
     const request = new NextRequest(
-      `http://localhost:3000/api/projects/${project.id}/scripts`,
-      {
-        headers: {
-          cookie: `sessionId=${authSession.id}`,
-        },
-      }
+      `http://localhost:3000/api/projects/${project.id}/scripts`
     );
 
     const response = await GET(request, {
@@ -78,28 +66,15 @@ describe('GET /api/projects/[project_id]/scripts', () => {
     const data = await response.json();
     expect(data.scripts).toEqual([]);
   });
-
-  it('should return 401 if not authenticated', async () => {
-    const request = new NextRequest(
-      `http://localhost:3000/api/projects/${project.id}/scripts`
-    );
-
-    const response = await GET(request, {
-      params: Promise.resolve({ project_id: project.id }),
-    });
-    expect(response.status).toBe(401);
-  });
 });
 
 describe('POST /api/projects/[project_id]/scripts', () => {
   let testRepoPath: string;
-  let authSession: AuthSession;
   let project: Project;
 
   beforeEach(async () => {
     const env = await setupTestEnvironment();
     testRepoPath = env.testRepoPath;
-    authSession = env.authSession;
     project = env.project;
   });
 
@@ -114,7 +89,6 @@ describe('POST /api/projects/[project_id]/scripts', () => {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          cookie: `sessionId=${authSession.id}`,
         },
         body: JSON.stringify({
           name: 'Test',
@@ -149,7 +123,6 @@ describe('POST /api/projects/[project_id]/scripts', () => {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          cookie: `sessionId=${authSession.id}`,
         },
         body: JSON.stringify({
           name: 'Build',
@@ -176,7 +149,6 @@ describe('POST /api/projects/[project_id]/scripts', () => {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          cookie: `sessionId=${authSession.id}`,
         },
         body: JSON.stringify({
           command: 'npm test',
@@ -197,7 +169,6 @@ describe('POST /api/projects/[project_id]/scripts', () => {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          cookie: `sessionId=${authSession.id}`,
         },
         body: JSON.stringify({
           name: 'Test',
@@ -209,26 +180,5 @@ describe('POST /api/projects/[project_id]/scripts', () => {
       params: Promise.resolve({ project_id: project.id }),
     });
     expect(response.status).toBe(400);
-  });
-
-  it('should return 401 if not authenticated', async () => {
-    const request = new NextRequest(
-      `http://localhost:3000/api/projects/${project.id}/scripts`,
-      {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: 'Test',
-          command: 'npm test',
-        }),
-      }
-    );
-
-    const response = await POST(request, {
-      params: Promise.resolve({ project_id: project.id }),
-    });
-    expect(response.status).toBe(401);
   });
 });

@@ -8,7 +8,7 @@ services:
       - "3000:3000"
     volumes:
       - ./data:/app/data
-      - ${GIT_REPOS_PATH:-/home}:/repos:ro
+      - ${GIT_REPOS_PATH:?GIT_REPOS_PATH must be set}:/repos:ro
     environment:
       - NODE_ENV=production
       - DATABASE_URL=${DATABASE_URL:-file:./data/claudework.db}

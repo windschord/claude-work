@@ -6,8 +6,7 @@ import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { execSync } from 'child_process';
-import { randomUUID } from 'crypto';
-import type { AuthSession, Project } from '@prisma/client';
+import type { Project } from '@prisma/client';
 
 vi.mock('@/services/process-manager', () => ({
   ProcessManager: {
@@ -29,21 +28,11 @@ vi.mock('@/services/process-manager', () => ({
 
 describe('GET /api/projects/[project_id]/sessions', () => {
   let testRepoPath: string;
-  let authSession: AuthSession;
   let project: Project;
 
   beforeEach(async () => {
     await prisma.session.deleteMany();
     await prisma.project.deleteMany();
-    await prisma.authSession.deleteMany();
-
-    authSession = await prisma.authSession.create({
-      data: {
-        id: randomUUID(),
-        token_hash: 'test-hash',
-        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      },
-    });
 
     testRepoPath = mkdtempSync(join(tmpdir(), 'session-test-'));
     execSync('git init', { cwd: testRepoPath });
@@ -66,7 +55,6 @@ describe('GET /api/projects/[project_id]/sessions', () => {
   afterEach(async () => {
     await prisma.session.deleteMany();
     await prisma.project.deleteMany();
-    await prisma.authSession.deleteMany();
     if (testRepoPath) {
       rmSync(testRepoPath, { recursive: true, force: true });
     }
@@ -85,12 +73,7 @@ describe('GET /api/projects/[project_id]/sessions', () => {
     });
 
     const request = new NextRequest(
-      `http://localhost:3000/api/projects/${project.id}/sessions`,
-      {
-        headers: {
-          cookie: `sessionId=${authSession.id}`,
-        },
-      }
+      `http://localhost:3000/api/projects/${project.id}/sessions`
     );
 
     const response = await GET(request, { params: Promise.resolve({ project_id: project.id }) });
@@ -102,34 +85,15 @@ describe('GET /api/projects/[project_id]/sessions', () => {
     expect(data.sessions[0].name).toBe('Test Session');
     expect(data.sessions[0].project_id).toBe(project.id);
   });
-
-  it('should return 401 if not authenticated', async () => {
-    const request = new NextRequest(
-      `http://localhost:3000/api/projects/${project.id}/sessions`
-    );
-
-    const response = await GET(request, { params: Promise.resolve({ project_id: project.id }) });
-    expect(response.status).toBe(401);
-  });
 });
 
 describe('POST /api/projects/[project_id]/sessions', () => {
   let testRepoPath: string;
-  let authSession: AuthSession;
   let project: Project;
 
   beforeEach(async () => {
     await prisma.session.deleteMany();
     await prisma.project.deleteMany();
-    await prisma.authSession.deleteMany();
-
-    authSession = await prisma.authSession.create({
-      data: {
-        id: randomUUID(),
-        token_hash: 'test-hash',
-        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      },
-    });
 
     testRepoPath = mkdtempSync(join(tmpdir(), 'session-test-'));
     execSync('git init', { cwd: testRepoPath });
@@ -152,7 +116,6 @@ describe('POST /api/projects/[project_id]/sessions', () => {
   afterEach(async () => {
     await prisma.session.deleteMany();
     await prisma.project.deleteMany();
-    await prisma.authSession.deleteMany();
     if (testRepoPath) {
       rmSync(testRepoPath, { recursive: true, force: true });
     }
@@ -165,7 +128,6 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          cookie: `sessionId=${authSession.id}`,
         },
         body: JSON.stringify({
           name: 'New Session',
@@ -182,7 +144,7 @@ describe('POST /api/projects/[project_id]/sessions', () => {
     expect(data).toHaveProperty('session');
     expect(data.session.name).toBe('New Session');
     expect(data.session.project_id).toBe(project.id);
-    expect(data.session.status).toBe('running');
+    expect(data.session.status).toBe('initializing');
     expect(data.session.worktree_path).toBeTruthy();
     expect(data.session.branch_name).toBeTruthy();
 
@@ -199,7 +161,6 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          cookie: `sessionId=${authSession.id}`,
         },
         body: JSON.stringify({
           name: 'Test Response Format',
@@ -231,7 +192,7 @@ describe('POST /api/projects/[project_id]/sessions', () => {
     // 値の検証
     expect(data.session.project_id).toBe(project.id);
     expect(data.session.name).toBe('Test Response Format');
-    expect(data.session.status).toBe('running');
+    expect(data.session.status).toBe('initializing');
     expect(data.session.model).toBe('sonnet');
   });
 
@@ -242,7 +203,6 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          cookie: `sessionId=${authSession.id}`,
         },
         body: JSON.stringify({
           name: 'New Session',
@@ -255,25 +215,6 @@ describe('POST /api/projects/[project_id]/sessions', () => {
     expect(response.status).toBe(404);
   });
 
-  it('should return 401 if not authenticated', async () => {
-    const request = new NextRequest(
-      `http://localhost:3000/api/projects/${project.id}/sessions`,
-      {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: 'New Session',
-          prompt: 'test prompt',
-        }),
-      }
-    );
-
-    const response = await POST(request, { params: Promise.resolve({ project_id: project.id }) });
-    expect(response.status).toBe(401);
-  });
-
   it('should auto-generate session name if name is missing', async () => {
     const request = new NextRequest(
       `http://localhost:3000/api/projects/${project.id}/sessions`,
@@ -281,7 +222,6 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          cookie: `sessionId=${authSession.id}`,
         },
         body: JSON.stringify({
           prompt: 'test prompt',
@@ -304,7 +244,6 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          cookie: `sessionId=${authSession.id}`,
         },
         body: JSON.stringify({
           name: 'No Prompt Session',
@@ -327,7 +266,6 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          cookie: `sessionId=${authSession.id}`,
         },
         body: JSON.stringify({
           name: 'Empty Prompt Session',
@@ -351,7 +289,6 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          cookie: `sessionId=${authSession.id}`,
         },
         body: JSON.stringify({
           name: 'With Prompt Session',
@@ -377,7 +314,6 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          cookie: `sessionId=${authSession.id}`,
         },
         body: JSON.stringify({
           name: 'New Session',
@@ -417,7 +353,6 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          cookie: `sessionId=${authSession.id}`,
         },
         body: JSON.stringify({
           name: 'New Session',
