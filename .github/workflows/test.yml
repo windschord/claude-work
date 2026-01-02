@@ -7,12 +7,10 @@ on:
     branches: [ main ]
 
 jobs:
-  test:
+  # Lint job - runs quickly in parallel
+  lint:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-
-    env:
-      DATABASE_URL: file:./data/test.db
+    timeout-minutes: 5
 
     steps:
     - uses: actions/checkout@v4
@@ -32,10 +30,83 @@ jobs:
     - name: Run linter
       run: npm run lint
 
-    - name: Run tests
-      run: npm test || echo "Tests skipped or failed - proceeding with build"
-      continue-on-error: true
-      timeout-minutes: 12
+  # Backend tests - API routes, services, libs
+  test-backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      DATABASE_URL: file:./data/test.db
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Generate Prisma Client
+      run: npx prisma generate
+
+    - name: Run backend tests
+      run: npx vitest run src/app/api src/lib src/services src/bin --reporter=verbose
+      timeout-minutes: 8
+
+  # Frontend tests - components, pages, hooks
+  test-frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      DATABASE_URL: file:./data/test.db
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Generate Prisma Client
+      run: npx prisma generate
+
+    - name: Run frontend tests
+      run: npx vitest run src/components src/hooks src/store src/app --exclude='src/app/api/**' --reporter=verbose
+      timeout-minutes: 8
+
+  # Build job - depends on lint passing
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [lint]
+
+    env:
+      DATABASE_URL: file:./data/test.db
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Generate Prisma Client
+      run: npx prisma generate
 
     - name: Build
       run: npm run build
