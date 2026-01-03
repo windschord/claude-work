@@ -318,18 +318,24 @@ class ClaudePTYManager extends EventEmitter {
 
   /**
    * Claude Code出力からセッションIDを抽出
-   * 形式: "session: <uuid>" または "[session:<uuid>]"
+   * 形式: "session: <id>" または "[session:<id>]"
+   *
+   * セッションIDは以下の形式をサポート:
+   * - 36文字のUUID形式: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+   * - 短いアルファヌメリック形式: "abc123"
    *
    * @param data - PTY出力データ
    * @returns 抽出されたセッションID、見つからない場合はundefined
    */
   private extractClaudeSessionId(data: string): string | undefined {
     // Claude Codeのセッション出力パターン
-    // 例: "session: abc123-def456-..." または "[session:abc123-def456-...]"
+    // 例: "session: abc123" または "[session:f47ac10b-58cc-4372-a567-0e02b2c3d479]"
+    // UUIDまたは短いアルファヌメリックID（4文字以上）をサポート
+    const sessionIdPattern = '([a-zA-Z0-9-]{4,36})';
     const patterns = [
-      /session[:\s]+([a-f0-9-]{36})/i,
-      /\[session:([a-f0-9-]{36})\]/i,
-      /Resuming session[:\s]+([a-f0-9-]{36})/i,
+      new RegExp(`session[:\\s]+${sessionIdPattern}`, 'i'),
+      new RegExp(`\\[session:${sessionIdPattern}\\]`, 'i'),
+      new RegExp(`Resuming session[:\\s]+${sessionIdPattern}`, 'i'),
     ];
 
     for (const pattern of patterns) {
