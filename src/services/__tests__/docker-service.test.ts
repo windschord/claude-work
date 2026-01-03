@@ -318,4 +318,21 @@ describe('DockerService', () => {
       expect(path).toContain('docker');
     });
   });
+
+  describe('isEnabled', () => {
+    it('デフォルトでtrueを返す', () => {
+      expect(dockerService.isEnabled()).toBe(true);
+    });
+
+    it('設定でfalseを指定した場合はfalseを返す', () => {
+      const config: DockerServiceConfig = {
+        imageName: 'test',
+        imageTag: 'test',
+        maxConcurrentContainers: 5,
+        enabled: false,
+      };
+      const service = new DockerService(config);
+      expect(service.isEnabled()).toBe(false);
+    });
+  });
 });

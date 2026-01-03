@@ -12,6 +12,8 @@ export interface DockerServiceConfig {
   imageTag: string;
   /** 同時実行可能なコンテナ数上限（デフォルト: 5） */
   maxConcurrentContainers: number;
+  /** Docker機能の有効/無効（デフォルト: true） */
+  enabled: boolean;
 }
 
 /**
@@ -21,6 +23,7 @@ const DEFAULT_CONFIG: DockerServiceConfig = {
   imageName: process.env.DOCKER_IMAGE_NAME || 'claude-code-sandboxed',
   imageTag: process.env.DOCKER_IMAGE_TAG || 'latest',
   maxConcurrentContainers: parseInt(process.env.DOCKER_MAX_CONTAINERS || '5', 10),
+  enabled: process.env.DOCKER_ENABLED !== 'false',
 };
 
 /**
@@ -65,6 +68,13 @@ export class DockerService {
    */
   getMaxConcurrentContainers(): number {
     return this.config.maxConcurrentContainers;
+  }
+
+  /**
+   * Docker機能が有効かどうかを取得
+   */
+  isEnabled(): boolean {
+    return this.config.enabled;
   }
 
   /**
