@@ -184,6 +184,59 @@ describe('DockerPTYAdapter', () => {
     });
   });
 
+  describe('restartSession', () => {
+    it('既存セッションを破棄して新しいセッションを作成する', async () => {
+      vi.useFakeTimers();
+
+      adapter.createSession('test-session', '/path/to/worktree', 'initial prompt');
+
+      // spawnの呼び出しをリセット
+      mockPtySpawn.mockClear();
+
+      // restartSession呼び出し
+      adapter.restartSession('test-session');
+
+      // 即座にkillが呼ばれる
+      expect(mockPtyProcess.kill).toHaveBeenCalled();
+
+      // セッションは一旦削除される
+      expect(adapter.hasSession('test-session')).toBe(false);
+
+      // 500ms後に再作成される
+      await vi.advanceTimersByTimeAsync(500);
+
+      // 新しいセッションが作成される
+      expect(mockPtySpawn).toHaveBeenCalledTimes(1);
+      expect(adapter.hasSession('test-session')).toBe(true);
+
+      vi.useRealTimers();
+    });
+
+    it('同じ作業ディレクトリで再起動する', async () => {
+      vi.useFakeTimers();
+
+      adapter.createSession('test-session', '/specific/worktree/path');
+
+      mockPtySpawn.mockClear();
+      adapter.restartSession('test-session');
+
+      await vi.advanceTimersByTimeAsync(500);
+
+      // 同じworkingDirでdocker runが呼ばれる
+      const args = mockPtySpawn.mock.calls[0][1] as string[];
+      expect(args).toContain('/specific/worktree/path:/workspace');
+
+      vi.useRealTimers();
+    });
+
+    it('存在しないセッションの再起動は何もしない', () => {
+      adapter.restartSession('non-existent');
+
+      // エラーが発生しないことを確認
+      expect(mockPtySpawn).not.toHaveBeenCalled();
+    });
+  });
+
   describe('events', () => {
     it('dataイベントを発火する', () => {
       const dataHandler = vi.fn();
