@@ -183,3 +183,9 @@ export class DockerService {
     });
   }
 }
+
+/**
+ * デフォルトのDockerServiceインスタンス
+ * 環境変数から設定を読み込んで初期化される
+ */
+export const dockerService = new DockerService();
