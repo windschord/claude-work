@@ -15,14 +15,10 @@ export default defineConfig({
       '**/e2e/**',  // Playwrightのe2eテストを除外
       '.worktrees/**',  // worktreeディレクトリのテストを除外
       // CI環境で不安定なテストを一時的に除外
+      // NOTE: 以下のテストはCI環境でのみ除外。ローカルでは実行可能
       ...(process.env.CI ? [
-        '**/pty-manager.test.ts',
-        '**/git-service-status.test.ts',
-        '**/app/sessions/__tests__/[id].test.tsx',
-        '**/app/projects/__tests__/[id].test.tsx',
-        '**/AuthGuard.test.tsx',
-        '**/middleware.test.ts',
-        '**/lib/__tests__/auth.test.ts',
+        '**/pty-manager.test.ts',        // PTYプロセスがCI環境で不安定
+        '**/git-service-status.test.ts', // Gitワークツリー操作がCI環境で不安定
       ] : []),
     ],
     testTimeout: 10000,

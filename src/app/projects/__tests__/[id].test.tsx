@@ -26,9 +26,6 @@ vi.mock('@/components/layout/MainLayout', () => ({
   MainLayout: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
-vi.mock('@/components/AuthGuard', () => ({
-  AuthGuard: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-}));
 
 // CreateSessionFormをモック（storeの参照を避けるため）
 vi.mock('@/components/sessions/CreateSessionForm', () => ({
@@ -44,7 +41,6 @@ vi.mock('@/components/sessions/CreateSessionForm', () => ({
 describe('ProjectDetailPage', () => {
   const mockFetchSessions = vi.fn();
   const mockCreateSession = vi.fn();
-  const mockCheckAuth = vi.fn();
 
   const mockSessions = [
     {
@@ -52,7 +48,7 @@ describe('ProjectDetailPage', () => {
       project_id: 'project-1',
       name: 'Session 1',
       status: 'running' as const,
-      model: 'claude-3-opus',
+      model: 'auto',
       worktree_path: '/path/to/worktree1',
       branch_name: 'feature/test1',
       created_at: '2024-01-01T00:00:00Z',
@@ -62,7 +58,7 @@ describe('ProjectDetailPage', () => {
       project_id: 'project-1',
       name: 'Session 2',
       status: 'completed' as const,
-      model: 'claude-3-sonnet',
+      model: 'sonnet',
       worktree_path: '/path/to/worktree2',
       branch_name: 'feature/test2',
       created_at: '2024-01-02T00:00:00Z',
@@ -74,9 +70,7 @@ describe('ProjectDetailPage', () => {
     mockPush.mockClear();
     mockFetchSessions.mockResolvedValue(undefined);
     mockCreateSession.mockResolvedValue(undefined);
-    mockCheckAuth.mockResolvedValue(undefined);
     (useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
-      isAuthenticated: true,
       sessions: mockSessions,
       selectedSessionId: null,
       projects: [
@@ -84,14 +78,14 @@ describe('ProjectDetailPage', () => {
           id: 'project-1',
           name: 'Test Project',
           path: '/test/path',
-          default_model: 'claude-3-opus',
+          default_model: 'sonnet',
+          run_scripts: [],
           session_count: 2,
           created_at: '2024-01-01T00:00:00Z',
         },
       ],
       fetchSessions: mockFetchSessions,
       createSession: mockCreateSession,
-      checkAuth: mockCheckAuth,
     });
   });
 
@@ -119,14 +113,13 @@ describe('ProjectDetailPage', () => {
 
   it('runningステータスのアイコンが正しく表示される', async () => {
     (useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
-      isAuthenticated: true,
       sessions: [
         {
           id: 'session-1',
           project_id: 'project-1',
           name: 'Running Session',
           status: 'running' as const,
-          model: 'claude-3-opus',
+          model: 'auto',
           worktree_path: '/path/to/worktree',
           branch_name: 'feature/test',
           created_at: '2024-01-01T00:00:00Z',
@@ -138,14 +131,14 @@ describe('ProjectDetailPage', () => {
           id: 'project-1',
           name: 'Test Project',
           path: '/test/path',
-          default_model: 'claude-3-opus',
+          default_model: 'sonnet',
+          run_scripts: [],
           session_count: 1,
           created_at: '2024-01-01T00:00:00Z',
         },
       ],
       fetchSessions: mockFetchSessions,
       createSession: mockCreateSession,
-      checkAuth: mockCheckAuth,
     });
 
     render(<ProjectDetailPage />);
@@ -162,65 +155,8 @@ describe('ProjectDetailPage', () => {
     expect(screen.getByPlaceholderText(/プロンプト/)).toBeInTheDocument();
   });
 
-  it.skip('名前とプロンプト入力でセッション作成が成功する', async () => {
-    // TODO: CreateSessionFormの独自のテストファイルに移行予定
-    // このテストはCreateSessionFormの実装に依存しているためスキップ
-    // CreateSessionFormの独自のテストファイルでテストすべき
-    mockCreateSession.mockResolvedValueOnce(undefined);
-
-    render(<ProjectDetailPage />);
-
-    const nameInput = screen.getByPlaceholderText(/セッション名/);
-    const promptInput = screen.getByPlaceholderText(/プロンプト/);
-    const createButton = screen.getByRole('button', { name: /作成|セッション作成/ });
-
-    fireEvent.change(nameInput, { target: { value: 'New Session' } });
-    fireEvent.change(promptInput, { target: { value: 'Test prompt' } });
-    fireEvent.click(createButton);
-
-    await waitFor(() => {
-      expect(mockCreateSession).toHaveBeenCalledWith('project-1', {
-        name: 'New Session',
-        prompt: 'Test prompt',
-      });
-      // セッション作成後、fetchSessionsが再度呼ばれることを確認
-      expect(mockFetchSessions).toHaveBeenCalledTimes(2); // 初回+作成後
-    });
-  });
-
-  it.skip('名前未入力でバリデーションエラーが表示される', async () => {
-    // TODO: CreateSessionFormの独自のテストファイルに移行予定
-    // このテストはCreateSessionFormの実装に依存しているためスキップ
-    // CreateSessionFormの独自のテストファイルでテストすべき
-    render(<ProjectDetailPage />);
-
-    const promptInput = screen.getByPlaceholderText(/プロンプト/);
-    const createButton = screen.getByRole('button', { name: /作成|セッション作成/ });
-
-    fireEvent.change(promptInput, { target: { value: 'Test prompt' } });
-    fireEvent.click(createButton);
-
-    await waitFor(() => {
-      expect(screen.getByText('セッション名を入力してください')).toBeInTheDocument();
-    });
-  });
-
-  it.skip('プロンプト未入力でバリデーションエラーが表示される', async () => {
-    // TODO: CreateSessionFormの独自のテストファイルに移行予定
-    // このテストはCreateSessionFormの実装に依存しているためスキップ
-    // CreateSessionFormの独自のテストファイルでテストすべき
-    render(<ProjectDetailPage />);
-
-    const nameInput = screen.getByPlaceholderText(/セッション名/);
-    const createButton = screen.getByRole('button', { name: /作成|セッション作成/ });
-
-    fireEvent.change(nameInput, { target: { value: 'New Session' } });
-    fireEvent.click(createButton);
-
-    await waitFor(() => {
-      expect(screen.getByText('プロンプトを入力してください')).toBeInTheDocument();
-    });
-  });
+  // NOTE: セッション作成のバリデーションテストはCreateSessionForm.test.tsxで実施
+  // このテストファイルではページレベルの動作のみをテスト
 
   it('セッション選択で詳細画面に遷移する', async () => {
     render(<ProjectDetailPage />);
@@ -236,7 +172,6 @@ describe('ProjectDetailPage', () => {
 
   it('セッションがない場合、空の状態メッセージが表示される', () => {
     (useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
-      isAuthenticated: true,
       sessions: [],
       selectedSessionId: null,
       projects: [
@@ -244,14 +179,14 @@ describe('ProjectDetailPage', () => {
           id: 'project-1',
           name: 'Test Project',
           path: '/test/path',
-          default_model: 'claude-3-opus',
+          default_model: 'sonnet',
+          run_scripts: [],
           session_count: 0,
           created_at: '2024-01-01T00:00:00Z',
         },
       ],
       fetchSessions: mockFetchSessions,
       createSession: mockCreateSession,
-      checkAuth: mockCheckAuth,
     });
 
     render(<ProjectDetailPage />);
