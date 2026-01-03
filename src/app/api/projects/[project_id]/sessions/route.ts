@@ -3,7 +3,7 @@ import { prisma } from '@/lib/db';
 import { GitService } from '@/services/git-service';
 import { logger } from '@/lib/logger';
 import { generateUniqueSessionName } from '@/lib/session-name-generator';
-import { dockerService } from '@/services/docker-service';
+import { dockerService, DockerError } from '@/services/docker-service';
 
 /**
  * GET /api/projects/[project_id]/sessions - プロジェクトのセッション一覧取得
@@ -129,17 +129,34 @@ export async function POST(
 
     const { name, prompt = '', dockerMode = false } = body;
 
-    // Dockerモードの場合、Docker可用性をチェック
+    // Dockerモードの場合、Docker可用性と認証情報をチェック
     if (dockerMode) {
       logger.info('Creating session with Docker mode', { project_id });
 
-      const isDockerAvailable = await dockerService.isDockerAvailable();
-      if (!isDockerAvailable) {
-        logger.warn('Docker not available for session creation', { project_id });
+      // Docker環境診断
+      const dockerError = await dockerService.diagnoseDockerError();
+      if (dockerError) {
+        logger.warn('Docker error diagnosed', {
+          project_id,
+          errorType: dockerError.errorType,
+          message: dockerError.message,
+        });
         return NextResponse.json(
-          { error: 'Docker is not available. Please install Docker and ensure the daemon is running.' },
+          {
+            error: dockerError.userMessage,
+            errorType: dockerError.errorType,
+            suggestion: dockerError.suggestion,
+          },
           { status: 503 }
         );
+      }
+
+      // 認証情報チェック
+      const authIssues = dockerService.diagnoseAuthIssues();
+      if (authIssues.length > 0) {
+        logger.warn('Auth issues found for Docker mode', { project_id, issues: authIssues });
+        // 警告としてログに記録するが、セッション作成は続行
+        // （ユーザーがClaude認証を手動で行う場合もあるため）
       }
 
       // イメージ存在チェック、なければビルド
@@ -151,9 +168,27 @@ export async function POST(
           logger.info('Docker image built successfully', { project_id });
         } catch (buildError) {
           logger.error('Failed to build Docker image', { error: buildError, project_id });
-          const errorMessage = buildError instanceof Error ? buildError.message : 'Unknown error';
+
+          let errorMessage: string;
+          let suggestion: string;
+
+          if (buildError instanceof DockerError) {
+            errorMessage = buildError.userMessage;
+            suggestion = buildError.suggestion;
+          } else if (buildError instanceof Error) {
+            errorMessage = `Dockerイメージのビルドに失敗しました: ${buildError.message}`;
+            suggestion = 'Dockerfileの構文を確認し、docker buildコマンドを手動で実行してエラーを確認してください';
+          } else {
+            errorMessage = 'Dockerイメージのビルドに失敗しました';
+            suggestion = 'docker/Dockerfileを確認してください';
+          }
+
           return NextResponse.json(
-            { error: `Failed to build Docker image: ${errorMessage}` },
+            {
+              error: errorMessage,
+              errorType: 'DOCKER_IMAGE_BUILD_FAILED',
+              suggestion,
+            },
             { status: 500 }
           );
         }

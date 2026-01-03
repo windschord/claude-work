@@ -1,6 +1,77 @@
 import { exec, spawn } from 'child_process';
 import * as path from 'path';
+import * as fs from 'fs';
+import * as os from 'os';
 import { logger } from '@/lib/logger';
+
+/**
+ * Dockerエラータイプ
+ */
+export type DockerErrorType =
+  | 'DOCKER_NOT_INSTALLED'
+  | 'DOCKER_DAEMON_NOT_RUNNING'
+  | 'DOCKER_IMAGE_NOT_FOUND'
+  | 'DOCKER_IMAGE_BUILD_FAILED'
+  | 'DOCKER_CONTAINER_START_FAILED'
+  | 'DOCKER_PERMISSION_DENIED'
+  | 'CLAUDE_AUTH_MISSING'
+  | 'GIT_AUTH_MISSING'
+  | 'API_KEY_MISSING'
+  | 'UNKNOWN';
+
+/**
+ * Dockerエラー
+ */
+export class DockerError extends Error {
+  readonly errorType: DockerErrorType;
+  readonly userMessage: string;
+  readonly suggestion: string;
+
+  constructor(
+    errorType: DockerErrorType,
+    message: string,
+    userMessage: string,
+    suggestion: string
+  ) {
+    super(message);
+    this.name = 'DockerError';
+    this.errorType = errorType;
+    this.userMessage = userMessage;
+    this.suggestion = suggestion;
+  }
+
+  /**
+   * ユーザーフレンドリーなエラーメッセージを取得
+   */
+  toUserString(): string {
+    return `${this.userMessage}\n提案: ${this.suggestion}`;
+  }
+}
+
+/**
+ * 認証情報チェック結果
+ */
+export interface AuthCredentialsCheck {
+  claudeAuth: {
+    exists: boolean;
+    path: string;
+  };
+  claudeConfig: {
+    exists: boolean;
+    path: string;
+  };
+  sshAuth: {
+    exists: boolean;
+    path: string;
+  };
+  gitConfig: {
+    exists: boolean;
+    path: string;
+  };
+  anthropicApiKey: {
+    exists: boolean;
+  };
+}
 
 /**
  * DockerService設定
@@ -94,6 +165,126 @@ export class DockerService {
         }
       });
     });
+  }
+
+  /**
+   * Dockerエラーを詳細に診断
+   *
+   * @returns DockerErrorまたはnull（問題がない場合）
+   */
+  async diagnoseDockerError(): Promise<DockerError | null> {
+    // Dockerコマンドが存在するか
+    const dockerInstalled = await new Promise<boolean>((resolve) => {
+      exec('which docker', (error) => {
+        resolve(!error);
+      });
+    });
+
+    if (!dockerInstalled) {
+      return new DockerError(
+        'DOCKER_NOT_INSTALLED',
+        'Docker command not found',
+        'Dockerがインストールされていません',
+        'https://docs.docker.com/get-docker/ からDockerをインストールしてください'
+      );
+    }
+
+    // Dockerデーモンが動作しているか
+    const daemonRunning = await new Promise<boolean>((resolve) => {
+      exec('docker info', (error) => {
+        resolve(!error);
+      });
+    });
+
+    if (!daemonRunning) {
+      return new DockerError(
+        'DOCKER_DAEMON_NOT_RUNNING',
+        'Docker daemon is not running',
+        'Dockerデーモンが起動していません',
+        'Docker Desktopを起動するか、`sudo systemctl start docker`を実行してください'
+      );
+    }
+
+    // 権限問題のチェック
+    const hasPermission = await new Promise<boolean>((resolve) => {
+      exec('docker ps', (error) => {
+        if (error && error.message.includes('permission denied')) {
+          resolve(false);
+        } else {
+          resolve(true);
+        }
+      });
+    });
+
+    if (!hasPermission) {
+      return new DockerError(
+        'DOCKER_PERMISSION_DENIED',
+        'Docker permission denied',
+        'Dockerの実行権限がありません',
+        'ユーザーをdockerグループに追加してください: `sudo usermod -aG docker $USER`'
+      );
+    }
+
+    return null;
+  }
+
+  /**
+   * 認証情報の存在をチェック
+   *
+   * @returns 認証情報のチェック結果
+   */
+  checkAuthCredentials(): AuthCredentialsCheck {
+    const homeDir = os.homedir();
+
+    const claudeAuthPath = path.join(homeDir, '.claude');
+    const claudeConfigPath = path.join(homeDir, '.config', 'claude');
+    const sshPath = path.join(homeDir, '.ssh');
+    const gitConfigPath = path.join(homeDir, '.gitconfig');
+
+    const result: AuthCredentialsCheck = {
+      claudeAuth: {
+        exists: fs.existsSync(claudeAuthPath),
+        path: claudeAuthPath,
+      },
+      claudeConfig: {
+        exists: fs.existsSync(claudeConfigPath),
+        path: claudeConfigPath,
+      },
+      sshAuth: {
+        exists: fs.existsSync(sshPath),
+        path: sshPath,
+      },
+      gitConfig: {
+        exists: fs.existsSync(gitConfigPath),
+        path: gitConfigPath,
+      },
+      anthropicApiKey: {
+        exists: !!process.env.ANTHROPIC_API_KEY,
+      },
+    };
+
+    logger.debug('Auth credentials check', result);
+    return result;
+  }
+
+  /**
+   * 認証情報の問題を診断
+   *
+   * @returns エラーメッセージ配列（問題がなければ空配列）
+   */
+  diagnoseAuthIssues(): string[] {
+    const issues: string[] = [];
+    const auth = this.checkAuthCredentials();
+
+    if (!auth.claudeAuth.exists && !auth.claudeConfig.exists) {
+      issues.push('Claude認証情報が見つかりません。先にClaude Codeでログインしてください。');
+    }
+
+    if (!auth.anthropicApiKey.exists) {
+      issues.push('ANTHROPIC_API_KEY環境変数が設定されていません。');
+    }
+
+    return issues;
   }
 
   /**

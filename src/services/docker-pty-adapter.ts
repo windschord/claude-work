@@ -4,6 +4,65 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 import { logger } from '@/lib/logger';
+import { DockerError, DockerErrorType } from './docker-service';
+
+/**
+ * Dockerコンテナ起動エラーを解析してDockerErrorを生成
+ */
+function parseContainerStartError(errorOutput: string): DockerError | null {
+  // イメージが見つからない
+  if (errorOutput.includes('Unable to find image') || errorOutput.includes('No such image')) {
+    return new DockerError(
+      'DOCKER_IMAGE_NOT_FOUND',
+      'Docker image not found',
+      'Dockerイメージが見つかりません',
+      'docker build -t claude-code-sandboxed:latest docker/ を実行してイメージをビルドしてください'
+    );
+  }
+
+  // 権限エラー
+  if (errorOutput.includes('permission denied')) {
+    return new DockerError(
+      'DOCKER_PERMISSION_DENIED',
+      'Docker permission denied',
+      'Dockerの実行権限がありません',
+      'ユーザーをdockerグループに追加するか、管理者権限で実行してください'
+    );
+  }
+
+  // デーモン接続エラー
+  if (errorOutput.includes('Cannot connect to the Docker daemon') ||
+      errorOutput.includes('Is the docker daemon running')) {
+    return new DockerError(
+      'DOCKER_DAEMON_NOT_RUNNING',
+      'Docker daemon not running',
+      'Dockerデーモンが起動していません',
+      'Docker Desktopを起動するか、sudo systemctl start docker を実行してください'
+    );
+  }
+
+  // ポート競合
+  if (errorOutput.includes('port is already allocated')) {
+    return new DockerError(
+      'DOCKER_CONTAINER_START_FAILED',
+      'Port already in use',
+      'ポートが既に使用されています',
+      '同じポートを使用している他のコンテナを停止してください'
+    );
+  }
+
+  // ボリュームマウントエラー
+  if (errorOutput.includes('Mounts denied') || errorOutput.includes('invalid mount config')) {
+    return new DockerError(
+      'DOCKER_CONTAINER_START_FAILED',
+      'Volume mount error',
+      'ボリュームのマウントに失敗しました',
+      'マウント先のパスが存在することを確認し、Docker Desktopの設定でファイル共有を許可してください'
+    );
+  }
+
+  return null;
+}
 
 /**
  * DockerPTYAdapter設定
@@ -32,6 +91,8 @@ interface DockerPTYSession {
   initialPrompt?: string;
   containerId?: string; // DockerコンテナID
   claudeSessionId?: string; // Claude Codeが出力するセッションID
+  errorBuffer: string; // エラー出力バッファ（診断用）
+  hasReceivedOutput: boolean; // 正常な出力を受信したかどうか
 }
 
 /**
@@ -232,6 +293,8 @@ export class DockerPTYAdapter extends EventEmitter {
         sessionId,
         workingDir: resolvedCwd,
         initialPrompt,
+        errorBuffer: '',
+        hasReceivedOutput: false,
       });
       // 作成完了フラグをクリア
       this.creating.delete(sessionId);
@@ -240,24 +303,60 @@ export class DockerPTYAdapter extends EventEmitter {
       ptyProcess.onData((data: string) => {
         this.emit('data', sessionId, data);
 
-        // セッションIDの抽出
         const session = this.sessions.get(sessionId);
-        if (session && !session.claudeSessionId) {
-          const extractedId = this.extractClaudeSessionId(data);
-          if (extractedId) {
-            session.claudeSessionId = extractedId;
-            logger.info('Claude session ID extracted from Docker', {
-              sessionId,
-              claudeSessionId: extractedId,
-            });
-            this.emit('claudeSessionId', sessionId, extractedId);
+        if (session) {
+          // 出力を受信したことを記録（エラー判定用）
+          if (!session.hasReceivedOutput && data.length > 0) {
+            session.hasReceivedOutput = true;
+          }
+
+          // エラー出力をバッファリング（最初の5KB）
+          if (session.errorBuffer.length < 5000) {
+            session.errorBuffer += data;
+          }
+
+          // セッションIDの抽出
+          if (!session.claudeSessionId) {
+            const extractedId = this.extractClaudeSessionId(data);
+            if (extractedId) {
+              session.claudeSessionId = extractedId;
+              logger.info('Claude session ID extracted from Docker', {
+                sessionId,
+                claudeSessionId: extractedId,
+              });
+              this.emit('claudeSessionId', sessionId, extractedId);
+            }
           }
         }
       });
 
       // PTY終了時の処理
       ptyProcess.onExit(({ exitCode, signal }) => {
+        const session = this.sessions.get(sessionId);
         logger.info('Docker PTY exited', { sessionId, exitCode, signal });
+
+        // 異常終了時にエラー解析
+        if (exitCode !== 0 && session) {
+          const dockerError = parseContainerStartError(session.errorBuffer);
+          if (dockerError) {
+            logger.error('Docker container startup error detected', {
+              sessionId,
+              errorType: dockerError.errorType,
+              userMessage: dockerError.userMessage,
+            });
+            this.emit('error', sessionId, dockerError);
+          } else if (!session.hasReceivedOutput) {
+            // 出力を受け取る前に終了した場合は起動失敗
+            const startupError = new DockerError(
+              'DOCKER_CONTAINER_START_FAILED',
+              'Container failed to start',
+              'Dockerコンテナの起動に失敗しました',
+              'docker logs コマンドで詳細なエラーを確認してください'
+            );
+            this.emit('error', sessionId, startupError);
+          }
+        }
+
         this.emit('exit', sessionId, { exitCode, signal });
         this.sessions.delete(sessionId);
       });
