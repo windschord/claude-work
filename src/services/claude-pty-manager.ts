@@ -5,6 +5,13 @@ import * as fs from 'fs';
 import { logger } from '@/lib/logger';
 
 /**
+ * Claude PTYセッション作成オプション
+ */
+export interface CreateClaudePTYSessionOptions {
+  resumeSessionId?: string; // Claude Codeの--resume用セッションID
+}
+
+/**
  * Claude PTYセッション情報
  */
 interface ClaudePTYSession {
@@ -12,6 +19,7 @@ interface ClaudePTYSession {
   sessionId: string;
   workingDir: string;
   initialPrompt?: string;
+  claudeSessionId?: string; // Claude Codeが出力するセッションID
 }
 
 /**
@@ -87,9 +95,15 @@ class ClaudePTYManager extends EventEmitter {
    * @param sessionId - セッションID
    * @param workingDir - 作業ディレクトリ（worktreeパス）
    * @param initialPrompt - 初期プロンプト（任意）
+   * @param options - 追加オプション（resumeSessionIdなど）
    * @throws 同一sessionIdで作成中の場合、またはworkingDirが無効な場合
    */
-  createSession(sessionId: string, workingDir: string, initialPrompt?: string): void {
+  createSession(
+    sessionId: string,
+    workingDir: string,
+    initialPrompt?: string,
+    options?: CreateClaudePTYSessionOptions
+  ): void {
     // 作成中のセッションがある場合はエラー
     // Note: Node.jsはシングルスレッドのため、hasとaddの間に他のcreateSession呼び出しが割り込むことはありません。
     // ただし、このメソッドを同一sessionIdに対して同時に呼び出すことは避けてください。
@@ -120,10 +134,21 @@ class ClaudePTYManager extends EventEmitter {
     }
 
     try {
-      logger.info('Creating Claude PTY session', { sessionId, workingDir: resolvedCwd });
+      // Claude CLIの引数を構築
+      const cliArgs: string[] = [];
+      if (options?.resumeSessionId) {
+        cliArgs.push('--resume', options.resumeSessionId);
+        logger.info('Creating Claude PTY session with resume', {
+          sessionId,
+          workingDir: resolvedCwd,
+          resumeSessionId: options.resumeSessionId,
+        });
+      } else {
+        logger.info('Creating Claude PTY session', { sessionId, workingDir: resolvedCwd });
+      }
 
       // Claude Codeプロセスを生成（対話モード）
-      const ptyProcess = pty.spawn(this.claudePath, [], {
+      const ptyProcess = pty.spawn(this.claudePath, cliArgs, {
         name: 'xterm-256color',
         cols: 80,
         rows: 24,
@@ -142,8 +167,23 @@ class ClaudePTYManager extends EventEmitter {
       this.creating.delete(sessionId);
 
       // PTY出力をイベントとして発火
+      // Claude Code出力からセッションIDを抽出
       ptyProcess.onData((data: string) => {
         this.emit('data', sessionId, data);
+
+        // セッションIDの抽出（まだ取得していない場合）
+        const session = this.sessions.get(sessionId);
+        if (session && !session.claudeSessionId) {
+          const extractedId = this.extractClaudeSessionId(data);
+          if (extractedId) {
+            session.claudeSessionId = extractedId;
+            logger.info('Claude session ID extracted', {
+              sessionId,
+              claudeSessionId: extractedId,
+            });
+            this.emit('claudeSessionId', sessionId, extractedId);
+          }
+        }
       });
 
       // PTY終了時の処理
@@ -264,6 +304,48 @@ class ClaudePTYManager extends EventEmitter {
    */
   getWorkingDir(sessionId: string): string | undefined {
     return this.sessions.get(sessionId)?.workingDir;
+  }
+
+  /**
+   * Claude CodeセッションIDを取得
+   *
+   * @param sessionId - セッションID
+   * @returns Claude CodeセッションID、存在しない場合はundefined
+   */
+  getClaudeSessionId(sessionId: string): string | undefined {
+    return this.sessions.get(sessionId)?.claudeSessionId;
+  }
+
+  /**
+   * Claude Code出力からセッションIDを抽出
+   * 形式: "session: <id>" または "[session:<id>]"
+   *
+   * セッションIDは以下の形式をサポート:
+   * - 36文字のUUID形式: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+   * - 短いアルファヌメリック形式: "abc123"
+   *
+   * @param data - PTY出力データ
+   * @returns 抽出されたセッションID、見つからない場合はundefined
+   */
+  private extractClaudeSessionId(data: string): string | undefined {
+    // Claude Codeのセッション出力パターン
+    // 例: "session: abc123" または "[session:f47ac10b-58cc-4372-a567-0e02b2c3d479]"
+    // UUIDまたは短いアルファヌメリックID（4文字以上）をサポート
+    const sessionIdPattern = '([a-zA-Z0-9-]{4,36})';
+    const patterns = [
+      new RegExp(`session[:\\s]+${sessionIdPattern}`, 'i'),
+      new RegExp(`\\[session:${sessionIdPattern}\\]`, 'i'),
+      new RegExp(`Resuming session[:\\s]+${sessionIdPattern}`, 'i'),
+    ];
+
+    for (const pattern of patterns) {
+      const match = data.match(pattern);
+      if (match && match[1]) {
+        return match[1];
+      }
+    }
+
+    return undefined;
   }
 }
 

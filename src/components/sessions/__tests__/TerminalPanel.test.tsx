@@ -3,8 +3,8 @@
  * タスク6.7: ターミナル統合(フロントエンド)実装
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, waitFor, cleanup } from '@testing-library/react';
 import { TerminalPanel } from '../TerminalPanel';
 
 // useTerminalフックのモック
@@ -14,8 +14,41 @@ vi.mock('@/hooks/useTerminal', () => ({
   useTerminal: (...args: unknown[]) => mockUseTerminal(...args),
 }));
 
+// IntersectionObserverのモック
+class MockIntersectionObserver {
+  observe = vi.fn();
+  unobserve = vi.fn();
+  disconnect = vi.fn();
+  constructor(callback: IntersectionObserverCallback) {
+    // 即座にコールバックを呼び出す（要素が表示されているとする）
+    setTimeout(() => {
+      callback([{ isIntersecting: true } as IntersectionObserverEntry], this);
+    }, 0);
+  }
+}
+
 describe('TerminalPanel', () => {
+  // getBoundingClientRectのオリジナルを保存
+  const originalGetBoundingClientRect = Element.prototype.getBoundingClientRect;
+  const originalIntersectionObserver = global.IntersectionObserver;
+
   beforeEach(() => {
+    // IntersectionObserverのモック
+    global.IntersectionObserver = MockIntersectionObserver as unknown as typeof IntersectionObserver;
+
+    // jsdom環境でgetBoundingClientRectが0を返す問題を回避
+    Element.prototype.getBoundingClientRect = vi.fn(() => ({
+      width: 800,
+      height: 600,
+      top: 0,
+      left: 0,
+      bottom: 600,
+      right: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => {},
+    }));
+
     // デフォルトのモック実装
     mockUseTerminal.mockReturnValue({
       terminal: {
@@ -30,6 +63,13 @@ describe('TerminalPanel', () => {
       fit: vi.fn(),
     });
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    // オリジナルを復元
+    Element.prototype.getBoundingClientRect = originalGetBoundingClientRect;
+    global.IntersectionObserver = originalIntersectionObserver;
+    cleanup();
   });
 
   it('ターミナルパネルが表示される', () => {

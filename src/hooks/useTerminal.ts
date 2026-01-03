@@ -21,6 +21,10 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import type { Terminal, IDisposable } from '@xterm/xterm';
 import type { FitAddon } from '@xterm/addon-fit';
 
+export interface UseTerminalOptions {
+  isVisible?: boolean;
+}
+
 export interface UseTerminalReturn {
   terminal: Terminal | null;
   isConnected: boolean;
@@ -32,15 +36,25 @@ export interface UseTerminalReturn {
 // 再接続の設定
 const RECONNECT_DELAY = 1000; // 再接続までの待機時間（ミリ秒）
 const MAX_RECONNECT_ATTEMPTS = 5; // 最大再接続試行回数
+const RESIZE_DEBOUNCE_DELAY = 300; // リサイズデバウンス遅延（ミリ秒）
+const INIT_DEBOUNCE_DELAY = 100; // 初期化デバウンス遅延（ミリ秒）- React Strict Mode対策
 
-export function useTerminal(sessionId: string): UseTerminalReturn {
+export function useTerminal(
+  sessionId: string,
+  options: UseTerminalOptions = {}
+): UseTerminalReturn {
+  const { isVisible = true } = options;
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const onDataDisposableRef = useRef<IDisposable | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const initTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const isMountedRef = useRef(true);
+  const isInitializingRef = useRef(false);
+  const prevIsVisibleRef = useRef(isVisible);
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [terminal, setTerminal] = useState<Terminal | null>(null);
@@ -145,6 +159,11 @@ export function useTerminal(sessionId: string): UseTerminalReturn {
       return;
     }
 
+    // 既に初期化中の場合はスキップ（React Strict Mode対策）
+    if (isInitializingRef.current) {
+      return;
+    }
+
     isMountedRef.current = true;
     reconnectAttemptsRef.current = 0;
 
@@ -152,6 +171,9 @@ export function useTerminal(sessionId: string): UseTerminalReturn {
       try {
         // アンマウント後は処理を中断
         if (!isMountedRef.current) return;
+
+        // 初期化中フラグを設定
+        isInitializingRef.current = true;
 
         // xterm.jsを動的インポート（ブラウザ専用ライブラリ）
         const [{ Terminal }, { FitAddon }] = await Promise.all([
@@ -202,19 +224,38 @@ export function useTerminal(sessionId: string): UseTerminalReturn {
         if (!isMountedRef.current) return;
         console.error('Failed to initialize terminal:', err);
         setError(err instanceof Error ? err.message : 'Failed to initialize terminal');
+      } finally {
+        // 初期化完了（成功/失敗に関わらず）
+        isInitializingRef.current = false;
       }
     };
 
-    initTerminal();
+    // デバウンス付きで初期化を実行（React Strict Mode対策）
+    // 短時間での複数回の初期化呼び出しを防止
+    initTimerRef.current = setTimeout(() => {
+      initTerminal();
+    }, INIT_DEBOUNCE_DELAY);
 
     // クリーンアップ
     return () => {
       isMountedRef.current = false;
 
+      // 初期化タイマーをクリア（初期化前にアンマウントされた場合）
+      if (initTimerRef.current) {
+        clearTimeout(initTimerRef.current);
+        initTimerRef.current = null;
+      }
+
       // 再接続タイマーをクリア
       if (reconnectTimerRef.current) {
         clearTimeout(reconnectTimerRef.current);
         reconnectTimerRef.current = null;
+      }
+
+      // リサイズタイマーをクリア
+      if (resizeTimerRef.current) {
+        clearTimeout(resizeTimerRef.current);
+        resizeTimerRef.current = null;
       }
 
       if (onDataDisposableRef.current) {
@@ -227,7 +268,11 @@ export function useTerminal(sessionId: string): UseTerminalReturn {
         wsRef.current.close();
       }
       setTerminal(null);
+
+      // 初期化フラグをリセット（次のマウント時に再初期化可能にする）
+      isInitializingRef.current = false;
     };
+    // NOTE: sessionIdとcreateWebSocketを依存配列に含める（createWebSocketはuseCallbackでメモ化済み）
   }, [sessionId, createWebSocket]);
 
   // リサイズ関数（useCallbackでメモ化して不要な再レンダリングを防止）
@@ -246,6 +291,44 @@ export function useTerminal(sessionId: string): UseTerminalReturn {
       );
     }
   }, []);
+
+  // ウィンドウリサイズ時にデバウンス付きでfit()を実行
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const handleResize = () => {
+      // 既存のタイマーをクリア
+      if (resizeTimerRef.current) {
+        clearTimeout(resizeTimerRef.current);
+      }
+
+      // デバウンス付きでfit()を実行
+      resizeTimerRef.current = setTimeout(() => {
+        fit();
+      }, RESIZE_DEBOUNCE_DELAY);
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (resizeTimerRef.current) {
+        clearTimeout(resizeTimerRef.current);
+        resizeTimerRef.current = null;
+      }
+    };
+  }, [fit]);
+
+  // isVisibleがtrueに変更されたときにfit()を実行
+  useEffect(() => {
+    // 前回の値からtrueに変わった場合のみ実行
+    if (isVisible && !prevIsVisibleRef.current) {
+      fit();
+    }
+    prevIsVisibleRef.current = isVisible;
+  }, [isVisible, fit]);
 
   // 手動再接続関数
   const reconnect = useCallback(() => {

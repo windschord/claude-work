@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { getSession } from '@/lib/auth';
 import { GitService } from '@/services/git-service';
 import { ProcessManager } from '@/services/process-manager';
 import { logger } from '@/lib/logger';
@@ -11,14 +10,11 @@ const processManager = ProcessManager.getInstance();
  * GET /api/sessions/[id] - セッション詳細取得
  *
  * 指定されたIDのセッション情報を取得します。
- * 認証が必要です。
  *
- * @param request - sessionIdクッキーを含むリクエスト
  * @param params.id - セッションID
  *
  * @returns
  * - 200: セッション情報（統一形式）
- * - 401: 認証されていない
  * - 404: セッションが見つからない
  * - 500: サーバーエラー
  *
@@ -26,7 +22,6 @@ const processManager = ProcessManager.getInstance();
  * ```typescript
  * // リクエスト
  * GET /api/sessions/session-uuid
- * Cookie: sessionId=<uuid>
  *
  * // レスポンス
  * {
@@ -44,20 +39,10 @@ const processManager = ProcessManager.getInstance();
  * ```
  */
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const sessionId = request.cookies.get('sessionId')?.value;
-    if (!sessionId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const session = await getSession(sessionId);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { id } = await params;
 
     const targetSession = await prisma.session.findUnique({
@@ -82,14 +67,11 @@ export async function GET(
  *
  * 指定されたIDのセッションを削除します。
  * 実行中のプロセスは停止され、Git worktreeが削除され、データベースからセッションが削除されます。
- * 認証が必要です。
  *
- * @param request - sessionIdクッキーを含むリクエスト
  * @param params.id - セッションID
  *
  * @returns
  * - 204: 削除成功（レスポンスボディなし）
- * - 401: 認証されていない
  * - 404: セッションが見つからない
  * - 500: サーバーエラー
  *
@@ -97,27 +79,16 @@ export async function GET(
  * ```typescript
  * // リクエスト
  * DELETE /api/sessions/session-uuid
- * Cookie: sessionId=<uuid>
  *
  * // レスポンス
  * 204 No Content
  * ```
  */
 export async function DELETE(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const sessionId = request.cookies.get('sessionId')?.value;
-    if (!sessionId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const session = await getSession(sessionId);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { id } = await params;
 
     const targetSession = await prisma.session.findUnique({
@@ -165,6 +136,86 @@ export async function DELETE(
   } catch (error) {
     const { id: errorId } = await params;
     logger.error('Failed to delete session', { error, session_id: errorId });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+/**
+ * PATCH /api/sessions/[id] - セッション情報更新
+ *
+ * 指定されたIDのセッション情報を更新します。
+ * 現在はセッション名の更新のみサポートしています。
+ *
+ * @param request - ボディにnameを含むリクエスト
+ * @param params.id - セッションID
+ *
+ * @returns
+ * - 200: 更新成功（セッション情報を含む）
+ * - 400: 名前が空またはバリデーションエラー
+ * - 404: セッションが見つからない
+ * - 500: サーバーエラー
+ *
+ * @example
+ * ```typescript
+ * // リクエスト
+ * PATCH /api/sessions/session-uuid
+ * Content-Type: application/json
+ * { "name": "新しいセッション名" }
+ *
+ * // レスポンス
+ * {
+ *   "session": {
+ *     "id": "session-uuid",
+ *     "name": "新しいセッション名",
+ *     ...
+ *   }
+ * }
+ * ```
+ */
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+
+    // リクエストボディの解析
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
+    }
+
+    const { name } = body;
+
+    // 名前のバリデーション
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+    }
+
+    const trimmedName = name.trim();
+
+    // セッションが存在するか確認
+    const existingSession = await prisma.session.findUnique({
+      where: { id },
+    });
+
+    if (!existingSession) {
+      return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+    }
+
+    // セッション名を更新
+    const updatedSession = await prisma.session.update({
+      where: { id },
+      data: { name: trimmedName },
+    });
+
+    logger.info('Session name updated', { id, name: trimmedName });
+    return NextResponse.json({ session: updatedSession });
+  } catch (error) {
+    const { id: errorId } = await params;
+    logger.error('Failed to update session', { error, session_id: errorId });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

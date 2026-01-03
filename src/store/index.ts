@@ -11,8 +11,6 @@ export interface Project {
   name: string;
   /** Gitリポジトリのパス */
   path: string;
-  /** デフォルトのClaudeモデル */
-  default_model: string;
   /** 実行スクリプトの配列 */
   run_scripts: Array<{ name: string; command: string }>;
   /** セッション数 */
@@ -33,12 +31,18 @@ export interface Session {
   name: string;
   /** セッションの状態 */
   status: 'initializing' | 'running' | 'waiting_input' | 'completed' | 'error' | 'stopped';
-  /** 使用しているClaudeモデル */
-  model: string;
   /** Git worktreeのパス */
   worktree_path: string;
   /** Gitブランチ名 */
   branch_name: string;
+  /** PR URL（オプショナル：PRが作成されていない場合はnull） */
+  pr_url?: string | null;
+  /** PR番号（オプショナル） */
+  pr_number?: number | null;
+  /** PRステータス（open, merged, closed） */
+  pr_status?: string | null;
+  /** PR情報更新日時 */
+  pr_updated_at?: string | null;
   /** 作成日時 */
   created_at: string;
   /** 更新日時（オプショナル：既存データとの互換性のため） */
@@ -53,8 +57,6 @@ export interface CreateSessionData {
   name?: string;
   /** プロンプト */
   prompt: string;
-  /** 使用するClaudeモデル（デフォルト: 'auto'） */
-  model?: string;
 }
 
 /**
@@ -105,18 +107,9 @@ export interface Prompt {
  * アプリケーション全体の状態管理インターフェース
  *
  * Zustandを使用したグローバルステート管理の型定義です。
- * 認証、プロジェクト、セッション、UIの状態とアクションを含みます。
+ * プロジェクト、セッション、UIの状態とアクションを含みます。
  */
 export interface AppState {
-  /** 認証状態 */
-  isAuthenticated: boolean;
-  /** 認証トークン */
-  token: string | null;
-  /** セッションID */
-  sessionId: string | null;
-  /** セッション有効期限 */
-  expiresAt: string | null;
-
   /** プロジェクト一覧 */
   projects: Project[];
   /** 選択中のプロジェクトID */
@@ -126,6 +119,9 @@ export interface AppState {
   sessions: Session[];
   /** 選択中のセッションID */
   selectedSessionId: string | null;
+
+  /** 現在アクティブなセッションID（Tree表示用） */
+  currentSessionId: string | null;
 
   /** 現在表示中のセッション詳細 */
   currentSession: Session | null;
@@ -159,14 +155,6 @@ export interface AppState {
   /** サイドバーが開いているか（モバイル時） */
   isSidebarOpen: boolean;
 
-  /** 認証状態を設定 */
-  setAuthenticated: (isAuthenticated: boolean, token?: string) => void;
-  /** ログイン処理 */
-  login: (token: string) => Promise<void>;
-  /** ログアウト処理 */
-  logout: () => Promise<void>;
-  /** 認証状態確認 */
-  checkAuth: () => Promise<void>;
   /** プロジェクト一覧を取得 */
   fetchProjects: () => Promise<void>;
   /** プロジェクト一覧を設定 */
@@ -187,6 +175,8 @@ export interface AppState {
   setSessions: (sessions: Session[]) => void;
   /** 選択中のセッションIDを設定 */
   setSelectedSessionId: (sessionId: string | null) => void;
+  /** 現在アクティブなセッションIDを設定（Tree表示用） */
+  setCurrentSessionId: (sessionId: string | null) => void;
   /** セッション詳細を取得 */
   fetchSessionDetail: (sessionId: string) => Promise<void>;
   /** セッションを停止 */
@@ -221,14 +211,11 @@ export interface AppState {
  * 初期状態
  */
 const initialState = {
-  isAuthenticated: false,
-  token: null,
-  sessionId: null,
-  expiresAt: null,
   projects: [],
   selectedProjectId: null,
   sessions: [],
   selectedSessionId: null,
+  currentSessionId: null,
   currentSession: null,
   diff: null,
   selectedFile: null,
@@ -255,116 +242,13 @@ const initialState = {
  * import { useAppStore } from '@/store';
  *
  * function MyComponent() {
- *   const { isAuthenticated, setAuthenticated } = useAppStore();
+ *   const { projects, fetchProjects } = useAppStore();
  *   // ...
  * }
  * ```
  */
 export const useAppStore = create<AppState>((set) => ({
   ...initialState,
-
-  setAuthenticated: (isAuthenticated, token) =>
-    set({ isAuthenticated, token: token || null }),
-
-  login: async (token: string) => {
-    try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ token }),
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error('トークンが無効です');
-        }
-        if (response.status === 500) {
-          throw new Error('サーバーエラーが発生しました');
-        }
-        throw new Error('ログインに失敗しました');
-      }
-
-      const data = await response.json();
-      set({
-        isAuthenticated: true,
-        sessionId: data.session_id,
-        expiresAt: data.expires_at,
-      });
-    } catch (error) {
-      if (error instanceof Error) {
-        if (error.message.includes('Failed to fetch') || error.message.includes('Network')) {
-          throw new Error('ネットワークエラーが発生しました');
-        }
-        throw error;
-      }
-      throw new Error('ログインに失敗しました');
-    }
-  },
-
-  logout: async () => {
-    try {
-      const response = await fetch('/api/auth/logout', {
-        method: 'POST',
-      });
-
-      if (!response.ok) {
-        throw new Error('ログアウトに失敗しました');
-      }
-
-      set({
-        isAuthenticated: false,
-        sessionId: null,
-        expiresAt: null,
-      });
-    } catch (error) {
-      if (error instanceof Error) {
-        if (error.message.includes('Failed to fetch') || error.message.includes('Network')) {
-          throw new Error('ネットワークエラーが発生しました');
-        }
-        throw error;
-      }
-      throw new Error('ログアウトに失敗しました');
-    }
-  },
-
-  checkAuth: async () => {
-    try {
-      const response = await fetch('/api/auth/session');
-
-      if (!response.ok) {
-        set({
-          isAuthenticated: false,
-          sessionId: null,
-          expiresAt: null,
-        });
-        return;
-      }
-
-      const data = await response.json();
-      if (data.authenticated) {
-        set({
-          isAuthenticated: true,
-          sessionId: data.session_id,
-          expiresAt: data.expires_at,
-        });
-      } else {
-        set({
-          isAuthenticated: false,
-          sessionId: null,
-          expiresAt: null,
-        });
-      }
-    } catch {
-      // セッションチェックエラーは未認証として扱う
-      set({
-        isAuthenticated: false,
-        sessionId: null,
-        expiresAt: null,
-      });
-    }
-  },
 
   setProjects: (projects) =>
     set({ projects }),
@@ -377,6 +261,9 @@ export const useAppStore = create<AppState>((set) => ({
 
   setSelectedSessionId: (sessionId) =>
     set({ selectedSessionId: sessionId }),
+
+  setCurrentSessionId: (sessionId) =>
+    set({ currentSessionId: sessionId }),
 
   setTheme: (theme) =>
     set({ theme }),
@@ -396,7 +283,10 @@ export const useAppStore = create<AppState>((set) => ({
       }
 
       const data = await response.json();
-      set({ projects: data.projects || [] });
+      set({
+        projects: data.projects || [],
+        sessions: data.sessions || [],
+      });
     } catch (error) {
       if (error instanceof Error) {
         if (error.message.includes('Failed to fetch') || error.message.includes('Network')) {

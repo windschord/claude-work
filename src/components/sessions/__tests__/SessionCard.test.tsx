@@ -25,7 +25,6 @@ describe('SessionCard', () => {
     id: 'test-session-id',
     name: 'Test Session',
     status: 'initializing',
-    model: 'claude-3-sonnet',
     branch_name: 'test-branch',
     worktree_path: '/path/to/worktree',
     project_id: 'test-project-id',
@@ -60,11 +59,6 @@ describe('SessionCard', () => {
     expect(screen.getByText(/test-branch/)).toBeInTheDocument();
   });
 
-  it('モデル情報が表示される', () => {
-    render(<SessionCard session={mockSession} onClick={mockOnClick} />);
-
-    expect(screen.getByText(/claude-3-sonnet/)).toBeInTheDocument();
-  });
 
   it('作成日時が表示される', () => {
     render(<SessionCard session={mockSession} onClick={mockOnClick} />);

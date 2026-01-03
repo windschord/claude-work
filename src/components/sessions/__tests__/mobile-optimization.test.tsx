@@ -13,7 +13,6 @@ describe('SessionCard - Mobile Optimization', () => {
     project_id: 'project-1',
     name: 'Test Session',
     status: 'running',
-    model: 'claude-3-5-sonnet-20241022',
     branch_name: 'feature/test',
     worktree_path: '/path/to/worktree',
     created_at: '2025-01-01T00:00:00Z',
@@ -50,12 +49,12 @@ describe('SessionCard - Mobile Optimization', () => {
   it('ホバー効果が設定されている', () => {
     const { container } = render(<SessionCard session={mockSession} onClick={mockOnClick} />);
     const card = container.firstChild as HTMLElement;
-    expect(card).toHaveClass('hover:shadow-md');
+    expect(card).toHaveClass('hover:shadow-lg');
   });
 
   it('トランジション効果が設定されている', () => {
     const { container } = render(<SessionCard session={mockSession} onClick={mockOnClick} />);
     const card = container.firstChild as HTMLElement;
-    expect(card).toHaveClass('transition-shadow');
+    expect(card).toHaveClass('transition-all');
   });
 });

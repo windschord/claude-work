@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { getSession } from '@/lib/auth';
 import { ProcessManager } from '@/services/process-manager';
 import { logger } from '@/lib/logger';
 
@@ -10,14 +9,11 @@ const processManager = ProcessManager.getInstance();
  * GET /api/sessions/[id]/process - プロセス状態確認
  *
  * 指定されたIDのセッションのClaude Codeプロセスが実行中かどうかを確認します。
- * 認証が必要です。
  *
- * @param request - sessionIdクッキーを含むリクエスト
  * @param params.id - セッションID
  *
  * @returns
  * - 200: プロセス状態 { running: boolean }
- * - 401: 認証されていない
  * - 404: セッションが見つからない
  * - 500: サーバーエラー
  *
@@ -25,7 +21,6 @@ const processManager = ProcessManager.getInstance();
  * ```typescript
  * // リクエスト
  * GET /api/sessions/session-uuid/process
- * Cookie: sessionId=<uuid>
  *
  * // レスポンス（プロセス実行中）
  * {
@@ -39,20 +34,10 @@ const processManager = ProcessManager.getInstance();
  * ```
  */
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const sessionId = request.cookies.get('sessionId')?.value;
-    if (!sessionId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const session = await getSession(sessionId);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { id } = await params;
 
     const targetSession = await prisma.session.findUnique({
@@ -79,14 +64,11 @@ export async function GET(
  *
  * 停止中のセッションのClaude Codeプロセスを再起動します。
  * 既にプロセスが実行中の場合は何もせず成功を返します。
- * 認証が必要です。
  *
- * @param request - sessionIdクッキーを含むリクエスト
  * @param params.id - セッションID
  *
  * @returns
  * - 200: 成功 { success: true, running: true } または { success: true, running: true, message: 'Process already running' }
- * - 401: 認証されていない
  * - 404: セッションが見つからない
  * - 500: サーバーエラー
  *
@@ -94,7 +76,6 @@ export async function GET(
  * ```typescript
  * // リクエスト
  * POST /api/sessions/session-uuid/process
- * Cookie: sessionId=<uuid>
  *
  * // レスポンス（起動成功）
  * {
@@ -111,20 +92,10 @@ export async function GET(
  * ```
  */
 export async function POST(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const sessionId = request.cookies.get('sessionId')?.value;
-    if (!sessionId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const session = await getSession(sessionId);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { id } = await params;
 
     const targetSession = await prisma.session.findUnique({
@@ -151,7 +122,6 @@ export async function POST(
     await processManager.startClaudeCode({
       sessionId: targetSession.id,
       worktreePath: targetSession.worktree_path,
-      model: targetSession.model || undefined,
     });
 
     // セッションのステータスをrunningに更新

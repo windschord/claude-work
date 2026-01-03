@@ -64,20 +64,17 @@ npx claude-work help     # ヘルプ
 
 ### 環境変数のカスタマイズ
 
-デフォルト設定で動作しますが、本番環境では `.env` ファイルを編集してセキュリティ設定を変更してください:
+デフォルト設定で動作しますが、必要に応じて `.env` ファイルを編集できます:
 
 ```bash
-# 認証トークン（ログインに使用）
-CLAUDE_WORK_TOKEN=your-secret-token
-
-# セッションシークレット（32文字以上）
-SESSION_SECRET=your-32-character-or-longer-secret
-
 # データベースURL（変更不要）
 DATABASE_URL=file:../data/claudework.db
+
+# サーバーポート（オプション）
+PORT=3000
 ```
 
-ブラウザで `http://localhost:3000` を開き、設定したトークンでログインします。
+ブラウザで `http://localhost:3000` を開きます。
 
 ## 環境変数
 
@@ -85,8 +82,6 @@ DATABASE_URL=file:../data/claudework.db
 
 | 変数名 | 説明 | デフォルト |
 |--------|------|-----------|
-| `CLAUDE_WORK_TOKEN` | 認証トークン | なし（必須） |
-| `SESSION_SECRET` | セッション暗号化用シークレット | なし（必須） |
 | `DATABASE_URL` | SQLite データベースパス | なし（必須） |
 | `PORT` | サーバーポート | 3000 |
 | `NODE_ENV` | 実行環境 | development |
@@ -220,15 +215,10 @@ npm run integration-test
 
 ```bash
 # カスタム環境変数で実行
-CLAUDE_WORK_TOKEN=my-token \
-SESSION_SECRET=my-secret-32-characters-long \
-PORT=3001 \
-npm run integration-test
+PORT=3001 npm run integration-test
 ```
 
 環境変数を指定しない場合、以下のデフォルト値が使用されます:
-- `CLAUDE_WORK_TOKEN`: test-token
-- `SESSION_SECRET`: test-session-secret-32-characters-long
 - `PORT`: 3000
 
 ## ライセンス

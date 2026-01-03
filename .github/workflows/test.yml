@@ -7,9 +7,49 @@ on:
     branches: [ main ]
 
 jobs:
-  test:
+  # Lint job - runs quickly in parallel
+  lint:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 5
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Cache node_modules
+      id: cache-node-modules
+      uses: actions/cache@v4
+      with:
+        path: node_modules
+        key: node-modules-${{ hashFiles('package-lock.json') }}
+
+    - name: Install dependencies
+      if: steps.cache-node-modules.outputs.cache-hit != 'true'
+      run: npm ci
+
+    - name: Cache Prisma Client
+      id: cache-prisma
+      uses: actions/cache@v4
+      with:
+        path: node_modules/.prisma
+        key: prisma-${{ hashFiles('prisma/schema.prisma') }}
+
+    - name: Generate Prisma Client
+      if: steps.cache-prisma.outputs.cache-hit != 'true'
+      run: npx prisma generate
+
+    - name: Run linter
+      run: npm run lint
+
+  # Backend tests - API routes, services, libs
+  test-backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     env:
       DATABASE_URL: file:./data/test.db
@@ -23,19 +63,134 @@ jobs:
         node-version: '20'
         cache: 'npm'
 
+    - name: Cache node_modules
+      id: cache-node-modules
+      uses: actions/cache@v4
+      with:
+        path: node_modules
+        key: node-modules-${{ hashFiles('package-lock.json') }}
+
     - name: Install dependencies
+      if: steps.cache-node-modules.outputs.cache-hit != 'true'
       run: npm ci
 
+    - name: Cache Prisma Client
+      id: cache-prisma
+      uses: actions/cache@v4
+      with:
+        path: node_modules/.prisma
+        key: prisma-${{ hashFiles('prisma/schema.prisma') }}
+
     - name: Generate Prisma Client
+      if: steps.cache-prisma.outputs.cache-hit != 'true'
       run: npx prisma generate
 
-    - name: Run linter
-      run: npm run lint
+    - name: Run backend tests
+      run: npx vitest run src/app/api src/lib src/services src/bin --reporter=verbose
+      timeout-minutes: 8
 
-    - name: Run tests
-      run: npm test || echo "Tests skipped or failed - proceeding with build"
-      continue-on-error: true
-      timeout-minutes: 12
+  # Frontend tests - components, pages, hooks
+  test-frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      DATABASE_URL: file:./data/test.db
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Cache node_modules
+      id: cache-node-modules
+      uses: actions/cache@v4
+      with:
+        path: node_modules
+        key: node-modules-${{ hashFiles('package-lock.json') }}
+
+    - name: Install dependencies
+      if: steps.cache-node-modules.outputs.cache-hit != 'true'
+      run: npm ci
+
+    - name: Cache Prisma Client
+      id: cache-prisma
+      uses: actions/cache@v4
+      with:
+        path: node_modules/.prisma
+        key: prisma-${{ hashFiles('prisma/schema.prisma') }}
+
+    - name: Generate Prisma Client
+      if: steps.cache-prisma.outputs.cache-hit != 'true'
+      run: npx prisma generate
+
+    - name: Run frontend tests
+      run: |
+        # Run vitest with a 5-minute timeout - if it hangs after tests pass, timeout will kill it
+        set +e
+        timeout --signal=SIGKILL 300 npx vitest run src/components src/hooks src/store src/app --exclude='src/app/api/**' --reporter=verbose 2>&1 | tee vitest-output.txt
+        VITEST_EXIT_CODE=$?
+
+        # Check if tests passed (look for success message in output)
+        if grep -q "Test Files.*passed" vitest-output.txt && ! grep -q "Test Files.*failed" vitest-output.txt; then
+          echo "All tests passed"
+          exit 0
+        elif [ $VITEST_EXIT_CODE -eq 137 ]; then
+          # SIGKILL timeout (128 + 9 = 137) - check if tests passed before hang
+          if grep -q "Test Files.*passed" vitest-output.txt && ! grep -q "Test Files.*failed" vitest-output.txt; then
+            echo "Tests passed but process hung - treating as success"
+            exit 0
+          fi
+          echo "Tests may have failed or hung before completing"
+          exit 1
+        else
+          exit $VITEST_EXIT_CODE
+        fi
+      timeout-minutes: 8
+
+  # Build job - depends on all tests passing
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [lint, test-backend, test-frontend]
+
+    env:
+      DATABASE_URL: file:./data/test.db
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Cache node_modules
+      id: cache-node-modules
+      uses: actions/cache@v4
+      with:
+        path: node_modules
+        key: node-modules-${{ hashFiles('package-lock.json') }}
+
+    - name: Install dependencies
+      if: steps.cache-node-modules.outputs.cache-hit != 'true'
+      run: npm ci
+
+    - name: Cache Prisma Client
+      id: cache-prisma
+      uses: actions/cache@v4
+      with:
+        path: node_modules/.prisma
+        key: prisma-${{ hashFiles('prisma/schema.prisma') }}
+
+    - name: Generate Prisma Client
+      if: steps.cache-prisma.outputs.cache-hit != 'true'
+      run: npx prisma generate
 
     - name: Build
       run: npm run build

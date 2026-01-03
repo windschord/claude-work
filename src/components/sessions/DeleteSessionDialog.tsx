@@ -5,6 +5,7 @@ import { Dialog, DialogPanel, DialogTitle } from '@headlessui/react';
 interface DeleteSessionDialogProps {
   isOpen: boolean;
   sessionName: string;
+  worktreePath?: string;
   onConfirm: () => void;
   onCancel: () => void;
   isDeleting: boolean;
@@ -28,6 +29,7 @@ interface DeleteSessionDialogProps {
 export function DeleteSessionDialog({
   isOpen,
   sessionName,
+  worktreePath,
   onConfirm,
   onCancel,
   isDeleting,
@@ -41,9 +43,24 @@ export function DeleteSessionDialog({
           <DialogTitle className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">
             セッションを削除
           </DialogTitle>
-          <p className="text-gray-700 dark:text-gray-300 mb-4">
-            セッション「{sessionName}」を削除しますか？この操作は取り消せません。
-          </p>
+          <div className="mb-4">
+            <p className="text-gray-700 dark:text-gray-300 mb-2">
+              以下のセッションを削除しますか？
+            </p>
+            <div className="bg-gray-100 dark:bg-gray-700 rounded p-3 space-y-1">
+              <p className="font-medium text-gray-900 dark:text-gray-100">
+                {sessionName}
+              </p>
+              {worktreePath && (
+                <p className="text-sm text-gray-500 dark:text-gray-400 break-all">
+                  {worktreePath}
+                </p>
+              )}
+            </div>
+            <p className="text-red-600 dark:text-red-400 text-sm mt-2">
+              この操作は取り消せません。worktreeも削除されます。
+            </p>
+          </div>
           {error && (
             <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 rounded text-sm">
               {error}

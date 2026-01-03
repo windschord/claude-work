@@ -14,7 +14,6 @@ model Project {
   id            String   @id @default(uuid())
   name          String
   path          String   @unique
-  default_model String   @default("auto")
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
 
@@ -27,11 +26,14 @@ model Session {
   project_id         String
   name               String
   status             String    // initializing, running, waiting_input, completed, error, stopped
-  model              String
   worktree_path      String
   branch_name        String
   resume_session_id  String?   // Claude Codeの--resume用セッションID（stopped時に保存）
   last_activity_at   DateTime? // 最終アクティビティ日時（アイドルタイムアウト計算用）
+  pr_url             String?   // PR URL (e.g., https://github.com/owner/repo/pull/123)
+  pr_number          Int?      // PR number (e.g., 123)
+  pr_status          String?   // PR status: open, merged, closed
+  pr_updated_at      DateTime? // 最終PR情報更新日時
   created_at         DateTime  @default(now())
   updated_at         DateTime  @updatedAt
 
@@ -50,12 +52,6 @@ model Message {
   session     Session  @relation(fields: [session_id], references: [id], onDelete: Cascade)
 }
 
-model AuthSession {
-  id          String   @id
-  token_hash  String
-  expires_at  DateTime
-  created_at  DateTime @default(now())
-}
 
 model Prompt {
   id           String   @id @default(uuid())

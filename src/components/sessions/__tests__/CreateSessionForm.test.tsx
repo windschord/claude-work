@@ -33,7 +33,6 @@ describe('CreateSessionForm', () => {
             id: 'project-1',
             name: 'Test Project',
             path: '/test/path',
-            default_model: 'sonnet',
             run_scripts: [],
             session_count: 0,
             created_at: new Date().toISOString(),
@@ -113,7 +112,6 @@ describe('CreateSessionForm', () => {
       expect(mockCreateSession).toHaveBeenCalledWith('project-1', {
         name: undefined, // サーバー側で自動生成
         prompt: 'Test prompt',
-        model: 'sonnet',
       });
       // onSuccessにセッションIDが渡される
       expect(mockOnCreate).toHaveBeenCalledWith('new-session-id');
@@ -135,7 +133,6 @@ describe('CreateSessionForm', () => {
       expect(mockCreateSession).toHaveBeenCalledWith('project-1', {
         name: 'New Session',
         prompt: 'Test prompt',
-        model: 'sonnet',
       });
       // onSuccessにセッションIDが渡される
       expect(mockOnCreate).toHaveBeenCalledWith('new-session-id');
@@ -222,23 +219,6 @@ describe('CreateSessionForm', () => {
     render(<CreateSessionForm projectId="project-1" onSuccess={mockOnCreate} />);
 
     expect(screen.getByText(/プロンプト/)).toBeInTheDocument();
-  });
-
-  it('モデル選択フィールドが表示される', () => {
-    render(<CreateSessionForm projectId="project-1" onSuccess={mockOnCreate} />);
-
-    const modelSelect = screen.getByLabelText(/モデル/);
-    expect(modelSelect).toBeInTheDocument();
-    expect(modelSelect).toHaveValue('sonnet'); // デフォルトモデル
-  });
-
-  it('モデル選択が正しく動作する', () => {
-    render(<CreateSessionForm projectId="project-1" onSuccess={mockOnCreate} />);
-
-    const modelSelect = screen.getByLabelText(/モデル/) as HTMLSelectElement;
-    fireEvent.change(modelSelect, { target: { value: 'opus' } });
-
-    expect(modelSelect.value).toBe('opus');
   });
 
   it('placeholderに自動生成の説明が含まれる', () => {

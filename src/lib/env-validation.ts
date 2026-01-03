@@ -22,35 +22,12 @@ export interface EnvValidationError {
  * 必須環境変数の存在と有効性を検証します
  *
  * 以下の環境変数をチェックします：
- * - CLAUDE_WORK_TOKEN: 認証に必要なトークン
- * - SESSION_SECRET: セッション暗号化に必要な32文字以上の秘密鍵
  * - DATABASE_URL: データベース接続URL
  *
  * @throws {Error} 必須環境変数が未設定または無効な場合、詳細なエラーメッセージとセットアップ手順を含むエラーをスロー
  */
 export function validateRequiredEnvVars(): void {
   const errors: EnvValidationError[] = [];
-
-  // CLAUDE_WORK_TOKENのチェック
-  if (!process.env.CLAUDE_WORK_TOKEN || process.env.CLAUDE_WORK_TOKEN.trim() === '') {
-    errors.push({
-      variable: 'CLAUDE_WORK_TOKEN',
-      message: 'CLAUDE_WORK_TOKEN environment variable is not set. This is required for authentication.',
-    });
-  }
-
-  // SESSION_SECRETのチェック
-  if (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.trim() === '') {
-    errors.push({
-      variable: 'SESSION_SECRET',
-      message: 'SESSION_SECRET environment variable is not set. This is required for session management.',
-    });
-  } else if (process.env.SESSION_SECRET.length < 32) {
-    errors.push({
-      variable: 'SESSION_SECRET',
-      message: 'SESSION_SECRET must be at least 32 characters long for security.',
-    });
-  }
 
   // DATABASE_URLのチェック
   if (!process.env.DATABASE_URL || process.env.DATABASE_URL.trim() === '') {
@@ -70,8 +47,6 @@ export function validateRequiredEnvVars(): void {
       '1. Copy .env.example to .env:\n' +
       '   cp .env.example .env\n\n' +
       '2. Edit .env and set the required variables:\n' +
-      '   - CLAUDE_WORK_TOKEN: A secure random token for authentication\n' +
-      '   - SESSION_SECRET: A 32+ character secret for session encryption\n' +
       '   - DATABASE_URL: Database connection URL (e.g., file:../data/claudework.db)\n\n' +
       'For more details, see README.md and docs/ENV_VARS.md'
     );

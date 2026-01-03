@@ -7,7 +7,6 @@ import { useAppStore } from '@/store';
 import { useScriptLogStore } from '@/store/script-logs';
 import { useNotificationStore } from '@/store/notification';
 import { useWebSocket } from '@/hooks/useWebSocket';
-import { AuthGuard } from '@/components/AuthGuard';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { FileList } from '@/components/git/FileList';
 import { DiffViewer } from '@/components/git/DiffViewer';
@@ -18,6 +17,8 @@ import { DeleteWorktreeDialog } from '@/components/git/DeleteWorktreeDialog';
 import { CommitHistory } from '@/components/git/CommitHistory';
 import { ScriptsPanel } from '@/components/scripts/ScriptsPanel';
 import { ProcessStatus } from '@/components/sessions/ProcessStatus';
+import { DeleteSessionButton } from '@/components/sessions/DeleteSessionButton';
+import { PRSection } from '@/components/sessions/PRSection';
 import { Toaster, toast } from 'react-hot-toast';
 import type { ServerMessage } from '@/types/websocket';
 
@@ -69,7 +70,6 @@ export default function SessionDetailPage() {
     fetchDiff,
     stopSession,
     deleteSession,
-    checkAuth,
     handleWebSocketMessage,
   } = useAppStore();
 
@@ -175,10 +175,6 @@ export default function SessionDetailPage() {
       checkProcessStatus();
     }
   }, [wsStatus, checkProcessStatus]);
-
-  useEffect(() => {
-    checkAuth();
-  }, [checkAuth]);
 
   // Request notification permission on first visit
   useEffect(() => {
@@ -293,20 +289,17 @@ export default function SessionDetailPage() {
 
   if (!currentSession) {
     return (
-      <AuthGuard>
-        <MainLayout>
-          <div className="flex items-center justify-center h-full">
-            <p className="text-gray-500 dark:text-gray-400">読み込み中...</p>
-          </div>
-        </MainLayout>
-      </AuthGuard>
+      <MainLayout>
+        <div className="flex items-center justify-center h-full">
+          <p className="text-gray-500 dark:text-gray-400">読み込み中...</p>
+        </div>
+      </MainLayout>
     );
   }
 
   return (
-    <AuthGuard>
-      <MainLayout>
-        <div className="flex flex-col h-full">
+    <MainLayout>
+      <div className="flex flex-col h-full">
           {/* Header */}
           <div className="border-b border-gray-200 dark:border-gray-700 p-4 flex items-center justify-between">
             <div>
@@ -315,7 +308,7 @@ export default function SessionDetailPage() {
               </h1>
               <div className="flex items-center gap-4 mt-2">
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  ステータス: {currentSession.status} | モデル: {currentSession.model}
+                  ステータス: {currentSession.status}
                   {' | '}
                   <span
                     className={`${
@@ -333,6 +326,16 @@ export default function SessionDetailPage() {
                   running={processRunning}
                   loading={processLoading}
                   onRestart={handleRestartProcess}
+                />
+              </div>
+              <div className="mt-3">
+                <PRSection
+                  sessionId={sessionId}
+                  branchName={currentSession.branch_name}
+                  prUrl={currentSession.pr_url}
+                  prNumber={currentSession.pr_number}
+                  prStatus={currentSession.pr_status}
+                  onPRCreated={() => fetchSessionDetail(sessionId)}
                 />
               </div>
             </div>
@@ -360,6 +363,7 @@ export default function SessionDetailPage() {
                   停止
                 </button>
               )}
+              <DeleteSessionButton session={currentSession} />
             </div>
           </div>
 
@@ -495,7 +499,6 @@ export default function SessionDetailPage() {
           {/* Toast Notifications */}
           <Toaster position="top-right" />
         </div>
-      </MainLayout>
-    </AuthGuard>
+    </MainLayout>
   );
 }

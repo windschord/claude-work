@@ -15,7 +15,7 @@ ClaudeWork is a web-based tool for managing multiple Claude Code sessions throug
   - Claude WebSocket (`/ws/claude/:id`): Claude Code PTY terminal (interactive mode)
   - Session WebSocket (`/ws/sessions/:id`): Session events and script execution
   - Terminal WebSocket (`/ws/terminal/:id`): Shell PTY sessions
-- WebSocket authentication via iron-session cookies
+- WebSocket connection pooling
 - Connection pooling via ConnectionManager
 
 **Session Management**:
@@ -33,10 +33,9 @@ ClaudeWork is a web-based tool for managing multiple Claude Code sessions throug
 
 **WebSocket Flow** (Claude Terminal):
 1. Client connects to `/ws/claude/:sessionId`
-2. Connection authenticated via iron-session cookie
-3. ClaudePTYManager creates PTY session for Claude Code (interactive mode)
-4. XTerm.js on client displays raw terminal output from Claude Code
-5. User input from terminal sent to PTY via WebSocket
+2. ClaudePTYManager creates PTY session for Claude Code (interactive mode)
+3. XTerm.js on client displays raw terminal output from Claude Code
+4. User input from terminal sent to PTY via WebSocket
 
 ### Database Schema
 
@@ -44,7 +43,6 @@ Key models (prisma/schema.prisma):
 - **Project**: Git repository with default model setting
 - **Session**: Links to project, has worktree_path and branch_name
 - **Message**: Chat history with role/content
-- **AuthSession**: Token-based authentication
 - **RunScript**: Custom scripts per project
 
 ### Frontend Architecture
@@ -156,11 +154,7 @@ Create `.env` file with:
 
 ```bash
 DATABASE_URL=file:../data/claudework.db
-CLAUDE_WORK_TOKEN=your-secret-token
-SESSION_SECRET=your-32-character-or-longer-secret
 ```
-
-The app will **refuse to start** without these variables (validated in server.ts).
 
 ### Optional Variables
 
@@ -174,16 +168,6 @@ The app will **refuse to start** without these variables (validated in server.ts
 See `docs/ENV_VARS.md` for complete reference.
 
 ## Critical Implementation Details
-
-### WebSocket Authentication
-
-Both WebSocket servers authenticate via:
-1. Parse and validate the iron-session cookie from request headers (authentication/authorization)
-2. Extract `pathSessionId` from URL path (`/ws/sessions/:id` or `/ws/terminal/:id`) to identify the target session
-3. Bind the WebSocket connection to the identified session using the validated cookie context
-   - Note: the cookie `sessionId` is not compared to the URL `pathSessionId`; the path value is used only for session identification
-
-Implementation: `src/lib/websocket/auth-middleware.ts`
 
 ### Claude Code Process Management
 
@@ -250,7 +234,7 @@ Manual testing script: `npm run integration-test`
 
 1. Create route file: `src/app/api/[path]/route.ts`
 2. Export HTTP method handlers: `GET`, `POST`, `PUT`, `DELETE`
-3. Use `getIronSession()` for authentication
+3. Validate request parameters
 4. Return `NextResponse.json()` for responses
 5. Create test file: `src/app/api/[path]/__tests__/route.test.ts`
 
@@ -274,12 +258,11 @@ Manual testing script: `npm run integration-test`
 See `docs/verification-report-browser-ui-phase18.md` for the Phase 18 baseline status.
 
 1. **Critical** (resolved in Phase 19): Claude Code `--cwd` option not supported (process-manager.ts:98)
-2. **Critical** (resolved in Phase 19): WebSocket authentication session ID mismatch
-3. **Critical** (partially resolved in Phase 19): WebSocket remains disconnected (related to issues 1-2)
-4. **Low**: Next.js HMR WebSocket 404 in custom server mode
-5. **Low**: Multiple lockfile warning (remove package-lock.json)
+2. **Critical** (partially resolved in Phase 19): WebSocket remains disconnected
+3. **Low**: Next.js HMR WebSocket 404 in custom server mode
+4. **Low**: Multiple lockfile warning (remove package-lock.json)
 
-Phase 19 tasks (docs/tasks/phase19.md) implement fixes for issues 1–3; issues 1–2 are fully resolved and issue 3 is partially resolved per the Phase 19 verification report.
+Phase 19 tasks (docs/tasks/phase19.md) implement fixes for issues 1-2.
 
 ## Project Structure
 
@@ -298,7 +281,6 @@ Phase 19 tasks (docs/tasks/phase19.md) implement fixes for issues 1–3; issues 
 │   ├── lib/                # Shared libraries
 │   │   ├── websocket/      # WebSocket handlers
 │   │   ├── db.ts           # Prisma client
-│   │   ├── auth.ts         # Authentication
 │   │   └── logger.ts       # Winston logger
 │   ├── services/           # Business logic
 │   │   ├── git-service.ts        # Git operations

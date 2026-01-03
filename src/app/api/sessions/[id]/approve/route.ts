@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { getSession } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 
 /**
@@ -8,15 +7,13 @@ import { logger } from '@/lib/logger';
  *
  * セッションからの権限リクエストを承認します。
  * 初期実装では、承認のログを記録するのみです。
- * 認証が必要です。
  *
- * @param request - sessionIdクッキーを含むリクエスト
+ * @param request - リクエスト
  * @param params.id - セッションID
  *
  * @returns
  * - 200: 承認成功
  * - 400: リクエストボディが不正
- * - 401: 認証されていない
  * - 404: セッションが見つからない
  * - 500: サーバーエラー
  *
@@ -24,7 +21,6 @@ import { logger } from '@/lib/logger';
  * ```typescript
  * // リクエスト
  * POST /api/sessions/session-uuid/approve
- * Cookie: sessionId=<uuid>
  * {
  *   "action": "approve",
  *   "permission_id": "permission-uuid"
@@ -42,16 +38,6 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const sessionId = request.cookies.get('sessionId')?.value;
-    if (!sessionId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const session = await getSession(sessionId);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { id } = await params;
 
     const targetSession = await prisma.session.findUnique({

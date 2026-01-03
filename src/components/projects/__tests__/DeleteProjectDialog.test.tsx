@@ -17,7 +17,6 @@ describe('DeleteProjectDialog', () => {
     id: '1',
     name: 'Test Project',
     path: '/path/to/project',
-    default_model: 'claude-3-opus',
     run_scripts: [],
     session_count: 3,
     created_at: '2024-01-01T00:00:00Z',

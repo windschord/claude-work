@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { getSession } from '@/lib/auth';
 import { getProcessLifecycleManager } from '@/services/process-lifecycle-manager';
 import { logger } from '@/lib/logger';
 
@@ -11,32 +10,19 @@ import { logger } from '@/lib/logger';
  * resume_session_idが保存されている場合は--resumeオプションを使用して
  * 会話履歴を復元します。
  *
- * @param request - sessionIdクッキーを含むリクエスト
  * @param params.id - セッションID
  *
  * @returns
  * - 200: セッション再開成功
  * - 400: セッションがstopped状態でない
- * - 401: 認証されていない
  * - 404: セッションが見つからない
  * - 500: サーバーエラー
  */
 export async function POST(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // 認証チェック
-    const sessionId = request.cookies.get('sessionId')?.value;
-    if (!sessionId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const authSession = await getSession(sessionId);
-    if (!authSession) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { id } = await params;
 
     // セッション取得
@@ -63,7 +49,6 @@ export async function POST(
       await lifecycleManager.resumeSession(
         targetSession.id,
         targetSession.worktree_path,
-        targetSession.model,
         targetSession.resume_session_id || undefined
       );
     } catch (error) {
@@ -86,12 +71,17 @@ export async function POST(
       },
     });
 
+    const resumedWithHistory = !!targetSession.resume_session_id;
+
     logger.info('Session resumed', {
       id,
-      hadResumeSessionId: !!targetSession.resume_session_id,
+      resumedWithHistory,
     });
 
-    return NextResponse.json({ session: updatedSession });
+    return NextResponse.json({
+      session: updatedSession,
+      resumed_with_history: resumedWithHistory,
+    });
   } catch (error) {
     const { id: errorId } = await params;
     logger.error('Failed to resume session', { error, session_id: errorId });

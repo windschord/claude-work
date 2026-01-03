@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { getSession } from '@/lib/auth';
 import { GitService } from '@/services/git-service';
 import { logger } from '@/lib/logger';
 import { basename } from 'path';
@@ -10,16 +9,13 @@ import { basename } from 'path';
  *
  * 指定されたセッションのブランチを特定のコミットにリセットします。
  * git reset --hard を使用するため、未コミットの変更は破棄されます。
- * 認証が必要です。
  *
- * @param request - sessionIdクッキーとリクエストボディ（commit_hash）を含むリクエスト
+ * @param request - リクエストボディ（commit_hash）を含むリクエスト
  * @param params.id - セッションID
  *
  * @returns
  * - 200: リセット成功
  * - 400: commit_hashが未指定またはリセット失敗
- * - 401: 認証されていない
- * - 403: セッションへのアクセス権限がない
  * - 404: セッションが見つからない
  * - 500: サーバーエラー
  *
@@ -27,7 +23,6 @@ import { basename } from 'path';
  * ```typescript
  * // リクエスト
  * POST /api/sessions/session-uuid/reset
- * Cookie: sessionId=<uuid>
  * Body: { "commit_hash": "abc123" }
  *
  * // レスポンス（成功時）
@@ -42,16 +37,6 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const sessionId = request.cookies.get('sessionId')?.value;
-    if (!sessionId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const session = await getSession(sessionId);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { id } = await params;
 
     const targetSession = await prisma.session.findUnique({

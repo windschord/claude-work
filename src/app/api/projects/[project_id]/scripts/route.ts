@@ -1,27 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { getSession } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 
 /**
  * GET /api/projects/[project_id]/scripts - スクリプト一覧取得
  *
  * 指定されたプロジェクトのランスクリプト一覧を取得します。
- * 認証が必要です。
  *
- * @param request - sessionIdクッキーを含むリクエスト
  * @param params - idを含むパスパラメータ
  *
  * @returns
  * - 200: スクリプト一覧（統一形式）
- * - 401: 認証されていない
  * - 500: サーバーエラー
  *
  * @example
  * ```typescript
  * // リクエスト
  * GET /api/projects/uuid-123/scripts
- * Cookie: sessionId=<uuid>
  *
  * // レスポンス
  * {
@@ -40,20 +35,10 @@ import { logger } from '@/lib/logger';
  * ```
  */
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ project_id: string }> }
 ) {
   try {
-    const sessionId = request.cookies.get('sessionId')?.value;
-    if (!sessionId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const session = await getSession(sessionId);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const resolvedParams = await params;
     const { project_id: projectId } = resolvedParams;
 
@@ -81,22 +66,19 @@ export async function GET(
  * POST /api/projects/[project_id]/scripts - スクリプト追加
  *
  * 指定されたプロジェクトにランスクリプトを追加します。
- * 認証が必要です。
  *
- * @param request - リクエストボディにname, description, commandを含むJSON、sessionIdクッキー
+ * @param request - リクエストボディにname, description, commandを含むJSON
  * @param params - idを含むパスパラメータ
  *
  * @returns
  * - 201: スクリプト追加成功（統一形式）
  * - 400: 必須フィールドが不足している
- * - 401: 認証されていない
  * - 500: サーバーエラー
  *
  * @example
  * ```typescript
  * // リクエスト
  * POST /api/projects/uuid-123/scripts
- * Cookie: sessionId=<uuid>
  * Content-Type: application/json
  * {
  *   "name": "Test",
@@ -123,16 +105,6 @@ export async function POST(
   { params }: { params: Promise<{ project_id: string }> }
 ) {
   try {
-    const sessionId = request.cookies.get('sessionId')?.value;
-    if (!sessionId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const session = await getSession(sessionId);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const resolvedParams = await params;
     const { project_id: projectId } = resolvedParams;
 

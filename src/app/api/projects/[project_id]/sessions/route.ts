@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { getSession } from '@/lib/auth';
 import { GitService } from '@/services/git-service';
 import { logger } from '@/lib/logger';
 import { generateUniqueSessionName } from '@/lib/session-name-generator';
@@ -9,21 +8,17 @@ import { generateUniqueSessionName } from '@/lib/session-name-generator';
  * GET /api/projects/[project_id]/sessions - プロジェクトのセッション一覧取得
  *
  * 指定されたプロジェクトに属するすべてのセッションを作成日時の降順で取得します。
- * 認証が必要です。
  *
- * @param request - sessionIdクッキーを含むリクエスト
  * @param params.project_id - プロジェクトID
  *
  * @returns
  * - 200: セッション一覧（統一形式）
- * - 401: 認証されていない
  * - 500: サーバーエラー
  *
  * @example
  * ```typescript
  * // リクエスト
  * GET /api/projects/uuid-1234/sessions
- * Cookie: sessionId=<uuid>
  *
  * // レスポンス
  * {
@@ -33,7 +28,6 @@ import { generateUniqueSessionName } from '@/lib/session-name-generator';
  *       "project_id": "uuid-1234",
  *       "name": "新機能実装",
  *       "status": "running",
- *       "model": "claude-3-5-sonnet-20241022",
  *       "worktree_path": "/path/to/worktrees/session-1234567890",
  *       "branch_name": "session/session-1234567890",
  *       "created_at": "2025-12-13T09:00:00.000Z"
@@ -43,20 +37,10 @@ import { generateUniqueSessionName } from '@/lib/session-name-generator';
  * ```
  */
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ project_id: string }> }
 ) {
   try {
-    const sessionId = request.cookies.get('sessionId')?.value;
-    if (!sessionId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const session = await getSession(sessionId);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { project_id } = await params;
 
     const sessions = await prisma.session.findMany({
@@ -79,15 +63,13 @@ export async function GET(
  * 指定されたプロジェクトに新しいセッションを作成します。
  * Git worktreeとブランチが自動的に作成され、Claude Codeプロセスが起動されます。
  * セッション名が未指定の場合は「形容詞-動物名」形式で自動生成されます。
- * 認証が必要です。
  *
- * @param request - リクエストボディに`prompt`（必須）、`name`（オプション、未指定時は自動生成）、`model`（オプション）を含むJSON、sessionIdクッキー
+ * @param request - リクエストボディに`prompt`（オプション）、`name`（オプション、未指定時は自動生成）を含むJSON
  * @param params.project_id - プロジェクトID
  *
  * @returns
  * - 201: セッション作成成功
  * - 400: nameまたはpromptが指定されていない
- * - 401: 認証されていない
  * - 404: プロジェクトが見つからない
  * - 500: サーバーエラー
  *
@@ -95,12 +77,10 @@ export async function GET(
  * ```typescript
  * // リクエスト
  * POST /api/projects/uuid-1234/sessions
- * Cookie: sessionId=<uuid>
  * Content-Type: application/json
  * {
  *   "name": "新機能実装",
- *   "prompt": "ユーザー認証機能を実装してください",
- *   "model": "claude-3-5-sonnet-20241022"
+ *   "prompt": "ユーザー認証機能を実装してください"
  * }
  *
  * // レスポンス
@@ -110,7 +90,6 @@ export async function GET(
  *     "project_id": "uuid-1234",
  *     "name": "新機能実装",
  *     "status": "running",
- *     "model": "claude-3-5-sonnet-20241022",
  *     "worktree_path": "/path/to/worktrees/session-1234567890",
  *     "branch_name": "session/session-1234567890",
  *     "created_at": "2025-12-13T09:00:00.000Z"
@@ -123,16 +102,6 @@ export async function POST(
   { params }: { params: Promise<{ project_id: string }> }
 ) {
   try {
-    const sessionId = request.cookies.get('sessionId')?.value;
-    if (!sessionId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const session = await getSession(sessionId);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { project_id } = await params;
 
     let body;
@@ -143,15 +112,7 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
 
-    const { name, prompt, model = 'auto' } = body;
-
-    // プロンプトのみ必須（nameは任意、未指定時は自動生成）
-    if (!prompt) {
-      return NextResponse.json(
-        { error: 'Prompt is required' },
-        { status: 400 }
-      );
-    }
+    const { name, prompt = '' } = body;
 
     // セッション名が未指定の場合は一意な名前を自動生成
     let sessionDisplayName: string;
@@ -208,44 +169,45 @@ export async function POST(
         project_id,
         name: sessionDisplayName,
         status: 'initializing',  // PTY接続時に'running'に変更される
-        model: model || project.default_model,
         worktree_path: worktreePath,
         branch_name: branchName,
       },
     });
 
-    // プロンプトを保存または更新
-    const existingPrompt = await prisma.prompt.findFirst({
-      where: { content: prompt },
-    });
-
-    if (existingPrompt) {
-      await prisma.prompt.update({
-        where: { id: existingPrompt.id },
-        data: {
-          used_count: { increment: 1 },
-          last_used_at: new Date(),
-        },
+    // プロンプトが存在する場合のみ保存または更新
+    if (prompt && prompt.trim()) {
+      const existingPrompt = await prisma.prompt.findFirst({
+        where: { content: prompt },
       });
-    } else {
-      await prisma.prompt.create({
+
+      if (existingPrompt) {
+        await prisma.prompt.update({
+          where: { id: existingPrompt.id },
+          data: {
+            used_count: { increment: 1 },
+            last_used_at: new Date(),
+          },
+        });
+      } else {
+        await prisma.prompt.create({
+          data: {
+            content: prompt,
+            used_count: 1,
+            last_used_at: new Date(),
+          },
+        });
+      }
+
+      // 初期プロンプトをユーザーメッセージとして保存
+      // WebSocket接続時にこのメッセージがClaude PTYに送信される
+      await prisma.message.create({
         data: {
+          session_id: newSession.id,
+          role: 'user',
           content: prompt,
-          used_count: 1,
-          last_used_at: new Date(),
         },
       });
     }
-
-    // 初期プロンプトをユーザーメッセージとして保存
-    // WebSocket接続時にこのメッセージがClaude PTYに送信される
-    await prisma.message.create({
-      data: {
-        session_id: newSession.id,
-        role: 'user',
-        content: prompt,
-      },
-    });
 
     logger.info('Session created', {
       id: newSession.id,

@@ -47,7 +47,7 @@ describe('PromptHistoryDropdown', () => {
   it('ドロップダウンが表示される', () => {
     (useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       prompts: [],
-      isLoading: false,
+      isPromptsLoading: false,
       error: null,
       fetchPrompts: mockFetchPrompts,
       deletePrompt: mockDeletePrompt,
@@ -61,7 +61,7 @@ describe('PromptHistoryDropdown', () => {
   it('コンポーネントマウント時にfetchPromptsが呼ばれる', () => {
     (useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       prompts: [],
-      isLoading: false,
+      isPromptsLoading: false,
       error: null,
       fetchPrompts: mockFetchPrompts,
       deletePrompt: mockDeletePrompt,
@@ -75,7 +75,7 @@ describe('PromptHistoryDropdown', () => {
   it('プロンプト履歴が表示される', async () => {
     (useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       prompts: mockPrompts,
-      isLoading: false,
+      isPromptsLoading: false,
       error: null,
       fetchPrompts: mockFetchPrompts,
       deletePrompt: mockDeletePrompt,
@@ -96,7 +96,7 @@ describe('PromptHistoryDropdown', () => {
   it('プロンプトを選択するとonSelectが呼ばれる', async () => {
     (useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       prompts: mockPrompts,
-      isLoading: false,
+      isPromptsLoading: false,
       error: null,
       fetchPrompts: mockFetchPrompts,
       deletePrompt: mockDeletePrompt,
@@ -120,7 +120,7 @@ describe('PromptHistoryDropdown', () => {
   it('削除ボタンをクリックするとdeletePromptが呼ばれる', async () => {
     (useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       prompts: mockPrompts,
-      isLoading: false,
+      isPromptsLoading: false,
       error: null,
       fetchPrompts: mockFetchPrompts,
       deletePrompt: mockDeletePrompt,
@@ -145,7 +145,7 @@ describe('PromptHistoryDropdown', () => {
   it('履歴が空の場合、メッセージが表示される', async () => {
     (useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       prompts: [],
-      isLoading: false,
+      isPromptsLoading: false,
       error: null,
       fetchPrompts: mockFetchPrompts,
       deletePrompt: mockDeletePrompt,
@@ -164,7 +164,7 @@ describe('PromptHistoryDropdown', () => {
   it('ローディング中はローディングが表示される', () => {
     (useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       prompts: [],
-      isLoading: true,
+      isPromptsLoading: true,
       error: null,
       fetchPrompts: mockFetchPrompts,
       deletePrompt: mockDeletePrompt,
@@ -178,7 +178,7 @@ describe('PromptHistoryDropdown', () => {
   it('エラー時はエラーメッセージが表示される', () => {
     (useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       prompts: [],
-      isLoading: false,
+      isPromptsLoading: false,
       error: 'プロンプト履歴の取得に失敗しました',
       fetchPrompts: mockFetchPrompts,
       deletePrompt: mockDeletePrompt,
@@ -199,7 +199,7 @@ describe('PromptHistoryDropdown', () => {
 
     (useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       prompts: manyPrompts,
-      isLoading: false,
+      isPromptsLoading: false,
       error: null,
       fetchPrompts: mockFetchPrompts,
       deletePrompt: mockDeletePrompt,
@@ -219,7 +219,7 @@ describe('PromptHistoryDropdown', () => {
   it('削除ボタンクリック時にonSelectは呼ばれない', async () => {
     (useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       prompts: mockPrompts,
-      isLoading: false,
+      isPromptsLoading: false,
       error: null,
       fetchPrompts: mockFetchPrompts,
       deletePrompt: mockDeletePrompt,
@@ -265,7 +265,7 @@ describe('PromptHistoryDropdown', () => {
 
     (useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       prompts: unsortedPrompts,
-      isLoading: false,
+      isPromptsLoading: false,
       error: null,
       fetchPrompts: mockFetchPrompts,
       deletePrompt: mockDeletePrompt,

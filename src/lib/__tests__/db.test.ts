@@ -21,7 +21,6 @@ describe('Database Tests', () => {
     await prisma.message.deleteMany();
     await prisma.session.deleteMany();
     await prisma.project.deleteMany();
-    await prisma.authSession.deleteMany();
   });
 
   describe('Project CRUD', () => {
@@ -30,14 +29,12 @@ describe('Database Tests', () => {
         data: {
           name: 'Test Project',
           path: '/path/to/project',
-          default_model: 'sonnet'
         }
       });
 
       expect(project.id).toBeDefined();
       expect(project.name).toBe('Test Project');
       expect(project.path).toBe('/path/to/project');
-      expect(project.default_model).toBe('sonnet');
     });
 
     it('should read a project', async () => {
@@ -110,7 +107,6 @@ describe('Database Tests', () => {
           project_id: project.id,
           name: 'Test Session',
           status: 'running',
-          model: 'sonnet',
           worktree_path: '/path/to/worktree',
           branch_name: 'feature-test'
         }
@@ -134,7 +130,6 @@ describe('Database Tests', () => {
           project_id: project.id,
           name: 'Test Session',
           status: 'running',
-          model: 'sonnet',
           worktree_path: '/path/to/worktree',
           branch_name: 'feature-test'
         }
@@ -161,7 +156,6 @@ describe('Database Tests', () => {
           project_id: project.id,
           name: 'Test Session',
           status: 'running',
-          model: 'sonnet',
           worktree_path: '/path/to/worktree',
           branch_name: 'feature-test'
         }
@@ -188,7 +182,6 @@ describe('Database Tests', () => {
           project_id: project.id,
           name: 'Test Session',
           status: 'running',
-          model: 'sonnet',
           worktree_path: '/path/to/worktree',
           branch_name: 'feature-test'
         }
@@ -220,7 +213,6 @@ describe('Database Tests', () => {
           project_id: project.id,
           name: 'Test Session',
           status: 'running',
-          model: 'sonnet',
           worktree_path: '/path/to/worktree',
           branch_name: 'feature-test'
         }
@@ -251,7 +243,6 @@ describe('Database Tests', () => {
           project_id: project.id,
           name: 'Test Session',
           status: 'running',
-          model: 'sonnet',
           worktree_path: '/path/to/worktree',
           branch_name: 'feature-test'
         }
@@ -274,38 +265,6 @@ describe('Database Tests', () => {
     });
   });
 
-  describe('AuthSession CRUD', () => {
-    it('should create an auth session', async () => {
-      const authSession = await prisma.authSession.create({
-        data: {
-          id: 'session-123',
-          token_hash: 'hash123',
-          expires_at: new Date(Date.now() + 86400000) // 24 hours
-        }
-      });
-
-      expect(authSession.id).toBe('session-123');
-      expect(authSession.token_hash).toBe('hash123');
-    });
-
-    it('should read an auth session', async () => {
-      const created = await prisma.authSession.create({
-        data: {
-          id: 'session-456',
-          token_hash: 'hash456',
-          expires_at: new Date(Date.now() + 86400000)
-        }
-      });
-
-      const found = await prisma.authSession.findUnique({
-        where: { id: created.id }
-      });
-
-      expect(found).not.toBeNull();
-      expect(found?.token_hash).toBe('hash456');
-    });
-  });
-
   describe('CASCADE behavior', () => {
     it('should cascade delete sessions when project is deleted', async () => {
       const project = await prisma.project.create({
@@ -320,7 +279,6 @@ describe('Database Tests', () => {
           project_id: project.id,
           name: 'Test Session',
           status: 'running',
-          model: 'sonnet',
           worktree_path: '/path/to/worktree',
           branch_name: 'feature-test'
         }
@@ -350,7 +308,6 @@ describe('Database Tests', () => {
           project_id: project.id,
           name: 'Test Session',
           status: 'running',
-          model: 'sonnet',
           worktree_path: '/path/to/worktree',
           branch_name: 'feature-test'
         }

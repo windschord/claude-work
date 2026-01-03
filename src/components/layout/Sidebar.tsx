@@ -1,33 +1,99 @@
 'use client';
 
+import { useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { FolderGit2 } from 'lucide-react';
 import { useAppStore } from '@/store';
+import { useUIStore } from '@/store/ui';
+import { ProjectTreeItem } from './ProjectTreeItem';
 
 /**
  * サイドバーコンポーネント
  *
- * プロジェクト一覧を表示します。
+ * プロジェクト一覧とセッションをツリー表示します。
  * - プロジェクト一覧の表示
- * - プロジェクト選択と詳細ページへの遷移
+ * - 各プロジェクト配下にセッションをツリー表示
+ * - プロジェクト展開/折りたたみ
+ * - セッション選択と詳細ページへの遷移
  * - レスポンシブ対応（モバイル時は折りたたみ）
  */
 export function Sidebar() {
   const router = useRouter();
   const {
     projects,
-    selectedProjectId,
+    sessions,
+    currentSessionId,
     setSelectedProjectId,
+    setCurrentSessionId,
     isSidebarOpen,
     setIsSidebarOpen,
+    fetchSessions,
   } = useAppStore();
+  const { isProjectExpanded, toggleProject } = useUIStore();
+  const [isCreating, setIsCreating] = useState(false);
 
-  const handleProjectClick = (projectId: string) => {
-    setSelectedProjectId(projectId);
-    router.push(`/projects/${projectId}`);
-    // モバイル時はプロジェクト選択後にサイドバーを閉じる
-    setIsSidebarOpen(false);
-  };
+  // プロジェクトごとにセッションをグループ化
+  const sessionsByProject = useMemo(() => {
+    const map = new Map<string, typeof sessions>();
+    projects.forEach((project) => {
+      map.set(
+        project.id,
+        sessions.filter((session) => session.project_id === project.id)
+      );
+    });
+    return map;
+  }, [projects, sessions]);
+
+  // プロジェクト展開/折りたたみ切り替え
+  const handleProjectToggle = useCallback((projectId: string) => {
+    toggleProject(projectId);
+  }, [toggleProject]);
+
+  // セッションクリック時の処理
+  const handleSessionClick = useCallback(
+    (sessionId: string, projectId: string) => {
+      setCurrentSessionId(sessionId);
+      setSelectedProjectId(projectId);
+      router.push(`/sessions/${sessionId}`);
+      // モバイル時はセッション選択後にサイドバーを閉じる
+      setIsSidebarOpen(false);
+    },
+    [router, setCurrentSessionId, setSelectedProjectId, setIsSidebarOpen]
+  );
+
+  // 新規セッション追加時の処理（ワンクリック作成）
+  const handleAddSession = useCallback(
+    async (projectId: string) => {
+      if (isCreating) return;
+
+      setIsCreating(true);
+      setSelectedProjectId(projectId);
+
+      try {
+        const response = await fetch(`/api/projects/${projectId}/sessions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: '',
+          }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.session) {
+          // セッション一覧を更新
+          await fetchSessions(projectId);
+          // 新しいセッションに遷移
+          router.push(`/sessions/${data.session.id}`);
+          setIsSidebarOpen(false);
+        }
+      } catch (error) {
+        console.error('Failed to create session:', error);
+      } finally {
+        setIsCreating(false);
+      }
+    },
+    [isCreating, setSelectedProjectId, fetchSessions, router, setIsSidebarOpen]
+  );
 
   return (
     <>
@@ -55,7 +121,7 @@ export function Sidebar() {
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">プロジェクト</h2>
           </div>
 
-          {/* プロジェクト一覧 */}
+          {/* プロジェクトツリー */}
           <div className="flex-1 overflow-y-auto">
             {projects.length === 0 ? (
               <div className="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">
@@ -64,36 +130,18 @@ export function Sidebar() {
             ) : (
               <div className="p-2">
                 {projects.map((project) => (
-                  <button
+                  <ProjectTreeItem
                     key={project.id}
-                    type="button"
-                    onClick={() => handleProjectClick(project.id)}
-                    className={`
-                      w-full text-left px-3 py-3 rounded-lg mb-1
-                      transition-colors duration-150
-                      ${
-                        selectedProjectId === project.id
-                          ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-900 dark:text-blue-100'
-                          : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'
-                      }
-                    `}
-                  >
-                    <div className="flex items-start gap-3">
-                      <FolderGit2
-                        className={`w-5 h-5 mt-0.5 flex-shrink-0 ${
-                          selectedProjectId === project.id
-                            ? 'text-blue-600 dark:text-blue-400'
-                            : 'text-gray-500 dark:text-gray-400'
-                        }`}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium truncate">{project.name}</div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          {project.session_count}セッション
-                        </div>
-                      </div>
-                    </div>
-                  </button>
+                    project={project}
+                    sessions={sessionsByProject.get(project.id) || []}
+                    isExpanded={isProjectExpanded(project.id)}
+                    currentSessionId={currentSessionId}
+                    onToggle={() => handleProjectToggle(project.id)}
+                    onSessionClick={(sessionId) =>
+                      handleSessionClick(sessionId, project.id)
+                    }
+                    onAddSession={() => handleAddSession(project.id)}
+                  />
                 ))}
               </div>
             )}

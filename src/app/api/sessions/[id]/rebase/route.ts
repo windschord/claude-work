@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { getSession } from '@/lib/auth';
 import { GitService } from '@/services/git-service';
 import { logger } from '@/lib/logger';
 import { basename } from 'path';
@@ -10,14 +9,11 @@ import { basename } from 'path';
  *
  * 指定されたセッションのブランチをmainブランチからリベースします。
  * コンフリクトが発生した場合は409を返し、コンフリクトファイルのリストを含めます。
- * 認証が必要です。
  *
- * @param request - sessionIdクッキーを含むリクエスト
  * @param params.id - セッションID
  *
  * @returns
  * - 200: リベース成功
- * - 401: 認証されていない
  * - 404: セッションが見つからない
  * - 409: コンフリクトが発生（コンフリクトファイルのリストを含む）
  * - 500: サーバーエラー
@@ -26,7 +22,6 @@ import { basename } from 'path';
  * ```typescript
  * // リクエスト
  * POST /api/sessions/session-uuid/rebase
- * Cookie: sessionId=<uuid>
  *
  * // レスポンス（成功時）
  * { "success": true }
@@ -39,20 +34,10 @@ import { basename } from 'path';
  * ```
  */
 export async function POST(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const sessionId = request.cookies.get('sessionId')?.value;
-    if (!sessionId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const session = await getSession(sessionId);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { id } = await params;
 
     const targetSession = await prisma.session.findUnique({

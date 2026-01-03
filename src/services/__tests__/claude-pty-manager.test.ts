@@ -108,8 +108,8 @@ describe('ClaudePTYManager', () => {
 
       claudePtyManager.claudePtyManager.createSession('test-session', '/path/to/worktree', 'Hello Claude');
 
-      // 初期プロンプトは1秒後に送信される
-      await vi.advanceTimersByTimeAsync(1000);
+      // 初期プロンプトは3秒後に送信される
+      await vi.advanceTimersByTimeAsync(3000);
 
       expect(mockPty.write).toHaveBeenCalledWith('Hello Claude\n');
 
