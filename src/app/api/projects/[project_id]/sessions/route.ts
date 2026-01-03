@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db';
 import { GitService } from '@/services/git-service';
 import { logger } from '@/lib/logger';
 import { generateUniqueSessionName } from '@/lib/session-name-generator';
+import { dockerService } from '@/services/docker-service';
 
 /**
  * GET /api/projects/[project_id]/sessions - プロジェクトのセッション一覧取得
@@ -64,7 +65,10 @@ export async function GET(
  * Git worktreeとブランチが自動的に作成され、Claude Codeプロセスが起動されます。
  * セッション名が未指定の場合は「形容詞-動物名」形式で自動生成されます。
  *
- * @param request - リクエストボディに`prompt`（オプション）、`name`（オプション、未指定時は自動生成）を含むJSON
+ * @param request - リクエストボディに以下を含むJSON:
+ *   - `prompt`（オプション）: 初期プロンプト
+ *   - `name`（オプション、未指定時は自動生成）: セッション名
+ *   - `dockerMode`（オプション、デフォルト: false）: Dockerモードで実行するかどうか
  * @param params.project_id - プロジェクトID
  *
  * @returns
@@ -72,15 +76,25 @@ export async function GET(
  * - 400: nameまたはpromptが指定されていない
  * - 404: プロジェクトが見つからない
  * - 500: サーバーエラー
+ * - 503: Docker未インストールまたは利用不可（dockerMode=true時）
  *
  * @example
  * ```typescript
- * // リクエスト
+ * // リクエスト（ローカルモード）
  * POST /api/projects/uuid-1234/sessions
  * Content-Type: application/json
  * {
  *   "name": "新機能実装",
  *   "prompt": "ユーザー認証機能を実装してください"
+ * }
+ *
+ * // リクエスト（Dockerモード）
+ * POST /api/projects/uuid-1234/sessions
+ * Content-Type: application/json
+ * {
+ *   "name": "Dockerセッション",
+ *   "prompt": "テストを実行してください",
+ *   "dockerMode": true
  * }
  *
  * // レスポンス
@@ -92,6 +106,7 @@ export async function GET(
  *     "status": "running",
  *     "worktree_path": "/path/to/worktrees/session-1234567890",
  *     "branch_name": "session/session-1234567890",
+ *     "docker_mode": false,
  *     "created_at": "2025-12-13T09:00:00.000Z"
  *   }
  * }
@@ -112,7 +127,38 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
 
-    const { name, prompt = '' } = body;
+    const { name, prompt = '', dockerMode = false } = body;
+
+    // Dockerモードの場合、Docker可用性をチェック
+    if (dockerMode) {
+      logger.info('Creating session with Docker mode', { project_id });
+
+      const isDockerAvailable = await dockerService.isDockerAvailable();
+      if (!isDockerAvailable) {
+        logger.warn('Docker not available for session creation', { project_id });
+        return NextResponse.json(
+          { error: 'Docker is not available. Please install Docker and ensure the daemon is running.' },
+          { status: 503 }
+        );
+      }
+
+      // イメージ存在チェック、なければビルド
+      const imageExists = await dockerService.imageExists();
+      if (!imageExists) {
+        logger.info('Docker image not found, building...', { project_id });
+        try {
+          await dockerService.buildImage();
+          logger.info('Docker image built successfully', { project_id });
+        } catch (buildError) {
+          logger.error('Failed to build Docker image', { error: buildError, project_id });
+          const errorMessage = buildError instanceof Error ? buildError.message : 'Unknown error';
+          return NextResponse.json(
+            { error: `Failed to build Docker image: ${errorMessage}` },
+            { status: 500 }
+          );
+        }
+      }
+    }
 
     // セッション名が未指定の場合は一意な名前を自動生成
     let sessionDisplayName: string;
@@ -171,6 +217,7 @@ export async function POST(
         status: 'initializing',  // PTY接続時に'running'に変更される
         worktree_path: worktreePath,
         branch_name: branchName,
+        docker_mode: dockerMode,
       },
     });
 
