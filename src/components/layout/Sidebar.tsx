@@ -3,7 +3,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAppStore } from '@/store';
-import { useSettingsStore } from '@/store/settings';
 import { useUIStore } from '@/store/ui';
 import { ProjectTreeItem } from './ProjectTreeItem';
 
@@ -29,7 +28,6 @@ export function Sidebar() {
     setIsSidebarOpen,
     fetchSessions,
   } = useAppStore();
-  const { defaultModel } = useSettingsStore();
   const { isProjectExpanded, toggleProject } = useUIStore();
   const [isCreating, setIsCreating] = useState(false);
 
@@ -75,7 +73,6 @@ export function Sidebar() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            model: defaultModel,
             prompt: '',
           }),
         });
@@ -95,7 +92,7 @@ export function Sidebar() {
         setIsCreating(false);
       }
     },
-    [isCreating, defaultModel, setSelectedProjectId, fetchSessions, router, setIsSidebarOpen]
+    [isCreating, setSelectedProjectId, fetchSessions, router, setIsSidebarOpen]
   );
 
   return (

@@ -21,9 +21,7 @@ import { logger } from '@/lib/logger';
  * PUT /api/projects/uuid-123
  * Content-Type: application/json
  * {
- *   "name": "Updated Project",
- *   "default_model": "opus",
- *   "run_scripts": false
+ *   "name": "Updated Project"
  * }
  * ```
  */
@@ -54,7 +52,6 @@ export async function PUT(
       where: { id: project_id },
       data: {
         name: body.name ?? existing.name,
-        default_model: body.default_model ?? existing.default_model,
       },
     });
 

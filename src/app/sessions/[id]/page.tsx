@@ -308,7 +308,7 @@ export default function SessionDetailPage() {
               </h1>
               <div className="flex items-center gap-4 mt-2">
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  ステータス: {currentSession.status} | モデル: {currentSession.model}
+                  ステータス: {currentSession.status}
                   {' | '}
                   <span
                     className={`${

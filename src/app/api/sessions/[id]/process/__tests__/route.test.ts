@@ -59,7 +59,6 @@ describe('GET /api/sessions/[id]/process', () => {
         project_id: project.id,
         name: 'Test Session',
         status: 'running',
-        model: 'sonnet',
         worktree_path: join(testRepoPath, '.worktrees', 'test-session'),
         branch_name: 'test-branch',
       },
@@ -157,7 +156,6 @@ describe('POST /api/sessions/[id]/process', () => {
         project_id: project.id,
         name: 'Test Session',
         status: 'running',
-        model: 'sonnet',
         worktree_path: join(testRepoPath, '.worktrees', 'test-session'),
         branch_name: 'test-branch',
       },
@@ -199,7 +197,6 @@ describe('POST /api/sessions/[id]/process', () => {
     expect(mockStartClaudeCode).toHaveBeenCalledWith({
       sessionId: session.id,
       worktreePath: session.worktree_path,
-      model: session.model,
     });
   });
 

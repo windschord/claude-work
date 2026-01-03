@@ -13,7 +13,6 @@ describe('SessionTreeItem', () => {
     name: 'テストセッション',
     status: 'running' as const,
     project_id: 'project-1',
-    model: 'claude-3-opus',
     worktree_path: '/path/to/worktree',
     branch_name: 'feature/test',
     created_at: '2024-01-01T00:00:00Z',

@@ -122,7 +122,6 @@ export async function POST(
     await processManager.startClaudeCode({
       sessionId: targetSession.id,
       worktreePath: targetSession.worktree_path,
-      model: targetSession.model || undefined,
     });
 
     // セッションのステータスをrunningに更新

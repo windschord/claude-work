@@ -39,7 +39,6 @@ describe('POST /api/sessions/[id]/rebase', () => {
         project_id: project.id,
         name: 'Test Session',
         status: 'running',
-        model: 'sonnet',
         worktree_path: join(testRepoPath, '.worktrees', 'test-session'),
         branch_name: 'test-branch',
       },

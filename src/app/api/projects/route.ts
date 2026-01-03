@@ -27,8 +27,6 @@ import { logger } from '@/lib/logger';
  *       "id": "uuid",
  *       "name": "my-project",
  *       "path": "/path/to/repo",
- *       "default_model": "auto",
- *       "run_scripts": true,
  *       "created_at": "2025-12-13T09:00:00.000Z"
  *     }
  *   ]
@@ -83,8 +81,6 @@ export async function GET(_request: NextRequest) {
  *     "id": "uuid",
  *     "name": "repo",
  *     "path": "/path/to/git/repo",
- *     "default_model": "auto",
- *     "run_scripts": true,
  *     "created_at": "2025-12-13T09:00:00.000Z"
  *   }
  * }

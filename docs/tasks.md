@@ -1813,3 +1813,278 @@ npm run build
 
 - 認証削除後はネットワーク境界での保護（VPN、ファイアウォール等）を推奨
 - 将来的に認証が必要になった場合は、OAuth/OIDC等の標準的な認証方式を検討
+
+---
+
+## Phase 46: モデル選択機能の削除
+
+**関連要件**: Claude Codeでモデル選択を行うため、フロントエンドのモデル選択UIとバックエンドのモデル関連ロジックを削除
+
+### 概要
+
+Claude Code自体がモデル選択機能を持つため、本アプリケーションのモデル選択機能は不要になった。これにより：
+- コードベースの簡略化
+- UIの整理（不要な選択肢の削除）
+- データベーススキーマの軽量化
+
+### 変更サマリ
+
+| カテゴリ | 対象 | 数量 |
+|---------|------|------|
+| 削除ファイル | ModelSelector.tsx、関連テスト、settings.ts | 5 |
+| 修正ファイル | CreateSessionForm、APIルート、schema.prisma、ストア | 約15 |
+
+---
+
+### フェーズ1: フロントエンドUI削除
+
+#### タスク46.1: ModelSelectorコンポーネントの削除
+
+**ステータス**: `TODO`
+**推定工数**: 5分
+
+**説明**:
+- 削除対象:
+  - `src/components/common/ModelSelector.tsx`
+  - `src/components/common/__tests__/ModelSelector.test.tsx`
+
+**実装手順**:
+```bash
+rm src/components/common/ModelSelector.tsx
+rm src/components/common/__tests__/ModelSelector.test.tsx
+```
+
+**受入基準**:
+- [ ] ModelSelector.tsxが削除される
+- [ ] 関連テストファイルも削除される
+
+---
+
+#### タスク46.2: CreateSessionFormからモデル選択を削除
+
+**ステータス**: `TODO`
+**推定工数**: 15分
+**依存関係**: タスク46.1
+
+**説明**:
+- 対象ファイル: `src/components/sessions/CreateSessionForm.tsx`
+- モデル選択ドロップダウンを削除
+- 関連state（model）を削除
+
+**変更内容**:
+1. `useState`からmodel関連を削除
+2. モデル選択UIを削除
+3. createSession呼び出しからmodelパラメータを削除
+
+**受入基準**:
+- [ ] モデル選択UIが表示されない
+- [ ] セッション作成が正常に動作する
+
+---
+
+#### タスク46.3: settings.tsの削除
+
+**ステータス**: `TODO`
+**推定工数**: 10分
+
+**説明**:
+- 削除対象:
+  - `src/store/settings.ts`
+  - `src/store/__tests__/settings.test.ts`
+
+**実装手順**:
+```bash
+rm src/store/settings.ts
+rm src/store/__tests__/settings.test.ts
+```
+
+**受入基準**:
+- [ ] settings.tsが削除される
+- [ ] 関連テストファイルも削除される
+
+---
+
+#### タスク46.4: QuickCreateButtonからモデル参照を削除
+
+**ステータス**: `TODO`
+**推定工数**: 10分
+**依存関係**: タスク46.3
+
+**説明**:
+- 対象ファイル: `src/components/sessions/QuickCreateButton.tsx`
+- defaultModel参照を削除
+- createSession呼び出しからmodelパラメータを削除
+
+**受入基準**:
+- [ ] defaultModel参照が削除される
+- [ ] セッション作成が正常に動作する
+
+---
+
+### フェーズ2: バックエンド・データベース変更
+
+#### タスク46.5: Prismaスキーマからmodelフィールドを削除
+
+**ステータス**: `TODO`
+**推定工数**: 15分
+
+**説明**:
+- 対象ファイル: `prisma/schema.prisma`
+- 削除するフィールド:
+  - `Project.default_model`
+  - `Session.model`
+
+**変更内容**:
+```prisma
+// Projectモデルから削除
+model Project {
+  // default_model String @default("auto") // 削除
+}
+
+// Sessionモデルから削除
+model Session {
+  // model String // 削除
+}
+```
+
+**実装手順**:
+1. schema.prismaからフィールド削除
+2. `npx prisma db push`で適用
+3. `npx prisma generate`でクライアント再生成
+
+**受入基準**:
+- [ ] modelフィールドがスキーマから削除される
+- [ ] マイグレーションが成功する
+
+---
+
+#### タスク46.6: セッション作成APIからmodel処理を削除
+
+**ステータス**: `TODO`
+**推定工数**: 15分
+**依存関係**: タスク46.5
+
+**説明**:
+- 対象ファイル: `src/app/api/projects/[project_id]/sessions/route.ts`
+- リクエストボディからmodelパラメータ処理を削除
+- データベース保存からmodelフィールドを削除
+
+**受入基準**:
+- [ ] modelパラメータが無視される
+- [ ] セッション作成が正常に動作する
+
+---
+
+#### タスク46.7: プロジェクトAPIからdefault_model処理を削除
+
+**ステータス**: `TODO`
+**推定工数**: 15分
+**依存関係**: タスク46.5
+
+**説明**:
+- 対象ファイル:
+  - `src/app/api/projects/route.ts`
+  - `src/app/api/projects/[project_id]/route.ts`
+- リクエストボディからdefault_modelパラメータ処理を削除
+
+**受入基準**:
+- [ ] default_modelパラメータが無視される
+- [ ] プロジェクト作成・更新が正常に動作する
+
+---
+
+### フェーズ3: テスト・クリーンアップ
+
+#### タスク46.8: ストアテストの更新
+
+**ステータス**: `TODO`
+**推定工数**: 20分
+**依存関係**: タスク46.1〜46.7
+
+**説明**:
+- 対象ファイル: `src/store/__tests__/index.test.ts`
+- model関連のモックデータを更新
+
+**受入基準**:
+- [ ] modelフィールドの参照が削除される
+- [ ] テストが通る
+
+---
+
+#### タスク46.9: APIルートテストの更新
+
+**ステータス**: `TODO`
+**推定工数**: 25分
+**依存関係**: タスク46.5〜46.7
+
+**説明**:
+- 対象ファイル:
+  - `src/app/api/projects/__tests__/route.test.ts`
+  - `src/app/api/projects/[project_id]/__tests__/route.test.ts`
+  - `src/app/api/projects/[project_id]/sessions/__tests__/route.test.ts`
+  - `src/app/api/sessions/[id]/__tests__/route.test.ts`
+- modelフィールド関連のテストを削除・更新
+
+**受入基準**:
+- [ ] modelフィールドの参照が削除される
+- [ ] 全テストが通る
+
+---
+
+#### タスク46.10: コンポーネントテストの更新
+
+**ステータス**: `TODO`
+**推定工数**: 20分
+**依存関係**: タスク46.1〜46.4
+
+**説明**:
+- 対象ファイル:
+  - `src/components/sessions/__tests__/CreateSessionForm.test.tsx`
+  - `src/components/sessions/__tests__/QuickCreateButton.test.tsx`
+  - `src/app/projects/__tests__/[id].test.tsx`
+- model関連のテストを削除・更新
+
+**受入基準**:
+- [ ] modelフィールドの参照が削除される
+- [ ] 全テストが通る
+
+---
+
+#### タスク46.11: ビルドとLint確認
+
+**ステータス**: `TODO`
+**推定工数**: 10分
+**依存関係**: タスク46.8〜46.10
+
+**説明**:
+- ビルドが成功することを確認
+- Lintエラーがないことを確認
+- 未使用インポートを削除
+
+**実装手順**:
+```bash
+npm run lint
+npm run build
+npm test
+```
+
+**受入基準**:
+- [ ] `npm run lint`がエラーなし
+- [ ] `npm run build`が成功
+- [ ] `npm test`が全て通る
+
+---
+
+## 要件との整合性チェック（Phase 46）
+
+| 変更内容 | 対応タスク |
+|----------|-----------|
+| ModelSelectorコンポーネント削除 | タスク46.1 |
+| CreateSessionFormのモデル選択UI削除 | タスク46.2 |
+| settings.ts削除 | タスク46.3 |
+| QuickCreateButtonのモデル参照削除 | タスク46.4 |
+| Prismaスキーマからmodel削除 | タスク46.5 |
+| セッション作成APIからmodel削除 | タスク46.6 |
+| プロジェクトAPIからdefault_model削除 | タスク46.7 |
+| テスト更新 | タスク46.8〜46.10 |
+| ビルド確認 | タスク46.11 |

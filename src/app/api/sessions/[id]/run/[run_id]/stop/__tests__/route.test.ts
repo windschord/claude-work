@@ -58,7 +58,6 @@ describe('POST /api/sessions/[id]/run/[run_id]/stop', () => {
         project_id: project.id,
         name: 'Test Session',
         status: 'running',
-        model: 'sonnet',
         worktree_path: worktreePath,
         branch_name: 'test-branch',
       },

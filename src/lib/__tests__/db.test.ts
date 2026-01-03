@@ -29,14 +29,12 @@ describe('Database Tests', () => {
         data: {
           name: 'Test Project',
           path: '/path/to/project',
-          default_model: 'sonnet'
         }
       });
 
       expect(project.id).toBeDefined();
       expect(project.name).toBe('Test Project');
       expect(project.path).toBe('/path/to/project');
-      expect(project.default_model).toBe('sonnet');
     });
 
     it('should read a project', async () => {
@@ -109,7 +107,6 @@ describe('Database Tests', () => {
           project_id: project.id,
           name: 'Test Session',
           status: 'running',
-          model: 'sonnet',
           worktree_path: '/path/to/worktree',
           branch_name: 'feature-test'
         }
@@ -133,7 +130,6 @@ describe('Database Tests', () => {
           project_id: project.id,
           name: 'Test Session',
           status: 'running',
-          model: 'sonnet',
           worktree_path: '/path/to/worktree',
           branch_name: 'feature-test'
         }
@@ -160,7 +156,6 @@ describe('Database Tests', () => {
           project_id: project.id,
           name: 'Test Session',
           status: 'running',
-          model: 'sonnet',
           worktree_path: '/path/to/worktree',
           branch_name: 'feature-test'
         }
@@ -187,7 +182,6 @@ describe('Database Tests', () => {
           project_id: project.id,
           name: 'Test Session',
           status: 'running',
-          model: 'sonnet',
           worktree_path: '/path/to/worktree',
           branch_name: 'feature-test'
         }
@@ -219,7 +213,6 @@ describe('Database Tests', () => {
           project_id: project.id,
           name: 'Test Session',
           status: 'running',
-          model: 'sonnet',
           worktree_path: '/path/to/worktree',
           branch_name: 'feature-test'
         }
@@ -250,7 +243,6 @@ describe('Database Tests', () => {
           project_id: project.id,
           name: 'Test Session',
           status: 'running',
-          model: 'sonnet',
           worktree_path: '/path/to/worktree',
           branch_name: 'feature-test'
         }
@@ -287,7 +279,6 @@ describe('Database Tests', () => {
           project_id: project.id,
           name: 'Test Session',
           status: 'running',
-          model: 'sonnet',
           worktree_path: '/path/to/worktree',
           branch_name: 'feature-test'
         }
@@ -317,7 +308,6 @@ describe('Database Tests', () => {
           project_id: project.id,
           name: 'Test Session',
           status: 'running',
-          model: 'sonnet',
           worktree_path: '/path/to/worktree',
           branch_name: 'feature-test'
         }

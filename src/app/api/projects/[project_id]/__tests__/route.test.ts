@@ -48,7 +48,6 @@ describe('PUT /api/projects/[project_id]', () => {
       },
       body: JSON.stringify({
         name: 'Updated Project',
-        default_model: 'opus',
       }),
     });
 
@@ -60,17 +59,14 @@ describe('PUT /api/projects/[project_id]', () => {
     expect(data.project).toHaveProperty('id');
     expect(data.project).toHaveProperty('name');
     expect(data.project).toHaveProperty('path');
-    expect(data.project).toHaveProperty('default_model');
     expect(data.project).toHaveProperty('created_at');
     expect(data.project).toHaveProperty('updated_at');
     expect(data.project.name).toBe('Updated Project');
-    expect(data.project.default_model).toBe('opus');
 
     const updated = await prisma.project.findUnique({
       where: { id: project.id },
     });
     expect(updated?.name).toBe('Updated Project');
-    expect(updated?.default_model).toBe('opus');
   });
 
   it('should return 404 for non-existent project', async () => {

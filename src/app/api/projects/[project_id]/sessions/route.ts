@@ -28,7 +28,6 @@ import { generateUniqueSessionName } from '@/lib/session-name-generator';
  *       "project_id": "uuid-1234",
  *       "name": "新機能実装",
  *       "status": "running",
- *       "model": "claude-3-5-sonnet-20241022",
  *       "worktree_path": "/path/to/worktrees/session-1234567890",
  *       "branch_name": "session/session-1234567890",
  *       "created_at": "2025-12-13T09:00:00.000Z"
@@ -65,7 +64,7 @@ export async function GET(
  * Git worktreeとブランチが自動的に作成され、Claude Codeプロセスが起動されます。
  * セッション名が未指定の場合は「形容詞-動物名」形式で自動生成されます。
  *
- * @param request - リクエストボディに`prompt`（必須）、`name`（オプション、未指定時は自動生成）、`model`（オプション）を含むJSON
+ * @param request - リクエストボディに`prompt`（オプション）、`name`（オプション、未指定時は自動生成）を含むJSON
  * @param params.project_id - プロジェクトID
  *
  * @returns
@@ -81,8 +80,7 @@ export async function GET(
  * Content-Type: application/json
  * {
  *   "name": "新機能実装",
- *   "prompt": "ユーザー認証機能を実装してください",
- *   "model": "claude-3-5-sonnet-20241022"
+ *   "prompt": "ユーザー認証機能を実装してください"
  * }
  *
  * // レスポンス
@@ -92,7 +90,6 @@ export async function GET(
  *     "project_id": "uuid-1234",
  *     "name": "新機能実装",
  *     "status": "running",
- *     "model": "claude-3-5-sonnet-20241022",
  *     "worktree_path": "/path/to/worktrees/session-1234567890",
  *     "branch_name": "session/session-1234567890",
  *     "created_at": "2025-12-13T09:00:00.000Z"
@@ -115,7 +112,7 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
 
-    const { name, prompt = '', model = 'auto' } = body;
+    const { name, prompt = '' } = body;
 
     // セッション名が未指定の場合は一意な名前を自動生成
     let sessionDisplayName: string;
@@ -172,7 +169,6 @@ export async function POST(
         project_id,
         name: sessionDisplayName,
         status: 'initializing',  // PTY接続時に'running'に変更される
-        model: model || project.default_model,
         worktree_path: worktreePath,
         branch_name: branchName,
       },

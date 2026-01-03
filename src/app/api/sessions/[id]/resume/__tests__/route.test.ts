@@ -67,7 +67,6 @@ describe('POST /api/sessions/[id]/resume', () => {
       project_id: 'project-1',
       name: 'Test Session',
       status: 'running', // stopped以外
-      model: 'sonnet',
       worktree_path: '/path/to/worktree',
       branch_name: 'feature/test',
       resume_session_id: null,
@@ -96,7 +95,6 @@ describe('POST /api/sessions/[id]/resume', () => {
       project_id: 'project-1',
       name: 'Test Session',
       status: 'stopped',
-      model: 'sonnet',
       worktree_path: '/path/to/worktree',
       branch_name: 'feature/test',
       resume_session_id: null,
@@ -113,7 +111,6 @@ describe('POST /api/sessions/[id]/resume', () => {
       project_id: 'project-1',
       name: 'Test Session',
       status: 'running',
-      model: 'sonnet',
       worktree_path: '/path/to/worktree',
       branch_name: 'feature/test',
       resume_session_id: null,
@@ -147,7 +144,6 @@ describe('POST /api/sessions/[id]/resume', () => {
       project_id: 'project-1',
       name: 'Test Session',
       status: 'stopped',
-      model: 'opus',
       worktree_path: '/path/to/worktree',
       branch_name: 'feature/test',
       resume_session_id: 'claude-session-abc123',
@@ -164,7 +160,6 @@ describe('POST /api/sessions/[id]/resume', () => {
       project_id: 'project-1',
       name: 'Test Session',
       status: 'running',
-      model: 'opus',
       worktree_path: '/path/to/worktree',
       branch_name: 'feature/test',
       resume_session_id: 'claude-session-abc123',
@@ -182,7 +177,6 @@ describe('POST /api/sessions/[id]/resume', () => {
     expect(mockResumeSession).toHaveBeenCalledWith(
       'session-123',
       '/path/to/worktree',
-      'opus',
       'claude-session-abc123'
     );
   });
@@ -201,7 +195,6 @@ describe('POST /api/sessions/[id]/resume', () => {
       project_id: 'project-1',
       name: 'Test Session',
       status: 'stopped',
-      model: 'sonnet',
       worktree_path: '/path/to/worktree',
       branch_name: 'feature/test',
       resume_session_id: null,

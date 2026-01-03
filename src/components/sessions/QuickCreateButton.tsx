@@ -3,7 +3,6 @@
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, Loader2 } from 'lucide-react';
-import { useSettingsStore } from '@/store/settings';
 
 interface Session {
   id: string;
@@ -27,7 +26,7 @@ interface QuickCreateButtonProps {
  *
  * ワンクリックでセッションを作成するボタン。
  * - セッション名は自動生成
- * - モデルはuseSettingsStoreのdefaultModelを使用
+ * - モデル選択はClaude Code側で行う
  * - プロンプトなしで作成
  *
  * @param props - コンポーネントのプロパティ
@@ -40,7 +39,6 @@ export function QuickCreateButton({
   label,
 }: QuickCreateButtonProps) {
   const router = useRouter();
-  const { defaultModel } = useSettingsStore();
   const [isLoading, setIsLoading] = useState(false);
 
   const handleClick = useCallback(async () => {
@@ -54,8 +52,7 @@ export function QuickCreateButton({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: defaultModel,
-          prompt: '', // プロンプトなし（Task 43.15でオプショナル化が必要）
+          prompt: '', // プロンプトなし
         }),
       });
 
@@ -75,7 +72,7 @@ export function QuickCreateButton({
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, projectId, defaultModel, onSuccess, onError, router]);
+  }, [isLoading, projectId, onSuccess, onError, router]);
 
   return (
     <button

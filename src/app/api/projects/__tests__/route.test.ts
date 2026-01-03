@@ -235,14 +235,12 @@ describe('POST /api/projects', () => {
     expect(data.project).toHaveProperty('id');
     expect(data.project).toHaveProperty('name');
     expect(data.project).toHaveProperty('path');
-    expect(data.project).toHaveProperty('default_model');
     expect(data.project).toHaveProperty('created_at');
 
     // 値の検証
     expect(data.project.id).toBeTruthy();
     expect(data.project.name).toBeTruthy();
     expect(data.project.path).toContain('project-test-');
-    expect(data.project.default_model).toBe('auto');
   });
 
   describe('ALLOWED_PROJECT_DIRS validation', () => {

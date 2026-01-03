@@ -33,7 +33,7 @@ interface ProjectSettingsModalProps {
 /**
  * プロジェクト設定モーダルコンポーネント
  *
- * プロジェクトのデフォルトモデルと実行スクリプトの設定を行うモーダルダイアログです。
+ * プロジェクトの実行スクリプトの設定を行うモーダルダイアログです。
  *
  * @param props - コンポーネントのプロパティ
  * @param props.isOpen - モーダルの開閉状態
@@ -43,7 +43,6 @@ interface ProjectSettingsModalProps {
  */
 export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettingsModalProps) {
   const { fetchProjects } = useAppStore();
-  const [defaultModel, setDefaultModel] = useState('auto');
   const [scripts, setScripts] = useState<EditableScript[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -75,13 +74,12 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
 
   useEffect(() => {
     if (isOpen && project) {
-      setDefaultModel(project.default_model || 'auto');
       fetchScripts(project.id);
     }
   }, [isOpen, project, fetchScripts]);
 
   /**
-   * すべての設定を保存（モデル設定とスクリプト）
+   * スクリプト設定を保存
    */
   const handleSaveAll = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,22 +89,7 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
     setIsLoading(true);
 
     try {
-      // 1. モデル設定を保存
-      const modelResponse = await fetch(`/api/projects/${project.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          default_model: defaultModel,
-        }),
-      });
-
-      if (!modelResponse.ok) {
-        throw new Error('Failed to update project settings');
-      }
-
-      // 2. スクリプトを保存
+      // スクリプトを保存
       const incompleteScripts = scripts.filter(
         (s) => !s.name.trim() || !s.command.trim()
       );
@@ -258,27 +241,6 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
                 </Dialog.Title>
 
                 <form onSubmit={handleSaveAll}>
-                  <div className="mb-6">
-                    <label
-                      htmlFor="default-model"
-                      className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
-                    >
-                      デフォルトモデル
-                    </label>
-                    <select
-                      id="default-model"
-                      value={defaultModel}
-                      onChange={(e) => setDefaultModel(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      disabled={isLoading}
-                    >
-                      <option value="auto">Auto</option>
-                      <option value="opus">Opus</option>
-                      <option value="sonnet">Sonnet</option>
-                      <option value="haiku">Haiku</option>
-                    </select>
-                  </div>
-
                   <div className="mb-6">
                     <div className="flex justify-between items-center mb-2">
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">

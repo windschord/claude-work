@@ -131,7 +131,6 @@ describe('SessionDetailPage', () => {
     project_id: 'project-1',
     name: 'Test Session',
     status: 'running' as const,
-    model: 'auto',
     worktree_path: '/path/to/worktree',
     branch_name: 'feature/test',
     pr_url: null,
@@ -179,12 +178,11 @@ describe('SessionDetailPage', () => {
     });
   });
 
-  it('セッションステータスとモデルが表示される', async () => {
+  it('セッションステータスが表示される', async () => {
     render(<SessionDetailPage />);
 
     await waitFor(() => {
       expect(screen.getByText(/running/)).toBeInTheDocument();
-      expect(screen.getByText(/auto/)).toBeInTheDocument();
     });
   });
 

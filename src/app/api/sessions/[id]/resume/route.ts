@@ -49,7 +49,6 @@ export async function POST(
       await lifecycleManager.resumeSession(
         targetSession.id,
         targetSession.worktree_path,
-        targetSession.model,
         targetSession.resume_session_id || undefined
       );
     } catch (error) {

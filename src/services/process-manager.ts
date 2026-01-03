@@ -13,8 +13,6 @@ export interface StartOptions {
   worktreePath: string;
   /** Claude Codeに送信する初期プロンプト（オプション） */
   prompt?: string;
-  /** 使用するモデル名（オプション） */
-  model?: string;
   /** 再開するClaude CodeセッションID（--resumeオプション用） */
   resumeSessionId?: string;
 }
@@ -140,7 +138,7 @@ export class ProcessManager extends EventEmitter {
    * @throws 同じsessionIdのプロセスが既に存在する場合にエラーをスロー
    */
   async startClaudeCode(options: StartOptions): Promise<ProcessInfo> {
-    const { sessionId, worktreePath, prompt, model, resumeSessionId } = options;
+    const { sessionId, worktreePath, prompt, resumeSessionId } = options;
 
     if (this.processes.has(sessionId)) {
       throw new Error(`Session ${sessionId} already exists`);
@@ -149,11 +147,6 @@ export class ProcessManager extends EventEmitter {
     // stream-jsonフォーマットで双方向通信を有効にする
     // --output-format=stream-json には --verbose が必要
     const args = ['--print', '--verbose', '--input-format', 'stream-json', '--output-format', 'stream-json'];
-    // "auto" はアプリケーション独自の値で、Claude CLIには渡さない
-    // Claude CLIのデフォルトモデルを使用する
-    if (model && model !== 'auto') {
-      args.push('--model', model);
-    }
     if (resumeSessionId) {
       args.push('--resume', resumeSessionId);
     }

@@ -66,7 +66,6 @@ describe('GET /api/projects/[project_id]/sessions', () => {
         project_id: project.id,
         name: 'Test Session',
         status: 'running',
-        model: 'sonnet',
         worktree_path: join(testRepoPath, '.worktrees', 'test-session'),
         branch_name: 'test-branch',
       },
@@ -132,7 +131,6 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         body: JSON.stringify({
           name: 'New Session',
           prompt: 'test prompt',
-          model: 'sonnet',
         }),
       }
     );
@@ -165,7 +163,6 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         body: JSON.stringify({
           name: 'Test Response Format',
           prompt: 'test prompt',
-          model: 'sonnet',
         }),
       }
     );
@@ -184,7 +181,6 @@ describe('POST /api/projects/[project_id]/sessions', () => {
     expect(data.session).toHaveProperty('project_id');
     expect(data.session).toHaveProperty('name');
     expect(data.session).toHaveProperty('status');
-    expect(data.session).toHaveProperty('model');
     expect(data.session).toHaveProperty('worktree_path');
     expect(data.session).toHaveProperty('branch_name');
     expect(data.session).toHaveProperty('created_at');
@@ -193,7 +189,6 @@ describe('POST /api/projects/[project_id]/sessions', () => {
     expect(data.session.project_id).toBe(project.id);
     expect(data.session.name).toBe('Test Response Format');
     expect(data.session.status).toBe('initializing');
-    expect(data.session.model).toBe('sonnet');
   });
 
   it('should return 404 for non-existent project', async () => {
@@ -247,7 +242,6 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         },
         body: JSON.stringify({
           name: 'No Prompt Session',
-          model: 'sonnet',
         }),
       }
     );
@@ -270,7 +264,6 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         body: JSON.stringify({
           name: 'Empty Prompt Session',
           prompt: '',
-          model: 'sonnet',
         }),
       }
     );
@@ -293,7 +286,6 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         body: JSON.stringify({
           name: 'With Prompt Session',
           prompt: 'test prompt for backward compatibility',
-          model: 'sonnet',
         }),
       }
     );
@@ -318,7 +310,6 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         body: JSON.stringify({
           name: 'New Session',
           prompt: 'Implement user authentication',
-          model: 'sonnet',
         }),
       }
     );
@@ -357,7 +348,6 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         body: JSON.stringify({
           name: 'New Session',
           prompt: 'Fix bug in authentication',
-          model: 'sonnet',
         }),
       }
     );

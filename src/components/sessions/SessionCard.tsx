@@ -88,9 +88,6 @@ export function SessionCard({ session, onClick }: SessionCardProps) {
       </div>
       <div className="space-y-1">
         <div className="flex items-center gap-2">
-          <p className="text-sm text-gray-600 dark:text-gray-400">モデル: {session.model}</p>
-        </div>
-        <div className="flex items-center gap-2">
           <p className="text-sm text-gray-600 dark:text-gray-400">ブランチ: {session.branch_name}</p>
           {/* TODO: Session型にgit_statusフィールドを追加し、APIから実際のGitステータスを取得する */}
           {(() => {

@@ -117,7 +117,6 @@ describe('ProcessManager', () => {
         sessionId: 'test-session-no-cwd-arg',
         worktreePath: '/path/to/worktree',
         prompt: 'test prompt',
-        model: 'sonnet',
       };
 
       await processManager.startClaudeCode(options);
@@ -134,7 +133,6 @@ describe('ProcessManager', () => {
         sessionId: 'test-session-cwd-option',
         worktreePath: '/path/to/worktree',
         prompt: 'test prompt',
-        model: 'sonnet',
       };
 
       await processManager.startClaudeCode(options);
@@ -155,7 +153,6 @@ describe('ProcessManager', () => {
         sessionId: 'test-session-spawn-success',
         worktreePath: '/path/to/worktree',
         prompt: 'test prompt',
-        model: 'sonnet',
       };
 
       const info = await processManager.startClaudeCode(options);
@@ -168,7 +165,7 @@ describe('ProcessManager', () => {
       });
       expect(mockSpawn).toHaveBeenCalledWith(
         'claude',
-        ['--print', '--verbose', '--input-format', 'stream-json', '--output-format', 'stream-json', '--model', 'sonnet'],
+        ['--print', '--verbose', '--input-format', 'stream-json', '--output-format', 'stream-json'],
         expect.objectContaining({
           stdio: ['pipe', 'pipe', 'pipe'],
           cwd: '/path/to/worktree',
@@ -184,14 +181,13 @@ describe('ProcessManager', () => {
         sessionId: 'test-session-custom-path',
         worktreePath: '/path/to/worktree',
         prompt: 'test prompt',
-        model: 'sonnet',
       };
 
       await processManager.startClaudeCode(options);
 
       expect(mockSpawn).toHaveBeenCalledWith(
         '/custom/path/to/claude',
-        ['--print', '--verbose', '--input-format', 'stream-json', '--output-format', 'stream-json', '--model', 'sonnet'],
+        ['--print', '--verbose', '--input-format', 'stream-json', '--output-format', 'stream-json'],
         expect.objectContaining({
           stdio: ['pipe', 'pipe', 'pipe'],
           cwd: '/path/to/worktree',
@@ -214,14 +210,13 @@ describe('ProcessManager', () => {
         sessionId: 'test-session-default-cmd',
         worktreePath: '/path/to/worktree',
         prompt: 'test prompt',
-        model: 'sonnet',
       };
 
       await processManager.startClaudeCode(options);
 
       expect(mockSpawn).toHaveBeenCalledWith(
         'claude',
-        ['--print', '--verbose', '--input-format', 'stream-json', '--output-format', 'stream-json', '--model', 'sonnet'],
+        ['--print', '--verbose', '--input-format', 'stream-json', '--output-format', 'stream-json'],
         expect.objectContaining({
           stdio: ['pipe', 'pipe', 'pipe'],
           cwd: '/path/to/worktree',
@@ -278,14 +273,13 @@ describe('ProcessManager', () => {
         sessionId: 'test-session-correct-args',
         worktreePath: '/path/to/worktree',
         prompt: 'test prompt',
-        model: 'sonnet',
       };
 
       await processManager.startClaudeCode(options);
 
       expect(mockSpawn).toHaveBeenCalledWith(
         'claude',
-        ['--print', '--verbose', '--input-format', 'stream-json', '--output-format', 'stream-json', '--model', 'sonnet'],
+        ['--print', '--verbose', '--input-format', 'stream-json', '--output-format', 'stream-json'],
         expect.objectContaining({
           stdio: ['pipe', 'pipe', 'pipe'],
           cwd: '/path/to/worktree',
@@ -491,31 +485,10 @@ describe('ProcessManager', () => {
       );
     });
 
-    it('should include both --model and --resume options', async () => {
-      const options: StartOptions = {
-        sessionId: 'test-session-resume-model',
-        worktreePath: '/path/to/worktree',
-        model: 'opus',
-        resumeSessionId: 'claude-session-xyz789',
-      };
-
-      await processManager.startClaudeCode(options);
-
-      expect(mockSpawn).toHaveBeenCalledWith(
-        'claude',
-        ['--print', '--verbose', '--input-format', 'stream-json', '--output-format', 'stream-json', '--model', 'opus', '--resume', 'claude-session-xyz789'],
-        expect.objectContaining({
-          stdio: ['pipe', 'pipe', 'pipe'],
-          cwd: '/path/to/worktree',
-        })
-      );
-    });
-
     it('should not include --resume option when resumeSessionId is not provided', async () => {
       const options: StartOptions = {
         sessionId: 'test-session-no-resume',
         worktreePath: '/path/to/worktree',
-        model: 'sonnet',
       };
 
       await processManager.startClaudeCode(options);

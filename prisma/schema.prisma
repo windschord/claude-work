@@ -14,7 +14,6 @@ model Project {
   id            String   @id @default(uuid())
   name          String
   path          String   @unique
-  default_model String   @default("auto")
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
 
@@ -27,7 +26,6 @@ model Session {
   project_id         String
   name               String
   status             String    // initializing, running, waiting_input, completed, error, stopped
-  model              String
   worktree_path      String
   branch_name        String
   resume_session_id  String?   // Claude Codeの--resume用セッションID（stopped時に保存）

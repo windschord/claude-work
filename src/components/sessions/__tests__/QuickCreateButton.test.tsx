@@ -6,7 +6,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QuickCreateButton } from '../QuickCreateButton';
-import { useSettingsStore } from '@/store/settings';
 
 // fetchをモック
 const mockFetch = vi.fn();
@@ -20,11 +19,6 @@ vi.mock('next/navigation', () => ({
   }),
 }));
 
-// useSettingsStoreをモック
-vi.mock('@/store/settings', () => ({
-  useSettingsStore: vi.fn(),
-}));
-
 describe('QuickCreateButton', () => {
   const mockOnSuccess = vi.fn();
   const defaultProps = {
@@ -35,9 +29,6 @@ describe('QuickCreateButton', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFetch.mockReset();
-    (useSettingsStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
-      defaultModel: 'claude-sonnet-4',
-    });
   });
 
   it('ボタンが正しくレンダリングされる', () => {
@@ -73,39 +64,6 @@ describe('QuickCreateButton', () => {
           body: expect.any(String),
         })
       );
-    });
-
-    // リクエストボディにモデルが含まれることを確認
-    const callArgs = mockFetch.mock.calls[0];
-    const body = JSON.parse(callArgs[1].body);
-    expect(body.model).toBe('claude-sonnet-4');
-  });
-
-  it('defaultModelが使用される', async () => {
-    (useSettingsStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
-      defaultModel: 'claude-opus-4',
-    });
-
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        session: {
-          id: 'session-new',
-          name: 'auto-generated-name',
-          status: 'initializing',
-        },
-      }),
-    });
-
-    render(<QuickCreateButton {...defaultProps} />);
-
-    const button = screen.getByRole('button');
-    fireEvent.click(button);
-
-    await waitFor(() => {
-      const callArgs = mockFetch.mock.calls[0];
-      const body = JSON.parse(callArgs[1].body);
-      expect(body.model).toBe('claude-opus-4');
     });
   });
 

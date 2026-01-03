@@ -11,8 +11,6 @@ export interface Project {
   name: string;
   /** Gitリポジトリのパス */
   path: string;
-  /** デフォルトのClaudeモデル */
-  default_model: string;
   /** 実行スクリプトの配列 */
   run_scripts: Array<{ name: string; command: string }>;
   /** セッション数 */
@@ -33,8 +31,6 @@ export interface Session {
   name: string;
   /** セッションの状態 */
   status: 'initializing' | 'running' | 'waiting_input' | 'completed' | 'error' | 'stopped';
-  /** 使用しているClaudeモデル */
-  model: string;
   /** Git worktreeのパス */
   worktree_path: string;
   /** Gitブランチ名 */
@@ -61,8 +57,6 @@ export interface CreateSessionData {
   name?: string;
   /** プロンプト */
   prompt: string;
-  /** 使用するClaudeモデル（デフォルト: 'auto'） */
-  model?: string;
 }
 
 /**
