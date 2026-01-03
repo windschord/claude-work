@@ -57,6 +57,8 @@ export interface CreateSessionData {
   name?: string;
   /** プロンプト */
   prompt: string;
+  /** Dockerモードで実行するかどうか */
+  dockerMode?: boolean;
 }
 
 /**
