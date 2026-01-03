@@ -217,8 +217,7 @@ describe('ProcessLifecycleManager', () => {
 
       const result = await manager.resumeSession(
         'test-session',
-        '/path/to/worktree',
-        'sonnet'
+        '/path/to/worktree'
       );
 
       expect(result).toHaveProperty('pid');
@@ -244,7 +243,6 @@ describe('ProcessLifecycleManager', () => {
       await manager.resumeSession(
         'test-session-event',
         '/path/to/worktree',
-        undefined,
         'claude-session-123'
       );
 
