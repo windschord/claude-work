@@ -1,15 +1,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { EventEmitter } from 'events';
 
 // ホイストされたモックを作成
-const { mockExec } = vi.hoisted(() => ({
+const { mockExec, mockSpawn } = vi.hoisted(() => ({
   mockExec: vi.fn(),
+  mockSpawn: vi.fn(),
 }));
 
 // child_processモジュールをモック
 vi.mock('child_process', async () => {
   const mockExports = {
     exec: mockExec,
-    spawn: vi.fn(),
+    spawn: mockSpawn,
     execFile: vi.fn(),
     fork: vi.fn(),
   };
@@ -212,6 +214,108 @@ describe('DockerService', () => {
       expect(service.getImageName()).toBe('test-image');
       expect(service.getImageTag()).toBe('test-tag');
       expect(service.getMaxConcurrentContainers()).toBe(3);
+    });
+  });
+
+  describe('buildImage', () => {
+    it('ビルドが成功した場合はresolveする', async () => {
+      const mockProcess = new EventEmitter() as EventEmitter & {
+        stdout: EventEmitter;
+        stderr: EventEmitter;
+      };
+      mockProcess.stdout = new EventEmitter();
+      mockProcess.stderr = new EventEmitter();
+
+      mockSpawn.mockReturnValue(mockProcess);
+
+      const buildPromise = dockerService.buildImage();
+
+      // ビルドログを出力
+      mockProcess.stdout.emit('data', Buffer.from('Step 1/5: FROM node:20-slim\n'));
+      mockProcess.stdout.emit('data', Buffer.from('Successfully built abc123\n'));
+
+      // ビルド完了
+      mockProcess.emit('close', 0);
+
+      await expect(buildPromise).resolves.toBeUndefined();
+      expect(mockSpawn).toHaveBeenCalledWith(
+        'docker',
+        expect.arrayContaining(['build', '-t']),
+        expect.any(Object)
+      );
+    });
+
+    it('進捗コールバックが呼び出される', async () => {
+      const mockProcess = new EventEmitter() as EventEmitter & {
+        stdout: EventEmitter;
+        stderr: EventEmitter;
+      };
+      mockProcess.stdout = new EventEmitter();
+      mockProcess.stderr = new EventEmitter();
+
+      mockSpawn.mockReturnValue(mockProcess);
+
+      const onProgress = vi.fn();
+      const buildPromise = dockerService.buildImage(onProgress);
+
+      // ビルドログを出力
+      mockProcess.stdout.emit('data', Buffer.from('Step 1/5: FROM node:20-slim\n'));
+      mockProcess.stdout.emit('data', Buffer.from('Step 2/5: RUN apt-get update\n'));
+
+      // ビルド完了
+      mockProcess.emit('close', 0);
+
+      await buildPromise;
+
+      expect(onProgress).toHaveBeenCalledWith('Step 1/5: FROM node:20-slim\n');
+      expect(onProgress).toHaveBeenCalledWith('Step 2/5: RUN apt-get update\n');
+      expect(onProgress).toHaveBeenCalledTimes(2);
+    });
+
+    it('ビルドが失敗した場合はrejectする', async () => {
+      const mockProcess = new EventEmitter() as EventEmitter & {
+        stdout: EventEmitter;
+        stderr: EventEmitter;
+      };
+      mockProcess.stdout = new EventEmitter();
+      mockProcess.stderr = new EventEmitter();
+
+      mockSpawn.mockReturnValue(mockProcess);
+
+      const buildPromise = dockerService.buildImage();
+
+      // エラー出力
+      mockProcess.stderr.emit('data', Buffer.from('Error: Dockerfile not found\n'));
+
+      // ビルド失敗
+      mockProcess.emit('close', 1);
+
+      await expect(buildPromise).rejects.toThrow('Docker image build failed with exit code 1');
+    });
+
+    it('spawnエラーの場合はrejectする', async () => {
+      const mockProcess = new EventEmitter() as EventEmitter & {
+        stdout: EventEmitter;
+        stderr: EventEmitter;
+      };
+      mockProcess.stdout = new EventEmitter();
+      mockProcess.stderr = new EventEmitter();
+
+      mockSpawn.mockReturnValue(mockProcess);
+
+      const buildPromise = dockerService.buildImage();
+
+      // spawnエラー
+      mockProcess.emit('error', new Error('spawn docker ENOENT'));
+
+      await expect(buildPromise).rejects.toThrow('spawn docker ENOENT');
+    });
+  });
+
+  describe('getDockerfilePath', () => {
+    it('Dockerfileのパスを返す', () => {
+      const path = dockerService.getDockerfilePath();
+      expect(path).toContain('docker');
     });
   });
 });
