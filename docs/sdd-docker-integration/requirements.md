@@ -88,6 +88,8 @@ Claude WorkプロジェクトにDockerコンテナ内でClaude Codeセッショ�
 - REQ-D020: Dockerセッション内での変更は、対応するGit worktreeに即座に反映されなければならない
 - REQ-D021: Web UIからDockerセッションのターミナルに接続できなければならない
 - REQ-D022: 既存のセッション管理API（REST/WebSocket）はDockerモードのセッションにも対応しなければならない
+- REQ-D023: セッション一覧画面で、Dockerモードのセッションには視覚的に識別可能な「Docker」バッジを表示しなければならない
+- REQ-D024: セッション詳細画面で、Dockerモードのセッションには「Docker」バッジを表示しなければならない
 
 ## 非機能要件
 
@@ -98,7 +100,7 @@ Claude WorkプロジェクトにDockerコンテナ内でClaude Codeセッショ�
 
 ### セキュリティ
 
-- NFR-D003: 認証情報は常に読み取り専用でマウントされなければならない
+- NFR-D003: Claude認証情報（~/.claude/, ~/.config/claude/）はClaude Codeがdebug/ディレクトリに書き込むため読み書き可能でマウントされる。Git認証情報（~/.ssh/, ~/.gitconfig）は読み取り専用でマウントされなければならない
 - NFR-D004: コンテナはホストのroot権限を取得できてはならない
 - NFR-D005: コンテナからホストのファイルシステム（ワークスペース以外）にアクセスできてはならない
 
@@ -142,5 +144,5 @@ Claude WorkプロジェクトにDockerコンテナ内でClaude Codeセッショ�
 |--------|--------|------|
 | P0（必須） | REQ-D001, REQ-D002, REQ-D004, REQ-D005, REQ-D011 | コア機能 |
 | P1（重要） | REQ-D003, REQ-D006, REQ-D015, REQ-D016, REQ-D019, REQ-D020 | 主要ワークフロー |
-| P2（推奨） | REQ-D007, REQ-D008, REQ-D009, REQ-D012, REQ-D013, REQ-D021, REQ-D022 | 利便性向上 |
+| P2（推奨） | REQ-D007, REQ-D008, REQ-D009, REQ-D012, REQ-D013, REQ-D021, REQ-D022, REQ-D023, REQ-D024 | 利便性向上 |
 | P3（将来） | REQ-D010, REQ-D014, REQ-D017, REQ-D018 | 拡張機能 |

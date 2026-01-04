@@ -183,15 +183,15 @@ export class DockerPTYAdapter extends EventEmitter {
     // ワークスペースマウント（RW）
     args.push('-v', `${workingDir}:/workspace`);
 
-    // Claude認証情報マウント（RO）
+    // Claude認証情報マウント（RW - Claude Codeがdebug/に書き込むため）
     const homeDir = os.homedir();
     const claudeDir = path.join(homeDir, '.claude');
     if (fs.existsSync(claudeDir)) {
-      args.push('-v', `${claudeDir}:/home/node/.claude:ro`);
+      args.push('-v', `${claudeDir}:/home/node/.claude`);
     }
     const claudeConfigDir = path.join(homeDir, '.config', 'claude');
     if (fs.existsSync(claudeConfigDir)) {
-      args.push('-v', `${claudeConfigDir}:/home/node/.config/claude:ro`);
+      args.push('-v', `${claudeConfigDir}:/home/node/.config/claude`);
     }
 
     // Git認証情報マウント（RO）
