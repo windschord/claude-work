@@ -1,49 +1,64 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NextRequest } from 'next/server';
-import { POST } from '../route';
+
+// vi.hoisted()でモックオブジェクトを先に定義
+const { mockPrisma, mockGitService, mockDockerService } = vi.hoisted(() => ({
+  mockPrisma: {
+    project: {
+      findUnique: vi.fn(),
+    },
+    session: {
+      findFirst: vi.fn(),
+      findMany: vi.fn(),
+      create: vi.fn(),
+    },
+    prompt: {
+      findFirst: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+    },
+    message: {
+      create: vi.fn(),
+    },
+  },
+  mockGitService: {
+    createWorktree: vi.fn(),
+  },
+  mockDockerService: {
+    isDockerAvailable: vi.fn(),
+    imageExists: vi.fn(),
+    buildImage: vi.fn(),
+    diagnoseDockerError: vi.fn(),
+    diagnoseAuthIssues: vi.fn(),
+  },
+}));
 
 // Prismaモック
-const mockPrisma = {
-  project: {
-    findUnique: vi.fn(),
-  },
-  session: {
-    findFirst: vi.fn(),
-    findMany: vi.fn(),
-    create: vi.fn(),
-  },
-  prompt: {
-    findFirst: vi.fn(),
-    create: vi.fn(),
-    update: vi.fn(),
-  },
-  message: {
-    create: vi.fn(),
-  },
-};
-
 vi.mock('@/lib/db', () => ({
   prisma: mockPrisma,
 }));
 
-// GitServiceモック
-const mockGitService = {
-  createWorktree: vi.fn(),
-};
-
+// GitServiceモック - コンストラクタとして使用可能なモック
 vi.mock('@/services/git-service', () => ({
-  GitService: vi.fn().mockImplementation(() => mockGitService),
+  GitService: class MockGitService {
+    createWorktree = mockGitService.createWorktree;
+  },
 }));
 
 // DockerServiceモック
-const mockDockerService = {
-  isDockerAvailable: vi.fn(),
-  imageExists: vi.fn(),
-  buildImage: vi.fn(),
-};
-
 vi.mock('@/services/docker-service', () => ({
   dockerService: mockDockerService,
+  DockerError: class DockerError extends Error {
+    errorType: string;
+    userMessage: string;
+    suggestion: string;
+    constructor(errorType: string, message: string, userMessage: string, suggestion: string) {
+      super(message);
+      this.errorType = errorType;
+      this.userMessage = userMessage;
+      this.suggestion = suggestion;
+    }
+  },
 }));
 
 // loggerモック
@@ -60,6 +75,8 @@ vi.mock('@/lib/logger', () => ({
 vi.mock('@/lib/session-name-generator', () => ({
   generateUniqueSessionName: vi.fn(() => 'happy-panda'),
 }));
+
+import { POST } from '../route';
 
 describe('POST /api/projects/[project_id]/sessions', () => {
   beforeEach(() => {
@@ -115,7 +132,8 @@ describe('POST /api/projects/[project_id]/sessions', () => {
     });
 
     it('should create session with dockerMode=true when specified and Docker available', async () => {
-      mockDockerService.isDockerAvailable.mockResolvedValue(true);
+      mockDockerService.diagnoseDockerError.mockResolvedValue(null); // No error = Docker available
+      mockDockerService.diagnoseAuthIssues.mockReturnValue([]);
       mockDockerService.imageExists.mockResolvedValue(true);
 
       mockPrisma.session.create.mockResolvedValue({
@@ -140,7 +158,7 @@ describe('POST /api/projects/[project_id]/sessions', () => {
       });
 
       expect(response.status).toBe(201);
-      expect(mockDockerService.isDockerAvailable).toHaveBeenCalled();
+      expect(mockDockerService.diagnoseDockerError).toHaveBeenCalled();
       expect(mockDockerService.imageExists).toHaveBeenCalled();
       expect(mockPrisma.session.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -152,7 +170,13 @@ describe('POST /api/projects/[project_id]/sessions', () => {
     });
 
     it('should return 503 when Docker not available and dockerMode=true', async () => {
-      mockDockerService.isDockerAvailable.mockResolvedValue(false);
+      // DockerError objectを返すことで、Dockerが利用不可であることを示す
+      mockDockerService.diagnoseDockerError.mockResolvedValue({
+        errorType: 'DOCKER_NOT_INSTALLED',
+        message: 'Docker not installed',
+        userMessage: 'Dockerがインストールされていません',
+        suggestion: 'Dockerをインストールしてください',
+      });
 
       const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
         method: 'POST',
@@ -170,7 +194,8 @@ describe('POST /api/projects/[project_id]/sessions', () => {
     });
 
     it('should build image when Docker available but image not exists', async () => {
-      mockDockerService.isDockerAvailable.mockResolvedValue(true);
+      mockDockerService.diagnoseDockerError.mockResolvedValue(null);
+      mockDockerService.diagnoseAuthIssues.mockReturnValue([]);
       mockDockerService.imageExists.mockResolvedValue(false);
       mockDockerService.buildImage.mockResolvedValue(undefined);
 
@@ -200,7 +225,8 @@ describe('POST /api/projects/[project_id]/sessions', () => {
     });
 
     it('should return 500 when image build fails', async () => {
-      mockDockerService.isDockerAvailable.mockResolvedValue(true);
+      mockDockerService.diagnoseDockerError.mockResolvedValue(null);
+      mockDockerService.diagnoseAuthIssues.mockReturnValue([]);
       mockDockerService.imageExists.mockResolvedValue(false);
       mockDockerService.buildImage.mockRejectedValue(new Error('Build failed'));
 
