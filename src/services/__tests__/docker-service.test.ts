@@ -2,8 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { EventEmitter } from 'events';
 
 // ホイストされたモックを作成
-const { mockExec, mockSpawn } = vi.hoisted(() => ({
+const { mockExec, mockExecFile, mockSpawn } = vi.hoisted(() => ({
   mockExec: vi.fn(),
+  mockExecFile: vi.fn(),
   mockSpawn: vi.fn(),
 }));
 
@@ -11,8 +12,8 @@ const { mockExec, mockSpawn } = vi.hoisted(() => ({
 vi.mock('child_process', async () => {
   const mockExports = {
     exec: mockExec,
+    execFile: mockExecFile,
     spawn: mockSpawn,
-    execFile: vi.fn(),
     fork: vi.fn(),
   };
   return {
@@ -91,33 +92,36 @@ describe('DockerService', () => {
 
   describe('imageExists', () => {
     it('イメージが存在する場合はtrueを返す', async () => {
-      mockExec.mockImplementation(
+      mockExecFile.mockImplementation(
         (
-          cmd: string,
+          command: string,
+          args: string[],
           callback: (error: Error | null, stdout: string, stderr: string) => void
         ) => {
           callback(null, 'abc123def456', '');
-          return {} as ReturnType<typeof mockExec>;
+          return {} as ReturnType<typeof mockExecFile>;
         }
       );
 
       const result = await dockerService.imageExists();
 
       expect(result).toBe(true);
-      expect(mockExec).toHaveBeenCalledWith(
-        expect.stringContaining('docker images'),
+      expect(mockExecFile).toHaveBeenCalledWith(
+        'docker',
+        ['images', '-q', 'claude-code-sandboxed:latest'],
         expect.any(Function)
       );
     });
 
     it('イメージが存在しない場合はfalseを返す', async () => {
-      mockExec.mockImplementation(
+      mockExecFile.mockImplementation(
         (
-          cmd: string,
+          command: string,
+          args: string[],
           callback: (error: Error | null, stdout: string, stderr: string) => void
         ) => {
           callback(null, '', '');
-          return {} as ReturnType<typeof mockExec>;
+          return {} as ReturnType<typeof mockExecFile>;
         }
       );
 
@@ -127,13 +131,14 @@ describe('DockerService', () => {
     });
 
     it('コマンドエラーの場合はfalseを返す', async () => {
-      mockExec.mockImplementation(
+      mockExecFile.mockImplementation(
         (
-          cmd: string,
+          command: string,
+          args: string[],
           callback: (error: Error | null, stdout: string, stderr: string) => void
         ) => {
           callback(new Error('Docker error'), '', '');
-          return {} as ReturnType<typeof mockExec>;
+          return {} as ReturnType<typeof mockExecFile>;
         }
       );
 
