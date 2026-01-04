@@ -4,7 +4,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 import { logger } from '@/lib/logger';
-import { DockerError, DockerErrorType } from './docker-service';
+import { DockerError } from './docker-service';
 
 /**
  * Dockerコンテナ起動エラーを解析してDockerErrorを生成

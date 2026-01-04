@@ -130,7 +130,7 @@ describeWithDocker('Docker Integration Tests', () => {
         );
         // mountが成功した場合はテスト失敗
         expect(true).toBe(false);
-      } catch (error) {
+      } catch {
         // mountが失敗することが期待される
         expect(true).toBe(true);
       }
