@@ -122,18 +122,13 @@ describeWithDocker('Docker Integration Tests', () => {
 
     it('should respect security options', () => {
       // 権限ドロップが正しく機能することを確認
-      // SYS_ADMIN権限がないことをテスト
-      try {
+      // SYS_ADMIN権限がないためmountが失敗することを期待
+      expect(() => {
         execSync(
           `docker run --rm --cap-drop ALL claude-code-sandboxed:latest mount -t proc proc /proc 2>&1`,
           { encoding: 'utf-8' }
         );
-        // mountが成功した場合はテスト失敗
-        expect(true).toBe(false);
-      } catch {
-        // mountが失敗することが期待される
-        expect(true).toBe(true);
-      }
+      }).toThrow();
     });
 
     it('should be able to write to workspace', () => {

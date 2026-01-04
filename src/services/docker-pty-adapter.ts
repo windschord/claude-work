@@ -211,9 +211,9 @@ export class DockerPTYAdapter extends EventEmitter {
       args.push('-e', 'SSH_AUTH_SOCK=/ssh-agent');
     }
 
-    // ANTHROPIC_API_KEY転送
+    // ANTHROPIC_API_KEY転送（キー名のみ指定でホスト環境変数から継承、プロセスリストに値が表示されない）
     if (process.env.ANTHROPIC_API_KEY) {
-      args.push('-e', `ANTHROPIC_API_KEY=${process.env.ANTHROPIC_API_KEY}`);
+      args.push('-e', 'ANTHROPIC_API_KEY');
     }
 
     // イメージ名
@@ -474,11 +474,11 @@ export class DockerPTYAdapter extends EventEmitter {
    * Claude Code出力からセッションIDを抽出
    */
   private extractClaudeSessionId(data: string): string | undefined {
-    const sessionIdPattern = '([a-zA-Z0-9-]{4,36})';
+    // 正規表現リテラルを使用（ReDoS対策のため変数から構築しない）
     const patterns = [
-      new RegExp(`session[:\\s]+${sessionIdPattern}`, 'i'),
-      new RegExp(`\\[session:${sessionIdPattern}\\]`, 'i'),
-      new RegExp(`Resuming session[:\\s]+${sessionIdPattern}`, 'i'),
+      /session[:\s]+([a-zA-Z0-9-]{4,36})/i,
+      /\[session:([a-zA-Z0-9-]{4,36})\]/i,
+      /Resuming session[:\s]+([a-zA-Z0-9-]{4,36})/i,
     ];
 
     for (const pattern of patterns) {

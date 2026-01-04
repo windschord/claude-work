@@ -22,6 +22,7 @@ interface ClaudePTYSession {
   workingDir: string;
   initialPrompt?: string;
   claudeSessionId?: string; // Claude Codeが出力するセッションID
+  options?: CreateClaudePTYSessionOptions; // 再起動時にオプションを保持するため
 }
 
 /**
@@ -187,12 +188,13 @@ class ClaudePTYManager extends EventEmitter {
         env: buildClaudePtyEnv(),
       });
 
-      // セッションを登録
+      // セッションを登録（再起動時にオプションを保持するため、optionsも保存）
       this.sessions.set(sessionId, {
         ptyProcess,
         sessionId,
         workingDir: resolvedCwd,
         initialPrompt,
+        options,
       });
       // 作成完了フラグをクリア
       this.creating.delete(sessionId);
@@ -331,12 +333,12 @@ class ClaudePTYManager extends EventEmitter {
 
     const session = this.sessions.get(sessionId);
     if (session) {
-      const { workingDir, initialPrompt } = session;
-      logger.info('Restarting Claude PTY session', { sessionId });
+      const { workingDir, initialPrompt, options } = session;
+      logger.info('Restarting Claude PTY session', { sessionId, dockerMode: options?.dockerMode });
       this.destroySession(sessionId);
-      // 少し待ってから再作成
+      // 少し待ってから再作成（オプションを保持して再起動）
       setTimeout(() => {
-        this.createSession(sessionId, workingDir, initialPrompt);
+        this.createSession(sessionId, workingDir, initialPrompt, options);
       }, 500);
     }
   }

@@ -95,7 +95,8 @@ export interface DockerServiceConfig {
 const DEFAULT_CONFIG: DockerServiceConfig = {
   imageName: process.env.DOCKER_IMAGE_NAME || 'claude-code-sandboxed',
   imageTag: process.env.DOCKER_IMAGE_TAG || 'latest',
-  maxConcurrentContainers: parseInt(process.env.DOCKER_MAX_CONTAINERS || '5', 10),
+  // NaNや負の値の場合はデフォルト値5にフォールバック、最小値1を保証
+  maxConcurrentContainers: Math.max(1, parseInt(process.env.DOCKER_MAX_CONTAINERS || '5', 10) || 5),
   enabled: process.env.DOCKER_ENABLED === 'true',
 };
 

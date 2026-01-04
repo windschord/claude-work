@@ -284,6 +284,22 @@ describe('DockerPTYAdapter', () => {
       expect(args).toContain('--rm');
       expect(args).toContain('claude-code-sandboxed:latest');
     });
+
+    it('セキュリティオプションを含む', () => {
+      adapter.createSession('test-session', '/path/to/worktree');
+
+      const args = mockPtySpawn.mock.calls[0][1] as string[];
+
+      // --cap-drop ALLが含まれていることを確認
+      const capDropIndex = args.indexOf('--cap-drop');
+      expect(capDropIndex).toBeGreaterThan(-1);
+      expect(args[capDropIndex + 1]).toBe('ALL');
+
+      // --security-opt no-new-privilegesが含まれていることを確認
+      const secOptIndex = args.indexOf('--security-opt');
+      expect(secOptIndex).toBeGreaterThan(-1);
+      expect(args[secOptIndex + 1]).toBe('no-new-privileges');
+    });
   });
 
   describe('hasSession', () => {

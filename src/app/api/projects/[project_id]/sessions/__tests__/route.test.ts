@@ -25,7 +25,6 @@ const { mockPrisma, mockGitService, mockDockerService } = vi.hoisted(() => ({
     createWorktree: vi.fn(),
   },
   mockDockerService: {
-    isDockerAvailable: vi.fn(),
     imageExists: vi.fn(),
     buildImage: vi.fn(),
     diagnoseDockerError: vi.fn(),
