@@ -325,8 +325,20 @@ describe('DockerService', () => {
   });
 
   describe('isEnabled', () => {
-    it('デフォルトでtrueを返す', () => {
-      expect(dockerService.isEnabled()).toBe(true);
+    it('デフォルトでfalseを返す（DOCKER_ENABLED環境変数が未設定の場合）', () => {
+      // 環境変数が設定されていない場合はデフォルトでfalse
+      expect(dockerService.isEnabled()).toBe(false);
+    });
+
+    it('設定でtrueを指定した場合はtrueを返す', () => {
+      const config: DockerServiceConfig = {
+        imageName: 'test',
+        imageTag: 'test',
+        maxConcurrentContainers: 5,
+        enabled: true,
+      };
+      const service = new DockerService(config);
+      expect(service.isEnabled()).toBe(true);
     });
 
     it('設定でfalseを指定した場合はfalseを返す', () => {

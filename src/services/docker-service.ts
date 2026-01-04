@@ -89,12 +89,13 @@ export interface DockerServiceConfig {
 
 /**
  * デフォルト設定
+ * Docker機能はデフォルトで無効。有効にするにはDOCKER_ENABLED=trueを設定。
  */
 const DEFAULT_CONFIG: DockerServiceConfig = {
   imageName: process.env.DOCKER_IMAGE_NAME || 'claude-code-sandboxed',
   imageTag: process.env.DOCKER_IMAGE_TAG || 'latest',
   maxConcurrentContainers: parseInt(process.env.DOCKER_MAX_CONTAINERS || '5', 10),
-  enabled: process.env.DOCKER_ENABLED !== 'false',
+  enabled: process.env.DOCKER_ENABLED === 'true',
 };
 
 /**
