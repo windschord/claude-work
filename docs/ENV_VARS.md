@@ -68,6 +68,37 @@ ClaudeWork で使用可能な環境変数の一覧です。
 - **デフォルト**: `30`
 - **備考**: 5分未満の値は自動的に5分に補正されます。0を設定するとアイドルタイムアウトは無効になります。
 
+## Docker関連環境変数
+
+### DOCKER_IMAGE_NAME
+
+- **説明**: Docker統合機能で使用するイメージ名
+- **形式**: 有効なDockerイメージ名
+- **例**: `DOCKER_IMAGE_NAME=claude-code-sandboxed`
+- **デフォルト**: `claude-code-sandboxed`
+
+### DOCKER_IMAGE_TAG
+
+- **説明**: Docker統合機能で使用するイメージタグ
+- **形式**: 有効なDockerタグ
+- **例**: `DOCKER_IMAGE_TAG=latest`
+- **デフォルト**: `latest`
+
+### DOCKER_MAX_CONTAINERS
+
+- **説明**: 同時に実行可能なDockerコンテナ数の上限
+- **形式**: 正の整数
+- **例**: `DOCKER_MAX_CONTAINERS=5`
+- **デフォルト**: `5`
+
+### DOCKER_ENABLED
+
+- **説明**: Docker統合機能の有効/無効
+- **形式**: `true` | `false`
+- **例**: `DOCKER_ENABLED=true`
+- **デフォルト**: `true`
+- **備考**: `false`に設定すると、Dockerモードのセッション作成が無効になります。
+
 ## 設定例
 
 ### .env ファイル
@@ -80,6 +111,12 @@ LOG_LEVEL=info
 ALLOWED_ORIGINS=http://localhost:3000
 ALLOWED_PROJECT_DIRS=/home/user/projects
 PROCESS_IDLE_TIMEOUT_MINUTES=30
+
+# Docker統合機能（オプション）
+DOCKER_IMAGE_NAME=claude-code-sandboxed
+DOCKER_IMAGE_TAG=latest
+DOCKER_MAX_CONTAINERS=5
+DOCKER_ENABLED=true
 ```
 
 ### コマンドライン

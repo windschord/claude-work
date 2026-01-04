@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAppStore } from '@/store';
 import { PromptHistoryDropdown } from './PromptHistoryDropdown';
 
@@ -28,10 +28,29 @@ interface CreateSessionFormProps {
 export function CreateSessionForm({ projectId, onSuccess, onError }: CreateSessionFormProps) {
   const [name, setName] = useState('');
   const [prompt, setPrompt] = useState('');
+  const [dockerMode, setDockerMode] = useState(false);
+  const [dockerEnabled, setDockerEnabled] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const createSession = useAppStore((state) => state.createSession);
+
+  // Docker機能の有効/無効を取得
+  useEffect(() => {
+    const fetchFeatures = async () => {
+      try {
+        const res = await fetch('/api/health');
+        if (res.ok) {
+          const data = await res.json();
+          setDockerEnabled(data.features?.dockerEnabled ?? false);
+        }
+      } catch {
+        // エラー時はDocker機能を無効として扱う
+        setDockerEnabled(false);
+      }
+    };
+    fetchFeatures();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,11 +77,13 @@ export function CreateSessionForm({ projectId, onSuccess, onError }: CreateSessi
       const sessionId = await createSession(projectId, {
         name: sessionName,
         prompt: prompt.trim(),
+        dockerMode,
       });
 
       // 成功時: フォームをクリア
       setName('');
       setPrompt('');
+      setDockerMode(false);
 
       if (onSuccess) {
         onSuccess(sessionId);
@@ -121,6 +142,25 @@ export function CreateSessionForm({ projectId, onSuccess, onError }: CreateSessi
           disabled={isLoading}
         />
       </div>
+
+      {dockerEnabled && (
+        <div className="flex items-center">
+          <input
+            id="docker-mode"
+            type="checkbox"
+            checked={dockerMode}
+            onChange={(e) => setDockerMode(e.target.checked)}
+            disabled={isLoading}
+            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
+          />
+          <label htmlFor="docker-mode" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+            Dockerモードで実行
+            <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">
+              (隔離されたコンテナ環境でClaude Codeを実行)
+            </span>
+          </label>
+        </div>
+      )}
 
       <button
         type="submit"

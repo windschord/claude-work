@@ -6,6 +6,11 @@
 - Git
 - Claude Code CLI（インストール済みであること）
 
+### オプション要件（Dockerモード使用時）
+
+- Docker Desktop または Docker Engine
+- 最低 4GB のディスク空き容量（Docker イメージ用）
+
 ## クイックスタート
 
 ```bash
@@ -102,4 +107,55 @@ claude --version
 
 ```bash
 npm install -g claude-code
+```
+
+### Dockerモードのトラブルシューティング
+
+#### Docker が見つからない
+
+Docker がインストールされているか確認します:
+
+```bash
+docker --version
+```
+
+インストールされていない場合は [Docker 公式サイト](https://docs.docker.com/get-docker/) からインストールしてください。
+
+#### Docker デーモンが起動していない
+
+```bash
+# macOS / Windows
+# Docker Desktop を起動
+
+# Linux
+sudo systemctl start docker
+```
+
+#### Docker イメージのビルド
+
+Docker イメージがない場合は自動的にビルドされますが、手動でビルドすることもできます:
+
+```bash
+docker build -t claude-code-sandboxed:latest docker/
+```
+
+#### Dockerコンテナの権限エラー（Linux）
+
+Linux でユーザーを docker グループに追加します:
+
+```bash
+sudo usermod -aG docker $USER
+# ログアウト後、再ログインが必要
+```
+
+#### ボリュームマウントエラー
+
+Docker Desktop の設定で、プロジェクトディレクトリへのファイル共有を許可してください。
+
+#### 認証情報が見つからない
+
+Dockerモードで Claude Code を使用するには、事前に Claude Code でログインしておく必要があります:
+
+```bash
+claude login
 ```

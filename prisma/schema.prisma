@@ -34,6 +34,8 @@ model Session {
   pr_number          Int?      // PR number (e.g., 123)
   pr_status          String?   // PR status: open, merged, closed
   pr_updated_at      DateTime? // 最終PR情報更新日時
+  docker_mode        Boolean   @default(false) // Dockerコンテナ内でClaude Codeを実行
+  container_id       String?   // 実行中のDockerコンテナID
   created_at         DateTime  @default(now())
   updated_at         DateTime  @updatedAt
 

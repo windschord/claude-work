@@ -17,6 +17,7 @@ vi.mock('node-pty', () => ({
 // fsモジュールをモック
 vi.mock('fs', () => ({
   statSync: vi.fn(() => ({ isDirectory: () => true })),
+  existsSync: vi.fn(() => true),
 }));
 
 // 実際のモジュールをインポート（モック適用後）
@@ -289,6 +290,54 @@ describe('ClaudePTYManager', () => {
       } else {
         delete process.env.CLAUDE_CODE_PATH;
       }
+    });
+  });
+
+  describe('dockerMode', () => {
+    it('should use DockerPTYAdapter when dockerMode is true', () => {
+      claudePtyManager.claudePtyManager.createSession(
+        'docker-session',
+        '/path/to/worktree',
+        undefined,
+        { dockerMode: true }
+      );
+
+      // Dockerモードではnode-ptyは直接呼ばれない（DockerPTYAdapter経由）
+      // このテストではDockerPTYAdapterがモックされていないため、
+      // 実際にはpty.spawnがdockerコマンドで呼ばれることを確認
+      expect(pty.spawn).toHaveBeenCalledWith(
+        'docker',
+        expect.arrayContaining(['run', '-it', '--rm']),
+        expect.any(Object)
+      );
+    });
+
+    it('should use local Claude when dockerMode is false', () => {
+      claudePtyManager.claudePtyManager.createSession(
+        'local-session',
+        '/path/to/worktree',
+        undefined,
+        { dockerMode: false }
+      );
+
+      expect(pty.spawn).toHaveBeenCalledWith(
+        'claude',
+        expect.any(Array),
+        expect.any(Object)
+      );
+    });
+
+    it('should use local Claude when dockerMode is not specified', () => {
+      claudePtyManager.claudePtyManager.createSession(
+        'default-session',
+        '/path/to/worktree'
+      );
+
+      expect(pty.spawn).toHaveBeenCalledWith(
+        'claude',
+        expect.any(Array),
+        expect.any(Object)
+      );
     });
   });
 });
