@@ -298,8 +298,10 @@ describe('DockerPTYAdapter', () => {
     it('コンテナIDを返す', () => {
       adapter.createSession('test-session', '/path/to/worktree');
 
-      // コンテナIDはセッション作成時には未設定
-      expect(adapter.getContainerId('test-session')).toBeUndefined();
+      // コンテナIDはセッション作成時にコンテナ名として設定される
+      const containerId = adapter.getContainerId('test-session');
+      expect(containerId).toBeDefined();
+      expect(containerId).toMatch(/^claude-\d+-[a-z0-9]+$/);
     });
   });
 });

@@ -1,4 +1,4 @@
-import { exec, spawn } from 'child_process';
+import { exec, execFile, spawn } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -296,7 +296,8 @@ export class DockerService {
     const fullImageName = this.getFullImageName();
 
     return new Promise((resolve) => {
-      exec(`docker images -q ${fullImageName}`, (error, stdout) => {
+      // execFileを使用してコマンドインジェクションを防止
+      execFile('docker', ['images', '-q', fullImageName], (error, stdout) => {
         if (error) {
           logger.debug('Failed to check Docker image', { error: error.message });
           resolve(false);

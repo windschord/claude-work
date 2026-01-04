@@ -164,12 +164,12 @@ export class DockerPTYAdapter extends EventEmitter {
    *
    * @param workingDir - ホストの作業ディレクトリ
    * @param options - セッションオプション
-   * @returns docker run コマンドの引数配列
+   * @returns docker run コマンドの引数配列とコンテナ名
    */
   private buildDockerArgs(
     workingDir: string,
     options?: CreateDockerPTYSessionOptions
-  ): string[] {
+  ): { args: string[]; containerName: string } {
     const args: string[] = ['run', '-it', '--rm'];
 
     // コンテナ名を一意に設定
@@ -225,7 +225,7 @@ export class DockerPTYAdapter extends EventEmitter {
       args.push('--resume', options.resumeSessionId);
     }
 
-    return args;
+    return { args, containerName };
   }
 
   /**
@@ -270,12 +270,13 @@ export class DockerPTYAdapter extends EventEmitter {
     }
 
     try {
-      const dockerArgs = this.buildDockerArgs(resolvedCwd, options);
+      const { args: dockerArgs, containerName } = this.buildDockerArgs(resolvedCwd, options);
 
       logger.info('Creating Docker PTY session', {
         sessionId,
         workingDir: resolvedCwd,
         image: this.getFullImageName(),
+        containerName,
         resumeSessionId: options?.resumeSessionId,
       });
 
@@ -293,6 +294,7 @@ export class DockerPTYAdapter extends EventEmitter {
         sessionId,
         workingDir: resolvedCwd,
         initialPrompt,
+        containerId: containerName, // コンテナ名をcontainerIdとして保存
         errorBuffer: '',
         hasReceivedOutput: false,
       });

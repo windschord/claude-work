@@ -22,7 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN npm install -g @anthropic-ai/claude-code
 
 # nodeユーザーを使用（node:20-slimでは既にUID 1000のnodeユーザーが存在）
-# ホームディレクトリを/home/nodeから/home/claudeにシンボリックリンク作成
+# /home/claudeを/home/nodeへのシンボリックリンクとして作成（互換性のため）
 RUN ln -s /home/node /home/claude
 
 # SSHディレクトリの準備（マウント用）
