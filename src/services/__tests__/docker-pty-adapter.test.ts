@@ -224,7 +224,11 @@ describe('DockerPTYAdapter', () => {
 
       // 同じworkingDirでdocker runが呼ばれる
       const args = mockPtySpawn.mock.calls[0][1] as string[];
-      expect(args).toContain('/specific/worktree/path:/workspace');
+      // -v フラグとボリュームマウント文字列が連続していることを確認
+      const volumeFlagIndex = args.indexOf('-v');
+      expect(volumeFlagIndex).toBeGreaterThan(-1);
+      const volumeMount = args[volumeFlagIndex + 1];
+      expect(volumeMount).toBe('/specific/worktree/path:/workspace');
 
       vi.useRealTimers();
     });

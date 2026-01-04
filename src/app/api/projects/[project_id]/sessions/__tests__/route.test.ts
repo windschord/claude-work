@@ -133,7 +133,7 @@ describe('POST /api/projects/[project_id]/sessions', () => {
 
     it('should create session with dockerMode=true when specified and Docker available', async () => {
       mockDockerService.diagnoseDockerError.mockResolvedValue(null); // No error = Docker available
-      mockDockerService.diagnoseAuthIssues.mockReturnValue([]);
+      mockDockerService.diagnoseAuthIssues.mockResolvedValue([]);
       mockDockerService.imageExists.mockResolvedValue(true);
 
       mockPrisma.session.create.mockResolvedValue({
@@ -195,7 +195,7 @@ describe('POST /api/projects/[project_id]/sessions', () => {
 
     it('should build image when Docker available but image not exists', async () => {
       mockDockerService.diagnoseDockerError.mockResolvedValue(null);
-      mockDockerService.diagnoseAuthIssues.mockReturnValue([]);
+      mockDockerService.diagnoseAuthIssues.mockResolvedValue([]);
       mockDockerService.imageExists.mockResolvedValue(false);
       mockDockerService.buildImage.mockResolvedValue(undefined);
 
@@ -226,7 +226,7 @@ describe('POST /api/projects/[project_id]/sessions', () => {
 
     it('should return 500 when image build fails', async () => {
       mockDockerService.diagnoseDockerError.mockResolvedValue(null);
-      mockDockerService.diagnoseAuthIssues.mockReturnValue([]);
+      mockDockerService.diagnoseAuthIssues.mockResolvedValue([]);
       mockDockerService.imageExists.mockResolvedValue(false);
       mockDockerService.buildImage.mockRejectedValue(new Error('Build failed'));
 

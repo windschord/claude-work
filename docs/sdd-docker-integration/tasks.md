@@ -36,7 +36,8 @@
 **技術的文脈**:
 - ベースイメージ: node:20-slim
 - Claude Codeインストール: npm install -g @anthropic-ai/claude-code
-- 非rootユーザー: claude (UID 1000)
+- 非rootユーザー: node (UID 1000、node:20-slimの既存ユーザーを使用)
+- /home/claude → /home/node のシンボリックリンクを作成（互換性のため）
 
 **情報の明確性**:
 
@@ -55,7 +56,7 @@
 - [ ] `docker/Dockerfile`が存在する
 - [ ] `docker build`が成功する
 - [ ] イメージサイズが2GB以下（NFR-D010）
-- [ ] claudeユーザーで実行される
+- [ ] nodeユーザー（非root）で実行される
 - [ ] `claude --version`が正常に動作する
 
 **依存関係**: なし

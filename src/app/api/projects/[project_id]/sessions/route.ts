@@ -152,7 +152,7 @@ export async function POST(
       }
 
       // 認証情報チェック
-      const authIssues = dockerService.diagnoseAuthIssues();
+      const authIssues = await dockerService.diagnoseAuthIssues();
       if (authIssues.length > 0) {
         logger.warn('Auth issues found for Docker mode', { project_id, issues: authIssues });
         // 警告としてログに記録するが、セッション作成は続行

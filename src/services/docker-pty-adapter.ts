@@ -16,7 +16,7 @@ function parseContainerStartError(errorOutput: string): DockerError | null {
       'DOCKER_IMAGE_NOT_FOUND',
       'Docker image not found',
       'Dockerイメージが見つかりません',
-      'docker build -t claude-code-sandboxed:latest docker/ を実行してイメージをビルドしてください'
+      '使用している設定に合わせて Docker イメージをビルドしてください（例: docker build -t <image-name>:<tag> docker/）'
     );
   }
 

@@ -1,6 +1,7 @@
 import { exec, execFile, spawn } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as fsPromises from 'fs/promises';
 import * as os from 'os';
 import { logger } from '@/lib/logger';
 
@@ -234,7 +235,7 @@ export class DockerService {
    *
    * @returns 認証情報のチェック結果
    */
-  checkAuthCredentials(): AuthCredentialsCheck {
+  async checkAuthCredentials(): Promise<AuthCredentialsCheck> {
     const homeDir = os.homedir();
 
     const claudeAuthPath = path.join(homeDir, '.claude');
@@ -242,21 +243,38 @@ export class DockerService {
     const sshPath = path.join(homeDir, '.ssh');
     const gitConfigPath = path.join(homeDir, '.gitconfig');
 
+    // 非同期で各パスの存在をチェック
+    const checkExists = async (filePath: string): Promise<boolean> => {
+      try {
+        await fsPromises.access(filePath, fs.constants.F_OK);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    const [claudeAuthExists, claudeConfigExists, sshExists, gitConfigExists] = await Promise.all([
+      checkExists(claudeAuthPath),
+      checkExists(claudeConfigPath),
+      checkExists(sshPath),
+      checkExists(gitConfigPath),
+    ]);
+
     const result: AuthCredentialsCheck = {
       claudeAuth: {
-        exists: fs.existsSync(claudeAuthPath),
+        exists: claudeAuthExists,
         path: claudeAuthPath,
       },
       claudeConfig: {
-        exists: fs.existsSync(claudeConfigPath),
+        exists: claudeConfigExists,
         path: claudeConfigPath,
       },
       sshAuth: {
-        exists: fs.existsSync(sshPath),
+        exists: sshExists,
         path: sshPath,
       },
       gitConfig: {
-        exists: fs.existsSync(gitConfigPath),
+        exists: gitConfigExists,
         path: gitConfigPath,
       },
       anthropicApiKey: {
@@ -273,9 +291,9 @@ export class DockerService {
    *
    * @returns エラーメッセージ配列（問題がなければ空配列）
    */
-  diagnoseAuthIssues(): string[] {
+  async diagnoseAuthIssues(): Promise<string[]> {
     const issues: string[] = [];
-    const auth = this.checkAuthCredentials();
+    const auth = await this.checkAuthCredentials();
 
     if (!auth.claudeAuth.exists && !auth.claudeConfig.exists) {
       issues.push('Claude認証情報が見つかりません。先にClaude Codeでログインしてください。');
