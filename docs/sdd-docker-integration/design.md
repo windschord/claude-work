@@ -429,11 +429,13 @@ interface NewSessionFormData {
 | ホストパス | コンテナパス | モード | 目的 |
 |-----------|-------------|--------|------|
 | `${PROJECT_ROOT}/.worktrees/${session}` | `/workspace` | RW | 作業ディレクトリ |
-| `${HOME}/.claude` | `/home/claude/.claude` | RO | Claude認証情報 |
-| `${HOME}/.config/claude` | `/home/claude/.config/claude` | RO | Claude設定 |
-| `${HOME}/.ssh` | `/home/claude/.ssh` | RO | SSH鍵 |
-| `${HOME}/.gitconfig` | `/home/claude/.gitconfig` | RO | Git設定 |
+| `${HOME}/.claude` | `/home/node/.claude` | RW | Claude認証情報・デバッグログ |
+| `${HOME}/.config/claude` | `/home/node/.config/claude` | RW | Claude設定 |
+| `${HOME}/.ssh` | `/home/node/.ssh` | RO | SSH鍵 |
+| `${HOME}/.gitconfig` | `/home/node/.gitconfig` | RO | Git設定 |
 | `${SSH_AUTH_SOCK}` | `/ssh-agent` | RW | SSH Agent |
+
+**注意**: Claude認証ディレクトリは、Claude Codeが`debug/`ディレクトリに診断ログを書き込むため、読み書き可能（RW）でマウントする必要があります。
 
 ### SSH Agent転送
 
@@ -486,6 +488,19 @@ interface NewSessionFormData {
 2. **環境変数の取り扱い**
    - `ANTHROPIC_API_KEY`は`-e`オプションで渡す
    - コンテナ内の環境変数は外部からアクセス不可
+
+3. **プラットフォーム別の認証方式**
+
+   | プラットフォーム | 認証情報の保存場所 | Dockerコンテナでの利用方法 |
+   |-----------------|-------------------|---------------------------|
+   | macOS | Keychain（keytar経由） | `ANTHROPIC_API_KEY`環境変数が必要 |
+   | Linux | `~/.claude/.credentials.json` | ディレクトリマウントで共有可能 |
+   | WSL2 | `~/.claude/.credentials.json` | ディレクトリマウントで共有可能 |
+
+   **macOSでの制約**:
+   - macOSではClaude CodeがKeychainに認証情報を保存するため、`~/.claude/`をマウントしても認証情報は含まれない
+   - Dockerモードを使用するには`ANTHROPIC_API_KEY`環境変数の設定が必須
+   - API keyを使用すると、Pro/Max Planの使用量ではなく別途API料金が発生する
 
 ## 技術的決定事項
 

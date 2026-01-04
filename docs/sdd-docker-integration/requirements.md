@@ -128,6 +128,11 @@ Claude WorkプロジェクトにDockerコンテナ内でClaude Codeセッショ�
 - C-D004: Dockerがインストールされていない環境では、従来のホスト直接実行モードにフォールバックする
 - C-D005: ネットワーク接続が必要（Claude APIへのアクセス）
 
+### プラットフォーム固有の制約
+
+- C-D006: macOSでは、Claude CodeはKeychainに認証情報を保存するため、Dockerコンテナから直接アクセスできない。macOSでDockerモードを使用する場合は、`ANTHROPIC_API_KEY`環境変数を設定する必要がある（API使用料金が別途発生）
+- C-D007: Linux/WSL2では、Claude Codeは`~/.claude/.credentials.json`に認証情報を保存するため、ディレクトリマウントで認証情報を共有できる
+
 ## 用語定義
 
 | 用語 | 定義 |
