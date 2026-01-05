@@ -158,6 +158,7 @@ describe('DockerService', () => {
         imageName: 'custom-image',
         imageTag: 'v1.0',
         maxConcurrentContainers: 10,
+        enabled: true,
       };
       const customService = new DockerService(config);
 
@@ -175,6 +176,7 @@ describe('DockerService', () => {
         imageName: 'custom-image',
         imageTag: 'v1.0',
         maxConcurrentContainers: 10,
+        enabled: true,
       };
       const customService = new DockerService(config);
 
@@ -192,6 +194,7 @@ describe('DockerService', () => {
         imageName: 'my-image',
         imageTag: 'v2.0',
         maxConcurrentContainers: 5,
+        enabled: true,
       };
       const customService = new DockerService(config);
 
@@ -213,6 +216,7 @@ describe('DockerService', () => {
         imageName: 'test-image',
         imageTag: 'test-tag',
         maxConcurrentContainers: 3,
+        enabled: true,
       };
       const service = new DockerService(config);
 

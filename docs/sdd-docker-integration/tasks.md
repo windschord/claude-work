@@ -406,7 +406,7 @@
 #### タスク3.1: セッション作成API変更
 
 **説明**:
-- 対象ファイルパス: `src/app/api/projects/[id]/sessions/route.ts`
+- 対象ファイルパス: `src/app/api/projects/[project_id]/sessions/route.ts`
 - dockerModeパラメータの追加とバリデーション
 
 **技術的文脈**:

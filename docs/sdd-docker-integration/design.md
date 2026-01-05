@@ -616,7 +616,7 @@ Dockerが利用できない場合:
 | `DOCKER_IMAGE_NAME` | 使用するイメージ名 | `claude-code-sandboxed` |
 | `DOCKER_IMAGE_TAG` | イメージタグ | `latest` |
 | `DOCKER_MAX_CONTAINERS` | 同時実行コンテナ数上限 | `5` |
-| `DOCKER_ENABLED` | Docker機能の有効/無効 | `true` |
+| `DOCKER_ENABLED` | Docker機能の有効/無効 | `false` |
 
 ## テスト戦略
 
