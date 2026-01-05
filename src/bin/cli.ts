@@ -93,11 +93,14 @@ function checkPrismaClient(): boolean {
 
 /**
  * Prismaクライアントを生成
+ * ローカルのnode_modules内のPrismaを使用（バージョン互換性のため）
  */
 function generatePrismaClient(): boolean {
   console.log('Generating Prisma client...');
 
-  const result = spawnSync(npxCmd, ['prisma', 'generate'], {
+  // ローカルのPrismaバイナリを使用（npxだと最新版が使われてしまう）
+  const prismaPath = path.join(projectRoot, 'node_modules', '.bin', 'prisma');
+  const result = spawnSync(prismaPath, ['generate'], {
     cwd: projectRoot,
     stdio: 'inherit',
   });
@@ -120,6 +123,7 @@ function checkDatabase(): boolean {
 
 /**
  * データベースディレクトリを作成し、スキーマをプッシュ
+ * ローカルのnode_modules内のPrismaを使用（バージョン互換性のため）
  */
 function setupDatabase(): boolean {
   console.log('Setting up database...');
@@ -130,8 +134,9 @@ function setupDatabase(): boolean {
     fs.mkdirSync(dataDir, { recursive: true });
   }
 
-  // prisma db push でスキーマを適用
-  const result = spawnSync(npxCmd, ['prisma', 'db', 'push', '--skip-generate'], {
+  // ローカルのPrismaバイナリを使用（npxだと最新版が使われてしまう）
+  const prismaPath = path.join(projectRoot, 'node_modules', '.bin', 'prisma');
+  const result = spawnSync(prismaPath, ['db', 'push', '--skip-generate'], {
     cwd: projectRoot,
     stdio: 'inherit',
   });
