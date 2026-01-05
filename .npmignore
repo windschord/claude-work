@@ -36,7 +36,7 @@ data/
 # Worktrees
 .worktrees/
 
-# Lock files
+# Lock files (npx github: uses fresh install, lock files not needed in package)
 pnpm-lock.yaml
 package-lock.json
 
