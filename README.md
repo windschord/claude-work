@@ -8,7 +8,7 @@ ClaudeWork は、Claude Code セッションをブラウザから管理するた
 
 - **OS**: macOS, Linux
   - Windows は現在サポートされていません
-- **Node.js**: 20.x 以上
+- **Node.js**: 18.18.0 以上（18.x LTS、19.8.0+、20.x 以上をサポート）
 - **Claude Code CLI**: インストール済みであること
 - **ビルドツール**: `build-essential` (Linux) または Xcode Command Line Tools (macOS)
   - `node-pty` のビルドに必要です
