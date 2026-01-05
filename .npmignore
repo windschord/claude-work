@@ -28,7 +28,6 @@ tsconfig.server.json
 
 # Build artifacts
 .next
-dist
 logs/
 
 # Data
@@ -37,7 +36,7 @@ data/
 # Worktrees
 .worktrees/
 
-# Lock files (use npm's)
+# Lock files
 pnpm-lock.yaml
 package-lock.json
 
