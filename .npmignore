@@ -1,0 +1,51 @@
+# Development files
+.git
+.github
+.vscode
+.idea
+
+# Test files
+**/__tests__
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+test-screenshots/
+playwright-report/
+playwright.config.ts
+
+# Documentation (development)
+docs/sdd-*/
+docs/tasks/
+docs/verification-report-*.md
+docs/integration-test-report.md
+
+# Development configs
+.eslintrc*
+eslint.config.mjs
+vitest.config.ts
+tsconfig.server.json
+
+# Build artifacts
+.next
+dist
+logs/
+
+# Data
+data/
+
+# Worktrees
+.worktrees/
+
+# Lock files (use npm's)
+pnpm-lock.yaml
+package-lock.json
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# OS files
+.DS_Store
+Thumbs.db

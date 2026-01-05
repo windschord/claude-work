@@ -8,8 +8,10 @@ ClaudeWork は、Claude Code セッションをブラウザから管理するた
 
 - **OS**: macOS, Linux
   - Windows は現在サポートされていません
-- **Node.js**: 18.x 以上
+- **Node.js**: 20.x 以上
 - **Claude Code CLI**: インストール済みであること
+- **ビルドツール**: `build-essential` (Linux) または Xcode Command Line Tools (macOS)
+  - `node-pty` のビルドに必要です
 
 ## 主な機能
 
@@ -29,16 +31,13 @@ ClaudeWork は、Claude Code セッションをブラウザから管理するた
 
 ### クイックスタート
 
-```bash
-npx claude-work start   # バックグラウンドで起動
-npx claude-work stop    # 停止
-```
-
-または、フォアグラウンドで起動:
+GitHub リポジトリから直接実行できます:
 
 ```bash
-npx claude-work         # Ctrl+C で停止
+npx github:windschord/claude-work
 ```
+
+Ctrl+C で停止します。
 
 初回実行時は以下が自動的にセットアップされます:
 
@@ -53,13 +52,8 @@ npx claude-work         # Ctrl+C で停止
 ### CLI コマンド
 
 ```bash
-npx claude-work          # フォアグラウンドで起動
-npx claude-work start    # バックグラウンドで起動（pm2経由）
-npx claude-work stop     # 停止
-npx claude-work restart  # 再起動
-npx claude-work status   # 状態確認
-npx claude-work logs     # ログ表示
-npx claude-work help     # ヘルプ
+npx github:windschord/claude-work        # サーバーを起動（Ctrl+C で停止）
+npx github:windschord/claude-work help   # ヘルプを表示
 ```
 
 ### 環境変数のカスタマイズ
