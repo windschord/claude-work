@@ -3,12 +3,14 @@ import { EventEmitter } from 'events';
 import * as path from 'path';
 import * as fs from 'fs';
 import { logger } from '@/lib/logger';
+import { DockerPTYAdapter, CreateDockerPTYSessionOptions } from './docker-pty-adapter';
 
 /**
  * Claude PTYセッション作成オプション
  */
 export interface CreateClaudePTYSessionOptions {
   resumeSessionId?: string; // Claude Codeの--resume用セッションID
+  dockerMode?: boolean; // Dockerコンテナ内でClaude Codeを実行
 }
 
 /**
@@ -20,6 +22,7 @@ interface ClaudePTYSession {
   workingDir: string;
   initialPrompt?: string;
   claudeSessionId?: string; // Claude Codeが出力するセッションID
+  options?: CreateClaudePTYSessionOptions; // 再起動時にオプションを保持するため
 }
 
 /**
@@ -79,10 +82,26 @@ class ClaudePTYManager extends EventEmitter {
   private sessions: Map<string, ClaudePTYSession> = new Map();
   private creating: Set<string> = new Set();
   private claudePath: string;
+  private dockerAdapter: DockerPTYAdapter;
 
   constructor() {
     super();
     this.claudePath = process.env.CLAUDE_CODE_PATH || 'claude';
+    this.dockerAdapter = new DockerPTYAdapter();
+
+    // DockerPTYAdapterからのイベントを中継
+    this.dockerAdapter.on('data', (sessionId: string, data: string) => {
+      this.emit('data', sessionId, data);
+    });
+    this.dockerAdapter.on('exit', (sessionId: string, info: ClaudePTYExitInfo) => {
+      this.emit('exit', sessionId, info);
+    });
+    this.dockerAdapter.on('error', (sessionId: string, error: Error) => {
+      this.emit('error', sessionId, error);
+    });
+    this.dockerAdapter.on('claudeSessionId', (sessionId: string, claudeSessionId: string) => {
+      this.emit('claudeSessionId', sessionId, claudeSessionId);
+    });
   }
 
   /**
@@ -104,6 +123,19 @@ class ClaudePTYManager extends EventEmitter {
     initialPrompt?: string,
     options?: CreateClaudePTYSessionOptions
   ): void {
+    // Dockerモードの場合はDockerPTYAdapterに委譲
+    if (options?.dockerMode) {
+      logger.info('Creating Docker PTY session (delegating to DockerPTYAdapter)', {
+        sessionId,
+        workingDir,
+      });
+      const dockerOptions: CreateDockerPTYSessionOptions = {
+        resumeSessionId: options.resumeSessionId,
+      };
+      this.dockerAdapter.createSession(sessionId, workingDir, initialPrompt, dockerOptions);
+      return;
+    }
+
     // 作成中のセッションがある場合はエラー
     // Note: Node.jsはシングルスレッドのため、hasとaddの間に他のcreateSession呼び出しが割り込むことはありません。
     // ただし、このメソッドを同一sessionIdに対して同時に呼び出すことは避けてください。
@@ -156,12 +188,13 @@ class ClaudePTYManager extends EventEmitter {
         env: buildClaudePtyEnv(),
       });
 
-      // セッションを登録
+      // セッションを登録（再起動時にオプションを保持するため、optionsも保存）
       this.sessions.set(sessionId, {
         ptyProcess,
         sessionId,
         workingDir: resolvedCwd,
         initialPrompt,
+        options,
       });
       // 作成完了フラグをクリア
       this.creating.delete(sessionId);
@@ -234,6 +267,12 @@ class ClaudePTYManager extends EventEmitter {
    * @param data - 入力データ
    */
   write(sessionId: string, data: string): void {
+    // Dockerセッションの場合はDockerPTYAdapterに委譲
+    if (this.dockerAdapter.hasSession(sessionId)) {
+      this.dockerAdapter.write(sessionId, data);
+      return;
+    }
+
     const session = this.sessions.get(sessionId);
     if (session) {
       session.ptyProcess.write(data);
@@ -248,6 +287,12 @@ class ClaudePTYManager extends EventEmitter {
    * @param rows - 行数
    */
   resize(sessionId: string, cols: number, rows: number): void {
+    // Dockerセッションの場合はDockerPTYAdapterに委譲
+    if (this.dockerAdapter.hasSession(sessionId)) {
+      this.dockerAdapter.resize(sessionId, cols, rows);
+      return;
+    }
+
     const session = this.sessions.get(sessionId);
     if (session) {
       session.ptyProcess.resize(cols, rows);
@@ -260,6 +305,12 @@ class ClaudePTYManager extends EventEmitter {
    * @param sessionId - セッションID
    */
   destroySession(sessionId: string): void {
+    // Dockerセッションの場合はDockerPTYAdapterに委譲
+    if (this.dockerAdapter.hasSession(sessionId)) {
+      this.dockerAdapter.destroySession(sessionId);
+      return;
+    }
+
     const session = this.sessions.get(sessionId);
     if (session) {
       logger.info('Destroying Claude PTY session', { sessionId });
@@ -274,14 +325,20 @@ class ClaudePTYManager extends EventEmitter {
    * @param sessionId - セッションID
    */
   restartSession(sessionId: string): void {
+    // Dockerセッションの場合はDockerPTYAdapterに委譲
+    if (this.dockerAdapter.hasSession(sessionId)) {
+      this.dockerAdapter.restartSession(sessionId);
+      return;
+    }
+
     const session = this.sessions.get(sessionId);
     if (session) {
-      const { workingDir, initialPrompt } = session;
-      logger.info('Restarting Claude PTY session', { sessionId });
+      const { workingDir, initialPrompt, options } = session;
+      logger.info('Restarting Claude PTY session', { sessionId, dockerMode: options?.dockerMode });
       this.destroySession(sessionId);
-      // 少し待ってから再作成
+      // 少し待ってから再作成（オプションを保持して再起動）
       setTimeout(() => {
-        this.createSession(sessionId, workingDir, initialPrompt);
+        this.createSession(sessionId, workingDir, initialPrompt, options);
       }, 500);
     }
   }
@@ -293,7 +350,7 @@ class ClaudePTYManager extends EventEmitter {
    * @returns セッションが存在する場合はtrue
    */
   hasSession(sessionId: string): boolean {
-    return this.sessions.has(sessionId);
+    return this.sessions.has(sessionId) || this.dockerAdapter.hasSession(sessionId);
   }
 
   /**
@@ -303,6 +360,11 @@ class ClaudePTYManager extends EventEmitter {
    * @returns 作業ディレクトリ、存在しない場合はundefined
    */
   getWorkingDir(sessionId: string): string | undefined {
+    // Dockerセッションの場合はDockerPTYAdapterから取得
+    const dockerWorkingDir = this.dockerAdapter.getWorkingDir(sessionId);
+    if (dockerWorkingDir) {
+      return dockerWorkingDir;
+    }
     return this.sessions.get(sessionId)?.workingDir;
   }
 
@@ -313,6 +375,11 @@ class ClaudePTYManager extends EventEmitter {
    * @returns Claude CodeセッションID、存在しない場合はundefined
    */
   getClaudeSessionId(sessionId: string): string | undefined {
+    // Dockerセッションの場合はDockerPTYAdapterから取得
+    const dockerClaudeSessionId = this.dockerAdapter.getClaudeSessionId(sessionId);
+    if (dockerClaudeSessionId) {
+      return dockerClaudeSessionId;
+    }
     return this.sessions.get(sessionId)?.claudeSessionId;
   }
 

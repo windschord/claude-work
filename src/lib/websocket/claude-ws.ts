@@ -142,11 +142,13 @@ export function setupClaudeWebSocket(
           claudePtyManager.createSession(
             sessionId,
             session.worktree_path,
-            firstMessage?.content
+            firstMessage?.content,
+            { dockerMode: session.docker_mode }
           );
           logger.info('Claude PTY created for session', {
             sessionId,
             hasInitialPrompt: !!firstMessage,
+            dockerMode: session.docker_mode,
           });
 
           // セッションステータスを'running'に更新

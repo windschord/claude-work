@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db';
 import { GitService } from '@/services/git-service';
 import { logger } from '@/lib/logger';
 import { generateUniqueSessionName } from '@/lib/session-name-generator';
+import { dockerService, DockerError } from '@/services/docker-service';
 
 /**
  * GET /api/projects/[project_id]/sessions - プロジェクトのセッション一覧取得
@@ -64,7 +65,10 @@ export async function GET(
  * Git worktreeとブランチが自動的に作成され、Claude Codeプロセスが起動されます。
  * セッション名が未指定の場合は「形容詞-動物名」形式で自動生成されます。
  *
- * @param request - リクエストボディに`prompt`（オプション）、`name`（オプション、未指定時は自動生成）を含むJSON
+ * @param request - リクエストボディに以下を含むJSON:
+ *   - `prompt`（オプション）: 初期プロンプト
+ *   - `name`（オプション、未指定時は自動生成）: セッション名
+ *   - `dockerMode`（オプション、デフォルト: false）: Dockerモードで実行するかどうか
  * @param params.project_id - プロジェクトID
  *
  * @returns
@@ -72,15 +76,25 @@ export async function GET(
  * - 400: nameまたはpromptが指定されていない
  * - 404: プロジェクトが見つからない
  * - 500: サーバーエラー
+ * - 503: Docker未インストールまたは利用不可（dockerMode=true時）
  *
  * @example
  * ```typescript
- * // リクエスト
+ * // リクエスト（ローカルモード）
  * POST /api/projects/uuid-1234/sessions
  * Content-Type: application/json
  * {
  *   "name": "新機能実装",
  *   "prompt": "ユーザー認証機能を実装してください"
+ * }
+ *
+ * // リクエスト（Dockerモード）
+ * POST /api/projects/uuid-1234/sessions
+ * Content-Type: application/json
+ * {
+ *   "name": "Dockerセッション",
+ *   "prompt": "テストを実行してください",
+ *   "dockerMode": true
  * }
  *
  * // レスポンス
@@ -92,6 +106,7 @@ export async function GET(
  *     "status": "running",
  *     "worktree_path": "/path/to/worktrees/session-1234567890",
  *     "branch_name": "session/session-1234567890",
+ *     "docker_mode": false,
  *     "created_at": "2025-12-13T09:00:00.000Z"
  *   }
  * }
@@ -112,7 +127,73 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
 
-    const { name, prompt = '' } = body;
+    const { name, prompt = '', dockerMode = false } = body;
+
+    // Dockerモードの場合、Docker可用性と認証情報をチェック
+    if (dockerMode) {
+      logger.info('Creating session with Docker mode', { project_id });
+
+      // Docker環境診断
+      const dockerError = await dockerService.diagnoseDockerError();
+      if (dockerError) {
+        logger.warn('Docker error diagnosed', {
+          project_id,
+          errorType: dockerError.errorType,
+          message: dockerError.message,
+        });
+        return NextResponse.json(
+          {
+            error: dockerError.userMessage,
+            errorType: dockerError.errorType,
+            suggestion: dockerError.suggestion,
+          },
+          { status: 503 }
+        );
+      }
+
+      // 認証情報チェック
+      const authIssues = await dockerService.diagnoseAuthIssues();
+      if (authIssues.length > 0) {
+        logger.warn('Auth issues found for Docker mode', { project_id, issues: authIssues });
+        // 警告としてログに記録するが、セッション作成は続行
+        // （ユーザーがClaude認証を手動で行う場合もあるため）
+      }
+
+      // イメージ存在チェック、なければビルド
+      const imageExists = await dockerService.imageExists();
+      if (!imageExists) {
+        logger.info('Docker image not found, building...', { project_id });
+        try {
+          await dockerService.buildImage();
+          logger.info('Docker image built successfully', { project_id });
+        } catch (buildError) {
+          logger.error('Failed to build Docker image', { error: buildError, project_id });
+
+          let errorMessage: string;
+          let suggestion: string;
+
+          if (buildError instanceof DockerError) {
+            errorMessage = buildError.userMessage;
+            suggestion = buildError.suggestion;
+          } else if (buildError instanceof Error) {
+            errorMessage = `Dockerイメージのビルドに失敗しました: ${buildError.message}`;
+            suggestion = 'Dockerfileの構文を確認し、docker buildコマンドを手動で実行してエラーを確認してください';
+          } else {
+            errorMessage = 'Dockerイメージのビルドに失敗しました';
+            suggestion = 'docker/Dockerfileを確認してください';
+          }
+
+          return NextResponse.json(
+            {
+              error: errorMessage,
+              errorType: 'DOCKER_IMAGE_BUILD_FAILED',
+              suggestion,
+            },
+            { status: 500 }
+          );
+        }
+      }
+    }
 
     // セッション名が未指定の場合は一意な名前を自動生成
     let sessionDisplayName: string;
@@ -171,6 +252,7 @@ export async function POST(
         status: 'initializing',  // PTY接続時に'running'に変更される
         worktree_path: worktreePath,
         branch_name: branchName,
+        docker_mode: dockerMode,
       },
     });
 
