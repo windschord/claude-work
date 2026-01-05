@@ -209,6 +209,7 @@ describe('DockerService', () => {
       expect(service.getImageName()).toBe('claude-code-sandboxed');
       expect(service.getImageTag()).toBe('latest');
       expect(service.getMaxConcurrentContainers()).toBe(5);
+      expect(service.isEnabled()).toBe(false);
     });
 
     it('カスタム設定で初期化される', () => {
@@ -226,14 +227,20 @@ describe('DockerService', () => {
     });
   });
 
+  // buildImageテスト用のモックプロセスを作成するヘルパー関数
+  function createMockProcess() {
+    const mockProcess = new EventEmitter() as EventEmitter & {
+      stdout: EventEmitter;
+      stderr: EventEmitter;
+    };
+    mockProcess.stdout = new EventEmitter();
+    mockProcess.stderr = new EventEmitter();
+    return mockProcess;
+  }
+
   describe('buildImage', () => {
     it('ビルドが成功した場合はresolveする', async () => {
-      const mockProcess = new EventEmitter() as EventEmitter & {
-        stdout: EventEmitter;
-        stderr: EventEmitter;
-      };
-      mockProcess.stdout = new EventEmitter();
-      mockProcess.stderr = new EventEmitter();
+      const mockProcess = createMockProcess();
 
       mockSpawn.mockReturnValue(mockProcess);
 
@@ -255,13 +262,7 @@ describe('DockerService', () => {
     });
 
     it('進捗コールバックが呼び出される', async () => {
-      const mockProcess = new EventEmitter() as EventEmitter & {
-        stdout: EventEmitter;
-        stderr: EventEmitter;
-      };
-      mockProcess.stdout = new EventEmitter();
-      mockProcess.stderr = new EventEmitter();
-
+      const mockProcess = createMockProcess();
       mockSpawn.mockReturnValue(mockProcess);
 
       const onProgress = vi.fn();
@@ -282,13 +283,7 @@ describe('DockerService', () => {
     });
 
     it('ビルドが失敗した場合はrejectする', async () => {
-      const mockProcess = new EventEmitter() as EventEmitter & {
-        stdout: EventEmitter;
-        stderr: EventEmitter;
-      };
-      mockProcess.stdout = new EventEmitter();
-      mockProcess.stderr = new EventEmitter();
-
+      const mockProcess = createMockProcess();
       mockSpawn.mockReturnValue(mockProcess);
 
       const buildPromise = dockerService.buildImage();
@@ -303,13 +298,7 @@ describe('DockerService', () => {
     });
 
     it('spawnエラーの場合はrejectする', async () => {
-      const mockProcess = new EventEmitter() as EventEmitter & {
-        stdout: EventEmitter;
-        stderr: EventEmitter;
-      };
-      mockProcess.stdout = new EventEmitter();
-      mockProcess.stderr = new EventEmitter();
-
+      const mockProcess = createMockProcess();
       mockSpawn.mockReturnValue(mockProcess);
 
       const buildPromise = dockerService.buildImage();
@@ -323,8 +312,12 @@ describe('DockerService', () => {
 
   describe('getDockerfilePath', () => {
     it('Dockerfileのパスを返す', () => {
-      const path = dockerService.getDockerfilePath();
-      expect(path).toContain('docker');
+      const result = dockerService.getDockerfilePath();
+
+      // 結果がdockerディレクトリへの絶対パスであることを確認
+      expect(result).toMatch(/\/docker$/);
+      // process.cwd()からの相対パスであることを確認
+      expect(result).toContain(process.cwd());
     });
   });
 
@@ -354,6 +347,167 @@ describe('DockerService', () => {
       };
       const service = new DockerService(config);
       expect(service.isEnabled()).toBe(false);
+    });
+  });
+
+  describe('diagnoseDockerError', () => {
+    it('Dockerがインストールされていない場合はDOCKER_NOT_INSTALLEDエラーを返す', async () => {
+      mockExec.mockImplementation(
+        (
+          cmd: string,
+          callback: (error: Error | null, stdout: string, stderr: string) => void
+        ) => {
+          if (cmd === 'which docker') {
+            const error = new Error('command not found');
+            callback(error, '', '');
+          }
+          return {} as ReturnType<typeof mockExec>;
+        }
+      );
+
+      const result = await dockerService.diagnoseDockerError();
+
+      expect(result).not.toBeNull();
+      expect(result?.errorType).toBe('DOCKER_NOT_INSTALLED');
+      expect(result?.userMessage).toContain('インストールされていません');
+    });
+
+    it('Dockerデーモンが停止している場合はDOCKER_DAEMON_NOT_RUNNINGエラーを返す', async () => {
+      mockExec.mockImplementation(
+        (
+          cmd: string,
+          callback: (error: Error | null, stdout: string, stderr: string) => void
+        ) => {
+          if (cmd === 'which docker') {
+            callback(null, '/usr/bin/docker', '');
+          } else if (cmd === 'docker info') {
+            callback(new Error('Cannot connect to Docker daemon'), '', '');
+          }
+          return {} as ReturnType<typeof mockExec>;
+        }
+      );
+
+      const result = await dockerService.diagnoseDockerError();
+
+      expect(result).not.toBeNull();
+      expect(result?.errorType).toBe('DOCKER_DAEMON_NOT_RUNNING');
+      expect(result?.userMessage).toContain('起動していません');
+    });
+
+    it('権限エラーの場合はDOCKER_PERMISSION_DENIEDエラーを返す', async () => {
+      mockExec.mockImplementation(
+        (
+          cmd: string,
+          callback: (error: Error | null, stdout: string, stderr: string) => void
+        ) => {
+          if (cmd === 'which docker') {
+            callback(null, '/usr/bin/docker', '');
+          } else if (cmd === 'docker info') {
+            callback(null, 'Docker info output', '');
+          } else if (cmd === 'docker ps') {
+            callback(new Error('permission denied'), '', '');
+          }
+          return {} as ReturnType<typeof mockExec>;
+        }
+      );
+
+      const result = await dockerService.diagnoseDockerError();
+
+      expect(result).not.toBeNull();
+      expect(result?.errorType).toBe('DOCKER_PERMISSION_DENIED');
+      expect(result?.userMessage).toContain('権限がありません');
+    });
+
+    it('問題がない場合はnullを返す', async () => {
+      mockExec.mockImplementation(
+        (
+          cmd: string,
+          callback: (error: Error | null, stdout: string, stderr: string) => void
+        ) => {
+          callback(null, 'success', '');
+          return {} as ReturnType<typeof mockExec>;
+        }
+      );
+
+      const result = await dockerService.diagnoseDockerError();
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('checkAuthCredentials', () => {
+    it('認証情報のチェック結果を返す', async () => {
+      const result = await dockerService.checkAuthCredentials();
+
+      // 結果の構造を確認
+      expect(result).toHaveProperty('claudeAuth');
+      expect(result).toHaveProperty('claudeConfig');
+      expect(result).toHaveProperty('sshAuth');
+      expect(result).toHaveProperty('gitConfig');
+      expect(result).toHaveProperty('anthropicApiKey');
+
+      // 各項目が適切なプロパティを持つことを確認
+      expect(result.claudeAuth).toHaveProperty('exists');
+      expect(result.claudeAuth).toHaveProperty('path');
+      expect(result.claudeConfig).toHaveProperty('exists');
+      expect(result.claudeConfig).toHaveProperty('path');
+      expect(result.sshAuth).toHaveProperty('exists');
+      expect(result.sshAuth).toHaveProperty('path');
+      expect(result.gitConfig).toHaveProperty('exists');
+      expect(result.gitConfig).toHaveProperty('path');
+      expect(result.anthropicApiKey).toHaveProperty('exists');
+    });
+
+    it('パスにホームディレクトリが含まれる', async () => {
+      const result = await dockerService.checkAuthCredentials();
+
+      // パスがホームディレクトリから始まることを確認
+      expect(result.claudeAuth.path).toMatch(/^\/[^/]/);
+      expect(result.claudeConfig.path).toMatch(/^\/[^/]/);
+      expect(result.sshAuth.path).toMatch(/^\/[^/]/);
+      expect(result.gitConfig.path).toMatch(/^\/[^/]/);
+    });
+  });
+
+  describe('diagnoseAuthIssues', () => {
+    it('ANTHROPIC_API_KEYが未設定の場合は問題を報告する', async () => {
+      // 環境変数を一時的にクリア
+      const originalApiKey = process.env.ANTHROPIC_API_KEY;
+      delete process.env.ANTHROPIC_API_KEY;
+
+      try {
+        // 新しいサービスを作成（環境変数の状態を反映）
+        const service = new DockerService();
+        const issues = await service.diagnoseAuthIssues();
+
+        expect(issues.some((issue) => issue.includes('ANTHROPIC_API_KEY'))).toBe(true);
+      } finally {
+        // 環境変数を復元
+        if (originalApiKey) {
+          process.env.ANTHROPIC_API_KEY = originalApiKey;
+        }
+      }
+    });
+
+    it('問題がない場合は空配列を返す', async () => {
+      // 環境変数を設定
+      const originalApiKey = process.env.ANTHROPIC_API_KEY;
+      process.env.ANTHROPIC_API_KEY = 'test-key';
+
+      try {
+        const service = new DockerService();
+        const issues = await service.diagnoseAuthIssues();
+
+        // ANTHROPIC_API_KEYに関する問題は含まれない
+        expect(issues.some((issue) => issue.includes('ANTHROPIC_API_KEY'))).toBe(false);
+      } finally {
+        // 環境変数を復元
+        if (originalApiKey) {
+          process.env.ANTHROPIC_API_KEY = originalApiKey;
+        } else {
+          delete process.env.ANTHROPIC_API_KEY;
+        }
+      }
     });
   });
 });
