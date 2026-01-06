@@ -9,7 +9,7 @@
     "node": "^18.18.0 || ^19.8.0 || >= 20.0.0"
   },
   "scripts": {
-    "prepare": "npm run build:server",
+    "prepare": "npm run build",
     "dev": "ts-node -r tsconfig-paths/register --project tsconfig.server.json server.ts",
     "dev:pm2": "pm2 start ecosystem.config.js --only claude-work-dev",
     "build": "npm run build:next && npm run build:server",

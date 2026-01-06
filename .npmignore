@@ -26,8 +26,7 @@ eslint.config.mjs
 vitest.config.ts
 tsconfig.server.json
 
-# Build artifacts
-.next
+# Build artifacts (logs only, .next is included for npx to work without rebuilding)
 logs/
 
 # Data

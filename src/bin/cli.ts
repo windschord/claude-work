@@ -36,7 +36,6 @@ const command = args[0] || '';
 
 // プラットフォーム固有のコマンド
 const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-const npxCmd = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 
 /**
  * ヘルプメッセージを表示
