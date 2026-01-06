@@ -112,8 +112,11 @@ const dev = process.env.NODE_ENV !== 'production';
 const hostname = 'localhost';
 const port = parseInt(process.env.PORT || '3000', 10);
 
-// Next.jsアプリを初期化
-const app = next({ dev, hostname, port });
+// プロジェクトルートを取得（dist/server.jsからの相対パス）
+const projectRoot = path.dirname(__dirname);
+
+// Next.jsアプリを初期化（dirを指定してnpx環境でも正しく動作するようにする）
+const app = next({ dev, hostname, port, dir: projectRoot });
 const handle = app.getRequestHandler();
 
 // WebSocket関連のインスタンス
