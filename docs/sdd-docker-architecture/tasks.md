@@ -85,19 +85,20 @@
 - /var/run/docker.sockに接続
 
 **受入基準**:
-- [ ] `src/services/docker-service.ts` が存在する
-- [ ] `isDockerRunning()` メソッドが実装されている
-- [ ] `createContainer()` メソッドが実装されている
-- [ ] `startContainer()` メソッドが実装されている
-- [ ] `stopContainer()` メソッドが実装されている
-- [ ] `removeContainer()` メソッドが実装されている
-- [ ] `createVolume()` メソッドが実装されている
-- [ ] `removeVolume()` メソッドが実装されている
-- [ ] 単体テストが作成されている
+- [x] `src/services/docker-service.ts` が存在する
+- [x] `isDockerRunning()` メソッドが実装されている
+- [x] `createContainer()` メソッドが実装されている
+- [x] `startContainer()` メソッドが実装されている
+- [x] `stopContainer()` メソッドが実装されている
+- [x] `removeContainer()` メソッドが実装されている
+- [x] `createVolume()` メソッドが実装されている
+- [x] `removeVolume()` メソッドが実装されている
+- [x] 単体テストが作成されている
 
 **依存関係**: タスク1.2
 **推定工数**: 40分
-**ステータス**: `TODO`
+**ステータス**: `DONE`
+**完了サマリー**: DockerService クラスを実装。dockerode経由でコンテナ/Volume操作を抽象化。11のテストケースが通過。
 
 ---
 
