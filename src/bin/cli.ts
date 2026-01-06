@@ -92,14 +92,35 @@ function checkPrismaClient(): boolean {
 }
 
 /**
+ * Prismaバイナリのパスを取得
+ * 通常インストール: projectRoot/node_modules/.bin/prisma
+ * npxインストール: projectRoot/../.bin/prisma（依存関係がホイスティングされる）
+ */
+function getPrismaPath(): string {
+  // 通常のnode_modules内のパス
+  const localPrismaPath = path.join(projectRoot, 'node_modules', '.bin', 'prisma');
+  if (fs.existsSync(localPrismaPath)) {
+    return localPrismaPath;
+  }
+
+  // npxインストール時のホイスティングされたパス
+  const hoistedPrismaPath = path.join(projectRoot, '..', '.bin', 'prisma');
+  if (fs.existsSync(hoistedPrismaPath)) {
+    return hoistedPrismaPath;
+  }
+
+  // フォールバック: ローカルパスを返す（エラーメッセージ用）
+  return localPrismaPath;
+}
+
+/**
  * Prismaクライアントを生成
  * ローカルのnode_modules内のPrismaを使用（バージョン互換性のため）
  */
 function generatePrismaClient(): boolean {
   console.log('Generating Prisma client...');
 
-  // ローカルのPrismaバイナリを使用（npxだと最新版が使われてしまう）
-  const prismaPath = path.join(projectRoot, 'node_modules', '.bin', 'prisma');
+  const prismaPath = getPrismaPath();
   const result = spawnSync(prismaPath, ['generate'], {
     cwd: projectRoot,
     stdio: 'inherit',
@@ -134,8 +155,7 @@ function setupDatabase(): boolean {
     fs.mkdirSync(dataDir, { recursive: true });
   }
 
-  // ローカルのPrismaバイナリを使用（npxだと最新版が使われてしまう）
-  const prismaPath = path.join(projectRoot, 'node_modules', '.bin', 'prisma');
+  const prismaPath = getPrismaPath();
   const result = spawnSync(prismaPath, ['db', 'push', '--skip-generate'], {
     cwd: projectRoot,
     stdio: 'inherit',
