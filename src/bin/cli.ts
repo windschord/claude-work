@@ -222,10 +222,31 @@ function ensureNodeModulesLink(hoistedPath: string): void {
 }
 
 /**
+ * nextバイナリのパスを取得
+ */
+function getNextPath(): string {
+  // 通常のnode_modules内のパス
+  const localNextPath = path.join(projectRoot, 'node_modules', '.bin', 'next');
+  if (fs.existsSync(localNextPath)) {
+    return localNextPath;
+  }
+
+  // npxインストール時のホイスティングされたパス
+  const hoistedNextPath = path.join(projectRoot, '..', '.bin', 'next');
+  if (fs.existsSync(hoistedNextPath)) {
+    return hoistedNextPath;
+  }
+
+  // フォールバック
+  return localNextPath;
+}
+
+/**
  * Next.jsをビルド
  */
 function buildNext(): boolean {
   console.log('Building Next.js application...');
+  console.log(`  Project root: ${projectRoot}`);
 
   const hoistedPath = getHoistedNodeModulesPath();
   const buildEnv: NodeJS.ProcessEnv = {
@@ -240,7 +261,11 @@ function buildNext(): boolean {
     buildEnv.NODE_PATH = hoistedPath;
   }
 
-  const result = spawnSync(npmCmd, ['run', 'build:next'], {
+  // nextを直接実行（npm runを経由するとcwdが変わる可能性があるため）
+  const nextPath = getNextPath();
+  console.log(`  Using next at: ${nextPath}`);
+
+  const result = spawnSync(nextPath, ['build'], {
     cwd: projectRoot,
     stdio: 'inherit',
     env: buildEnv,
