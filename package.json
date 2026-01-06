@@ -13,7 +13,7 @@
     "dev": "ts-node -r tsconfig-paths/register --project tsconfig.server.json server.ts",
     "dev:pm2": "pm2 start ecosystem.config.js --only claude-work-dev",
     "build": "npm run build:next && npm run build:server",
-    "build:next": "next build",
+    "build:next": "next build && node scripts/fix-next-paths.js",
     "build:server": "tsc --project tsconfig.server.json && tsc-alias -p tsconfig.server.json",
     "start": "node dist/server.js",
     "lint": "next lint",

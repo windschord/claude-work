@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Standalone output for npx compatibility
+  // This bundles all necessary files and avoids path resolution issues
+  output: 'standalone',
   // Exclude frontend directory from build (used by Syncthing sync)
   typescript: {
     // Ignore build errors in excluded directories
