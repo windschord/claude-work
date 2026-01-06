@@ -177,10 +177,40 @@ function checkNextBuild(): boolean {
 }
 
 /**
+ * npx環境でnode_modulesがホイスティングされている場合のシンボリックリンクを作成
+ *
+ * npxでインストールされた場合、依存関係は親ディレクトリのnode_modulesに
+ * ホイスティングされる。Next.jsビルドが動作するよう、シンボリックリンクを作成する。
+ */
+function ensureNodeModulesLink(): void {
+  const localNodeModules = path.join(projectRoot, 'node_modules');
+  const hoistedNodeModules = path.join(projectRoot, '..', 'node_modules');
+
+  // ローカルのnode_modulesが存在する場合は何もしない
+  if (fs.existsSync(localNodeModules)) {
+    return;
+  }
+
+  // ホイスティングされたnode_modulesが存在する場合、シンボリックリンクを作成
+  if (fs.existsSync(hoistedNodeModules)) {
+    try {
+      fs.symlinkSync(hoistedNodeModules, localNodeModules, 'junction');
+      console.log('Created node_modules symlink for npx compatibility');
+    } catch (error) {
+      // シンボリックリンクの作成に失敗しても続行（ビルドが失敗する可能性がある）
+      console.warn('Warning: Failed to create node_modules symlink:', error);
+    }
+  }
+}
+
+/**
  * Next.jsをビルド
  */
 function buildNext(): boolean {
   console.log('Building Next.js application...');
+
+  // npx環境でnode_modulesシンボリックリンクを確保
+  ensureNodeModulesLink();
 
   const result = spawnSync(npmCmd, ['run', 'build:next'], {
     cwd: projectRoot,
