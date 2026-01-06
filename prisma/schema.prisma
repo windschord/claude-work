@@ -10,49 +10,22 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Project {
-  id            String   @id @default(uuid())
-  name          String
-  path          String   @unique
-  created_at    DateTime @default(now())
-  updated_at    DateTime @updatedAt
-
-  sessions      Session[]
-  scripts       RunScript[]
-}
-
+// New Session model for Docker container-based architecture
 model Session {
-  id                 String    @id @default(uuid())
-  project_id         String
-  name               String
-  status             String    // initializing, running, waiting_input, completed, error, stopped
-  worktree_path      String
-  branch_name        String
-  resume_session_id  String?   // Claude Codeの--resume用セッションID（stopped時に保存）
-  last_activity_at   DateTime? // 最終アクティビティ日時（アイドルタイムアウト計算用）
-  pr_url             String?   // PR URL (e.g., https://github.com/owner/repo/pull/123)
-  pr_number          Int?      // PR number (e.g., 123)
-  pr_status          String?   // PR status: open, merged, closed
-  pr_updated_at      DateTime? // 最終PR情報更新日時
-  created_at         DateTime  @default(now())
-  updated_at         DateTime  @updatedAt
-
-  project            Project   @relation(fields: [project_id], references: [id], onDelete: Cascade)
-  messages           Message[]
-}
-
-model Message {
   id          String   @id @default(uuid())
-  session_id  String
-  role        String
-  content     String
-  sub_agents  String?  // JSON format
-  created_at  DateTime @default(now())
+  name        String
+  containerId String?  @map("container_id")
+  volumeName  String   @map("volume_name")
+  repoUrl     String   @map("repo_url")
+  branch      String
+  status      String   @default("creating") // creating, running, stopped, error
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
-  session     Session  @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  @@map("sessions")
 }
 
-
+// Keep Prompt model for prompt history feature
 model Prompt {
   id           String   @id @default(uuid())
   content      String   @unique
@@ -60,18 +33,4 @@ model Prompt {
   last_used_at DateTime @default(now())
   created_at   DateTime @default(now())
   updated_at   DateTime @updatedAt
-}
-
-model RunScript {
-  id          String   @id @default(uuid())
-  project_id  String
-  name        String
-  description String?
-  command     String
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
-
-  project     Project  @relation(fields: [project_id], references: [id], onDelete: Cascade)
-
-  @@index([project_id])
 }
