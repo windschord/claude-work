@@ -37,6 +37,11 @@
   "exclude": [
     "node_modules",
     "frontend",
-    "backend"
+    "backend",
+    "browser-test.ts",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.spec.ts",
+    "**/*.spec.tsx"
   ]
 }
