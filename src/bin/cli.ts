@@ -177,34 +177,47 @@ function checkNextBuild(): boolean {
 }
 
 /**
- * npx環境でnode_modulesがホイスティングされている場合のシンボリックリンクを作成
+ * npx環境かどうかを判定し、ホイスティングされたnode_modulesのパスを返す
  *
  * npxでインストールされた場合、パッケージは以下の構造で配置される:
  *   _npx/xxx/node_modules/           <- ホイスティングされた依存関係（親ディレクトリ自体）
  *   _npx/xxx/node_modules/claude-work <- projectRoot
  *
- * Next.jsビルドが動作するよう、親ディレクトリへのシンボリックリンクを作成する。
+ * @returns ホイスティングされたnode_modulesのパス、または通常環境ならnull
  */
-function ensureNodeModulesLink(): void {
+function getHoistedNodeModulesPath(): string | null {
   const localNodeModules = path.join(projectRoot, 'node_modules');
   const parentDir = path.join(projectRoot, '..');
   const parentDirName = path.basename(parentDir);
 
-  // ローカルのnode_modulesが存在する場合は何もしない
+  // ローカルのnode_modulesが存在する場合は通常環境
+  if (fs.existsSync(localNodeModules)) {
+    return null;
+  }
+
+  // 親ディレクトリがnode_modulesの場合（npx環境）
+  if (parentDirName === 'node_modules' && fs.existsSync(parentDir)) {
+    return parentDir;
+  }
+
+  return null;
+}
+
+/**
+ * npx環境でnode_modulesシンボリックリンクを作成
+ */
+function ensureNodeModulesLink(hoistedPath: string): void {
+  const localNodeModules = path.join(projectRoot, 'node_modules');
+
   if (fs.existsSync(localNodeModules)) {
     return;
   }
 
-  // 親ディレクトリがnode_modulesの場合（npx環境）、シンボリックリンクを作成
-  // 親ディレクトリ自体がホイスティングされた依存関係を含むnode_modulesになっている
-  if (parentDirName === 'node_modules' && fs.existsSync(parentDir)) {
-    try {
-      fs.symlinkSync(parentDir, localNodeModules, 'junction');
-      console.log('Created node_modules symlink for npx compatibility');
-    } catch (error) {
-      // シンボリックリンクの作成に失敗しても続行（ビルドが失敗する可能性がある）
-      console.warn('Warning: Failed to create node_modules symlink:', error);
-    }
+  try {
+    fs.symlinkSync(hoistedPath, localNodeModules, 'junction');
+    console.log('Created node_modules symlink for npx compatibility');
+  } catch (error) {
+    console.warn('Warning: Failed to create node_modules symlink:', error);
   }
 }
 
@@ -214,13 +227,23 @@ function ensureNodeModulesLink(): void {
 function buildNext(): boolean {
   console.log('Building Next.js application...');
 
-  // npx環境でnode_modulesシンボリックリンクを確保
-  ensureNodeModulesLink();
+  const hoistedPath = getHoistedNodeModulesPath();
+  const buildEnv: NodeJS.ProcessEnv = {
+    ...process.env,
+    NODE_ENV: 'production',
+  };
+
+  // npx環境の場合、シンボリックリンクを作成しNODE_PATHも設定
+  if (hoistedPath) {
+    console.log('Detected npx environment, configuring for hoisted dependencies');
+    ensureNodeModulesLink(hoistedPath);
+    buildEnv.NODE_PATH = hoistedPath;
+  }
 
   const result = spawnSync(npmCmd, ['run', 'build:next'], {
     cwd: projectRoot,
     stdio: 'inherit',
-    env: { ...process.env, NODE_ENV: 'production' },
+    env: buildEnv,
   });
 
   if (result.status !== 0) {
