@@ -26,7 +26,10 @@ eslint.config.mjs
 vitest.config.ts
 tsconfig.server.json
 
-# Build artifacts (logs only, .next is included for npx to work without rebuilding)
+# Build artifacts
+# Note: .next is excluded because it contains hardcoded absolute paths from build environment.
+# The CLI will automatically build Next.js on first startup in the user's environment.
+.next/
 logs/
 
 # Data

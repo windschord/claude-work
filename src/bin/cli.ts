@@ -177,116 +177,6 @@ function checkNextBuild(): boolean {
 }
 
 /**
- * ディレクトリ内のすべてのJSファイルを再帰的に取得
- */
-function getJsFiles(dir: string): string[] {
-  const files: string[] = [];
-  if (!fs.existsSync(dir)) {
-    return files;
-  }
-
-  const entries = fs.readdirSync(dir, { withFileTypes: true });
-  for (const entry of entries) {
-    const fullPath = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      files.push(...getJsFiles(fullPath));
-    } else if (entry.name.endsWith('.js')) {
-      files.push(fullPath);
-    }
-  }
-  return files;
-}
-
-/**
- * ファイル内の絶対パスを修正
- * ビルド時のパスを実行時のプロジェクトルートに置換
- */
-function fixPathsInFile(filePath: string, buildRoot: string, targetRoot: string): boolean {
-  let content = fs.readFileSync(filePath, 'utf-8');
-  const originalContent = content;
-
-  // ビルド時のプロジェクトルートへの絶対パスを現在のプロジェクトルートに置換
-  const escapedBuildRoot = buildRoot.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const regex = new RegExp(`"${escapedBuildRoot}/`, 'g');
-  content = content.replace(regex, `"${targetRoot}/`);
-
-  // シングルクォートのパターンも置換
-  const regexSingle = new RegExp(`'${escapedBuildRoot}/`, 'g');
-  content = content.replace(regexSingle, `'${targetRoot}/`);
-
-  if (content !== originalContent) {
-    fs.writeFileSync(filePath, content);
-    return true;
-  }
-  return false;
-}
-
-/**
- * Next.jsビルド出力内の絶対パスを修正
- * npx経由でインストールされた場合、ビルド時の一時ディレクトリへのパスが
- * 埋め込まれているため、現在のプロジェクトルートに修正する
- */
-function fixNextJsBuildPaths(): void {
-  const requiredServerFilesPath = path.join(projectRoot, '.next', 'required-server-files.json');
-  if (!fs.existsSync(requiredServerFilesPath)) {
-    return;
-  }
-
-  let buildRoot: string;
-  try {
-    const content = fs.readFileSync(requiredServerFilesPath, 'utf-8');
-    const data = JSON.parse(content);
-    buildRoot = data.appDir;
-    if (!buildRoot) {
-      return;
-    }
-  } catch {
-    return;
-  }
-
-  // ビルドルートが現在のプロジェクトルートと同じ場合はスキップ
-  if (buildRoot === projectRoot) {
-    return;
-  }
-
-  console.log('Fixing Next.js build paths for current environment...');
-
-  // .next/server内のJSファイルを修正
-  const nextServerDir = path.join(projectRoot, '.next', 'server');
-  const jsFiles = getJsFiles(nextServerDir);
-  let fixedCount = 0;
-
-  for (const file of jsFiles) {
-    if (fixPathsInFile(file, buildRoot, projectRoot)) {
-      fixedCount++;
-    }
-  }
-
-  if (fixedCount > 0) {
-    console.log(`  Fixed paths in ${fixedCount} files.`);
-  }
-
-  // required-server-files.jsonも修正
-  try {
-    const content = fs.readFileSync(requiredServerFilesPath, 'utf-8');
-    const data = JSON.parse(content);
-
-    data.appDir = projectRoot;
-    if (data.config?.outputFileTracingRoot) {
-      data.config.outputFileTracingRoot = projectRoot;
-    }
-    if (data.config?.turbopack?.root) {
-      data.config.turbopack.root = projectRoot;
-    }
-
-    fs.writeFileSync(requiredServerFilesPath, JSON.stringify(data, null, 2));
-    console.log('  Updated required-server-files.json');
-  } catch {
-    // エラーは無視
-  }
-}
-
-/**
  * Next.jsをビルド
  */
 function buildNext(): boolean {
@@ -334,9 +224,6 @@ function runSetup(): boolean {
       return false;
     }
   }
-
-  // 4. Next.jsビルドパスの修正（npx環境対応）
-  fixNextJsBuildPaths();
 
   return true;
 }
