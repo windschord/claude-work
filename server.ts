@@ -13,6 +13,62 @@ import {
   getProcessLifecycleManager,
   ProcessLifecycleManager,
 } from './src/services/process-lifecycle-manager';
+import fs from 'fs';
+import path from 'path';
+
+/**
+ * Next.jsビルド時に保存された絶対パスを現在のディレクトリに修正
+ *
+ * npx経由でインストールされた場合、ビルド時の一時ディレクトリへのパスが
+ * .next/required-server-files.jsonに保存されているため、実行時に修正が必要
+ */
+function fixNextJsPaths(): void {
+  const projectRoot = path.dirname(__dirname);
+  const requiredServerFilesPath = path.join(
+    projectRoot,
+    '.next',
+    'required-server-files.json'
+  );
+
+  if (!fs.existsSync(requiredServerFilesPath)) {
+    return;
+  }
+
+  try {
+    const content = fs.readFileSync(requiredServerFilesPath, 'utf-8');
+    const data = JSON.parse(content);
+
+    let modified = false;
+
+    // appDirを修正
+    if (data.appDir && data.appDir !== projectRoot) {
+      data.appDir = projectRoot;
+      modified = true;
+    }
+
+    // config.outputFileTracingRootを修正
+    if (data.config?.outputFileTracingRoot && data.config.outputFileTracingRoot !== projectRoot) {
+      data.config.outputFileTracingRoot = projectRoot;
+      modified = true;
+    }
+
+    // config.turbopack.rootを修正
+    if (data.config?.turbopack?.root && data.config.turbopack.root !== projectRoot) {
+      data.config.turbopack.root = projectRoot;
+      modified = true;
+    }
+
+    if (modified) {
+      fs.writeFileSync(requiredServerFilesPath, JSON.stringify(data, null, 2));
+      console.log('Fixed Next.js paths for current directory');
+    }
+  } catch {
+    // パス修正に失敗しても続行（元のパスが正しい可能性がある）
+  }
+}
+
+// Next.jsパスを修正（初期化前に実行）
+fixNextJsPaths();
 
 // 環境変数を.envファイルから明示的にロード（PM2で設定されている場合はそちらを優先）
 const dotenvResult = dotenv.config();
