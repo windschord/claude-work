@@ -62,13 +62,14 @@
 - TypeScript型定義も同時にインストール
 
 **受入基準**:
-- [ ] package.jsonに `dockerode` が追加されている
-- [ ] package.jsonに `@types/dockerode` が追加されている
-- [ ] `npm install` が成功する
+- [x] package.jsonに `dockerode` が追加されている
+- [x] package.jsonに `@types/dockerode` が追加されている
+- [x] `npm install` が成功する
 
 **依存関係**: なし
 **推定工数**: 5分
-**ステータス**: `TODO`
+**ステータス**: `DONE`
+**完了サマリー**: dockerode v4.0.9 と @types/dockerode v3.3.47 を追加。
 
 ---
 
