@@ -179,22 +179,27 @@ function checkNextBuild(): boolean {
 /**
  * npx環境でnode_modulesがホイスティングされている場合のシンボリックリンクを作成
  *
- * npxでインストールされた場合、依存関係は親ディレクトリのnode_modulesに
- * ホイスティングされる。Next.jsビルドが動作するよう、シンボリックリンクを作成する。
+ * npxでインストールされた場合、パッケージは以下の構造で配置される:
+ *   _npx/xxx/node_modules/           <- ホイスティングされた依存関係（親ディレクトリ自体）
+ *   _npx/xxx/node_modules/claude-work <- projectRoot
+ *
+ * Next.jsビルドが動作するよう、親ディレクトリへのシンボリックリンクを作成する。
  */
 function ensureNodeModulesLink(): void {
   const localNodeModules = path.join(projectRoot, 'node_modules');
-  const hoistedNodeModules = path.join(projectRoot, '..', 'node_modules');
+  const parentDir = path.join(projectRoot, '..');
+  const parentDirName = path.basename(parentDir);
 
   // ローカルのnode_modulesが存在する場合は何もしない
   if (fs.existsSync(localNodeModules)) {
     return;
   }
 
-  // ホイスティングされたnode_modulesが存在する場合、シンボリックリンクを作成
-  if (fs.existsSync(hoistedNodeModules)) {
+  // 親ディレクトリがnode_modulesの場合（npx環境）、シンボリックリンクを作成
+  // 親ディレクトリ自体がホイスティングされた依存関係を含むnode_modulesになっている
+  if (parentDirName === 'node_modules' && fs.existsSync(parentDir)) {
     try {
-      fs.symlinkSync(hoistedNodeModules, localNodeModules, 'junction');
+      fs.symlinkSync(parentDir, localNodeModules, 'junction');
       console.log('Created node_modules symlink for npx compatibility');
     } catch (error) {
       // シンボリックリンクの作成に失敗しても続行（ビルドが失敗する可能性がある）
