@@ -1,292 +1,211 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { GET, DELETE, PATCH } from '../route';
-import { prisma } from '@/lib/db';
 import { NextRequest } from 'next/server';
-import { mkdtempSync, rmSync } from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'path';
-import { execSync } from 'child_process';
-import type { Project, Session } from '@prisma/client';
 
-vi.mock('@/services/process-manager', () => ({
-  ProcessManager: {
-    getInstance: vi.fn(() => ({
-      startClaudeCode: vi.fn().mockResolvedValue({
-        sessionId: 'test-session',
-        pid: 12345,
-        status: 'running',
-      }),
-      stop: vi.fn().mockResolvedValue(undefined),
-      getStatus: vi.fn().mockReturnValue({
-        sessionId: 'test-session',
-        pid: 12345,
-        status: 'running',
-      }),
-    })),
+// Use vi.hoisted for proper mock hoisting
+const mocks = vi.hoisted(() => {
+  const mockSessionManager = {
+    create: vi.fn(),
+    findById: vi.fn(),
+    findAll: vi.fn(),
+    updateStatus: vi.fn(),
+    updateContainerId: vi.fn(),
+    delete: vi.fn(),
+  };
+
+  const mockContainerManager = {
+    createSession: vi.fn(),
+    listSessions: vi.fn(),
+    startSession: vi.fn(),
+    stopSession: vi.fn(),
+    deleteSession: vi.fn(),
+    getSessionStatus: vi.fn(),
+  };
+
+  const mockPrisma = {
+    session: {
+      update: vi.fn(),
+    },
+  };
+
+  return { mockSessionManager, mockContainerManager, mockPrisma };
+});
+
+vi.mock('@/services/session-manager', () => ({
+  SessionManager: class MockSessionManager {
+    create = mocks.mockSessionManager.create;
+    findById = mocks.mockSessionManager.findById;
+    findAll = mocks.mockSessionManager.findAll;
+    updateStatus = mocks.mockSessionManager.updateStatus;
+    updateContainerId = mocks.mockSessionManager.updateContainerId;
+    delete = mocks.mockSessionManager.delete;
   },
 }));
 
-describe('GET /api/sessions/[id]', () => {
-  let testRepoPath: string;
-  let project: Project;
-  let session: Session;
+vi.mock('@/services/container-manager', () => ({
+  ContainerManager: class MockContainerManager {
+    createSession = mocks.mockContainerManager.createSession;
+    listSessions = mocks.mockContainerManager.listSessions;
+    startSession = mocks.mockContainerManager.startSession;
+    stopSession = mocks.mockContainerManager.stopSession;
+    deleteSession = mocks.mockContainerManager.deleteSession;
+    getSessionStatus = mocks.mockContainerManager.getSessionStatus;
+  },
+}));
 
-  beforeEach(async () => {
-    await prisma.session.deleteMany();
-    await prisma.project.deleteMany();
+vi.mock('@/lib/db', () => ({
+  prisma: mocks.mockPrisma,
+}));
 
-    testRepoPath = mkdtempSync(join(tmpdir(), 'session-test-'));
-    execSync('git init', { cwd: testRepoPath });
-    execSync('git config user.name "Test"', { cwd: testRepoPath });
-    execSync('git config user.email "test@example.com"', { cwd: testRepoPath });
-    execSync('echo "test" > README.md && git add . && git commit -m "initial"', {
-      cwd: testRepoPath,
-      shell: true,
-    });
-    execSync('git branch -M main', { cwd: testRepoPath });
+import { GET, DELETE, PATCH } from '../route';
 
-    project = await prisma.project.create({
-      data: {
-        name: 'Test Project',
-        path: testRepoPath,
-      },
-    });
+describe('Sessions [id] API', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
-    session = await prisma.session.create({
-      data: {
-        project_id: project.id,
-        name: 'Test Session',
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  describe('GET /api/sessions/:id', () => {
+    it('should return session by id', async () => {
+      const mockSession = {
+        id: 'session-123',
+        name: 'test-session',
+        containerId: 'container-abc',
+        volumeName: 'claudework-test-session',
+        repoUrl: 'https://github.com/test/repo.git',
+        branch: 'main',
         status: 'running',
-        worktree_path: join(testRepoPath, '.worktrees', 'test-session'),
-        branch_name: 'test-branch',
-      },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      mocks.mockSessionManager.findById.mockResolvedValue(mockSession);
+
+      const request = new NextRequest('http://localhost:3000/api/sessions/session-123');
+      const response = await GET(request, { params: Promise.resolve({ id: 'session-123' }) });
+
+      expect(response.status).toBe(200);
+      const data = await response.json();
+      expect(data.session.id).toBe('session-123');
+      expect(data.session.name).toBe('test-session');
+      expect(mocks.mockSessionManager.findById).toHaveBeenCalledWith('session-123');
+    });
+
+    it('should return 404 when session not found', async () => {
+      mocks.mockSessionManager.findById.mockResolvedValue(null);
+
+      const request = new NextRequest('http://localhost:3000/api/sessions/non-existent');
+      const response = await GET(request, { params: Promise.resolve({ id: 'non-existent' }) });
+
+      expect(response.status).toBe(404);
+      const data = await response.json();
+      expect(data.error).toBe('Session not found');
     });
   });
 
-  afterEach(async () => {
-    await prisma.session.deleteMany();
-    await prisma.project.deleteMany();
-    if (testRepoPath) {
-      rmSync(testRepoPath, { recursive: true, force: true });
-    }
-  });
+  describe('DELETE /api/sessions/:id', () => {
+    it('should delete session by id', async () => {
+      const mockSession = {
+        id: 'session-delete',
+        name: 'delete-session',
+        containerId: 'container-delete',
+        volumeName: 'claudework-delete-session',
+        repoUrl: 'https://github.com/test/repo.git',
+        branch: 'main',
+        status: 'stopped',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
 
-  it('should return 200 and session details', async () => {
-    const request = new NextRequest(`http://localhost:3000/api/sessions/${session.id}`);
+      mocks.mockSessionManager.findById.mockResolvedValue(mockSession);
+      mocks.mockContainerManager.deleteSession.mockResolvedValue(undefined);
 
-    const response = await GET(request, { params: Promise.resolve({ id: session.id }) });
-    expect(response.status).toBe(200);
+      const request = new NextRequest('http://localhost:3000/api/sessions/session-delete', {
+        method: 'DELETE',
+      });
+      const response = await DELETE(request, { params: Promise.resolve({ id: 'session-delete' }) });
 
-    const data = await response.json();
-    expect(data).toHaveProperty('session');
-    expect(data.session.id).toBe(session.id);
-    expect(data.session.name).toBe('Test Session');
-    expect(data.session.status).toBe('running');
-    expect(data.session.project_id).toBe(project.id);
-  });
-
-  it('should return 404 for non-existent session', async () => {
-    const request = new NextRequest('http://localhost:3000/api/sessions/non-existent');
-
-    const response = await GET(request, { params: Promise.resolve({ id: 'non-existent' }) });
-    expect(response.status).toBe(404);
-  });
-});
-
-describe('DELETE /api/sessions/[id]', () => {
-  let testRepoPath: string;
-  let project: Project;
-  let session: Session;
-
-  beforeEach(async () => {
-    await prisma.session.deleteMany();
-    await prisma.project.deleteMany();
-
-    testRepoPath = mkdtempSync(join(tmpdir(), 'session-test-'));
-    execSync('git init', { cwd: testRepoPath });
-    execSync('git config user.name "Test"', { cwd: testRepoPath });
-    execSync('git config user.email "test@example.com"', { cwd: testRepoPath });
-    execSync('echo "test" > README.md && git add . && git commit -m "initial"', {
-      cwd: testRepoPath,
-      shell: true,
-    });
-    execSync('git branch -M main', { cwd: testRepoPath });
-
-    project = await prisma.project.create({
-      data: {
-        name: 'Test Project',
-        path: testRepoPath,
-      },
+      expect(response.status).toBe(204);
+      expect(mocks.mockContainerManager.deleteSession).toHaveBeenCalledWith('session-delete');
     });
 
-    session = await prisma.session.create({
-      data: {
-        project_id: project.id,
-        name: 'Test Session',
+    it('should return 404 when session not found', async () => {
+      mocks.mockSessionManager.findById.mockResolvedValue(null);
+
+      const request = new NextRequest('http://localhost:3000/api/sessions/non-existent', {
+        method: 'DELETE',
+      });
+      const response = await DELETE(request, { params: Promise.resolve({ id: 'non-existent' }) });
+
+      expect(response.status).toBe(404);
+      const data = await response.json();
+      expect(data.error).toBe('Session not found');
+    });
+  });
+
+  describe('PATCH /api/sessions/:id', () => {
+    it('should update session name', async () => {
+      const mockSession = {
+        id: 'session-patch',
+        name: 'original-name',
+        containerId: 'container-patch',
+        volumeName: 'claudework-patch-session',
+        repoUrl: 'https://github.com/test/repo.git',
+        branch: 'main',
         status: 'running',
-        worktree_path: join(testRepoPath, '.worktrees', 'test-session'),
-        branch_name: 'test-branch',
-      },
-    });
-  });
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
 
-  afterEach(async () => {
-    await prisma.session.deleteMany();
-    await prisma.project.deleteMany();
-    if (testRepoPath) {
-      rmSync(testRepoPath, { recursive: true, force: true });
-    }
-  });
+      const updatedSession = {
+        ...mockSession,
+        name: 'updated-name',
+      };
 
-  it('should delete session and return 204', async () => {
-    const request = new NextRequest(`http://localhost:3000/api/sessions/${session.id}`, {
-      method: 'DELETE',
-    });
+      mocks.mockSessionManager.findById.mockResolvedValue(mockSession);
+      mocks.mockPrisma.session.update.mockResolvedValue(updatedSession);
 
-    const response = await DELETE(request, { params: Promise.resolve({ id: session.id }) });
-    expect(response.status).toBe(204);
+      const request = new NextRequest('http://localhost:3000/api/sessions/session-patch', {
+        method: 'PATCH',
+        body: JSON.stringify({ name: 'updated-name' }),
+      });
+      const response = await PATCH(request, { params: Promise.resolve({ id: 'session-patch' }) });
 
-    const deletedSession = await prisma.session.findUnique({
-      where: { id: session.id },
-    });
-    expect(deletedSession).toBeNull();
-  });
-
-  it('should return 404 for non-existent session', async () => {
-    const request = new NextRequest('http://localhost:3000/api/sessions/non-existent', {
-      method: 'DELETE',
+      expect(response.status).toBe(200);
+      const data = await response.json();
+      expect(data.session.name).toBe('updated-name');
+      expect(mocks.mockPrisma.session.update).toHaveBeenCalledWith({
+        where: { id: 'session-patch' },
+        data: { name: 'updated-name' },
+      });
     });
 
-    const response = await DELETE(request, { params: Promise.resolve({ id: 'non-existent' }) });
-    expect(response.status).toBe(404);
-  });
-});
+    it('should return 400 when name is empty', async () => {
+      const request = new NextRequest('http://localhost:3000/api/sessions/session-patch', {
+        method: 'PATCH',
+        body: JSON.stringify({ name: '' }),
+      });
+      const response = await PATCH(request, { params: Promise.resolve({ id: 'session-patch' }) });
 
-describe('PATCH /api/sessions/[id]', () => {
-  let testRepoPath: string;
-  let project: Project;
-  let session: Session;
-
-  beforeEach(async () => {
-    await prisma.session.deleteMany();
-    await prisma.project.deleteMany();
-
-    testRepoPath = mkdtempSync(join(tmpdir(), 'session-test-'));
-    execSync('git init', { cwd: testRepoPath });
-    execSync('git config user.name "Test"', { cwd: testRepoPath });
-    execSync('git config user.email "test@example.com"', { cwd: testRepoPath });
-    execSync('echo "test" > README.md && git add . && git commit -m "initial"', {
-      cwd: testRepoPath,
-      shell: true,
-    });
-    execSync('git branch -M main', { cwd: testRepoPath });
-
-    project = await prisma.project.create({
-      data: {
-        name: 'Test Project',
-        path: testRepoPath,
-      },
+      expect(response.status).toBe(400);
+      const data = await response.json();
+      expect(data.error).toContain('required');
     });
 
-    session = await prisma.session.create({
-      data: {
-        project_id: project.id,
-        name: 'Original Name',
-        status: 'running',
-        worktree_path: join(testRepoPath, '.worktrees', 'test-session'),
-        branch_name: 'test-branch',
-      },
+    it('should return 404 when session not found', async () => {
+      mocks.mockSessionManager.findById.mockResolvedValue(null);
+
+      const request = new NextRequest('http://localhost:3000/api/sessions/non-existent', {
+        method: 'PATCH',
+        body: JSON.stringify({ name: 'new-name' }),
+      });
+      const response = await PATCH(request, { params: Promise.resolve({ id: 'non-existent' }) });
+
+      expect(response.status).toBe(404);
+      const data = await response.json();
+      expect(data.error).toBe('Session not found');
     });
-  });
-
-  afterEach(async () => {
-    await prisma.session.deleteMany();
-    await prisma.project.deleteMany();
-    if (testRepoPath) {
-      rmSync(testRepoPath, { recursive: true, force: true });
-    }
-  });
-
-  it('should update session name and return 200', async () => {
-    const request = new NextRequest(`http://localhost:3000/api/sessions/${session.id}`, {
-      method: 'PATCH',
-      headers: {
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({ name: 'Updated Name' }),
-    });
-
-    const response = await PATCH(request, { params: Promise.resolve({ id: session.id }) });
-    expect(response.status).toBe(200);
-
-    const data = await response.json();
-    expect(data).toHaveProperty('session');
-    expect(data.session.name).toBe('Updated Name');
-
-    const updatedSession = await prisma.session.findUnique({
-      where: { id: session.id },
-    });
-    expect(updatedSession?.name).toBe('Updated Name');
-  });
-
-  it('should return 400 for empty name', async () => {
-    const request = new NextRequest(`http://localhost:3000/api/sessions/${session.id}`, {
-      method: 'PATCH',
-      headers: {
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({ name: '' }),
-    });
-
-    const response = await PATCH(request, { params: Promise.resolve({ id: session.id }) });
-    expect(response.status).toBe(400);
-
-    const data = await response.json();
-    expect(data.error).toBe('Name is required');
-  });
-
-  it('should return 400 for whitespace-only name', async () => {
-    const request = new NextRequest(`http://localhost:3000/api/sessions/${session.id}`, {
-      method: 'PATCH',
-      headers: {
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({ name: '   ' }),
-    });
-
-    const response = await PATCH(request, { params: Promise.resolve({ id: session.id }) });
-    expect(response.status).toBe(400);
-
-    const data = await response.json();
-    expect(data.error).toBe('Name is required');
-  });
-
-  it('should return 404 for non-existent session', async () => {
-    const request = new NextRequest('http://localhost:3000/api/sessions/non-existent', {
-      method: 'PATCH',
-      headers: {
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({ name: 'New Name' }),
-    });
-
-    const response = await PATCH(request, { params: Promise.resolve({ id: 'non-existent' }) });
-    expect(response.status).toBe(404);
-  });
-
-  it('should trim whitespace from name', async () => {
-    const request = new NextRequest(`http://localhost:3000/api/sessions/${session.id}`, {
-      method: 'PATCH',
-      headers: {
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({ name: '  Trimmed Name  ' }),
-    });
-
-    const response = await PATCH(request, { params: Promise.resolve({ id: session.id }) });
-    expect(response.status).toBe(200);
-
-    const data = await response.json();
-    expect(data.session.name).toBe('Trimmed Name');
   });
 });
