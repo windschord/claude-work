@@ -7,15 +7,15 @@ const sessionManager = new SessionManager();
 const containerManager = new ContainerManager();
 
 /**
- * POST /api/sessions/[id]/stop - セッション停止
+ * POST /api/sessions/[id]/start - セッション開始
  *
- * 実行中のセッションを停止します。
- * Dockerコンテナが停止されます。
+ * 停止中のセッションを開始します。
+ * Dockerコンテナが再起動されます。
  *
  * @param params.id - セッションID
  *
  * @returns
- * - 200: セッション停止成功
+ * - 200: セッション開始成功
  * - 404: セッションが見つからない
  * - 500: サーバーエラー
  */
@@ -32,14 +32,14 @@ export async function POST(
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });
     }
 
-    await containerManager.stopSession(id);
+    await containerManager.startSession(id);
 
-    logger.info('Session stopped via API', { id });
-    return NextResponse.json({ message: 'Session stopped' });
+    logger.info('Session started via API', { id });
+    return NextResponse.json({ message: 'Session started' });
   } catch (error) {
     const { id: errorId } = await params;
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    logger.error('Failed to stop session', { error: errorMessage, session_id: errorId });
+    logger.error('Failed to start session', { error: errorMessage, session_id: errorId });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
