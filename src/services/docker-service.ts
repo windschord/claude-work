@@ -106,7 +106,7 @@ export class DockerService {
   async createVolume(name: string): Promise<VolumeInfo> {
     const volume = await this.docker.createVolume({ Name: name });
     logger.info('Volume created', { name });
-    return { name: volume.name };
+    return { name: volume.Name };
   }
 
   async removeVolume(name: string): Promise<void> {

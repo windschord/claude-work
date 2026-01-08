@@ -7,6 +7,7 @@ import { ConnectionManager } from './src/lib/websocket/connection-manager';
 import { SessionWebSocketHandler } from './src/lib/websocket/session-ws';
 import { setupTerminalWebSocket } from './src/lib/websocket/terminal-ws';
 import { setupClaudeWebSocket } from './src/lib/websocket/claude-ws';
+import { setupSessionWebSocket } from './src/lib/websocket/session-handler';
 import { logger } from './src/lib/logger';
 import { validateRequiredEnvVars, detectClaudePath } from './src/lib/env-validation';
 import {
@@ -105,12 +106,16 @@ app.prepare().then(() => {
   const wss = new WebSocketServer({ noServer: true });
   const terminalWss = new WebSocketServer({ noServer: true });
   const claudeWss = new WebSocketServer({ noServer: true });
+  const sessionWss = new WebSocketServer({ noServer: true }); // Docker container sessions
 
   // ターミナルWebSocketをセットアップ
   setupTerminalWebSocket(terminalWss, '/ws/terminal');
 
   // Claude Code WebSocketをセットアップ
   setupClaudeWebSocket(claudeWss, '/ws/claude');
+
+  // Docker container session WebSocketをセットアップ
+  setupSessionWebSocket(sessionWss, '/ws/session');
 
   // WebSocketアップグレード処理
   server.on('upgrade', async (request: IncomingMessage, socket, head) => {
@@ -119,7 +124,34 @@ app.prepare().then(() => {
 
       logger.info('WebSocket upgrade request', { pathname });
 
-      // ターミナルWebSocketのパス
+      // Docker container session WebSocketのパス (新しいDocker architecture)
+      if (pathname && pathname.startsWith('/ws/session/')) {
+        const sessionIdMatch = pathname.match(/^\/ws\/session\/([^/]+)$/);
+        if (!sessionIdMatch) {
+          logger.warn('Invalid session WebSocket path', { pathname });
+          socket.write('HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n');
+          socket.destroy();
+          return;
+        }
+
+        const sessionId = sessionIdMatch[1];
+        // UUID形式のバリデーション
+        const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!uuidPattern.test(sessionId)) {
+          logger.warn('Invalid session ID format', { pathname, sessionId });
+          socket.write('HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n');
+          socket.destroy();
+          return;
+        }
+
+        // Docker session WebSocketアップグレード
+        sessionWss.handleUpgrade(request, socket, head, (ws: WebSocket) => {
+          sessionWss.emit('connection', ws, request);
+        });
+        return;
+      }
+
+      // ターミナルWebSocketのパス (legacy - will be removed in Task 6.1)
       if (pathname && pathname.startsWith('/ws/terminal/')) {
         const sessionIdMatch = pathname.match(/^\/ws\/terminal\/([^/]+)$/);
         if (!sessionIdMatch) {
@@ -253,6 +285,9 @@ app.prepare().then(() => {
     });
     claudeWss.close(() => {
       logger.info('Claude WebSocket server closed');
+    });
+    sessionWss.close(() => {
+      logger.info('Session WebSocket server closed');
     });
 
     // HTTPサーバーを閉じる
