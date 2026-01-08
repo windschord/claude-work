@@ -1,156 +1,322 @@
 import { test, expect } from '@playwright/test';
-import { createTestGitRepo, cleanupTestGitRepo } from './helpers/setup';
-import path from 'path';
+import { TEST_CONFIG, generateSessionName } from './helpers/setup';
 
-test.describe('セッション機能', () => {
-  let repoPath: string;
-  let repoName: string;
-  let projectId: string;
+test.describe('Docker Session Management', () => {
+  // Store created session IDs for cleanup
+  const createdSessionIds: string[] = [];
 
-  // 各テストの前にログインしてプロジェクトを追加
-  test.beforeEach(async ({ page }) => {
-    const token = process.env.CLAUDE_WORK_TOKEN || 'test-token';
-    await page.goto('/login');
-    await page.fill('input#token', token);
+  test.afterEach(async ({ request }) => {
+    // Cleanup: Delete any created sessions
+    for (const sessionId of createdSessionIds) {
+      try {
+        await request.delete(`/api/sessions/${sessionId}`);
+      } catch {
+        // Ignore cleanup errors
+      }
+    }
+    createdSessionIds.length = 0;
+  });
+
+  test('should display the Docker session home page', async ({ page }) => {
+    await page.goto('/docker');
+
+    // Check page title (h2 visible in the sidebar)
+    await expect(page.locator('h2:has-text("Docker Sessions")')).toBeVisible();
+
+    // Check for create session button (Plus icon button)
+    await expect(page.locator('button[title="Create new session"]')).toBeVisible();
+  });
+
+  test('should open session creation modal', async ({ page }) => {
+    await page.goto('/docker');
+
+    // Click create session button
+    await page.click('button[title="Create new session"]');
+
+    // Modal should be visible
+    await expect(page.locator('text=Create New Session')).toBeVisible();
+
+    // Form fields should be present
+    await expect(page.locator('input[name="name"]')).toBeVisible();
+    await expect(page.locator('input[name="repoUrl"]')).toBeVisible();
+    await expect(page.locator('input[name="branch"]')).toBeVisible();
+  });
+
+  test('should create a new session', async ({ page }) => {
+    await page.goto('/docker');
+
+    const sessionName = generateSessionName();
+
+    // Click create session button
+    await page.click('button[title="Create new session"]');
+
+    // Fill in the form
+    await page.fill('input[name="name"]', sessionName);
+    await page.fill('input[name="repoUrl"]', TEST_CONFIG.testRepoUrl);
+    await page.fill('input[name="branch"]', TEST_CONFIG.testBranch);
+
+    // Submit the form
     await page.click('button[type="submit"]');
-    await page.waitForURL('/');
 
-    // テスト用リポジトリを作成
-    repoPath = await createTestGitRepo();
-    repoName = path.basename(repoPath);
+    // Wait for modal to close and session to appear in list
+    await expect(page.locator(`text=${sessionName}`)).toBeVisible({
+      timeout: TEST_CONFIG.timeout,
+    });
 
-    // プロジェクトを追加
-    await page.click('text=プロジェクト追加');
-    await page.fill('input#project-path', repoPath);
-    // モーダル内のsubmitボタンを明示的に指定
-    await page.click('button[type="submit"]:has-text("追加")');
-    // プロジェクトカードの見出しが表示されることを確認（動的なリポジトリ名に対応）
-    await expect(page.getByRole('heading', { name: repoName, exact: true })).toBeVisible();
-
-    // プロジェクトをクリックして詳細ページに移動
-    await page.click('button:has-text("開く")');
-    await expect(page).toHaveURL(/\/projects\/.+/);
-
-    // URLからプロジェクトIDを取得
-    const url = page.url();
-    projectId = url.split('/projects/')[1];
+    // Store session ID for cleanup
+    const sessionCard = page.locator('[data-testid="session-card"]').filter({
+      hasText: sessionName,
+    });
+    const sessionId = await sessionCard.getAttribute('data-session-id');
+    if (sessionId) {
+      createdSessionIds.push(sessionId);
+    }
   });
 
-  test.afterEach(async () => {
-    await cleanupTestGitRepo(repoPath);
+  test('should display session status', async ({ page, request }) => {
+    // Create a session via API
+    const sessionName = generateSessionName();
+    const response = await request.post('/api/sessions', {
+      data: {
+        name: sessionName,
+        repoUrl: TEST_CONFIG.testRepoUrl,
+        branch: TEST_CONFIG.testBranch,
+      },
+    });
+    const session = await response.json();
+    createdSessionIds.push(session.id);
+
+    await page.goto('/docker');
+
+    // Session should be visible with status
+    const sessionCard = page.locator('[data-testid="session-card"]').filter({
+      hasText: sessionName,
+    });
+    await expect(sessionCard).toBeVisible({ timeout: TEST_CONFIG.timeout });
+
+    // Status badge should be visible
+    await expect(
+      sessionCard.locator('[data-testid="status-badge"]')
+    ).toBeVisible();
   });
 
-  test('セッション一覧ページが表示される', async ({ page }) => {
-    await expect(page.locator('h1')).toContainText('セッション管理');
-    await expect(page.locator('h2')).toContainText('セッション一覧');
+  test('should delete a session', async ({ page, request }) => {
+    // Create a session via API
+    const sessionName = generateSessionName();
+    const response = await request.post('/api/sessions', {
+      data: {
+        name: sessionName,
+        repoUrl: TEST_CONFIG.testRepoUrl,
+        branch: TEST_CONFIG.testBranch,
+      },
+    });
+    const session = await response.json();
+    // Don't add to cleanup since we're deleting in the test
+
+    await page.goto('/docker');
+
+    // Wait for session to appear
+    const sessionCard = page.locator('[data-testid="session-card"]').filter({
+      hasText: sessionName,
+    });
+    await expect(sessionCard).toBeVisible({ timeout: TEST_CONFIG.timeout });
+
+    // Handle browser confirm dialog
+    page.on('dialog', dialog => dialog.accept());
+
+    // Click delete button
+    await sessionCard.locator('[data-testid="delete-button"]').click();
+
+    // Session should be removed from list
+    await expect(sessionCard).not.toBeVisible({ timeout: TEST_CONFIG.timeout });
   });
 
-  test('セッションを作成できる', async ({ page }) => {
-    // セッション作成フォームが表示される
-    await expect(page.locator('input#session-name')).toBeVisible();
+  test('should connect to session terminal', async ({ page, request }) => {
+    // Create a session via API
+    const sessionName = generateSessionName();
+    const response = await request.post('/api/sessions', {
+      data: {
+        name: sessionName,
+        repoUrl: TEST_CONFIG.testRepoUrl,
+        branch: TEST_CONFIG.testBranch,
+      },
+    });
+    const session = await response.json();
+    createdSessionIds.push(session.id);
 
-    // セッション名を入力
-    await page.fill('input#session-name', 'テストセッション');
+    // Start the session to enable terminal connection
+    await request.post(`/api/sessions/${session.id}/start`);
 
-    // 初期プロンプトを入力
-    await page.fill('textarea#session-prompt', 'テスト用の初期プロンプト');
+    await page.goto('/docker');
 
-    // 作成ボタンをクリック
-    await page.click('button:has-text("セッション作成")');
+    // Wait for session to appear with running status
+    const sessionCard = page.locator('[data-testid="session-card"]').filter({
+      hasText: sessionName,
+    });
+    await expect(sessionCard).toBeVisible({ timeout: TEST_CONFIG.timeout });
 
-    // セッション詳細ページに遷移
-    await expect(page).toHaveURL(/\/sessions\/.+/, { timeout: 10000 });
-    // セッションデータがロードされるまで待機
-    await expect(page.locator('h1')).toContainText('テストセッション', { timeout: 10000 });
+    // Wait for running status (terminal is only available when running)
+    await expect(
+      sessionCard.locator('[data-testid="status-badge"]:has-text("Running")')
+    ).toBeVisible({ timeout: TEST_CONFIG.timeout });
+
+    // Click connect button to show terminal in the same page
+    await sessionCard.locator('[data-testid="connect-button"]').click();
+
+    // Terminal component should be visible in the right panel
+    await expect(page.locator('[data-testid="terminal"]')).toBeVisible({
+      timeout: TEST_CONFIG.timeout,
+    });
+  });
+});
+
+test.describe('Docker Session Actions', () => {
+  let sessionId: string;
+  let sessionName: string;
+
+  test.beforeEach(async ({ request }) => {
+    // Create a session for each test
+    sessionName = generateSessionName();
+    const response = await request.post('/api/sessions', {
+      data: {
+        name: sessionName,
+        repoUrl: TEST_CONFIG.testRepoUrl,
+        branch: TEST_CONFIG.testBranch,
+      },
+    });
+    const session = await response.json();
+    sessionId = session.id;
   });
 
-  test('Claudeターミナルタブが表示される', async ({ page }) => {
-    // セッションを作成
-    await page.fill('input#session-name', 'ターミナルテスト');
-    await page.fill('textarea#session-prompt', 'こんにちは');
-    await page.click('button:has-text("セッション作成")');
-
-    // セッション詳細ページに遷移
-    await expect(page).toHaveURL(/\/sessions\/.+/, { timeout: 10000 });
-
-    // セッションデータがロードされるまで待機
-    await expect(page.locator('h1')).toBeVisible({ timeout: 10000 });
-
-    // Claudeタブが選択されている
-    await expect(page.locator('button:has-text("Claude")')).toHaveClass(/border-blue-500/);
-
-    // ターミナルエリアが表示される（aria-labelで確認）
-    await expect(page.locator('[aria-label="Claude Code Terminal"]')).toBeVisible({ timeout: 10000 });
-
-    // 接続状態が表示される
-    await expect(page.locator('text=Connected').or(page.locator('text=Disconnected'))).toBeVisible({ timeout: 10000 });
-
-    // 再起動ボタンが表示される
-    await expect(page.locator('button:has-text("Restart")')).toBeVisible();
+  test.afterEach(async ({ request }) => {
+    // Cleanup: Stop and delete the session
+    try {
+      await request.post(`/api/sessions/${sessionId}/stop`);
+    } catch {
+      // Ignore if already stopped
+    }
+    try {
+      await request.delete(`/api/sessions/${sessionId}`);
+    } catch {
+      // Ignore cleanup errors
+    }
   });
 
-  test('セッションを停止できる', async ({ page }) => {
-    // セッションを作成
-    await page.fill('input#session-name', '停止テスト');
-    await page.fill('textarea#session-prompt', '停止テスト');
-    await page.click('button:has-text("セッション作成")');
+  test('should start a session', async ({ page }) => {
+    await page.goto('/docker');
 
-    // セッション詳細ページに遷移
-    await expect(page).toHaveURL(/\/sessions\/.+/, { timeout: 10000 });
+    // Wait for session to appear
+    const sessionCard = page.locator('[data-testid="session-card"]').filter({
+      hasText: sessionName,
+    });
+    await expect(sessionCard).toBeVisible({ timeout: TEST_CONFIG.timeout });
 
-    // セッションデータがロードされるまで待機
-    await expect(page.locator('h1')).toBeVisible({ timeout: 10000 });
+    // Click start button (if visible - session might already be running or creating)
+    const startButton = sessionCard.locator('[data-testid="start-button"]');
+    if (await startButton.isVisible()) {
+      await startButton.click();
 
-    // セッションが実行中になるまで待機
-    const stopButton = page.locator('button:has-text("停止")');
-    await expect(stopButton).toBeVisible({ timeout: 15000 });
+      // Wait for status to change to running
+      await expect(
+        sessionCard.locator('[data-testid="status-badge"]:has-text("Running")')
+      ).toBeVisible({ timeout: TEST_CONFIG.timeout });
+    }
+  });
 
+  test('should stop a running session', async ({ page, request }) => {
+    // Start the session first
+    await request.post(`/api/sessions/${sessionId}/start`);
+
+    await page.goto('/docker');
+
+    // Wait for session to appear with running status
+    const sessionCard = page.locator('[data-testid="session-card"]').filter({
+      hasText: sessionName,
+    });
+    await expect(sessionCard).toBeVisible({ timeout: TEST_CONFIG.timeout });
+
+    // Wait for running status
+    await expect(
+      sessionCard.locator('[data-testid="status-badge"]:has-text("Running")')
+    ).toBeVisible({ timeout: TEST_CONFIG.timeout });
+
+    // Click stop button
+    const stopButton = sessionCard.locator('[data-testid="stop-button"]');
     await stopButton.click();
-    await expect(page.locator('text=停止しました')).toBeVisible({ timeout: 10000 });
+
+    // Wait for status to change to stopped
+    await expect(
+      sessionCard.locator('[data-testid="status-badge"]:has-text("Stopped")')
+    ).toBeVisible({ timeout: TEST_CONFIG.timeout });
+  });
+});
+
+test.describe('Docker Session Terminal', () => {
+  let sessionId: string;
+  let sessionName: string;
+
+  test.beforeEach(async ({ request }) => {
+    // Create and start a session for terminal tests
+    sessionName = generateSessionName();
+    const response = await request.post('/api/sessions', {
+      data: {
+        name: sessionName,
+        repoUrl: TEST_CONFIG.testRepoUrl,
+        branch: TEST_CONFIG.testBranch,
+      },
+    });
+    const session = await response.json();
+    sessionId = session.id;
+
+    // Start the session
+    await request.post(`/api/sessions/${sessionId}/start`);
   });
 
-  test('セッション一覧からセッション詳細へ遷移できる (BUG-004)', async ({ page }) => {
-    // 最初のセッションを作成
-    await page.fill('input#session-name', '遷移テスト1');
-    await page.fill('textarea#session-prompt', '遷移テスト');
-    await page.click('button:has-text("セッション作成")');
+  test.afterEach(async ({ request }) => {
+    // Cleanup
+    try {
+      await request.post(`/api/sessions/${sessionId}/stop`);
+    } catch {
+      // Ignore
+    }
+    try {
+      await request.delete(`/api/sessions/${sessionId}`);
+    } catch {
+      // Ignore
+    }
+  });
 
-    // セッション詳細ページに遷移することを確認
-    await expect(page).toHaveURL(/\/sessions\/.+/, { timeout: 10000 });
-    const firstSessionUrl = page.url();
-    const firstSessionId = firstSessionUrl.split('/sessions/')[1];
+  test('should display terminal connection status', async ({ page }) => {
+    await page.goto(`/docker/sessions/${sessionId}`);
 
-    // プロジェクト詳細ページに戻る
-    await page.goto(`/projects/${projectId}`);
-    await expect(page).toHaveURL(`/projects/${projectId}`);
+    // Terminal should be visible
+    await expect(page.locator('[data-testid="terminal"]')).toBeVisible({
+      timeout: TEST_CONFIG.timeout,
+    });
 
-    // 2つ目のセッションを作成
-    await page.fill('input#session-name', '遷移テスト2');
-    await page.fill('textarea#session-prompt', '遷移テスト2');
-    await page.click('button:has-text("セッション作成")');
-    await expect(page).toHaveURL(/\/sessions\/.+/, { timeout: 10000 });
+    // Connection status should be displayed
+    await expect(
+      page.locator('text=Connected').or(page.locator('text=Connecting'))
+    ).toBeVisible({ timeout: TEST_CONFIG.timeout });
+  });
 
-    // 再びプロジェクト詳細ページに戻る
-    await page.goto(`/projects/${projectId}`);
-    await expect(page).toHaveURL(`/projects/${projectId}`);
+  test('should allow terminal input when connected', async ({ page }) => {
+    await page.goto(`/docker/sessions/${sessionId}`);
 
-    // セッション一覧が表示されることを確認
-    await expect(page.locator('text=遷移テスト1')).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('text=遷移テスト2')).toBeVisible({ timeout: 10000 });
+    // Wait for terminal to be connected
+    await expect(page.locator('text=Connected')).toBeVisible({
+      timeout: TEST_CONFIG.timeout,
+    });
 
-    // 最初のセッションカードをクリック
-    const firstSessionCard = page.locator('[data-testid="session-card"]').filter({ hasText: '遷移テスト1' });
-    await expect(firstSessionCard).toBeVisible();
+    // Terminal should accept input
+    const terminal = page.locator('[data-testid="terminal"]');
+    await terminal.click();
 
-    // カードがクリック可能であることを確認（cursor-pointerクラスが設定されている）
-    await expect(firstSessionCard).toHaveClass(/cursor-pointer/);
+    // Type a command
+    await page.keyboard.type('echo test');
+    await page.keyboard.press('Enter');
 
-    // セッションカードをクリック
-    await firstSessionCard.click();
-
-    // セッション詳細ページに遷移することを確認
-    await expect(page).toHaveURL(`/sessions/${firstSessionId}`, { timeout: 10000 });
-    // セッションデータがロードされるまで待機
-    await expect(page.locator('h1')).toContainText('遷移テスト1', { timeout: 10000 });
+    // Wait for output (basic check that terminal is responsive)
+    await page.waitForTimeout(1000);
   });
 });

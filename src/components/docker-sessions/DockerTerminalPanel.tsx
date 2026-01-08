@@ -176,6 +176,7 @@ function DockerTerminalPanel({ sessionId }: DockerTerminalPanelProps) {
       {/* ターミナルエリア */}
       <div
         ref={containerRef}
+        data-testid="terminal"
         className="flex-1 p-2 min-h-0 w-full h-full"
         role="application"
         aria-label="Terminal"

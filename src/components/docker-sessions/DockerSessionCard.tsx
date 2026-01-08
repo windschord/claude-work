@@ -26,7 +26,10 @@ function StatusBadge({ status }: { status: DockerSessionStatus }) {
   const config = statusConfig[status];
 
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
+    <span
+      data-testid="status-badge"
+      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}
+    >
       {config.label}
     </span>
   );
@@ -103,7 +106,8 @@ export function DockerSessionCard({
 
   return (
     <div
-      data-testid="docker-session-card"
+      data-testid="session-card"
+      data-session-id={session.id}
       className="border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg p-4 hover:shadow-lg hover:border-blue-300 dark:hover:border-blue-600 transition-all"
     >
       {/* Header */}

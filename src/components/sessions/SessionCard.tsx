@@ -61,6 +61,7 @@ export function SessionCard({ session, onClick }: SessionCardProps) {
     <>
       <div
         data-testid="session-card"
+        data-session-id={session.id}
         className="border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg p-4 min-h-[120px] hover:shadow-lg hover:border-blue-300 dark:hover:border-blue-600 transition-all cursor-pointer active:bg-gray-50 dark:active:bg-gray-700 hover:scale-[1.02]"
         onClick={handleClick}
         role="button"
