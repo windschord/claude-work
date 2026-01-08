@@ -2,50 +2,65 @@
 
 ClaudeWork の REST API とWebSocket API の概要です。
 
-## プロジェクト API
-
-### プロジェクト一覧取得
-
-```http
-GET /api/projects
-```
-
-### プロジェクト追加
-
-```http
-POST /api/projects
-Content-Type: application/json
-
-{
-  "path": "/path/to/git/repo"
-}
-```
-
-### プロジェクト削除
-
-```http
-DELETE /api/projects/{id}
-```
-
 ## セッション API
 
 ### セッション一覧取得
 
 ```http
-GET /api/projects/{id}/sessions
+GET /api/sessions
+```
+
+**レスポンス**:
+```json
+{
+  "sessions": [
+    {
+      "id": "uuid",
+      "name": "session-name",
+      "repoUrl": "https://github.com/user/repo.git",
+      "branch": "main",
+      "status": "running",
+      "containerId": "container-id",
+      "volumeName": "volume-name",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    }
+  ]
+}
 ```
 
 ### セッション作成
 
 ```http
-POST /api/projects/{id}/sessions
+POST /api/sessions
 Content-Type: application/json
 
 {
   "name": "session-name",
-  "prompt": "initial prompt",
-  "model": "auto"
+  "repoUrl": "https://github.com/user/repo.git",
+  "branch": "main"
 }
+```
+
+**レスポンス**:
+```json
+{
+  "id": "uuid",
+  "name": "session-name",
+  "repoUrl": "https://github.com/user/repo.git",
+  "branch": "main",
+  "status": "created",
+  "containerId": null,
+  "volumeName": "claudework-session-name",
+  "createdAt": "2024-01-01T00:00:00.000Z",
+  "updatedAt": "2024-01-01T00:00:00.000Z"
+}
+```
+
+### セッション取得
+
+```http
+GET /api/sessions/{id}
 ```
 
 ### セッション削除
@@ -54,63 +69,76 @@ Content-Type: application/json
 DELETE /api/sessions/{id}
 ```
 
-## Git 操作 API
+セッションとそれに関連するコンテナ、ボリュームを削除します。
 
-### Diff 取得
+## セッションアクション API
+
+### コンテナ起動
 
 ```http
-GET /api/sessions/{id}/diff
+POST /api/sessions/{id}/start
 ```
 
-### Rebase 実行
+セッションのDockerコンテナを起動します。
 
-```http
-POST /api/sessions/{id}/rebase
-```
-
-### Squash Merge 実行
-
-```http
-POST /api/sessions/{id}/merge
-Content-Type: application/json
-
+**レスポンス**:
+```json
 {
-  "commit_message": "Merge commit message"
+  "success": true,
+  "session": {
+    "id": "uuid",
+    "status": "running",
+    "containerId": "container-id"
+  }
 }
 ```
 
-## ランタイムスクリプト API
-
-### スクリプト一覧取得
+### コンテナ停止
 
 ```http
-GET /api/projects/{id}/scripts
+POST /api/sessions/{id}/stop
 ```
 
-### スクリプト実行
+セッションのDockerコンテナを停止します。
 
-```http
-POST /api/sessions/{id}/execute
-Content-Type: application/json
-
+**レスポンス**:
+```json
 {
-  "script_id": "script-uuid"
+  "success": true,
+  "session": {
+    "id": "uuid",
+    "status": "stopped",
+    "containerId": "container-id"
+  }
 }
 ```
+
+### コンテナ再起動
+
+```http
+POST /api/sessions/{id}/restart
+```
+
+セッションのDockerコンテナを再起動します。
 
 ## WebSocket API
 
-### Claude Code WebSocket (メイン)
+### Docker セッション WebSocket
 
-Claude Code との対話用ターミナルセッション。XTerm.js と連携し、Claude Code の対話モードを直接操作します。
+Dockerコンテナ内のターミナルとの対話用。XTerm.js と連携し、Claude Code を直接操作します。
 
 ```http
-ws://localhost:3000/ws/claude/{sessionId}
+ws://localhost:3000/ws/session/{sessionId}
 ```
+
+**接続時**:
+- コンテナが起動していない場合は自動的に起動
+- `docker exec` で PTY セッションを作成
+- ターミナル出力をWebSocket経由でクライアントに送信
 
 **メッセージ形式**:
 
-クライアント → サーバー:
+クライアント -> サーバー:
 ```json
 {
   "type": "input",
@@ -126,17 +154,11 @@ ws://localhost:3000/ws/claude/{sessionId}
 }
 ```
 
-```json
-{
-  "type": "restart"
-}
-```
-
-サーバー → クライアント:
+サーバー -> クライアント:
 ```json
 {
   "type": "data",
-  "content": "raw terminal output from Claude Code"
+  "content": "raw terminal output"
 }
 ```
 
@@ -147,60 +169,43 @@ ws://localhost:3000/ws/claude/{sessionId}
 }
 ```
 
+```json
+{
+  "type": "error",
+  "message": "error description"
+}
+```
+
 **特徴**:
-- Claude Code は対話モードで起動（`--print` フラグなし）
+- `docker exec` で PTY セッションを作成
 - ターミナル出力は加工なしでクライアントに送信
 - XTerm.js がターミナルエミュレーションを担当
 - リサイズメッセージでターミナルサイズを同期
+- 接続切断時にPTYセッションを自動クリーンアップ
 
-### セッション WebSocket
+## ステータス値
 
-セッションイベントとスクリプト実行用。
+セッションの `status` フィールドは以下の値を取ります:
 
-```http
-ws://localhost:3000/ws/sessions/{id}
-```
+| ステータス | 説明 |
+|-----------|------|
+| `created` | セッション作成済み、コンテナ未起動 |
+| `running` | コンテナ実行中 |
+| `stopped` | コンテナ停止中 |
+| `error` | エラー発生 |
 
-**メッセージ形式**:
+## エラーレスポンス
 
-クライアント → サーバー:
+すべてのAPIは以下の形式でエラーを返します:
+
 ```json
 {
-  "type": "input",
-  "content": "user message"
+  "error": "Error message description"
 }
 ```
 
-サーバー → クライアント:
-```json
-{
-  "type": "output",
-  "content": "script output"
-}
-```
-
-### シェルターミナル WebSocket
-
-シェルセッション用（bash/zsh等）。
-
-```http
-ws://localhost:3000/ws/terminal/{id}
-```
-
-**メッセージ形式**:
-
-クライアント → サーバー:
-```json
-{
-  "type": "input",
-  "data": "ls -la\n"
-}
-```
-
-サーバー → クライアント:
-```json
-{
-  "type": "data",
-  "content": "total 48\ndrwxr-xr-x ..."
-}
-```
+| HTTPステータス | 説明 |
+|---------------|------|
+| 400 | リクエストパラメータが不正 |
+| 404 | セッションが見つからない |
+| 500 | サーバー内部エラー |

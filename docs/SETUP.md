@@ -3,10 +3,20 @@
 ## 必要要件
 
 - Node.js 20 以上
-- Git
-- Claude Code CLI（インストール済みであること）
+- Docker 20.10 以上（Docker Desktop または Docker Engine）
+- Claude Code CLI（ホストマシンにインストール済みであること）
 
 ## クイックスタート
+
+### 1. Dockerイメージのビルド
+
+セッション用のDockerイメージを事前にビルドしてください:
+
+```bash
+docker build -t claudework-session:latest -f docker/Dockerfile docker/
+```
+
+### 2. サーバー起動
 
 ```bash
 npx claude-work start   # バックグラウンドで起動
@@ -53,25 +63,54 @@ DATABASE_URL=file:../data/claudework.db
 
 # ポート（オプション）
 PORT=3000
+
+# Dockerソケット（オプション、デフォルト: /var/run/docker.sock）
+DOCKER_SOCKET=/var/run/docker.sock
+
+# セッション用Dockerイメージ（オプション）
+SESSION_IMAGE=claudework-session:latest
 ```
 
 その他の環境変数については [ENV_VARS.md](ENV_VARS.md) を参照してください。
 
 ## 使い方
 
-### 1. プロジェクト追加
+### 1. セッション作成
 
-Git リポジトリのパスを指定してプロジェクトを追加します:
+ホームページでセッションを作成します:
 
-```text
-/path/to/your/git/repo
-```
+1. 「新しいセッション」ボタンをクリック
+2. セッション名を入力
+3. リポジトリURL（GitHubなど）を入力
+4. ブランチ名を指定（オプション）
+5. 「作成」をクリック
 
-### 2. セッション作成
+### 2. セッション開始
 
-プロジェクトを開き、セッション名とプロンプトを入力してセッションを作成します。
+セッション一覧からセッションを選択し、「Start」ボタンでコンテナを起動します。
+ターミナルが表示され、Claude Codeを直接操作できます。
+
+### 3. セッション管理
+
+- **Start**: コンテナを起動
+- **Stop**: コンテナを停止
+- **Delete**: セッションとコンテナを削除
 
 ## トラブルシューティング
+
+### Dockerデーモンが起動していない
+
+```bash
+# Docker Desktop を起動するか、以下のコマンドでDocker Engineを起動
+sudo systemctl start docker
+```
+
+### Dockerイメージがない
+
+```bash
+# イメージをビルド
+docker build -t claudework-session:latest -f docker/Dockerfile docker/
+```
 
 ### データベースエラー
 
@@ -90,16 +129,18 @@ npx claude-work
 PORT=3001 npx claude-work
 ```
 
-### Claude Code が見つからない
+### コンテナが起動しない
 
-Claude Code CLI がインストールされているか確認します:
+Docker logs でエラーを確認:
 
 ```bash
-claude --version
+docker logs <container_id>
 ```
 
-インストールされていない場合:
+### 認証情報がマウントされない
+
+Claude Code の認証情報（`~/.claude`）がホストに存在することを確認:
 
 ```bash
-npm install -g claude-code
+ls -la ~/.claude
 ```
