@@ -209,7 +209,7 @@ interface DockerService {
   startContainer(containerId: string): Promise<void>;
   stopContainer(containerId: string): Promise<void>;
   removeContainer(containerId: string): Promise<void>;
-  execCommand(containerId: string, command: string[]): Promise<ExecResult>;
+  execCommand(containerId: string, command: string[], workingDir?: string): Promise<ExecResult>;
   attachPTY(containerId: string): Promise<PTYStream>;
   createVolume(name: string): Promise<Volume>;
   removeVolume(name: string): Promise<void>;

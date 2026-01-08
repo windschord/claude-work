@@ -124,12 +124,17 @@ export class DockerService {
     };
   }
 
-  async execCommand(containerId: string, command: string[]): Promise<{ exitCode: number; output: string }> {
+  async execCommand(
+    containerId: string,
+    command: string[],
+    workingDir?: string,
+  ): Promise<{ exitCode: number; output: string }> {
     const container = this.docker.getContainer(containerId);
     const exec = await container.exec({
       Cmd: command,
       AttachStdout: true,
       AttachStderr: true,
+      ...(workingDir ? { WorkingDir: workingDir } : {}),
     });
 
     const stream = await exec.start({ hijack: true, stdin: false });
@@ -138,7 +143,12 @@ export class DockerService {
       let output = '';
 
       stream.on('data', (chunk: Buffer) => {
-        // Docker multiplexes stdout/stderr, skip the 8-byte header
+        // Docker multiplexes stdout/stderr when using hijacked exec/attach streams.
+        // Each frame starts with an 8-byte header:
+        //   byte 0: stream type (1 = stdout, 2 = stderr, 0 = stdin)
+        //   bytes 1-3: reserved/padding
+        //   bytes 4-7: big-endian uint32 payload length
+        // We skip this 8-byte header and treat the remaining bytes as UTF-8 payload.
         const data = chunk.slice(8).toString('utf8');
         output += data;
       });
