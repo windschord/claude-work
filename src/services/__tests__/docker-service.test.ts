@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => {
   const mockPing = vi.fn().mockResolvedValue('OK');
   const mockCreateContainer = vi.fn();
   const mockGetContainer = vi.fn();
-  const mockCreateVolume = vi.fn().mockResolvedValue({ name: 'test-volume' });
+  const mockCreateVolume = vi.fn().mockResolvedValue({ Name: 'test-volume' });
   const mockGetVolume = vi.fn();
 
   return {
