@@ -23,9 +23,8 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
-    const { id } = await params;
-
     const session = await sessionManager.findById(id);
 
     if (!session) {
@@ -73,9 +72,8 @@ export async function GET(
       },
     });
   } catch (error) {
-    const { id: errorId } = await params;
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    logger.error('Failed to get session warning', { error: errorMessage, session_id: errorId });
+    logger.error('Failed to get session warning', { error: errorMessage, session_id: id });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

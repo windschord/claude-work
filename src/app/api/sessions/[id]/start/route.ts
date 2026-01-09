@@ -23,9 +23,8 @@ export async function POST(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
-    const { id } = await params;
-
     const session = await sessionManager.findById(id);
 
     if (!session) {
@@ -37,9 +36,8 @@ export async function POST(
     logger.info('Session started via API', { id });
     return NextResponse.json({ message: 'Session started' });
   } catch (error) {
-    const { id: errorId } = await params;
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    logger.error('Failed to start session', { error: errorMessage, session_id: errorId });
+    logger.error('Failed to start session', { error: errorMessage, session_id: id });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

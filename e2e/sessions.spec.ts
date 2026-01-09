@@ -316,7 +316,7 @@ test.describe('Docker Session Terminal', () => {
     await page.keyboard.type('echo test');
     await page.keyboard.press('Enter');
 
-    // Wait for output (basic check that terminal is responsive)
-    await page.waitForTimeout(1000);
+    // Wait for the command to be echoed in terminal (terminal should be responsive)
+    await expect(terminal).toContainText('echo test', { timeout: 5000 });
   });
 });
