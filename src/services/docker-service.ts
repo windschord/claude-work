@@ -87,14 +87,32 @@ export class DockerService {
 
   async startContainer(containerId: string): Promise<void> {
     const container = this.docker.getContainer(containerId);
-    await container.start();
-    logger.info('Container started', { containerId });
+    try {
+      await container.start();
+      logger.info('Container started', { containerId });
+    } catch (error: unknown) {
+      // Ignore "container already started" error (HTTP 304)
+      if (error && typeof error === 'object' && 'statusCode' in error && error.statusCode === 304) {
+        logger.info('Container already running', { containerId });
+        return;
+      }
+      throw error;
+    }
   }
 
   async stopContainer(containerId: string): Promise<void> {
     const container = this.docker.getContainer(containerId);
-    await container.stop();
-    logger.info('Container stopped', { containerId });
+    try {
+      await container.stop();
+      logger.info('Container stopped', { containerId });
+    } catch (error: unknown) {
+      // Ignore "container already stopped" error (HTTP 304)
+      if (error && typeof error === 'object' && 'statusCode' in error && error.statusCode === 304) {
+        logger.info('Container already stopped', { containerId });
+        return;
+      }
+      throw error;
+    }
   }
 
   async removeContainer(containerId: string, force: boolean = false): Promise<void> {
