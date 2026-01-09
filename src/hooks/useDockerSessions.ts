@@ -4,6 +4,19 @@ import { useState, useEffect, useCallback } from 'react';
 import type { DockerSession, CreateDockerSessionRequest, SessionWarning } from '@/types/docker-session';
 
 /**
+ * Safely extract error message from response
+ */
+async function getErrorMessage(response: Response, fallback: string): Promise<string> {
+  try {
+    const data = await response.json();
+    return data.error || fallback;
+  } catch {
+    // Response is not JSON (e.g., 502 Bad Gateway)
+    return fallback;
+  }
+}
+
+/**
  * Docker sessions management hook
  *
  * Provides CRUD operations and actions for Docker-based sessions.
@@ -43,8 +56,7 @@ export function useDockerSessions() {
       body: JSON.stringify(request),
     });
     if (!response.ok) {
-      const data = await response.json();
-      throw new Error(data.error || 'Failed to create session');
+      throw new Error(await getErrorMessage(response, 'Failed to create session'));
     }
     const data = await response.json();
     await fetchSessions(); // Refresh the list
@@ -59,8 +71,7 @@ export function useDockerSessions() {
       method: 'POST',
     });
     if (!response.ok) {
-      const data = await response.json();
-      throw new Error(data.error || 'Failed to start session');
+      throw new Error(await getErrorMessage(response, 'Failed to start session'));
     }
     await fetchSessions(); // Refresh the list
   }, [fetchSessions]);
@@ -73,8 +84,7 @@ export function useDockerSessions() {
       method: 'POST',
     });
     if (!response.ok) {
-      const data = await response.json();
-      throw new Error(data.error || 'Failed to stop session');
+      throw new Error(await getErrorMessage(response, 'Failed to stop session'));
     }
     await fetchSessions(); // Refresh the list
   }, [fetchSessions]);
@@ -87,8 +97,7 @@ export function useDockerSessions() {
       method: 'DELETE',
     });
     if (!response.ok) {
-      const data = await response.json();
-      throw new Error(data.error || 'Failed to delete session');
+      throw new Error(await getErrorMessage(response, 'Failed to delete session'));
     }
     await fetchSessions(); // Refresh the list
   }, [fetchSessions]);

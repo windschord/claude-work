@@ -97,7 +97,11 @@ export class ContainerManager {
       });
 
       // Return updated session
-      return await this.sessionManager.findById(session.id) as Session;
+      const updatedSession = await this.sessionManager.findById(session.id);
+      if (!updatedSession) {
+        throw new Error(`Failed to retrieve created session: ${session.id}`);
+      }
+      return updatedSession;
     } catch (error) {
       // Update session status to error if container creation fails
       logger.error('Failed to create container', { sessionId: session.id, error });

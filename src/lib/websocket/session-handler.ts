@@ -107,6 +107,13 @@ export function setupSessionWebSocket(
           containerId: session.containerId,
           pid: ptyProcess.pid,
         });
+
+        // WebSocketが既に閉じている場合、PTYをクリーンアップ
+        if (ws.readyState !== WebSocket.OPEN) {
+          logger.warn('WebSocket closed during PTY creation, cleaning up', { sessionId });
+          ptyProcess.kill();
+          return;
+        }
       } catch (ptyError) {
         const errorMessage = ptyError instanceof Error ? ptyError.message : 'Failed to create PTY';
         logger.error('Session WebSocket: Failed to create PTY', {
