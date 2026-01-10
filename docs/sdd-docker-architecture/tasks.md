@@ -40,14 +40,14 @@
 **受入基準**:
 - [x] `docker/Dockerfile` が存在する
 - [x] `docker/docker-entrypoint.sh` が存在する
-- [ ] `docker build -t claudework-session docker/` が成功する
-- [ ] コンテナ内で `node --version` が v22.x を返す
-- [ ] コンテナ内で `claude --version` が正常に動作する
+- [x] `docker build -t claudework-session docker/` が成功する（ユーザー環境で検証済み）
+- [x] コンテナ内で `node --version` が v22.x を返す（ユーザー環境で検証済み）
+- [x] コンテナ内で `claude --version` が正常に動作する（ユーザー環境で検証済み）
 
 **依存関係**: なし
 **推定工数**: 20分
 **ステータス**: `DONE`
-**完了サマリー**: Dockerfile と docker-entrypoint.sh を作成。Node.js 22-slim ベース、Claude CLI インストール済み。ビルドテストはユーザー環境で実施必要。
+**完了サマリー**: Dockerfile と docker-entrypoint.sh を作成。Node.js 22-slim ベース、Claude CLI インストール済み。ユーザー環境でビルドおよび動作確認完了。
 
 ---
 
@@ -471,12 +471,12 @@
 - [x] セッション作成フローのE2Eテストが存在する
 - [x] ターミナル接続のE2Eテストが存在する
 - [x] セッション停止/再開のE2Eテストが存在する
-- [ ] テストがすべて通過する（Docker環境での実行が必要）
+- [ ] テストがすべて通過する（Docker環境での実行が必要、PR merge後に実施予定）
 
 **依存関係**: フェーズ6完了後
 **推定工数**: 40分
 **ステータス**: `DONE`
-**完了サマリー**: e2e/sessions.spec.ts を Docker session 管理に対応して書き直し。旧テスト削除、data-testid 属性追加。
+**完了サマリー**: e2e/sessions.spec.ts を Docker session 管理に対応して書き直し。旧テスト削除、data-testid 属性追加。E2Eテストの実行はDocker環境構築後に実施予定。
 
 ---
 

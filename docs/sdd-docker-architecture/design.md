@@ -334,7 +334,7 @@ exec "$@"
   "name": "my-session",
   "repoUrl": "git@github.com:user/repo.git",
   "branch": "main",
-  "status": "creating",
+  "status": "created",
   "createdAt": "2025-01-06T00:00:00Z"
 }
 ```

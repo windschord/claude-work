@@ -2,6 +2,9 @@ import { test, expect } from '@playwright/test';
 import { TEST_CONFIG, generateSessionName } from './helpers/setup';
 
 test.describe('Docker Session Management', () => {
+  // Run tests serially to avoid shared state conflicts
+  test.describe.configure({ mode: 'serial' });
+
   // Store created session IDs for cleanup
   const createdSessionIds: string[] = [];
 
@@ -63,14 +66,13 @@ test.describe('Docker Session Management', () => {
       timeout: TEST_CONFIG.timeout,
     });
 
-    // Store session ID for cleanup
+    // Store session ID for cleanup - ensure attribute exists to prevent session leaks
     const sessionCard = page.locator('[data-testid="session-card"]').filter({
       hasText: sessionName,
     });
     const sessionId = await sessionCard.getAttribute('data-session-id');
-    if (sessionId) {
-      createdSessionIds.push(sessionId);
-    }
+    expect(sessionId, 'Session card should have data-session-id attribute').toBeTruthy();
+    createdSessionIds.push(sessionId!);
   });
 
   test('should display session status', async ({ page, request }) => {
@@ -171,7 +173,7 @@ test.describe('Docker Session Management', () => {
 });
 
 test.describe('Docker Session Actions', () => {
-  let sessionId: string;
+  let sessionId: string | undefined;
   let sessionName: string;
 
   test.beforeEach(async ({ request }) => {
@@ -189,6 +191,9 @@ test.describe('Docker Session Actions', () => {
   });
 
   test.afterEach(async ({ request }) => {
+    // Guard against undefined sessionId (if beforeEach failed)
+    if (!sessionId) return;
+
     // Cleanup: Stop and delete the session
     try {
       await request.post(`/api/sessions/${sessionId}/stop`);
@@ -252,7 +257,7 @@ test.describe('Docker Session Actions', () => {
 });
 
 test.describe('Docker Session Terminal', () => {
-  let sessionId: string;
+  let sessionId: string | undefined;
   let sessionName: string;
 
   test.beforeEach(async ({ request }) => {
@@ -273,6 +278,9 @@ test.describe('Docker Session Terminal', () => {
   });
 
   test.afterEach(async ({ request }) => {
+    // Guard against undefined sessionId (if beforeEach failed)
+    if (!sessionId) return;
+
     // Cleanup
     try {
       await request.post(`/api/sessions/${sessionId}/stop`);

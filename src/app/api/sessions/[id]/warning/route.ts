@@ -33,7 +33,15 @@ export async function GET(
 
     if (!session.containerId) {
       return NextResponse.json(
-        { error: 'Container is not running' },
+        { error: 'Container is not created' },
+        { status: 400 }
+      );
+    }
+
+    // Check if container is actually running
+    if (session.status !== 'running') {
+      return NextResponse.json(
+        { error: 'Container is not running', status: session.status },
         { status: 400 }
       );
     }
@@ -48,15 +56,39 @@ export async function GET(
     const hasUncommittedChanges = statusResult.exitCode === 0 && statusResult.output.trim() !== '';
 
     // Check for unpushed commits
-    const unpushedResult = await dockerService.execCommand(
+    // First, check if remote tracking branch exists
+    const remoteCheckResult = await dockerService.execCommand(
       session.containerId,
-      ['git', 'rev-list', '--count', `origin/${session.branch}..HEAD`],
+      ['git', 'rev-parse', '--verify', `origin/${session.branch}`],
       '/workspace'
     );
 
     let unpushedCommitCount = 0;
-    if (unpushedResult.exitCode === 0) {
-      unpushedCommitCount = parseInt(unpushedResult.output.trim(), 10) || 0;
+    let remoteTrackingExists = remoteCheckResult.exitCode === 0;
+
+    if (remoteTrackingExists) {
+      // Remote branch exists, count unpushed commits
+      const unpushedResult = await dockerService.execCommand(
+        session.containerId,
+        ['git', 'rev-list', '--count', `origin/${session.branch}..HEAD`],
+        '/workspace'
+      );
+
+      if (unpushedResult.exitCode === 0) {
+        unpushedCommitCount = parseInt(unpushedResult.output.trim(), 10) || 0;
+      }
+    } else {
+      // Remote branch doesn't exist - count all commits on current branch
+      // This handles new branches that haven't been pushed yet
+      const allCommitsResult = await dockerService.execCommand(
+        session.containerId,
+        ['git', 'rev-list', '--count', 'HEAD'],
+        '/workspace'
+      );
+
+      if (allCommitsResult.exitCode === 0) {
+        unpushedCommitCount = parseInt(allCommitsResult.output.trim(), 10) || 0;
+      }
     }
 
     logger.info('Session warning checked', {
