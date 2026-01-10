@@ -43,6 +43,8 @@ export interface Session {
   pr_status?: string | null;
   /** PR情報更新日時 */
   pr_updated_at?: string | null;
+  /** Dockerモードで実行中かどうか */
+  docker_mode?: boolean;
   /** 作成日時 */
   created_at: string;
   /** 更新日時（オプショナル：既存データとの互換性のため） */
@@ -57,6 +59,8 @@ export interface CreateSessionData {
   name?: string;
   /** プロンプト */
   prompt: string;
+  /** Dockerモードで実行するかどうか（明示的に指定必須） */
+  dockerMode: boolean;
 }
 
 /**

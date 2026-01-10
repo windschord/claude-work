@@ -36,4 +36,14 @@ describe('GET /api/health', () => {
     const timestamp = new Date(data.timestamp);
     expect(timestamp.toString()).not.toBe('Invalid Date');
   });
+
+  it('should return features object with dockerEnabled', async () => {
+    const request = new NextRequest('http://localhost:3000/api/health');
+    const response = await GET(request);
+
+    const data = await response.json();
+    expect(data).toHaveProperty('features');
+    expect(data.features).toHaveProperty('dockerEnabled');
+    expect(typeof data.features.dockerEnabled).toBe('boolean');
+  });
 });
