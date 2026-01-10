@@ -52,8 +52,9 @@ describe('GET /api/sessions/:id/warning', () => {
     mocks.mockSessionManager.findById.mockResolvedValue(mockSession);
     // git status --porcelain returns output when there are changes
     mocks.mockDockerService.execCommand
-      .mockResolvedValueOnce({ exitCode: 0, output: 'M  file.txt' })
-      .mockResolvedValueOnce({ exitCode: 0, output: '2' });
+      .mockResolvedValueOnce({ exitCode: 0, output: 'M  file.txt' }) // git status
+      .mockResolvedValueOnce({ exitCode: 0, output: '' }) // git rev-parse --verify origin/main (branch exists)
+      .mockResolvedValueOnce({ exitCode: 0, output: '2' }); // git rev-list --count
 
     const request = new NextRequest('http://localhost:3000/api/sessions/session-warning/warning');
     const response = await GET(request, { params: Promise.resolve({ id: 'session-warning' }) });
@@ -80,8 +81,9 @@ describe('GET /api/sessions/:id/warning', () => {
     mocks.mockSessionManager.findById.mockResolvedValue(mockSession);
     // git status --porcelain returns empty when clean
     mocks.mockDockerService.execCommand
-      .mockResolvedValueOnce({ exitCode: 0, output: '' })
-      .mockResolvedValueOnce({ exitCode: 0, output: '0' });
+      .mockResolvedValueOnce({ exitCode: 0, output: '' }) // git status
+      .mockResolvedValueOnce({ exitCode: 0, output: '' }) // git rev-parse --verify origin/main (branch exists)
+      .mockResolvedValueOnce({ exitCode: 0, output: '0' }); // git rev-list --count
 
     const request = new NextRequest('http://localhost:3000/api/sessions/session-clean/warning');
     const response = await GET(request, { params: Promise.resolve({ id: 'session-clean' }) });

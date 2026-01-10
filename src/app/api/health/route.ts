@@ -32,12 +32,15 @@ export async function GET() {
 
   logger.debug('Health check requested', { timestamp });
 
+  // Check if Docker is available
+  const dockerRunning = await dockerService.isDockerRunning();
+
   return NextResponse.json(
     {
       status: 'ok',
       timestamp,
       features: {
-        dockerEnabled: dockerService.isEnabled(),
+        dockerEnabled: dockerRunning,
       },
     },
     { status: 200 }

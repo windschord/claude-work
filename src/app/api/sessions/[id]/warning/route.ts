@@ -64,7 +64,7 @@ export async function GET(
     );
 
     let unpushedCommitCount = 0;
-    let remoteTrackingExists = remoteCheckResult.exitCode === 0;
+    const remoteTrackingExists = remoteCheckResult.exitCode === 0;
 
     if (remoteTrackingExists) {
       // Remote branch exists, count unpushed commits

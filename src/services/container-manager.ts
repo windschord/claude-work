@@ -1,5 +1,6 @@
 import os from 'os';
 import path from 'path';
+import fs from 'fs';
 import { Session } from '@prisma/client';
 import { DockerService } from './docker-service';
 import { SessionManager, SessionStatus } from './session-manager';
@@ -32,7 +33,9 @@ export class ContainerManager {
       throw new Error('Docker is not running. Please start Docker and try again.');
     }
 
-    const volumeName = `${VOLUME_PREFIX}${options.name}`;
+    // Sanitize name to comply with Docker volume naming rules [a-zA-Z0-9][a-zA-Z0-9_.-]*
+    const sanitizedName = options.name.replace(/[^a-zA-Z0-9_.-]/g, '-').toLowerCase();
+    const volumeName = `${VOLUME_PREFIX}${sanitizedName}`;
 
     // Create volume for workspace persistence
     logger.info('Creating volume', { volumeName });
@@ -57,14 +60,16 @@ export class ContainerManager {
         BRANCH: options.branch,
       };
 
-      // Add SSH_AUTH_SOCK if available
-      if (sshAuthSock) {
+      // Add SSH_AUTH_SOCK if available and socket file exists
+      if (sshAuthSock && fs.existsSync(sshAuthSock)) {
         env.SSH_AUTH_SOCK = '/ssh-agent';
         mounts.push({
           source: sshAuthSock,
           target: '/ssh-agent',
           readOnly: false,
         });
+      } else if (sshAuthSock) {
+        logger.warn('SSH_AUTH_SOCK is set but socket file does not exist', { sshAuthSock });
       }
 
       // Create container
@@ -213,21 +218,29 @@ export class ContainerManager {
     const homeDir = os.homedir();
     const mounts: { source: string; target: string; readOnly: boolean }[] = [];
 
-    // Claude auth directory
+    // Claude auth directory (only mount if exists)
     const claudeDir = path.join(homeDir, '.claude');
-    mounts.push({
-      source: claudeDir,
-      target: '/root/.claude',
-      readOnly: true,
-    });
+    if (fs.existsSync(claudeDir)) {
+      mounts.push({
+        source: claudeDir,
+        target: '/root/.claude',
+        readOnly: true,
+      });
+    } else {
+      logger.warn('Claude auth directory not found, skipping mount', { path: claudeDir });
+    }
 
-    // Git config
+    // Git config (only mount if exists)
     const gitConfig = path.join(homeDir, '.gitconfig');
-    mounts.push({
-      source: gitConfig,
-      target: '/root/.gitconfig',
-      readOnly: true,
-    });
+    if (fs.existsSync(gitConfig)) {
+      mounts.push({
+        source: gitConfig,
+        target: '/root/.gitconfig',
+        readOnly: true,
+      });
+    } else {
+      logger.warn('Git config file not found, skipping mount', { path: gitConfig });
+    }
 
     return mounts;
   }
