@@ -210,10 +210,10 @@ interface DockerService {
   stopContainer(containerId: string): Promise<void>;
   removeContainer(containerId: string): Promise<void>;
   execCommand(containerId: string, command: string[], workingDir?: string): Promise<ExecResult>;
-  attachPTY(containerId: string): Promise<PTYStream>;
   createVolume(name: string): Promise<Volume>;
   removeVolume(name: string): Promise<void>;
   getContainerStatus(containerId: string): Promise<ContainerStatus>;
+  // Note: PTY接続はDockerPtyAdapterがdocker exec + node-ptyで実装
 }
 
 interface ContainerOptions {

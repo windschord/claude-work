@@ -37,19 +37,24 @@ export class ContainerManager {
     const sanitizedName = options.name.replace(/[^a-zA-Z0-9_.-]/g, '-').toLowerCase();
     const volumeName = `${VOLUME_PREFIX}${sanitizedName}`;
 
-    // Create volume for workspace persistence
-    logger.info('Creating volume', { volumeName });
-    await this.dockerService.createVolume(volumeName);
-
-    // Create session record in database
-    const session = await this.sessionManager.create({
-      name: options.name,
-      volumeName,
-      repoUrl: options.repoUrl,
-      branch: options.branch,
-    });
+    // Track created resources for cleanup on failure
+    let volumeCreated = false;
+    let session: Session | null = null;
 
     try {
+      // Create volume for workspace persistence
+      logger.info('Creating volume', { volumeName });
+      await this.dockerService.createVolume(volumeName);
+      volumeCreated = true;
+
+      // Create session record in database
+      session = await this.sessionManager.create({
+        name: options.name,
+        volumeName,
+        repoUrl: options.repoUrl,
+        branch: options.branch,
+      });
+
       // Prepare mount configurations
       const mounts = this.prepareMounts();
       const sshAuthSock = process.env.SSH_AUTH_SOCK;
@@ -108,9 +113,27 @@ export class ContainerManager {
       }
       return updatedSession;
     } catch (error) {
-      // Update session status to error if container creation fails
-      logger.error('Failed to create container', { sessionId: session.id, error });
-      await this.sessionManager.updateStatus(session.id, 'error');
+      logger.error('Failed to create session', { name: options.name, error });
+
+      // Update session status to error if session was created
+      if (session) {
+        try {
+          await this.sessionManager.updateStatus(session.id, 'error');
+        } catch (statusError) {
+          logger.warn('Failed to update session status to error', { sessionId: session.id, error: statusError });
+        }
+      }
+
+      // Clean up orphaned volume if it was created but session/container creation failed
+      if (volumeCreated && !session?.containerId) {
+        try {
+          await this.dockerService.removeVolume(volumeName);
+          logger.info('Cleaned up orphaned volume', { volumeName });
+        } catch (cleanupError) {
+          logger.warn('Failed to clean up orphaned volume', { volumeName, error: cleanupError });
+        }
+      }
+
       throw error;
     }
   }
