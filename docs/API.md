@@ -49,7 +49,7 @@ Content-Type: application/json
   "name": "session-name",
   "repoUrl": "https://github.com/user/repo.git",
   "branch": "main",
-  "status": "created",
+  "status": "creating",
   "containerId": null,
   "volumeName": "claudework-session-name",
   "createdAt": "2024-01-01T00:00:00.000Z",
@@ -189,7 +189,7 @@ ws://localhost:3000/ws/session/{sessionId}
 
 | ステータス | 説明 |
 |-----------|------|
-| `created` | セッション作成済み、コンテナ未起動 |
+| `creating` | セッション作成中、コンテナ起動処理中 |
 | `running` | コンテナ実行中 |
 | `stopped` | コンテナ停止中 |
 | `error` | エラー発生 |
