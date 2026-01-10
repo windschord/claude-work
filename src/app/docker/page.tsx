@@ -23,6 +23,7 @@ export default function DockerHome() {
     loading,
     error,
     fetchSessions,
+    createSession,
     startSession,
     stopSession,
     deleteSession,
@@ -37,7 +38,7 @@ export default function DockerHome() {
     setSelectedSessionId(sessionId);
   }, []);
 
-  const handleCreateSession = useCallback(() => {
+  const handleOpenCreateModal = useCallback(() => {
     setIsCreateModalOpen(true);
   }, []);
 
@@ -45,10 +46,13 @@ export default function DockerHome() {
     setIsCreateModalOpen(false);
   }, []);
 
-  const handleCreateSuccess = useCallback((newSessionId: string) => {
-    setIsCreateModalOpen(false);
-    setSelectedSessionId(newSessionId);
-  }, []);
+  const handleCreateSession = useCallback(
+    async (request: { name: string; repoUrl: string; branch: string }) => {
+      const session = await createSession(request);
+      setSelectedSessionId(session.id);
+    },
+    [createSession]
+  );
 
   const handleStartSession = useCallback(
     async (sessionId: string) => {
@@ -93,7 +97,7 @@ export default function DockerHome() {
               Docker Sessions
             </h2>
             <button
-              onClick={handleCreateSession}
+              onClick={handleOpenCreateModal}
               className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
               title="Create new session"
             >
@@ -137,7 +141,7 @@ export default function DockerHome() {
       <CreateSessionModal
         isOpen={isCreateModalOpen}
         onClose={handleCreateModalClose}
-        onSuccess={handleCreateSuccess}
+        onCreate={handleCreateSession}
       />
     </div>
   );
