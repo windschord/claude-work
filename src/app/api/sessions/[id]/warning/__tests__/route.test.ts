@@ -29,11 +29,7 @@ import { GET } from '../route';
 
 describe('GET /api/sessions/:id/warning', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
+    vi.resetAllMocks();
   });
 
   it('should return warning when there are uncommitted changes', async () => {
