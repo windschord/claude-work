@@ -15,22 +15,19 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Install pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: 10
+
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '20'
-        cache: 'npm'
-
-    - name: Cache node_modules
-      id: cache-node-modules
-      uses: actions/cache@v4
-      with:
-        path: node_modules
-        key: node-modules-${{ hashFiles('package-lock.json') }}
+        cache: 'pnpm'
 
     - name: Install dependencies
-      if: steps.cache-node-modules.outputs.cache-hit != 'true'
-      run: npm ci
+      run: pnpm install --frozen-lockfile
 
     - name: Cache Prisma Client
       id: cache-prisma
@@ -41,10 +38,10 @@ jobs:
 
     - name: Generate Prisma Client
       if: steps.cache-prisma.outputs.cache-hit != 'true'
-      run: npx prisma generate
+      run: pnpm exec prisma generate
 
     - name: Run linter
-      run: npm run lint
+      run: pnpm run lint
 
   # Backend tests - API routes, services, libs
   test-backend:
@@ -57,22 +54,19 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Install pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: 10
+
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '20'
-        cache: 'npm'
-
-    - name: Cache node_modules
-      id: cache-node-modules
-      uses: actions/cache@v4
-      with:
-        path: node_modules
-        key: node-modules-${{ hashFiles('package-lock.json') }}
+        cache: 'pnpm'
 
     - name: Install dependencies
-      if: steps.cache-node-modules.outputs.cache-hit != 'true'
-      run: npm ci
+      run: pnpm install --frozen-lockfile
 
     - name: Cache Prisma Client
       id: cache-prisma
@@ -83,10 +77,10 @@ jobs:
 
     - name: Generate Prisma Client
       if: steps.cache-prisma.outputs.cache-hit != 'true'
-      run: npx prisma generate
+      run: pnpm exec prisma generate
 
     - name: Run backend tests
-      run: npx vitest run src/app/api src/lib src/services src/bin --reporter=verbose
+      run: pnpm exec vitest run src/app/api src/lib src/services src/bin --reporter=verbose
       timeout-minutes: 8
 
   # Frontend tests - components, pages, hooks
@@ -100,22 +94,19 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Install pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: 10
+
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '20'
-        cache: 'npm'
-
-    - name: Cache node_modules
-      id: cache-node-modules
-      uses: actions/cache@v4
-      with:
-        path: node_modules
-        key: node-modules-${{ hashFiles('package-lock.json') }}
+        cache: 'pnpm'
 
     - name: Install dependencies
-      if: steps.cache-node-modules.outputs.cache-hit != 'true'
-      run: npm ci
+      run: pnpm install --frozen-lockfile
 
     - name: Cache Prisma Client
       id: cache-prisma
@@ -126,13 +117,13 @@ jobs:
 
     - name: Generate Prisma Client
       if: steps.cache-prisma.outputs.cache-hit != 'true'
-      run: npx prisma generate
+      run: pnpm exec prisma generate
 
     - name: Run frontend tests
       run: |
         # Run vitest with a 5-minute timeout - if it hangs after tests pass, timeout will kill it
         set +e
-        timeout --signal=SIGKILL 300 npx vitest run src/components src/hooks src/store src/app --exclude='src/app/api/**' --reporter=verbose 2>&1 | tee vitest-output.txt
+        timeout --signal=SIGKILL 300 pnpm exec vitest run src/components src/hooks src/store src/app --exclude='src/app/api/**' --reporter=verbose 2>&1 | tee vitest-output.txt
         VITEST_EXIT_CODE=$?
 
         # Check if tests passed (look for success message in output)
@@ -164,30 +155,19 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Install pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: 10
+
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '20'
-        cache: 'npm'
-
-    - name: Cache node_modules
-      id: cache-node-modules
-      uses: actions/cache@v4
-      with:
-        path: node_modules
-        key: node-modules-${{ hashFiles('package-lock.json') }}
+        cache: 'pnpm'
 
     - name: Install dependencies
-      if: steps.cache-node-modules.outputs.cache-hit != 'true'
-      run: npm ci
-
-    # Verify type declarations are available (may be missing from cache)
-    - name: Verify dependencies
-      run: |
-        if [ ! -d "node_modules/@types/dockerode" ]; then
-          echo "Type declarations missing, reinstalling..."
-          npm ci
-        fi
+      run: pnpm install --frozen-lockfile
 
     - name: Cache Prisma Client
       id: cache-prisma
@@ -198,7 +178,7 @@ jobs:
 
     - name: Generate Prisma Client
       if: steps.cache-prisma.outputs.cache-hit != 'true'
-      run: npx prisma generate
+      run: pnpm exec prisma generate
 
     - name: Build
-      run: npm run build
+      run: pnpm run build
