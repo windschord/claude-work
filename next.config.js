@@ -19,6 +19,18 @@ const nextConfig = {
       ...config.watchOptions,
       ignored: ['**/frontend/**', '**/backend/**'],
     };
+
+    // Externalize server-side only modules
+    if (isServer) {
+      config.externals = [
+        ...(config.externals || []),
+        'dockerode',
+        'ssh2',
+        'cpu-features',
+        'node-pty',
+      ];
+    }
+
     return config;
   },
 }
