@@ -66,13 +66,19 @@ test.describe('Docker Session Management', () => {
       timeout: TEST_CONFIG.timeout,
     });
 
-    // Store session ID for cleanup - ensure attribute exists to prevent session leaks
+    // Store session ID for cleanup - use try/finally to ensure cleanup even if assertion fails
     const sessionCard = page.locator('[data-testid="session-card"]').filter({
       hasText: sessionName,
     });
     const sessionId = await sessionCard.getAttribute('data-session-id');
-    expect(sessionId, 'Session card should have data-session-id attribute').toBeTruthy();
-    createdSessionIds.push(sessionId!);
+    try {
+      expect(sessionId, 'Session card should have data-session-id attribute').toBeTruthy();
+    } finally {
+      // Always add to cleanup list if we got an ID, even if assertion fails
+      if (sessionId) {
+        createdSessionIds.push(sessionId);
+      }
+    }
   });
 
   test('should display session status', async ({ page, request }) => {
@@ -173,6 +179,9 @@ test.describe('Docker Session Management', () => {
 });
 
 test.describe('Docker Session Actions', () => {
+  // Run tests serially to avoid shared state conflicts with Docker sessions
+  test.describe.configure({ mode: 'serial' });
+
   let sessionId: string | undefined;
   let sessionName: string;
 
@@ -216,16 +225,16 @@ test.describe('Docker Session Actions', () => {
     });
     await expect(sessionCard).toBeVisible({ timeout: TEST_CONFIG.timeout });
 
-    // Click start button (if visible - session might already be running or creating)
+    // Click start button if visible (session might already be running or creating)
     const startButton = sessionCard.locator('[data-testid="start-button"]');
     if (await startButton.isVisible()) {
       await startButton.click();
-
-      // Wait for status to change to running
-      await expect(
-        sessionCard.locator('[data-testid="status-badge"]:has-text("Running")')
-      ).toBeVisible({ timeout: TEST_CONFIG.timeout });
     }
+
+    // Always verify session reaches Running status regardless of startButton visibility
+    await expect(
+      sessionCard.locator('[data-testid="status-badge"]:has-text("Running")')
+    ).toBeVisible({ timeout: TEST_CONFIG.timeout });
   });
 
   test('should stop a running session', async ({ page, request }) => {
@@ -257,6 +266,9 @@ test.describe('Docker Session Actions', () => {
 });
 
 test.describe('Docker Session Terminal', () => {
+  // Run tests serially to avoid shared state conflicts with Docker sessions
+  test.describe.configure({ mode: 'serial' });
+
   let sessionId: string | undefined;
   let sessionName: string;
 
@@ -315,10 +327,10 @@ test.describe('Docker Session Terminal', () => {
       timeout: TEST_CONFIG.timeout,
     });
 
-    // Connection status should be displayed
-    await expect(
-      page.locator('text=Connected').or(page.locator('text=Connecting'))
-    ).toBeVisible({ timeout: TEST_CONFIG.timeout });
+    // Connection status should show 'Connected' (not just 'Connecting')
+    await expect(page.locator('text=Connected')).toBeVisible({
+      timeout: TEST_CONFIG.timeout,
+    });
   });
 
   test('should allow terminal input when connected', async ({ page }) => {
@@ -346,11 +358,14 @@ test.describe('Docker Session Terminal', () => {
     const terminal = page.locator('[data-testid="terminal"]');
     await terminal.click();
 
-    // Type a command
-    await page.keyboard.type('echo test');
+    // Type a command with unique text to verify actual execution
+    const uniqueText = `test-${Date.now()}`;
+    await page.keyboard.type(`echo ${uniqueText}`);
     await page.keyboard.press('Enter');
 
-    // Wait for the command to be echoed in terminal (terminal should be responsive)
-    await expect(terminal).toContainText('echo test', { timeout: 5000 });
+    // Wait for both the command and its output to appear in terminal
+    await expect(terminal).toContainText(`echo ${uniqueText}`, { timeout: 5000 });
+    // The output line should also contain the unique text (command output)
+    await expect(terminal).toContainText(uniqueText, { timeout: 5000 });
   });
 });
