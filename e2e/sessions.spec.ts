@@ -295,9 +295,22 @@ test.describe('Docker Session Terminal', () => {
   });
 
   test('should display terminal connection status', async ({ page }) => {
-    await page.goto(`/docker/sessions/${sessionId}`);
+    // Navigate to Docker home page and select the session
+    await page.goto('/docker');
 
-    // Terminal should be visible
+    // Wait for the session to appear with running status
+    const sessionCard = page.locator('[data-testid="session-card"]').filter({
+      hasText: sessionName,
+    });
+    await expect(sessionCard).toBeVisible({ timeout: TEST_CONFIG.timeout });
+    await expect(
+      sessionCard.locator('[data-testid="status-badge"]:has-text("Running")')
+    ).toBeVisible({ timeout: TEST_CONFIG.timeout });
+
+    // Click connect button to show terminal in the right panel
+    await sessionCard.locator('[data-testid="connect-button"]').click();
+
+    // Terminal should be visible in the right panel
     await expect(page.locator('[data-testid="terminal"]')).toBeVisible({
       timeout: TEST_CONFIG.timeout,
     });
@@ -309,7 +322,20 @@ test.describe('Docker Session Terminal', () => {
   });
 
   test('should allow terminal input when connected', async ({ page }) => {
-    await page.goto(`/docker/sessions/${sessionId}`);
+    // Navigate to Docker home page and select the session
+    await page.goto('/docker');
+
+    // Wait for the session to appear with running status
+    const sessionCard = page.locator('[data-testid="session-card"]').filter({
+      hasText: sessionName,
+    });
+    await expect(sessionCard).toBeVisible({ timeout: TEST_CONFIG.timeout });
+    await expect(
+      sessionCard.locator('[data-testid="status-badge"]:has-text("Running")')
+    ).toBeVisible({ timeout: TEST_CONFIG.timeout });
+
+    // Click connect button to show terminal
+    await sessionCard.locator('[data-testid="connect-button"]').click();
 
     // Wait for terminal to be connected
     await expect(page.locator('text=Connected')).toBeVisible({
