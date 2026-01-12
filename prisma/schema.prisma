@@ -16,7 +16,8 @@ model Session {
   name        String
   containerId String?  @map("container_id")
   volumeName  String   @map("volume_name")
-  repoUrl     String   @map("repo_url")
+  repoUrl     String?  @map("repo_url") // リモートリポジトリURL（localPath使用時はnull）
+  localPath   String?  @map("local_path") // ローカルリポジトリのパス（repoUrl使用時はnull）
   branch      String
   status      String   @default("creating") // creating, running, stopped, error
   createdAt   DateTime @default(now()) @map("created_at")
