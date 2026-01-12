@@ -12,12 +12,7 @@ const mocks = vi.hoisted(() => {
     getSessionStatus: vi.fn(),
   };
 
-  const mockFilesystemService = {
-    isPathAllowed: vi.fn(),
-    isGitRepository: vi.fn(),
-  };
-
-  return { mockContainerManager, mockFilesystemService };
+  return { mockContainerManager };
 });
 
 vi.mock('@/services/container-manager', () => ({
@@ -31,20 +26,17 @@ vi.mock('@/services/container-manager', () => ({
   },
 }));
 
-vi.mock('@/services/filesystem-service', () => ({
-  FilesystemService: class MockFilesystemService {
-    isPathAllowed = mocks.mockFilesystemService.isPathAllowed;
-    isGitRepository = mocks.mockFilesystemService.isGitRepository;
-  },
-  AccessDeniedError: class AccessDeniedError extends Error {
-    constructor(message: string) {
-      super(message);
-      this.name = 'AccessDeniedError';
+vi.mock('@/services/repository-manager', () => ({
+  RepositoryNotFoundError: class RepositoryNotFoundError extends Error {
+    constructor(id: string) {
+      super(`Repository not found: ${id}`);
+      this.name = 'RepositoryNotFoundError';
     }
   },
 }));
 
 import { GET, POST } from '../route';
+import { RepositoryNotFoundError } from '@/services/repository-manager';
 
 describe('Sessions API', () => {
   beforeEach(() => {
@@ -56,29 +48,53 @@ describe('Sessions API', () => {
   });
 
   describe('GET /api/sessions', () => {
-    it('should return all sessions', async () => {
+    it('should return all sessions with repository information', async () => {
       const mockSessions = [
         {
           id: 'session-1',
           name: 'test-session-1',
           containerId: 'container-1',
           volumeName: 'claudework-session-1',
-          repoUrl: 'https://github.com/test/repo1.git',
-          branch: 'main',
+          branch: 'session/test-session-1',
+          parentBranch: 'main',
+          worktreePath: '/home/user/.claudework/worktrees/my-project-test-session-1',
           status: 'running',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
+          repositoryId: 'repo-1',
+          repository: {
+            id: 'repo-1',
+            name: 'my-project',
+            type: 'local',
+            path: '/home/user/projects/my-project',
+            url: null,
+            defaultBranch: 'main',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
         },
         {
           id: 'session-2',
           name: 'test-session-2',
           containerId: 'container-2',
           volumeName: 'claudework-session-2',
-          repoUrl: 'https://github.com/test/repo2.git',
-          branch: 'develop',
+          branch: 'session/test-session-2',
+          parentBranch: 'develop',
+          worktreePath: null,
           status: 'stopped',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
+          repositoryId: 'repo-2',
+          repository: {
+            id: 'repo-2',
+            name: 'remote-project',
+            type: 'remote',
+            path: null,
+            url: 'https://github.com/test/repo.git',
+            defaultBranch: 'main',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
         },
       ];
 
@@ -91,6 +107,9 @@ describe('Sessions API', () => {
       const data = await response.json();
       expect(data.sessions).toHaveLength(2);
       expect(data.sessions[0].name).toBe('test-session-1');
+      expect(data.sessions[0].repository.name).toBe('my-project');
+      expect(data.sessions[0].repository.type).toBe('local');
+      expect(data.sessions[1].repository.type).toBe('remote');
       expect(mocks.mockContainerManager.listSessions).toHaveBeenCalled();
     });
 
@@ -104,20 +123,43 @@ describe('Sessions API', () => {
       const data = await response.json();
       expect(data.sessions).toEqual([]);
     });
+
+    it('should return 500 on server error', async () => {
+      mocks.mockContainerManager.listSessions.mockRejectedValue(new Error('Database error'));
+
+      const request = new NextRequest('http://localhost:3000/api/sessions');
+      const response = await GET(request);
+
+      expect(response.status).toBe(500);
+      const data = await response.json();
+      expect(data.error).toBe('Internal server error');
+    });
   });
 
   describe('POST /api/sessions', () => {
-    it('should create a new session', async () => {
+    it('should create a new session with repositoryId and parentBranch', async () => {
       const mockSession = {
         id: 'new-session-123',
         name: 'new-session',
         containerId: 'container-new',
         volumeName: 'claudework-new-session',
-        repoUrl: 'https://github.com/test/repo.git',
-        branch: 'main',
+        branch: 'session/new-session',
+        parentBranch: 'main',
+        worktreePath: '/home/user/.claudework/worktrees/my-project-new-session',
         status: 'running',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+        repositoryId: 'repo-1',
+        repository: {
+          id: 'repo-1',
+          name: 'my-project',
+          type: 'local',
+          path: '/home/user/projects/my-project',
+          url: null,
+          defaultBranch: 'main',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
       };
 
       mocks.mockContainerManager.createSession.mockResolvedValue(mockSession);
@@ -126,8 +168,8 @@ describe('Sessions API', () => {
         method: 'POST',
         body: JSON.stringify({
           name: 'new-session',
-          repoUrl: 'https://github.com/test/repo.git',
-          branch: 'main',
+          repositoryId: 'repo-1',
+          parentBranch: 'main',
         }),
       });
 
@@ -137,11 +179,12 @@ describe('Sessions API', () => {
       const data = await response.json();
       expect(data.session.id).toBe('new-session-123');
       expect(data.session.name).toBe('new-session');
+      expect(data.session.branch).toBe('session/new-session');
+      expect(data.session.parentBranch).toBe('main');
       expect(mocks.mockContainerManager.createSession).toHaveBeenCalledWith({
         name: 'new-session',
-        sourceType: 'remote',
-        repoUrl: 'https://github.com/test/repo.git',
-        branch: 'main',
+        repositoryId: 'repo-1',
+        parentBranch: 'main',
       });
     });
 
@@ -149,8 +192,8 @@ describe('Sessions API', () => {
       const request = new NextRequest('http://localhost:3000/api/sessions', {
         method: 'POST',
         body: JSON.stringify({
-          repoUrl: 'https://github.com/test/repo.git',
-          branch: 'main',
+          repositoryId: 'repo-1',
+          parentBranch: 'main',
         }),
       });
 
@@ -161,12 +204,12 @@ describe('Sessions API', () => {
       expect(data.error).toContain('name');
     });
 
-    it('should return 400 when repoUrl is missing', async () => {
+    it('should return 400 when repositoryId is missing', async () => {
       const request = new NextRequest('http://localhost:3000/api/sessions', {
         method: 'POST',
         body: JSON.stringify({
           name: 'test-session',
-          branch: 'main',
+          parentBranch: 'main',
         }),
       });
 
@@ -174,15 +217,15 @@ describe('Sessions API', () => {
 
       expect(response.status).toBe(400);
       const data = await response.json();
-      expect(data.error).toContain('repoUrl');
+      expect(data.error).toContain('repositoryId');
     });
 
-    it('should return 400 when branch is missing', async () => {
+    it('should return 400 when parentBranch is missing', async () => {
       const request = new NextRequest('http://localhost:3000/api/sessions', {
         method: 'POST',
         body: JSON.stringify({
           name: 'test-session',
-          repoUrl: 'https://github.com/test/repo.git',
+          repositoryId: 'repo-1',
         }),
       });
 
@@ -190,7 +233,7 @@ describe('Sessions API', () => {
 
       expect(response.status).toBe(400);
       const data = await response.json();
-      expect(data.error).toContain('branch');
+      expect(data.error).toContain('parentBranch');
     });
 
     it('should return 400 when JSON is invalid', async () => {
@@ -203,7 +246,28 @@ describe('Sessions API', () => {
 
       expect(response.status).toBe(400);
       const data = await response.json();
-      expect(data.error).toBeDefined();
+      expect(data.error).toBe('Invalid JSON in request body');
+    });
+
+    it('should return 404 when repository is not found', async () => {
+      mocks.mockContainerManager.createSession.mockRejectedValue(
+        new RepositoryNotFoundError('non-existent-repo')
+      );
+
+      const request = new NextRequest('http://localhost:3000/api/sessions', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: 'test-session',
+          repositoryId: 'non-existent-repo',
+          parentBranch: 'main',
+        }),
+      });
+
+      const response = await POST(request);
+
+      expect(response.status).toBe(404);
+      const data = await response.json();
+      expect(data.error).toContain('Repository not found');
     });
 
     it('should return 500 when Docker is not running', async () => {
@@ -215,8 +279,8 @@ describe('Sessions API', () => {
         method: 'POST',
         body: JSON.stringify({
           name: 'test-session',
-          repoUrl: 'https://github.com/test/repo.git',
-          branch: 'main',
+          repositoryId: 'repo-1',
+          parentBranch: 'main',
         }),
       });
 
@@ -227,19 +291,19 @@ describe('Sessions API', () => {
       expect(data.error).toContain('Docker');
     });
 
-    it('should create a new session with explicit sourceType remote', async () => {
+    it('should trim whitespace from input values', async () => {
       const mockSession = {
-        id: 'session-remote',
-        name: 'remote-session',
-        containerId: 'container-remote',
-        volumeName: 'claudework-remote-session',
-        sourceType: 'remote',
-        repoUrl: 'https://github.com/test/repo.git',
-        branch: 'main',
-        localPath: null,
+        id: 'new-session-123',
+        name: 'trimmed-session',
+        containerId: 'container-new',
+        volumeName: 'claudework-trimmed-session',
+        branch: 'session/trimmed-session',
+        parentBranch: 'main',
+        worktreePath: null,
         status: 'running',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+        repositoryId: 'repo-1',
       };
 
       mocks.mockContainerManager.createSession.mockResolvedValue(mockSession);
@@ -247,79 +311,29 @@ describe('Sessions API', () => {
       const request = new NextRequest('http://localhost:3000/api/sessions', {
         method: 'POST',
         body: JSON.stringify({
-          name: 'remote-session',
-          sourceType: 'remote',
-          repoUrl: 'https://github.com/test/repo.git',
-          branch: 'main',
+          name: '  trimmed-session  ',
+          repositoryId: '  repo-1  ',
+          parentBranch: '  main  ',
         }),
       });
 
       const response = await POST(request);
 
       expect(response.status).toBe(201);
-      const data = await response.json();
-      expect(data.session.id).toBe('session-remote');
       expect(mocks.mockContainerManager.createSession).toHaveBeenCalledWith({
-        name: 'remote-session',
-        sourceType: 'remote',
-        repoUrl: 'https://github.com/test/repo.git',
-        branch: 'main',
+        name: 'trimmed-session',
+        repositoryId: 'repo-1',
+        parentBranch: 'main',
       });
     });
 
-    it('should create a new session with local repository', async () => {
-      const mockSession = {
-        id: 'session-local',
-        name: 'local-session',
-        containerId: 'container-local',
-        volumeName: 'claudework-local-session',
-        sourceType: 'local',
-        repoUrl: '',
-        branch: '',
-        localPath: '/home/user/projects/my-repo',
-        status: 'running',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-
-      mocks.mockFilesystemService.isPathAllowed.mockReturnValue(true);
-      mocks.mockFilesystemService.isGitRepository.mockResolvedValue(true);
-      mocks.mockContainerManager.createSession.mockResolvedValue(mockSession);
-
+    it('should return 400 when name is empty string', async () => {
       const request = new NextRequest('http://localhost:3000/api/sessions', {
         method: 'POST',
         body: JSON.stringify({
-          name: 'local-session',
-          sourceType: 'local',
-          localPath: '/home/user/projects/my-repo',
-        }),
-      });
-
-      const response = await POST(request);
-
-      expect(response.status).toBe(201);
-      const data = await response.json();
-      expect(data.session.id).toBe('session-local');
-      expect(data.session.sourceType).toBe('local');
-      expect(mocks.mockFilesystemService.isPathAllowed).toHaveBeenCalledWith('/home/user/projects/my-repo');
-      expect(mocks.mockFilesystemService.isGitRepository).toHaveBeenCalledWith('/home/user/projects/my-repo');
-      expect(mocks.mockContainerManager.createSession).toHaveBeenCalledWith({
-        name: 'local-session',
-        sourceType: 'local',
-        localPath: '/home/user/projects/my-repo',
-      });
-    });
-
-    it('should return 400 when local path does not exist', async () => {
-      mocks.mockFilesystemService.isPathAllowed.mockReturnValue(true);
-      mocks.mockFilesystemService.isGitRepository.mockRejectedValue(new Error('ENOENT'));
-
-      const request = new NextRequest('http://localhost:3000/api/sessions', {
-        method: 'POST',
-        body: JSON.stringify({
-          name: 'local-session',
-          sourceType: 'local',
-          localPath: '/home/user/projects/nonexistent',
+          name: '   ',
+          repositoryId: 'repo-1',
+          parentBranch: 'main',
         }),
       });
 
@@ -327,104 +341,16 @@ describe('Sessions API', () => {
 
       expect(response.status).toBe(400);
       const data = await response.json();
-      expect(data.error).toContain('does not exist');
+      expect(data.error).toContain('name');
     });
 
-    it('should return 400 when local path is not a git repository', async () => {
-      mocks.mockFilesystemService.isPathAllowed.mockReturnValue(true);
-      mocks.mockFilesystemService.isGitRepository.mockResolvedValue(false);
-
-      const request = new NextRequest('http://localhost:3000/api/sessions', {
-        method: 'POST',
-        body: JSON.stringify({
-          name: 'local-session',
-          sourceType: 'local',
-          localPath: '/home/user/projects/not-a-repo',
-        }),
-      });
-
-      const response = await POST(request);
-
-      expect(response.status).toBe(400);
-      const data = await response.json();
-      expect(data.error).toContain('not a git repository');
-    });
-
-    it('should return 400 when local path is outside home directory', async () => {
-      mocks.mockFilesystemService.isPathAllowed.mockReturnValue(false);
-
-      const request = new NextRequest('http://localhost:3000/api/sessions', {
-        method: 'POST',
-        body: JSON.stringify({
-          name: 'local-session',
-          sourceType: 'local',
-          localPath: '/etc/passwd',
-        }),
-      });
-
-      const response = await POST(request);
-
-      expect(response.status).toBe(400);
-      const data = await response.json();
-      expect(data.error).toContain('Access denied');
-    });
-
-    it('should return 400 when sourceType is local but localPath is missing', async () => {
-      const request = new NextRequest('http://localhost:3000/api/sessions', {
-        method: 'POST',
-        body: JSON.stringify({
-          name: 'local-session',
-          sourceType: 'local',
-        }),
-      });
-
-      const response = await POST(request);
-
-      expect(response.status).toBe(400);
-      const data = await response.json();
-      expect(data.error).toContain('localPath');
-    });
-
-    it('should return 400 when sourceType is remote but repoUrl is missing', async () => {
-      const request = new NextRequest('http://localhost:3000/api/sessions', {
-        method: 'POST',
-        body: JSON.stringify({
-          name: 'remote-session',
-          sourceType: 'remote',
-          branch: 'main',
-        }),
-      });
-
-      const response = await POST(request);
-
-      expect(response.status).toBe(400);
-      const data = await response.json();
-      expect(data.error).toContain('repoUrl');
-    });
-
-    it('should return 400 when sourceType is remote but branch is missing', async () => {
-      const request = new NextRequest('http://localhost:3000/api/sessions', {
-        method: 'POST',
-        body: JSON.stringify({
-          name: 'remote-session',
-          sourceType: 'remote',
-          repoUrl: 'https://github.com/test/repo.git',
-        }),
-      });
-
-      const response = await POST(request);
-
-      expect(response.status).toBe(400);
-      const data = await response.json();
-      expect(data.error).toContain('branch');
-    });
-
-    it('should return 400 when sourceType is invalid', async () => {
+    it('should return 400 when repositoryId is empty string', async () => {
       const request = new NextRequest('http://localhost:3000/api/sessions', {
         method: 'POST',
         body: JSON.stringify({
           name: 'test-session',
-          sourceType: 'invalid',
+          repositoryId: '   ',
+          parentBranch: 'main',
         }),
       });
 
@@ -432,7 +358,45 @@ describe('Sessions API', () => {
 
       expect(response.status).toBe(400);
       const data = await response.json();
-      expect(data.error).toContain('sourceType');
+      expect(data.error).toContain('repositoryId');
+    });
+
+    it('should return 400 when parentBranch is empty string', async () => {
+      const request = new NextRequest('http://localhost:3000/api/sessions', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: 'test-session',
+          repositoryId: 'repo-1',
+          parentBranch: '   ',
+        }),
+      });
+
+      const response = await POST(request);
+
+      expect(response.status).toBe(400);
+      const data = await response.json();
+      expect(data.error).toContain('parentBranch');
+    });
+
+    it('should return 500 on unexpected server error', async () => {
+      mocks.mockContainerManager.createSession.mockRejectedValue(
+        new Error('Unexpected error')
+      );
+
+      const request = new NextRequest('http://localhost:3000/api/sessions', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: 'test-session',
+          repositoryId: 'repo-1',
+          parentBranch: 'main',
+        }),
+      });
+
+      const response = await POST(request);
+
+      expect(response.status).toBe(500);
+      const data = await response.json();
+      expect(data.error).toBe('Internal server error');
     });
   });
 });
