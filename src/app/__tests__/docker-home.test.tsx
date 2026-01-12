@@ -8,6 +8,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 // Mock the hooks
 const mockFetchSessions = vi.fn();
+const mockCreateSession = vi.fn().mockResolvedValue({ id: 'new-session', name: 'new-session', status: 'creating' });
 const mockStartSession = vi.fn();
 const mockStopSession = vi.fn();
 const mockDeleteSession = vi.fn();
@@ -21,6 +22,7 @@ vi.mock('@/hooks/useDockerSessions', () => ({
     loading: false,
     error: null,
     fetchSessions: mockFetchSessions,
+    createSession: mockCreateSession,
     startSession: mockStartSession,
     stopSession: mockStopSession,
     deleteSession: mockDeleteSession,
@@ -53,7 +55,7 @@ vi.mock('@/components/docker-sessions', () => ({
       </div>
     )
   ),
-  CreateSessionModal: vi.fn(({ isOpen, onClose, onSuccess }) =>
+  CreateSessionModal: vi.fn(({ isOpen, onClose, onCreate }) =>
     isOpen ? (
       <div data-testid="create-session-modal">
         <button data-testid="close-modal-btn" onClick={onClose}>
@@ -61,7 +63,10 @@ vi.mock('@/components/docker-sessions', () => ({
         </button>
         <button
           data-testid="create-success-btn"
-          onClick={() => onSuccess('new-session')}
+          onClick={async () => {
+            await onCreate({ name: 'new-session', repoUrl: 'https://example.com/repo', branch: 'main' });
+            onClose();
+          }}
         >
           Create
         </button>
@@ -86,7 +91,7 @@ describe('DockerHome', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('docker-session-list')).toBeInTheDocument();
-      expect(screen.getByText('Docker Sessions')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Docker Sessions', level: 2 })).toBeInTheDocument();
     });
   });
 
