@@ -1,66 +1,52 @@
 import os from 'os';
 import path from 'path';
 import fs from 'fs';
-import { Session } from '@prisma/client';
+import { Session, Repository } from '@prisma/client';
 import { DockerService } from './docker-service';
 import { SessionManager, SessionStatus } from './session-manager';
+import { RepositoryManager, RepositoryNotFoundError } from './repository-manager';
+import { WorktreeService } from './worktree-service';
 import { logger } from '@/lib/logger';
 
 const DOCKER_IMAGE = 'claudework-session:latest';
 const VOLUME_PREFIX = 'claudework-';
 
 /**
- * Base options for creating a session
+ * Options for creating a session
  */
-interface CreateSessionOptionsBase {
+export interface CreateSessionOptions {
   name: string;
-  branch: string;
+  repositoryId: string;
+  parentBranch: string;
 }
 
 /**
- * Options for creating a session from a remote git repository
+ * Session with repository relation
  */
-export interface CreateSessionOptionsRemote extends CreateSessionOptionsBase {
-  repoUrl: string;
-  localPath?: never;
-}
-
-/**
- * Options for creating a session from a local directory
- */
-export interface CreateSessionOptionsLocal extends CreateSessionOptionsBase {
-  localPath: string;
-  repoUrl?: never;
-}
-
-/**
- * Union type for session creation options
- */
-export type CreateSessionOptions = CreateSessionOptionsRemote | CreateSessionOptionsLocal;
+export type SessionWithRepository = Session & {
+  repository: Repository;
+};
 
 export class ContainerManager {
   private dockerService: DockerService;
   private sessionManager: SessionManager;
+  private repositoryManager: RepositoryManager;
+  private worktreeService: WorktreeService;
 
-  constructor() {
-    this.dockerService = new DockerService();
-    this.sessionManager = new SessionManager();
+  constructor(
+    dockerService?: DockerService,
+    sessionManager?: SessionManager,
+    repositoryManager?: RepositoryManager,
+    worktreeService?: WorktreeService
+  ) {
+    this.dockerService = dockerService ?? new DockerService();
+    this.sessionManager = sessionManager ?? new SessionManager();
+    this.repositoryManager = repositoryManager ?? new RepositoryManager();
+    this.worktreeService = worktreeService ?? new WorktreeService();
   }
 
   async createSession(options: CreateSessionOptions): Promise<Session> {
-    logger.info('Creating session', { name: options.name });
-
-    // Validate options: must have either repoUrl or localPath, but not both
-    const hasRepoUrl = 'repoUrl' in options && options.repoUrl;
-    const hasLocalPath = 'localPath' in options && options.localPath;
-
-    if (!hasRepoUrl && !hasLocalPath) {
-      throw new Error('Either repoUrl or localPath must be provided');
-    }
-
-    if (hasRepoUrl && hasLocalPath) {
-      throw new Error('Cannot specify both repoUrl and localPath');
-    }
+    logger.info('Creating session', { name: options.name, repositoryId: options.repositoryId });
 
     // Check if Docker is running
     const isDockerRunning = await this.dockerService.isDockerRunning();
@@ -68,10 +54,14 @@ export class ContainerManager {
       throw new Error('Docker is not running. Please start Docker and try again.');
     }
 
-    // Determine if this is a local path session
-    const isLocalPath = hasLocalPath;
-    const localPath = isLocalPath ? (options as CreateSessionOptionsLocal).localPath : undefined;
-    const repoUrl = !isLocalPath ? (options as CreateSessionOptionsRemote).repoUrl : undefined;
+    // Get repository information
+    const repository = await this.repositoryManager.findById(options.repositoryId);
+    if (!repository) {
+      throw new RepositoryNotFoundError(options.repositoryId);
+    }
+
+    // Generate branch name
+    const branch = WorktreeService.generateBranchName(options.name);
 
     // Sanitize name to comply with Docker volume naming rules [a-zA-Z0-9][a-zA-Z0-9_.-]*
     const sanitizedName = options.name.replace(/[^a-zA-Z0-9_.-]/g, '-').toLowerCase();
@@ -79,34 +69,42 @@ export class ContainerManager {
 
     // Track created resources for cleanup on failure
     let volumeCreated = false;
+    let worktreeCreated = false;
+    let worktreePath: string | undefined;
     let session: Session | null = null;
 
     try {
-      // Create volume for workspace persistence (only for remote repository sessions)
-      if (!isLocalPath) {
+      if (repository.type === 'local') {
+        // Local repository: create worktree
+        worktreePath = WorktreeService.generateWorktreePath(
+          repository.name,
+          options.name
+        );
+
+        logger.info('Creating worktree', { worktreePath, branch, parentBranch: options.parentBranch });
+        await this.worktreeService.create({
+          repoPath: repository.path!,
+          worktreePath,
+          branch,
+          parentBranch: options.parentBranch,
+        });
+        worktreeCreated = true;
+      } else {
+        // Remote repository: create volume
         logger.info('Creating volume', { volumeName });
         await this.dockerService.createVolume(volumeName);
         volumeCreated = true;
       }
 
       // Create session record in database
-      if (isLocalPath) {
-        session = await this.sessionManager.create({
-          sourceType: 'local',
-          name: options.name,
-          volumeName,
-          localPath: localPath!,
-          branch: options.branch,
-        });
-      } else {
-        session = await this.sessionManager.create({
-          sourceType: 'remote',
-          name: options.name,
-          volumeName,
-          repoUrl: repoUrl!,
-          branch: options.branch,
-        });
-      }
+      session = await this.sessionManager.create({
+        name: options.name,
+        volumeName,
+        repositoryId: options.repositoryId,
+        branch,
+        parentBranch: options.parentBranch,
+        worktreePath: worktreePath ?? null,
+      });
 
       // Prepare mount configurations
       const mounts = this.prepareMounts();
@@ -114,12 +112,13 @@ export class ContainerManager {
 
       // Build environment variables
       const env: Record<string, string> = {
-        BRANCH: options.branch,
+        BRANCH: branch,
+        PARENT_BRANCH: options.parentBranch,
       };
 
-      // Add REPO_URL only for remote repository sessions (git clone will be triggered)
-      if (!isLocalPath && repoUrl) {
-        env.REPO_URL = repoUrl;
+      // Add REPO_URL for remote repository sessions (git clone will be triggered)
+      if (repository.type === 'remote' && repository.url) {
+        env.REPO_URL = repository.url;
       }
 
       // Add SSH_AUTH_SOCK if available and socket file exists
@@ -134,10 +133,10 @@ export class ContainerManager {
         logger.warn('SSH_AUTH_SOCK is set but socket file does not exist', { sshAuthSock });
       }
 
-      // Add local path bind mount for local sessions
-      if (isLocalPath && localPath) {
+      // Add local path bind mount for local repository sessions (worktree)
+      if (repository.type === 'local' && worktreePath) {
         mounts.push({
-          source: localPath,
+          source: worktreePath,
           target: '/workspace',
           readOnly: false,
         });
@@ -159,7 +158,7 @@ export class ContainerManager {
       };
 
       // Add volume mount only for remote repository sessions
-      if (!isLocalPath) {
+      if (repository.type === 'remote') {
         containerConfig.volumes = [
           {
             source: volumeName,
@@ -182,7 +181,7 @@ export class ContainerManager {
       logger.info('Session created successfully', {
         sessionId: session.id,
         containerId: container.id,
-        isLocalPath,
+        repositoryType: repository.type,
       });
 
       // Return updated session
@@ -200,6 +199,16 @@ export class ContainerManager {
           await this.sessionManager.updateStatus(session.id, 'error');
         } catch (statusError) {
           logger.warn('Failed to update session status to error', { sessionId: session.id, error: statusError });
+        }
+      }
+
+      // Clean up orphaned worktree if it was created
+      if (worktreeCreated && worktreePath && repository.type === 'local') {
+        try {
+          await this.worktreeService.remove(worktreePath, repository.path!, { force: true });
+          logger.info('Cleaned up orphaned worktree', { worktreePath });
+        } catch (cleanupError) {
+          logger.warn('Failed to clean up orphaned worktree', { worktreePath, error: cleanupError });
         }
       }
 
@@ -273,14 +282,29 @@ export class ContainerManager {
       }
     }
 
-    // Remove volume
-    try {
-      await this.dockerService.removeVolume(session.volumeName);
-    } catch (error) {
-      logger.warn('Failed to remove volume, it may not exist', {
-        volumeName: session.volumeName,
-        error,
-      });
+    // Remove worktree if it's a local repository session
+    if (session.worktreePath && session.repository?.type === 'local' && session.repository.path) {
+      try {
+        await this.worktreeService.remove(session.worktreePath, session.repository.path, { force: true });
+        logger.info('Worktree removed', { worktreePath: session.worktreePath });
+      } catch (error) {
+        logger.warn('Failed to remove worktree, it may not exist', {
+          worktreePath: session.worktreePath,
+          error,
+        });
+      }
+    }
+
+    // Remove volume (only for remote repository sessions)
+    if (!session.worktreePath) {
+      try {
+        await this.dockerService.removeVolume(session.volumeName);
+      } catch (error) {
+        logger.warn('Failed to remove volume, it may not exist', {
+          volumeName: session.volumeName,
+          error,
+        });
+      }
     }
 
     // Delete session record
