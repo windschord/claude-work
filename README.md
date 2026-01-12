@@ -2,30 +2,38 @@
 
 > **注意**: このプロジェクトは開発中（Work In Progress）です。予告なく仕様が変更される可能性があります。
 
-ClaudeWork は、Claude Code セッションをブラウザから管理するための Web ベースツールです。複数のセッションを並列で実行し、Git worktree を使用して各セッションを独立した環境で管理します。
+ClaudeWork は、Claude Code セッションをブラウザから管理するための Web ベースツールです。Docker コンテナを使用して各セッションを隔離された環境で実行し、安全で再現可能な開発環境を提供します。
 
 ## 動作保証環境
 
 - **OS**: macOS, Linux
   - Windows は現在サポートされていません
-- **Node.js**: 18.x 以上
-- **Claude Code CLI**: インストール済みであること
+- **Node.js**: 20.x 以上
+- **Docker**: 20.10 以上（Docker Desktop または Docker Engine）
+- **Claude Code CLI**: ホストマシンにインストール済みであること（認証情報をコンテナにマウント）
 
 ## 主な機能
 
-- **セッション管理**: 複数の Claude Code セッションを並列実行
-- **Git worktree 統合**: セッションごとに独立した Git 環境
-- **リアルタイム通信**: WebSocket によるリアルタイム出力表示
-- **Diff 表示**: Git diff をビジュアルに表示
-- **Git 操作**: rebase、squash merge などの Git 操作をブラウザから実行
-- **実行スクリプト**: テスト実行、ビルドなどの定型作業を簡単に実行
-- **ターミナル統合**: ブラウザ内でターミナル操作
+- **Dockerコンテナセッション**: セッションごとに隔離されたDockerコンテナで実行
+- **環境の再現性**: 同一のコンテナイメージで一貫した環境を提供
+- **安全な権限委譲**: コンテナ内での操作によりホスト環境を保護
+- **リアルタイム通信**: WebSocket によるターミナルI/O
+- **ターミナル統合**: ブラウザ内でClaude Codeを直接操作（XTerm.js）
+- **永続ボリューム**: セッションデータをDockerボリュームに永続化
 - **ライト/ダークモード**: テーマ切り替え対応
 - **モバイル対応**: レスポンシブデザイン
 
 ## セットアップ
 
 詳細は [SETUP.md](docs/SETUP.md) を参照してください。
+
+### 事前準備（Docker イメージのビルド）
+
+セッション用のDockerイメージを事前にビルドしてください:
+
+```bash
+docker build -t claudework-session:latest -f docker/Dockerfile docker/
+```
 
 ### クイックスタート
 
@@ -49,6 +57,8 @@ npx claude-work         # Ctrl+C で停止
 | 3. データベース | DBがなければ自動作成 |
 | 4. ビルド | `.next` がなければ自動ビルド |
 | 5. 起動 | サーバー起動 (`http://localhost:3000`) |
+
+**注意**: Dockerデーモンが起動していることを確認してください。
 
 ### CLI コマンド
 
@@ -87,7 +97,8 @@ PORT=3000
 | `NODE_ENV` | 実行環境 | development |
 | `LOG_LEVEL` | ログレベル | info |
 | `ALLOWED_ORIGINS` | CORS許可オリジン | なし |
-| `ALLOWED_PROJECT_DIRS` | 許可するプロジェクトディレクトリ | なし（すべてのディレクトリを許可） |
+| `DOCKER_SOCKET` | Dockerソケットパス | /var/run/docker.sock |
+| `SESSION_IMAGE` | セッション用Dockerイメージ | claudework-session:latest |
 
 ## API 仕様
 
@@ -229,7 +240,8 @@ Apache License 2.0 - 詳細は [LICENSE](LICENSE) を参照してください。
 
 - **フロントエンド**: Next.js 15.1, React 19, TypeScript, Tailwind CSS, Zustand
 - **バックエンド**: Next.js API Routes, Prisma, SQLite, WebSocket (ws)
-- **その他**: XTerm.js, react-diff-viewer-continued, Headless UI, next-themes
+- **コンテナ**: Docker, dockerode, node-pty
+- **その他**: XTerm.js, Headless UI, next-themes
 
 ## 貢献
 

@@ -1,30 +1,39 @@
-import { execSync } from 'child_process';
-import path from 'path';
-import fs from 'fs';
-import os from 'os';
+/**
+ * E2E Test Helpers for Docker Session Architecture
+ */
 
 /**
- * テスト用のGitリポジトリを作成
+ * Test configuration
  */
-export async function createTestGitRepo(): Promise<string> {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'test-repo-'));
+export const TEST_CONFIG = {
+  // Use a public test repository (GitHub)
+  testRepoUrl: 'https://github.com/octocat/Hello-World.git',
+  testBranch: 'master',
+  baseUrl: process.env.BASE_URL || 'http://localhost:3000',
+  timeout: 30000,
+};
 
-  execSync('git init', { cwd: tmpDir });
-  execSync('git config user.name "Test User"', { cwd: tmpDir });
-  execSync('git config user.email "test@example.com"', { cwd: tmpDir });
-
-  fs.writeFileSync(path.join(tmpDir, 'README.md'), '# Test Repo');
-  execSync('git add .', { cwd: tmpDir });
-  execSync('git commit -m "Initial commit"', { cwd: tmpDir });
-
-  return tmpDir;
+/**
+ * Wait for a condition with timeout
+ */
+export async function waitFor(
+  condition: () => Promise<boolean>,
+  timeout: number = 10000,
+  interval: number = 500
+): Promise<boolean> {
+  const startTime = Date.now();
+  while (Date.now() - startTime < timeout) {
+    if (await condition()) {
+      return true;
+    }
+    await new Promise(resolve => setTimeout(resolve, interval));
+  }
+  return false;
 }
 
 /**
- * テスト用のGitリポジトリをクリーンアップ
+ * Generate a unique session name for testing
  */
-export async function cleanupTestGitRepo(repoPath: string): Promise<void> {
-  if (fs.existsSync(repoPath)) {
-    fs.rmSync(repoPath, { recursive: true, force: true });
-  }
+export function generateSessionName(): string {
+  return `test-session-${Date.now()}`;
 }

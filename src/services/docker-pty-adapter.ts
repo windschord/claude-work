@@ -4,7 +4,50 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 import { logger } from '@/lib/logger';
-import { DockerError } from './docker-service';
+
+/**
+ * Dockerエラータイプ
+ */
+export type DockerErrorType =
+  | 'DOCKER_NOT_INSTALLED'
+  | 'DOCKER_DAEMON_NOT_RUNNING'
+  | 'DOCKER_IMAGE_NOT_FOUND'
+  | 'DOCKER_IMAGE_BUILD_FAILED'
+  | 'DOCKER_CONTAINER_START_FAILED'
+  | 'DOCKER_PERMISSION_DENIED'
+  | 'CLAUDE_AUTH_MISSING'
+  | 'GIT_AUTH_MISSING'
+  | 'API_KEY_MISSING'
+  | 'UNKNOWN';
+
+/**
+ * Dockerエラー
+ */
+export class DockerError extends Error {
+  readonly errorType: DockerErrorType;
+  readonly userMessage: string;
+  readonly suggestion: string;
+
+  constructor(
+    errorType: DockerErrorType,
+    message: string,
+    userMessage: string,
+    suggestion: string
+  ) {
+    super(message);
+    this.name = 'DockerError';
+    this.errorType = errorType;
+    this.userMessage = userMessage;
+    this.suggestion = suggestion;
+  }
+
+  /**
+   * ユーザーフレンドリーなエラーメッセージを取得
+   */
+  toUserString(): string {
+    return `${this.userMessage}\n提案: ${this.suggestion}`;
+  }
+}
 
 /**
  * Dockerコンテナ起動エラーを解析してDockerErrorを生成

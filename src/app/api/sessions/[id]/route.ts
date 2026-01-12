@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
-import { GitService } from '@/services/git-service';
-import { ProcessManager } from '@/services/process-manager';
+import { SessionManager } from '@/services/session-manager';
+import { ContainerManager } from '@/services/container-manager';
 import { logger } from '@/lib/logger';
 
-const processManager = ProcessManager.getInstance();
+const sessionManager = new SessionManager();
+const containerManager = new ContainerManager();
 
 /**
  * GET /api/sessions/[id] - セッション詳細取得
@@ -14,29 +14,9 @@ const processManager = ProcessManager.getInstance();
  * @param params.id - セッションID
  *
  * @returns
- * - 200: セッション情報（統一形式）
+ * - 200: セッション情報
  * - 404: セッションが見つからない
  * - 500: サーバーエラー
- *
- * @example
- * ```typescript
- * // リクエスト
- * GET /api/sessions/session-uuid
- *
- * // レスポンス
- * {
- *   "session": {
- *     "id": "session-uuid",
- *     "project_id": "uuid-1234",
- *     "name": "新機能実装",
- *     "status": "running",
- *     "model": "claude-3-5-sonnet-20241022",
- *     "worktree_path": "/path/to/worktrees/session-1234567890",
- *     "branch_name": "session/session-1234567890",
- *     "created_at": "2025-12-13T09:00:00.000Z"
- *   }
- * }
- * ```
  */
 export async function GET(
   _request: NextRequest,
@@ -45,16 +25,14 @@ export async function GET(
   try {
     const { id } = await params;
 
-    const targetSession = await prisma.session.findUnique({
-      where: { id },
-    });
+    const session = await sessionManager.findById(id);
 
-    if (!targetSession) {
+    if (!session) {
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });
     }
 
     logger.debug('Session retrieved', { id });
-    return NextResponse.json({ session: targetSession });
+    return NextResponse.json({ session });
   } catch (error) {
     const { id: errorId } = await params;
     logger.error('Failed to get session', { error, session_id: errorId });
@@ -66,7 +44,7 @@ export async function GET(
  * DELETE /api/sessions/[id] - セッション削除
  *
  * 指定されたIDのセッションを削除します。
- * 実行中のプロセスは停止され、Git worktreeが削除され、データベースからセッションが削除されます。
+ * コンテナ、Volume、データベースレコードが削除されます。
  *
  * @param params.id - セッションID
  *
@@ -74,15 +52,6 @@ export async function GET(
  * - 204: 削除成功（レスポンスボディなし）
  * - 404: セッションが見つからない
  * - 500: サーバーエラー
- *
- * @example
- * ```typescript
- * // リクエスト
- * DELETE /api/sessions/session-uuid
- *
- * // レスポンス
- * 204 No Content
- * ```
  */
 export async function DELETE(
   _request: NextRequest,
@@ -91,47 +60,15 @@ export async function DELETE(
   try {
     const { id } = await params;
 
-    const targetSession = await prisma.session.findUnique({
-      where: { id },
-      include: { project: true },
-    });
+    const session = await sessionManager.findById(id);
 
-    if (!targetSession) {
+    if (!session) {
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });
     }
 
-    // Stop process if running
-    if (targetSession.status === 'running' || targetSession.status === 'waiting_input') {
-      try {
-        await processManager.stop(targetSession.id);
-        logger.debug('Process stopped before deletion', { session_id: targetSession.id });
-      } catch (error) {
-        logger.warn('Failed to stop process before deletion', {
-          error,
-          session_id: targetSession.id,
-        });
-      }
-    }
+    await containerManager.deleteSession(id);
 
-    // Remove worktree
-    try {
-      const gitService = new GitService(targetSession.project.path, logger);
-      const sessionName = targetSession.worktree_path.split('/').pop() || '';
-      gitService.deleteWorktree(sessionName);
-      logger.debug('Worktree removed', { worktree_path: targetSession.worktree_path });
-    } catch (error) {
-      logger.warn('Failed to remove worktree', {
-        error,
-        worktree_path: targetSession.worktree_path,
-      });
-    }
-
-    // Delete session from database
-    await prisma.session.delete({
-      where: { id },
-    });
-
-    logger.info('Session deleted', { id });
+    logger.info('Session deleted via API', { id });
     return new NextResponse(null, { status: 204 });
   } catch (error) {
     const { id: errorId } = await params;
@@ -154,23 +91,6 @@ export async function DELETE(
  * - 400: 名前が空またはバリデーションエラー
  * - 404: セッションが見つからない
  * - 500: サーバーエラー
- *
- * @example
- * ```typescript
- * // リクエスト
- * PATCH /api/sessions/session-uuid
- * Content-Type: application/json
- * { "name": "新しいセッション名" }
- *
- * // レスポンス
- * {
- *   "session": {
- *     "id": "session-uuid",
- *     "name": "新しいセッション名",
- *     ...
- *   }
- * }
- * ```
  */
 export async function PATCH(
   request: NextRequest,
@@ -197,15 +117,16 @@ export async function PATCH(
     const trimmedName = name.trim();
 
     // セッションが存在するか確認
-    const existingSession = await prisma.session.findUnique({
-      where: { id },
-    });
+    const existingSession = await sessionManager.findById(id);
 
     if (!existingSession) {
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });
     }
 
-    // セッション名を更新
+    // Note: SessionManager needs an updateName method
+    // For now, we'll need to add this functionality
+    // Using prisma directly as a workaround until SessionManager is extended
+    const { prisma } = await import('@/lib/db');
     const updatedSession = await prisma.session.update({
       where: { id },
       data: { name: trimmedName },

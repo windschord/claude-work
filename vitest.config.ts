@@ -19,6 +19,14 @@ export default defineConfig({
       ...(process.env.CI ? [
         '**/pty-manager.test.ts',        // PTYプロセスがCI環境で不安定
         '**/git-service-status.test.ts', // Gitワークツリー操作がCI環境で不安定
+        // Docker関連テスト - CIではDockerデーモンが利用不可
+        '**/container-manager.test.ts',
+        '**/docker-service.test.ts',
+        '**/docker-integration.test.ts',
+        '**/docker-pty-adapter.test.ts',
+        '**/api/health/__tests__/route.test.ts',      // DockerServiceに依存
+        '**/api/sessions/**/warning/__tests__/**',    // DockerServiceに依存
+        '**/lib/__tests__/websocket.test.ts',         // DockerServiceに依存
       ] : []),
     ],
     testTimeout: 10000,

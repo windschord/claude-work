@@ -4,46 +4,42 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-ClaudeWork is a web-based tool for managing multiple Claude Code sessions through a browser interface. It uses Git worktrees to isolate each session in its own environment, allowing parallel execution of multiple Claude Code instances.
+ClaudeWork is a web-based tool for managing multiple Claude Code sessions through a browser interface. It uses Docker containers to isolate each session in its own environment, allowing parallel execution of multiple Claude Code instances with full environment isolation and reproducibility.
 
 ## Architecture
 
 ### Core Components
 
 **Server Architecture** (server.ts):
-- Custom Next.js server with multiple WebSocket servers:
-  - Claude WebSocket (`/ws/claude/:id`): Claude Code PTY terminal (interactive mode)
-  - Session WebSocket (`/ws/sessions/:id`): Session events and script execution
-  - Terminal WebSocket (`/ws/terminal/:id`): Shell PTY sessions
-- WebSocket connection pooling
-- Connection pooling via ConnectionManager
+- Custom Next.js server with WebSocket support
+- Session WebSocket (`/ws/session/:id`): Docker container terminal (docker exec)
+- Simplified architecture focused on Docker container management
 
 **Session Management**:
-- Each session creates an isolated Git worktree under `.worktrees/<session-name>/`
-- ClaudePTYManager spawns Claude Code in interactive mode using node-pty
-- PTYManager handles shell terminal sessions using node-pty
+- Each session runs in an isolated Docker container
+- ContainerManager orchestrates Docker containers and volumes
+- docker exec via node-pty provides terminal access
 - Sessions are persisted in SQLite via Prisma
-- UI provides a thin wrapper around Claude Code terminal (XTerm.js)
+- UI provides a thin wrapper around the container terminal (XTerm.js)
 
-**Git Integration** (src/services/git-service.ts):
-- Manages worktree creation/deletion
-- Handles rebase, squash merge, and diff operations
-- Path traversal protection via name validation
-- All worktrees isolated in `.worktrees/` directory
+**Docker Integration** (src/services/docker-service.ts):
+- dockerode for Docker API interaction
+- Container lifecycle management (create, start, stop, remove)
+- Volume management for persistent workspace storage
+- Container status monitoring
 
-**WebSocket Flow** (Claude Terminal):
-1. Client connects to `/ws/claude/:sessionId`
-2. ClaudePTYManager creates PTY session for Claude Code (interactive mode)
-3. XTerm.js on client displays raw terminal output from Claude Code
-4. User input from terminal sent to PTY via WebSocket
+**WebSocket Flow** (Docker Terminal):
+1. Client connects to `/ws/session/:sessionId`
+2. Session handler validates session and container status
+3. docker exec spawns PTY session in container
+4. XTerm.js on client displays terminal output
+5. User input sent to container via WebSocket
 
 ### Database Schema
 
 Key models (prisma/schema.prisma):
-- **Project**: Git repository with default model setting
-- **Session**: Links to project, has worktree_path and branch_name
-- **Message**: Chat history with role/content
-- **RunScript**: Custom scripts per project
+- **Session**: Docker session with containerId, volumeName, repoUrl, branch, status
+- **Prompt**: Prompt history for quick access
 
 ### Frontend Architecture
 
@@ -156,40 +152,47 @@ Create `.env` file with:
 DATABASE_URL=file:../data/claudework.db
 ```
 
+### Docker Requirements
+
+Docker must be running for the application to work:
+- Docker Engine installed and running
+- Docker socket accessible at `/var/run/docker.sock`
+- Build the session image: `docker build -t claudework-session docker/`
+
 ### Optional Variables
 
 - `PORT`: Server port (default: 3000)
 - `NODE_ENV`: development/production
 - `LOG_LEVEL`: winston log level (default: info)
-- `CLAUDE_CODE_PATH`: Path to claude CLI (default: 'claude')
 - `ALLOWED_ORIGINS`: CORS origins (comma-separated)
-- `ALLOWED_PROJECT_DIRS`: Restrict project directories
 
 See `docs/ENV_VARS.md` for complete reference.
 
 ## Critical Implementation Details
 
-### Claude Code Process Management
+### Docker Container Management
 
-ClaudePTYManager spawns Claude Code in interactive mode using node-pty:
-- Interactive terminal mode (no `--print` flag)
-- Working directory set to the worktree path via PTY spawn options
-- Raw terminal I/O streamed via WebSocket to XTerm.js client
+Each session runs in an isolated Docker container:
+- Container created from `claudework-session` image
+- Volume mounted at `/workspace` for persistent storage
+- Claude CLI credentials mounted read-only from host `~/.claude/`
+- Git config mounted read-only from host `~/.gitconfig`
+- SSH agent forwarded via `SSH_AUTH_SOCK`
 
-The thin wrapper architecture means:
+Container lifecycle:
+1. Create volume (`claudework-<session-name>`)
+2. Create container with volume and credential mounts
+3. Start container and clone repository
+4. docker exec provides terminal access
+5. On deletion, remove container and volume
+
+### Thin Wrapper Architecture
+
+The UI is a thin wrapper around the container terminal:
 - No parsing of Claude Code output on the server
-- User interacts directly with Claude Code's native terminal interface
-- All Claude Code features (tool use, permissions, etc.) work natively
-
-### Git Worktree Isolation
-
-Each session:
-1. Creates branch `claude-work/<session-name>`
-2. Creates worktree at `.worktrees/<session-name>/`
-3. Runs Claude Code with cwd set to worktree path
-4. On deletion, removes worktree and prunes references
-
-Security: All paths validated against `.worktrees/` base to prevent traversal attacks.
+- User interacts directly with the container shell
+- All Claude Code features work natively inside container
+- XTerm.js displays raw terminal output
 
 ### Database Migrations
 
@@ -253,47 +256,36 @@ Manual testing script: `npm run integration-test`
 4. Create service layer in `src/lib/` or `src/services/`
 5. Add tests for database operations
 
-## Known Issues (Phase 18 baseline and Phase 19 status)
-
-See `docs/verification-report-browser-ui-phase18.md` for the Phase 18 baseline status.
-
-1. **Critical** (resolved in Phase 19): Claude Code `--cwd` option not supported (process-manager.ts:98)
-2. **Critical** (partially resolved in Phase 19): WebSocket remains disconnected
-3. **Low**: Next.js HMR WebSocket 404 in custom server mode
-4. **Low**: Multiple lockfile warning (remove package-lock.json)
-
-Phase 19 tasks (docs/tasks/phase19.md) implement fixes for issues 1-2.
-
 ## Project Structure
 
 ```text
 ├── server.ts                 # Custom Next.js server with WebSocket
+├── docker/                   # Docker configuration
+│   ├── Dockerfile           # Session container image
+│   └── docker-entrypoint.sh # Container entrypoint script
 ├── ecosystem.config.js       # PM2 process configuration
-├── data/                     # SQLite database files (バックアップ対象)
+├── data/                     # SQLite database files
 ├── prisma/
-│   └── schema.prisma        # Database schema
+│   └── schema.prisma        # Database schema (Session, Prompt)
 ├── src/
 │   ├── app/                 # Next.js App Router
-│   │   ├── api/            # API routes
-│   │   └── (pages)/        # Frontend pages
+│   │   ├── api/sessions/   # Session API routes
+│   │   └── docker/         # Docker session management page
 │   ├── components/          # React components
+│   │   └── docker-sessions/ # Docker session UI components
 │   ├── hooks/              # Custom React hooks
+│   │   └── useDockerTerminal.ts # Docker terminal WebSocket hook
 │   ├── lib/                # Shared libraries
 │   │   ├── websocket/      # WebSocket handlers
 │   │   ├── db.ts           # Prisma client
 │   │   └── logger.ts       # Winston logger
 │   ├── services/           # Business logic
-│   │   ├── git-service.ts        # Git operations
-│   │   ├── claude-pty-manager.ts # Claude Code PTY sessions
-│   │   ├── process-manager.ts    # Session status management
-│   │   └── pty-manager.ts        # Shell terminal sessions
+│   │   ├── docker-service.ts     # Docker API operations
+│   │   ├── session-manager.ts    # Session CRUD operations
+│   │   └── container-manager.ts  # Container orchestration
 │   ├── store/              # Zustand state stores
 │   └── types/              # TypeScript types
 ├── docs/                   # Documentation
-│   ├── SETUP.md
-│   ├── ENV_VARS.md
-│   ├── API.md
-│   └── tasks/              # Phase-based task tracking
 └── logs/                   # PM2 logs (gitignored)
 ```
 

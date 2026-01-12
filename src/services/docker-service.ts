@@ -1,403 +1,193 @@
-import { exec, execFile, spawn } from 'child_process';
-import * as path from 'path';
-import * as fs from 'fs';
-import * as fsPromises from 'fs/promises';
-import * as os from 'os';
+import Docker from 'dockerode';
 import { logger } from '@/lib/logger';
 
-/**
- * Dockerエラータイプ
- */
-export type DockerErrorType =
-  | 'DOCKER_NOT_INSTALLED'
-  | 'DOCKER_DAEMON_NOT_RUNNING'
-  | 'DOCKER_IMAGE_NOT_FOUND'
-  | 'DOCKER_IMAGE_BUILD_FAILED'
-  | 'DOCKER_CONTAINER_START_FAILED'
-  | 'DOCKER_PERMISSION_DENIED'
-  | 'CLAUDE_AUTH_MISSING'
-  | 'GIT_AUTH_MISSING'
-  | 'API_KEY_MISSING'
-  | 'UNKNOWN';
-
-/**
- * Dockerエラー
- */
-export class DockerError extends Error {
-  readonly errorType: DockerErrorType;
-  readonly userMessage: string;
-  readonly suggestion: string;
-
-  constructor(
-    errorType: DockerErrorType,
-    message: string,
-    userMessage: string,
-    suggestion: string
-  ) {
-    super(message);
-    this.name = 'DockerError';
-    this.errorType = errorType;
-    this.userMessage = userMessage;
-    this.suggestion = suggestion;
-  }
-
-  /**
-   * ユーザーフレンドリーなエラーメッセージを取得
-   */
-  toUserString(): string {
-    return `${this.userMessage}\n提案: ${this.suggestion}`;
-  }
+export interface ContainerOptions {
+  image: string;
+  name: string;
+  env: Record<string, string>;
+  volumes: VolumeMount[];
+  mounts: BindMount[];
 }
 
-/**
- * 認証情報チェック結果
- */
-export interface AuthCredentialsCheck {
-  claudeAuth: {
-    exists: boolean;
-    path: string;
-  };
-  claudeConfig: {
-    exists: boolean;
-    path: string;
-  };
-  sshAuth: {
-    exists: boolean;
-    path: string;
-  };
-  gitConfig: {
-    exists: boolean;
-    path: string;
-  };
-  anthropicApiKey: {
-    exists: boolean;
-  };
+export interface VolumeMount {
+  source: string;  // Volume name
+  target: string;  // Container path
 }
 
-/**
- * DockerService設定
- */
-export interface DockerServiceConfig {
-  /** イメージ名（デフォルト: claude-code-sandboxed） */
-  imageName: string;
-  /** イメージタグ（デフォルト: latest） */
-  imageTag: string;
-  /** 同時実行可能なコンテナ数上限（デフォルト: 5） */
-  maxConcurrentContainers: number;
-  /** Docker機能の有効/無効（デフォルト: true） */
-  enabled: boolean;
+export interface BindMount {
+  source: string;  // Host path
+  target: string;  // Container path
+  readOnly: boolean;
 }
 
-/**
- * デフォルト設定
- * Docker機能はデフォルトで無効。有効にするにはDOCKER_ENABLED=trueを設定。
- */
-const DEFAULT_CONFIG: DockerServiceConfig = {
-  imageName: process.env.DOCKER_IMAGE_NAME || 'claude-code-sandboxed',
-  imageTag: process.env.DOCKER_IMAGE_TAG || 'latest',
-  // NaNや負の値の場合はデフォルト値5にフォールバック、最小値1を保証
-  maxConcurrentContainers: Math.max(1, parseInt(process.env.DOCKER_MAX_CONTAINERS || '5', 10) || 5),
-  enabled: process.env.DOCKER_ENABLED === 'true',
-};
+export interface ContainerStatus {
+  status: string;
+  running: boolean;
+}
 
-/**
- * DockerService
- *
- * Docker CLIのラッパーサービス。
- * Dockerデーモンの可用性チェック、イメージ管理、コンテナ操作を提供。
- */
+export interface VolumeInfo {
+  name: string;
+}
+
 export class DockerService {
-  private config: DockerServiceConfig;
+  private docker: Docker;
 
-  constructor(config?: Partial<DockerServiceConfig>) {
-    this.config = {
-      ...DEFAULT_CONFIG,
-      ...config,
+  constructor() {
+    this.docker = new Docker({ socketPath: '/var/run/docker.sock' });
+  }
+
+  async isDockerRunning(): Promise<boolean> {
+    try {
+      await this.docker.ping();
+      return true;
+    } catch (error) {
+      logger.warn('Docker is not running or not accessible', { error });
+      return false;
+    }
+  }
+
+  async createContainer(options: ContainerOptions): Promise<Docker.Container> {
+    const envArray = Object.entries(options.env).map(
+      ([key, value]) => `${key}=${value}`
+    );
+
+    const binds: string[] = [];
+    const volumeBindings: Record<string, Record<string, never>> = {};
+
+    // Add volume mounts
+    for (const vol of options.volumes) {
+      binds.push(`${vol.source}:${vol.target}`);
+      volumeBindings[vol.target] = {};
+    }
+
+    // Add bind mounts
+    for (const mount of options.mounts) {
+      const bindString = mount.readOnly
+        ? `${mount.source}:${mount.target}:ro`
+        : `${mount.source}:${mount.target}`;
+      binds.push(bindString);
+    }
+
+    const createOptions: Docker.ContainerCreateOptions = {
+      Image: options.image,
+      name: options.name,
+      Env: envArray,
+      Volumes: volumeBindings,
+      HostConfig: {
+        Binds: binds,
+      },
+      Tty: true,
+      OpenStdin: true,
     };
+
+    logger.info('Creating container', { name: options.name, image: options.image });
+    const container = await this.docker.createContainer(createOptions);
+    return container;
   }
 
-  /**
-   * イメージ名を取得
-   */
-  getImageName(): string {
-    return this.config.imageName;
-  }
-
-  /**
-   * イメージタグを取得
-   */
-  getImageTag(): string {
-    return this.config.imageTag;
-  }
-
-  /**
-   * 完全なイメージ名（name:tag）を取得
-   */
-  getFullImageName(): string {
-    return `${this.config.imageName}:${this.config.imageTag}`;
-  }
-
-  /**
-   * 同時実行可能なコンテナ数上限を取得
-   */
-  getMaxConcurrentContainers(): number {
-    return this.config.maxConcurrentContainers;
-  }
-
-  /**
-   * Docker機能が有効かどうかを取得
-   */
-  isEnabled(): boolean {
-    return this.config.enabled;
-  }
-
-  /**
-   * Dockerデーモンが利用可能かチェック
-   *
-   * @returns Dockerが利用可能な場合はtrue
-   */
-  async isDockerAvailable(): Promise<boolean> {
-    return new Promise((resolve) => {
-      exec('docker info', (error) => {
-        if (error) {
-          logger.debug('Docker is not available', { error: error.message });
-          resolve(false);
-        } else {
-          logger.debug('Docker is available');
-          resolve(true);
-        }
-      });
-    });
-  }
-
-  /**
-   * Dockerエラーを詳細に診断
-   *
-   * @returns DockerErrorまたはnull（問題がない場合）
-   */
-  async diagnoseDockerError(): Promise<DockerError | null> {
-    // Dockerコマンドが存在するか
-    const dockerInstalled = await new Promise<boolean>((resolve) => {
-      exec('which docker', (error) => {
-        resolve(!error);
-      });
-    });
-
-    if (!dockerInstalled) {
-      return new DockerError(
-        'DOCKER_NOT_INSTALLED',
-        'Docker command not found',
-        'Dockerがインストールされていません',
-        'https://docs.docker.com/get-docker/ からDockerをインストールしてください'
-      );
-    }
-
-    // Dockerデーモンが動作しているか
-    const daemonRunning = await new Promise<boolean>((resolve) => {
-      exec('docker info', (error) => {
-        resolve(!error);
-      });
-    });
-
-    if (!daemonRunning) {
-      return new DockerError(
-        'DOCKER_DAEMON_NOT_RUNNING',
-        'Docker daemon is not running',
-        'Dockerデーモンが起動していません',
-        'Docker Desktopを起動するか、`sudo systemctl start docker`を実行してください'
-      );
-    }
-
-    // 権限問題のチェック
-    const hasPermission = await new Promise<boolean>((resolve) => {
-      exec('docker ps', (error) => {
-        if (error && error.message.includes('permission denied')) {
-          resolve(false);
-        } else {
-          resolve(true);
-        }
-      });
-    });
-
-    if (!hasPermission) {
-      return new DockerError(
-        'DOCKER_PERMISSION_DENIED',
-        'Docker permission denied',
-        'Dockerの実行権限がありません',
-        'ユーザーをdockerグループに追加してください: `sudo usermod -aG docker $USER`'
-      );
-    }
-
-    return null;
-  }
-
-  /**
-   * 認証情報の存在をチェック
-   *
-   * @returns 認証情報のチェック結果
-   */
-  async checkAuthCredentials(): Promise<AuthCredentialsCheck> {
-    const homeDir = os.homedir();
-
-    const claudeAuthPath = path.join(homeDir, '.claude');
-    const claudeConfigPath = path.join(homeDir, '.config', 'claude');
-    const sshPath = path.join(homeDir, '.ssh');
-    const gitConfigPath = path.join(homeDir, '.gitconfig');
-
-    // 非同期で各パスの存在をチェック
-    const checkExists = async (filePath: string): Promise<boolean> => {
-      try {
-        await fsPromises.access(filePath, fs.constants.F_OK);
-        return true;
-      } catch {
-        return false;
+  async startContainer(containerId: string): Promise<void> {
+    const container = this.docker.getContainer(containerId);
+    try {
+      await container.start();
+      logger.info('Container started', { containerId });
+    } catch (error: unknown) {
+      // Ignore "container already started" error (HTTP 304)
+      if (error && typeof error === 'object' && 'statusCode' in error && error.statusCode === 304) {
+        logger.info('Container already running', { containerId });
+        return;
       }
-    };
-
-    const [claudeAuthExists, claudeConfigExists, sshExists, gitConfigExists] = await Promise.all([
-      checkExists(claudeAuthPath),
-      checkExists(claudeConfigPath),
-      checkExists(sshPath),
-      checkExists(gitConfigPath),
-    ]);
-
-    const result: AuthCredentialsCheck = {
-      claudeAuth: {
-        exists: claudeAuthExists,
-        path: claudeAuthPath,
-      },
-      claudeConfig: {
-        exists: claudeConfigExists,
-        path: claudeConfigPath,
-      },
-      sshAuth: {
-        exists: sshExists,
-        path: sshPath,
-      },
-      gitConfig: {
-        exists: gitConfigExists,
-        path: gitConfigPath,
-      },
-      anthropicApiKey: {
-        exists: !!process.env.ANTHROPIC_API_KEY,
-      },
-    };
-
-    logger.debug('Auth credentials check', result);
-    return result;
+      throw error;
+    }
   }
 
-  /**
-   * 認証情報の問題を診断
-   *
-   * @returns エラーメッセージ配列（問題がなければ空配列）
-   */
-  async diagnoseAuthIssues(): Promise<string[]> {
-    const issues: string[] = [];
-    const auth = await this.checkAuthCredentials();
-
-    if (!auth.claudeAuth.exists && !auth.claudeConfig.exists) {
-      issues.push('Claude認証情報が見つかりません。先にClaude Codeでログインしてください。');
+  async stopContainer(containerId: string): Promise<void> {
+    const container = this.docker.getContainer(containerId);
+    try {
+      await container.stop();
+      logger.info('Container stopped', { containerId });
+    } catch (error: unknown) {
+      // Ignore "container already stopped" error (HTTP 304)
+      if (error && typeof error === 'object' && 'statusCode' in error && error.statusCode === 304) {
+        logger.info('Container already stopped', { containerId });
+        return;
+      }
+      throw error;
     }
-
-    if (!auth.anthropicApiKey.exists) {
-      issues.push('ANTHROPIC_API_KEY環境変数が設定されていません。');
-    }
-
-    return issues;
   }
 
-  /**
-   * Dockerイメージが存在するかチェック
-   *
-   * @returns イメージが存在する場合はtrue
-   */
-  async imageExists(): Promise<boolean> {
-    const fullImageName = this.getFullImageName();
+  async removeContainer(containerId: string, force: boolean = false): Promise<void> {
+    const container = this.docker.getContainer(containerId);
+    await container.remove({ force });
+    logger.info('Container removed', { containerId, force });
+  }
 
-    return new Promise((resolve) => {
-      // execFileを使用してコマンドインジェクションを防止
-      execFile('docker', ['images', '-q', fullImageName], (error, stdout) => {
-        if (error) {
-          logger.debug('Failed to check Docker image', { error: error.message });
-          resolve(false);
-        } else {
-          const exists = stdout.trim().length > 0;
-          logger.debug('Docker image check', { image: fullImageName, exists });
-          resolve(exists);
-        }
-      });
+  async createVolume(name: string): Promise<VolumeInfo> {
+    const volume = await this.docker.createVolume({ Name: name });
+    logger.info('Volume created', { name });
+    return { name: volume.Name };
+  }
+
+  async removeVolume(name: string): Promise<void> {
+    const volume = this.docker.getVolume(name);
+    await volume.remove();
+    logger.info('Volume removed', { name });
+  }
+
+  async getContainerStatus(containerId: string): Promise<ContainerStatus> {
+    const container = this.docker.getContainer(containerId);
+    const info = await container.inspect();
+    return {
+      status: info.State.Status,
+      running: info.State.Running,
+    };
+  }
+
+  async execCommand(
+    containerId: string,
+    command: string[],
+    workingDir?: string,
+  ): Promise<{ exitCode: number; output: string }> {
+    const container = this.docker.getContainer(containerId);
+    const exec = await container.exec({
+      Cmd: command,
+      AttachStdout: true,
+      AttachStderr: true,
+      ...(workingDir ? { WorkingDir: workingDir } : {}),
     });
-  }
 
-  /**
-   * Dockerfileのパスを取得
-   *
-   * @returns Dockerfileディレクトリのパス
-   */
-  getDockerfilePath(): string {
-    // プロジェクトルートからの相対パス
-    return path.resolve(process.cwd(), 'docker');
-  }
-
-  /**
-   * Dockerイメージをビルド
-   *
-   * @param onProgress - 進捗コールバック（各行のログを受け取る）
-   * @returns ビルド完了時にresolve、失敗時にreject
-   */
-  async buildImage(onProgress?: (line: string) => void): Promise<void> {
-    const fullImageName = this.getFullImageName();
-    const dockerfilePath = this.getDockerfilePath();
-
-    logger.info('Starting Docker image build', { image: fullImageName, path: dockerfilePath });
+    const stream = await exec.start({ hijack: true, stdin: false });
 
     return new Promise((resolve, reject) => {
-      const buildProcess = spawn('docker', ['build', '-t', fullImageName, dockerfilePath], {
-        stdio: ['ignore', 'pipe', 'pipe'],
+      let output = '';
+
+      stream.on('data', (chunk: Buffer) => {
+        // Docker multiplexes stdout/stderr when using hijacked exec/attach streams.
+        // Each frame starts with an 8-byte header:
+        //   byte 0: stream type (1 = stdout, 2 = stderr, 0 = stdin)
+        //   bytes 1-3: reserved/padding
+        //   bytes 4-7: big-endian uint32 payload length
+        // We skip this 8-byte header and treat the remaining bytes as UTF-8 payload.
+        const data = chunk.slice(8).toString('utf8');
+        output += data;
       });
 
-      // 標準出力を処理
-      buildProcess.stdout.on('data', (data: Buffer) => {
-        const line = data.toString();
-        logger.debug('Docker build stdout', { line: line.trim() });
-        if (onProgress) {
-          onProgress(line);
-        }
-      });
-
-      // 標準エラー出力を処理
-      buildProcess.stderr.on('data', (data: Buffer) => {
-        const line = data.toString();
-        logger.debug('Docker build stderr', { line: line.trim() });
-        if (onProgress) {
-          onProgress(line);
-        }
-      });
-
-      // プロセス終了時の処理
-      buildProcess.on('close', (exitCode) => {
-        if (exitCode === 0) {
-          logger.info('Docker image build completed', { image: fullImageName });
-          resolve();
-        } else {
-          const error = new Error(`Docker image build failed with exit code ${exitCode}`);
-          logger.error('Docker image build failed', { image: fullImageName, exitCode });
+      stream.on('end', async () => {
+        try {
+          const inspectResult = await exec.inspect();
+          resolve({
+            exitCode: inspectResult.ExitCode ?? 0,
+            output: output.trim(),
+          });
+        } catch (error) {
           reject(error);
         }
       });
 
-      // エラー発生時の処理
-      buildProcess.on('error', (error) => {
-        logger.error('Docker build process error', { error: error.message });
-        reject(error);
-      });
+      stream.on('error', reject);
     });
   }
-}
 
-/**
- * デフォルトのDockerServiceインスタンス
- * 環境変数から設定を読み込んで初期化される
- */
-export const dockerService = new DockerService();
+  getDocker(): Docker {
+    return this.docker;
+  }
+}

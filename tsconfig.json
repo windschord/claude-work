@@ -37,6 +37,8 @@
   "exclude": [
     "node_modules",
     "frontend",
-    "backend"
+    "backend",
+    "browser-test.ts",
+    "e2e"
   ]
 }
