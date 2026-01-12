@@ -13,6 +13,7 @@ import {
   DockerSessionList,
   CreateSessionModal,
   DockerTerminalPanel,
+  RepositorySection,
 } from '@/components/docker-sessions';
 import { useDockerSessions } from '@/hooks/useDockerSessions';
 import { Plus } from 'lucide-react';
@@ -89,12 +90,18 @@ export default function DockerHome() {
       <h1 className="sr-only">Docker Sessions</h1>
 
       <div className="flex flex-1 min-h-0">
-        {/* セッション一覧 (左側) */}
+        {/* サイドバー (左側) */}
         <div className="w-80 flex-shrink-0 border-r border-gray-200 dark:border-gray-700 overflow-hidden flex flex-col">
-          {/* ヘッダー */}
+          {/* リポジトリセクション */}
+          <RepositorySection />
+
+          {/* 区切り線 */}
+          <div className="border-t border-gray-200 dark:border-gray-700" />
+
+          {/* セッションヘッダー */}
           <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              Docker Sessions
+              Sessions
             </h2>
             <button
               onClick={handleOpenCreateModal}
