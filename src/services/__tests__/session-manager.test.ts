@@ -31,7 +31,7 @@ describe('SessionManager', () => {
   });
 
   describe('create', () => {
-    it('should create a new session', async () => {
+    it('should create a new session from remote repository (legacy input)', async () => {
       const input = {
         name: 'test-session',
         volumeName: 'vol-test-123',
@@ -45,6 +45,7 @@ describe('SessionManager', () => {
         containerId: null,
         volumeName: 'vol-test-123',
         repoUrl: 'https://github.com/test/repo.git',
+        localPath: null,
         branch: 'main',
         status: 'creating',
         createdAt: new Date(),
@@ -60,7 +61,124 @@ describe('SessionManager', () => {
           name: input.name,
           volumeName: input.volumeName,
           repoUrl: input.repoUrl,
+          localPath: null,
           branch: input.branch,
+          status: 'creating',
+        },
+      });
+      expect(result).toEqual(expectedSession);
+    });
+
+    it('should create a new session from remote repository (new input format)', async () => {
+      const input = {
+        sourceType: 'remote' as const,
+        name: 'test-session',
+        volumeName: 'vol-test-123',
+        repoUrl: 'https://github.com/test/repo.git',
+        branch: 'main',
+      };
+
+      const expectedSession = {
+        id: 'uuid-123',
+        name: 'test-session',
+        containerId: null,
+        volumeName: 'vol-test-123',
+        repoUrl: 'https://github.com/test/repo.git',
+        localPath: null,
+        branch: 'main',
+        status: 'creating',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      mockPrisma.session.create.mockResolvedValue(expectedSession);
+
+      const result = await sessionManager.create(input);
+
+      expect(mockPrisma.session.create).toHaveBeenCalledWith({
+        data: {
+          name: input.name,
+          volumeName: input.volumeName,
+          repoUrl: input.repoUrl,
+          localPath: null,
+          branch: input.branch,
+          status: 'creating',
+        },
+      });
+      expect(result).toEqual(expectedSession);
+    });
+
+    it('should create a new session from local directory', async () => {
+      const input = {
+        sourceType: 'local' as const,
+        name: 'local-session',
+        volumeName: 'vol-local-123',
+        localPath: '/home/user/projects/my-repo',
+      };
+
+      const expectedSession = {
+        id: 'uuid-456',
+        name: 'local-session',
+        containerId: null,
+        volumeName: 'vol-local-123',
+        repoUrl: null,
+        localPath: '/home/user/projects/my-repo',
+        branch: 'main',
+        status: 'creating',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      mockPrisma.session.create.mockResolvedValue(expectedSession);
+
+      const result = await sessionManager.create(input);
+
+      expect(mockPrisma.session.create).toHaveBeenCalledWith({
+        data: {
+          name: input.name,
+          volumeName: input.volumeName,
+          localPath: input.localPath,
+          repoUrl: null,
+          branch: 'main',
+          status: 'creating',
+        },
+      });
+      expect(result).toEqual(expectedSession);
+    });
+
+    it('should create a new session from local directory with custom branch', async () => {
+      const input = {
+        sourceType: 'local' as const,
+        name: 'local-session',
+        volumeName: 'vol-local-123',
+        localPath: '/home/user/projects/my-repo',
+        branch: 'develop',
+      };
+
+      const expectedSession = {
+        id: 'uuid-789',
+        name: 'local-session',
+        containerId: null,
+        volumeName: 'vol-local-123',
+        repoUrl: null,
+        localPath: '/home/user/projects/my-repo',
+        branch: 'develop',
+        status: 'creating',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      mockPrisma.session.create.mockResolvedValue(expectedSession);
+
+      const result = await sessionManager.create(input);
+
+      expect(mockPrisma.session.create).toHaveBeenCalledWith({
+        data: {
+          name: input.name,
+          volumeName: input.volumeName,
+          localPath: input.localPath,
+          repoUrl: null,
+          branch: 'develop',
           status: 'creating',
         },
       });
@@ -76,6 +194,7 @@ describe('SessionManager', () => {
         containerId: 'container-abc',
         volumeName: 'vol-test-123',
         repoUrl: 'https://github.com/test/repo.git',
+        localPath: null,
         branch: 'main',
         status: 'running',
         createdAt: new Date(),
@@ -110,6 +229,7 @@ describe('SessionManager', () => {
           containerId: 'container-1',
           volumeName: 'vol-1',
           repoUrl: 'https://github.com/test/repo1.git',
+          localPath: null,
           branch: 'main',
           status: 'running',
           createdAt: new Date(),
@@ -121,6 +241,7 @@ describe('SessionManager', () => {
           containerId: null,
           volumeName: 'vol-2',
           repoUrl: 'https://github.com/test/repo2.git',
+          localPath: null,
           branch: 'develop',
           status: 'stopped',
           createdAt: new Date(),
@@ -155,6 +276,7 @@ describe('SessionManager', () => {
         containerId: 'container-abc',
         volumeName: 'vol-test-123',
         repoUrl: 'https://github.com/test/repo.git',
+        localPath: null,
         branch: 'main',
         status: 'running',
         createdAt: new Date(),
@@ -178,6 +300,7 @@ describe('SessionManager', () => {
         containerId: null,
         volumeName: 'vol-test-123',
         repoUrl: 'https://github.com/test/repo.git',
+        localPath: null,
         branch: 'main',
         status: 'error',
         createdAt: new Date(),
@@ -203,6 +326,7 @@ describe('SessionManager', () => {
         containerId: 'new-container-xyz',
         volumeName: 'vol-test-123',
         repoUrl: 'https://github.com/test/repo.git',
+        localPath: null,
         branch: 'main',
         status: 'running',
         createdAt: new Date(),
@@ -228,6 +352,7 @@ describe('SessionManager', () => {
         containerId: 'container-abc',
         volumeName: 'vol-test-123',
         repoUrl: 'https://github.com/test/repo.git',
+        localPath: null,
         branch: 'main',
         status: 'stopped',
         createdAt: new Date(),
