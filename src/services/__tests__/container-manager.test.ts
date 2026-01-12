@@ -111,6 +111,7 @@ describe('ContainerManager', () => {
       expect(mocks.mockDockerService.isDockerRunning).toHaveBeenCalled();
       expect(mocks.mockDockerService.createVolume).toHaveBeenCalledWith('claudework-test-session');
       expect(mocks.mockSessionManager.create).toHaveBeenCalledWith({
+        sourceType: 'remote',
         name: 'test-session',
         volumeName: 'claudework-test-session',
         repoUrl: options.repoUrl,
@@ -396,6 +397,281 @@ describe('ContainerManager', () => {
 
       expect(sessions).toHaveLength(2);
       expect(mocks.mockSessionManager.findAll).toHaveBeenCalled();
+    });
+  });
+
+  describe('createSession with localPath', () => {
+    it('should create a session with local directory mount instead of volume', async () => {
+      const options = {
+        name: 'local-session',
+        localPath: '/home/user/projects/my-project',
+        branch: 'main',
+      };
+
+      const mockSession = {
+        id: 'session-local-123',
+        name: 'local-session',
+        containerId: null,
+        volumeName: 'claudework-local-session',
+        repoUrl: null,
+        localPath: '/home/user/projects/my-project',
+        branch: options.branch,
+        status: 'creating',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const mockContainer = {
+        id: 'container-local-abc123',
+      };
+
+      mocks.mockDockerService.isDockerRunning.mockResolvedValue(true);
+      mocks.mockDockerService.createVolume.mockResolvedValue({ name: 'claudework-local-session' });
+      mocks.mockDockerService.createContainer.mockResolvedValue(mockContainer);
+      mocks.mockDockerService.startContainer.mockResolvedValue(undefined);
+      mocks.mockSessionManager.create.mockResolvedValue(mockSession);
+      mocks.mockSessionManager.updateContainerId.mockResolvedValue(undefined);
+      mocks.mockSessionManager.updateStatus.mockResolvedValue(undefined);
+      mocks.mockSessionManager.findById.mockResolvedValue({
+        ...mockSession,
+        containerId: 'container-local-abc123',
+        status: 'running',
+      });
+
+      const result = await containerManager.createSession(options);
+
+      // Verify session was created with localPath instead of repoUrl
+      expect(mocks.mockSessionManager.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sourceType: 'local',
+          name: 'local-session',
+          localPath: '/home/user/projects/my-project',
+          branch: 'main',
+        })
+      );
+
+      expect(result.name).toBe('local-session');
+    });
+
+    it('should configure bind mount for local path instead of volume mount', async () => {
+      const options = {
+        name: 'bind-mount-test',
+        localPath: '/home/user/projects/my-project',
+        branch: 'main',
+      };
+
+      const mockSession = {
+        id: 'session-bind-456',
+        name: 'bind-mount-test',
+        containerId: null,
+        volumeName: 'claudework-bind-mount-test',
+        repoUrl: null,
+        localPath: '/home/user/projects/my-project',
+        branch: options.branch,
+        status: 'creating',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const mockContainer = { id: 'container-bind' };
+
+      mocks.mockDockerService.isDockerRunning.mockResolvedValue(true);
+      mocks.mockDockerService.createVolume.mockResolvedValue({ name: 'claudework-bind-mount-test' });
+      mocks.mockDockerService.createContainer.mockResolvedValue(mockContainer);
+      mocks.mockDockerService.startContainer.mockResolvedValue(undefined);
+      mocks.mockSessionManager.create.mockResolvedValue(mockSession);
+      mocks.mockSessionManager.updateContainerId.mockResolvedValue(undefined);
+      mocks.mockSessionManager.updateStatus.mockResolvedValue(undefined);
+      mocks.mockSessionManager.findById.mockResolvedValue({
+        ...mockSession,
+        containerId: 'container-bind',
+        status: 'running',
+      });
+
+      await containerManager.createSession(options);
+
+      const createContainerCall = mocks.mockDockerService.createContainer.mock.calls[0][0];
+
+      // Verify bind mount is configured for local path
+      expect(createContainerCall.mounts).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            source: '/home/user/projects/my-project',
+            target: '/workspace',
+            readOnly: false,
+          }),
+        ])
+      );
+
+      // Verify no volume is used for workspace
+      expect(createContainerCall.volumes).toBeUndefined();
+    });
+
+    it('should not set REPO_URL environment variable for local path sessions', async () => {
+      const options = {
+        name: 'no-repo-url-test',
+        localPath: '/home/user/projects/my-project',
+        branch: 'main',
+      };
+
+      const mockSession = {
+        id: 'session-no-repo',
+        name: 'no-repo-url-test',
+        containerId: null,
+        volumeName: 'claudework-no-repo-url-test',
+        repoUrl: null,
+        localPath: '/home/user/projects/my-project',
+        branch: options.branch,
+        status: 'creating',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const mockContainer = { id: 'container-no-repo' };
+
+      mocks.mockDockerService.isDockerRunning.mockResolvedValue(true);
+      mocks.mockDockerService.createVolume.mockResolvedValue({ name: 'claudework-no-repo-url-test' });
+      mocks.mockDockerService.createContainer.mockResolvedValue(mockContainer);
+      mocks.mockDockerService.startContainer.mockResolvedValue(undefined);
+      mocks.mockSessionManager.create.mockResolvedValue(mockSession);
+      mocks.mockSessionManager.updateContainerId.mockResolvedValue(undefined);
+      mocks.mockSessionManager.updateStatus.mockResolvedValue(undefined);
+      mocks.mockSessionManager.findById.mockResolvedValue({
+        ...mockSession,
+        containerId: 'container-no-repo',
+        status: 'running',
+      });
+
+      await containerManager.createSession(options);
+
+      const createContainerCall = mocks.mockDockerService.createContainer.mock.calls[0][0];
+
+      // Verify REPO_URL is not set (git clone will be skipped)
+      expect(createContainerCall.env.REPO_URL).toBeUndefined();
+      // Verify BRANCH is still set
+      expect(createContainerCall.env.BRANCH).toBe('main');
+    });
+
+    it('should not create volume when using local path', async () => {
+      const options = {
+        name: 'no-volume-test',
+        localPath: '/home/user/projects/my-project',
+        branch: 'main',
+      };
+
+      const mockSession = {
+        id: 'session-no-volume',
+        name: 'no-volume-test',
+        containerId: null,
+        volumeName: 'claudework-no-volume-test',
+        repoUrl: null,
+        localPath: '/home/user/projects/my-project',
+        branch: options.branch,
+        status: 'creating',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const mockContainer = { id: 'container-no-volume' };
+
+      mocks.mockDockerService.isDockerRunning.mockResolvedValue(true);
+      mocks.mockDockerService.createContainer.mockResolvedValue(mockContainer);
+      mocks.mockDockerService.startContainer.mockResolvedValue(undefined);
+      mocks.mockSessionManager.create.mockResolvedValue(mockSession);
+      mocks.mockSessionManager.updateContainerId.mockResolvedValue(undefined);
+      mocks.mockSessionManager.updateStatus.mockResolvedValue(undefined);
+      mocks.mockSessionManager.findById.mockResolvedValue({
+        ...mockSession,
+        containerId: 'container-no-volume',
+        status: 'running',
+      });
+
+      await containerManager.createSession(options);
+
+      // Verify createVolume is NOT called for local path sessions
+      expect(mocks.mockDockerService.createVolume).not.toHaveBeenCalled();
+    });
+
+    it('should still work with repoUrl (existing behavior)', async () => {
+      const options = {
+        name: 'repo-url-test',
+        repoUrl: 'https://github.com/test/repo.git',
+        branch: 'main',
+      };
+
+      const mockSession = {
+        id: 'session-repo',
+        name: 'repo-url-test',
+        containerId: null,
+        volumeName: 'claudework-repo-url-test',
+        repoUrl: options.repoUrl,
+        localPath: null,
+        branch: options.branch,
+        status: 'creating',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const mockContainer = { id: 'container-repo' };
+
+      mocks.mockDockerService.isDockerRunning.mockResolvedValue(true);
+      mocks.mockDockerService.createVolume.mockResolvedValue({ name: 'claudework-repo-url-test' });
+      mocks.mockDockerService.createContainer.mockResolvedValue(mockContainer);
+      mocks.mockDockerService.startContainer.mockResolvedValue(undefined);
+      mocks.mockSessionManager.create.mockResolvedValue(mockSession);
+      mocks.mockSessionManager.updateContainerId.mockResolvedValue(undefined);
+      mocks.mockSessionManager.updateStatus.mockResolvedValue(undefined);
+      mocks.mockSessionManager.findById.mockResolvedValue({
+        ...mockSession,
+        containerId: 'container-repo',
+        status: 'running',
+      });
+
+      await containerManager.createSession(options);
+
+      // Verify volume is created
+      expect(mocks.mockDockerService.createVolume).toHaveBeenCalledWith('claudework-repo-url-test');
+
+      const createContainerCall = mocks.mockDockerService.createContainer.mock.calls[0][0];
+
+      // Verify REPO_URL is set
+      expect(createContainerCall.env.REPO_URL).toBe('https://github.com/test/repo.git');
+
+      // Verify volume mount is used
+      expect(createContainerCall.volumes).toEqual([
+        {
+          source: 'claudework-repo-url-test',
+          target: '/workspace',
+        },
+      ]);
+    });
+
+    it('should throw error when neither repoUrl nor localPath is provided', async () => {
+      const options = {
+        name: 'invalid-test',
+        branch: 'main',
+      };
+
+      mocks.mockDockerService.isDockerRunning.mockResolvedValue(true);
+
+      await expect(containerManager.createSession(options as any)).rejects.toThrow(
+        'Either repoUrl or localPath must be provided'
+      );
+    });
+
+    it('should throw error when both repoUrl and localPath are provided', async () => {
+      const options = {
+        name: 'conflict-test',
+        repoUrl: 'https://github.com/test/repo.git',
+        localPath: '/home/user/projects/my-project',
+        branch: 'main',
+      };
+
+      mocks.mockDockerService.isDockerRunning.mockResolvedValue(true);
+
+      await expect(containerManager.createSession(options as any)).rejects.toThrow(
+        'Cannot specify both repoUrl and localPath'
+      );
     });
   });
 });

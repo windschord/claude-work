@@ -9,11 +9,34 @@ import { logger } from '@/lib/logger';
 const DOCKER_IMAGE = 'claudework-session:latest';
 const VOLUME_PREFIX = 'claudework-';
 
-export interface CreateSessionOptions {
+/**
+ * Base options for creating a session
+ */
+interface CreateSessionOptionsBase {
   name: string;
-  repoUrl: string;
   branch: string;
 }
+
+/**
+ * Options for creating a session from a remote git repository
+ */
+export interface CreateSessionOptionsRemote extends CreateSessionOptionsBase {
+  repoUrl: string;
+  localPath?: never;
+}
+
+/**
+ * Options for creating a session from a local directory
+ */
+export interface CreateSessionOptionsLocal extends CreateSessionOptionsBase {
+  localPath: string;
+  repoUrl?: never;
+}
+
+/**
+ * Union type for session creation options
+ */
+export type CreateSessionOptions = CreateSessionOptionsRemote | CreateSessionOptionsLocal;
 
 export class ContainerManager {
   private dockerService: DockerService;
@@ -27,11 +50,28 @@ export class ContainerManager {
   async createSession(options: CreateSessionOptions): Promise<Session> {
     logger.info('Creating session', { name: options.name });
 
+    // Validate options: must have either repoUrl or localPath, but not both
+    const hasRepoUrl = 'repoUrl' in options && options.repoUrl;
+    const hasLocalPath = 'localPath' in options && options.localPath;
+
+    if (!hasRepoUrl && !hasLocalPath) {
+      throw new Error('Either repoUrl or localPath must be provided');
+    }
+
+    if (hasRepoUrl && hasLocalPath) {
+      throw new Error('Cannot specify both repoUrl and localPath');
+    }
+
     // Check if Docker is running
     const isDockerRunning = await this.dockerService.isDockerRunning();
     if (!isDockerRunning) {
       throw new Error('Docker is not running. Please start Docker and try again.');
     }
+
+    // Determine if this is a local path session
+    const isLocalPath = hasLocalPath;
+    const localPath = isLocalPath ? (options as CreateSessionOptionsLocal).localPath : undefined;
+    const repoUrl = !isLocalPath ? (options as CreateSessionOptionsRemote).repoUrl : undefined;
 
     // Sanitize name to comply with Docker volume naming rules [a-zA-Z0-9][a-zA-Z0-9_.-]*
     const sanitizedName = options.name.replace(/[^a-zA-Z0-9_.-]/g, '-').toLowerCase();
@@ -42,18 +82,31 @@ export class ContainerManager {
     let session: Session | null = null;
 
     try {
-      // Create volume for workspace persistence
-      logger.info('Creating volume', { volumeName });
-      await this.dockerService.createVolume(volumeName);
-      volumeCreated = true;
+      // Create volume for workspace persistence (only for remote repository sessions)
+      if (!isLocalPath) {
+        logger.info('Creating volume', { volumeName });
+        await this.dockerService.createVolume(volumeName);
+        volumeCreated = true;
+      }
 
       // Create session record in database
-      session = await this.sessionManager.create({
-        name: options.name,
-        volumeName,
-        repoUrl: options.repoUrl,
-        branch: options.branch,
-      });
+      if (isLocalPath) {
+        session = await this.sessionManager.create({
+          sourceType: 'local',
+          name: options.name,
+          volumeName,
+          localPath: localPath!,
+          branch: options.branch,
+        });
+      } else {
+        session = await this.sessionManager.create({
+          sourceType: 'remote',
+          name: options.name,
+          volumeName,
+          repoUrl: repoUrl!,
+          branch: options.branch,
+        });
+      }
 
       // Prepare mount configurations
       const mounts = this.prepareMounts();
@@ -61,9 +114,13 @@ export class ContainerManager {
 
       // Build environment variables
       const env: Record<string, string> = {
-        REPO_URL: options.repoUrl,
         BRANCH: options.branch,
       };
+
+      // Add REPO_URL only for remote repository sessions (git clone will be triggered)
+      if (!isLocalPath && repoUrl) {
+        env.REPO_URL = repoUrl;
+      }
 
       // Add SSH_AUTH_SOCK if available and socket file exists
       if (sshAuthSock && fs.existsSync(sshAuthSock)) {
@@ -77,20 +134,41 @@ export class ContainerManager {
         logger.warn('SSH_AUTH_SOCK is set but socket file does not exist', { sshAuthSock });
       }
 
+      // Add local path bind mount for local sessions
+      if (isLocalPath && localPath) {
+        mounts.push({
+          source: localPath,
+          target: '/workspace',
+          readOnly: false,
+        });
+      }
+
       // Create container
       const containerName = `claudework-${session.id}`;
-      const container = await this.dockerService.createContainer({
+      const containerConfig: {
+        image: string;
+        name: string;
+        env: Record<string, string>;
+        mounts: { source: string; target: string; readOnly: boolean }[];
+        volumes?: { source: string; target: string }[];
+      } = {
         image: DOCKER_IMAGE,
         name: containerName,
         env,
-        volumes: [
+        mounts,
+      };
+
+      // Add volume mount only for remote repository sessions
+      if (!isLocalPath) {
+        containerConfig.volumes = [
           {
             source: volumeName,
             target: '/workspace',
           },
-        ],
-        mounts,
-      });
+        ];
+      }
+
+      const container = await this.dockerService.createContainer(containerConfig);
 
       // Update session with container ID
       await this.sessionManager.updateContainerId(session.id, container.id);
@@ -104,6 +182,7 @@ export class ContainerManager {
       logger.info('Session created successfully', {
         sessionId: session.id,
         containerId: container.id,
+        isLocalPath,
       });
 
       // Return updated session

@@ -12,20 +12,21 @@ describe('Session Database Model', () => {
         },
       },
     });
-    // Push schema to test database
-    await prisma.$executeRaw`CREATE TABLE IF NOT EXISTS sessions (
+    // Drop and recreate table to ensure schema matches (handles schema changes)
+    await prisma.$executeRaw`DROP TABLE IF EXISTS sessions`;
+    // Push schema to test database (matches prisma/schema.prisma)
+    await prisma.$executeRaw`CREATE TABLE sessions (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       container_id TEXT,
       volume_name TEXT NOT NULL,
-      repo_url TEXT NOT NULL,
+      repo_url TEXT,
+      local_path TEXT,
       branch TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'creating',
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`;
-    // Clear any existing data
-    await prisma.$executeRaw`DELETE FROM sessions`;
   });
 
   afterEach(async () => {
