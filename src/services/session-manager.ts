@@ -1,139 +1,75 @@
 import { prisma } from '@/lib/db';
-import { Session } from '@prisma/client';
+import { Session, Repository } from '@prisma/client';
 import { logger } from '@/lib/logger';
 
 export type SessionStatus = 'creating' | 'running' | 'stopped' | 'error';
 
 /**
- * Base input for session creation
+ * Input for session creation with repository reference
  */
-interface SessionCreateInputBase {
+export interface SessionCreateInput {
   name: string;
+  repositoryId: string;
   volumeName: string;
+  worktreePath?: string;  // ローカルリポジトリ時のみ
+  branch: string;         // session/xxx形式
+  parentBranch: string;
 }
 
 /**
- * Input for creating a session from a remote git repository
+ * Session with repository information included
  */
-export interface SessionCreateInputRemote extends SessionCreateInputBase {
-  sourceType: 'remote';
-  repoUrl: string;
-  branch: string;
-  localPath?: never;
-}
-
-/**
- * Input for creating a session from a local directory
- */
-export interface SessionCreateInputLocal extends SessionCreateInputBase {
-  sourceType: 'local';
-  localPath: string;
-  repoUrl?: never;
-  branch?: string; // Optional: can be used for default branch name
-}
-
-/**
- * Union type for session creation input
- */
-export type SessionCreateInput = SessionCreateInputRemote | SessionCreateInputLocal;
-
-/**
- * Legacy input type for backward compatibility
- * @deprecated Use SessionCreateInput with sourceType instead
- */
-export interface SessionCreateInputLegacy {
-  name: string;
-  volumeName: string;
-  repoUrl: string;
-  branch: string;
-}
+export type SessionWithRepository = Session & {
+  repository: Repository;
+};
 
 export class SessionManager {
   /**
    * Create a new session
-   * Supports both remote git repository and local directory sources
+   * Creates a session linked to a repository
    */
-  async create(input: SessionCreateInput | SessionCreateInputLegacy): Promise<Session> {
-    // Handle legacy input (backward compatibility)
-    const normalizedInput = this.normalizeCreateInput(input);
-
+  async create(input: SessionCreateInput): Promise<Session> {
     logger.info('Creating session', {
-      name: normalizedInput.name,
-      sourceType: normalizedInput.sourceType,
+      name: input.name,
+      repositoryId: input.repositoryId,
+      branch: input.branch,
+      parentBranch: input.parentBranch,
     });
 
-    let session: Session;
+    const session = await prisma.session.create({
+      data: {
+        name: input.name,
+        repositoryId: input.repositoryId,
+        volumeName: input.volumeName,
+        worktreePath: input.worktreePath || null,
+        branch: input.branch,
+        parentBranch: input.parentBranch,
+        status: 'creating',
+      },
+    });
 
-    if (normalizedInput.sourceType === 'local') {
-      // Create session from local directory
-      session = await prisma.session.create({
-        data: {
-          name: normalizedInput.name,
-          volumeName: normalizedInput.volumeName,
-          localPath: normalizedInput.localPath,
-          repoUrl: null,
-          branch: normalizedInput.branch || 'main', // Default branch for local
-          status: 'creating',
-        },
-      });
-      logger.info('Session created from local path', {
-        id: session.id,
-        name: session.name,
-        localPath: normalizedInput.localPath,
-      });
-    } else {
-      // Create session from remote git repository
-      session = await prisma.session.create({
-        data: {
-          name: normalizedInput.name,
-          volumeName: normalizedInput.volumeName,
-          repoUrl: normalizedInput.repoUrl,
-          localPath: null,
-          branch: normalizedInput.branch,
-          status: 'creating',
-        },
-      });
-      logger.info('Session created from remote repository', {
-        id: session.id,
-        name: session.name,
-        repoUrl: normalizedInput.repoUrl,
-      });
-    }
+    logger.info('Session created', {
+      id: session.id,
+      name: session.name,
+      repositoryId: input.repositoryId,
+      branch: session.branch,
+    });
 
     return session;
   }
 
-  /**
-   * Normalize input to handle legacy format
-   * @private
-   */
-  private normalizeCreateInput(input: SessionCreateInput | SessionCreateInputLegacy): SessionCreateInput {
-    // Check if input has sourceType (new format)
-    if ('sourceType' in input) {
-      return input as SessionCreateInput;
-    }
-
-    // Legacy format - treat as remote
-    const legacyInput = input as SessionCreateInputLegacy;
-    return {
-      sourceType: 'remote',
-      name: legacyInput.name,
-      volumeName: legacyInput.volumeName,
-      repoUrl: legacyInput.repoUrl,
-      branch: legacyInput.branch,
-    };
-  }
-
-  async findById(id: string): Promise<Session | null> {
+  async findById(id: string): Promise<SessionWithRepository | null> {
     const session = await prisma.session.findUnique({
       where: { id },
+      include: { repository: true },
     });
     return session;
   }
 
-  async findAll(): Promise<Session[]> {
+  async findAll(): Promise<SessionWithRepository[]> {
     const sessions = await prisma.session.findMany({
       orderBy: { createdAt: 'desc' },
+      include: { repository: true },
     });
     return sessions;
   }

@@ -18,6 +18,44 @@ import { prisma } from '@/lib/db';
 
 const mockPrisma = vi.mocked(prisma);
 
+// Helper to create mock repository data
+const createMockRepository = (overrides = {}) => ({
+  id: 'repo-uuid-123',
+  name: 'test-repo',
+  type: 'remote',
+  path: null,
+  url: 'https://github.com/test/repo.git',
+  defaultBranch: 'main',
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  ...overrides,
+});
+
+// Helper to create mock session data
+const createMockSession = (overrides = {}) => ({
+  id: 'uuid-123',
+  name: 'test-session',
+  containerId: null,
+  volumeName: 'vol-test-123',
+  repositoryId: 'repo-uuid-123',
+  worktreePath: null,
+  parentBranch: 'main',
+  branch: 'session/test-session',
+  status: 'creating',
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  ...overrides,
+});
+
+// Helper to create mock session with repository
+const createMockSessionWithRepository = (
+  sessionOverrides = {},
+  repositoryOverrides = {}
+) => ({
+  ...createMockSession(sessionOverrides),
+  repository: createMockRepository(repositoryOverrides),
+});
+
 describe('SessionManager', () => {
   let sessionManager: SessionManager;
 
@@ -31,26 +69,22 @@ describe('SessionManager', () => {
   });
 
   describe('create', () => {
-    it('should create a new session from remote repository (legacy input)', async () => {
+    it('should create a new session with repository reference', async () => {
       const input = {
         name: 'test-session',
+        repositoryId: 'repo-uuid-123',
         volumeName: 'vol-test-123',
-        repoUrl: 'https://github.com/test/repo.git',
-        branch: 'main',
+        branch: 'session/test-session',
+        parentBranch: 'main',
       };
 
-      const expectedSession = {
-        id: 'uuid-123',
-        name: 'test-session',
-        containerId: null,
-        volumeName: 'vol-test-123',
-        repoUrl: 'https://github.com/test/repo.git',
-        localPath: null,
-        branch: 'main',
-        status: 'creating',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
+      const expectedSession = createMockSession({
+        name: input.name,
+        repositoryId: input.repositoryId,
+        volumeName: input.volumeName,
+        branch: input.branch,
+        parentBranch: input.parentBranch,
+      });
 
       mockPrisma.session.create.mockResolvedValue(expectedSession);
 
@@ -59,75 +93,36 @@ describe('SessionManager', () => {
       expect(mockPrisma.session.create).toHaveBeenCalledWith({
         data: {
           name: input.name,
+          repositoryId: input.repositoryId,
           volumeName: input.volumeName,
-          repoUrl: input.repoUrl,
-          localPath: null,
+          worktreePath: null,
           branch: input.branch,
+          parentBranch: input.parentBranch,
           status: 'creating',
         },
       });
       expect(result).toEqual(expectedSession);
     });
 
-    it('should create a new session from remote repository (new input format)', async () => {
+    it('should create a new session with worktreePath for local repository', async () => {
       const input = {
-        sourceType: 'remote' as const,
-        name: 'test-session',
-        volumeName: 'vol-test-123',
-        repoUrl: 'https://github.com/test/repo.git',
-        branch: 'main',
-      };
-
-      const expectedSession = {
-        id: 'uuid-123',
-        name: 'test-session',
-        containerId: null,
-        volumeName: 'vol-test-123',
-        repoUrl: 'https://github.com/test/repo.git',
-        localPath: null,
-        branch: 'main',
-        status: 'creating',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
-      mockPrisma.session.create.mockResolvedValue(expectedSession);
-
-      const result = await sessionManager.create(input);
-
-      expect(mockPrisma.session.create).toHaveBeenCalledWith({
-        data: {
-          name: input.name,
-          volumeName: input.volumeName,
-          repoUrl: input.repoUrl,
-          localPath: null,
-          branch: input.branch,
-          status: 'creating',
-        },
-      });
-      expect(result).toEqual(expectedSession);
-    });
-
-    it('should create a new session from local directory', async () => {
-      const input = {
-        sourceType: 'local' as const,
         name: 'local-session',
+        repositoryId: 'repo-local-123',
         volumeName: 'vol-local-123',
-        localPath: '/home/user/projects/my-repo',
+        worktreePath: '/home/user/projects/my-repo/.git/worktrees/session-local',
+        branch: 'session/local-session',
+        parentBranch: 'develop',
       };
 
-      const expectedSession = {
+      const expectedSession = createMockSession({
         id: 'uuid-456',
-        name: 'local-session',
-        containerId: null,
-        volumeName: 'vol-local-123',
-        repoUrl: null,
-        localPath: '/home/user/projects/my-repo',
-        branch: 'main',
-        status: 'creating',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
+        name: input.name,
+        repositoryId: input.repositoryId,
+        volumeName: input.volumeName,
+        worktreePath: input.worktreePath,
+        branch: input.branch,
+        parentBranch: input.parentBranch,
+      });
 
       mockPrisma.session.create.mockResolvedValue(expectedSession);
 
@@ -136,37 +131,34 @@ describe('SessionManager', () => {
       expect(mockPrisma.session.create).toHaveBeenCalledWith({
         data: {
           name: input.name,
+          repositoryId: input.repositoryId,
           volumeName: input.volumeName,
-          localPath: input.localPath,
-          repoUrl: null,
-          branch: 'main',
+          worktreePath: input.worktreePath,
+          branch: input.branch,
+          parentBranch: input.parentBranch,
           status: 'creating',
         },
       });
       expect(result).toEqual(expectedSession);
     });
 
-    it('should create a new session from local directory with custom branch', async () => {
+    it('should create session without worktreePath when not provided', async () => {
       const input = {
-        sourceType: 'local' as const,
-        name: 'local-session',
-        volumeName: 'vol-local-123',
-        localPath: '/home/user/projects/my-repo',
-        branch: 'develop',
+        name: 'remote-session',
+        repositoryId: 'repo-remote-123',
+        volumeName: 'vol-remote-123',
+        branch: 'session/remote-session',
+        parentBranch: 'main',
       };
 
-      const expectedSession = {
-        id: 'uuid-789',
-        name: 'local-session',
-        containerId: null,
-        volumeName: 'vol-local-123',
-        repoUrl: null,
-        localPath: '/home/user/projects/my-repo',
-        branch: 'develop',
-        status: 'creating',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
+      const expectedSession = createMockSession({
+        name: input.name,
+        repositoryId: input.repositoryId,
+        volumeName: input.volumeName,
+        worktreePath: null,
+        branch: input.branch,
+        parentBranch: input.parentBranch,
+      });
 
       mockPrisma.session.create.mockResolvedValue(expectedSession);
 
@@ -175,10 +167,11 @@ describe('SessionManager', () => {
       expect(mockPrisma.session.create).toHaveBeenCalledWith({
         data: {
           name: input.name,
+          repositoryId: input.repositoryId,
           volumeName: input.volumeName,
-          localPath: input.localPath,
-          repoUrl: null,
-          branch: 'develop',
+          worktreePath: null,
+          branch: input.branch,
+          parentBranch: input.parentBranch,
           status: 'creating',
         },
       });
@@ -187,28 +180,52 @@ describe('SessionManager', () => {
   });
 
   describe('findById', () => {
-    it('should return session when found', async () => {
-      const expectedSession = {
-        id: 'uuid-123',
-        name: 'test-session',
-        containerId: 'container-abc',
-        volumeName: 'vol-test-123',
-        repoUrl: 'https://github.com/test/repo.git',
-        localPath: null,
-        branch: 'main',
-        status: 'running',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
+    it('should return session with repository when found', async () => {
+      const expectedSessionWithRepo = createMockSessionWithRepository(
+        {
+          containerId: 'container-abc',
+          status: 'running',
+        },
+        {
+          type: 'remote',
+          url: 'https://github.com/test/repo.git',
+        }
+      );
 
-      mockPrisma.session.findUnique.mockResolvedValue(expectedSession);
+      mockPrisma.session.findUnique.mockResolvedValue(expectedSessionWithRepo);
 
       const result = await sessionManager.findById('uuid-123');
 
       expect(mockPrisma.session.findUnique).toHaveBeenCalledWith({
         where: { id: 'uuid-123' },
+        include: { repository: true },
       });
-      expect(result).toEqual(expectedSession);
+      expect(result).toEqual(expectedSessionWithRepo);
+      expect(result?.repository).toBeDefined();
+      expect(result?.repository.type).toBe('remote');
+    });
+
+    it('should return session with local repository when found', async () => {
+      const expectedSessionWithRepo = createMockSessionWithRepository(
+        {
+          id: 'uuid-local',
+          worktreePath: '/home/user/projects/my-repo/.git/worktrees/session',
+        },
+        {
+          id: 'repo-local',
+          type: 'local',
+          path: '/home/user/projects/my-repo',
+          url: null,
+        }
+      );
+
+      mockPrisma.session.findUnique.mockResolvedValue(expectedSessionWithRepo);
+
+      const result = await sessionManager.findById('uuid-local');
+
+      expect(result?.repository.type).toBe('local');
+      expect(result?.repository.path).toBe('/home/user/projects/my-repo');
+      expect(result?.worktreePath).toBe('/home/user/projects/my-repo/.git/worktrees/session');
     });
 
     it('should return null when session not found', async () => {
@@ -221,32 +238,38 @@ describe('SessionManager', () => {
   });
 
   describe('findAll', () => {
-    it('should return all sessions', async () => {
+    it('should return all sessions with repository information', async () => {
       const expectedSessions = [
-        {
-          id: 'uuid-1',
-          name: 'session-1',
-          containerId: 'container-1',
-          volumeName: 'vol-1',
-          repoUrl: 'https://github.com/test/repo1.git',
-          localPath: null,
-          branch: 'main',
-          status: 'running',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-        {
-          id: 'uuid-2',
-          name: 'session-2',
-          containerId: null,
-          volumeName: 'vol-2',
-          repoUrl: 'https://github.com/test/repo2.git',
-          localPath: null,
-          branch: 'develop',
-          status: 'stopped',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
+        createMockSessionWithRepository(
+          {
+            id: 'uuid-1',
+            name: 'session-1',
+            containerId: 'container-1',
+            status: 'running',
+          },
+          {
+            id: 'repo-1',
+            name: 'repo-1',
+            type: 'remote',
+            url: 'https://github.com/test/repo1.git',
+          }
+        ),
+        createMockSessionWithRepository(
+          {
+            id: 'uuid-2',
+            name: 'session-2',
+            containerId: null,
+            status: 'stopped',
+            worktreePath: '/path/to/worktree',
+          },
+          {
+            id: 'repo-2',
+            name: 'repo-2',
+            type: 'local',
+            path: '/home/user/repo2',
+            url: null,
+          }
+        ),
       ];
 
       mockPrisma.session.findMany.mockResolvedValue(expectedSessions);
@@ -255,8 +278,11 @@ describe('SessionManager', () => {
 
       expect(mockPrisma.session.findMany).toHaveBeenCalledWith({
         orderBy: { createdAt: 'desc' },
+        include: { repository: true },
       });
       expect(result).toEqual(expectedSessions);
+      expect(result[0].repository.type).toBe('remote');
+      expect(result[1].repository.type).toBe('local');
     });
 
     it('should return empty array when no sessions exist', async () => {
@@ -270,18 +296,10 @@ describe('SessionManager', () => {
 
   describe('updateStatus', () => {
     it('should update session status', async () => {
-      const updatedSession = {
-        id: 'uuid-123',
-        name: 'test-session',
+      const updatedSession = createMockSession({
         containerId: 'container-abc',
-        volumeName: 'vol-test-123',
-        repoUrl: 'https://github.com/test/repo.git',
-        localPath: null,
-        branch: 'main',
         status: 'running',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
+      });
 
       mockPrisma.session.update.mockResolvedValue(updatedSession);
 
@@ -294,18 +312,9 @@ describe('SessionManager', () => {
     });
 
     it('should update status to error', async () => {
-      const updatedSession = {
-        id: 'uuid-123',
-        name: 'test-session',
-        containerId: null,
-        volumeName: 'vol-test-123',
-        repoUrl: 'https://github.com/test/repo.git',
-        localPath: null,
-        branch: 'main',
+      const updatedSession = createMockSession({
         status: 'error',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
+      });
 
       mockPrisma.session.update.mockResolvedValue(updatedSession);
 
@@ -316,22 +325,29 @@ describe('SessionManager', () => {
         data: { status: 'error' },
       });
     });
+
+    it('should update status to stopped', async () => {
+      const updatedSession = createMockSession({
+        status: 'stopped',
+      });
+
+      mockPrisma.session.update.mockResolvedValue(updatedSession);
+
+      await sessionManager.updateStatus('uuid-123', 'stopped');
+
+      expect(mockPrisma.session.update).toHaveBeenCalledWith({
+        where: { id: 'uuid-123' },
+        data: { status: 'stopped' },
+      });
+    });
   });
 
   describe('updateContainerId', () => {
     it('should update session containerId', async () => {
-      const updatedSession = {
-        id: 'uuid-123',
-        name: 'test-session',
+      const updatedSession = createMockSession({
         containerId: 'new-container-xyz',
-        volumeName: 'vol-test-123',
-        repoUrl: 'https://github.com/test/repo.git',
-        localPath: null,
-        branch: 'main',
         status: 'running',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
+      });
 
       mockPrisma.session.update.mockResolvedValue(updatedSession);
 
@@ -346,18 +362,10 @@ describe('SessionManager', () => {
 
   describe('delete', () => {
     it('should delete session by id', async () => {
-      const deletedSession = {
-        id: 'uuid-123',
-        name: 'test-session',
+      const deletedSession = createMockSession({
         containerId: 'container-abc',
-        volumeName: 'vol-test-123',
-        repoUrl: 'https://github.com/test/repo.git',
-        localPath: null,
-        branch: 'main',
         status: 'stopped',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
+      });
 
       mockPrisma.session.delete.mockResolvedValue(deletedSession);
 
