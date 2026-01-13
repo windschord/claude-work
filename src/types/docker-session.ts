@@ -13,6 +13,18 @@ export type DockerSessionStatus = 'creating' | 'running' | 'stopped' | 'error';
 export type SessionSourceType = 'remote' | 'local';
 
 /**
+ * Repository type for session
+ */
+export interface SessionRepository {
+  id: string;
+  name: string;
+  type: 'local' | 'remote';
+  path: string | null;
+  url: string | null;
+  defaultBranch: string;
+}
+
+/**
  * Docker session type
  */
 export interface DockerSession {
@@ -24,14 +36,16 @@ export interface DockerSession {
   containerId: string | null;
   /** Docker volume name */
   volumeName: string;
-  /** Source type: 'remote' for git repository, 'local' for local directory */
-  sourceType: SessionSourceType;
-  /** Git repository URL (for remote source) */
-  repoUrl: string;
-  /** Git branch name (for remote source) */
+  /** Repository ID */
+  repositoryId: string;
+  /** Associated repository */
+  repository: SessionRepository;
+  /** Git branch name (session/<name> format) */
   branch: string;
-  /** Local directory path (for local source) */
-  localPath: string | null;
+  /** Parent branch name */
+  parentBranch: string;
+  /** Worktree path (for local repository sessions) */
+  worktreePath: string | null;
   /** Session status */
   status: DockerSessionStatus;
   /** Created timestamp */
@@ -41,36 +55,16 @@ export interface DockerSession {
 }
 
 /**
- * Base create session request
+ * Create session request
  */
-interface CreateDockerSessionRequestBase {
+export interface CreateDockerSessionRequest {
+  /** Session name */
   name: string;
+  /** Repository ID to create session from */
+  repositoryId: string;
+  /** Parent branch to base the session on */
+  parentBranch: string;
 }
-
-/**
- * Create session request for remote git repository
- */
-export interface CreateDockerSessionRequestRemote extends CreateDockerSessionRequestBase {
-  sourceType: 'remote';
-  repoUrl: string;
-  branch: string;
-  localPath?: never;
-}
-
-/**
- * Create session request for local directory
- */
-export interface CreateDockerSessionRequestLocal extends CreateDockerSessionRequestBase {
-  sourceType: 'local';
-  localPath: string;
-  repoUrl?: never;
-  branch?: never;
-}
-
-/**
- * Create session request (union type)
- */
-export type CreateDockerSessionRequest = CreateDockerSessionRequestRemote | CreateDockerSessionRequestLocal;
 
 /**
  * Session warning info

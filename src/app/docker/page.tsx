@@ -48,7 +48,7 @@ export default function DockerHome() {
   }, []);
 
   const handleCreateSession = useCallback(
-    async (request: { name: string; repoUrl: string; branch: string }) => {
+    async (request: { name: string; repositoryId: string; parentBranch: string }) => {
       const session = await createSession(request);
       setSelectedSessionId(session.id);
     },

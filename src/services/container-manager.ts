@@ -103,7 +103,7 @@ export class ContainerManager {
         repositoryId: options.repositoryId,
         branch,
         parentBranch: options.parentBranch,
-        worktreePath: worktreePath ?? null,
+        worktreePath: worktreePath ?? undefined,
       });
 
       // Prepare mount configurations

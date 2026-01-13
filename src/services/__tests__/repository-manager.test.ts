@@ -38,7 +38,6 @@ vi.mock('../filesystem-service', () => ({
 
 import { RepositoryManager, RepositoryNotFoundError, RepositoryHasSessionsError } from '../repository-manager';
 import { prisma } from '@/lib/db';
-import { FilesystemService } from '../filesystem-service';
 
 const mockPrisma = vi.mocked(prisma);
 

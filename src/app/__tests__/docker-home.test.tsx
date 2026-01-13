@@ -64,7 +64,7 @@ vi.mock('@/components/docker-sessions', () => ({
         <button
           data-testid="create-success-btn"
           onClick={async () => {
-            await onCreate({ name: 'new-session', repoUrl: 'https://example.com/repo', branch: 'main' });
+            await onCreate({ name: 'new-session', repositoryId: 'repo-1', parentBranch: 'main' });
             onClose();
           }}
         >
@@ -75,6 +75,9 @@ vi.mock('@/components/docker-sessions', () => ({
   ),
   DockerTerminalPanel: vi.fn(({ sessionId }) => (
     <div data-testid="docker-terminal-panel">Terminal: {sessionId}</div>
+  )),
+  RepositorySection: vi.fn(() => (
+    <div data-testid="repository-section">Repository Section</div>
   )),
 }));
 
@@ -91,7 +94,7 @@ describe('DockerHome', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('docker-session-list')).toBeInTheDocument();
-      expect(screen.getByRole('heading', { name: 'Docker Sessions', level: 2 })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Sessions', level: 2 })).toBeInTheDocument();
     });
   });
 

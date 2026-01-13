@@ -4,7 +4,7 @@
  * タスク1.2: ブランチ取得機能
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach, MockedFunction } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as path from 'path';
 
 // fs/promisesをモック
@@ -19,7 +19,7 @@ vi.mock('fs/promises', () => ({
 }));
 
 // モック設定後にインポート
-import { FilesystemService, AccessDeniedError, NotFoundError, ExecFunction } from '../filesystem-service';
+import { FilesystemService, AccessDeniedError, NotFoundError } from '../filesystem-service';
 
 describe('FilesystemService', () => {
   let service: FilesystemService;

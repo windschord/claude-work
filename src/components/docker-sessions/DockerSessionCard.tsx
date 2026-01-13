@@ -163,8 +163,8 @@ export function DockerSessionCard({
 
       {/* Details */}
       <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
-        <p className="truncate" title={session.repoUrl}>
-          <span className="font-medium">Repo:</span> {session.repoUrl}
+        <p className="truncate" title={session.repository?.name}>
+          <span className="font-medium">Repo:</span> {session.repository?.name} ({session.repository?.type})
         </p>
         <p>
           <span className="font-medium">Branch:</span> {session.branch}

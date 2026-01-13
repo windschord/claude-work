@@ -14,6 +14,7 @@ import {
   DockerSessionList,
   CreateSessionModal,
   DockerTerminalPanel,
+  RepositorySection,
 } from '@/components/docker-sessions';
 import { useDockerSessions } from '@/hooks/useDockerSessions';
 import { Plus } from 'lucide-react';
@@ -50,7 +51,7 @@ export default function Home() {
   }, []);
 
   const handleCreateSession = useCallback(
-    async (request: { name: string; repoUrl: string; branch: string }) => {
+    async (request: { name: string; repositoryId: string; parentBranch: string }) => {
       const session = await createSession(request);
       setSelectedSessionId(session.id);
     },
@@ -101,9 +102,15 @@ export default function Home() {
 
       {/* メインコンテンツ */}
       <div className="flex flex-1 min-h-0">
-        {/* セッション一覧 (左側) */}
+        {/* サイドバー (左側) */}
         <div className="w-80 flex-shrink-0 border-r border-gray-200 dark:border-gray-700 overflow-hidden flex flex-col bg-white dark:bg-gray-800">
-          {/* セクションヘッダー */}
+          {/* リポジトリセクション */}
+          <RepositorySection />
+
+          {/* 区切り線 */}
+          <div className="border-t border-gray-200 dark:border-gray-700" />
+
+          {/* セッションセクションヘッダー */}
           <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
               Sessions

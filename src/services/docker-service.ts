@@ -5,7 +5,7 @@ export interface ContainerOptions {
   image: string;
   name: string;
   env: Record<string, string>;
-  volumes: VolumeMount[];
+  volumes?: VolumeMount[];
   mounts: BindMount[];
 }
 
@@ -55,7 +55,7 @@ export class DockerService {
     const volumeBindings: Record<string, Record<string, never>> = {};
 
     // Add volume mounts
-    for (const vol of options.volumes) {
+    for (const vol of options.volumes || []) {
       binds.push(`${vol.source}:${vol.target}`);
       volumeBindings[vol.target] = {};
     }

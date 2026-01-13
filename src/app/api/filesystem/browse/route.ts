@@ -4,6 +4,7 @@
  * ディレクトリ内容を取得
  */
 
+import os from 'os';
 import { NextRequest, NextResponse } from 'next/server';
 import {
   FilesystemService,
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest) {
     const entries = await service.listDirectory(path);
 
     // 現在のパスを決定（省略時はホームディレクトリ）
-    const currentPath = path || require('os').homedir();
+    const currentPath = path || os.homedir();
 
     // 親ディレクトリのパスを取得
     const parentPath = service.getParentPath(currentPath);

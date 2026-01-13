@@ -178,7 +178,7 @@ describe('ContainerManager', () => {
         repositoryId: 'repo-123',
         branch: 'session/test-session',
         parentBranch: 'main',
-        worktreePath: null,
+        worktreePath: undefined,
       });
       expect(mocks.mockDockerService.createContainer).toHaveBeenCalled();
       expect(result.name).toBe('test-session');
