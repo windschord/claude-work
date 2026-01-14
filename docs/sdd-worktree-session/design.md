@@ -543,6 +543,38 @@ async createSession(options: CreateSessionOptions): Promise<Session>;
 **決定**: 選択肢2 - 既存データをすべてリセット
 **根拠**: ユーザーの承認済み。スキーマが大きく変わるため、リセットが最もシンプル。
 
+### 決定5: 空リポジトリ（コミットなし）のブランチ名取得
+
+**問題**:
+`git rev-parse --abbrev-ref HEAD` はコミットが存在しないリポジトリでエラーになる。
+```
+fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tree.
+```
+
+**検討した選択肢**:
+1. `git symbolic-ref --short HEAD` を使用（unborn branchでも動作）
+2. `.git/HEAD` ファイルを直接解析
+3. 空リポジトリを登録不可にする
+
+**決定**: 選択肢1 - `git symbolic-ref --short HEAD` を使用
+**根拠**:
+- Gitの標準コマンドを使用するため信頼性が高い
+- コミット済みリポジトリでも空リポジトリでも同じように動作
+- フォールバックとして "main" をデフォルト値として返す
+
+**実装箇所**: `FilesystemService.getCurrentBranch()`
+
+```typescript
+// git symbolic-ref --short HEAD を実行（空のリポジトリでも動作する）
+try {
+  const { stdout } = await this.execFn('git symbolic-ref --short HEAD', { cwd: resolvedPath });
+  return stdout.trim();
+} catch {
+  // symbolic-refも失敗した場合は "main" をデフォルトとして返す
+  return 'main';
+}
+```
+
 ---
 
 ## セキュリティ考慮事項

@@ -253,9 +253,15 @@ export class FilesystemService {
       throw new Error('Not a git repository');
     }
 
-    // git rev-parse --abbrev-ref HEAD を実行
-    const { stdout } = await this.execFn('git rev-parse --abbrev-ref HEAD', { cwd: resolvedPath });
-
-    return stdout.trim();
+    // git symbolic-ref --short HEAD を実行（空のリポジトリでも動作する）
+    // git rev-parse --abbrev-ref HEAD はコミットがないと失敗するため
+    try {
+      const { stdout } = await this.execFn('git symbolic-ref --short HEAD', { cwd: resolvedPath });
+      return stdout.trim();
+    } catch {
+      // symbolic-refも失敗した場合は、.git/HEADファイルから直接読み取る
+      // または "main" をデフォルトとして返す
+      return 'main';
+    }
   }
 }
