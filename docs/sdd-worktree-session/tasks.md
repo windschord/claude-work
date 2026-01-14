@@ -286,16 +286,22 @@
 - `src/components/docker-sessions/RepositorySection.tsx` を新規作成
 - サイドバーにリポジトリ一覧を表示
 - アイコンでタイプ（local/remote）を区別
+- タイプを示すバッジ（Local/Remote）を表示
+- パス/URLを省略表示
 - セッション数を表示
 - 追加/削除ボタン
 
 **技術的文脈**:
 - 既存のSessionListを参考にする
 - Lucide iconsを使用
+- タイプバッジ: Local=緑系、Remote=青系
+- パス/URLは省略表示し、title属性で全体表示
 
 **受入基準**:
 - [ ] リポジトリ一覧が表示される
-- [ ] タイプによってアイコンが異なる
+- [ ] タイプによってアイコンが異なる（FolderGit/Globe）
+- [ ] タイプを示すバッジが表示される（Local: 緑、Remote: 青）
+- [ ] リポジトリのパス/URLが表示される（省略表示、ホバーで全体表示）
 - [ ] セッション数が表示される
 - [ ] 追加ボタンがAddRepositoryModalを開く
 - [ ] 削除ボタンが動作する（セッションがない場合のみ）

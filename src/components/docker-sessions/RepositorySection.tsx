@@ -81,60 +81,85 @@ export function RepositorySection() {
         {/* Repository list */}
         {repositories.length > 0 && (
           <ul className="py-1">
-            {repositories.map((repo) => (
-              <li
-                key={repo.id}
-                className="group flex items-start justify-between px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-              >
-                <div className="flex items-start gap-2 min-w-0 flex-1">
-                  {/* Icon */}
-                  {repo.type === 'local' ? (
-                    <FolderGit
-                      size={16}
-                      className="mt-0.5 flex-shrink-0 text-gray-500 dark:text-gray-400"
-                    />
-                  ) : (
-                    <Globe
-                      size={16}
-                      className="mt-0.5 flex-shrink-0 text-gray-500 dark:text-gray-400"
-                    />
-                  )}
-                  {/* Info */}
-                  <div className="min-w-0 flex-1">
-                    <p
-                      className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate"
-                      title={repo.name}
-                    >
-                      {repo.name}
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {repo.sessionCount} session{repo.sessionCount !== 1 ? 's' : ''}
-                    </p>
-                  </div>
-                </div>
-                {/* Delete button */}
-                <button
-                  onClick={() => handleDelete(repo.id, repo.name, repo.sessionCount)}
-                  disabled={repo.sessionCount > 0 || deletingId === repo.id}
-                  className={`p-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity ${
-                    repo.sessionCount > 0
-                      ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
-                      : 'text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400'
-                  } disabled:opacity-50`}
-                  title={
-                    repo.sessionCount > 0
-                      ? 'Cannot delete: has active sessions'
-                      : 'Delete repository'
-                  }
+            {repositories.map((repo) => {
+              const locationInfo = repo.type === 'local' ? repo.path : repo.url;
+              return (
+                <li
+                  key={repo.id}
+                  className="group flex items-start justify-between px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                 >
-                  {deletingId === repo.id ? (
-                    <Loader2 size={14} className="animate-spin" />
-                  ) : (
-                    <Trash2 size={14} />
-                  )}
-                </button>
-              </li>
-            ))}
+                  <div className="flex items-start gap-2 min-w-0 flex-1">
+                    {/* Icon */}
+                    {repo.type === 'local' ? (
+                      <FolderGit
+                        size={16}
+                        className="mt-0.5 flex-shrink-0 text-green-600 dark:text-green-500"
+                      />
+                    ) : (
+                      <Globe
+                        size={16}
+                        className="mt-0.5 flex-shrink-0 text-blue-600 dark:text-blue-500"
+                      />
+                    )}
+                    {/* Info */}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p
+                          className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate"
+                          title={repo.name}
+                        >
+                          {repo.name}
+                        </p>
+                        {/* Type Badge */}
+                        <span
+                          className={`flex-shrink-0 px-1.5 py-0.5 text-xs font-medium rounded ${
+                            repo.type === 'local'
+                              ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                              : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                          }`}
+                        >
+                          {repo.type === 'local' ? 'Local' : 'Remote'}
+                        </span>
+                      </div>
+                      {/* Path/URL */}
+                      {locationInfo && (
+                        <p
+                          className="text-xs text-gray-500 dark:text-gray-400 truncate"
+                          title={locationInfo}
+                        >
+                          {locationInfo}
+                        </p>
+                      )}
+                      {/* Session count */}
+                      <p className="text-xs text-gray-400 dark:text-gray-500">
+                        {repo.sessionCount} session{repo.sessionCount !== 1 ? 's' : ''}
+                      </p>
+                    </div>
+                  </div>
+                  {/* Delete button */}
+                  <button
+                    onClick={() => handleDelete(repo.id, repo.name, repo.sessionCount)}
+                    disabled={repo.sessionCount > 0 || deletingId === repo.id}
+                    className={`p-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity ${
+                      repo.sessionCount > 0
+                        ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
+                        : 'text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400'
+                    } disabled:opacity-50`}
+                    title={
+                      repo.sessionCount > 0
+                        ? 'Cannot delete: has active sessions'
+                        : 'Delete repository'
+                    }
+                  >
+                    {deletingId === repo.id ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Trash2 size={14} />
+                    )}
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>

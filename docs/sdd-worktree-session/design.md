@@ -617,6 +617,33 @@ try {
 - 追加ボタン → AddRepositoryModal
 - 削除ボタン（セッションがない場合のみ有効）
 
+**リポジトリアイテムの表示要素**:
+```
+┌─────────────────────────────────────────────────┐
+│ [Icon] Repository Name            [Local] [X]  │
+│        /path/to/repo or https://...            │
+│        2 sessions                              │
+└─────────────────────────────────────────────────┘
+```
+
+| 要素 | 説明 |
+|------|------|
+| Icon | タイプ別アイコン（FolderGit: ローカル、Globe: リモート） |
+| Repository Name | リポジトリの表示名 |
+| Type Badge | "Local" または "Remote" のバッジ（色で区別） |
+| Path/URL | パスまたはURLを省略表示（ホバーで全体表示） |
+| Session Count | 関連セッション数 |
+| Delete Button | 削除ボタン（セッションがある場合は無効） |
+
+**タイプバッジのスタイル**:
+- Local: 緑系の背景色（`bg-green-100 text-green-700`）
+- Remote: 青系の背景色（`bg-blue-100 text-blue-700`）
+
+**パス/URL表示**:
+- 最大文字数を超える場合は末尾を省略（`...`）
+- `title`属性で全体を表示
+- フォントサイズは小さめ（`text-xs`）、グレー系の色
+
 ### AddRepositoryModal（新規）
 
 **目的**: リポジトリを登録するモーダル
