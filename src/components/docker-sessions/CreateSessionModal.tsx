@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect, Fragment } from 'react';
+import { useState, useEffect, Fragment, useCallback } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
-import { X, Loader2, AlertCircle } from 'lucide-react';
+import { X, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { useRepositoryStore } from '@/store/repository-store';
+import { generateSessionName } from '@/lib/session-name-generator';
 
 interface CreateSessionModalProps {
   isOpen: boolean;
@@ -72,12 +73,25 @@ export function CreateSessionModal({ isOpen, onClose, onCreate }: CreateSessionM
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  // Regenerate session name
+  const regenerateSessionName = useCallback(() => {
+    setSessionName(generateSessionName());
+  }, []);
+
   // Fetch repositories when modal opens
   useEffect(() => {
     if (isOpen) {
       fetchRepositories();
     }
   }, [isOpen, fetchRepositories]);
+
+  // Auto-generate session name when modal first opens
+  useEffect(() => {
+    if (isOpen && sessionName === '') {
+      regenerateSessionName();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]); // Only trigger on isOpen change, not on sessionName change
 
   // Set default branch when branches are loaded
   useEffect(() => {
@@ -298,17 +312,28 @@ export function CreateSessionModal({ isOpen, onClose, onCreate }: CreateSessionM
                     >
                       Session Name
                     </label>
-                    <input
-                      id="session-name"
-                      type="text"
-                      value={sessionName}
-                      onChange={(e) => setSessionName(e.target.value)}
-                      disabled={isSubmitting}
-                      placeholder="my-feature"
-                      className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-100 disabled:opacity-50 ${
-                        errors.name ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
-                      }`}
-                    />
+                    <div className="flex gap-2">
+                      <input
+                        id="session-name"
+                        type="text"
+                        value={sessionName}
+                        onChange={(e) => setSessionName(e.target.value)}
+                        disabled={isSubmitting}
+                        placeholder="my-feature"
+                        className={`flex-1 px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-100 disabled:opacity-50 ${
+                          errors.name ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+                        }`}
+                      />
+                      <button
+                        type="button"
+                        onClick={regenerateSessionName}
+                        disabled={isSubmitting}
+                        title="Generate new name"
+                        className="px-3 py-2 text-gray-500 hover:text-blue-500 dark:text-gray-400 dark:hover:text-blue-400 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors"
+                      >
+                        <RefreshCw size={16} />
+                      </button>
+                    </div>
                     {errors.name && (
                       <p className="mt-1 text-sm text-red-500">{errors.name}</p>
                     )}

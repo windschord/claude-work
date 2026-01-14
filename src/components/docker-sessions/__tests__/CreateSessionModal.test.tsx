@@ -126,7 +126,9 @@ describe('CreateSessionModal', () => {
       });
 
       expect(screen.getByText('Branch Name (auto-generated)')).toBeInTheDocument();
-      expect(screen.getByTestId('branch-name-preview')).toHaveTextContent('session/...');
+      // Since session name is auto-generated, the preview shows a real branch name
+      const preview = screen.getByTestId('branch-name-preview');
+      expect(preview.textContent).toMatch(/^session\/.+/);
     });
 
     it('should fetch repositories when modal opens', async () => {
@@ -313,14 +315,17 @@ describe('CreateSessionModal', () => {
       expect(screen.getByTestId('branch-name-preview')).toHaveTextContent('session/feat-123');
     });
 
-    it('should show placeholder when session name is empty', async () => {
+    it('should auto-generate session name on modal open', async () => {
       await act(async () => {
         render(
           <CreateSessionModal isOpen={true} onClose={mockOnClose} onCreate={mockOnCreate} />
         );
       });
 
-      expect(screen.getByTestId('branch-name-preview')).toHaveTextContent('session/...');
+      // Session name should be auto-generated (not empty, not placeholder)
+      const sessionNameInput = screen.getByLabelText(/Session Name/i) as HTMLInputElement;
+      expect(sessionNameInput.value).not.toBe('');
+      expect(screen.getByTestId('branch-name-preview')).not.toHaveTextContent('session/...');
     });
   });
 
@@ -337,6 +342,13 @@ describe('CreateSessionModal', () => {
         render(
           <CreateSessionModal isOpen={true} onClose={mockOnClose} onCreate={mockOnCreate} />
         );
+      });
+
+      // Clear the auto-generated session name
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText(/Session Name/i), {
+          target: { value: '' },
+        });
       });
 
       // Select the branch explicitly
