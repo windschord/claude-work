@@ -915,6 +915,169 @@ async function migrateToEnvironments() {
 - EnvironmentAdapterインターフェースがあれば拡張可能
 - 過剰設計を避ける
 
+## 既存機能との互換性
+
+### アダプター選択フロー
+
+既存の`docker_mode`フラグと新しい`environment_id`の両方をサポートするため、以下の優先順位でアダプターを選択する。
+
+```typescript
+// ClaudeWebSocketHandler内での判断フロー
+async function selectAdapter(session: Session): Promise<EnvironmentAdapter> {
+  // 優先順位1: environment_idが指定されている場合
+  if (session.environment_id) {
+    const env = await environmentService.findById(session.environment_id);
+    if (env) {
+      return AdapterFactory.getAdapter(env);
+    }
+    // 環境が削除された場合はデフォルトにフォールバック
+    logger.warn('Environment not found, falling back to default', {
+      sessionId: session.id,
+      environmentId: session.environment_id,
+    });
+  }
+
+  // 優先順位2: docker_mode=true かつ environment_id未設定（レガシー）
+  if (session.docker_mode && !session.environment_id) {
+    // 既存のclaudePtyManager経由でDockerPTYAdapterを使用
+    // これによりホスト認証情報を共有する従来の動作を維持
+    return {
+      type: 'legacy-docker',
+      manager: claudePtyManager,
+      options: { dockerMode: true },
+    };
+  }
+
+  // 優先順位3: デフォルトHOST環境
+  const defaultEnv = await environmentService.getDefault();
+  return AdapterFactory.getAdapter(defaultEnv);
+}
+```
+
+### セッション作成APIパラメータ優先順位
+
+```typescript
+// POST /api/projects/:project_id/sessions
+const { name, prompt, environment_id, dockerMode = false } = body;
+
+// 優先順位:
+// 1. environment_id が指定されていればそれを使用
+// 2. dockerMode=true かつ environment_id未指定 → レガシーDocker（警告ログ出力）
+// 3. 両方未指定 → デフォルトHOST環境
+
+let effectiveEnvironmentId: string | null = null;
+
+if (environment_id) {
+  // 新方式: environment_idを使用
+  effectiveEnvironmentId = environment_id;
+} else if (dockerMode) {
+  // レガシー方式: 警告を出力しつつ従来動作を維持
+  logger.warn('dockerMode parameter is deprecated, use environment_id instead', {
+    projectId: project_id,
+  });
+  // environment_idはnullのまま、session.docker_mode=trueで保存
+  // WebSocket接続時に既存DockerPTYAdapterが使用される
+}
+```
+
+### HostAdapterとClaudePTYManagerの関係
+
+既存の`ClaudePTYManager`は内部で`DockerPTYAdapter`を保持し、`dockerMode`フラグで切り替える設計になっている。
+
+```typescript
+// 既存のClaudePTYManager構造
+class ClaudePTYManager {
+  private dockerAdapter: DockerPTYAdapter;  // 内部保持
+
+  createSession(..., options) {
+    if (options?.dockerMode) {
+      this.dockerAdapter.createSession(...);  // 委譲
+    } else {
+      // ホスト実行のPTYロジック
+    }
+  }
+}
+```
+
+`HostAdapter`は`ClaudePTYManager`を`dockerMode: false`固定でラップする。これにより：
+- ClaudePTYManager内部のdockerAdapter処理は使用されない
+- 既存のdocker_modeを使うレガシーコードは引き続き動作
+- 将来的にClaudePTYManagerからDocker処理を分離可能
+
+```typescript
+// HostAdapterの実装
+class HostAdapter implements EnvironmentAdapter {
+  private ptyManager: ClaudePTYManager;
+
+  createSession(..., options) {
+    // dockerModeは常にfalse
+    this.ptyManager.createSession(..., {
+      resumeSessionId: options?.resumeSessionId,
+      dockerMode: false,  // 固定
+    });
+  }
+}
+```
+
+### 新旧DockerAdapterの違い
+
+| 項目 | 既存DockerPTYAdapter | 新DockerAdapter |
+|------|---------------------|-----------------|
+| 認証情報 | ホスト`~/.claude`を共有 | 環境専用ディレクトリ |
+| インスタンス | グローバルシングルトン | 環境IDごとにシングルトン |
+| 使用条件 | `docker_mode=true` | `environment_id`指定 |
+| 用途 | レガシー互換 | 新規Docker環境 |
+
+### container_idフィールドの更新タイミング
+
+`Session.container_id`はアクティブなコンテナIDを記録する（デバッグ・管理用）。
+
+```typescript
+// DockerAdapter内での更新
+class DockerAdapter {
+  async createSession(sessionId, workingDir, ...) {
+    const containerName = `claude-env-${this.config.environmentId}-${Date.now()}`;
+    // ... コンテナ起動 ...
+
+    // container_idを更新
+    await prisma.session.update({
+      where: { id: sessionId },
+      data: { container_id: containerName },
+    });
+  }
+
+  async destroySession(sessionId) {
+    // ... コンテナ停止 ...
+
+    // container_idをクリア
+    await prisma.session.update({
+      where: { id: sessionId },
+      data: { container_id: null },
+    });
+  }
+}
+```
+
+### APIステータス取得のパフォーマンス対策
+
+環境一覧取得時に毎回Dockerデーモンチェックを行うとレイテンシが増大するため、ステータスはオプショナルとする。
+
+```typescript
+// GET /api/environments?includeStatus=true
+//   → ステータス付きで返却（Docker状態チェックを実行）
+// GET /api/environments
+//   → ステータスなしで返却（高速）
+
+// 個別環境のステータス取得
+// GET /api/environments/:id/status
+//   → 単一環境のステータスを取得
+```
+
+UIでは：
+1. 環境一覧は`includeStatus=false`で高速取得
+2. 各環境カードで非同期にステータスを取得（`/api/environments/:id/status`）
+3. ステータスはローカルキャッシュ（30秒TTL）
+
 ## テスト戦略
 
 ### ユニットテスト
@@ -922,11 +1085,13 @@ async function migrateToEnvironments() {
 - EnvironmentService: CRUD操作、状態チェック
 - AdapterFactory: 環境タイプに応じたアダプター生成
 - DockerAdapter: 認証ディレクトリの正しいマウント
+- アダプター選択フロー: 優先順位の正確性
 
 ### 統合テスト
 
 - Docker環境の作成→セッション起動→認証→終了の一連のフロー
 - 複数環境での並行セッション実行
+- レガシーdocker_mode=trueセッションの動作確認
 
 ### E2Eテスト
 

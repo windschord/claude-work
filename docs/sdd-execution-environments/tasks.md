@@ -170,14 +170,28 @@
 **受入基準**:
 - [ ] HostAdapterクラスがEnvironmentAdapterインターフェースを実装している
 - [ ] 内部でClaudePTYManagerを使用している
+- [ ] ClaudePTYManagerには常に`dockerMode: false`を渡す
 - [ ] イベント（data, exit, error, claudeSessionId）が正しく転送される
 - [ ] ユニットテストが通過する
+
+**実装指示**:
+```typescript
+// 重要: dockerModeは常にfalseで固定
+// ClaudePTYManager内部のdockerAdapter処理は使用しない
+createSession(..., options) {
+  this.ptyManager.createSession(..., {
+    resumeSessionId: options?.resumeSessionId,
+    dockerMode: false,  // 固定値
+  });
+}
+```
 
 **TDD手順**:
 1. テストファイル作成: `src/services/adapters/__tests__/host-adapter.test.ts`
 2. 以下のテストケースを先に書く:
    - describe('createSession')
      - it('should create session using ClaudePTYManager')
+     - it('should always pass dockerMode: false to ClaudePTYManager')
    - describe('write')
      - it('should forward write to ClaudePTYManager')
    - describe('event forwarding')
@@ -204,10 +218,41 @@
 **受入基準**:
 - [ ] DockerAdapterクラスがEnvironmentAdapterインターフェースを実装している
 - [ ] 環境専用の認証ディレクトリをマウントしている
-- [ ] ホストの認証情報は共有しない
+- [ ] ホストの認証情報（~/.claude）は共有しない
 - [ ] ワークスペースはbindマウントで共有
 - [ ] Git認証情報（.ssh, .gitconfig）は読み取り専用でマウント
+- [ ] createSession時にSession.container_idを更新する
+- [ ] destroySession時にSession.container_idをnullに更新する
 - [ ] ユニットテストが通過する
+
+**実装指示**:
+```typescript
+// 既存DockerPTYAdapterとの違い:
+// - ホスト~/.claudeをマウントしない
+// - 環境専用ディレクトリ（data/environments/<id>/claude）をマウント
+// - Session.container_idを更新
+
+async createSession(sessionId, workingDir, ...) {
+  const containerName = `claude-env-${this.config.environmentId}-${Date.now()}`;
+  // ... コンテナ起動 ...
+
+  // container_idを更新
+  await prisma.session.update({
+    where: { id: sessionId },
+    data: { container_id: containerName },
+  });
+}
+
+async destroySession(sessionId) {
+  // ... コンテナ停止 ...
+
+  // container_idをクリア
+  await prisma.session.update({
+    where: { id: sessionId },
+    data: { container_id: null },
+  });
+}
+```
 
 **TDD手順**:
 1. テストファイル作成: `src/services/adapters/__tests__/docker-adapter.test.ts`
@@ -219,8 +264,10 @@
      - it('should not mount host claude auth')
    - describe('createSession')
      - it('should spawn docker run with correct args')
+     - it('should update Session.container_id')
    - describe('destroySession')
      - it('should kill docker container')
+     - it('should clear Session.container_id')
 3. テスト実行で失敗を確認
 4. `src/services/adapters/docker-adapter.ts`を実装
 5. テストが通過することを確認
@@ -280,9 +327,36 @@
 
 **受入基準**:
 - [ ] GET /api/environments で環境一覧を取得できる
-- [ ] 各環境のステータス（available, authenticated）が含まれる
+- [ ] `?includeStatus=true`でステータス付き、未指定でステータスなし
+- [ ] ステータス付きの場合、各環境のステータス（available, authenticated）が含まれる
 - [ ] Docker環境の詳細（dockerDaemon, imageExists）が含まれる
 - [ ] ユニットテストが通過する
+
+**実装指示**:
+```typescript
+// パフォーマンス対策: ステータスはオプショナル
+// GET /api/environments → 高速（ステータスなし）
+// GET /api/environments?includeStatus=true → ステータス付き
+
+export async function GET(request: NextRequest) {
+  const includeStatus = request.nextUrl.searchParams.get('includeStatus') === 'true';
+
+  const environments = await environmentService.findAll();
+
+  if (includeStatus) {
+    // 各環境のステータスを並列取得
+    const envWithStatus = await Promise.all(
+      environments.map(async (env) => ({
+        ...env,
+        status: await environmentService.checkStatus(env.id),
+      }))
+    );
+    return NextResponse.json({ environments: envWithStatus });
+  }
+
+  return NextResponse.json({ environments });
+}
+```
 
 **TDD手順**:
 1. テストファイル作成: `src/app/api/environments/__tests__/route.test.ts`
@@ -361,11 +435,54 @@
 - [ ] environment_idが指定されない場合はデフォルト環境を使用
 - [ ] 存在しないenvironment_idは400エラー
 - [ ] 既存のdocker_modeパラメータも引き続き動作（互換性）
+- [ ] docker_mode使用時は非推奨警告をログ出力
 - [ ] ユニットテストが通過する
+
+**実装指示**:
+```typescript
+// パラメータ優先順位:
+// 1. environment_id が指定されていればそれを使用
+// 2. dockerMode=true かつ environment_id未指定 → レガシー動作（警告ログ出力）
+// 3. 両方未指定 → デフォルトHOST環境
+
+const { name, prompt, environment_id, dockerMode = false } = body;
+
+let effectiveEnvironmentId: string | null = null;
+let effectiveDockerMode = false;
+
+if (environment_id) {
+  // 新方式: environment_idを検証
+  const env = await environmentService.findById(environment_id);
+  if (!env) {
+    return NextResponse.json({ error: 'Environment not found' }, { status: 400 });
+  }
+  effectiveEnvironmentId = environment_id;
+} else if (dockerMode) {
+  // レガシー方式: 警告を出力しつつ従来動作を維持
+  logger.warn('dockerMode parameter is deprecated, use environment_id instead', {
+    projectId: project_id,
+  });
+  effectiveDockerMode = true;
+  // environment_idはnull、docker_mode=trueで保存
+}
+
+// セッション作成
+const newSession = await prisma.session.create({
+  data: {
+    ...
+    environment_id: effectiveEnvironmentId,
+    docker_mode: effectiveDockerMode,
+  },
+});
+```
 
 **TDD手順**:
 1. 既存テストファイルを更新: `src/app/api/projects/[project_id]/sessions/__tests__/route.test.ts`
-2. environment_id関連のテストケースを追加
+2. environment_id関連のテストケースを追加:
+   - it('should accept environment_id parameter')
+   - it('should return 400 for non-existent environment_id')
+   - it('should use default environment when no environment_id specified')
+   - it('should support legacy dockerMode parameter with warning')
 3. 実装を更新
 4. テストが通過することを確認
 
@@ -387,14 +504,54 @@
 
 **受入基準**:
 - [ ] セッションのenvironment_idに基づいてアダプターを選択
-- [ ] environment_idがnullの場合はデフォルト環境を使用
-- [ ] 既存のdocker_modeとの互換性を維持
+- [ ] environment_idがnullでdocker_mode=falseの場合はデフォルト環境を使用
+- [ ] environment_idがnullでdocker_mode=trueの場合はレガシー動作（既存claudePtyManager使用）
 - [ ] Docker環境では環境専用認証ディレクトリを使用
 - [ ] ユニットテストが通過する
 
+**実装指示**:
+```typescript
+// アダプター選択フロー（優先順位順）
+async function selectAdapter(session: Session) {
+  // 1. environment_idが指定されている場合 → 新方式
+  if (session.environment_id) {
+    const env = await environmentService.findById(session.environment_id);
+    if (env) {
+      return { type: 'new', adapter: AdapterFactory.getAdapter(env) };
+    }
+    // 環境が削除されていた場合はデフォルトにフォールバック
+    logger.warn('Environment not found, falling back to default', {
+      sessionId: session.id,
+      environmentId: session.environment_id,
+    });
+  }
+
+  // 2. docker_mode=true かつ environment_id未設定 → レガシー方式
+  if (session.docker_mode && !session.environment_id) {
+    return { type: 'legacy-docker', manager: claudePtyManager };
+  }
+
+  // 3. デフォルトHOST環境
+  const defaultEnv = await environmentService.getDefault();
+  return { type: 'new', adapter: AdapterFactory.getAdapter(defaultEnv) };
+}
+
+// 使用例
+const selected = await selectAdapter(session);
+if (selected.type === 'legacy-docker') {
+  selected.manager.createSession(sessionId, worktreePath, prompt, { dockerMode: true });
+} else {
+  selected.adapter.createSession(sessionId, worktreePath, prompt, { resumeSessionId });
+}
+```
+
 **TDD手順**:
 1. 既存テストファイルを更新または新規作成
-2. 環境選択ロジックのテストケースを追加
+2. 環境選択ロジックのテストケースを追加:
+   - it('should use AdapterFactory when environment_id is set')
+   - it('should use legacy claudePtyManager when docker_mode=true and no environment_id')
+   - it('should use default environment when neither is set')
+   - it('should fallback to default when environment is deleted')
 3. `src/lib/websocket/claude-ws.ts`を更新
 4. テストが通過することを確認
 
@@ -526,9 +683,75 @@
 - [ ] 冪等性がある（複数回実行しても問題ない）
 
 **実装指示**:
+```typescript
+// prisma/seed-environments.ts
+// 冪等性を保証するためupsertを使用
+
+async function migrateToEnvironments() {
+  // 1. デフォルトHOST環境を作成（upsert）
+  const hostEnv = await prisma.executionEnvironment.upsert({
+    where: { id: 'host-default' },
+    create: {
+      id: 'host-default',
+      name: 'Local Host',
+      type: 'HOST',
+      description: 'ローカル環境で直接実行',
+      config: '{}',
+      is_default: true,
+    },
+    update: {}, // 既存ならそのまま
+  });
+  console.log('Default HOST environment ensured:', hostEnv.id);
+
+  // 2. docker_mode=trueのセッションがあればDocker環境を作成
+  const dockerSessions = await prisma.session.findMany({
+    where: {
+      docker_mode: true,
+      environment_id: null, // まだマイグレーションされていないもの
+    },
+  });
+
+  if (dockerSessions.length > 0) {
+    const dockerEnv = await prisma.executionEnvironment.upsert({
+      where: { id: 'docker-legacy' },
+      create: {
+        id: 'docker-legacy',
+        name: 'Docker (Legacy)',
+        type: 'DOCKER',
+        description: '既存のDockerセッション用環境（ホスト認証共有）',
+        config: JSON.stringify({
+          imageName: 'claude-code-sandboxed',
+          imageTag: 'latest',
+        }),
+        // 注: レガシー環境はauth_dir_pathなし（ホスト認証共有のため）
+      },
+      update: {},
+    });
+    console.log('Legacy Docker environment ensured:', dockerEnv.id);
+
+    // 3. 該当セッションを更新
+    const updateResult = await prisma.session.updateMany({
+      where: {
+        docker_mode: true,
+        environment_id: null,
+      },
+      data: { environment_id: dockerEnv.id },
+    });
+    console.log('Migrated sessions:', updateResult.count);
+  } else {
+    console.log('No sessions to migrate');
+  }
+}
+```
+
 1. `prisma/seed-environments.ts`を作成
 2. マイグレーションロジックを実装
-3. `package.json`にマイグレーションスクリプトを追加
+3. `package.json`にマイグレーションスクリプトを追加:
+   ```json
+   "scripts": {
+     "db:migrate-environments": "npx ts-node prisma/seed-environments.ts"
+   }
+   ```
 
 **ファイル**:
 - 新規: `prisma/seed-environments.ts`
