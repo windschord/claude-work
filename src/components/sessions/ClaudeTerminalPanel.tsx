@@ -30,6 +30,8 @@ function ClaudeTerminalPanel({
     useClaudeTerminal(sessionId);
   const [mounted, setMounted] = useState(false);
   const [isTerminalOpened, setIsTerminalOpened] = useState(false);
+  // 前回のターミナルインスタンスを追跡
+  const prevTerminalRef = useRef<typeof terminal>(null);
 
   // クライアントサイドでのみレンダリング & CSS動的ロード
   useEffect(() => {
@@ -40,6 +42,18 @@ function ClaudeTerminalPanel({
       console.error('Failed to load xterm CSS:', err);
     });
   }, []);
+
+  // ターミナルインスタンスが変わったらisTerminalOpenedをリセット
+  // これによりセッション切り替え時に新しいターミナルが正しくopen()される
+  useEffect(() => {
+    if (terminal !== prevTerminalRef.current) {
+      // ターミナルインスタンスが変わった場合、isTerminalOpenedをリセット
+      if (prevTerminalRef.current !== null) {
+        setIsTerminalOpened(false);
+      }
+      prevTerminalRef.current = terminal;
+    }
+  }, [terminal]);
 
   // ターミナルをDOMにマウント
   useEffect(() => {
@@ -59,6 +73,9 @@ function ClaudeTerminalPanel({
 
         // サイズがある場合のみopen()を実行
         if (rect.width > 0 && rect.height > 0) {
+          // 新しいターミナルを開く前にコンテナをクリア
+          // これにより、前のセッションのターミナル残骸が除去される
+          container.innerHTML = '';
           terminal.open(container);
           setIsTerminalOpened(true);
 
