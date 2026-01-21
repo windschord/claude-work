@@ -41,9 +41,37 @@ ClaudeWork is a web-based tool for managing multiple Claude Code sessions throug
 
 Key models (prisma/schema.prisma):
 - **Project**: Git repository with default model setting
-- **Session**: Links to project, has worktree_path and branch_name
+- **Session**: Links to project, has worktree_path and branch_name, environment_id
 - **Message**: Chat history with role/content
 - **RunScript**: Custom scripts per project
+- **ExecutionEnvironment**: Execution environment configuration (HOST, DOCKER, SSH)
+
+### Execution Environments
+
+Claude Code can run in different execution environments:
+
+**Environment Types**:
+- **HOST**: Direct execution on the local machine (default)
+- **DOCKER**: Isolated execution in Docker containers with separate authentication
+- **SSH**: Remote execution (not yet implemented)
+
+**Key Features**:
+- Each Docker environment has isolated authentication directory (`data/environments/<env-id>/`)
+- Sessions can specify which environment to use via `environment_id`
+- Legacy `docker_mode` parameter is deprecated but still supported for backward compatibility
+- Default HOST environment is auto-created on server startup
+
+**Architecture**:
+- `EnvironmentService`: CRUD operations and status checking
+- `EnvironmentAdapter` interface: Abstract PTY operations
+- `HostAdapter`: Wraps ClaudePTYManager for local execution
+- `DockerAdapter`: Manages Docker containers with isolated auth
+- `AdapterFactory`: Singleton factory for adapters
+
+**UI**:
+- Environment management page: `/settings/environments`
+- Session creation form includes environment selector
+- Session list shows environment badges (HOST=green, DOCKER=blue, SSH=purple)
 
 ### Frontend Architecture
 
@@ -275,9 +303,14 @@ Phase 19 tasks (docs/tasks/phase19.md) implement fixes for issues 1-2.
 ├── src/
 │   ├── app/                 # Next.js App Router
 │   │   ├── api/            # API routes
+│   │   │   └── environments/  # Environment management API
+│   │   ├── settings/       # Settings pages
+│   │   │   └── environments/  # Environment management UI
 │   │   └── (pages)/        # Frontend pages
 │   ├── components/          # React components
+│   │   └── environments/   # Environment UI components
 │   ├── hooks/              # Custom React hooks
+│   │   └── useEnvironments.ts # Environment management hook
 │   ├── lib/                # Shared libraries
 │   │   ├── websocket/      # WebSocket handlers
 │   │   ├── db.ts           # Prisma client
@@ -286,7 +319,13 @@ Phase 19 tasks (docs/tasks/phase19.md) implement fixes for issues 1-2.
 │   │   ├── git-service.ts        # Git operations
 │   │   ├── claude-pty-manager.ts # Claude Code PTY sessions
 │   │   ├── process-manager.ts    # Session status management
-│   │   └── pty-manager.ts        # Shell terminal sessions
+│   │   ├── pty-manager.ts        # Shell terminal sessions
+│   │   ├── environment-service.ts # Environment CRUD operations
+│   │   ├── environment-adapter.ts # Adapter interface
+│   │   ├── adapter-factory.ts    # Adapter singleton factory
+│   │   └── adapters/             # Environment adapters
+│   │       ├── host-adapter.ts   # Local execution
+│   │       └── docker-adapter.ts # Docker execution
 │   ├── store/              # Zustand state stores
 │   └── types/              # TypeScript types
 ├── docs/                   # Documentation
