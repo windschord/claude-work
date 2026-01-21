@@ -10,7 +10,8 @@
 
 #### TASK-EE-001: Prismaスキーマに ExecutionEnvironment モデルを追加
 
-**状態**: 未着手
+**状態**: `DONE`
+**完了サマリー**: ExecutionEnvironmentモデルとSessionへのenvironment_idフィールドを追加。prisma db push完了。
 **優先度**: P0
 **見積もり**: 20分
 **関連要件**: REQ-EE001, REQ-EE004, REQ-EE020
@@ -48,7 +49,8 @@
 
 #### TASK-EE-002: EnvironmentService の基本実装
 
-**状態**: 未着手
+**状態**: `DONE`
+**完了サマリー**: EnvironmentServiceクラスを実装。CRUD操作、getDefault、ensureDefaultExistsを含む。26テストパス。
 **優先度**: P0
 **見積もり**: 40分
 **依存**: TASK-EE-001
@@ -99,7 +101,8 @@
 
 #### TASK-EE-003: 認証ディレクトリ管理機能の実装
 
-**状態**: 未着手
+**状態**: `DONE`
+**完了サマリー**: createAuthDirectory、deleteAuthDirectoryメソッドを実装。data/environments/<env-id>/形式。
 **優先度**: P0
 **見積もり**: 30分
 **依存**: TASK-EE-002
@@ -135,7 +138,8 @@
 
 #### TASK-EE-004: EnvironmentAdapter インターフェース定義
 
-**状態**: 未着手
+**状態**: `DONE`
+**完了サマリー**: EnvironmentAdapterインターフェース、CreateSessionOptions、PTYExitInfoを定義。isEnvironmentAdapter型ガードも追加。
 **優先度**: P0
 **見積もり**: 15分
 **依存**: なし
@@ -161,7 +165,8 @@
 
 #### TASK-EE-005: HostAdapter の実装
 
-**状態**: 未着手
+**状態**: `DONE`
+**完了サマリー**: HostAdapterクラスを実装。ClaudePTYManagerをラップし、dockerMode:falseを固定。17テストパス。
 **優先度**: P0
 **見積もり**: 30分
 **依存**: TASK-EE-004
@@ -209,7 +214,8 @@ createSession(..., options) {
 
 #### TASK-EE-006: DockerAdapter の実装（独立認証対応）
 
-**状態**: 未着手
+**状態**: `DONE`
+**完了サマリー**: DockerAdapterクラスを実装。環境専用認証ディレクトリをマウント、container_id管理を追加。
 **優先度**: P0
 **見積もり**: 45分
 **依存**: TASK-EE-004, TASK-EE-003
@@ -280,7 +286,8 @@ async destroySession(sessionId) {
 
 #### TASK-EE-007: AdapterFactory の実装
 
-**状態**: 未着手
+**状態**: `DONE`
+**完了サマリー**: AdapterFactoryクラスを実装。HostAdapterシングルトン、DockerAdapter環境IDごとシングルトン。13テストパス。
 **優先度**: P0
 **見積もり**: 25分
 **依存**: TASK-EE-005, TASK-EE-006
@@ -319,7 +326,8 @@ async destroySession(sessionId) {
 
 #### TASK-EE-008: 環境管理API（GET /api/environments）
 
-**状態**: 未着手
+**状態**: `DONE`
+**完了サマリー**: GET /api/environmentsを実装。?includeStatus=trueでステータス付き取得対応。
 **優先度**: P1
 **見積もり**: 30分
 **依存**: TASK-EE-002
@@ -372,7 +380,8 @@ export async function GET(request: NextRequest) {
 
 #### TASK-EE-009: 環境管理API（POST /api/environments）
 
-**状態**: 未着手
+**状態**: `DONE`
+**完了サマリー**: POST /api/environmentsを実装。Docker環境作成時に認証ディレクトリ自動作成。
 **優先度**: P1
 **見積もり**: 30分
 **依存**: TASK-EE-003
@@ -397,7 +406,8 @@ export async function GET(request: NextRequest) {
 
 #### TASK-EE-010: 環境管理API（PUT, DELETE /api/environments/:id）
 
-**状態**: 未着手
+**状態**: `DONE`
+**完了サマリー**: PUT/DELETE /api/environments/:idを実装。デフォルト環境削除禁止、使用中警告対応。
 **優先度**: P1
 **見積もり**: 35分
 **依存**: TASK-EE-009
@@ -424,7 +434,8 @@ export async function GET(request: NextRequest) {
 
 #### TASK-EE-011: セッション作成APIの environment_id 対応
 
-**状態**: 未着手
+**状態**: `DONE`
+**完了サマリー**: POST /api/projects/:id/sessionsにenvironment_id対応追加。dockerMode非推奨警告対応。
 **優先度**: P0
 **見積もり**: 30分
 **依存**: TASK-EE-007
@@ -496,7 +507,8 @@ const newSession = await prisma.session.create({
 
 #### TASK-EE-012: ClaudeWebSocketHandler の環境対応
 
-**状態**: 未着手
+**状態**: `DONE`
+**完了サマリー**: claude-ws.tsに環境選択ロジック実装。AdapterFactory経由でアダプター選択、レガシーdockerMode対応。10テストパス。
 **優先度**: P0
 **見積もり**: 40分
 **依存**: TASK-EE-007, TASK-EE-011
@@ -648,7 +660,8 @@ if (selected.type === 'legacy-docker') {
 
 #### TASK-EE-016: デフォルト環境の初期化スクリプト
 
-**状態**: 未着手
+**状態**: `DONE`
+**完了サマリー**: server.tsでサーバー起動時にenvironmentService.ensureDefaultExists()を呼び出し。
 **優先度**: P0
 **見積もり**: 20分
 **依存**: TASK-EE-002
@@ -670,7 +683,8 @@ if (selected.type === 'legacy-docker') {
 
 #### TASK-EE-017: 既存docker_modeセッションのマイグレーション
 
-**状態**: 未着手
+**状態**: `DONE`
+**完了サマリー**: prisma/seed-environments.tsを作成。デフォルトHOST環境とレガシーDocker環境をupsertで作成、既存docker_modeセッションのenvironment_idを更新。冪等性確保。
 **優先度**: P1
 **見積もり**: 30分
 **依存**: TASK-EE-016
@@ -825,10 +839,10 @@ TASK-EE-018 (ドキュメント) は全タスク完了後
 
 | Phase | タスク数 | 完了 | 進捗率 |
 |-------|---------|------|--------|
-| Phase 1: データモデルとサービス層 | 3 | 0 | 0% |
-| Phase 2: アダプター層 | 4 | 0 | 0% |
-| Phase 3: API層 | 4 | 0 | 0% |
-| Phase 4: WebSocket統合 | 1 | 0 | 0% |
+| Phase 1: データモデルとサービス層 | 3 | 3 | 100% |
+| Phase 2: アダプター層 | 4 | 4 | 100% |
+| Phase 3: API層 | 4 | 4 | 100% |
+| Phase 4: WebSocket統合 | 1 | 1 | 100% |
 | Phase 5: UI実装 | 3 | 0 | 0% |
-| Phase 6: マイグレーションと仕上げ | 3 | 0 | 0% |
-| **合計** | **18** | **0** | **0%** |
+| Phase 6: マイグレーションと仕上げ | 3 | 2 | 67% |
+| **合計** | **18** | **14** | **78%** |
