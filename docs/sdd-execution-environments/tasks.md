@@ -577,19 +577,20 @@ if (selected.type === 'legacy-docker') {
 
 #### TASK-EE-013: 環境管理画面の実装
 
-**状態**: 未着手
+**状態**: `DONE`
+**完了サマリー**: /settings/environmentsページを実装。EnvironmentList、EnvironmentCard、EnvironmentForm、DeleteEnvironmentDialogコンポーネントとuseEnvironmentsフックを作成。
 **優先度**: P1
 **見積もり**: 60分
 **依存**: TASK-EE-008, TASK-EE-009, TASK-EE-010
 **関連要件**: REQ-EE008, REQ-EE016, REQ-EE017, REQ-EE018
 
 **受入基準**:
-- [ ] /settings/environments ページが存在する
-- [ ] 環境一覧が表示される
-- [ ] 各環境のステータスが表示される
-- [ ] 環境追加ダイアログが動作する
-- [ ] 環境編集・削除が動作する
-- [ ] デフォルト環境は削除ボタンが無効
+- [x] /settings/environments ページが存在する
+- [x] 環境一覧が表示される
+- [x] 各環境のステータスが表示される
+- [x] 環境追加ダイアログが動作する
+- [x] 環境編集・削除が動作する
+- [x] デフォルト環境は削除ボタンが無効
 
 **実装指示**:
 1. `src/app/settings/environments/page.tsx`を作成
@@ -609,17 +610,18 @@ if (selected.type === 'legacy-docker') {
 
 #### TASK-EE-014: セッション作成フォームの環境選択対応
 
-**状態**: 未着手
+**状態**: `DONE`
+**完了サマリー**: CreateSessionFormに環境選択ドロップダウンを追加。useEnvironmentsフックで環境一覧取得、デフォルト環境初期選択、environment_id選択時はdockerModeチェックボックスを非表示。CreateSessionData型にenvironment_idを追加。
 **優先度**: P1
 **見積もり**: 30分
 **依存**: TASK-EE-011, TASK-EE-013
 **関連要件**: REQ-EE001
 
 **受入基準**:
-- [ ] セッション作成フォームに環境選択ドロップダウンがある
-- [ ] デフォルト環境が初期選択されている
-- [ ] 選択した環境IDがAPIに送信される
-- [ ] 既存のdocker_modeトグルは非表示または非推奨表示
+- [x] セッション作成フォームに環境選択ドロップダウンがある
+- [x] デフォルト環境が初期選択されている
+- [x] 選択した環境IDがAPIに送信される
+- [x] 既存のdocker_modeトグルは非表示または非推奨表示
 
 **実装指示**:
 1. `src/components/sessions/CreateSessionForm.tsx`を更新
@@ -634,16 +636,17 @@ if (selected.type === 'legacy-docker') {
 
 #### TASK-EE-015: セッション一覧・詳細での環境表示
 
-**状態**: 未着手
+**状態**: `DONE`
+**完了サマリー**: Session型にenvironment_name/environment_typeを追加。APIでinclude joinを実装。EnvironmentBadgeコンポーネントを作成（タイプ別色分け・アイコン対応）。SessionCard、セッション詳細ページに適用。
 **優先度**: P2
 **見積もり**: 25分
 **依存**: TASK-EE-014
 **関連要件**: REQ-EE001
 
 **受入基準**:
-- [ ] セッション一覧で環境名が表示される
-- [ ] セッション詳細で環境情報が表示される
-- [ ] 環境タイプに応じたアイコン/バッジが表示される
+- [x] セッション一覧で環境名が表示される
+- [x] セッション詳細で環境情報が表示される
+- [x] 環境タイプに応じたアイコン/バッジが表示される
 
 **実装指示**:
 1. `src/components/sessions/SessionCard.tsx`を更新
@@ -843,6 +846,6 @@ TASK-EE-018 (ドキュメント) は全タスク完了後
 | Phase 2: アダプター層 | 4 | 4 | 100% |
 | Phase 3: API層 | 4 | 4 | 100% |
 | Phase 4: WebSocket統合 | 1 | 1 | 100% |
-| Phase 5: UI実装 | 3 | 0 | 0% |
+| Phase 5: UI実装 | 3 | 3 | 100% |
 | Phase 6: マイグレーションと仕上げ | 3 | 2 | 67% |
-| **合計** | **18** | **14** | **78%** |
+| **合計** | **18** | **17** | **94%** |
