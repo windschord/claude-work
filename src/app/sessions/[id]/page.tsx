@@ -438,7 +438,8 @@ export default function SessionDetailPage() {
           {/* Claude Tab */}
           <div className={`flex-1 overflow-hidden ${activeTab === 'claude' ? '' : 'hidden'}`}>
             {/* Claude Code Terminal */}
-            <ClaudeTerminalPanel sessionId={sessionId} isVisible={activeTab === 'claude'} />
+            {/* key={sessionId}でセッション切り替え時にコンポーネントを完全に再マウント */}
+            <ClaudeTerminalPanel key={sessionId} sessionId={sessionId} isVisible={activeTab === 'claude'} />
           </div>
 
           {/* Diff Tab */}
@@ -469,7 +470,8 @@ export default function SessionDetailPage() {
           {/* Shell Tab */}
           <div className={`flex-1 overflow-hidden ${activeTab === 'shell' ? '' : 'hidden'}`}>
             {/* Shell Terminal */}
-            <TerminalPanel sessionId={sessionId} />
+            {/* key={sessionId}でセッション切り替え時にコンポーネントを完全に再マウント */}
+            <TerminalPanel key={sessionId} sessionId={sessionId} />
           </div>
 
           {/* Scripts Tab */}

@@ -60,6 +60,8 @@ export function useClaudeTerminal(
   const isMountedRef = useRef(true);
   const isInitializingRef = useRef(false);
   const prevIsVisibleRef = useRef(isVisible);
+  // 初期化IDカウンタ: 各初期化処理に一意のIDを割り当て、古い処理をキャンセル可能にする
+  const initIdRef = useRef(0);
   // アクション要求通知のクールダウンチェッカー（初期化時に1回だけ作成）
   const notificationCooldownRef = useRef<(() => boolean) | null>(null);
   if (notificationCooldownRef.current === null) {
@@ -188,18 +190,22 @@ export function useClaudeTerminal(
       return;
     }
 
-    // 既に初期化中の場合はスキップ（React Strict Mode対策）
-    if (isInitializingRef.current) {
-      return;
-    }
+    // この初期化に一意のIDを割り当て（競合状態対策）
+    // 新しい初期化が始まると、古い初期化処理は自動的に無効になる
+    const currentInitId = ++initIdRef.current;
 
     isMountedRef.current = true;
     reconnectAttemptsRef.current = 0;
 
+    // 初期化がまだ有効かチェックするヘルパー関数
+    const isStale = () => initIdRef.current !== currentInitId;
+
     const initTerminal = async () => {
       try {
-        // アンマウント後は処理を中断
-        if (!isMountedRef.current) return;
+        // 古い初期化は中断
+        if (isStale()) {
+          return;
+        }
 
         // 初期化中フラグを設定
         isInitializingRef.current = true;
@@ -210,8 +216,11 @@ export function useClaudeTerminal(
           import('@xterm/addon-fit'),
         ]);
 
-        // アンマウント後は処理を中断（非同期インポート後の再チェック）
-        if (!isMountedRef.current) return;
+        // 非同期処理後に再度チェック（セッション切り替えが発生した可能性がある）
+        if (isStale()) {
+          isInitializingRef.current = false;
+          return;
+        }
 
         // ターミナルインスタンスを作成
         const term = new Terminal({
@@ -229,6 +238,13 @@ export function useClaudeTerminal(
         // FitAddonを追加
         const fitAddon = new FitAddon();
         term.loadAddon(fitAddon);
+
+        // 状態更新前に再度チェック
+        if (isStale()) {
+          term.dispose();
+          isInitializingRef.current = false;
+          return;
+        }
 
         terminalRef.current = term;
         fitAddonRef.current = fitAddon;
@@ -250,21 +266,27 @@ export function useClaudeTerminal(
         // WebSocket接続を作成
         createWebSocket();
       } catch (err) {
-        if (!isMountedRef.current) return;
+        if (isStale()) return;
         console.error('Failed to initialize Claude terminal:', err);
         setError(
           err instanceof Error ? err.message : 'Failed to initialize terminal'
         );
       } finally {
         // 初期化完了（成功/失敗に関わらず）
-        isInitializingRef.current = false;
+        // ただし、古い初期化の場合は最新の初期化に影響を与えないようにする
+        if (!isStale()) {
+          isInitializingRef.current = false;
+        }
       }
     };
 
     // デバウンス付きで初期化を実行（React Strict Mode対策）
     // 短時間での複数回の初期化呼び出しを防止
     initTimerRef.current = setTimeout(() => {
-      initTerminal();
+      // タイマー実行時にも再度チェック
+      if (!isStale()) {
+        initTerminal();
+      }
     }, INIT_DEBOUNCE_DELAY);
 
     // クリーンアップ
@@ -291,12 +313,15 @@ export function useClaudeTerminal(
 
       if (onDataDisposableRef.current) {
         onDataDisposableRef.current.dispose();
+        onDataDisposableRef.current = null;
       }
       if (terminalRef.current) {
         terminalRef.current.dispose();
+        terminalRef.current = null;
       }
       if (wsRef.current && (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING)) {
         wsRef.current.close();
+        wsRef.current = null;
       }
       setTerminal(null);
 
