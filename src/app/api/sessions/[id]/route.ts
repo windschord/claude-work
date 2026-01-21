@@ -47,14 +47,30 @@ export async function GET(
 
     const targetSession = await prisma.session.findUnique({
       where: { id },
+      include: {
+        environment: {
+          select: {
+            name: true,
+            type: true,
+          },
+        },
+      },
     });
 
     if (!targetSession) {
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });
     }
 
+    // フロントエンド用にフラット化した形式に変換
+    const sessionWithEnvironment = {
+      ...targetSession,
+      environment_name: targetSession.environment?.name || null,
+      environment_type: targetSession.environment?.type as 'HOST' | 'DOCKER' | 'SSH' | null,
+      environment: undefined, // ネストされたオブジェクトは削除
+    };
+
     logger.debug('Session retrieved', { id });
-    return NextResponse.json({ session: targetSession });
+    return NextResponse.json({ session: sessionWithEnvironment });
   } catch (error) {
     const { id: errorId } = await params;
     logger.error('Failed to get session', { error, session_id: errorId });

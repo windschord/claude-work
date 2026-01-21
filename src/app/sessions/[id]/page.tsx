@@ -19,6 +19,7 @@ import { ScriptsPanel } from '@/components/scripts/ScriptsPanel';
 import { ProcessStatus } from '@/components/sessions/ProcessStatus';
 import { DeleteSessionButton } from '@/components/sessions/DeleteSessionButton';
 import { PRSection } from '@/components/sessions/PRSection';
+import { EnvironmentBadge } from '@/components/sessions/EnvironmentBadge';
 import { Toaster, toast } from 'react-hot-toast';
 import type { ServerMessage } from '@/types/websocket';
 
@@ -307,11 +308,7 @@ export default function SessionDetailPage() {
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
                   {currentSession.name}
                 </h1>
-                {currentSession.docker_mode && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                    Docker
-                  </span>
-                )}
+                <EnvironmentBadge session={currentSession} />
               </div>
               <div className="flex items-center gap-4 mt-2">
                 <p className="text-sm text-gray-500 dark:text-gray-400">

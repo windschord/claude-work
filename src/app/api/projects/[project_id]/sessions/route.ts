@@ -48,10 +48,26 @@ export async function GET(
     const sessions = await prisma.session.findMany({
       where: { project_id },
       orderBy: { created_at: 'desc' },
+      include: {
+        environment: {
+          select: {
+            name: true,
+            type: true,
+          },
+        },
+      },
     });
 
+    // フロントエンド用にフラット化した形式に変換
+    const sessionsWithEnvironment = sessions.map((session) => ({
+      ...session,
+      environment_name: session.environment?.name || null,
+      environment_type: session.environment?.type as 'HOST' | 'DOCKER' | 'SSH' | null,
+      environment: undefined, // ネストされたオブジェクトは削除
+    }));
+
     logger.debug('Sessions retrieved', { project_id, count: sessions.length });
-    return NextResponse.json({ sessions });
+    return NextResponse.json({ sessions: sessionsWithEnvironment });
   } catch (error) {
     const { project_id: errorProjectId } = await params;
     logger.error('Failed to get sessions', { error, project_id: errorProjectId });
