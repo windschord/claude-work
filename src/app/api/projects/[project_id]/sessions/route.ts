@@ -4,6 +4,7 @@ import { GitService } from '@/services/git-service';
 import { logger } from '@/lib/logger';
 import { generateUniqueSessionName } from '@/lib/session-name-generator';
 import { dockerService, DockerError } from '@/services/docker-service';
+import { environmentService } from '@/services/environment-service';
 
 /**
  * GET /api/projects/[project_id]/sessions - プロジェクトのセッション一覧取得
@@ -127,10 +128,40 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
 
-    const { name, prompt = '', dockerMode = false } = body;
+    const { name, prompt = '', dockerMode = false, environment_id } = body;
 
-    // Dockerモードの場合、Docker可用性と認証情報をチェック
-    if (dockerMode) {
+    // 実効環境とdockerModeを決定
+    let effectiveEnvironmentId: string | null = null;
+    let effectiveDockerMode = false;
+
+    // パラメータ優先順位:
+    // 1. environment_id が指定されていればそれを使用
+    // 2. dockerMode=true かつ environment_id未指定 → レガシー動作（警告ログ出力）
+    // 3. 両方未指定 → デフォルト環境（environment_id=null, docker_mode=false）
+
+    if (environment_id) {
+      // 新方式: environment_idを検証
+      const env = await environmentService.findById(environment_id);
+      if (!env) {
+        return NextResponse.json({ error: 'Environment not found' }, { status: 400 });
+      }
+      effectiveEnvironmentId = environment_id;
+      // environment_idが指定されていればdockerModeは無視
+      logger.info('Creating session with environment', {
+        project_id,
+        environment_id,
+        environmentType: env.type,
+      });
+    } else if (dockerMode) {
+      // レガシー方式: 警告を出力しつつ従来動作を維持
+      logger.warn('dockerMode parameter is deprecated, use environment_id instead', {
+        project_id,
+      });
+      effectiveDockerMode = true;
+    }
+
+    // Dockerモードの場合（レガシー方式）、Docker可用性と認証情報をチェック
+    if (effectiveDockerMode) {
       logger.info('Creating session with Docker mode', { project_id });
 
       // Docker環境診断
@@ -252,7 +283,8 @@ export async function POST(
         status: 'initializing',  // PTY接続時に'running'に変更される
         worktree_path: worktreePath,
         branch_name: branchName,
-        docker_mode: dockerMode,
+        docker_mode: effectiveDockerMode,
+        environment_id: effectiveEnvironmentId,
       },
     });
 
