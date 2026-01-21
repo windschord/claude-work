@@ -45,6 +45,12 @@ export interface Session {
   pr_updated_at?: string | null;
   /** Dockerモードで実行中かどうか */
   docker_mode?: boolean;
+  /** 環境ID */
+  environment_id?: string | null;
+  /** 環境名（join結果） */
+  environment_name?: string | null;
+  /** 環境タイプ（join結果） */
+  environment_type?: 'HOST' | 'DOCKER' | 'SSH' | null;
   /** 作成日時 */
   created_at: string;
   /** 更新日時（オプショナル：既存データとの互換性のため） */
@@ -61,6 +67,8 @@ export interface CreateSessionData {
   prompt: string;
   /** Dockerモードで実行するかどうか（明示的に指定必須） */
   dockerMode: boolean;
+  /** 実行環境ID（指定時はdockerModeは無視される） */
+  environment_id?: string;
 }
 
 /**
