@@ -181,7 +181,7 @@ describe('/api/environments/[id]', () => {
       });
 
       const response = await PUT(request, { params: Promise.resolve({ id: 'env-docker' }) });
-      const data = await response.json();
+      const _data = await response.json();
 
       expect(response.status).toBe(200);
       expect(mockUpdate).toHaveBeenCalledWith('env-docker', {

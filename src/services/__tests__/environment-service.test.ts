@@ -623,8 +623,8 @@ describe('EnvironmentService', () => {
   describe('シングルトンインスタンス', () => {
     it('environmentServiceがエクスポートされている', async () => {
       // 動的インポートでシングルトンを取得
-      const module = await import('../environment-service');
-      expect(module.environmentService).toBeInstanceOf(EnvironmentService);
+      const envModule = await import('../environment-service');
+      expect(envModule.environmentService).toBeInstanceOf(EnvironmentService);
     });
   });
 });
