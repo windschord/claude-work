@@ -778,16 +778,17 @@ async function migrateToEnvironments() {
 
 #### TASK-EE-018: ドキュメント更新
 
-**状態**: 未着手
+**状態**: `DONE`
+**完了サマリー**: CLAUDE.md、docs/API.md、docs/ENV_VARS.mdを更新。環境タイプ、API仕様、認証ディレクトリ、dockerMode非推奨を明記。
 **優先度**: P2
 **見積もり**: 30分
 **依存**: 全タスク完了後
 
 **受入基準**:
-- [ ] CLAUDE.mdに実行環境機能の説明を追加
-- [ ] docs/API.mdに環境APIを追加
-- [ ] docs/ENV_VARS.mdに関連環境変数を追加
-- [ ] docker_modeの非推奨を明記
+- [x] CLAUDE.mdに実行環境機能の説明を追加
+- [x] docs/API.mdに環境APIを追加
+- [x] docs/ENV_VARS.mdに関連環境変数を追加
+- [x] docker_modeの非推奨を明記
 
 **ファイル**:
 - 変更: `CLAUDE.md`
@@ -847,5 +848,5 @@ TASK-EE-018 (ドキュメント) は全タスク完了後
 | Phase 3: API層 | 4 | 4 | 100% |
 | Phase 4: WebSocket統合 | 1 | 1 | 100% |
 | Phase 5: UI実装 | 3 | 3 | 100% |
-| Phase 6: マイグレーションと仕上げ | 3 | 2 | 67% |
-| **合計** | **18** | **17** | **94%** |
+| Phase 6: マイグレーションと仕上げ | 3 | 3 | 100% |
+| **合計** | **18** | **18** | **100%** |
