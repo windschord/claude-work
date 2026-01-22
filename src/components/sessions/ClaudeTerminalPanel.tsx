@@ -73,6 +73,15 @@ function ClaudeTerminalPanel({
 
         // サイズがある場合のみopen()を実行
         if (rect.width > 0 && rect.height > 0) {
+          // ターミナルが既にDOMにアタッチされているかチェック
+          // XTerm.jsのTerminalはelement プロパティでアタッチ状態を確認できる
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const terminalElement = (terminal as any).element;
+          if (terminalElement) {
+            setIsTerminalOpened(true);
+            return;
+          }
+
           // 新しいターミナルを開く前にコンテナをクリア
           // これにより、前のセッションのターミナル残骸が除去される
           container.innerHTML = '';
