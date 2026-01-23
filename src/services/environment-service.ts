@@ -3,6 +3,25 @@ import { prisma } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import * as path from 'path';
 import * as fsPromises from 'fs/promises';
+import { exec } from 'child_process';
+
+/**
+ * execをPromise化するヘルパー関数
+ */
+function execAsync(
+  command: string,
+  options: { timeout?: number } = {}
+): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    exec(command, options, (error, stdout, stderr) => {
+      if (error) {
+        reject(error);
+      } else {
+        resolve({ stdout, stderr });
+      }
+    });
+  });
+}
 
 /**
  * 環境状態
@@ -255,17 +274,11 @@ export class EnvironmentService {
           authenticated: true,
         };
 
-      case 'DOCKER':
-        // Docker環境の詳細チェックはTASK-EE-003で実装
-        // ここでは基本的な状態のみ返す
-        return {
-          available: true,
-          authenticated: !!environment.auth_dir_path,
-          details: {
-            dockerDaemon: undefined,
-            imageExists: undefined,
-          },
-        };
+      case 'DOCKER': {
+        // Docker環境の詳細チェック
+        const dockerStatus = await this.checkDockerStatus(environment);
+        return dockerStatus;
+      }
 
       case 'SSH':
         // SSH環境のチェックは将来実装
@@ -282,6 +295,81 @@ export class EnvironmentService {
           error: `不明な環境タイプ: ${environment.type}`,
         };
     }
+  }
+
+  /**
+   * Docker環境の詳細ステータスをチェック
+   * @param environment - 環境エンティティ
+   * @returns Docker環境のステータス
+   */
+  private async checkDockerStatus(environment: ExecutionEnvironment): Promise<EnvironmentStatus> {
+    let dockerDaemon = false;
+    let imageExists = false;
+
+    // Dockerデーモンのチェック
+    try {
+      await execAsync('docker info', { timeout: 5000 });
+      dockerDaemon = true;
+    } catch {
+      logger.debug('Dockerデーモンが起動していません', { environmentId: environment.id });
+      return {
+        available: false,
+        authenticated: false,
+        error: 'Dockerデーモンが起動していません',
+        details: {
+          dockerDaemon: false,
+          imageExists: false,
+        },
+      };
+    }
+
+    // イメージの存在チェック
+    const config = JSON.parse(environment.config || '{}');
+    let imageName: string;
+    let imageTag: string;
+
+    if (config.imageSource === 'dockerfile') {
+      // Dockerfileビルドの場合はビルド後のイメージ名を使用
+      imageName = config.buildImageName || config.imageName || 'claude-code-sandboxed';
+      imageTag = 'latest';
+    } else {
+      // 既存イメージの場合
+      imageName = config.imageName || 'claude-code-sandboxed';
+      imageTag = config.imageTag || 'latest';
+    }
+
+    const fullImageName = `${imageName}:${imageTag}`;
+
+    try {
+      await execAsync(`docker image inspect ${fullImageName}`, { timeout: 5000 });
+      imageExists = true;
+    } catch {
+      const errorMsg =
+        config.imageSource === 'dockerfile'
+          ? 'ビルド済みイメージが見つかりません。環境を再作成してビルドしてください。'
+          : `イメージ ${fullImageName} が見つかりません。docker pullまたはビルドしてください。`;
+
+      logger.debug('Dockerイメージが見つかりません', {
+        environmentId: environment.id,
+        imageName: fullImageName,
+      });
+
+      return {
+        available: false,
+        authenticated: !!environment.auth_dir_path,
+        error: errorMsg,
+        details: { dockerDaemon: true, imageExists: false },
+      };
+    }
+
+    return {
+      available: dockerDaemon && imageExists,
+      authenticated: !!environment.auth_dir_path,
+      details: {
+        dockerDaemon,
+        imageExists,
+      },
+    };
   }
 
   /**
