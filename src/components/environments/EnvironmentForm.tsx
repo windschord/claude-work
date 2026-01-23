@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, Fragment, useEffect } from 'react';
-import { Dialog, Transition, Listbox } from '@headlessui/react';
-import { ChevronDown, Check } from 'lucide-react';
+import { useState, Fragment, useEffect, useCallback } from 'react';
+import { Dialog, Transition, Listbox, RadioGroup } from '@headlessui/react';
+import { ChevronDown, Check, Loader2 } from 'lucide-react';
 import { Environment, EnvironmentType, CreateEnvironmentInput, UpdateEnvironmentInput } from '@/hooks/useEnvironments';
 
 interface EnvironmentFormProps {
@@ -13,11 +13,28 @@ interface EnvironmentFormProps {
   mode: 'create' | 'edit';
 }
 
+interface DockerImage {
+  repository: string;
+  tag: string;
+  id: string;
+  size: string;
+  created: string;
+}
+
+type ImageSourceType = 'existing' | 'dockerfile';
+
 const ENVIRONMENT_TYPES: { value: EnvironmentType; label: string; description: string }[] = [
   { value: 'HOST', label: 'ホスト', description: 'ローカルホスト環境で実行' },
   { value: 'DOCKER', label: 'Docker', description: 'Dockerコンテナ内で実行' },
   { value: 'SSH', label: 'SSH', description: 'SSHリモート接続（未実装）' },
 ];
+
+const IMAGE_SOURCE_OPTIONS: { value: ImageSourceType; label: string }[] = [
+  { value: 'existing', label: '既存イメージを使用' },
+  { value: 'dockerfile', label: 'Dockerfileからビルド' },
+];
+
+const CUSTOM_IMAGE_VALUE = '__custom__';
 
 /**
  * 環境作成・編集フォームモーダルコンポーネント
@@ -40,18 +57,114 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
+  // Docker image settings
+  const [imageSource, setImageSource] = useState<ImageSourceType>('existing');
+  const [selectedImage, setSelectedImage] = useState<string>('');
+  const [customImageName, setCustomImageName] = useState('');
+  const [dockerfilePath, setDockerfilePath] = useState('');
+  const [dockerImages, setDockerImages] = useState<DockerImage[]>([]);
+  const [isLoadingImages, setIsLoadingImages] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
+
+  /**
+   * Dockerイメージ一覧を取得
+   */
+  const fetchDockerImages = useCallback(async () => {
+    setIsLoadingImages(true);
+    setImageError(null);
+
+    try {
+      const response = await fetch('/api/docker/images');
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Dockerイメージの取得に失敗しました');
+      }
+
+      setDockerImages(data.images);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Dockerイメージの取得に失敗しました';
+      setImageError(errorMessage);
+    } finally {
+      setIsLoadingImages(false);
+    }
+  }, []);
+
   // 編集モードの場合、既存の値を設定
   useEffect(() => {
     if (mode === 'edit' && environment) {
       setName(environment.name);
       setType(environment.type);
       setDescription(environment.description || '');
+
+      // configからDocker設定を復元
+      if (environment.type === 'DOCKER' && environment.config) {
+        try {
+          const config = typeof environment.config === 'string'
+            ? JSON.parse(environment.config)
+            : environment.config;
+
+          if (config.imageSource === 'dockerfile') {
+            setImageSource('dockerfile');
+            setDockerfilePath(config.dockerfilePath || '');
+          } else {
+            setImageSource('existing');
+            if (config.imageName) {
+              const imageValue = config.imageTag
+                ? `${config.imageName}:${config.imageTag}`
+                : config.imageName;
+              setSelectedImage(imageValue);
+            }
+          }
+        } catch {
+          // configのパースに失敗した場合はデフォルト値を使用
+        }
+      }
     } else if (mode === 'create') {
       setName('');
       setType('HOST');
       setDescription('');
+      setImageSource('existing');
+      setSelectedImage('');
+      setCustomImageName('');
+      setDockerfilePath('');
     }
   }, [mode, environment, isOpen]);
+
+  // タイプがDOCKERに変わった時にイメージ一覧を取得
+  useEffect(() => {
+    if (type === 'DOCKER' && isOpen) {
+      fetchDockerImages();
+    }
+  }, [type, isOpen, fetchDockerImages]);
+
+  /**
+   * Docker設定のconfigオブジェクトを生成
+   */
+  const buildDockerConfig = (): object => {
+    if (imageSource === 'dockerfile') {
+      return {
+        imageSource: 'dockerfile',
+        dockerfilePath: dockerfilePath.trim(),
+      };
+    } else {
+      // 既存イメージを使用
+      const imageFull = selectedImage === CUSTOM_IMAGE_VALUE
+        ? customImageName.trim()
+        : selectedImage;
+
+      // imageName:imageTag の形式をパース
+      const [imageName, imageTag] = imageFull.includes(':')
+        ? imageFull.split(':')
+        : [imageFull, 'latest'];
+
+      return {
+        imageSource: 'existing',
+        imageName,
+        imageTag,
+      };
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,21 +175,47 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
       return;
     }
 
+    // Docker環境の場合の追加バリデーション
+    if (type === 'DOCKER' && mode === 'create') {
+      if (imageSource === 'existing') {
+        const imageName = selectedImage === CUSTOM_IMAGE_VALUE
+          ? customImageName.trim()
+          : selectedImage;
+        if (!imageName) {
+          setError('Dockerイメージを選択または入力してください');
+          return;
+        }
+      } else if (imageSource === 'dockerfile') {
+        if (!dockerfilePath.trim()) {
+          setError('Dockerfileのパスを入力してください');
+          return;
+        }
+      }
+    }
+
     setIsLoading(true);
 
     try {
       if (mode === 'create') {
+        const config = type === 'DOCKER' ? buildDockerConfig() : {};
         await onSubmit({
           name: name.trim(),
           type,
           description: description.trim() || undefined,
-          config: {},
+          config,
         } as CreateEnvironmentInput);
       } else {
-        await onSubmit({
+        const updateInput: UpdateEnvironmentInput = {
           name: name.trim(),
           description: description.trim() || undefined,
-        } as UpdateEnvironmentInput);
+        };
+
+        // 編集モードでもDocker設定を更新可能にする
+        if (environment?.type === 'DOCKER') {
+          updateInput.config = buildDockerConfig();
+        }
+
+        await onSubmit(updateInput);
       }
       handleClose();
     } catch (err) {
@@ -92,10 +231,30 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
     setType('HOST');
     setDescription('');
     setError('');
+    setImageSource('existing');
+    setSelectedImage('');
+    setCustomImageName('');
+    setDockerfilePath('');
     onClose();
   };
 
   const selectedTypeOption = ENVIRONMENT_TYPES.find((t) => t.value === type);
+
+  // イメージ選択用のオプションを構築
+  const imageOptions = [
+    ...dockerImages.map((img) => ({
+      value: `${img.repository}:${img.tag}`,
+      label: `${img.repository}:${img.tag}`,
+    })),
+    { value: CUSTOM_IMAGE_VALUE, label: 'カスタムイメージを入力...' },
+  ];
+
+  // 現在選択されているイメージのラベルを取得
+  const getSelectedImageLabel = () => {
+    if (!selectedImage) return 'イメージを選択...';
+    if (selectedImage === CUSTOM_IMAGE_VALUE) return 'カスタムイメージを入力...';
+    return selectedImage;
+  };
 
   return (
     <Transition appear show={isOpen} as={Fragment}>
@@ -218,6 +377,184 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
                           </Transition>
                         </div>
                       </Listbox>
+                    </div>
+                  )}
+
+                  {/* Docker Image Settings - Shown when type is DOCKER */}
+                  {((mode === 'create' && type === 'DOCKER') || (mode === 'edit' && environment?.type === 'DOCKER')) && (
+                    <div className="mb-4 p-4 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700/50">
+                      <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                        イメージソース
+                      </h4>
+
+                      {/* Image Source Radio Group */}
+                      <RadioGroup value={imageSource} onChange={setImageSource} disabled={isLoading}>
+                        <div className="space-y-2">
+                          {IMAGE_SOURCE_OPTIONS.map((option) => (
+                            <RadioGroup.Option
+                              key={option.value}
+                              value={option.value}
+                              className={({ checked }) =>
+                                `relative flex cursor-pointer rounded-lg px-4 py-2 focus:outline-none ${
+                                  checked
+                                    ? 'bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700'
+                                    : 'bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600'
+                                }`
+                              }
+                            >
+                              {({ checked }) => (
+                                <div className="flex w-full items-center justify-between">
+                                  <div className="flex items-center">
+                                    <div className="text-sm">
+                                      <RadioGroup.Label
+                                        as="p"
+                                        className={`font-medium ${
+                                          checked
+                                            ? 'text-blue-900 dark:text-blue-100'
+                                            : 'text-gray-900 dark:text-gray-100'
+                                        }`}
+                                      >
+                                        {option.label}
+                                      </RadioGroup.Label>
+                                    </div>
+                                  </div>
+                                  {checked && (
+                                    <div className="shrink-0 text-blue-600 dark:text-blue-400">
+                                      <Check className="h-5 w-5" />
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </RadioGroup.Option>
+                          ))}
+                        </div>
+                      </RadioGroup>
+
+                      {/* Existing Image Selection */}
+                      {imageSource === 'existing' && (
+                        <div className="mt-4 space-y-3">
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            イメージ
+                          </label>
+
+                          {isLoadingImages ? (
+                            <div className="flex items-center justify-center py-4">
+                              <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+                              <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">
+                                イメージ一覧を取得中...
+                              </span>
+                            </div>
+                          ) : imageError ? (
+                            <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+                              <p className="text-sm text-yellow-600 dark:text-yellow-400">{imageError}</p>
+                              <button
+                                type="button"
+                                onClick={fetchDockerImages}
+                                className="mt-2 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                              >
+                                再読み込み
+                              </button>
+                            </div>
+                          ) : (
+                            <Listbox value={selectedImage} onChange={setSelectedImage} disabled={isLoading}>
+                              <div className="relative">
+                                <Listbox.Button className="relative w-full cursor-pointer rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 py-2 pl-3 pr-10 text-left focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                  <span className={`block truncate ${!selectedImage ? 'text-gray-400' : 'text-gray-900 dark:text-gray-100'}`}>
+                                    {getSelectedImageLabel()}
+                                  </span>
+                                  <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                                    <ChevronDown
+                                      className="h-5 w-5 text-gray-400"
+                                      aria-hidden="true"
+                                    />
+                                  </span>
+                                </Listbox.Button>
+                                <Transition
+                                  as={Fragment}
+                                  leave="transition ease-in duration-100"
+                                  leaveFrom="opacity-100"
+                                  leaveTo="opacity-0"
+                                >
+                                  <Listbox.Options className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white dark:bg-gray-700 py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+                                    {imageOptions.map((option) => (
+                                      <Listbox.Option
+                                        key={option.value}
+                                        className={({ active }) =>
+                                          `relative cursor-pointer select-none py-2 pl-10 pr-4 ${
+                                            active
+                                              ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-900 dark:text-blue-100'
+                                              : 'text-gray-900 dark:text-gray-100'
+                                          } ${option.value === CUSTOM_IMAGE_VALUE ? 'border-t border-gray-200 dark:border-gray-600' : ''}`
+                                        }
+                                        value={option.value}
+                                      >
+                                        {({ selected }) => (
+                                          <>
+                                            <span
+                                              className={`block truncate ${
+                                                selected ? 'font-medium' : 'font-normal'
+                                              } ${option.value === CUSTOM_IMAGE_VALUE ? 'italic text-gray-500 dark:text-gray-400' : ''}`}
+                                            >
+                                              {option.label}
+                                            </span>
+                                            {selected && (
+                                              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-blue-600 dark:text-blue-400">
+                                                <Check className="h-5 w-5" aria-hidden="true" />
+                                              </span>
+                                            )}
+                                          </>
+                                        )}
+                                      </Listbox.Option>
+                                    ))}
+                                  </Listbox.Options>
+                                </Transition>
+                              </div>
+                            </Listbox>
+                          )}
+
+                          {/* Custom Image Input */}
+                          {selectedImage === CUSTOM_IMAGE_VALUE && (
+                            <div className="mt-3">
+                              <label
+                                htmlFor="custom-image-name"
+                                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                              >
+                                カスタムイメージ名
+                              </label>
+                              <input
+                                id="custom-image-name"
+                                type="text"
+                                value={customImageName}
+                                onChange={(e) => setCustomImageName(e.target.value)}
+                                placeholder="例: my-custom-image:v1.0"
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                                disabled={isLoading}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Dockerfile Path Input */}
+                      {imageSource === 'dockerfile' && (
+                        <div className="mt-4">
+                          <label
+                            htmlFor="dockerfile-path"
+                            className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                          >
+                            Dockerfileパス
+                          </label>
+                          <input
+                            id="dockerfile-path"
+                            type="text"
+                            value={dockerfilePath}
+                            onChange={(e) => setDockerfilePath(e.target.value)}
+                            placeholder="例: /home/user/project/Dockerfile"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                            disabled={isLoading}
+                          />
+                        </div>
+                      )}
                     </div>
                   )}
 

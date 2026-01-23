@@ -821,6 +821,427 @@ async function migrateToEnvironments() {
 
 ---
 
+### Phase 7: Dockerイメージ設定機能
+
+#### TASK-EE-020: Dockerイメージ一覧取得API
+
+**状態**: `TODO`
+**優先度**: P1
+**見積もり**: 25分
+**依存**: なし
+**関連要件**: REQ-EE024
+
+**受入基準**:
+- [ ] GET /api/docker/images でローカルDockerイメージ一覧を取得できる
+- [ ] レスポンスにrepository, tag, id, size, createdが含まれる
+- [ ] Dockerデーモンに接続できない場合は503エラー
+- [ ] ユニットテストが通過する
+
+**実装指示**:
+```typescript
+// src/app/api/docker/images/route.ts
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import { NextResponse } from 'next/server';
+
+const execAsync = promisify(exec);
+
+export async function GET() {
+  try {
+    // docker imagesをJSON形式で取得
+    const { stdout } = await execAsync(
+      'docker images --format "{{json .}}"',
+      { timeout: 10000 }
+    );
+
+    const images = stdout
+      .trim()
+      .split('\n')
+      .filter(line => line)
+      .map(line => {
+        const img = JSON.parse(line);
+        return {
+          repository: img.Repository,
+          tag: img.Tag,
+          id: img.ID,
+          size: img.Size,
+          created: img.CreatedAt,
+        };
+      })
+      // <none>タグを除外
+      .filter(img => img.repository !== '<none>' && img.tag !== '<none>');
+
+    return NextResponse.json({ images });
+  } catch (error) {
+    return NextResponse.json(
+      { error: 'Docker daemon not available' },
+      { status: 503 }
+    );
+  }
+}
+```
+
+**TDD手順**:
+1. テストファイル作成: `src/app/api/docker/images/__tests__/route.test.ts`
+2. テストケースを先に書く:
+   - it('should return list of docker images')
+   - it('should exclude images with <none> tag')
+   - it('should return 503 when docker daemon is unavailable')
+3. 実装
+4. テストが通過することを確認
+
+**ファイル**:
+- 新規: `src/app/api/docker/images/route.ts`
+- 新規: `src/app/api/docker/images/__tests__/route.test.ts`
+
+---
+
+#### TASK-EE-021: Dockerfileビルド用API
+
+**状態**: `TODO`
+**優先度**: P1
+**見積もり**: 35分
+**依存**: なし
+**関連要件**: REQ-EE027
+
+**受入基準**:
+- [ ] POST /api/docker/build でDockerfileからイメージをビルドできる
+- [ ] dockerfilePath, imageName, imageTagをリクエストで受け付ける
+- [ ] ビルドログをレスポンスに含める
+- [ ] Dockerfileが存在しない場合は400エラー
+- [ ] ビルドエラー時は400エラーとエラーログを返す
+- [ ] ユニットテストが通過する
+
+**実装指示**:
+```typescript
+// src/app/api/docker/build/route.ts
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import { NextRequest, NextResponse } from 'next/server';
+
+const execAsync = promisify(exec);
+
+export async function POST(request: NextRequest) {
+  const { dockerfilePath, imageName, imageTag = 'latest' } = await request.json();
+
+  // バリデーション
+  if (!dockerfilePath) {
+    return NextResponse.json({ error: 'dockerfilePath is required' }, { status: 400 });
+  }
+
+  // Dockerfile存在チェック
+  try {
+    await fs.access(dockerfilePath);
+  } catch {
+    return NextResponse.json(
+      { error: `Dockerfile not found: ${dockerfilePath}` },
+      { status: 400 }
+    );
+  }
+
+  const fullImageName = `${imageName}:${imageTag}`;
+  const dockerfileDir = path.dirname(dockerfilePath);
+  const dockerfileName = path.basename(dockerfilePath);
+
+  try {
+    // ビルド実行
+    const { stdout, stderr } = await execAsync(
+      `docker build -t ${fullImageName} -f ${dockerfileName} .`,
+      {
+        cwd: dockerfileDir,
+        timeout: 600000, // 10分タイムアウト
+      }
+    );
+
+    return NextResponse.json({
+      success: true,
+      imageName: fullImageName,
+      buildLog: stdout + stderr,
+    });
+  } catch (error: any) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Build failed',
+        buildLog: error.stdout + error.stderr,
+      },
+      { status: 400 }
+    );
+  }
+}
+```
+
+**TDD手順**:
+1. テストファイル作成: `src/app/api/docker/build/__tests__/route.test.ts`
+2. テストケースを先に書く:
+   - it('should build image from Dockerfile')
+   - it('should return 400 when Dockerfile not found')
+   - it('should return 400 with build log on build failure')
+3. 実装
+4. テストが通過することを確認
+
+**ファイル**:
+- 新規: `src/app/api/docker/build/route.ts`
+- 新規: `src/app/api/docker/build/__tests__/route.test.ts`
+
+---
+
+#### TASK-EE-022: EnvironmentFormにDockerイメージ設定UIを追加
+
+**状態**: `DONE`
+**優先度**: P1
+**見積もり**: 45分
+**依存**: TASK-EE-020, TASK-EE-021
+**関連要件**: REQ-EE023, REQ-EE024, REQ-EE025, REQ-EE026, REQ-EE029
+
+**受入基準**:
+- [x] Docker環境選択時に「イメージソース」セクションが表示される
+- [x] 「既存イメージを使用」「Dockerfileからビルド」のラジオボタンがある
+- [x] 既存イメージ選択時:
+  - [x] ドロップダウンにローカルイメージ一覧が表示される
+  - [x] 「カスタムイメージを入力」オプションがある
+  - [x] カスタム選択時はテキスト入力欄が表示される
+- [x] Dockerfileビルド選択時:
+  - [x] Dockerfileパス入力欄が表示される
+- [x] 選択内容がconfig JSONに正しく保存される
+
+**実装指示**:
+```typescript
+// EnvironmentForm.tsx に追加するstate
+const [imageSource, setImageSource] = useState<'existing' | 'dockerfile'>('existing');
+const [selectedImage, setSelectedImage] = useState('');
+const [customImageName, setCustomImageName] = useState('');
+const [dockerfilePath, setDockerfilePath] = useState('');
+const [availableImages, setAvailableImages] = useState<DockerImage[]>([]);
+const [isLoadingImages, setIsLoadingImages] = useState(false);
+
+// Docker環境選択時にイメージ一覧を取得
+useEffect(() => {
+  if (type === 'DOCKER') {
+    fetchDockerImages();
+  }
+}, [type]);
+
+// フォーム送信時のconfig構築
+const buildConfig = () => {
+  if (type !== 'DOCKER') return {};
+
+  if (imageSource === 'existing') {
+    const [imageName, imageTag] = (selectedImage === 'custom' ? customImageName : selectedImage).split(':');
+    return {
+      imageSource: 'existing',
+      imageName: imageName || 'claude-code-sandboxed',
+      imageTag: imageTag || 'latest',
+    };
+  } else {
+    return {
+      imageSource: 'dockerfile',
+      dockerfilePath,
+      buildImageName: `claude-work-env-${Date.now()}`,
+    };
+  }
+};
+```
+
+**TDD手順**:
+1. UIコンポーネントのためE2Eテストを優先
+2. `e2e/environment-form.spec.ts`にテスト追加:
+   - it('should show image source options when Docker type selected')
+   - it('should show image dropdown when existing image selected')
+   - it('should show custom input when custom image selected')
+   - it('should show dockerfile path input when dockerfile selected')
+3. 実装
+4. テストが通過することを確認
+
+**ファイル**:
+- 変更: `src/components/environments/EnvironmentForm.tsx`
+- 新規: `src/hooks/useDockerImages.ts`
+- 変更: `e2e/environment-form.spec.ts`（または新規）
+
+---
+
+#### TASK-EE-023: Docker環境作成時のビルド処理統合
+
+**状態**: `TODO`
+**優先度**: P1
+**見積もり**: 30分
+**依存**: TASK-EE-021, TASK-EE-022
+**関連要件**: REQ-EE027
+
+**受入基準**:
+- [ ] imageSource='dockerfile'の環境作成時、自動的にビルドを実行
+- [ ] ビルド中はローディング表示
+- [ ] ビルド失敗時はエラーメッセージを表示
+- [ ] ビルド成功後に環境が作成される
+- [ ] ビルド後のイメージ名がconfigに保存される
+
+**実装指示**:
+```typescript
+// POST /api/environments でのビルド統合
+export async function POST(request: NextRequest) {
+  const { name, type, description, config } = await request.json();
+
+  // Docker環境でDockerfileビルドが指定されている場合
+  if (type === 'DOCKER' && config.imageSource === 'dockerfile') {
+    // ビルド用のイメージ名を生成
+    const buildImageName = config.buildImageName || `claude-work-env-${Date.now()}`;
+
+    // ビルドAPI呼び出し
+    const buildResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || ''}/api/docker/build`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        dockerfilePath: config.dockerfilePath,
+        imageName: buildImageName,
+        imageTag: 'latest',
+      }),
+    });
+
+    if (!buildResponse.ok) {
+      const buildResult = await buildResponse.json();
+      return NextResponse.json(
+        { error: 'Docker build failed', details: buildResult.buildLog },
+        { status: 400 }
+      );
+    }
+
+    // ビルド成功 - configを更新
+    config.imageName = buildImageName;
+    config.imageTag = 'latest';
+  }
+
+  // 環境作成
+  const environment = await environmentService.create({
+    name,
+    type,
+    description,
+    config,
+  });
+
+  return NextResponse.json(environment, { status: 201 });
+}
+```
+
+**TDD手順**:
+1. `src/app/api/environments/__tests__/route.test.ts`にテスト追加:
+   - it('should build image when imageSource is dockerfile')
+   - it('should return 400 when docker build fails')
+   - it('should save built image name in config')
+2. 実装
+3. テストが通過することを確認
+
+**ファイル**:
+- 変更: `src/app/api/environments/route.ts`
+- 変更: `src/app/api/environments/__tests__/route.test.ts`
+
+---
+
+#### TASK-EE-024: EnvironmentCardにイメージ情報表示を追加
+
+**状態**: `TODO`
+**優先度**: P2
+**見積もり**: 20分
+**依存**: TASK-EE-022
+**関連要件**: REQ-EE028
+
+**受入基準**:
+- [ ] Docker環境カードに使用中のイメージ名が表示される
+- [ ] imageSource='dockerfile'の場合はDockerfileパスが表示される
+- [ ] imageSource='existing'の場合はイメージ名:タグが表示される
+
+**実装指示**:
+```typescript
+// EnvironmentCard.tsx に追加
+const renderImageInfo = () => {
+  if (environment.type !== 'DOCKER') return null;
+
+  const config = JSON.parse(environment.config || '{}');
+
+  if (config.imageSource === 'dockerfile') {
+    return (
+      <div className="text-sm text-gray-500">
+        <span className="font-medium">Dockerfile:</span> {config.dockerfilePath}
+      </div>
+    );
+  }
+
+  const imageName = config.imageName || 'claude-code-sandboxed';
+  const imageTag = config.imageTag || 'latest';
+  return (
+    <div className="text-sm text-gray-500">
+      <span className="font-medium">イメージ:</span> {imageName}:{imageTag}
+    </div>
+  );
+};
+```
+
+**ファイル**:
+- 変更: `src/components/environments/EnvironmentCard.tsx`
+
+---
+
+#### TASK-EE-025: checkStatusでのイメージ存在確認更新
+
+**状態**: `TODO`
+**優先度**: P1
+**見積もり**: 20分
+**依存**: TASK-EE-023
+**関連要件**: REQ-EE017
+
+**受入基準**:
+- [ ] imageSource='dockerfile'の場合、ビルド済みイメージの存在をチェック
+- [ ] imageSource='existing'の場合、指定イメージの存在をチェック
+- [ ] イメージが存在しない場合は適切なエラーメッセージを返す
+
+**実装指示**:
+```typescript
+// environment-service.ts checkDockerStatus更新
+private async checkDockerStatus(environment: ExecutionEnvironment): Promise<EnvironmentStatus> {
+  // ... 既存のDockerデーモンチェック ...
+
+  // イメージの存在チェック
+  const config = JSON.parse(environment.config || '{}');
+  let imageName: string;
+  let imageTag: string;
+
+  if (config.imageSource === 'dockerfile') {
+    imageName = config.buildImageName || config.imageName || 'claude-code-sandboxed';
+    imageTag = 'latest';
+  } else {
+    imageName = config.imageName || 'claude-code-sandboxed';
+    imageTag = config.imageTag || 'latest';
+  }
+
+  const fullImageName = `${imageName}:${imageTag}`;
+
+  try {
+    await execAsync(`docker image inspect ${fullImageName}`, { timeout: 5000 });
+    imageExists = true;
+  } catch {
+    const errorMsg = config.imageSource === 'dockerfile'
+      ? `ビルド済みイメージが見つかりません。環境を再作成してビルドしてください。`
+      : `イメージ ${fullImageName} が見つかりません。docker pullまたはビルドしてください。`;
+
+    return {
+      available: false,
+      authenticated: !!environment.auth_dir_path,
+      error: errorMsg,
+      details: { dockerDaemon: true, imageExists: false },
+    };
+  }
+
+  // ... 残りの処理 ...
+}
+```
+
+**ファイル**:
+- 変更: `src/services/environment-service.ts`
+- 変更: `src/services/__tests__/environment-service.test.ts`
+
+---
+
 ## タスク依存関係
 
 ```text
@@ -873,4 +1294,5 @@ TASK-EE-018 (ドキュメント) は全タスク完了後
 | Phase 4: WebSocket統合 | 1 | 1 | 100% |
 | Phase 5: UI実装 | 4 | 4 | 100% |
 | Phase 6: マイグレーションと仕上げ | 3 | 3 | 100% |
-| **合計** | **19** | **19** | **100%** |
+| Phase 7: Dockerイメージ設定機能 | 6 | 0 | 0% |
+| **合計** | **25** | **19** | **76%** |
