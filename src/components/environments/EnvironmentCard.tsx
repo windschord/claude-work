@@ -41,6 +41,35 @@ function getTypeBadgeStyle(type: EnvironmentType): string {
 }
 
 /**
+ * Dockerイメージ情報をレンダリング
+ */
+function renderImageInfo(environment: Environment): React.ReactNode {
+  if (environment.type !== 'DOCKER') return null;
+
+  const config = typeof environment.config === 'string'
+    ? JSON.parse(environment.config || '{}')
+    : environment.config || {};
+
+  if (config.imageSource === 'dockerfile') {
+    return (
+      <div className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+        <span className="font-medium">Dockerfile:</span>{' '}
+        <span>{config.dockerfilePath}</span>
+      </div>
+    );
+  }
+
+  const imageName = config.imageName || 'claude-code-sandboxed';
+  const imageTag = config.imageTag || 'latest';
+  return (
+    <div className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+      <span className="font-medium">イメージ:</span>{' '}
+      <span>{imageName}:{imageTag}</span>
+    </div>
+  );
+}
+
+/**
  * ステータスインジケータコンポーネント
  */
 function StatusIndicator({ available, authenticated }: { available: boolean; authenticated: boolean }) {
@@ -120,6 +149,8 @@ export function EnvironmentCard({ environment, onEdit, onDelete }: EnvironmentCa
           {environment.description}
         </p>
       )}
+
+      {renderImageInfo(environment)}
 
       <div className="mb-4">
         <StatusIndicator available={available} authenticated={authenticated} />
