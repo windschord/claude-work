@@ -23,16 +23,14 @@ export default function EnvironmentsSettingsPage() {
   } = useEnvironments();
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <EnvironmentList
-        environments={environments}
-        isLoading={isLoading}
-        error={error}
-        onCreateEnvironment={createEnvironment}
-        onUpdateEnvironment={updateEnvironment}
-        onDeleteEnvironment={deleteEnvironment}
-        onRefresh={fetchEnvironments}
-      />
-    </div>
+    <EnvironmentList
+      environments={environments}
+      isLoading={isLoading}
+      error={error}
+      onCreateEnvironment={createEnvironment}
+      onUpdateEnvironment={updateEnvironment}
+      onDeleteEnvironment={deleteEnvironment}
+      onRefresh={fetchEnvironments}
+    />
   );
 }
