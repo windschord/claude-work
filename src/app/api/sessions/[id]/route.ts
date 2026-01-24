@@ -225,10 +225,26 @@ export async function PATCH(
     const updatedSession = await prisma.session.update({
       where: { id },
       data: { name: trimmedName },
+      include: {
+        environment: {
+          select: {
+            name: true,
+            type: true,
+          },
+        },
+      },
     });
 
+    // フロントエンド用にフラット化した形式に変換
+    const sessionWithEnvironment = {
+      ...updatedSession,
+      environment_name: updatedSession.environment?.name || null,
+      environment_type: updatedSession.environment?.type as 'HOST' | 'DOCKER' | 'SSH' | null,
+      environment: undefined, // ネストされたオブジェクトは削除
+    };
+
     logger.info('Session name updated', { id, name: trimmedName });
-    return NextResponse.json({ session: updatedSession });
+    return NextResponse.json({ session: sessionWithEnvironment });
   } catch (error) {
     const { id: errorId } = await params;
     logger.error('Failed to update session', { error, session_id: errorId });

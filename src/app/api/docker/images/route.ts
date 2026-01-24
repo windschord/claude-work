@@ -48,8 +48,18 @@ export async function GET(): Promise<NextResponse> {
   } catch (error) {
     logger.error('Failed to fetch Docker images', { error });
 
+    // エラータイプに応じたメッセージを返す
+    let errorMessage = 'Docker daemon not available';
+    if (error instanceof Error) {
+      if (error.message.includes('ETIMEDOUT') || error.message.includes('timeout')) {
+        errorMessage = 'Docker command timed out';
+      } else if (error.message.includes('ENOENT')) {
+        errorMessage = 'Docker command not found';
+      }
+    }
+
     return NextResponse.json(
-      { error: 'Docker daemon not available' },
+      { error: errorMessage },
       { status: 503 }
     );
   }

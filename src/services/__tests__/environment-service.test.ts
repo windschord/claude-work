@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { EventEmitter } from 'events';
 
 // vi.hoistedでモックを先に初期化
 const {
@@ -8,7 +9,7 @@ const {
   mockRm,
   mockAccess,
   mockLogger,
-  mockExec,
+  mockSpawn,
 } = vi.hoisted(() => ({
   mockPrismaExecutionEnvironment: {
     findUnique: vi.fn(),
@@ -30,7 +31,7 @@ const {
     error: vi.fn(),
     debug: vi.fn(),
   },
-  mockExec: vi.fn(),
+  mockSpawn: vi.fn(),
 }));
 
 // Prisma clientのモック
@@ -61,7 +62,7 @@ vi.mock('fs/promises', () => ({
 // child_processのモック
 vi.mock('child_process', () => {
   const mockExports = {
-    exec: mockExec,
+    spawn: mockSpawn,
   };
   return {
     ...mockExports,
@@ -497,17 +498,24 @@ describe('EnvironmentService', () => {
     });
 
     it('DOCKER環境の場合は基本状態を返す（詳細チェックは後で実装）', async () => {
-      // execのモック設定
-      mockExec.mockImplementation(
-        (
-          command: string,
-          _options: unknown,
-          callback: (error: Error | null, stdout: string, stderr: string) => void
-        ) => {
-          callback(null, '', '');
-          return {} as ReturnType<typeof mockExec>;
-        }
-      );
+      // spawnのモック設定
+      mockSpawn.mockImplementation(() => {
+        const mockProcess = new EventEmitter() as EventEmitter & {
+          stdout: EventEmitter;
+          stderr: EventEmitter;
+          kill: () => void;
+        };
+        mockProcess.stdout = new EventEmitter();
+        mockProcess.stderr = new EventEmitter();
+        mockProcess.kill = vi.fn();
+
+        setTimeout(() => {
+          mockProcess.stdout.emit('data', '');
+          mockProcess.emit('close', 0);
+        }, 0);
+
+        return mockProcess;
+      });
 
       mockPrismaExecutionEnvironment.findUnique.mockResolvedValue({
         id: 'docker-env',
@@ -563,11 +571,10 @@ describe('EnvironmentService', () => {
 
       mockPrismaExecutionEnvironment.findUnique.mockResolvedValue(env);
       mockMkdir.mockResolvedValue(undefined);
-      // モックの戻り値として実際のパス文字列を使用（expect.stringContainingはアサーション用）
-      const expectedAuthDirPath = '/mock/path/environments/docker-env';
+      // モックの戻り値として実際のパス文字列を使用
       mockPrismaExecutionEnvironment.update.mockResolvedValue({
         ...env,
-        auth_dir_path: expectedAuthDirPath,
+        auth_dir_path: `${process.cwd()}/data/environments/docker-env`,
       });
 
       const result = await service.createAuthDirectory('docker-env');
@@ -656,40 +663,49 @@ describe('EnvironmentService', () => {
   });
 
   describe('checkDockerStatus - imageSource handling', () => {
-    // execをコールバック形式でモック
-    const setupExecMock = (
+    // spawnをイベント形式でモック
+    const setupSpawnMock = (
       dockerInfoSuccess: boolean,
       imageInspectSuccess: boolean
     ) => {
-      mockExec.mockImplementation(
-        (
-          command: string,
-          _options: unknown,
-          callback: (error: Error | null, stdout: string, stderr: string) => void
-        ) => {
-          if (command === 'docker info') {
+      mockSpawn.mockImplementation((command: string, args: string[]) => {
+        const mockProcess = new EventEmitter() as EventEmitter & {
+          stdout: EventEmitter;
+          stderr: EventEmitter;
+          kill: () => void;
+        };
+        mockProcess.stdout = new EventEmitter();
+        mockProcess.stderr = new EventEmitter();
+        mockProcess.kill = vi.fn();
+
+        // 非同期でイベントを発火
+        setTimeout(() => {
+          if (command === 'docker' && args[0] === 'info') {
             if (dockerInfoSuccess) {
-              callback(null, 'Docker info output', '');
+              mockProcess.stdout.emit('data', 'Docker info output');
+              mockProcess.emit('close', 0);
             } else {
-              callback(new Error('Docker daemon not running'), '', '');
+              mockProcess.emit('close', 1);
             }
-          } else if (command.startsWith('docker image inspect')) {
+          } else if (command === 'docker' && args[0] === 'image' && args[1] === 'inspect') {
             if (imageInspectSuccess) {
-              callback(null, '[]', '');
+              mockProcess.stdout.emit('data', '[]');
+              mockProcess.emit('close', 0);
             } else {
-              callback(new Error('Image not found'), '', '');
+              mockProcess.emit('close', 1);
             }
           } else {
-            callback(null, '', '');
+            mockProcess.emit('close', 0);
           }
-          return {} as ReturnType<typeof mockExec>;
-        }
-      );
+        }, 0);
+
+        return mockProcess;
+      });
     };
 
     it('should check built image for dockerfile source', async () => {
       // Dockerデーモンが起動している、イメージも存在する場合
-      setupExecMock(true, true);
+      setupSpawnMock(true, true);
 
       mockPrismaExecutionEnvironment.findUnique.mockResolvedValue({
         id: 'docker-env',
@@ -713,16 +729,15 @@ describe('EnvironmentService', () => {
       expect(status.authenticated).toBe(true);
       expect(status.details?.imageExists).toBe(true);
       // buildImageNameが優先して使用されることを確認
-      expect(mockExec).toHaveBeenCalledWith(
-        'docker image inspect my-custom-image:latest',
-        expect.any(Object),
-        expect.any(Function)
+      expect(mockSpawn).toHaveBeenCalledWith(
+        'docker',
+        ['image', 'inspect', 'my-custom-image:latest']
       );
     });
 
     it('should show appropriate error message for dockerfile source when image not found', async () => {
       // Dockerデーモンは起動しているが、イメージが見つからない
-      setupExecMock(true, false);
+      setupSpawnMock(true, false);
 
       mockPrismaExecutionEnvironment.findUnique.mockResolvedValue({
         id: 'docker-env',
@@ -751,7 +766,7 @@ describe('EnvironmentService', () => {
 
     it('should show appropriate error message for existing source when image not found', async () => {
       // Dockerデーモンは起動しているが、イメージが見つからない（既存イメージ指定）
-      setupExecMock(true, false);
+      setupSpawnMock(true, false);
 
       mockPrismaExecutionEnvironment.findUnique.mockResolvedValue({
         id: 'docker-env',
@@ -781,7 +796,7 @@ describe('EnvironmentService', () => {
 
     it('should use default values when imageSource is not specified', async () => {
       // imageSourceが指定されていない場合（既存イメージとして扱う）
-      setupExecMock(true, false);
+      setupSpawnMock(true, false);
 
       mockPrismaExecutionEnvironment.findUnique.mockResolvedValue({
         id: 'docker-env',
@@ -804,7 +819,7 @@ describe('EnvironmentService', () => {
     });
 
     it('should use imageName as fallback for dockerfile source when buildImageName is not set', async () => {
-      setupExecMock(true, true);
+      setupSpawnMock(true, true);
 
       mockPrismaExecutionEnvironment.findUnique.mockResolvedValue({
         id: 'docker-env',
@@ -826,10 +841,9 @@ describe('EnvironmentService', () => {
 
       expect(status.available).toBe(true);
       // imageNameがフォールバックとして使用される
-      expect(mockExec).toHaveBeenCalledWith(
-        'docker image inspect fallback-image:latest',
-        expect.any(Object),
-        expect.any(Function)
+      expect(mockSpawn).toHaveBeenCalledWith(
+        'docker',
+        ['image', 'inspect', 'fallback-image:latest']
       );
     });
   });

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type MouseEvent } from 'react';
 import { Project } from '@/store';
 import { CreateSessionModal } from '@/components/sessions/CreateSessionModal';
 import { useRouter } from 'next/navigation';
@@ -26,17 +26,17 @@ export function ProjectCard({ project, onDelete, onSettings }: ProjectCardProps)
   const router = useRouter();
   const [isCreateSessionModalOpen, setIsCreateSessionModalOpen] = useState(false);
 
-  const handleNewSession = (e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleNewSession = (e: MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
     setIsCreateSessionModalOpen(true);
   };
 
-  const handleDelete = (e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleDelete = (e: MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
     onDelete(project);
   };
 
-  const handleSettings = (e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleSettings = (e: MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
     onSettings(project);
   };
