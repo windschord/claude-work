@@ -1,12 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import { spawn } from 'child_process';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { environmentService } from '@/services/environment-service';
 import { logger } from '@/lib/logger';
 
-const execAsync = promisify(exec);
+// 許可されたベースディレクトリ
+const ALLOWED_BASE_DIRS = [
+  path.resolve(process.cwd(), 'data', 'environments'),
+];
+
+// ファイル名のバリデーション正規表現
+const SAFE_FILENAME_PATTERN = /^[a-zA-Z0-9._-]+$/;
+const MAX_FILENAME_LENGTH = 255;
+
+/**
+ * パスが許可されたベースディレクトリ配下かどうかを検証
+ */
+function isPathAllowed(filePath: string): boolean {
+  const resolvedPath = path.resolve(filePath);
+  return ALLOWED_BASE_DIRS.some(baseDir => resolvedPath.startsWith(baseDir + path.sep));
+}
+
+/**
+ * ファイル名が安全かどうかを検証
+ */
+function isSafeFilename(filename: string): boolean {
+  if (!filename || filename.length > MAX_FILENAME_LENGTH) {
+    return false;
+  }
+  return SAFE_FILENAME_PATTERN.test(filename);
+}
 
 const VALID_ENVIRONMENT_TYPES = ['HOST', 'DOCKER', 'SSH'] as const;
 
@@ -99,12 +123,22 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // パストラバーサル対策: 許可されたディレクトリかチェック
+      if (!isPathAllowed(config.dockerfilePath)) {
+        logger.warn('Attempted access to unauthorized path', { dockerfilePath: config.dockerfilePath });
+        return NextResponse.json(
+          { error: 'Dockerfile path is not allowed' },
+          { status: 400 }
+        );
+      }
+
       // Dockerfile存在チェック
       try {
         await fs.access(config.dockerfilePath);
       } catch {
+        // パス情報を漏洩させない
         return NextResponse.json(
-          { error: `Dockerfile not found: ${config.dockerfilePath}` },
+          { error: 'Dockerfile not found' },
           { status: 400 }
         );
       }
@@ -115,6 +149,14 @@ export async function POST(request: NextRequest) {
       const dockerfileDir = path.dirname(config.dockerfilePath);
       const dockerfileName = path.basename(config.dockerfilePath);
 
+      // ファイル名のバリデーション
+      if (!isSafeFilename(dockerfileName)) {
+        return NextResponse.json(
+          { error: 'Invalid Dockerfile name' },
+          { status: 400 }
+        );
+      }
+
       logger.info('Starting Docker image build for environment', {
         dockerfilePath: config.dockerfilePath,
         imageName: buildImageName,
@@ -122,17 +164,51 @@ export async function POST(request: NextRequest) {
       });
 
       try {
-        const { stdout, stderr } = await execAsync(
-          `docker build -t ${buildImageName}:latest -f ${dockerfileName} .`,
-          {
+        // spawn を使用してコマンドインジェクションを防止
+        const buildResult = await new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
+          const args = ['build', '-t', `${buildImageName}:latest`, '-f', dockerfileName, '.'];
+          const child = spawn('docker', args, {
             cwd: dockerfileDir,
-            timeout: 600000, // 10分タイムアウト
-          }
-        );
+          });
+
+          let stdout = '';
+          let stderr = '';
+
+          child.stdout.on('data', (data) => {
+            stdout += data.toString();
+          });
+
+          child.stderr.on('data', (data) => {
+            stderr += data.toString();
+          });
+
+          // タイムアウト設定 (10分)
+          const timeout = setTimeout(() => {
+            child.kill();
+            reject(new Error('Build timeout'));
+          }, 600000);
+
+          child.on('close', (code) => {
+            clearTimeout(timeout);
+            if (code === 0) {
+              resolve({ stdout, stderr });
+            } else {
+              const error = new Error(`Build failed with code ${code}`) as Error & { stdout?: string; stderr?: string };
+              error.stdout = stdout;
+              error.stderr = stderr;
+              reject(error);
+            }
+          });
+
+          child.on('error', (err) => {
+            clearTimeout(timeout);
+            reject(err);
+          });
+        });
 
         logger.info('Docker image build completed', {
           imageName: `${buildImageName}:latest`,
-          buildLog: (stdout + stderr).slice(0, 500), // ログは500文字まで
+          buildLog: (buildResult.stdout + buildResult.stderr).slice(0, 500), // ログは500文字まで
         });
 
         // 成功: configを更新

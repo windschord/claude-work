@@ -1,10 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NextRequest } from 'next/server';
+import { EventEmitter } from 'events';
+import * as path from 'path';
 import { GET, POST } from '../route';
 
 // ホイストされたモック
-const { mockExec, mockAccess } = vi.hoisted(() => ({
-  mockExec: vi.fn(),
+const { mockSpawn, mockAccess } = vi.hoisted(() => ({
+  mockSpawn: vi.fn(),
   mockAccess: vi.fn(),
 }));
 
@@ -23,10 +25,10 @@ vi.mock('@/services/environment-service', () => ({
   },
 }));
 
-// child_processモジュールをモック
+// child_processモジュールをモック（spawnを使用）
 vi.mock('child_process', async () => {
   const mockExports = {
-    exec: mockExec,
+    spawn: mockSpawn,
   };
   return {
     ...mockExports,
@@ -49,6 +51,22 @@ vi.mock('@/lib/logger', () => ({
     debug: vi.fn(),
   },
 }));
+
+// 許可されたベースディレクトリ
+const ALLOWED_BASE_DIR = path.resolve(process.cwd(), 'data', 'environments');
+
+// モックのchild processを作成するヘルパー
+function createMockProcess() {
+  const mockProcess = new EventEmitter() as EventEmitter & {
+    stdout: EventEmitter;
+    stderr: EventEmitter;
+    kill: () => void;
+  };
+  mockProcess.stdout = new EventEmitter();
+  mockProcess.stderr = new EventEmitter();
+  mockProcess.kill = vi.fn();
+  return mockProcess;
+}
 
 describe('/api/environments', () => {
   beforeEach(() => {
@@ -379,23 +397,14 @@ describe('/api/environments', () => {
 
     describe('Dockerfile自動ビルド（imageSource=dockerfile）', () => {
       it('imageSource=dockerfileの場合、自動でDockerイメージをビルドする', async () => {
+        const dockerfilePath = path.join(ALLOWED_BASE_DIR, 'test-env', 'Dockerfile');
+
         // Dockerfile存在チェック - 成功
         mockAccess.mockResolvedValue(undefined);
 
-        // docker build 成功
-        mockExec.mockImplementation(
-          (
-            cmd: string,
-            opts: unknown,
-            callback: (error: Error | null, result: { stdout: string; stderr: string }) => void
-          ) => {
-            callback(null, {
-              stdout: 'Successfully built abc123\nSuccessfully tagged claude-work-env-temp:latest\n',
-              stderr: '',
-            });
-            return {} as ReturnType<typeof mockExec>;
-          }
-        );
+        // docker build 成功（spawnを使用）
+        const mockProcess = createMockProcess();
+        mockSpawn.mockReturnValue(mockProcess);
 
         const newEnvironment = {
           id: 'env-docker-build',
@@ -420,19 +429,30 @@ describe('/api/environments', () => {
             description: 'Docker environment with Dockerfile',
             config: {
               imageSource: 'dockerfile',
-              dockerfilePath: '/path/to/Dockerfile',
+              dockerfilePath,
             },
           }),
           headers: { 'Content-Type': 'application/json' },
         });
 
-        const response = await POST(request);
+        const responsePromise = POST(request);
+
+        // 非同期でイベントを発火
+        setImmediate(() => {
+          mockProcess.stdout.emit(
+            'data',
+            Buffer.from('Successfully built abc123\nSuccessfully tagged claude-work-env-temp:latest\n')
+          );
+          mockProcess.emit('close', 0);
+        });
+
+        const response = await responsePromise;
         const data = await response.json();
 
         expect(response.status).toBe(201);
         expect(data.environment.id).toBe('env-docker-build');
-        // docker buildが呼ばれたことを確認
-        expect(mockExec).toHaveBeenCalled();
+        // spawnが呼ばれたことを確認
+        expect(mockSpawn).toHaveBeenCalled();
         // 認証ディレクトリが作成されたことを確認
         expect(mockCreateAuthDirectory).toHaveBeenCalledWith('env-docker-build');
         // configにビルドしたイメージ名が設定されていることを確認
@@ -446,7 +466,31 @@ describe('/api/environments', () => {
         );
       });
 
+      it('許可されていないパスの場合は400エラーを返す', async () => {
+        const request = new NextRequest('http://localhost:3000/api/environments', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: 'Docker Build Env',
+            type: 'DOCKER',
+            config: {
+              imageSource: 'dockerfile',
+              dockerfilePath: '/unauthorized/path/Dockerfile',
+            },
+          }),
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        const response = await POST(request);
+        const data = await response.json();
+
+        expect(response.status).toBe(400);
+        expect(data.error).toBe('Dockerfile path is not allowed');
+        expect(mockCreate).not.toHaveBeenCalled();
+      });
+
       it('Dockerfileが存在しない場合は400エラーを返す', async () => {
+        const dockerfilePath = path.join(ALLOWED_BASE_DIR, 'nonexistent', 'Dockerfile');
+
         // Dockerfile存在チェック - 失敗
         mockAccess.mockRejectedValue(new Error('ENOENT: no such file or directory'));
 
@@ -457,7 +501,7 @@ describe('/api/environments', () => {
             type: 'DOCKER',
             config: {
               imageSource: 'dockerfile',
-              dockerfilePath: '/nonexistent/Dockerfile',
+              dockerfilePath,
             },
           }),
           headers: { 'Content-Type': 'application/json' },
@@ -467,33 +511,22 @@ describe('/api/environments', () => {
         const data = await response.json();
 
         expect(response.status).toBe(400);
-        expect(data.error).toContain('Dockerfile not found');
+        // パス情報は漏洩させない
+        expect(data.error).toBe('Dockerfile not found');
+        expect(data.error).not.toContain(dockerfilePath);
         // 環境は作成されない
         expect(mockCreate).not.toHaveBeenCalled();
       });
 
       it('Dockerビルドが失敗した場合は400エラーを返す', async () => {
+        const dockerfilePath = path.join(ALLOWED_BASE_DIR, 'test-env', 'Dockerfile');
+
         // Dockerfile存在チェック - 成功
         mockAccess.mockResolvedValue(undefined);
 
-        // docker build 失敗
-        const buildError = new Error('Build failed') as Error & {
-          stdout: string;
-          stderr: string;
-        };
-        buildError.stdout = 'Step 1/3 : FROM invalid-image:nonexistent\n';
-        buildError.stderr = 'pull access denied for invalid-image\n';
-
-        mockExec.mockImplementation(
-          (
-            cmd: string,
-            opts: unknown,
-            callback: (error: Error | null, result: { stdout: string; stderr: string }) => void
-          ) => {
-            callback(buildError, { stdout: '', stderr: '' });
-            return {} as ReturnType<typeof mockExec>;
-          }
-        );
+        // docker build 失敗（spawnを使用）
+        const mockProcess = createMockProcess();
+        mockSpawn.mockReturnValue(mockProcess);
 
         const request = new NextRequest('http://localhost:3000/api/environments', {
           method: 'POST',
@@ -502,13 +535,22 @@ describe('/api/environments', () => {
             type: 'DOCKER',
             config: {
               imageSource: 'dockerfile',
-              dockerfilePath: '/path/to/Dockerfile',
+              dockerfilePath,
             },
           }),
           headers: { 'Content-Type': 'application/json' },
         });
 
-        const response = await POST(request);
+        const responsePromise = POST(request);
+
+        // 非同期でイベントを発火（ビルド失敗）
+        setImmediate(() => {
+          mockProcess.stdout.emit('data', Buffer.from('Step 1/3 : FROM invalid-image:nonexistent\n'));
+          mockProcess.stderr.emit('data', Buffer.from('pull access denied for invalid-image\n'));
+          mockProcess.emit('close', 1); // 非ゼロの終了コード
+        });
+
+        const response = await responsePromise;
         const data = await response.json();
 
         expect(response.status).toBe(400);
@@ -577,7 +619,7 @@ describe('/api/environments', () => {
         expect(response.status).toBe(201);
         expect(data.environment.id).toBe('env-docker-existing');
         // ビルドは実行されない
-        expect(mockExec).not.toHaveBeenCalled();
+        expect(mockSpawn).not.toHaveBeenCalled();
         // 認証ディレクトリは作成される
         expect(mockCreateAuthDirectory).toHaveBeenCalledWith('env-docker-existing');
       });

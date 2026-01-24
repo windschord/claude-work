@@ -55,8 +55,9 @@
 │  │    write(sessionId, data): void                       │   │
 │  │    resize(sessionId, cols, rows): void                │   │
 │  │    destroySession(sessionId): void                    │   │
+│  │    restartSession(sessionId): void                    │   │
 │  │    hasSession(sessionId): boolean                     │   │
-│  │    checkStatus(): Promise<EnvironmentStatus>          │   │
+│  │    getWorkingDir(sessionId): string | undefined       │   │
 │  │  }                                                    │   │
 │  └──────────────────────────────────────────────────────┘   │
 │                              ↓                               │
@@ -91,7 +92,9 @@ model ExecutionEnvironment {
 
   sessions      Session[]
 
-  @@unique([is_default]) // is_default=trueは1つのみ（制約はアプリ側で管理）
+  // 注意: is_default=true は1つのみ許可される
+  // SQLite では @@unique([is_default]) だと非デフォルト環境も1つしか作れないため
+  // この制約は削除し、アプリケーション層（EnvironmentService）で担保する
 }
 
 model Session {

@@ -246,6 +246,62 @@ describe('/api/environments/[id]', () => {
       expect(response.status).toBe(400);
       expect(data.error).toContain('At least one field');
     });
+
+    it('空文字列のnameは400エラー', async () => {
+      const existingEnvironment = {
+        id: 'env-1',
+        name: 'Test',
+        type: 'HOST',
+        description: null,
+        config: '{}',
+        auth_dir_path: null,
+        is_default: false,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      mockFindById.mockResolvedValue(existingEnvironment);
+
+      const request = new NextRequest('http://localhost:3000/api/environments/env-1', {
+        method: 'PUT',
+        body: JSON.stringify({ name: '' }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const response = await PUT(request, { params: Promise.resolve({ id: 'env-1' }) });
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toContain('name must be a non-empty string');
+    });
+
+    it('空白のみのnameは400エラー', async () => {
+      const existingEnvironment = {
+        id: 'env-1',
+        name: 'Test',
+        type: 'HOST',
+        description: null,
+        config: '{}',
+        auth_dir_path: null,
+        is_default: false,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      mockFindById.mockResolvedValue(existingEnvironment);
+
+      const request = new NextRequest('http://localhost:3000/api/environments/env-1', {
+        method: 'PUT',
+        body: JSON.stringify({ name: '   ' }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const response = await PUT(request, { params: Promise.resolve({ id: 'env-1' }) });
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toContain('name must be a non-empty string');
+    });
   });
 
   describe('DELETE /api/environments/:id', () => {

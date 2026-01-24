@@ -23,6 +23,7 @@ export async function GET(): Promise<NextResponse> {
 
     const { stdout } = await execAsync('docker images --format "{{json .}}"', {
       timeout: 10000,
+      maxBuffer: 10 * 1024 * 1024, // 10MB バッファ（大量イメージ対応）
     });
 
     const images: DockerImage[] = stdout

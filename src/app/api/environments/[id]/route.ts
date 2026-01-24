@@ -87,7 +87,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     // 更新データを構築
     const updateData: { name?: string; description?: string; config?: object } = {};
     if (name !== undefined) {
-      updateData.name = name;
+      // 空文字列チェック
+      if (typeof name !== 'string' || name.trim() === '') {
+        return NextResponse.json(
+          { error: 'name must be a non-empty string' },
+          { status: 400 }
+        );
+      }
+      updateData.name = name.trim();
     }
     if (description !== undefined) {
       updateData.description = description;
