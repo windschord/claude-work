@@ -916,62 +916,52 @@ export async function GET() {
 
 **実装指示**:
 ```typescript
-// src/app/api/docker/build/route.ts
-import { exec } from 'child_process';
-import { promisify } from 'util';
+// src/app/api/docker/image-build/route.ts
+// 注意: コマンドインジェクション対策のため、spawnを使用して引数を配列で渡す
+// また、imageName/imageTagは正規表現でバリデーションし、dockerfilePathは
+// 許可されたベースディレクトリ配下のみ許可する
+import { spawn } from 'child_process';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { NextRequest, NextResponse } from 'next/server';
 
-const execAsync = promisify(exec);
+// 許可されたベースディレクトリ
+const ALLOWED_BASE_DIRS = [path.resolve(process.cwd(), 'data', 'environments')];
+
+// イメージ名/タグのバリデーション正規表現
+const IMAGE_NAME_PATTERN = /^[a-z0-9][a-z0-9._-]*$/;
+const IMAGE_TAG_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
 
 export async function POST(request: NextRequest) {
   const { dockerfilePath, imageName, imageTag = 'latest' } = await request.json();
 
-  // バリデーション
-  if (!dockerfilePath) {
-    return NextResponse.json({ error: 'dockerfilePath is required' }, { status: 400 });
+  // バリデーション（イメージ名/タグの形式チェック）
+  if (!IMAGE_NAME_PATTERN.test(imageName) || !IMAGE_TAG_PATTERN.test(imageTag)) {
+    return NextResponse.json({ error: 'Invalid image name or tag format' }, { status: 400 });
   }
 
-  // Dockerfile存在チェック
-  try {
-    await fs.access(dockerfilePath);
-  } catch {
-    return NextResponse.json(
-      { error: `Dockerfile not found: ${dockerfilePath}` },
-      { status: 400 }
-    );
+  // パストラバーサル対策
+  const resolvedPath = path.resolve(dockerfilePath);
+  const isAllowed = ALLOWED_BASE_DIRS.some(base => resolvedPath.startsWith(base + path.sep));
+  if (!isAllowed) {
+    return NextResponse.json({ error: 'Dockerfile path is not allowed' }, { status: 400 });
   }
 
   const fullImageName = `${imageName}:${imageTag}`;
   const dockerfileDir = path.dirname(dockerfilePath);
   const dockerfileName = path.basename(dockerfilePath);
 
-  try {
-    // ビルド実行
-    const { stdout, stderr } = await execAsync(
-      `docker build -t ${fullImageName} -f ${dockerfileName} .`,
-      {
-        cwd: dockerfileDir,
-        timeout: 600000, // 10分タイムアウト
-      }
-    );
+  // spawnで引数を配列で渡すことでコマンドインジェクションを防止
+  const buildResult = await new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
+    const args = ['build', '-t', fullImageName, '-f', dockerfileName, '.'];
+    const child = spawn('docker', args, { cwd: dockerfileDir });
+    let stdout = '', stderr = '';
+    child.stdout.on('data', (data) => { stdout += data.toString(); });
+    child.stderr.on('data', (data) => { stderr += data.toString(); });
+    child.on('close', (code) => code === 0 ? resolve({ stdout, stderr }) : reject(new Error(`Build failed with code ${code}`)));
+  });
 
-    return NextResponse.json({
-      success: true,
-      imageName: fullImageName,
-      buildLog: stdout + stderr,
-    });
-  } catch (error: any) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'Build failed',
-        buildLog: error.stdout + error.stderr,
-      },
-      { status: 400 }
-    );
-  }
+  return NextResponse.json({ success: true, imageName: fullImageName, buildLog: buildResult.stdout + buildResult.stderr });
 }
 ```
 

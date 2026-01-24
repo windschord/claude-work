@@ -365,7 +365,13 @@ export class EnvironmentService {
     }
 
     // イメージの存在チェック
-    const config = JSON.parse(environment.config || '{}');
+    let config: Record<string, unknown> = {};
+    try {
+      config = JSON.parse(environment.config || '{}');
+    } catch {
+      logger.warn('Invalid config JSON in environment', { environmentId: environment.id });
+      // 破損データでもステータスAPIが落ちないようにデフォルト値を使用
+    }
     let imageName: string;
     let imageTag: string;
 
@@ -430,7 +436,10 @@ export class EnvironmentService {
 
     const authDirPath = path.join(this.getAuthBasePath(), id);
 
-    await fsPromises.mkdir(authDirPath, { recursive: true });
+    // 認証ディレクトリとサブディレクトリを適切なパーミッションで作成
+    await fsPromises.mkdir(authDirPath, { recursive: true, mode: 0o700 });
+    await fsPromises.mkdir(path.join(authDirPath, 'claude'), { recursive: true, mode: 0o700 });
+    await fsPromises.mkdir(path.join(authDirPath, 'config', 'claude'), { recursive: true, mode: 0o700 });
 
     await prisma.executionEnvironment.update({
       where: { id },

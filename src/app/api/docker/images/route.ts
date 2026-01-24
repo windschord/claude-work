@@ -31,16 +31,22 @@ export async function GET(): Promise<NextResponse> {
       .split('\n')
       .filter((line) => line)
       .map((line) => {
-        const img = JSON.parse(line);
-        return {
-          repository: img.Repository,
-          tag: img.Tag,
-          id: img.ID,
-          size: img.Size,
-          created: img.CreatedAt,
-        };
+        try {
+          const img = JSON.parse(line);
+          return {
+            repository: img.Repository,
+            tag: img.Tag,
+            id: img.ID,
+            size: img.Size,
+            created: img.CreatedAt,
+          };
+        } catch {
+          // 不正なJSON行（ビルド中イメージの警告など）はスキップ
+          logger.debug('Skipping invalid JSON line in docker images output', { line });
+          return null;
+        }
       })
-      .filter((img) => img.repository !== '<none>' && img.tag !== '<none>');
+      .filter((img): img is DockerImage => img !== null && img.repository !== '<none>' && img.tag !== '<none>');
 
     logger.info(`Found ${images.length} Docker images`);
 

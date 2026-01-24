@@ -147,9 +147,12 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
    */
   const buildDockerConfig = (): object => {
     if (imageSource === 'dockerfile') {
+      // 編集モードの場合、既存のdockerfileUploaded状態を保持
+      // 新規作成または新しいファイルが選択された場合はfalse
+      const shouldPreserveUploadedState = mode === 'edit' && !dockerfileFile && dockerfileUploaded;
       return {
         imageSource: 'dockerfile',
-        dockerfileUploaded: false, // Will be set to true after upload
+        dockerfileUploaded: shouldPreserveUploadedState ? true : false,
       };
     } else {
       // 既存イメージを使用
@@ -185,7 +188,8 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
     }
 
     // Docker環境の場合の追加バリデーション
-    if (type === 'DOCKER' && mode === 'create') {
+    const isDockerEnv = (mode === 'create' && type === 'DOCKER') || (mode === 'edit' && environment?.type === 'DOCKER');
+    if (isDockerEnv) {
       if (imageSource === 'existing') {
         const imageName = selectedImage === CUSTOM_IMAGE_VALUE
           ? customImageName.trim()
@@ -195,7 +199,13 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
           return;
         }
       } else if (imageSource === 'dockerfile') {
-        if (!dockerfileFile) {
+        // 新規作成: ファイル必須
+        // 編集: 既存アップロード済みか新しいファイルが必要
+        if (mode === 'create' && !dockerfileFile) {
+          setError('Dockerfileをアップロードしてください');
+          return;
+        }
+        if (mode === 'edit' && !dockerfileUploaded && !dockerfileFile) {
           setError('Dockerfileをアップロードしてください');
           return;
         }
