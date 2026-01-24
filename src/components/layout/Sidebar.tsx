@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAppStore } from '@/store';
 import { useUIStore } from '@/store/ui';
 import { ProjectTreeItem } from './ProjectTreeItem';
+import { CreateSessionModal } from '@/components/sessions/CreateSessionModal';
 
 /**
  * サイドバーコンポーネント
@@ -29,7 +30,8 @@ export function Sidebar() {
     fetchSessions,
   } = useAppStore();
   const { isProjectExpanded, toggleProject } = useUIStore();
-  const [isCreating, setIsCreating] = useState(false);
+  const [isCreateSessionModalOpen, setIsCreateSessionModalOpen] = useState(false);
+  const [selectedProjectIdForSession, setSelectedProjectIdForSession] = useState<string | null>(null);
 
   // プロジェクトごとにセッションをグループ化
   const sessionsByProject = useMemo(() => {
@@ -60,39 +62,26 @@ export function Sidebar() {
     [router, setCurrentSessionId, setSelectedProjectId, setIsSidebarOpen]
   );
 
-  // 新規セッション追加時の処理（ワンクリック作成）
+  // 新規セッション追加時の処理（モーダルを開く）
   const handleAddSession = useCallback(
-    async (projectId: string) => {
-      if (isCreating) return;
-
-      setIsCreating(true);
+    (projectId: string) => {
+      setSelectedProjectIdForSession(projectId);
       setSelectedProjectId(projectId);
-
-      try {
-        const response = await fetch(`/api/projects/${projectId}/sessions`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            prompt: '',
-          }),
-        });
-
-        const data = await response.json();
-
-        if (response.ok && data.session) {
-          // セッション一覧を更新
-          await fetchSessions(projectId);
-          // 新しいセッションに遷移
-          router.push(`/sessions/${data.session.id}`);
-          setIsSidebarOpen(false);
-        }
-      } catch (error) {
-        console.error('Failed to create session:', error);
-      } finally {
-        setIsCreating(false);
-      }
+      setIsCreateSessionModalOpen(true);
     },
-    [isCreating, setSelectedProjectId, fetchSessions, router, setIsSidebarOpen]
+    [setSelectedProjectId]
+  );
+
+  // セッション作成成功時の処理
+  const handleSessionCreated = useCallback(
+    async (sessionId: string) => {
+      if (selectedProjectIdForSession) {
+        await fetchSessions(selectedProjectIdForSession);
+      }
+      router.push(`/sessions/${sessionId}`);
+      setIsSidebarOpen(false);
+    },
+    [selectedProjectIdForSession, fetchSessions, router, setIsSidebarOpen]
   );
 
   return (
@@ -148,6 +137,16 @@ export function Sidebar() {
           </div>
         </div>
       </aside>
+
+      {/* セッション作成モーダル */}
+      {selectedProjectIdForSession && (
+        <CreateSessionModal
+          isOpen={isCreateSessionModalOpen}
+          onClose={() => setIsCreateSessionModalOpen(false)}
+          projectId={selectedProjectIdForSession}
+          onSuccess={handleSessionCreated}
+        />
+      )}
     </>
   );
 }

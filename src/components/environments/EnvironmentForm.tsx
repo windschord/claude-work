@@ -238,7 +238,7 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
               handleClose();
               return;
             }
-          } catch (buildErr) {
+          } catch {
             setError('環境は作成されましたが、イメージのビルドに失敗しました');
             handleClose();
             return;

@@ -1,7 +1,9 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import { Project } from '@/store';
+import { CreateSessionModal } from '@/components/sessions/CreateSessionModal';
+import { useRouter } from 'next/navigation';
 
 interface ProjectCardProps {
   project: Project;
@@ -22,10 +24,11 @@ interface ProjectCardProps {
  */
 export function ProjectCard({ project, onDelete, onSettings }: ProjectCardProps) {
   const router = useRouter();
+  const [isCreateSessionModalOpen, setIsCreateSessionModalOpen] = useState(false);
 
-  const handleOpen = (e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleNewSession = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
-    router.push(`/projects/${project.id}`);
+    setIsCreateSessionModalOpen(true);
   };
 
   const handleDelete = (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -38,47 +41,53 @@ export function ProjectCard({ project, onDelete, onSettings }: ProjectCardProps)
     onSettings(project);
   };
 
-  const handleNameClick = () => {
-    router.push(`/projects/${project.id}`);
+  const handleSessionCreated = (sessionId: string) => {
+    router.push(`/sessions/${sessionId}`);
   };
 
   return (
-    <div className="border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg p-4 hover:shadow-md transition-shadow">
-      <div className="flex justify-between items-start mb-2">
-        <h3
-          className="text-lg font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-          onClick={handleNameClick}
-        >
-          {project.name}
-        </h3>
-        <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded-full px-2 py-1 text-xs font-medium">
-          {project.session_count}
-        </span>
+    <>
+      <div className="border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg p-4 hover:shadow-md transition-shadow">
+        <div className="flex justify-between items-start mb-2">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+            {project.name}
+          </h3>
+          <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded-full px-2 py-1 text-xs font-medium">
+            {project.session_count}
+          </span>
+        </div>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">{project.path}</p>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={handleNewSession}
+            className="flex-1 bg-blue-600 dark:bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 dark:hover:bg-blue-700 transition-colors"
+          >
+            新規セッション
+          </button>
+          <button
+            type="button"
+            onClick={handleSettings}
+            className="flex-1 bg-gray-600 dark:bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 dark:hover:bg-gray-700 transition-colors"
+          >
+            設定
+          </button>
+          <button
+            type="button"
+            onClick={handleDelete}
+            className="flex-1 bg-red-600 dark:bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 dark:hover:bg-red-700 transition-colors"
+          >
+            削除
+          </button>
+        </div>
       </div>
-      <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">{project.path}</p>
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={handleOpen}
-          className="flex-1 bg-blue-600 dark:bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 dark:hover:bg-blue-700 transition-colors"
-        >
-          開く
-        </button>
-        <button
-          type="button"
-          onClick={handleSettings}
-          className="flex-1 bg-gray-600 dark:bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 dark:hover:bg-gray-700 transition-colors"
-        >
-          設定
-        </button>
-        <button
-          type="button"
-          onClick={handleDelete}
-          className="flex-1 bg-red-600 dark:bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 dark:hover:bg-red-700 transition-colors"
-        >
-          削除
-        </button>
-      </div>
-    </div>
+
+      <CreateSessionModal
+        isOpen={isCreateSessionModalOpen}
+        onClose={() => setIsCreateSessionModalOpen(false)}
+        projectId={project.id}
+        onSuccess={handleSessionCreated}
+      />
+    </>
   );
 }

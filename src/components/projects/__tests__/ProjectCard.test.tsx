@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Project } from '@/store';
 
@@ -8,6 +8,18 @@ const mockPush = vi.fn();
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
     push: mockPush,
+  }),
+}));
+
+// useEnvironmentsのモック
+vi.mock('@/hooks/useEnvironments', () => ({
+  useEnvironments: () => ({
+    environments: [
+      { id: 'host-default', name: 'Local Host', type: 'HOST', is_default: true },
+    ],
+    isLoading: false,
+    error: null,
+    refetch: vi.fn(),
   }),
 }));
 
@@ -24,6 +36,7 @@ describe('ProjectCard', () => {
   };
 
   const mockOnDelete = vi.fn();
+  const mockOnSettings = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -33,34 +46,35 @@ describe('ProjectCard', () => {
     cleanup();
   });
 
-  it('「開く」ボタンをクリックすると、router.pushが呼ばれる', () => {
-    render(<ProjectCard project={mockProject} onDelete={mockOnDelete} />);
+  it('「新規セッション」ボタンをクリックすると、モーダルが開く', async () => {
+    render(<ProjectCard project={mockProject} onDelete={mockOnDelete} onSettings={mockOnSettings} />);
 
-    const openButton = screen.getByText('開く');
-    fireEvent.click(openButton);
+    const newSessionButton = screen.getByText('新規セッション');
+    fireEvent.click(newSessionButton);
 
-    expect(mockPush).toHaveBeenCalledTimes(1);
-    expect(mockPush).toHaveBeenCalledWith('/projects/test-project-id');
+    await waitFor(() => {
+      expect(screen.getByText('新規セッション作成')).toBeInTheDocument();
+    });
   });
 
-  it('「開く」ボタンをクリックしても、onDeleteは呼ばれない', () => {
-    render(<ProjectCard project={mockProject} onDelete={mockOnDelete} />);
+  it('「新規セッション」ボタンをクリックしても、onDeleteは呼ばれない', () => {
+    render(<ProjectCard project={mockProject} onDelete={mockOnDelete} onSettings={mockOnSettings} />);
 
-    const openButton = screen.getByText('開く');
-    fireEvent.click(openButton);
+    const newSessionButton = screen.getByText('新規セッション');
+    fireEvent.click(newSessionButton);
 
     expect(mockOnDelete).not.toHaveBeenCalled();
   });
 
   it('プロジェクト名とパスが表示される', () => {
-    render(<ProjectCard project={mockProject} onDelete={mockOnDelete} />);
+    render(<ProjectCard project={mockProject} onDelete={mockOnDelete} onSettings={mockOnSettings} />);
 
     expect(screen.getByText('Test Project')).toBeInTheDocument();
     expect(screen.getByText('/path/to/project')).toBeInTheDocument();
   });
 
   it('「削除」ボタンをクリックすると、onDeleteが呼ばれる', () => {
-    render(<ProjectCard project={mockProject} onDelete={mockOnDelete} />);
+    render(<ProjectCard project={mockProject} onDelete={mockOnDelete} onSettings={mockOnSettings} />);
 
     const deleteButton = screen.getByText('削除');
     fireEvent.click(deleteButton);
@@ -69,46 +83,41 @@ describe('ProjectCard', () => {
     expect(mockOnDelete).toHaveBeenCalledWith(mockProject);
   });
 
-  it('「開く」ボタンのクリックイベントが親要素に伝播しない', () => {
+  it('「設定」ボタンをクリックすると、onSettingsが呼ばれる', () => {
+    render(<ProjectCard project={mockProject} onDelete={mockOnDelete} onSettings={mockOnSettings} />);
+
+    const settingsButton = screen.getByText('設定');
+    fireEvent.click(settingsButton);
+
+    expect(mockOnSettings).toHaveBeenCalledTimes(1);
+    expect(mockOnSettings).toHaveBeenCalledWith(mockProject);
+  });
+
+  it('「新規セッション」ボタンのクリックイベントが親要素に伝播しない', () => {
     const parentOnClick = vi.fn();
     render(
       <div onClick={parentOnClick}>
-        <ProjectCard project={mockProject} onDelete={mockOnDelete} />
+        <ProjectCard project={mockProject} onDelete={mockOnDelete} onSettings={mockOnSettings} />
       </div>
     );
 
-    const openButton = screen.getByText('開く');
-    fireEvent.click(openButton);
+    const newSessionButton = screen.getByText('新規セッション');
+    fireEvent.click(newSessionButton);
 
-    // 「開く」ボタンがクリックされた時、親要素のonClickは呼ばれない
+    // 「新規セッション」ボタンがクリックされた時、親要素のonClickは呼ばれない
     expect(parentOnClick).not.toHaveBeenCalled();
-    // router.pushは正常に呼ばれる
-    expect(mockPush).toHaveBeenCalledWith('/projects/test-project-id');
   });
 
-  it('「開く」ボタンにtype="button"が設定されている', () => {
-    render(<ProjectCard project={mockProject} onDelete={mockOnDelete} />);
+  it('「新規セッション」ボタンにtype="button"が設定されている', () => {
+    render(<ProjectCard project={mockProject} onDelete={mockOnDelete} onSettings={mockOnSettings} />);
 
-    const openButton = screen.getByText('開く');
-    expect(openButton).toHaveAttribute('type', 'button');
+    const newSessionButton = screen.getByText('新規セッション');
+    expect(newSessionButton).toHaveAttribute('type', 'button');
   });
 
-  it('プロジェクト名をクリックすると、router.pushが呼ばれる', () => {
-    render(<ProjectCard project={mockProject} onDelete={mockOnDelete} />);
+  it('セッション数バッジが表示される', () => {
+    render(<ProjectCard project={mockProject} onDelete={mockOnDelete} onSettings={mockOnSettings} />);
 
-    const projectName = screen.getByText('Test Project');
-    fireEvent.click(projectName);
-
-    expect(mockPush).toHaveBeenCalledTimes(1);
-    expect(mockPush).toHaveBeenCalledWith('/projects/test-project-id');
-  });
-
-  it('プロジェクト名をクリックしても、onDeleteは呼ばれない', () => {
-    render(<ProjectCard project={mockProject} onDelete={mockOnDelete} />);
-
-    const projectName = screen.getByText('Test Project');
-    fireEvent.click(projectName);
-
-    expect(mockOnDelete).not.toHaveBeenCalled();
+    expect(screen.getByText('5')).toBeInTheDocument();
   });
 });

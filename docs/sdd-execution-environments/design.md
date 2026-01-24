@@ -1250,3 +1250,106 @@ UIでは：
 - 環境管理画面のUI操作
 - セッション作成時の環境選択
 - 環境の状態表示（利用可能/認証済み）
+
+## Phase 9: サイドメニューセッション作成改善
+
+### 変更概要
+
+1. プロジェクト詳細ページ（`/projects/[id]`）を削除
+2. サイドメニューの「新規セッション」クリック時に環境選択モーダルを表示
+3. プロジェクト名クリック時はツリー展開/折りたたみのみ（ページ遷移なし）
+
+### 削除対象
+
+- `src/app/projects/[id]/page.tsx`（プロジェクト詳細ページ）
+- プロジェクト詳細ページへのリンク
+
+### 新規コンポーネント
+
+#### CreateSessionModal
+
+**ファイル**: `src/components/sessions/CreateSessionModal.tsx`
+
+**目的**: サイドメニューからセッション作成時に表示する環境選択モーダル
+
+```typescript
+interface CreateSessionModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  projectId: string;
+  onSuccess: (sessionId: string) => void;
+}
+```
+
+**UI設計**:
+```text
+┌─────────────────────────────────────────────────────────────┐
+│ 新規セッション                                        [×]   │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│ 実行環境を選択してください                                  │
+│                                                             │
+│   ● Local Host (デフォルト)                                │
+│   ○ Docker Dev                                              │
+│   ○ Docker Production                                       │
+│   ○ Custom Build Env                                        │
+│                                                             │
+│                                    [キャンセル] [作成]     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**機能**:
+- 環境一覧を取得してラジオボタンで表示
+- デフォルト環境を初期選択
+- 作成ボタンでセッション作成APIを呼び出し
+- 作成成功時はonSuccessコールバックでセッションIDを渡す
+
+### Sidebar変更
+
+**ファイル**: `src/components/layout/Sidebar.tsx`
+
+**変更内容**:
+1. `handleAddSession`を変更: 直接API呼び出し → モーダル表示
+2. 環境選択モーダルの状態管理を追加
+3. プロジェクトクリック時のページ遷移を削除
+
+```typescript
+// 変更前
+const handleAddSession = async (projectId: string) => {
+  const response = await fetch(`/api/projects/${projectId}/sessions`, {
+    method: 'POST',
+    body: JSON.stringify({ prompt: '' }),
+  });
+  // ...
+};
+
+// 変更後
+const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+const [targetProjectId, setTargetProjectId] = useState<string | null>(null);
+
+const handleAddSession = (projectId: string) => {
+  setTargetProjectId(projectId);
+  setIsCreateModalOpen(true);
+};
+
+const handleSessionCreated = (sessionId: string) => {
+  setIsCreateModalOpen(false);
+  router.push(`/sessions/${sessionId}`);
+};
+```
+
+### ProjectTreeItem変更
+
+**ファイル**: `src/components/layout/ProjectTreeItem.tsx`
+
+**変更内容**:
+- プロジェクト名クリック時のページ遷移を削除
+- プロジェクト名クリックで展開/折りたたみのみ実行
+
+### ルーティング変更
+
+| 現在のパス | 変更後 |
+|-----------|--------|
+| `/projects/[id]` | 削除 |
+| プロジェクトクリック | ツリー展開のみ（遷移なし） |
+| 新規セッションクリック | モーダル表示 |

@@ -1687,6 +1687,246 @@ async delete(id: string): Promise<void> {
 
 ---
 
+### Phase 9: サイドメニューセッション作成改善
+
+#### TASK-EE-031: CreateSessionModalコンポーネント作成
+
+**状態**: `DONE`
+**完了サマリー**: CreateSessionModalコンポーネントを実装。環境選択のラジオボタン、デフォルト環境初期選択、セッション作成API呼び出しを含む。20テストパス。
+**優先度**: P1
+**見積もり**: 40分
+**依存**: なし
+**関連要件**: REQ-EE032, REQ-EE033, REQ-EE034, REQ-EE035
+
+**受入基準**:
+- [ ] CreateSessionModalコンポーネントが実装されている
+- [ ] モーダルに利用可能な実行環境一覧がラジオボタンで表示される
+- [ ] デフォルト環境が初期選択されている
+- [ ] 「作成」「キャンセル」ボタンがある
+- [ ] 作成ボタンクリックで選択した環境でセッションが作成される
+- [ ] ユニットテストが通過する
+
+**実装指示**:
+```typescript
+// src/components/sessions/CreateSessionModal.tsx
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Dialog } from '@headlessui/react';
+import { useEnvironments, Environment } from '@/hooks/useEnvironments';
+
+interface CreateSessionModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  projectId: string;
+  onSuccess: (sessionId: string) => void;
+}
+
+export function CreateSessionModal({
+  isOpen,
+  onClose,
+  projectId,
+  onSuccess,
+}: CreateSessionModalProps) {
+  const { environments, isLoading } = useEnvironments();
+  const [selectedEnvironmentId, setSelectedEnvironmentId] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+
+  // デフォルト環境を初期選択
+  useEffect(() => {
+    if (environments.length > 0 && !selectedEnvironmentId) {
+      const defaultEnv = environments.find(e => e.is_default);
+      setSelectedEnvironmentId(defaultEnv?.id || environments[0].id);
+    }
+  }, [environments, selectedEnvironmentId]);
+
+  const handleCreate = async () => {
+    if (!selectedEnvironmentId) return;
+
+    setIsCreating(true);
+    try {
+      const response = await fetch(`/api/projects/${projectId}/sessions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: `Session ${Date.now()}`,
+          environment_id: selectedEnvironmentId,
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to create session');
+
+      const session = await response.json();
+      onSuccess(session.id);
+      onClose();
+    } catch (error) {
+      console.error('Failed to create session:', error);
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onClose={onClose} className="relative z-50">
+      {/* モーダル実装 */}
+    </Dialog>
+  );
+}
+```
+
+**TDD手順**:
+1. テストファイル作成: `src/components/sessions/__tests__/CreateSessionModal.test.tsx`
+2. テストケースを先に書く:
+   - it('should display environment list as radio buttons')
+   - it('should select default environment initially')
+   - it('should create session with selected environment')
+   - it('should close modal after successful creation')
+3. 実装
+4. テストが通過することを確認
+
+**ファイル**:
+- 新規: `src/components/sessions/CreateSessionModal.tsx`
+- 新規: `src/components/sessions/__tests__/CreateSessionModal.test.tsx`
+
+---
+
+#### TASK-EE-032: Sidebarでモーダル使用に変更
+
+**状態**: `DONE`
+**完了サマリー**: Sidebarの新規セッション追加時にCreateSessionModalを使用するよう変更。直接API呼び出しを削除。
+**優先度**: P1
+**見積もり**: 30分
+**依存**: TASK-EE-031
+**関連要件**: REQ-EE032, REQ-EE035
+
+**受入基準**:
+- [ ] 「新規セッション」クリック時にCreateSessionModalが表示される
+- [ ] 直接API呼び出しではなくモーダル経由でセッションを作成する
+- [ ] モーダル成功後にセッション詳細ページに遷移する
+- [ ] 既存のcreateSession直接呼び出しロジックを削除
+
+**実装指示**:
+```typescript
+// Sidebar.tsx の変更
+
+// 状態追加
+const [isCreateSessionModalOpen, setIsCreateSessionModalOpen] = useState(false);
+const [selectedProjectIdForSession, setSelectedProjectIdForSession] = useState<string | null>(null);
+
+// 新規セッションボタンのハンドラーを変更
+const handleNewSessionClick = (projectId: string) => {
+  setSelectedProjectIdForSession(projectId);
+  setIsCreateSessionModalOpen(true);
+};
+
+// モーダル成功時のハンドラー
+const handleSessionCreated = (sessionId: string) => {
+  router.push(`/sessions/${sessionId}`);
+};
+
+// JSXにモーダルを追加
+{selectedProjectIdForSession && (
+  <CreateSessionModal
+    isOpen={isCreateSessionModalOpen}
+    onClose={() => setIsCreateSessionModalOpen(false)}
+    projectId={selectedProjectIdForSession}
+    onSuccess={handleSessionCreated}
+  />
+)}
+```
+
+**TDD手順**:
+1. E2Eテストを追加: `e2e/sidebar-session-creation.spec.ts`
+2. テストケースを先に書く:
+   - it('should open modal when clicking new session button')
+   - it('should navigate to session page after creation')
+3. 実装
+4. テストが通過することを確認
+
+**ファイル**:
+- 変更: `src/components/Sidebar.tsx`
+- 新規: `e2e/sidebar-session-creation.spec.ts`
+
+---
+
+#### TASK-EE-033: ProjectTreeItemからページ遷移を削除
+
+**状態**: `DONE`
+**完了サマリー**: ProjectTreeItemは既にページ遷移を行っていなかった（展開/折りたたみのみ）。確認済み。
+**優先度**: P1
+**見積もり**: 20分
+**依存**: TASK-EE-032
+**関連要件**: REQ-EE037
+
+**受入基準**:
+- [ ] プロジェクト名クリック時はツリーの展開/折りたたみのみ
+- [ ] プロジェクト詳細ページ（/projects/[id]）へのリンクを削除
+- [ ] セッション一覧の表示/非表示が正しく動作する
+
+**実装指示**:
+```typescript
+// ProjectTreeItem.tsx の変更
+
+// プロジェクト名クリックのハンドラーを変更
+const handleProjectClick = () => {
+  // ページ遷移ではなく展開/折りたたみのみ
+  setIsExpanded(!isExpanded);
+};
+
+// Link コンポーネントを削除し、ボタンに変更
+<button
+  type="button"
+  onClick={handleProjectClick}
+  className="flex items-center gap-2 flex-1"
+>
+  <ChevronRight className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+  <span className="truncate">{project.name}</span>
+</button>
+```
+
+**TDD手順**:
+1. E2Eテストを更新: `e2e/sidebar.spec.ts`
+2. テストケースを更新:
+   - it('should toggle project expansion on click')
+   - it('should not navigate to project page on click')
+3. 実装
+4. テストが通過することを確認
+
+**ファイル**:
+- 変更: `src/components/ProjectTreeItem.tsx` または該当コンポーネント
+
+---
+
+#### TASK-EE-034: プロジェクト詳細ページの削除
+
+**状態**: `DONE`
+**完了サマリー**: /projects/[id]/page.tsxを削除。ProjectCardの「開く」ボタンを「新規セッション」ボタンに変更してモーダルを使用。DeleteSessionButtonのリダイレクト先を/projectsに変更。
+**優先度**: P1
+**見積もり**: 15分
+**依存**: TASK-EE-033
+**関連要件**: REQ-EE036
+
+**受入基準**:
+- [ ] /projects/[id]/page.tsx が削除されている
+- [ ] 関連するインポートやリンクがすべて削除されている
+- [ ] /projects/[id] にアクセスすると404になる
+- [ ] ビルドエラーがない
+
+**実装指示**:
+1. `src/app/projects/[id]/page.tsx` を削除
+2. プロジェクト詳細ページへのリンクを検索して削除
+3. 関連コンポーネント（CreateSessionForm等）で不要になったものを削除
+
+**TDD手順**:
+1. ビルドを実行して成功を確認
+2. E2Eテストでプロジェクト詳細ページへのナビゲーションがないことを確認
+
+**ファイル**:
+- 削除: `src/app/projects/[id]/page.tsx`
+- 変更: 関連するリンクを持つコンポーネント
+
+---
+
 ## タスク依存関係
 
 ```text
@@ -1739,6 +1979,14 @@ TASK-EE-021 (ビルドAPI)
                ├──→ TASK-EE-029 (EnvironmentCard表示更新)
                │
                └──→ TASK-EE-030 (削除時Dockerfile削除)
+
+TASK-EE-031 (CreateSessionModalコンポーネント)
+     │
+     └──→ TASK-EE-032 (Sidebarモーダル統合)
+               │
+               └──→ TASK-EE-033 (ProjectTreeItem変更)
+                         │
+                         └──→ TASK-EE-034 (プロジェクト詳細ページ削除)
 ```
 
 ## 進捗サマリー
@@ -1753,4 +2001,5 @@ TASK-EE-021 (ビルドAPI)
 | Phase 6: マイグレーションと仕上げ | 3 | 3 | 100% |
 | Phase 7: Dockerイメージ設定機能 | 6 | 6 | 100% |
 | Phase 8: Dockerfileアップロード機能 | 5 | 5 | 100% |
-| **合計** | **30** | **30** | **100%** |
+| Phase 9: サイドメニューセッション作成改善 | 4 | 4 | 100% |
+| **合計** | **34** | **34** | **100%** |
