@@ -136,7 +136,7 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
         name: 'xterm-256color',
         cols: 80,
         rows: 24,
-        env: { TERM: 'xterm-256color', COLORTERM: 'truecolor' },
+        env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' },
       });
 
       this.sessions.set(sessionId, {

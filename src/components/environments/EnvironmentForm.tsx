@@ -268,6 +268,40 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
         // 編集モードでもDocker設定を更新可能にする
         if (environment?.type === 'DOCKER') {
           updateInput.config = buildDockerConfig();
+
+          // 新しいDockerfileが選択されている場合、アップロードとビルドを実行
+          if (imageSource === 'dockerfile' && dockerfileFile) {
+            // Dockerfileをアップロード
+            const uploadSuccess = await uploadDockerfile(environment.id);
+            if (!uploadSuccess) {
+              setIsLoading(false);
+              return;
+            }
+
+            // イメージをビルド
+            try {
+              const buildResponse = await fetch('/api/docker/image-build', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  dockerfilePath: `data/environments/${environment.id}/Dockerfile`,
+                  imageName: `claude-work-env-${environment.id}`,
+                  imageTag: 'latest',
+                }),
+              });
+
+              if (!buildResponse.ok) {
+                const result = await buildResponse.json();
+                setError(`設定は保存されましたが、イメージのビルドに失敗しました: ${result.error || 'ビルドエラー'}`);
+                setIsLoading(false);
+                return;
+              }
+            } catch {
+              setError('設定は保存されましたが、イメージのビルドに失敗しました');
+              setIsLoading(false);
+              return;
+            }
+          }
         }
 
         await onSubmit(updateInput);
