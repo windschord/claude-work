@@ -82,13 +82,12 @@ export function CreateSessionModal({
     setError('');
 
     try {
-      const response = await fetch('/api/sessions', {
+      const response = await fetch(`/api/projects/${projectId}/sessions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          project_id: projectId,
           environment_id: selectedEnvironmentId,
         }),
       });

@@ -221,13 +221,12 @@ describe('CreateSessionModal', () => {
       fireEvent.click(createButton);
 
       await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledWith('/api/sessions', {
+        expect(mockFetch).toHaveBeenCalledWith('/api/projects/project-1/sessions', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            project_id: 'project-1',
             environment_id: 'env-1', // デフォルト環境
           }),
         });
@@ -252,13 +251,12 @@ describe('CreateSessionModal', () => {
       fireEvent.click(createButton);
 
       await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledWith('/api/sessions', {
+        expect(mockFetch).toHaveBeenCalledWith('/api/projects/project-1/sessions', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            project_id: 'project-1',
             environment_id: 'env-2', // Docker環境
           }),
         });
