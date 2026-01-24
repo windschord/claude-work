@@ -825,7 +825,8 @@ async function migrateToEnvironments() {
 
 #### TASK-EE-020: Dockerイメージ一覧取得API
 
-**状態**: `TODO`
+**状態**: `DONE`
+**完了サマリー**: GET /api/docker/images を実装。docker imagesコマンドでローカルイメージ一覧を取得。5テストパス。
 **優先度**: P1
 **見積もり**: 25分
 **依存**: なし
@@ -898,7 +899,8 @@ export async function GET() {
 
 #### TASK-EE-021: Dockerfileビルド用API
 
-**状態**: `TODO`
+**状態**: `DONE`
+**完了サマリー**: POST /api/docker/image-build を実装。Dockerfileからイメージをビルド。6テストパス。
 **優先度**: P1
 **見積もり**: 35分
 **依存**: なし
@@ -1064,7 +1066,8 @@ const buildConfig = () => {
 
 #### TASK-EE-023: Docker環境作成時のビルド処理統合
 
-**状態**: `TODO`
+**状態**: `DONE`
+**完了サマリー**: POST /api/environmentsでimageSource=dockerfile時に自動ビルド実行。17テストパス。
 **優先度**: P1
 **見積もり**: 30分
 **依存**: TASK-EE-021, TASK-EE-022
@@ -1140,7 +1143,8 @@ export async function POST(request: NextRequest) {
 
 #### TASK-EE-024: EnvironmentCardにイメージ情報表示を追加
 
-**状態**: `TODO`
+**状態**: `DONE`
+**完了サマリー**: EnvironmentCardにrenderImageInfo関数を追加。Dockerfile/既存イメージに応じた表示。11テストパス。
 **優先度**: P2
 **見積もり**: 20分
 **依存**: TASK-EE-022
@@ -1184,7 +1188,8 @@ const renderImageInfo = () => {
 
 #### TASK-EE-025: checkStatusでのイメージ存在確認更新
 
-**状態**: `TODO`
+**状態**: `DONE`
+**完了サマリー**: checkDockerStatusをimageSourceに応じたイメージ確認に更新。適切なエラーメッセージを出し分け。31テストパス。
 **優先度**: P1
 **見積もり**: 20分
 **依存**: TASK-EE-023
@@ -1294,5 +1299,5 @@ TASK-EE-018 (ドキュメント) は全タスク完了後
 | Phase 4: WebSocket統合 | 1 | 1 | 100% |
 | Phase 5: UI実装 | 4 | 4 | 100% |
 | Phase 6: マイグレーションと仕上げ | 3 | 3 | 100% |
-| Phase 7: Dockerイメージ設定機能 | 6 | 0 | 0% |
-| **合計** | **25** | **19** | **76%** |
+| Phase 7: Dockerイメージ設定機能 | 6 | 6 | 100% |
+| **合計** | **25** | **25** | **100%** |

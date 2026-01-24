@@ -129,8 +129,17 @@ interface HostEnvironmentConfig {
 
 // Docker環境設定
 interface DockerEnvironmentConfig {
-  imageName: string;      // デフォルト: 'claude-code-sandboxed'
-  imageTag: string;       // デフォルト: 'latest'
+  // イメージソース（排他的）
+  imageSource: 'existing' | 'dockerfile';
+
+  // 既存イメージを使用する場合
+  imageName?: string;      // 例: 'claude-code-sandboxed', 'ubuntu'
+  imageTag?: string;       // 例: 'latest', '22.04'
+
+  // Dockerfileからビルドする場合
+  dockerfilePath?: string; // 例: '/path/to/Dockerfile'
+  buildImageName?: string; // ビルド後のイメージ名（自動生成: claude-work-env-<env-id>）
+
   // Volume設定
   volumes: {
     workspace: 'bind';    // 常にbindマウント
@@ -692,6 +701,59 @@ adapter.createSession(
 }
 ```
 
+#### GET /api/docker/images
+
+**説明**: ローカルDockerイメージ一覧を取得
+
+**レスポンス**:
+```json
+{
+  "images": [
+    {
+      "repository": "claude-code-sandboxed",
+      "tag": "latest",
+      "id": "sha256:abc123...",
+      "size": "1.2GB",
+      "created": "2025-01-20T10:00:00Z"
+    },
+    {
+      "repository": "ubuntu",
+      "tag": "22.04",
+      "id": "sha256:def456...",
+      "size": "77MB",
+      "created": "2025-01-15T08:00:00Z"
+    }
+  ]
+}
+```
+
+#### POST /api/docker/image-build
+
+**説明**: Dockerfileからイメージをビルド
+
+**リクエスト**:
+```json
+{
+  "dockerfilePath": "/path/to/Dockerfile",
+  "imageName": "claude-work-env-abc123",
+  "imageTag": "latest"
+}
+```
+
+**レスポンス**:
+```json
+{
+  "success": true,
+  "imageName": "claude-work-env-abc123:latest",
+  "buildLog": "Step 1/5: FROM ubuntu:22.04\n..."
+}
+```
+
+**エラーケース**:
+- 400: Dockerfileが見つからない
+- 400: ビルドエラー
+- 500: Dockerデーモンに接続できない
+
 ### セッション作成API変更
 
 #### POST /api/projects/:project_id/sessions
@@ -784,17 +846,24 @@ src/
 │ │ イメージ: claude-code-sandboxed:latest                  │ │
 │ │ 状態: 利用可能 / 未認証 [認証する]                      │ │
 │ └─────────────────────────────────────────────────────────┘ │
+│ ┌─────────────────────────────────────────────────────────┐ │
+│ │ [DOCKER] Custom Build Env                  [編集] [削除]│ │
+│ │ カスタムビルド環境                                      │ │
+│ │ Dockerfile: /home/user/project/Dockerfile               │ │
+│ │ 状態: 利用可能 / 認証済み                               │ │
+│ └─────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 環境追加ダイアログ
+### 環境追加ダイアログ（Docker選択時）
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
 │ 実行環境を追加                                      [×]   │
 ├─────────────────────────────────────────────────────────────┤
 │ 環境タイプ:                                                 │
-│   ○ Docker コンテナ                                        │
+│   ○ ホスト                                                 │
+│   ● Docker コンテナ                                        │
 │   ○ SSH リモート（準備中）                                 │
 │                                                             │
 │ 名前:                                                       │
@@ -803,9 +872,22 @@ src/
 │ 説明:                                                       │
 │ [本番用Docker環境                               ]           │
 │                                                             │
-│ Docker設定:                                                 │
-│   イメージ名: [claude-code-sandboxed            ]           │
-│   タグ:       [latest                           ]           │
+│ ─────────────── イメージソース ───────────────              │
+│                                                             │
+│   ● 既存イメージを使用                                     │
+│   ○ Dockerfileからビルド                                   │
+│                                                             │
+│ 【既存イメージを使用 選択時】                              │
+│   イメージ:                                                 │
+│   [▼ claude-code-sandboxed:latest              ]           │
+│     ├── claude-code-sandboxed:latest                       │
+│     ├── ubuntu:22.04                                        │
+│     ├── node:20-slim                                        │
+│     └── [カスタムイメージを入力...]                        │
+│                                                             │
+│ 【Dockerfileからビルド 選択時】                            │
+│   Dockerfileパス:                                           │
+│   [/home/user/project/Dockerfile               ] [参照]    │
 │                                                             │
 │                                    [キャンセル] [作成]     │
 └─────────────────────────────────────────────────────────────┘
