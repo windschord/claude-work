@@ -61,21 +61,40 @@ export function EnvironmentList({
     setEnvironmentToDelete(null);
   };
 
-  const handleCreate = async (input: CreateEnvironmentInput | UpdateEnvironmentInput) => {
-    await onCreateEnvironment(input as CreateEnvironmentInput);
-    toast.success('環境を作成しました');
+  const handleCreate = async (input: CreateEnvironmentInput | UpdateEnvironmentInput): Promise<Environment | void> => {
+    try {
+      const created = await onCreateEnvironment(input as CreateEnvironmentInput);
+      toast.success('環境を作成しました');
+      return created;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : '環境の作成に失敗しました';
+      toast.error(errorMessage);
+      throw err;
+    }
   };
 
   const handleUpdate = async (input: CreateEnvironmentInput | UpdateEnvironmentInput) => {
     if (!environmentToEdit) return;
-    await onUpdateEnvironment(environmentToEdit.id, input as UpdateEnvironmentInput);
-    toast.success('環境を更新しました');
+    try {
+      await onUpdateEnvironment(environmentToEdit.id, input as UpdateEnvironmentInput);
+      toast.success('環境を更新しました');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : '環境の更新に失敗しました';
+      toast.error(errorMessage);
+      throw err;
+    }
   };
 
   const handleDelete = async () => {
     if (!environmentToDelete) return;
-    await onDeleteEnvironment(environmentToDelete.id);
-    toast.success('環境を削除しました');
+    try {
+      await onDeleteEnvironment(environmentToDelete.id);
+      toast.success('環境を削除しました');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : '環境の削除に失敗しました';
+      toast.error(errorMessage);
+      throw err;
+    }
   };
 
   if (isLoading) {

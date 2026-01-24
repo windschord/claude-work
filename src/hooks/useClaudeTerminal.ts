@@ -42,7 +42,7 @@ const RECONNECT_DELAY = 1000; // 再接続までの待機時間（ミリ秒）
 const MAX_RECONNECT_ATTEMPTS = 5; // 最大再接続試行回数
 const RESIZE_DEBOUNCE_DELAY = 300; // リサイズデバウンス遅延（ミリ秒）
 const NOTIFICATION_COOLDOWN = 5000; // 通知クールダウン期間（ミリ秒）
-const INIT_DEBOUNCE_DELAY = 50; // 初期化デバウンス遅延（ミリ秒）- React Strict Mode対策（短縮版）
+const INIT_DEBOUNCE_DELAY = 50; // 初期化デバウンス遅延（ミリ秒）- React 18 Strict Mode対策
 
 export function useClaudeTerminal(
   sessionId: string,

@@ -34,13 +34,14 @@ export interface EnvironmentAdapter extends EventEmitter {
    * @param workingDir - 作業ディレクトリ
    * @param initialPrompt - 初期プロンプト（任意）
    * @param options - 追加オプション
+   * @returns void または Promise<void>（非同期実装の場合）
    */
   createSession(
     sessionId: string,
     workingDir: string,
     initialPrompt?: string,
     options?: CreateSessionOptions
-  ): void;
+  ): void | Promise<void>;
 
   /**
    * PTYに入力を送信

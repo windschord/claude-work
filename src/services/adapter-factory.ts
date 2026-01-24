@@ -71,11 +71,16 @@ export class AdapterFactory {
       });
     }
 
+    // authDirPathが未設定の場合はエラー（Docker環境には認証ディレクトリが必須）
+    if (!environment.auth_dir_path) {
+      throw new Error(`Docker environment ${environment.id} is missing auth_dir_path. Please recreate the environment.`);
+    }
+
     const config: DockerAdapterConfig = {
       environmentId: environment.id,
       imageName: configData.imageName || 'claude-code-sandboxed',
       imageTag: configData.imageTag || 'latest',
-      authDirPath: environment.auth_dir_path || '',
+      authDirPath: environment.auth_dir_path,
     };
 
     logger.info('AdapterFactory: Creating DockerAdapter', {

@@ -158,8 +158,13 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
         : selectedImage;
 
       // imageName:imageTag の形式をパース
-      const [imageName, imageTag] = imageFull.includes(':')
-        ? imageFull.split(':')
+      // レジストリポート付きのイメージ名（例: registry.example.com:5000/image:tag）に対応
+      const lastColonIndex = imageFull.lastIndexOf(':');
+      const slashAfterLastColon = lastColonIndex > -1 ? imageFull.indexOf('/', lastColonIndex) : -1;
+      // 最後のコロンの後にスラッシュがある場合はポート番号なのでタグなし
+      const hasTag = lastColonIndex > -1 && slashAfterLastColon === -1;
+      const [imageName, imageTag] = hasTag
+        ? [imageFull.substring(0, lastColonIndex), imageFull.substring(lastColonIndex + 1)]
         : [imageFull, 'latest'];
 
       return {
@@ -233,14 +238,16 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
             if (!buildResponse.ok) {
               const result = await buildResponse.json();
               // ビルド失敗は警告として表示（環境とDockerfileは保存済み）
-              setError(`環境は作成されましたが、イメージのビルドに失敗しました: ${result.error || 'ビルドエラー'}`);
-              // 環境は作成済みなので画面を閉じる
+              // Note: handleCloseはエラーをクリアするので、閉じた後にトーストで通知
+              const errorMsg = `環境は作成されましたが、イメージのビルドに失敗しました: ${result.error || 'ビルドエラー'}`;
               handleClose();
+              // handleClose後に非同期でエラーを表示（トーストを使用するのが望ましいが、ここではconsoleに出力）
+              console.error(errorMsg);
               return;
             }
           } catch {
-            setError('環境は作成されましたが、イメージのビルドに失敗しました');
             handleClose();
+            console.error('環境は作成されましたが、イメージのビルドに失敗しました');
             return;
           }
         }

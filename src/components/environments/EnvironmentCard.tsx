@@ -46,9 +46,15 @@ function getTypeBadgeStyle(type: EnvironmentType): string {
 function renderImageInfo(environment: Environment): React.ReactNode {
   if (environment.type !== 'DOCKER') return null;
 
-  const config = typeof environment.config === 'string'
-    ? JSON.parse(environment.config || '{}')
-    : environment.config || {};
+  let config: Record<string, unknown> = {};
+  try {
+    config = typeof environment.config === 'string'
+      ? JSON.parse(environment.config || '{}')
+      : environment.config || {};
+  } catch {
+    // Invalid JSON - use empty config
+    config = {};
+  }
 
   if (config.imageSource === 'dockerfile') {
     return (
@@ -63,8 +69,8 @@ function renderImageInfo(environment: Environment): React.ReactNode {
     );
   }
 
-  const imageName = config.imageName || 'claude-code-sandboxed';
-  const imageTag = config.imageTag || 'latest';
+  const imageName = (config.imageName as string) || 'claude-code-sandboxed';
+  const imageTag = (config.imageTag as string) || 'latest';
   return (
     <div className="text-sm text-gray-500 dark:text-gray-400 mb-3">
       <span className="font-medium">イメージ:</span>{' '}

@@ -35,7 +35,13 @@ export function EnvironmentBadge({ session }: EnvironmentBadgeProps) {
       },
     };
 
-    const { colors, Icon } = config[session.environment_type];
+    const envConfig = config[session.environment_type];
+    if (!envConfig) {
+      // Unknown environment type - return null to avoid crashes
+      return null;
+    }
+
+    const { colors, Icon } = envConfig;
 
     return (
       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${colors}`}>

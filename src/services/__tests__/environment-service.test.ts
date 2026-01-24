@@ -563,9 +563,11 @@ describe('EnvironmentService', () => {
 
       mockPrismaExecutionEnvironment.findUnique.mockResolvedValue(env);
       mockMkdir.mockResolvedValue(undefined);
+      // モックの戻り値として実際のパス文字列を使用（expect.stringContainingはアサーション用）
+      const expectedAuthDirPath = '/mock/path/environments/docker-env';
       mockPrismaExecutionEnvironment.update.mockResolvedValue({
         ...env,
-        auth_dir_path: expect.stringContaining('docker-env'),
+        auth_dir_path: expectedAuthDirPath,
       });
 
       const result = await service.createAuthDirectory('docker-env');

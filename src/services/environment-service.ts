@@ -3,22 +3,51 @@ import { prisma } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import * as path from 'path';
 import * as fsPromises from 'fs/promises';
-import { exec } from 'child_process';
+import { spawn } from 'child_process';
 
 /**
- * execをPromise化するヘルパー関数
+ * spawnをPromise化するヘルパー関数（コマンドインジェクション対策）
+ * 引数を配列で渡すことでシェル経由の実行を避ける
  */
-function execAsync(
+function spawnAsync(
   command: string,
+  args: string[],
   options: { timeout?: number } = {}
 ): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
-    exec(command, options, (error, stdout, stderr) => {
-      if (error) {
-        reject(error);
-      } else {
+    const child = spawn(command, args);
+    let stdout = '';
+    let stderr = '';
+
+    child.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+
+    child.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    // タイムアウト設定
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    if (options.timeout) {
+      timeoutId = setTimeout(() => {
+        child.kill();
+        reject(new Error('Command timeout'));
+      }, options.timeout);
+    }
+
+    child.on('close', (code) => {
+      if (timeoutId) clearTimeout(timeoutId);
+      if (code === 0) {
         resolve({ stdout, stderr });
+      } else {
+        reject(new Error(`Command failed with code ${code}`));
       }
+    });
+
+    child.on('error', (err) => {
+      if (timeoutId) clearTimeout(timeoutId);
+      reject(err);
     });
   });
 }
@@ -317,13 +346,11 @@ export class EnvironmentService {
    * @returns Docker環境のステータス
    */
   private async checkDockerStatus(environment: ExecutionEnvironment): Promise<EnvironmentStatus> {
-    let dockerDaemon = false;
     let imageExists = false;
 
-    // Dockerデーモンのチェック
+    // Dockerデーモンのチェック（spawnAsyncでコマンドインジェクション対策）
     try {
-      await execAsync('docker info', { timeout: 5000 });
-      dockerDaemon = true;
+      await spawnAsync('docker', ['info'], { timeout: 5000 });
     } catch {
       logger.debug('Dockerデーモンが起動していません', { environmentId: environment.id });
       return {
@@ -355,7 +382,8 @@ export class EnvironmentService {
     const fullImageName = `${imageName}:${imageTag}`;
 
     try {
-      await execAsync(`docker image inspect ${fullImageName}`, { timeout: 5000 });
+      // spawnAsyncで引数を配列で渡すことでコマンドインジェクションを防止
+      await spawnAsync('docker', ['image', 'inspect', fullImageName], { timeout: 5000 });
       imageExists = true;
     } catch {
       const errorMsg =
@@ -377,10 +405,11 @@ export class EnvironmentService {
     }
 
     return {
-      available: dockerDaemon && imageExists,
+      // imageExistsのみチェック（docker infoが成功していればデーモンは稼働中）
+      available: imageExists,
       authenticated: !!environment.auth_dir_path,
       details: {
-        dockerDaemon,
+        dockerDaemon: true, // docker infoが成功したのでtrue
         imageExists,
       },
     };
