@@ -54,7 +54,11 @@ function renderImageInfo(environment: Environment): React.ReactNode {
     return (
       <div className="text-sm text-gray-500 dark:text-gray-400 mb-3">
         <span className="font-medium">Dockerfile:</span>{' '}
-        <span>{config.dockerfilePath}</span>
+        {config.dockerfileUploaded ? (
+          <span className="text-green-600 dark:text-green-400">アップロード済み</span>
+        ) : (
+          <span className="text-yellow-600 dark:text-yellow-400">未アップロード</span>
+        )}
       </div>
     );
   }

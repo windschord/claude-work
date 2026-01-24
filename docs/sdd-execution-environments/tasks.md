@@ -1247,6 +1247,446 @@ private async checkDockerStatus(environment: ExecutionEnvironment): Promise<Envi
 
 ---
 
+### Phase 8: Dockerfileアップロード機能
+
+#### TASK-EE-026: DockerfileアップロードAPI
+
+**状態**: `DONE`
+**完了サマリー**: POST/DELETE /api/environments/:id/dockerfile を実装。multipart/form-dataでファイルを受け付け、data/environments/<env-id>/Dockerfileに保存。8テストパス。
+**優先度**: P1
+**見積もり**: 35分
+**依存**: TASK-EE-021
+**関連要件**: REQ-EE026, REQ-EE030
+
+**受入基準**:
+- [ ] POST /api/environments/:id/dockerfile でDockerfileをアップロードできる
+- [ ] multipart/form-dataでファイルを受け付ける
+- [ ] ファイルは data/environments/<env-id>/Dockerfile に保存される
+- [ ] 環境のconfig.dockerfileUploadedがtrueに更新される
+- [ ] 環境タイプがDOCKERでない場合は400エラー
+- [ ] ユニットテストが通過する
+
+**実装指示**:
+```typescript
+// src/app/api/environments/[id]/dockerfile/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import { environmentService } from '@/services/environment-service';
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const { id } = params;
+
+  // 環境の取得と検証
+  const environment = await environmentService.findById(id);
+  if (!environment) {
+    return NextResponse.json({ error: 'Environment not found' }, { status: 404 });
+  }
+  if (environment.type !== 'DOCKER') {
+    return NextResponse.json(
+      { error: 'Dockerfile upload is only supported for DOCKER environments' },
+      { status: 400 }
+    );
+  }
+
+  // multipart/form-dataからファイルを取得
+  const formData = await request.formData();
+  const file = formData.get('dockerfile') as File | null;
+
+  if (!file) {
+    return NextResponse.json({ error: 'No dockerfile provided' }, { status: 400 });
+  }
+
+  // 環境専用ディレクトリにDockerfileを保存
+  const envDir = path.join(process.cwd(), 'data', 'environments', id);
+  await fs.mkdir(envDir, { recursive: true });
+
+  const dockerfilePath = path.join(envDir, 'Dockerfile');
+  const fileContent = await file.text();
+  await fs.writeFile(dockerfilePath, fileContent, 'utf-8');
+
+  // 環境のconfigを更新
+  const config = JSON.parse(environment.config || '{}');
+  config.dockerfileUploaded = true;
+  config.imageSource = 'dockerfile';
+
+  await environmentService.update(id, { config });
+
+  return NextResponse.json({
+    success: true,
+    path: `data/environments/${id}/Dockerfile`,
+  });
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const { id } = params;
+
+  const environment = await environmentService.findById(id);
+  if (!environment) {
+    return NextResponse.json({ error: 'Environment not found' }, { status: 404 });
+  }
+  if (environment.type !== 'DOCKER') {
+    return NextResponse.json(
+      { error: 'Dockerfile delete is only supported for DOCKER environments' },
+      { status: 400 }
+    );
+  }
+
+  // Dockerfileを削除
+  const dockerfilePath = path.join(process.cwd(), 'data', 'environments', id, 'Dockerfile');
+  try {
+    await fs.unlink(dockerfilePath);
+  } catch {
+    // ファイルが存在しなくてもOK
+  }
+
+  // 環境のconfigを更新
+  const config = JSON.parse(environment.config || '{}');
+  config.dockerfileUploaded = false;
+  config.imageSource = 'existing';
+
+  await environmentService.update(id, { config });
+
+  return NextResponse.json({ success: true });
+}
+```
+
+**TDD手順**:
+1. テストファイル作成: `src/app/api/environments/[id]/dockerfile/__tests__/route.test.ts`
+2. テストケースを先に書く:
+   - describe('POST')
+     - it('should upload Dockerfile and save to environment directory')
+     - it('should return 404 when environment not found')
+     - it('should return 400 when environment is not DOCKER type')
+     - it('should return 400 when no file provided')
+   - describe('DELETE')
+     - it('should delete Dockerfile and update config')
+     - it('should handle non-existent file gracefully')
+3. 実装
+4. テストが通過することを確認
+
+**ファイル**:
+- 新規: `src/app/api/environments/[id]/dockerfile/route.ts`
+- 新規: `src/app/api/environments/[id]/dockerfile/__tests__/route.test.ts`
+
+---
+
+#### TASK-EE-027: EnvironmentFormをファイルアップロード方式に変更
+
+**状態**: `DONE`
+**完了サマリー**: Dockerfileテキスト入力をドラッグ&ドロップ/ファイル選択のアップロードUIに変更。
+**優先度**: P1
+**見積もり**: 40分
+**依存**: TASK-EE-026
+**関連要件**: REQ-EE026, REQ-EE029
+
+**受入基準**:
+- [ ] Dockerfileビルド選択時にファイルアップロードUIが表示される
+- [ ] ドラッグ&ドロップでファイルをアップロードできる
+- [ ] ファイル選択ボタンでもアップロードできる
+- [ ] アップロード済みの場合はファイル名と削除ボタンが表示される
+- [ ] dockerfilePathテキスト入力は削除される
+- [ ] 既存環境の編集時に既存Dockerfileがあれば表示される
+
+**実装指示**:
+```tsx
+// EnvironmentForm.tsx の Dockerfile セクションを変更
+
+// 状態追加
+const [dockerfileFile, setDockerfileFile] = useState<File | null>(null);
+const [isUploading, setIsUploading] = useState(false);
+const [uploadedDockerfile, setUploadedDockerfile] = useState(false);
+
+// ドラッグ&ドロップハンドラー
+const handleDrop = (e: React.DragEvent) => {
+  e.preventDefault();
+  const file = e.dataTransfer.files[0];
+  if (file) {
+    setDockerfileFile(file);
+  }
+};
+
+// ファイル選択ハンドラー
+const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (file) {
+    setDockerfileFile(file);
+  }
+};
+
+// アップロード処理（環境作成後に呼び出し）
+const uploadDockerfile = async (environmentId: string) => {
+  if (!dockerfileFile) return;
+
+  const formData = new FormData();
+  formData.append('dockerfile', dockerfileFile);
+
+  const response = await fetch(`/api/environments/${environmentId}/dockerfile`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error('Dockerfile upload failed');
+  }
+};
+
+// UIコンポーネント
+{imageSource === 'dockerfile' && (
+  <div
+    className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center"
+    onDrop={handleDrop}
+    onDragOver={(e) => e.preventDefault()}
+  >
+    {dockerfileFile || uploadedDockerfile ? (
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-gray-700">
+          {dockerfileFile?.name || 'Dockerfile'} ✓
+        </span>
+        <button
+          type="button"
+          onClick={() => {
+            setDockerfileFile(null);
+            setUploadedDockerfile(false);
+          }}
+          className="text-red-500 text-sm"
+        >
+          削除
+        </button>
+      </div>
+    ) : (
+      <>
+        <input
+          type="file"
+          id="dockerfile-upload"
+          className="hidden"
+          onChange={handleFileChange}
+          accept="*"
+        />
+        <label
+          htmlFor="dockerfile-upload"
+          className="cursor-pointer text-blue-600"
+        >
+          ファイルを選択
+        </label>
+        <p className="text-sm text-gray-500 mt-2">
+          またはドラッグ&ドロップ
+        </p>
+      </>
+    )}
+  </div>
+)}
+```
+
+**TDD手順**:
+1. `e2e/environment-form.spec.ts`にテスト追加:
+   - it('should show file upload area when dockerfile selected')
+   - it('should accept file via drag and drop')
+   - it('should accept file via file input')
+   - it('should show uploaded file name and delete button')
+2. 実装
+3. テストが通過することを確認
+
+**ファイル**:
+- 変更: `src/components/environments/EnvironmentForm.tsx`
+
+---
+
+#### TASK-EE-028: 環境作成フローのDockerfileアップロード統合
+
+**状態**: `DONE`
+**完了サマリー**: 環境作成後にDockerfileをアップロードし、自動でイメージビルドを実行するフローを実装。
+**優先度**: P1
+**見積もり**: 30分
+**依存**: TASK-EE-026, TASK-EE-027
+**関連要件**: REQ-EE027
+
+**受入基準**:
+- [ ] 環境作成後にDockerfileがアップロードされる
+- [ ] アップロード後に自動的にイメージがビルドされる
+- [ ] ビルド中はローディング表示
+- [ ] ビルド失敗時はエラーメッセージを表示し、環境は作成済み状態で残る
+- [ ] 既存のdockerfilePath方式は削除
+
+**実装指示**:
+```typescript
+// EnvironmentForm.tsx のsubmit処理を変更
+
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setIsSubmitting(true);
+
+  try {
+    // 1. 環境を作成
+    const config = buildConfig();
+    const response = await fetch('/api/environments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, type, description, config }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to create environment');
+    }
+
+    const environment = await response.json();
+
+    // 2. Dockerfileがある場合はアップロード
+    if (type === 'DOCKER' && imageSource === 'dockerfile' && dockerfileFile) {
+      setIsUploading(true);
+      await uploadDockerfile(environment.id);
+
+      // 3. イメージをビルド
+      const buildResponse = await fetch('/api/docker/image-build', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dockerfilePath: `data/environments/${environment.id}/Dockerfile`,
+          imageName: `claude-work-env-${environment.id}`,
+          imageTag: 'latest',
+        }),
+      });
+
+      if (!buildResponse.ok) {
+        const result = await buildResponse.json();
+        // 環境は作成済みだがビルド失敗
+        toast.error(`イメージのビルドに失敗しました: ${result.error}`);
+      }
+    }
+
+    onSuccess();
+  } catch (error) {
+    toast.error('環境の作成に失敗しました');
+  } finally {
+    setIsSubmitting(false);
+    setIsUploading(false);
+  }
+};
+```
+
+**ファイル**:
+- 変更: `src/components/environments/EnvironmentForm.tsx`
+- 変更: `src/app/api/environments/route.ts`（dockerfilePath関連のビルド処理を削除）
+
+---
+
+#### TASK-EE-029: EnvironmentCardのDockerfile表示更新
+
+**状態**: `DONE`
+**完了サマリー**: imageSource='dockerfile'の場合、dockerfileUploadedに応じて「アップロード済み」または「未アップロード」と表示するように更新。
+**優先度**: P2
+**見積もり**: 15分
+**依存**: TASK-EE-026
+**関連要件**: REQ-EE028
+
+**受入基準**:
+- [ ] imageSource='dockerfile'でdockerfileUploaded=trueの場合「Dockerfileアップロード済み」と表示
+- [ ] imageSource='dockerfile'でdockerfileUploaded=falseの場合「Dockerfile未アップロード」と表示
+- [ ] 既存のdockerfilePathの表示ロジックを削除
+
+**実装指示**:
+```typescript
+// EnvironmentCard.tsx renderImageInfo更新
+const renderImageInfo = () => {
+  if (environment.type !== 'DOCKER') return null;
+
+  const config = JSON.parse(environment.config || '{}');
+
+  if (config.imageSource === 'dockerfile') {
+    return (
+      <div className="text-sm text-gray-500">
+        <span className="font-medium">Dockerfile:</span>{' '}
+        {config.dockerfileUploaded ? (
+          <span className="text-green-600">アップロード済み</span>
+        ) : (
+          <span className="text-yellow-600">未アップロード</span>
+        )}
+      </div>
+    );
+  }
+
+  const imageName = config.imageName || 'claude-code-sandboxed';
+  const imageTag = config.imageTag || 'latest';
+  return (
+    <div className="text-sm text-gray-500">
+      <span className="font-medium">イメージ:</span> {imageName}:{imageTag}
+    </div>
+  );
+};
+```
+
+**ファイル**:
+- 変更: `src/components/environments/EnvironmentCard.tsx`
+
+---
+
+#### TASK-EE-030: 環境削除時のDockerfile削除
+
+**状態**: `DONE`
+**完了サマリー**: 環境削除時にDockerfileも一緒に削除するロジックをEnvironmentService.delete()に追加。
+**優先度**: P1
+**見積もり**: 15分
+**依存**: TASK-EE-026
+**関連要件**: REQ-EE031
+
+**受入基準**:
+- [ ] 環境削除時にDockerfileも一緒に削除される
+- [ ] EnvironmentService.delete()にDockerfile削除ロジックを追加
+- [ ] Dockerfileが存在しなくても削除処理は成功する
+
+**実装指示**:
+```typescript
+// environment-service.ts delete()メソッドを更新
+async delete(id: string): Promise<void> {
+  const environment = await this.findById(id);
+  if (!environment) {
+    throw new Error('Environment not found');
+  }
+
+  if (environment.is_default) {
+    throw new Error('Cannot delete default environment');
+  }
+
+  // 認証ディレクトリの削除（既存処理）
+  if (environment.auth_dir_path) {
+    await this.deleteAuthDirectory(id);
+  }
+
+  // Dockerfileの削除（新規追加）
+  if (environment.type === 'DOCKER') {
+    const dockerfilePath = path.join(process.cwd(), 'data', 'environments', id, 'Dockerfile');
+    try {
+      await fs.unlink(dockerfilePath);
+    } catch {
+      // ファイルが存在しなくてもOK
+    }
+  }
+
+  await prisma.executionEnvironment.delete({
+    where: { id },
+  });
+}
+```
+
+**TDD手順**:
+1. `src/services/__tests__/environment-service.test.ts`にテスト追加:
+   - it('should delete Dockerfile when deleting DOCKER environment')
+   - it('should handle non-existent Dockerfile gracefully')
+2. 実装
+3. テストが通過することを確認
+
+**ファイル**:
+- 変更: `src/services/environment-service.ts`
+- 変更: `src/services/__tests__/environment-service.test.ts`
+
+---
+
 ## タスク依存関係
 
 ```text
@@ -1287,6 +1727,18 @@ TASK-EE-001 (スキーマ)
                └──→ TASK-EE-006 (DockerAdapter)
 
 TASK-EE-018 (ドキュメント) は全タスク完了後
+
+TASK-EE-021 (ビルドAPI)
+     │
+     └──→ TASK-EE-026 (DockerfileアップロードAPI)
+               │
+               ├──→ TASK-EE-027 (EnvironmentFormファイルアップロード)
+               │         │
+               │         └──→ TASK-EE-028 (作成フロー統合)
+               │
+               ├──→ TASK-EE-029 (EnvironmentCard表示更新)
+               │
+               └──→ TASK-EE-030 (削除時Dockerfile削除)
 ```
 
 ## 進捗サマリー
@@ -1300,4 +1752,5 @@ TASK-EE-018 (ドキュメント) は全タスク完了後
 | Phase 5: UI実装 | 4 | 4 | 100% |
 | Phase 6: マイグレーションと仕上げ | 3 | 3 | 100% |
 | Phase 7: Dockerイメージ設定機能 | 6 | 6 | 100% |
-| **合計** | **25** | **25** | **100%** |
+| Phase 8: Dockerfileアップロード機能 | 5 | 5 | 100% |
+| **合計** | **30** | **30** | **100%** |

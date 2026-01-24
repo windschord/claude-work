@@ -1,14 +1,14 @@
 'use client';
 
-import { useState, Fragment, useEffect, useCallback } from 'react';
+import { useState, Fragment, useEffect, useCallback, useRef } from 'react';
 import { Dialog, Transition, Listbox, RadioGroup } from '@headlessui/react';
-import { ChevronDown, Check, Loader2 } from 'lucide-react';
+import { ChevronDown, Check, Loader2, Upload, X, FileText } from 'lucide-react';
 import { Environment, EnvironmentType, CreateEnvironmentInput, UpdateEnvironmentInput } from '@/hooks/useEnvironments';
 
 interface EnvironmentFormProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (input: CreateEnvironmentInput | UpdateEnvironmentInput) => Promise<void>;
+  onSubmit: (input: CreateEnvironmentInput | UpdateEnvironmentInput) => Promise<Environment | void>;
   environment?: Environment | null;
   mode: 'create' | 'edit';
 }
@@ -61,10 +61,13 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
   const [imageSource, setImageSource] = useState<ImageSourceType>('existing');
   const [selectedImage, setSelectedImage] = useState<string>('');
   const [customImageName, setCustomImageName] = useState('');
-  const [dockerfilePath, setDockerfilePath] = useState('');
+  const [dockerfileFile, setDockerfileFile] = useState<File | null>(null);
+  const [dockerfileUploaded, setDockerfileUploaded] = useState(false);
   const [dockerImages, setDockerImages] = useState<DockerImage[]>([]);
   const [isLoadingImages, setIsLoadingImages] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   /**
    * Dockerイメージ一覧を取得
@@ -106,7 +109,7 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
 
           if (config.imageSource === 'dockerfile') {
             setImageSource('dockerfile');
-            setDockerfilePath(config.dockerfilePath || '');
+            setDockerfileUploaded(config.dockerfileUploaded || false);
           } else {
             setImageSource('existing');
             if (config.imageName) {
@@ -127,7 +130,8 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
       setImageSource('existing');
       setSelectedImage('');
       setCustomImageName('');
-      setDockerfilePath('');
+      setDockerfileFile(null);
+      setDockerfileUploaded(false);
     }
   }, [mode, environment, isOpen]);
 
@@ -145,7 +149,7 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
     if (imageSource === 'dockerfile') {
       return {
         imageSource: 'dockerfile',
-        dockerfilePath: dockerfilePath.trim(),
+        dockerfileUploaded: false, // Will be set to true after upload
       };
     } else {
       // 既存イメージを使用
@@ -186,8 +190,8 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
           return;
         }
       } else if (imageSource === 'dockerfile') {
-        if (!dockerfilePath.trim()) {
-          setError('Dockerfileのパスを入力してください');
+        if (!dockerfileFile) {
+          setError('Dockerfileをアップロードしてください');
           return;
         }
       }
@@ -198,12 +202,48 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
     try {
       if (mode === 'create') {
         const config = type === 'DOCKER' ? buildDockerConfig() : {};
-        await onSubmit({
+        const createdEnv = await onSubmit({
           name: name.trim(),
           type,
           description: description.trim() || undefined,
           config,
         } as CreateEnvironmentInput);
+
+        // Docker環境でDockerfileがある場合、アップロードとビルドを実行
+        if (createdEnv && type === 'DOCKER' && imageSource === 'dockerfile' && dockerfileFile) {
+          // Dockerfileをアップロード
+          const uploadSuccess = await uploadDockerfile(createdEnv.id);
+          if (!uploadSuccess) {
+            // アップロード失敗時はエラーを表示して終了（環境は作成済み）
+            return;
+          }
+
+          // イメージをビルド
+          try {
+            const buildResponse = await fetch('/api/docker/image-build', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                dockerfilePath: `data/environments/${createdEnv.id}/Dockerfile`,
+                imageName: `claude-work-env-${createdEnv.id}`,
+                imageTag: 'latest',
+              }),
+            });
+
+            if (!buildResponse.ok) {
+              const result = await buildResponse.json();
+              // ビルド失敗は警告として表示（環境とDockerfileは保存済み）
+              setError(`環境は作成されましたが、イメージのビルドに失敗しました: ${result.error || 'ビルドエラー'}`);
+              // 環境は作成済みなので画面を閉じる
+              handleClose();
+              return;
+            }
+          } catch (buildErr) {
+            setError('環境は作成されましたが、イメージのビルドに失敗しました');
+            handleClose();
+            return;
+          }
+        }
       } else {
         const updateInput: UpdateEnvironmentInput = {
           name: name.trim(),
@@ -226,6 +266,78 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
     }
   };
 
+  /**
+   * Dockerfileをアップロード
+   */
+  const uploadDockerfile = async (environmentId: string): Promise<boolean> => {
+    if (!dockerfileFile) return true;
+
+    const formData = new FormData();
+    formData.append('dockerfile', dockerfileFile);
+
+    try {
+      const response = await fetch(`/api/environments/${environmentId}/dockerfile`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Dockerfileのアップロードに失敗しました');
+      }
+
+      return true;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Dockerfileのアップロードに失敗しました';
+      setError(errorMessage);
+      return false;
+    }
+  };
+
+  /**
+   * ドラッグ&ドロップハンドラー
+   */
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      setDockerfileFile(file);
+    }
+  };
+
+  /**
+   * ファイル選択ハンドラー
+   */
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setDockerfileFile(file);
+    }
+  };
+
+  /**
+   * ファイル削除ハンドラー
+   */
+  const handleRemoveFile = () => {
+    setDockerfileFile(null);
+    setDockerfileUploaded(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   const handleClose = () => {
     setName('');
     setType('HOST');
@@ -234,7 +346,9 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
     setImageSource('existing');
     setSelectedImage('');
     setCustomImageName('');
-    setDockerfilePath('');
+    setDockerfileFile(null);
+    setDockerfileUploaded(false);
+    setIsDragging(false);
     onClose();
   };
 
@@ -535,24 +649,66 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
                         </div>
                       )}
 
-                      {/* Dockerfile Path Input */}
+                      {/* Dockerfile Upload */}
                       {imageSource === 'dockerfile' && (
                         <div className="mt-4">
-                          <label
-                            htmlFor="dockerfile-path"
-                            className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-                          >
-                            Dockerfileパス
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Dockerfile
                           </label>
-                          <input
-                            id="dockerfile-path"
-                            type="text"
-                            value={dockerfilePath}
-                            onChange={(e) => setDockerfilePath(e.target.value)}
-                            placeholder="例: /home/user/project/Dockerfile"
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                            disabled={isLoading}
-                          />
+
+                          {dockerfileFile || dockerfileUploaded ? (
+                            // ファイル選択済み表示
+                            <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg">
+                              <div className="flex items-center gap-2">
+                                <FileText className="h-5 w-5 text-green-600 dark:text-green-400" />
+                                <span className="text-sm text-green-700 dark:text-green-300">
+                                  {dockerfileFile?.name || 'Dockerfile'}
+                                </span>
+                                <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
+                              </div>
+                              <button
+                                type="button"
+                                onClick={handleRemoveFile}
+                                className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                                disabled={isLoading}
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
+                          ) : (
+                            // ドラッグ&ドロップエリア
+                            <div
+                              className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                                isDragging
+                                  ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20'
+                                  : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
+                              }`}
+                              onDragOver={handleDragOver}
+                              onDragLeave={handleDragLeave}
+                              onDrop={handleDrop}
+                            >
+                              <input
+                                ref={fileInputRef}
+                                type="file"
+                                className="hidden"
+                                onChange={handleFileChange}
+                                accept="*"
+                                disabled={isLoading}
+                              />
+                              <Upload className="mx-auto h-8 w-8 text-gray-400 mb-2" />
+                              <button
+                                type="button"
+                                onClick={() => fileInputRef.current?.click()}
+                                className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                                disabled={isLoading}
+                              >
+                                ファイルを選択
+                              </button>
+                              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                またはドラッグ&ドロップ
+                              </p>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

@@ -198,6 +198,20 @@ export class EnvironmentService {
       }
     }
 
+    // Docker環境の場合、Dockerfileがあれば削除
+    // (auth_dir_pathと同じディレクトリにDockerfileが保存されている場合は上記で削除済み)
+    if (environment.type === 'DOCKER' && !environment.auth_dir_path) {
+      // auth_dir_pathが未設定の場合でもDockerfileが存在する可能性がある
+      const envDir = path.join(this.getAuthBasePath(), id);
+      try {
+        await fsPromises.rm(envDir, { recursive: true, force: true });
+        logger.info('環境ディレクトリを削除しました', { path: envDir });
+      } catch (error) {
+        // ディレクトリが存在しなくてもOK
+        logger.debug('環境ディレクトリの削除をスキップしました', { path: envDir, error });
+      }
+    }
+
     await prisma.executionEnvironment.delete({
       where: { id },
     });

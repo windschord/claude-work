@@ -137,8 +137,9 @@ interface DockerEnvironmentConfig {
   imageTag?: string;       // 例: 'latest', '22.04'
 
   // Dockerfileからビルドする場合
-  dockerfilePath?: string; // 例: '/path/to/Dockerfile'
-  buildImageName?: string; // ビルド後のイメージ名（自動生成: claude-work-env-<env-id>）
+  // Dockerfileは data/environments/<env-id>/Dockerfile に保存される
+  dockerfileUploaded?: boolean; // Dockerfileがアップロード済みかどうか
+  buildImageName?: string;      // ビルド後のイメージ名（自動生成: claude-work-env-<env-id>）
 
   // Volume設定
   volumes: {
@@ -754,6 +755,50 @@ adapter.createSession(
 - 400: ビルドエラー
 - 500: Dockerデーモンに接続できない
 
+#### POST /api/environments/:id/dockerfile
+
+**説明**: Docker環境にDockerfileをアップロード
+
+**リクエスト**: `multipart/form-data`
+- `dockerfile`: Dockerfileファイル（必須）
+
+**処理**:
+1. ファイルを `data/environments/<env-id>/Dockerfile` に保存
+2. 環境の`config.dockerfileUploaded`を`true`に更新
+
+**レスポンス**:
+```json
+{
+  "success": true,
+  "path": "data/environments/abc123/Dockerfile"
+}
+```
+
+**エラーケース**:
+- 400: ファイルが添付されていない
+- 400: 環境タイプがDOCKERではない
+- 404: 環境が見つからない
+
+#### DELETE /api/environments/:id/dockerfile
+
+**説明**: Docker環境のDockerfileを削除
+
+**処理**:
+1. `data/environments/<env-id>/Dockerfile` を削除
+2. 環境の`config.dockerfileUploaded`を`false`に更新
+3. 環境の`config.imageSource`を`'existing'`に変更
+
+**レスポンス**:
+```json
+{
+  "success": true
+}
+```
+
+**エラーケース**:
+- 400: 環境タイプがDOCKERではない
+- 404: 環境が見つからない
+
 ### セッション作成API変更
 
 #### POST /api/projects/:project_id/sessions
@@ -777,6 +822,7 @@ adapter.createSession(
 data/
 └── environments/
     ├── <env-id-1>/
+    │   ├── Dockerfile              # Dockerfileアップロード時のみ存在
     │   ├── claude/
     │   │   ├── .credentials.json
     │   │   └── debug/
@@ -886,8 +932,11 @@ src/
 │     └── [カスタムイメージを入力...]                        │
 │                                                             │
 │ 【Dockerfileからビルド 選択時】                            │
-│   Dockerfileパス:                                           │
-│   [/home/user/project/Dockerfile               ] [参照]    │
+│   Dockerfile:                                               │
+│   [ファイルを選択] または ドラッグ&ドロップ                 │
+│   ┌─────────────────────────────────────────────────────┐   │
+│   │ Dockerfile (2.5KB) ✓ アップロード済み       [削除]  │   │
+│   └─────────────────────────────────────────────────────┘   │
 │                                                             │
 │                                    [キャンセル] [作成]     │
 └─────────────────────────────────────────────────────────────┘
