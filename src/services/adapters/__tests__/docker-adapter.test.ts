@@ -115,8 +115,8 @@ describe('DockerAdapter', () => {
           '-v', `${workingDir}:/workspace`,
           '-v', '/data/environments/env-123-456/claude:/home/node/.claude',
           '-v', '/data/environments/env-123-456/config/claude:/home/node/.config/claude',
+          '--entrypoint', 'claude',
           'claude-code-env:v1.0',
-          'claude',
         ]),
         expect.objectContaining({
           name: 'xterm-256color',
@@ -373,6 +373,90 @@ describe('DockerAdapter', () => {
       expect(adapter).toBeInstanceOf(EventEmitter);
       expect(typeof adapter.on).toBe('function');
       expect(typeof adapter.emit).toBe('function');
+    });
+  });
+
+  describe('shellMode', () => {
+    const sessionId = 'session-shell-123';
+    const workingDir = '/projects/my-project';
+
+    it('should use --entrypoint /bin/sh when shellMode is true', async () => {
+      await adapter.createSession(sessionId, workingDir, undefined, {
+        shellMode: true,
+      });
+
+      expect(mockSpawn).toHaveBeenCalledWith(
+        'docker',
+        expect.arrayContaining([
+          '--entrypoint', '/bin/sh',
+        ]),
+        expect.any(Object),
+      );
+
+      // claudeコマンドがentrypointとして使われていないことを確認
+      const spawnCall = mockSpawn.mock.calls[0];
+      const args = spawnCall[1] as string[];
+      const entrypointIndex = args.indexOf('--entrypoint');
+      expect(args[entrypointIndex + 1]).toBe('/bin/sh');
+    });
+
+    it('should use --entrypoint claude when shellMode is false', async () => {
+      await adapter.createSession(sessionId, workingDir, undefined, {
+        shellMode: false,
+      });
+
+      const spawnCall = mockSpawn.mock.calls[0];
+      const args = spawnCall[1] as string[];
+      const entrypointIndex = args.indexOf('--entrypoint');
+      expect(args[entrypointIndex + 1]).toBe('claude');
+    });
+
+    it('should use --entrypoint claude when shellMode is not specified', async () => {
+      await adapter.createSession(sessionId, workingDir);
+
+      const spawnCall = mockSpawn.mock.calls[0];
+      const args = spawnCall[1] as string[];
+      const entrypointIndex = args.indexOf('--entrypoint');
+      expect(args[entrypointIndex + 1]).toBe('claude');
+    });
+
+    it('should not add --resume flag in shellMode', async () => {
+      await adapter.createSession(sessionId, workingDir, undefined, {
+        shellMode: true,
+        resumeSessionId: 'previous-session-id',
+      });
+
+      const spawnCall = mockSpawn.mock.calls[0];
+      const args = spawnCall[1] as string[];
+      expect(args).not.toContain('--resume');
+    });
+
+    it('should not send initial prompt in shellMode', async () => {
+      vi.useFakeTimers();
+
+      await adapter.createSession(sessionId, workingDir, 'Initial task', {
+        shellMode: true,
+      });
+
+      vi.advanceTimersByTime(3000);
+
+      // shellModeでは初期プロンプトを送信しない
+      expect(mockPty.write).not.toHaveBeenCalled();
+
+      vi.useRealTimers();
+    });
+
+    it('should not extract Claude session ID in shellMode', async () => {
+      const claudeSessionIdListener = vi.fn();
+      adapter.on('claudeSessionId', claudeSessionIdListener);
+
+      await adapter.createSession(sessionId, workingDir, undefined, {
+        shellMode: true,
+      });
+      dataHandler('Starting session: abc-def-123');
+
+      // shellModeではClaudeセッションID抽出をスキップ
+      expect(claudeSessionIdListener).not.toHaveBeenCalled();
     });
   });
 });

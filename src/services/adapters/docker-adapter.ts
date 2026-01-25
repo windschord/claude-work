@@ -21,6 +21,7 @@ interface DockerSession {
   claudeSessionId?: string;
   errorBuffer: string;
   hasReceivedOutput: boolean;
+  shellMode: boolean;
 }
 
 /**
@@ -99,12 +100,16 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
       args.push('-e', 'ANTHROPIC_API_KEY');
     }
 
+    // シェルモードの場合は/bin/sh、それ以外はclaude
+    const entrypoint = options?.shellMode ? '/bin/sh' : 'claude';
+    args.push('--entrypoint', entrypoint);
+
     // イメージ
     args.push(`${this.config.imageName}:${this.config.imageTag}`);
 
-    // claudeコマンド
-    args.push('claude');
-    if (options?.resumeSessionId) {
+    // claudeコマンドの引数（--entrypoint使用時はイメージ名の後に引数を指定）
+    // シェルモードでは--resumeフラグは不要
+    if (!options?.shellMode && options?.resumeSessionId) {
       args.push('--resume', options.resumeSessionId);
     }
 
@@ -139,12 +144,14 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
         env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' },
       });
 
+      const shellMode = options?.shellMode ?? false;
       this.sessions.set(sessionId, {
         ptyProcess,
         workingDir,
         containerId: containerName,
         errorBuffer: '',
         hasReceivedOutput: false,
+        shellMode,
       });
 
       // Session.container_idを更新
@@ -164,8 +171,8 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
             session.errorBuffer += data;
           }
 
-          // Claude CodeセッションID抽出
-          if (!session.claudeSessionId) {
+          // Claude CodeセッションID抽出（シェルモードではスキップ）
+          if (!session.shellMode && !session.claudeSessionId) {
             const extracted = this.extractClaudeSessionId(data);
             if (extracted) {
               session.claudeSessionId = extracted;
@@ -193,8 +200,8 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
         this.sessions.delete(sessionId);
       });
 
-      // 初期プロンプト
-      if (initialPrompt) {
+      // 初期プロンプト（シェルモードでは送信しない）
+      if (initialPrompt && !shellMode) {
         setTimeout(() => {
           if (this.sessions.has(sessionId)) {
             ptyProcess.write(initialPrompt + '\n');
