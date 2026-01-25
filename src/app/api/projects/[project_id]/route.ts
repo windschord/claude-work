@@ -1,6 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { logger } from '@/lib/logger';
+import { existsSync } from 'fs';
+import { execSync } from 'child_process';
+import { Prisma } from '@prisma/client';
+
+/**
+ * Gitリポジトリが存在するか確認
+ */
+function isGitRepository(path: string): boolean {
+  try {
+    execSync('git rev-parse --git-dir', { cwd: path, stdio: 'pipe' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+interface RunScriptInput {
+  name: string;
+  command: string;
+  description?: string;
+}
 
 /**
  * PUT /api/projects/[project_id] - プロジェクト更新
@@ -12,7 +33,9 @@ import { logger } from '@/lib/logger';
  *
  * @returns
  * - 200: プロジェクト更新成功
+ * - 400: 無効なリクエスト（pathがGitリポジトリでない等）
  * - 404: プロジェクトが見つからない
+ * - 409: pathが既に別のプロジェクトで使用されている
  * - 500: サーバーエラー
  *
  * @example
@@ -21,7 +44,11 @@ import { logger } from '@/lib/logger';
  * PUT /api/projects/uuid-123
  * Content-Type: application/json
  * {
- *   "name": "Updated Project"
+ *   "name": "Updated Project",
+ *   "path": "/path/to/repo",
+ *   "run_scripts": [
+ *     { "name": "build", "command": "npm run build", "description": "Build" }
+ *   ]
  * }
  * ```
  */
@@ -32,7 +59,11 @@ export async function PUT(
   try {
     const { project_id } = await params;
 
-    let body;
+    let body: {
+      name?: string;
+      path?: string;
+      run_scripts?: RunScriptInput[];
+    };
     try {
       body = await request.json();
     } catch (error) {
@@ -48,17 +79,97 @@ export async function PUT(
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    const project = await prisma.project.update({
-      where: { id: project_id },
-      data: {
-        name: body.name ?? existing.name,
-      },
+    // pathの検証（変更される場合のみ）
+    if (body.path !== undefined && body.path !== existing.path) {
+      // パスの存在確認
+      if (!existsSync(body.path)) {
+        logger.warn('Path does not exist', { path: body.path, project_id });
+        return NextResponse.json(
+          { error: 'Path does not exist' },
+          { status: 400 }
+        );
+      }
+
+      // Gitリポジトリ確認
+      if (!isGitRepository(body.path)) {
+        logger.warn('Path is not a Git repository', { path: body.path, project_id });
+        return NextResponse.json(
+          { error: 'Path is not a Git repository' },
+          { status: 400 }
+        );
+      }
+
+      // ユニーク制約の事前チェック
+      const existingWithPath = await prisma.project.findUnique({
+        where: { path: body.path },
+      });
+      if (existingWithPath && existingWithPath.id !== project_id) {
+        logger.warn('Path already exists for another project', {
+          path: body.path,
+          project_id,
+          existing_project_id: existingWithPath.id,
+        });
+        return NextResponse.json(
+          { error: 'A project with this path already exists' },
+          { status: 409 }
+        );
+      }
+    }
+
+    // トランザクションでプロジェクトとrun_scriptsを更新
+    const project = await prisma.$transaction(async (tx) => {
+      // run_scriptsが指定されている場合は一括更新（既存削除→新規作成）
+      if (body.run_scripts !== undefined) {
+        // 既存のRunScriptを削除
+        await tx.runScript.deleteMany({
+          where: { project_id },
+        });
+
+        // 新しいRunScriptを作成
+        if (body.run_scripts.length > 0) {
+          await tx.runScript.createMany({
+            data: body.run_scripts.map((script: RunScriptInput) => ({
+              project_id,
+              name: script.name,
+              command: script.command,
+              description: script.description ?? null,
+            })),
+          });
+        }
+      }
+
+      // プロジェクトを更新
+      return tx.project.update({
+        where: { id: project_id },
+        data: {
+          name: body.name ?? existing.name,
+          path: body.path ?? existing.path,
+        },
+        include: {
+          scripts: true,
+        },
+      });
     });
 
-    logger.info('Project updated', { id: project_id, name: project.name });
+    logger.info('Project updated', {
+      id: project_id,
+      name: project.name,
+      path: project.path,
+      scripts_count: project.scripts.length,
+    });
     return NextResponse.json({ project });
   } catch (error) {
     const { project_id: errorProjectId } = await params;
+    // Prismaのユニーク制約違反をハンドリング
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === 'P2002') {
+        logger.warn('Unique constraint violation', { error, id: errorProjectId });
+        return NextResponse.json(
+          { error: 'A project with this path already exists' },
+          { status: 409 }
+        );
+      }
+    }
     logger.error('Failed to update project', { error, id: errorProjectId });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
