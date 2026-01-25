@@ -173,4 +173,99 @@ describe('SessionTreeItem', () => {
       expect(handleClick).not.toHaveBeenCalled();
     });
   });
+
+  // PR番号表示関連のテスト
+  describe('PR番号表示', () => {
+    const sessionWithPR = {
+      ...mockSession,
+      pr_number: 123,
+      pr_url: 'https://github.com/owner/repo/pull/123',
+      pr_status: 'open' as const,
+    };
+
+    it('PRがある場合、PR番号が表示される', () => {
+      render(
+        <SessionTreeItem
+          session={sessionWithPR}
+          isActive={false}
+          onClick={() => {}}
+        />
+      );
+
+      expect(screen.getByText('#123')).toBeInTheDocument();
+    });
+
+    it('PRがない場合、PR番号は表示されない', () => {
+      render(
+        <SessionTreeItem
+          session={mockSession}
+          isActive={false}
+          onClick={() => {}}
+        />
+      );
+
+      expect(screen.queryByText(/#\d+/)).not.toBeInTheDocument();
+    });
+
+    it('ステータスがopenの場合、緑色のバッジが表示される', () => {
+      render(
+        <SessionTreeItem
+          session={{ ...sessionWithPR, pr_status: 'open' }}
+          isActive={false}
+          onClick={() => {}}
+        />
+      );
+
+      const badge = screen.getByTestId('pr-badge');
+      expect(badge).toHaveClass('text-green-600');
+    });
+
+    it('ステータスがmergedの場合、紫色のバッジが表示される', () => {
+      render(
+        <SessionTreeItem
+          session={{ ...sessionWithPR, pr_status: 'merged' }}
+          isActive={false}
+          onClick={() => {}}
+        />
+      );
+
+      const badge = screen.getByTestId('pr-badge');
+      expect(badge).toHaveClass('text-purple-600');
+    });
+
+    it('ステータスがclosedの場合、赤色のバッジが表示される', () => {
+      render(
+        <SessionTreeItem
+          session={{ ...sessionWithPR, pr_status: 'closed' }}
+          isActive={false}
+          onClick={() => {}}
+        />
+      );
+
+      const badge = screen.getByTestId('pr-badge');
+      expect(badge).toHaveClass('text-red-600');
+    });
+
+    it('PRバッジクリックでセッションクリックは伝播しない', () => {
+      const handleClick = vi.fn();
+      // window.openをモック
+      const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+
+      render(
+        <SessionTreeItem
+          session={sessionWithPR}
+          isActive={false}
+          onClick={handleClick}
+        />
+      );
+
+      const badge = screen.getByTestId('pr-badge');
+      fireEvent.click(badge);
+
+      expect(handleClick).not.toHaveBeenCalled();
+      expect(openSpy).toHaveBeenCalledWith('https://github.com/owner/repo/pull/123', '_blank');
+
+      openSpy.mockRestore();
+    });
+  });
 });
