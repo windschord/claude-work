@@ -244,6 +244,7 @@ next-env.d.ts
 # Playwright test results
 test-results/
 playwright-report/
+test-screenshots/
 
 /src/generated/prisma
 
