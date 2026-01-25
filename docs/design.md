@@ -1,5 +1,32 @@
 # 設計書
 
+## 情報の明確性チェック
+
+### ユーザーから明示された情報
+
+- [x] 技術スタック: Next.js 15 (App Router) + TypeScript + SQLite (Prisma)
+- [x] アーキテクチャパターン: Next.js統合アーキテクチャ（カスタムサーバー）
+- [x] フレームワーク: Next.js 15, React 18
+- [x] データベース: SQLite (better-sqlite3 + Prisma ORM)
+- [x] 外部サービス連携: Claude Code CLI, Git, GitHub CLI (gh)
+- [x] セキュリティ要件: シングルユーザー向け（認証機能削除済み）、ALLOWED_PROJECT_DIRSによるパス制限
+- [x] パフォーマンス要件: WebSocket 500ms以内の出力表示、10セッションの並列実行
+
+### 不明/要確認の情報
+
+| 項目 | 現状の理解 | 確認状況 |
+|------|-----------|----------|
+| 技術スタック | Next.js + TypeScript + SQLite | [x] 確認済み |
+| プロセス管理 | child_process + node-pty | [x] 確認済み |
+| 状態管理 | Zustand | [x] 確認済み |
+| 認証方式 | 削除済み（シングルユーザー設計） | [x] 確認済み |
+
+### 確認が必要な質問リスト
+
+*すべての情報が確認済みのため、追加の確認事項はありません。*
+
+---
+
 ## アーキテクチャ概要
 
 ClaudeWorkは、Next.js統合アーキテクチャを採用する。フロントエンド（Pages/Components）、バックエンド（API Routes）、WebSocketサーバー（カスタムサーバー）を1つのNext.jsプロジェクトに統合し、`npx claude-work`コマンドで起動する。バックエンドはClaude Code CLIプロセスを管理し、WebSocket経由でリアルタイム通信を行う。
@@ -1444,6 +1471,85 @@ ws://host/ws/terminal/{session_id}
 - ProcessManagerと連携してプロセス状態を管理
 - server.tsでSIGTERM/SIGINTハンドラを登録
 - 1分間隔でアイドルチェックを実行
+
+## CI/CD設計
+
+### 品質ゲート
+
+| 項目 | 基準値 | 採用ツール |
+|------|--------|-----------|
+| テストカバレッジ | 80%以上 | Vitest + Istanbul |
+| Linter | エラー0件 | ESLint |
+| コード複雑性 | 循環的複雑度10以下 | lizard |
+
+### GitHub Actions設定
+
+```yaml
+# .github/workflows/ci.yml
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Run tests with coverage
+        run: npm test -- --coverage
+      - name: Check coverage threshold (80%)
+        run: |
+          coverage=$(cat coverage/coverage-summary.json | jq '.total.lines.pct')
+          if (( $(echo "$coverage < 80" | bc -l) )); then
+            echo "Coverage ${coverage}% is below 80%"
+            exit 1
+          fi
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Run linter
+        run: npm run lint
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Build
+        run: npm run build
+```
+
+### CI/CDパイプライン
+
+- **トリガー**: push/PRでmain/developブランチ
+- **必須チェック**: test, lint, build
+- **成功条件**: すべてのチェックがパス
 
 ## セキュリティ考慮事項
 
@@ -3603,3 +3709,63 @@ sequenceDiagram
 | REQ-175 | /loginリダイレクト | middleware.tsでリダイレクト |
 | REQ-176 | AuthSession未使用 | schema.prismaから削除 |
 | REQ-177 | 環境変数オプション化 | server.ts必須チェック削除 |
+
+---
+
+## 設計書作成のガイド
+
+### アーキテクチャ図の種類
+
+- **コンポーネント図**: システムの主要な部品と関係性
+- **シーケンス図**: 処理の流れと相互作用
+- **データフロー図**: データの移動と変換
+- **配置図**: 物理的な構成とネットワーク
+
+### Mermaid図の基本構文
+
+#### グラフ（フローチャート）
+
+```mermaid
+graph TD
+    A[開始] --> B{判定}
+    B -->|Yes| C[処理1]
+    B -->|No| D[処理2]
+    C --> E[終了]
+    D --> E
+```
+
+#### シーケンス図
+
+```mermaid
+sequenceDiagram
+    participant A as クライアント
+    participant B as サーバー
+    participant C as DB
+
+    A->>B: リクエスト送信
+    B->>C: データ取得
+    C-->>B: データ返却
+    B-->>A: レスポンス返却
+```
+
+### コンポーネント設計のポイント
+
+1. **単一責任の原則**: 各コンポーネントは1つの明確な目的を持つ
+2. **疎結合**: コンポーネント間の依存関係を最小限に
+3. **高凝集**: 関連する機能を同じコンポーネントに
+4. **インターフェース定義**: 明確な入出力を定義
+
+### API設計のベストプラクティス
+
+- RESTful原則に従う
+- 適切なHTTPステータスコードを使用
+- バージョニング戦略を定義
+- エラーレスポンスの一貫性
+- ペイロードの検証とサニタイゼーション
+
+### データベース設計の考慮点
+
+- 正規化と非正規化のバランス
+- インデックス戦略
+- トランザクション境界
+- バックアップとリカバリ計画
