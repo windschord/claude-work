@@ -8,6 +8,10 @@ import { ProjectTreeItem } from './ProjectTreeItem';
 import { CreateSessionModal } from '@/components/sessions/CreateSessionModal';
 import { AddProjectButton } from './AddProjectButton';
 import { AddProjectModal } from './AddProjectModal';
+import { ProjectSettingsModal } from './ProjectSettingsModal';
+import { DeleteConfirmDialog } from './DeleteConfirmDialog';
+import { Project } from '@/store';
+import toast from 'react-hot-toast';
 
 /**
  * サイドバーコンポーネント
@@ -36,6 +40,11 @@ export function Sidebar() {
   const [isCreateSessionModalOpen, setIsCreateSessionModalOpen] = useState(false);
   const [selectedProjectIdForSession, setSelectedProjectIdForSession] = useState<string | null>(null);
   const [isAddProjectModalOpen, setIsAddProjectModalOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [selectedProjectForSettings, setSelectedProjectForSettings] = useState<Project | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // プロジェクトごとにセッションをグループ化
   const sessionsByProject = useMemo(() => {
@@ -93,6 +102,51 @@ export function Sidebar() {
     await fetchProjects();
   }, [fetchProjects]);
 
+  // プロジェクト設定を開く
+  const handleOpenSettings = useCallback((project: Project) => {
+    setSelectedProjectForSettings(project);
+    setIsSettingsModalOpen(true);
+  }, []);
+
+  // プロジェクト設定成功時の処理
+  const handleSettingsSuccess = useCallback(async () => {
+    await fetchProjects();
+    toast.success('プロジェクト設定を保存しました');
+  }, [fetchProjects]);
+
+  // プロジェクト削除ダイアログを開く
+  const handleOpenDeleteDialog = useCallback((project: Project) => {
+    setProjectToDelete(project);
+    setIsDeleteDialogOpen(true);
+  }, []);
+
+  // プロジェクト削除を実行
+  const handleDeleteProject = useCallback(async () => {
+    if (!projectToDelete) return;
+
+    setIsDeleting(true);
+    try {
+      const response = await fetch(`/api/projects/${projectToDelete.id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'プロジェクトの削除に失敗しました');
+      }
+
+      await fetchProjects();
+      toast.success('プロジェクトを削除しました');
+      setIsDeleteDialogOpen(false);
+      setProjectToDelete(null);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'プロジェクトの削除に失敗しました';
+      toast.error(errorMessage);
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [projectToDelete, fetchProjects]);
+
   return (
     <>
       {/* オーバーレイ（モバイル時のみ） */}
@@ -140,6 +194,8 @@ export function Sidebar() {
                       handleSessionClick(sessionId, project.id)
                     }
                     onAddSession={() => handleAddSession(project.id)}
+                    onSettings={() => handleOpenSettings(project)}
+                    onDelete={() => handleOpenDeleteDialog(project)}
                   />
                 ))}
               </div>
@@ -164,6 +220,34 @@ export function Sidebar() {
         onClose={() => setIsAddProjectModalOpen(false)}
         onSuccess={handleProjectAdded}
       />
+
+      {/* プロジェクト設定モーダル */}
+      {selectedProjectForSettings && (
+        <ProjectSettingsModal
+          isOpen={isSettingsModalOpen}
+          onClose={() => {
+            setIsSettingsModalOpen(false);
+            setSelectedProjectForSettings(null);
+          }}
+          onSuccess={handleSettingsSuccess}
+          project={selectedProjectForSettings}
+        />
+      )}
+
+      {/* プロジェクト削除確認ダイアログ */}
+      {projectToDelete && (
+        <DeleteConfirmDialog
+          isOpen={isDeleteDialogOpen}
+          onClose={() => {
+            setIsDeleteDialogOpen(false);
+            setProjectToDelete(null);
+          }}
+          onConfirm={handleDeleteProject}
+          title="プロジェクトを削除"
+          message={`「${projectToDelete.name}」を削除しますか？この操作は取り消せません。関連するセッションも全て削除されます。`}
+          isLoading={isDeleting}
+        />
+      )}
     </>
   );
 }
