@@ -402,7 +402,7 @@ describe('DockerAdapter', () => {
       const spawnCall = mockSpawn.mock.calls[0];
       const args = spawnCall[1] as string[];
       expect(args[0]).toBe('exec');
-      expect(args).toContain('/bin/sh');
+      expect(args).toContain('bash');
     });
 
     it('should throw error when shellMode is true but no parent container exists', async () => {

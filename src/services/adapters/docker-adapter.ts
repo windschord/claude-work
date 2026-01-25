@@ -150,7 +150,7 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
   ): Promise<void> {
     // -it オプションでインタラクティブモードとTTYを有効化
     // -w オプションで作業ディレクトリを /workspace に設定
-    const args = ['exec', '-it', '-w', '/workspace', containerName, 'sh', '-c', 'exec sh'];
+    const args = ['exec', '-it', '-w', '/workspace', containerName, 'bash'];
 
     logger.info('DockerAdapter: Creating exec session (attaching to existing container)', {
       sessionId,
