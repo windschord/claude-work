@@ -377,12 +377,12 @@ export class EnvironmentService {
 
     if (config.imageSource === 'dockerfile') {
       // Dockerfileビルドの場合はビルド後のイメージ名を使用
-      imageName = config.buildImageName || config.imageName || 'claude-code-sandboxed';
+      imageName = (config.buildImageName as string) || (config.imageName as string) || 'claude-code-sandboxed';
       imageTag = 'latest';
     } else {
       // 既存イメージの場合
-      imageName = config.imageName || 'claude-code-sandboxed';
-      imageTag = config.imageTag || 'latest';
+      imageName = (config.imageName as string) || 'claude-code-sandboxed';
+      imageTag = (config.imageTag as string) || 'latest';
     }
 
     const fullImageName = `${imageName}:${imageTag}`;
