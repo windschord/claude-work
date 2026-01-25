@@ -2,6 +2,9 @@ import { WebSocket, WebSocketServer } from 'ws';
 import { ptyManager, type PTYExitInfo } from '@/services/pty-manager';
 import { prisma } from '@/lib/db';
 import { logger } from '@/lib/logger';
+import { environmentService } from '@/services/environment-service';
+import { AdapterFactory } from '@/services/adapter-factory';
+import type { EnvironmentAdapter, PTYExitInfo as AdapterPTYExitInfo } from '@/services/environment-adapter';
 
 /**
  * ターミナルWebSocketメッセージ型定義
@@ -53,6 +56,7 @@ export type TerminalServerMessage =
  * ターミナルWebSocketサーバーをセットアップ
  *
  * WebSocket経由でPTY入出力を中継する。
+ * セッションの実行環境設定に応じてアダプターを切り替える。
  *
  * @param wss - WebSocketサーバーインスタンス
  * @param _path - WebSocketパス（使用しない、互換性のため）
@@ -89,11 +93,60 @@ export function setupTerminalWebSocket(
         return;
       }
 
+      // アダプター選択
+      // environment_idがある場合は新方式（AdapterFactory経由）
+      // ない場合は従来のptyManagerを直接使用
+      let adapter: EnvironmentAdapter | null = null;
+      let useLegacyPtyManager = true;
+
+      if (session.environment_id) {
+        // 新方式: environment_id で環境を取得
+        const environment = await environmentService.findById(session.environment_id);
+        if (!environment) {
+          logger.error('Terminal WebSocket: Environment not found', {
+            sessionId,
+            environmentId: session.environment_id,
+          });
+          const errorMsg: TerminalErrorMessage = {
+            type: 'error',
+            message: `Environment not found: ${session.environment_id}`,
+          };
+          ws.send(JSON.stringify(errorMsg));
+          ws.close(1008, 'Environment not found');
+          return;
+        }
+        adapter = AdapterFactory.getAdapter(environment);
+        useLegacyPtyManager = false;
+        logger.info('Terminal WebSocket: Using adapter for environment', {
+          sessionId,
+          environmentId: environment.id,
+          environmentType: environment.type,
+        });
+      } else {
+        // 従来方式: ptyManagerを直接使用
+        logger.info('Terminal WebSocket: Using legacy ptyManager', { sessionId });
+      }
+
       // PTY作成（既に存在する場合はスキップ）
-      if (!ptyManager.hasSession(sessionId)) {
+      const hasSession = useLegacyPtyManager
+        ? ptyManager.hasSession(sessionId)
+        : adapter!.hasSession(sessionId);
+
+      if (!hasSession) {
         try {
-          ptyManager.createPTY(sessionId, session.worktree_path);
-          logger.info('PTY created for session', { sessionId, worktreePath: session.worktree_path });
+          if (useLegacyPtyManager) {
+            ptyManager.createPTY(sessionId, session.worktree_path);
+          } else {
+            // アダプター経由でシェルセッションを作成
+            adapter!.createSession(sessionId, session.worktree_path, undefined, {
+              shellMode: true,
+            });
+          }
+          logger.info('Terminal PTY created for session', {
+            sessionId,
+            worktreePath: session.worktree_path,
+            useLegacyPtyManager,
+          });
         } catch (ptyError) {
           // PTY作成エラーをクライアントに通知
           const errorMessage = ptyError instanceof Error ? ptyError.message : 'Failed to create PTY';
@@ -115,8 +168,9 @@ export function setupTerminalWebSocket(
         }
       }
 
-      // PTY出力 → WebSocket
-      const dataHandler = (sid: string, data: string) => {
+      // イベントハンドラー定義
+      // アダプター用
+      const adapterDataHandler = (sid: string, data: string) => {
         if (sid === sessionId && ws.readyState === WebSocket.OPEN) {
           const message: TerminalDataMessage = {
             type: 'data',
@@ -126,7 +180,30 @@ export function setupTerminalWebSocket(
         }
       };
 
-      const exitHandler = (
+      const adapterExitHandler = (sid: string, info: AdapterPTYExitInfo) => {
+        if (sid === sessionId && ws.readyState === WebSocket.OPEN) {
+          const message: TerminalExitMessage = {
+            type: 'exit',
+            exitCode: info.exitCode,
+            signal: info.signal ?? null,
+          };
+          ws.send(JSON.stringify(message));
+          ws.close();
+        }
+      };
+
+      // レガシー用（ptyManager）
+      const legacyDataHandler = (sid: string, data: string) => {
+        if (sid === sessionId && ws.readyState === WebSocket.OPEN) {
+          const message: TerminalDataMessage = {
+            type: 'data',
+            content: data,
+          };
+          ws.send(JSON.stringify(message));
+        }
+      };
+
+      const legacyExitHandler = (
         sid: string,
         { exitCode, signal }: PTYExitInfo
       ) => {
@@ -141,8 +218,14 @@ export function setupTerminalWebSocket(
         }
       };
 
-      ptyManager.on('data', dataHandler);
-      ptyManager.on('exit', exitHandler);
+      // イベントハンドラー登録
+      if (useLegacyPtyManager) {
+        ptyManager.on('data', legacyDataHandler);
+        ptyManager.on('exit', legacyExitHandler);
+      } else {
+        adapter!.on('data', adapterDataHandler);
+        adapter!.on('exit', adapterExitHandler);
+      }
 
       // WebSocket入力 → PTY
       ws.on('message', (message: Buffer) => {
@@ -164,7 +247,11 @@ export function setupTerminalWebSocket(
               });
               return;
             }
-            ptyManager.write(sessionId, data.data);
+            if (useLegacyPtyManager) {
+              ptyManager.write(sessionId, data.data);
+            } else {
+              adapter!.write(sessionId, data.data);
+            }
           } else if (data.type === 'resize') {
             // resize データの検証
             if (
@@ -185,7 +272,11 @@ export function setupTerminalWebSocket(
               });
               return;
             }
-            ptyManager.resize(sessionId, data.data.cols, data.data.rows);
+            if (useLegacyPtyManager) {
+              ptyManager.resize(sessionId, data.data.cols, data.data.rows);
+            } else {
+              adapter!.resize(sessionId, data.data.cols, data.data.rows);
+            }
           } else {
             logger.warn('Terminal WebSocket: Unknown message type', {
               sessionId,
@@ -202,11 +293,21 @@ export function setupTerminalWebSocket(
 
       // クリーンアップ
       ws.on('close', () => {
-        ptyManager.off('data', dataHandler);
-        ptyManager.off('exit', exitHandler);
-        // PTYプロセスを終了
-        if (ptyManager.hasSession(sessionId)) {
-          ptyManager.kill(sessionId);
+        // イベントハンドラー解除
+        if (useLegacyPtyManager) {
+          ptyManager.off('data', legacyDataHandler);
+          ptyManager.off('exit', legacyExitHandler);
+          // PTYプロセスを終了
+          if (ptyManager.hasSession(sessionId)) {
+            ptyManager.kill(sessionId);
+          }
+        } else {
+          adapter!.off('data', adapterDataHandler);
+          adapter!.off('exit', adapterExitHandler);
+          // アダプター経由でセッション終了
+          if (adapter!.hasSession(sessionId)) {
+            adapter!.destroySession(sessionId);
+          }
         }
         logger.info('Terminal WebSocket connection closed', { sessionId });
       });
