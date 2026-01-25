@@ -29,6 +29,8 @@ interface ProjectTreeItemProps {
   onSettings?: () => void;
   /** 削除ボタンクリック時のハンドラ */
   onDelete?: () => void;
+  /** セッション削除ボタンクリック時のハンドラ */
+  onSessionDelete?: (sessionId: string) => void;
 }
 
 /**
@@ -51,6 +53,7 @@ export function ProjectTreeItem({
   onAddSession,
   onSettings,
   onDelete,
+  onSessionDelete,
 }: ProjectTreeItemProps) {
   const [contextMenu, setContextMenu] = useState<ContextMenuPosition | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -174,6 +177,7 @@ export function ProjectTreeItem({
               session={session}
               isActive={session.id === currentSessionId}
               onClick={() => onSessionClick(session.id)}
+              onDelete={onSessionDelete ? () => onSessionDelete(session.id) : undefined}
             />
           ))}
         </div>

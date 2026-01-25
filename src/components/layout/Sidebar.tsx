@@ -10,7 +10,7 @@ import { AddProjectButton } from './AddProjectButton';
 import { AddProjectModal } from './AddProjectModal';
 import { ProjectSettingsModal } from './ProjectSettingsModal';
 import { DeleteConfirmDialog } from './DeleteConfirmDialog';
-import { Project } from '@/store';
+import { Project, Session } from '@/store';
 import toast from 'react-hot-toast';
 
 /**
@@ -45,6 +45,9 @@ export function Sidebar() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isSessionDeleteDialogOpen, setIsSessionDeleteDialogOpen] = useState(false);
+  const [sessionToDelete, setSessionToDelete] = useState<Session | null>(null);
+  const [isDeletingSession, setIsDeletingSession] = useState(false);
 
   // プロジェクトごとにセッションをグループ化
   const sessionsByProject = useMemo(() => {
@@ -147,6 +150,49 @@ export function Sidebar() {
     }
   }, [projectToDelete, fetchProjects]);
 
+  // セッション削除ダイアログを開く
+  const handleOpenSessionDeleteDialog = useCallback((sessionId: string, projectId: string) => {
+    const session = sessions.find(s => s.id === sessionId);
+    if (session) {
+      setSessionToDelete(session);
+      setSelectedProjectIdForSession(projectId);
+      setIsSessionDeleteDialogOpen(true);
+    }
+  }, [sessions]);
+
+  // セッション削除を実行
+  const handleDeleteSession = useCallback(async () => {
+    if (!sessionToDelete) return;
+
+    setIsDeletingSession(true);
+    try {
+      const response = await fetch(`/api/sessions/${sessionToDelete.id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'セッションの削除に失敗しました');
+      }
+
+      await fetchProjects();
+      toast.success('セッションを削除しました');
+      setIsSessionDeleteDialogOpen(false);
+      setSessionToDelete(null);
+
+      // 現在表示中のセッションを削除した場合、/にリダイレクト
+      if (currentSessionId === sessionToDelete.id) {
+        router.push('/');
+        setCurrentSessionId(null);
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'セッションの削除に失敗しました';
+      toast.error(errorMessage);
+    } finally {
+      setIsDeletingSession(false);
+    }
+  }, [sessionToDelete, fetchProjects, currentSessionId, router, setCurrentSessionId]);
+
   return (
     <>
       {/* オーバーレイ（モバイル時のみ） */}
@@ -196,6 +242,7 @@ export function Sidebar() {
                     onAddSession={() => handleAddSession(project.id)}
                     onSettings={() => handleOpenSettings(project)}
                     onDelete={() => handleOpenDeleteDialog(project)}
+                    onSessionDelete={(sessionId) => handleOpenSessionDeleteDialog(sessionId, project.id)}
                   />
                 ))}
               </div>
@@ -246,6 +293,21 @@ export function Sidebar() {
           title="プロジェクトを削除"
           message={`「${projectToDelete.name}」を削除しますか？この操作は取り消せません。関連するセッションも全て削除されます。`}
           isLoading={isDeleting}
+        />
+      )}
+
+      {/* セッション削除確認ダイアログ */}
+      {sessionToDelete && (
+        <DeleteConfirmDialog
+          isOpen={isSessionDeleteDialogOpen}
+          onClose={() => {
+            setIsSessionDeleteDialogOpen(false);
+            setSessionToDelete(null);
+          }}
+          onConfirm={handleDeleteSession}
+          title="セッションを削除"
+          message={`「${sessionToDelete.name}」を削除しますか？worktreeとブランチも削除されます。`}
+          isLoading={isDeletingSession}
         />
       )}
     </>
