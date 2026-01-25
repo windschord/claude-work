@@ -1482,8 +1482,8 @@ jobs:
 
 ### CI/CDパイプライン
 
-- **トリガー**: push/PRでmain/developブランチ
-- **必須チェック**: test, lint, build
+- **トリガー**: push/PRでmainブランチ（実際の設定は`.github/workflows/`を参照）
+- **必須チェック**: lint, test-backend, test-frontend, build
 - **成功条件**: すべてのチェックがパス
 
 ## セキュリティ考慮事項
