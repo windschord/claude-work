@@ -1,0 +1,15 @@
+# Node modules
+node_modules/**
+
+# Archive (completed documentation)
+docs/archive/**
+
+# Generated or external files
+LICENSE
+
+# Build output
+dist/**
+.next/**
+
+# Review findings (temporary analysis files)
+*-findings.md

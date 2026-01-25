@@ -1,5 +1,32 @@
 # 設計書
 
+## 情報の明確性チェック
+
+### ユーザーから明示された情報
+
+- [x] 技術スタック: Next.js 15 (App Router) + TypeScript + SQLite (Prisma)
+- [x] アーキテクチャパターン: Next.js統合アーキテクチャ（カスタムサーバー）
+- [x] フレームワーク: Next.js 15, React 19
+- [x] データベース: SQLite (better-sqlite3 + Prisma ORM)
+- [x] 外部サービス連携: Claude Code CLI, Git, GitHub CLI (gh)
+- [x] セキュリティ要件: シングルユーザー向け（認証機能削除済み）、ALLOWED_PROJECT_DIRSによるパス制限
+- [x] パフォーマンス要件: WebSocket 500ms以内の出力表示、10セッションの並列実行
+
+### 不明/要確認の情報
+
+| 項目 | 現状の理解 | 確認状況 |
+|------|-----------|----------|
+| 技術スタック | Next.js + TypeScript + SQLite | [x] 確認済み |
+| プロセス管理 | child_process + node-pty | [x] 確認済み |
+| 状態管理 | Zustand | [x] 確認済み |
+| 認証方式 | 削除済み（シングルユーザー設計） | [x] 確認済み |
+
+### 確認が必要な質問リスト
+
+*すべての情報が確認済みのため、追加の確認事項はありません。*
+
+---
+
 ## アーキテクチャ概要
 
 ClaudeWorkは、Next.js統合アーキテクチャを採用する。フロントエンド（Pages/Components）、バックエンド（API Routes）、WebSocketサーバー（カスタムサーバー）を1つのNext.jsプロジェクトに統合し、`npx claude-work`コマンドで起動する。バックエンドはClaude Code CLIプロセスを管理し、WebSocket経由でリアルタイム通信を行う。
@@ -77,10 +104,8 @@ graph TD
 - Claude Codeの出力表示とユーザー入力
 - Diff表示とGit操作UI
 - ターミナルUI
-- 認証画面
 
 **主要ページ構成**:
-- `/login` - ログインページ
 - `/` - ダッシュボード（プロジェクト一覧）
 - `/projects/[id]` - プロジェクト詳細（セッション一覧）
 - `/sessions/[id]` - セッション詳細（Claude Code対話）
@@ -91,17 +116,12 @@ graph TD
 
 **責務**:
 - プロジェクト・セッション状態の管理
-- 認証状態の管理
 - テーマ設定の管理
 - WebSocket接続状態の管理
 
 **ストア構成**:
 ```typescript
 interface AppState {
-  // 認証
-  isAuthenticated: boolean;
-  token: string | null;
-
   // プロジェクト
   projects: Project[];
   selectedProjectId: string | null;
@@ -200,7 +220,6 @@ function sendNotification(event: NotificationEvent): void {
 - プロジェクト管理API（Next.js API Routes）
 - セッション管理API（Next.js API Routes）
 - Git操作API（diff、rebase、merge）
-- 認証API（Next.js API Routes）
 - プロンプト履歴API
 
 **実装場所**: `src/app/api/`配下
@@ -685,44 +704,6 @@ sequenceDiagram
 ```
 
 ## API設計
-
-### 認証
-
-#### POST /api/auth/login
-**目的**: トークン認証によるログイン
-
-**リクエスト**:
-```json
-{
-  "token": "user-provided-token"
-}
-```
-
-**レスポンス（200）**:
-```json
-{
-  "message": "Login successful",
-  "session_id": "uuid",
-  "expires_at": "2025-12-08T12:00:00Z"
-}
-```
-
-**レスポンス（401）**:
-```json
-{
-  "error": "Invalid token"
-}
-```
-
-#### POST /api/auth/logout
-**目的**: ログアウト
-
-**レスポンス（200）**:
-```json
-{
-  "message": "Logout successful"
-}
-```
 
 ### プロジェクト
 
@@ -1314,15 +1295,6 @@ ws://host/ws/terminal/{session_id}
 **リレーション**:
 - `Project` テーブルと多対1のリレーション（project_id経由）
 
-### テーブル: auth_sessions
-
-| カラム | 型 | 制約 | 説明 |
-|--------|------|------|------|
-| id | TEXT | PRIMARY KEY | セッションID |
-| token_hash | TEXT | NOT NULL | トークンハッシュ |
-| expires_at | TEXT | NOT NULL | 有効期限 |
-| created_at | TEXT | NOT NULL | 作成日時 |
-
 ## 技術的決定事項
 
 ### 決定1: Next.js統合アーキテクチャを採用
@@ -1363,7 +1335,7 @@ ws://host/ws/terminal/{session_id}
 **決定**: Zustand
 
 **根拠**:
-- APIがシンプルでボイラープレートが少ない
+- シンプルなAPIでボイラープレートが少ない
 - TypeScriptとの相性が良い
 - 中規模アプリケーションに適切なサイズ
 
@@ -1381,21 +1353,7 @@ ws://host/ws/terminal/{session_id}
 - 用途に応じた適切な選択
 - Node.js標準APIで追加依存が少ない
 
-### 決定5: 認証方式にトークンベース認証を採用
-
-**検討した選択肢**:
-1. トークンベース認証 - シンプル、環境変数で設定
-2. OAuth2 - 外部IdP連携、複雑
-3. Basic認証 - 最シンプル、セキュリティ懸念
-
-**決定**: トークンベース認証
-
-**根拠**:
-- 単一ユーザー向けで十分なセキュリティ
-- 環境変数での設定が容易
-- リバースプロキシと組み合わせて使用
-
-### 決定6: Claude CLIパスの自動検出機能を実装
+### 決定5: Claude CLIパスの自動検出機能を実装
 
 **検討した選択肢**:
 1. PATH環境変数から自動検出 - ユーザーフレンドリー、設定不要
@@ -1416,7 +1374,7 @@ ws://host/ws/terminal/{session_id}
 - 検出失敗時はエラーメッセージを表示してサーバー起動停止
 - 検出成功時はログに検出されたパスを出力
 
-### 決定7: プロセスライフサイクル管理の自動化
+### 決定6: プロセスライフサイクル管理の自動化
 
 **検討した選択肢**:
 1. 手動管理のみ - ユーザーが明示的にプロセスを停止/再開
@@ -1445,14 +1403,94 @@ ws://host/ws/terminal/{session_id}
 - server.tsでSIGTERM/SIGINTハンドラを登録
 - 1分間隔でアイドルチェックを実行
 
+## CI/CD設計
+
+### 品質ゲート
+
+> **注記**: 現時点ではテストカバレッジ計測およびlizardによる複雑度チェックはCI/package.jsonに未設定。以下は将来導入予定の品質ゲートと目標値を示す。
+
+| 項目 | 基準値 | 採用ツール |
+|------|--------|-----------|
+| テストカバレッジ | 80%以上（将来目標） | Vitest + Istanbul（将来導入予定） |
+| Linter | エラー0件 | ESLint |
+| コード複雑性 | 循環的複雑度10以下（将来目標） | lizard（将来導入予定） |
+
+### GitHub Actions設定（サンプル）
+
+> **注記**: 以下は設計上のサンプル。実際のワークフローは `.github/workflows/` を参照。
+
+```yaml
+# サンプル設定
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Run tests with coverage
+        run: npm test -- --coverage
+      - name: Check coverage threshold (80%)
+        run: |
+          coverage=$(cat coverage/coverage-summary.json | jq '.total.lines.pct')
+          if (( $(echo "$coverage < 80" | bc -l) )); then
+            echo "Coverage ${coverage}% is below 80%"
+            exit 1
+          fi
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Run linter
+        run: npm run lint
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Build
+        run: npm run build
+```
+
+### CI/CDパイプライン
+
+- **トリガー**: push/PRでmainブランチ（実際の設定は`.github/workflows/`を参照）
+- **必須チェック**: lint, test-backend, test-frontend, build
+- **成功条件**: すべてのチェックがパス
+
 ## セキュリティ考慮事項
 
 ### 認証・認可
 
-- トークンは環境変数`AUTH_TOKEN`で設定
-- トークンはbcryptでハッシュ化して比較
-- セッションは24時間で期限切れ
-- HTTPOnlyクッキーでセッションID管理
+> **注記**: 認証機能は削除済み（ストーリー28）。シングルユーザー向けとして設計されており、ネットワーク境界での保護（VPN、ファイアウォール等）を推奨。
 
 ### プロジェクトパス制限
 
@@ -1466,8 +1504,7 @@ ws://host/ws/terminal/{session_id}
 ### 通信
 
 - 開発環境はHTTP、本番環境ではリバースプロキシ（Caddy/nginx推奨）でHTTPS化
-- WebSocket接続も認証済みセッションでのみ許可
-- CORS設定で許可オリジンを制限
+- CORS設定で許可オリジンを制限（`ALLOWED_ORIGINS`環境変数）
 
 ### プロセス実行
 
@@ -3249,7 +3286,7 @@ sequenceDiagram
 | REQ-149 | 新規プロジェクトは展開状態で表示 | デフォルトtrue |
 | REQ-150 | 削除ボタン表示 | DeleteSessionButton |
 | REQ-151 | 確認ダイアログ表示 | DeleteSessionDialog |
-| REQ-152 | セッション名とパス表示 | Dialog内のpタグ |
+| REQ-152 | セッション名とパス表示 | Dialog内の`<p>`タグ |
 | REQ-153 | セッションとworktree削除 | DELETE API |
 | REQ-154 | 削除後プロジェクトページへ | router.push() |
 | REQ-155 | エラー時トースト表示 | toast.error() |
@@ -3603,3 +3640,63 @@ sequenceDiagram
 | REQ-175 | /loginリダイレクト | middleware.tsでリダイレクト |
 | REQ-176 | AuthSession未使用 | schema.prismaから削除 |
 | REQ-177 | 環境変数オプション化 | server.ts必須チェック削除 |
+
+---
+
+## 設計書作成のガイド
+
+### アーキテクチャ図の種類
+
+- **コンポーネント図**: システムの主要な部品と関係性
+- **シーケンス図**: 処理の流れと相互作用
+- **データフロー図**: データの移動と変換
+- **配置図**: 物理的な構成とネットワーク
+
+### Mermaid図の基本構文
+
+#### グラフ（フローチャート）
+
+```mermaid
+graph TD
+    A[開始] --> B{判定}
+    B -->|Yes| C[処理1]
+    B -->|No| D[処理2]
+    C --> E[終了]
+    D --> E
+```
+
+#### シーケンス図
+
+```mermaid
+sequenceDiagram
+    participant A as クライアント
+    participant B as サーバー
+    participant C as DB
+
+    A->>B: リクエスト送信
+    B->>C: データ取得
+    C-->>B: データ返却
+    B-->>A: レスポンス返却
+```
+
+### コンポーネント設計のポイント
+
+1. **単一責任の原則**: 各コンポーネントは1つの明確な目的を持つ
+2. **疎結合**: コンポーネント間の依存関係を最小限に
+3. **高凝集**: 関連する機能を同じコンポーネントに
+4. **インターフェース定義**: 明確な入出力を定義
+
+### API設計のベストプラクティス
+
+- RESTful原則に従う
+- 適切なHTTPステータスコードを使用
+- バージョニング戦略を定義
+- エラーレスポンスの一貫性
+- ペイロードの検証とサニタイゼーション
+
+### データベース設計の考慮点
+
+- 正規化と非正規化のバランス
+- インデックス戦略
+- トランザクション境界
+- バックアップとリカバリ計画
