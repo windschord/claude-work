@@ -6,7 +6,7 @@
 
 - [x] 技術スタック: Next.js 15 (App Router) + TypeScript + SQLite (Prisma)
 - [x] アーキテクチャパターン: Next.js統合アーキテクチャ（カスタムサーバー）
-- [x] フレームワーク: Next.js 15, React 18
+- [x] フレームワーク: Next.js 15, React 19
 - [x] データベース: SQLite (better-sqlite3 + Prisma ORM)
 - [x] 外部サービス連携: Claude Code CLI, Git, GitHub CLI (gh)
 - [x] セキュリティ要件: シングルユーザー向け（認証機能削除済み）、ALLOWED_PROJECT_DIRSによるパス制限
