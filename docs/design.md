@@ -1341,15 +1341,6 @@ ws://host/ws/terminal/{session_id}
 **リレーション**:
 - `Project` テーブルと多対1のリレーション（project_id経由）
 
-### テーブル: auth_sessions
-
-| カラム | 型 | 制約 | 説明 |
-|--------|------|------|------|
-| id | TEXT | PRIMARY KEY | セッションID |
-| token_hash | TEXT | NOT NULL | トークンハッシュ |
-| expires_at | TEXT | NOT NULL | 有効期限 |
-| created_at | TEXT | NOT NULL | 作成日時 |
-
 ## 技術的決定事項
 
 ### 決定1: Next.js統合アーキテクチャを採用
@@ -1476,21 +1467,25 @@ ws://host/ws/terminal/{session_id}
 
 ### 品質ゲート
 
+> **注記**: 現時点ではテストカバレッジ計測およびlizardによる複雑度チェックはCI/package.jsonに未設定。以下は将来導入予定の品質ゲートと目標値を示す。
+
 | 項目 | 基準値 | 採用ツール |
 |------|--------|-----------|
-| テストカバレッジ | 80%以上 | Vitest + Istanbul |
+| テストカバレッジ | 80%以上（将来目標） | Vitest + Istanbul（将来導入予定） |
 | Linter | エラー0件 | ESLint |
-| コード複雑性 | 循環的複雑度10以下 | lizard |
+| コード複雑性 | 循環的複雑度10以下（将来目標） | lizard（将来導入予定） |
 
-### GitHub Actions設定
+### GitHub Actions設定（サンプル）
+
+> **注記**: 以下は設計上のサンプル。実際のワークフローは `.github/workflows/` を参照。
 
 ```yaml
-# .github/workflows/ci.yml
+# サンプル設定
 name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
   pull_request:
     branches: [main]
 
@@ -1555,10 +1550,7 @@ jobs:
 
 ### 認証・認可
 
-- トークンは環境変数`AUTH_TOKEN`で設定
-- トークンはbcryptでハッシュ化して比較
-- セッションは24時間で期限切れ
-- HTTPOnlyクッキーでセッションID管理
+> **注記**: 認証機能は削除済み（ストーリー28）。シングルユーザー向けとして設計されており、ネットワーク境界での保護（VPN、ファイアウォール等）を推奨。
 
 ### プロジェクトパス制限
 
@@ -1572,8 +1564,7 @@ jobs:
 ### 通信
 
 - 開発環境はHTTP、本番環境ではリバースプロキシ（Caddy/nginx推奨）でHTTPS化
-- WebSocket接続も認証済みセッションでのみ許可
-- CORS設定で許可オリジンを制限
+- CORS設定で許可オリジンを制限（`ALLOWED_ORIGINS`環境変数）
 
 ### プロセス実行
 
