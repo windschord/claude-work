@@ -116,6 +116,98 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
     return { args, containerName };
   }
 
+  /**
+   * 親セッションIDを取得（-terminal サフィックスを除去）
+   */
+  private getParentSessionId(sessionId: string): string | null {
+    if (sessionId.endsWith('-terminal')) {
+      return sessionId.slice(0, -'-terminal'.length);
+    }
+    return null;
+  }
+
+  /**
+   * 親セッション（Claude）のコンテナ名を取得
+   */
+  private getParentContainerName(sessionId: string): string | null {
+    const parentId = this.getParentSessionId(sessionId);
+    if (parentId) {
+      const parentSession = this.sessions.get(parentId);
+      if (parentSession) {
+        return parentSession.containerId;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * docker exec でシェルセッションを作成
+   */
+  private async createExecSession(
+    sessionId: string,
+    containerName: string,
+    workingDir: string
+  ): Promise<void> {
+    const args = ['exec', '-it', containerName, '/bin/sh'];
+
+    logger.info('DockerAdapter: Creating exec session (attaching to existing container)', {
+      sessionId,
+      containerName,
+      workingDir,
+    });
+
+    try {
+      const ptyProcess = pty.spawn('docker', args, {
+        name: 'xterm-256color',
+        cols: 80,
+        rows: 24,
+        env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' },
+      });
+
+      this.sessions.set(sessionId, {
+        ptyProcess,
+        workingDir,
+        containerId: containerName, // 親コンテナと同じIDを参照
+        errorBuffer: '',
+        hasReceivedOutput: false,
+        shellMode: true,
+      });
+
+      // イベント転送
+      ptyProcess.onData((data: string) => {
+        const session = this.sessions.get(sessionId);
+        if (session) {
+          if (!session.hasReceivedOutput && data.length > 0) {
+            session.hasReceivedOutput = true;
+          }
+        }
+        this.emit('data', sessionId, data);
+      });
+
+      ptyProcess.onExit(({ exitCode, signal }) => {
+        logger.info('DockerAdapter: Exec session exited', { sessionId, exitCode, signal });
+        this.emit('exit', sessionId, { exitCode, signal } as PTYExitInfo);
+        this.sessions.delete(sessionId);
+      });
+
+      // シェルセッションでは /workspace に移動
+      setTimeout(() => {
+        if (this.sessions.has(sessionId)) {
+          ptyProcess.write('cd /workspace\n');
+        }
+      }, 500);
+
+    } catch (error) {
+      logger.error('DockerAdapter: Failed to create exec session', {
+        sessionId,
+        containerName,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      this.emit('error', sessionId, error instanceof Error ? error : new Error('Unknown error'));
+      throw error;
+    }
+  }
+
   async createSession(
     sessionId: string,
     workingDir: string,
@@ -125,6 +217,25 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
     // 既存セッションのクリーンアップ
     if (this.sessions.has(sessionId)) {
       this.destroySession(sessionId);
+    }
+
+    const shellMode = options?.shellMode ?? false;
+
+    // シェルモードの場合、親コンテナ（Claude）に接続を試みる
+    if (shellMode) {
+      const parentContainerName = this.getParentContainerName(sessionId);
+      if (parentContainerName) {
+        await this.createExecSession(sessionId, parentContainerName, workingDir);
+        return;
+      }
+      // 親コンテナがない場合はエラー
+      const error = new Error('No parent container found. Start Claude session first.');
+      logger.warn('DockerAdapter: Shell mode requested but no parent container found', {
+        sessionId,
+        parentSessionId: this.getParentSessionId(sessionId),
+      });
+      this.emit('error', sessionId, error);
+      throw error;
     }
 
     const { args, containerName } = this.buildDockerArgs(workingDir, options);
@@ -144,14 +255,13 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
         env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' },
       });
 
-      const shellMode = options?.shellMode ?? false;
       this.sessions.set(sessionId, {
         ptyProcess,
         workingDir,
         containerId: containerName,
         errorBuffer: '',
         hasReceivedOutput: false,
-        shellMode,
+        shellMode: false,
       });
 
       // Session.container_idを更新
