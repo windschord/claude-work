@@ -104,10 +104,8 @@ graph TD
 - Claude Codeの出力表示とユーザー入力
 - Diff表示とGit操作UI
 - ターミナルUI
-- 認証画面
 
 **主要ページ構成**:
-- `/login` - ログインページ
 - `/` - ダッシュボード（プロジェクト一覧）
 - `/projects/[id]` - プロジェクト詳細（セッション一覧）
 - `/sessions/[id]` - セッション詳細（Claude Code対話）
@@ -118,17 +116,12 @@ graph TD
 
 **責務**:
 - プロジェクト・セッション状態の管理
-- 認証状態の管理
 - テーマ設定の管理
 - WebSocket接続状態の管理
 
 **ストア構成**:
 ```typescript
 interface AppState {
-  // 認証
-  isAuthenticated: boolean;
-  token: string | null;
-
   // プロジェクト
   projects: Project[];
   selectedProjectId: string | null;
@@ -227,7 +220,6 @@ function sendNotification(event: NotificationEvent): void {
 - プロジェクト管理API（Next.js API Routes）
 - セッション管理API（Next.js API Routes）
 - Git操作API（diff、rebase、merge）
-- 認証API（Next.js API Routes）
 - プロンプト履歴API
 
 **実装場所**: `src/app/api/`配下
@@ -712,44 +704,6 @@ sequenceDiagram
 ```
 
 ## API設計
-
-### 認証
-
-#### POST /api/auth/login
-**目的**: トークン認証によるログイン
-
-**リクエスト**:
-```json
-{
-  "token": "user-provided-token"
-}
-```
-
-**レスポンス（200）**:
-```json
-{
-  "message": "Login successful",
-  "session_id": "uuid",
-  "expires_at": "2025-12-08T12:00:00Z"
-}
-```
-
-**レスポンス（401）**:
-```json
-{
-  "error": "Invalid token"
-}
-```
-
-#### POST /api/auth/logout
-**目的**: ログアウト
-
-**レスポンス（200）**:
-```json
-{
-  "message": "Logout successful"
-}
-```
 
 ### プロジェクト
 
@@ -1399,21 +1353,7 @@ ws://host/ws/terminal/{session_id}
 - 用途に応じた適切な選択
 - Node.js標準APIで追加依存が少ない
 
-### 決定5: 認証方式にトークンベース認証を採用
-
-**検討した選択肢**:
-1. トークンベース認証 - シンプル、環境変数で設定
-2. OAuth2 - 外部IdP連携、複雑
-3. Basic認証 - 最シンプル、セキュリティ懸念
-
-**決定**: トークンベース認証
-
-**根拠**:
-- 単一ユーザー向けで十分なセキュリティ
-- 環境変数での設定が容易
-- リバースプロキシと組み合わせて使用
-
-### 決定6: Claude CLIパスの自動検出機能を実装
+### 決定5: Claude CLIパスの自動検出機能を実装
 
 **検討した選択肢**:
 1. PATH環境変数から自動検出 - ユーザーフレンドリー、設定不要
@@ -1434,7 +1374,7 @@ ws://host/ws/terminal/{session_id}
 - 検出失敗時はエラーメッセージを表示してサーバー起動停止
 - 検出成功時はログに検出されたパスを出力
 
-### 決定7: プロセスライフサイクル管理の自動化
+### 決定6: プロセスライフサイクル管理の自動化
 
 **検討した選択肢**:
 1. 手動管理のみ - ユーザーが明示的にプロセスを停止/再開
