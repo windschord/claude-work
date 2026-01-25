@@ -6,6 +6,8 @@ import { useAppStore } from '@/store';
 import { useUIStore } from '@/store/ui';
 import { ProjectTreeItem } from './ProjectTreeItem';
 import { CreateSessionModal } from '@/components/sessions/CreateSessionModal';
+import { AddProjectButton } from './AddProjectButton';
+import { AddProjectModal } from './AddProjectModal';
 
 /**
  * サイドバーコンポーネント
@@ -28,10 +30,12 @@ export function Sidebar() {
     isSidebarOpen,
     setIsSidebarOpen,
     fetchSessions,
+    fetchProjects,
   } = useAppStore();
   const { isProjectExpanded, toggleProject } = useUIStore();
   const [isCreateSessionModalOpen, setIsCreateSessionModalOpen] = useState(false);
   const [selectedProjectIdForSession, setSelectedProjectIdForSession] = useState<string | null>(null);
+  const [isAddProjectModalOpen, setIsAddProjectModalOpen] = useState(false);
 
   // プロジェクトごとにセッションをグループ化
   const sessionsByProject = useMemo(() => {
@@ -84,6 +88,11 @@ export function Sidebar() {
     [selectedProjectIdForSession, fetchSessions, router, setIsSidebarOpen]
   );
 
+  // プロジェクト追加成功時の処理
+  const handleProjectAdded = useCallback(async () => {
+    await fetchProjects();
+  }, [fetchProjects]);
+
   return (
     <>
       {/* オーバーレイ（モバイル時のみ） */}
@@ -106,8 +115,9 @@ export function Sidebar() {
       >
         <div className="h-full flex flex-col">
           {/* ヘッダー */}
-          <div className="h-16 flex items-center px-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200 dark:border-gray-700">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">プロジェクト</h2>
+            <AddProjectButton onClick={() => setIsAddProjectModalOpen(true)} />
           </div>
 
           {/* プロジェクトツリー */}
@@ -147,6 +157,13 @@ export function Sidebar() {
           onSuccess={handleSessionCreated}
         />
       )}
+
+      {/* プロジェクト追加モーダル */}
+      <AddProjectModal
+        isOpen={isAddProjectModalOpen}
+        onClose={() => setIsAddProjectModalOpen(false)}
+        onSuccess={handleProjectAdded}
+      />
     </>
   );
 }
