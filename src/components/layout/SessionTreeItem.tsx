@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Trash2, GitPullRequest } from 'lucide-react';
 import { Session } from '@/store';
 import { SessionStatusIcon } from '@/components/sessions/SessionStatusIcon';
 
@@ -34,6 +34,27 @@ export function SessionTreeItem({ session, isActive, onClick, onDelete }: Sessio
     onDelete?.();
   };
 
+  const handlePRClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (session.pr_url) {
+      window.open(session.pr_url, '_blank');
+    }
+  };
+
+  // PRステータスに応じた色を取得
+  const getPRStatusColor = (status: string | null | undefined) => {
+    switch (status) {
+      case 'open':
+        return 'text-green-600 dark:text-green-400';
+      case 'merged':
+        return 'text-purple-600 dark:text-purple-400';
+      case 'closed':
+        return 'text-red-600 dark:text-red-400';
+      default:
+        return 'text-gray-500 dark:text-gray-400';
+    }
+  };
+
   return (
     <div
       data-testid="session-tree-item"
@@ -56,7 +77,23 @@ export function SessionTreeItem({ session, isActive, onClick, onDelete }: Sessio
         `}
       >
         <SessionStatusIcon status={session.status} />
-        <span className="truncate text-sm">{session.name}</span>
+        <span className="truncate text-sm flex-1">{session.name}</span>
+
+        {/* PR番号バッジ */}
+        {session.pr_number && (
+          <span
+            data-testid="pr-badge"
+            onClick={handlePRClick}
+            className={`
+              flex items-center gap-0.5 text-xs font-medium cursor-pointer
+              hover:underline ${getPRStatusColor(session.pr_status)}
+            `}
+            title={`PR #${session.pr_number} (${session.pr_status || 'unknown'})`}
+          >
+            <GitPullRequest className="w-3 h-3" />
+            #{session.pr_number}
+          </span>
+        )}
       </button>
 
       {/* 削除アイコン（ホバー時のみ表示） */}
