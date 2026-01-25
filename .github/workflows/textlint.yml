@@ -41,5 +41,5 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: ':warning: Textlint検査で問題が検出されました。詳細はActionsログを確認してください。\n\nローカルで修正するには:\n```bash\nnpm install\nnpm run textlint\nnpm run textlint:fix  # 自動修正を試みる\n```'
+              body: ':warning: Textlint検査で問題が検出されました。詳細はActionsログを確認してください。\n\nローカルで修正するには:\n```bash\npnpm install\npnpm run textlint\npnpm run textlint:fix  # 自動修正を試みる\n```'
             })
