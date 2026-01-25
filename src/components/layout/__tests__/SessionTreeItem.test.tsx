@@ -268,4 +268,122 @@ describe('SessionTreeItem', () => {
       openSpy.mockRestore();
     });
   });
+
+  // 動作環境バッジ関連のテスト
+  describe('動作環境バッジ', () => {
+    it('環境タイプがHOSTの場合、緑色のHバッジが表示される', () => {
+      const sessionWithHost = {
+        ...mockSession,
+        environment_type: 'HOST' as const,
+        environment_name: 'Default Host',
+      };
+
+      render(
+        <SessionTreeItem
+          session={sessionWithHost}
+          isActive={false}
+          onClick={() => {}}
+        />
+      );
+
+      const badge = screen.getByTestId('environment-badge');
+      expect(badge).toBeInTheDocument();
+      expect(badge).toHaveTextContent('H');
+      expect(badge).toHaveClass('bg-green-100');
+      expect(badge).toHaveAttribute('title', 'Default Host');
+    });
+
+    it('環境タイプがDOCKERの場合、青色のDバッジが表示される', () => {
+      const sessionWithDocker = {
+        ...mockSession,
+        environment_type: 'DOCKER' as const,
+        environment_name: 'Docker Dev',
+      };
+
+      render(
+        <SessionTreeItem
+          session={sessionWithDocker}
+          isActive={false}
+          onClick={() => {}}
+        />
+      );
+
+      const badge = screen.getByTestId('environment-badge');
+      expect(badge).toBeInTheDocument();
+      expect(badge).toHaveTextContent('D');
+      expect(badge).toHaveClass('bg-blue-100');
+      expect(badge).toHaveAttribute('title', 'Docker Dev');
+    });
+
+    it('環境タイプがSSHの場合、紫色のSバッジが表示される', () => {
+      const sessionWithSSH = {
+        ...mockSession,
+        environment_type: 'SSH' as const,
+        environment_name: 'Remote Server',
+      };
+
+      render(
+        <SessionTreeItem
+          session={sessionWithSSH}
+          isActive={false}
+          onClick={() => {}}
+        />
+      );
+
+      const badge = screen.getByTestId('environment-badge');
+      expect(badge).toBeInTheDocument();
+      expect(badge).toHaveTextContent('S');
+      expect(badge).toHaveClass('bg-purple-100');
+      expect(badge).toHaveAttribute('title', 'Remote Server');
+    });
+
+    it('環境タイプがnullの場合、バッジは表示されない', () => {
+      const sessionWithoutEnv = {
+        ...mockSession,
+        environment_type: null,
+        environment_name: null,
+      };
+
+      render(
+        <SessionTreeItem
+          session={sessionWithoutEnv}
+          isActive={false}
+          onClick={() => {}}
+        />
+      );
+
+      expect(screen.queryByTestId('environment-badge')).not.toBeInTheDocument();
+    });
+
+    it('環境タイプが未定義の場合、バッジは表示されない', () => {
+      render(
+        <SessionTreeItem
+          session={mockSession}
+          isActive={false}
+          onClick={() => {}}
+        />
+      );
+
+      expect(screen.queryByTestId('environment-badge')).not.toBeInTheDocument();
+    });
+
+    it('環境名がnullの場合、環境タイプがツールチップに表示される', () => {
+      const sessionWithTypeOnly = {
+        ...mockSession,
+        environment_type: 'DOCKER' as const,
+        environment_name: null,
+      };
+
+      render(
+        <SessionTreeItem
+          session={sessionWithTypeOnly}
+          isActive={false}
+          onClick={() => {}}
+        />
+      );
+
+      const badge = screen.getByTestId('environment-badge');
+      expect(badge).toHaveAttribute('title', 'DOCKER');
+    });
+  });
 });

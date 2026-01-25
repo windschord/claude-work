@@ -5,6 +5,20 @@ import { Trash2, GitPullRequest } from 'lucide-react';
 import { Session } from '@/store';
 import { SessionStatusIcon } from '@/components/sessions/SessionStatusIcon';
 
+/** 環境タイプに応じたバッジの色 */
+const environmentColors = {
+  HOST: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+  DOCKER: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+  SSH: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
+};
+
+/** 環境タイプの短縮表示 */
+const environmentLabels = {
+  HOST: 'H',
+  DOCKER: 'D',
+  SSH: 'S',
+};
+
 interface SessionTreeItemProps {
   /** セッション情報 */
   session: Session;
@@ -78,6 +92,20 @@ export function SessionTreeItem({ session, isActive, onClick, onDelete }: Sessio
       >
         <SessionStatusIcon status={session.status} />
         <span className="truncate text-sm flex-1">{session.name}</span>
+
+        {/* 動作環境バッジ */}
+        {session.environment_type && (
+          <span
+            data-testid="environment-badge"
+            className={`
+              px-1.5 py-0.5 text-xs font-medium rounded
+              ${environmentColors[session.environment_type]}
+            `}
+            title={session.environment_name || session.environment_type}
+          >
+            {environmentLabels[session.environment_type]}
+          </span>
+        )}
 
         {/* PR番号バッジ */}
         {session.pr_number && (
