@@ -164,13 +164,14 @@ describe('Terminal WebSocket', () => {
   });
 
   describe('terminalSessionId generation', () => {
-    it('should generate terminalSessionId with -terminal suffix', () => {
+    it('should generate terminalSessionId with TERMINAL_SESSION_SUFFIX constant', () => {
       const sessionId = 'test-session-123';
+      const TERMINAL_SESSION_SUFFIX = '-terminal';
       const expectedTerminalSessionId = 'test-session-123-terminal';
 
       // terminalSessionIdの生成ロジックをテスト
-      // 実際の実装: const terminalSessionId = `${sessionId}-terminal`;
-      const terminalSessionId = `${sessionId}-terminal`;
+      // 実際の実装: const terminalSessionId = `${sessionId}${TERMINAL_SESSION_SUFFIX}`;
+      const terminalSessionId = `${sessionId}${TERMINAL_SESSION_SUFFIX}`;
       expect(terminalSessionId).toBe(expectedTerminalSessionId);
     });
   });
@@ -264,6 +265,46 @@ describe('Terminal WebSocket', () => {
       ptyManager.kill(terminalSessionId);
 
       expect(ptyManager.kill).toHaveBeenCalledWith(terminalSessionId);
+    });
+  });
+
+  describe('adapter event handlers', () => {
+    it('should register data, exit, and error event handlers for adapter', async () => {
+      const { AdapterFactory } = await import('@/services/adapter-factory');
+
+      const adapter = AdapterFactory.getAdapter(mockDockerEnvironment);
+
+      // data, exit, error イベントを登録
+      const dataHandler = vi.fn();
+      const exitHandler = vi.fn();
+      const errorHandler = vi.fn();
+
+      adapter.on('data', dataHandler);
+      adapter.on('exit', exitHandler);
+      adapter.on('error', errorHandler);
+
+      expect(mockDockerAdapter.on).toHaveBeenCalledWith('data', dataHandler);
+      expect(mockDockerAdapter.on).toHaveBeenCalledWith('exit', exitHandler);
+      expect(mockDockerAdapter.on).toHaveBeenCalledWith('error', errorHandler);
+    });
+
+    it('should unregister all event handlers on cleanup', async () => {
+      const { AdapterFactory } = await import('@/services/adapter-factory');
+
+      const adapter = AdapterFactory.getAdapter(mockDockerEnvironment);
+
+      // イベントハンドラー解除
+      const dataHandler = vi.fn();
+      const exitHandler = vi.fn();
+      const errorHandler = vi.fn();
+
+      adapter.off('data', dataHandler);
+      adapter.off('exit', exitHandler);
+      adapter.off('error', errorHandler);
+
+      expect(mockDockerAdapter.off).toHaveBeenCalledWith('data', dataHandler);
+      expect(mockDockerAdapter.off).toHaveBeenCalledWith('exit', exitHandler);
+      expect(mockDockerAdapter.off).toHaveBeenCalledWith('error', errorHandler);
     });
   });
 });

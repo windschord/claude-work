@@ -51,6 +51,11 @@ export type TerminalServerMessage =
   | TerminalExitMessage
   | TerminalErrorMessage;
 
+/**
+ * Terminal セッションIDのサフィックス
+ * Claude WebSocketとの競合を避けるため、Terminal用のセッションIDにこのサフィックスを付加する
+ */
+const TERMINAL_SESSION_SUFFIX = '-terminal';
 
 /**
  * ターミナルWebSocketサーバーをセットアップ
@@ -94,8 +99,8 @@ export function setupTerminalWebSocket(
       }
 
       // Terminal用のセッションIDを生成（Claude PTYとの競合を避けるため）
-      // Claude WebSocketは sessionId を使用し、Terminal WebSocketは sessionId-terminal を使用
-      const terminalSessionId = `${sessionId}-terminal`;
+      // Claude WebSocketは sessionId を使用し、Terminal WebSocketは sessionId + TERMINAL_SESSION_SUFFIX を使用
+      const terminalSessionId = `${sessionId}${TERMINAL_SESSION_SUFFIX}`;
 
       // アダプター選択
       // environment_idがある場合は新方式（AdapterFactory経由）
@@ -197,6 +202,21 @@ export function setupTerminalWebSocket(
         }
       };
 
+      const adapterErrorHandler = (sid: string, error: Error) => {
+        if (sid === terminalSessionId && ws.readyState === WebSocket.OPEN) {
+          logger.error('Terminal WebSocket: Adapter error', {
+            sessionId,
+            terminalSessionId,
+            error: error.message,
+          });
+          const message: TerminalErrorMessage = {
+            type: 'error',
+            message: `Terminal error: ${error.message}`,
+          };
+          ws.send(JSON.stringify(message));
+        }
+      };
+
       // レガシー用（ptyManager）
       const legacyDataHandler = (sid: string, data: string) => {
         if (sid === terminalSessionId && ws.readyState === WebSocket.OPEN) {
@@ -230,6 +250,7 @@ export function setupTerminalWebSocket(
       } else {
         adapter!.on('data', adapterDataHandler);
         adapter!.on('exit', adapterExitHandler);
+        adapter!.on('error', adapterErrorHandler);
       }
 
       // WebSocket入力 → PTY
@@ -309,6 +330,7 @@ export function setupTerminalWebSocket(
         } else {
           adapter!.off('data', adapterDataHandler);
           adapter!.off('exit', adapterExitHandler);
+          adapter!.off('error', adapterErrorHandler);
           // アダプター経由でセッション終了
           if (adapter!.hasSession(terminalSessionId)) {
             adapter!.destroySession(terminalSessionId);
