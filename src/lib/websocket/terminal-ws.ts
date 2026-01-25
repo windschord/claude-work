@@ -142,7 +142,7 @@ export function setupTerminalWebSocket(
             ptyManager.createPTY(terminalSessionId, session.worktree_path);
           } else {
             // アダプター経由でシェルセッションを作成
-            adapter!.createSession(terminalSessionId, session.worktree_path, undefined, {
+            await adapter!.createSession(terminalSessionId, session.worktree_path, undefined, {
               shellMode: true,
             });
           }

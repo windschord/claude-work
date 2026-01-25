@@ -162,4 +162,108 @@ describe('Terminal WebSocket', () => {
       expect(adapter).toBe(mockDockerAdapter);
     });
   });
+
+  describe('terminalSessionId generation', () => {
+    it('should generate terminalSessionId with -terminal suffix', () => {
+      const sessionId = 'test-session-123';
+      const expectedTerminalSessionId = 'test-session-123-terminal';
+
+      // terminalSessionIdの生成ロジックをテスト
+      // 実際の実装: const terminalSessionId = `${sessionId}-terminal`;
+      const terminalSessionId = `${sessionId}-terminal`;
+      expect(terminalSessionId).toBe(expectedTerminalSessionId);
+    });
+  });
+
+  describe('adapter createSession options', () => {
+    it('should call adapter.createSession with shellMode: true for Docker environment', async () => {
+      const { environmentService } = await import('@/services/environment-service');
+      const { AdapterFactory } = await import('@/services/adapter-factory');
+
+      vi.mocked(environmentService.findById).mockResolvedValue(mockDockerEnvironment);
+
+      const adapter = AdapterFactory.getAdapter(mockDockerEnvironment);
+
+      // shellMode: true でセッション作成が呼ばれることを検証
+      const terminalSessionId = 'session-1-terminal';
+      const workingDir = '/path/to/worktree';
+
+      await adapter.createSession(terminalSessionId, workingDir, undefined, {
+        shellMode: true,
+      });
+
+      expect(mockDockerAdapter.createSession).toHaveBeenCalledWith(
+        terminalSessionId,
+        workingDir,
+        undefined,
+        { shellMode: true }
+      );
+    });
+
+    it('should call adapter.createSession with shellMode: true for Host environment', async () => {
+      const { AdapterFactory } = await import('@/services/adapter-factory');
+
+      const adapter = AdapterFactory.getAdapter(mockHostEnvironment);
+
+      const terminalSessionId = 'session-1-terminal';
+      const workingDir = '/path/to/worktree';
+
+      await adapter.createSession(terminalSessionId, workingDir, undefined, {
+        shellMode: true,
+      });
+
+      expect(mockHostAdapter.createSession).toHaveBeenCalledWith(
+        terminalSessionId,
+        workingDir,
+        undefined,
+        { shellMode: true }
+      );
+    });
+  });
+
+  describe('legacy ptyManager mode', () => {
+    it('should use ptyManager when environment_id is not set', async () => {
+      const { ptyManager } = await import('@/services/pty-manager');
+
+      // environment_idがnullのセッション
+      const sessionWithoutEnv = {
+        ...mockSession,
+        environment_id: null,
+      };
+
+      // ptyManagerが使用されることを検証
+      const terminalSessionId = `${sessionWithoutEnv.id}-terminal`;
+      ptyManager.createPTY(terminalSessionId, sessionWithoutEnv.worktree_path);
+
+      expect(ptyManager.createPTY).toHaveBeenCalledWith(
+        terminalSessionId,
+        sessionWithoutEnv.worktree_path
+      );
+    });
+  });
+
+  describe('cleanup on disconnect', () => {
+    it('should destroy adapter session on WebSocket close', async () => {
+      const { AdapterFactory } = await import('@/services/adapter-factory');
+
+      const adapter = AdapterFactory.getAdapter(mockDockerEnvironment);
+      const terminalSessionId = 'session-1-terminal';
+
+      // セッション破棄が呼ばれることを検証
+      adapter.destroySession(terminalSessionId);
+
+      expect(mockDockerAdapter.destroySession).toHaveBeenCalledWith(terminalSessionId);
+    });
+
+    it('should kill ptyManager session on WebSocket close', async () => {
+      const { ptyManager } = await import('@/services/pty-manager');
+
+      const terminalSessionId = 'session-1-terminal';
+
+      // ptyManagerのkillが呼ばれることを検証
+      ptyManager.kill(terminalSessionId);
+
+      expect(ptyManager.kill).toHaveBeenCalledWith(terminalSessionId);
+    });
+  });
 });

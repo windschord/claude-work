@@ -488,12 +488,13 @@ sequenceDiagram
     participant ES as Environment Service
     participant AF as Adapter Factory
     participant DA as Docker Adapter
-    participant HA as Host Adapter
+    participant PM as PTY Manager
     participant Docker as Docker Container
     participant Host as Host Shell
 
-    Client->>TWS: WebSocket接続
+    Client->>TWS: WebSocket接続(/ws/terminal/:sessionId)
     TWS->>TWS: セッション取得
+    TWS->>TWS: terminalSessionId = sessionId + "-terminal"
 
     alt environment_id が指定されている
         TWS->>ES: findById(environment_id)
@@ -502,24 +503,24 @@ sequenceDiagram
 
         alt environment.type === 'DOCKER'
             AF-->>TWS: DockerAdapter
-            TWS->>DA: createSession(sessionId, workingDir)
-            Note over DA: --entrypoint /bin/sh
-            DA->>Docker: docker run ... /bin/sh
+            TWS->>DA: createSession(terminalSessionId, workingDir, shellMode: true)
+            Note over DA: 親セッション(Claude)のコンテナを取得
+            DA->>Docker: docker exec -it containerName bash
             Docker-->>DA: PTY出力
             DA-->>TWS: emit('data', output)
         else environment.type === 'HOST'
             AF-->>TWS: HostAdapter
-            TWS->>HA: createSession(sessionId, workingDir)
-            HA->>Host: pty.spawn('/bin/bash')
-            Host-->>HA: PTY出力
-            HA-->>TWS: emit('data', output)
+            TWS->>DA: createSession(terminalSessionId, workingDir, shellMode: true)
+            DA->>Host: pty.spawn('/bin/bash')
+            Host-->>DA: PTY出力
+            DA-->>TWS: emit('data', output)
         end
     else environment_id が未指定
-        TWS->>ES: getDefault()
-        ES-->>TWS: default environment (HOST)
-        TWS->>AF: getAdapter(defaultEnv)
-        AF-->>TWS: HostAdapter
-        TWS->>HA: createSession(...)
+        Note over TWS: レガシーモード（ptyManager直接使用）
+        TWS->>PM: createPTY(terminalSessionId, workingDir)
+        PM->>Host: pty.spawn('/bin/bash')
+        Host-->>PM: PTY出力
+        PM-->>TWS: emit('data', output)
     end
 
     TWS-->>Client: PTY出力転送
