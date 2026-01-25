@@ -55,7 +55,7 @@ test.describe('テーマ切り替え機能', () => {
     expect(afterClickTheme).not.toBe(initialTheme);
   });
 
-  test('テーマを3回切り替えると light -> dark -> system の順で変わる', async ({ page }) => {
+  test('テーマを3回切り替えると毎回テーマが変わる', async ({ page }) => {
     const themeToggle = page.getByLabel('Toggle theme');
     await themeToggle.waitFor({ state: 'visible', timeout: 5000 });
 
