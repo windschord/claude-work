@@ -18,6 +18,21 @@ vi.mock('../../claude-pty-manager', () => ({
   },
 }));
 
+// pty-managerのモック（shellMode用）
+vi.mock('../../pty-manager', () => ({
+  ptyManager: {
+    createPTY: vi.fn(),
+    write: vi.fn(),
+    resize: vi.fn(),
+    kill: vi.fn(),
+    hasSession: vi.fn(),
+    on: vi.fn(),
+    off: vi.fn(),
+    emit: vi.fn(),
+    removeListener: vi.fn(),
+  },
+}));
+
 // loggerのモック
 vi.mock('@/lib/logger', () => ({
   logger: {
@@ -30,6 +45,7 @@ vi.mock('@/lib/logger', () => ({
 
 import { HostAdapter } from '../host-adapter';
 import { claudePtyManager } from '../../claude-pty-manager';
+import { ptyManager } from '../../pty-manager';
 
 // モックの型
 interface MockClaudePtyManager {
@@ -45,7 +61,20 @@ interface MockClaudePtyManager {
   removeListener: Mock;
 }
 
+interface MockPtyManager {
+  createPTY: Mock;
+  write: Mock;
+  resize: Mock;
+  kill: Mock;
+  hasSession: Mock;
+  on: Mock;
+  off: Mock;
+  emit: Mock;
+  removeListener: Mock;
+}
+
 const mockClaudePtyManager = claudePtyManager as unknown as MockClaudePtyManager;
+const mockPtyManager = ptyManager as unknown as MockPtyManager;
 
 describe('HostAdapter', () => {
   let hostAdapter: HostAdapter;
@@ -280,6 +309,91 @@ describe('HostAdapter', () => {
       expect(typeof hostAdapter.emit).toBe('function');
       expect(typeof hostAdapter.removeListener).toBe('function');
       expect(typeof hostAdapter.removeAllListeners).toBe('function');
+    });
+  });
+
+  describe('shellMode', () => {
+    beforeEach(() => {
+      // ptyManagerのモックをリセット
+      mockPtyManager.on.mockImplementation(() => mockPtyManager);
+      mockPtyManager.hasSession.mockReturnValue(false);
+    });
+
+    it('should use ptyManager when shellMode is true', () => {
+      hostAdapter.createSession('session-1', '/path/to/work', undefined, {
+        shellMode: true,
+      });
+
+      // ptyManager.createPTYが呼ばれる
+      expect(mockPtyManager.createPTY).toHaveBeenCalledWith('session-1', '/path/to/work');
+      // claudePtyManagerは呼ばれない
+      expect(mockClaudePtyManager.createSession).not.toHaveBeenCalled();
+    });
+
+    it('should use claudePtyManager when shellMode is false', () => {
+      hostAdapter.createSession('session-1', '/path/to/work', undefined, {
+        shellMode: false,
+      });
+
+      // claudePtyManagerが呼ばれる
+      expect(mockClaudePtyManager.createSession).toHaveBeenCalled();
+      // ptyManagerは呼ばれない
+      expect(mockPtyManager.createPTY).not.toHaveBeenCalled();
+    });
+
+    it('should use claudePtyManager when shellMode is not specified', () => {
+      hostAdapter.createSession('session-1', '/path/to/work');
+
+      // claudePtyManagerが呼ばれる
+      expect(mockClaudePtyManager.createSession).toHaveBeenCalled();
+      // ptyManagerは呼ばれない
+      expect(mockPtyManager.createPTY).not.toHaveBeenCalled();
+    });
+
+    it('should delegate write to ptyManager for shell sessions', () => {
+      // shellModeでセッション作成
+      hostAdapter.createSession('session-1', '/path/to/work', undefined, {
+        shellMode: true,
+      });
+
+      hostAdapter.write('session-1', 'test input');
+
+      expect(mockPtyManager.write).toHaveBeenCalledWith('session-1', 'test input');
+    });
+
+    it('should delegate resize to ptyManager for shell sessions', () => {
+      // shellModeでセッション作成
+      hostAdapter.createSession('session-1', '/path/to/work', undefined, {
+        shellMode: true,
+      });
+
+      hostAdapter.resize('session-1', 120, 40);
+
+      expect(mockPtyManager.resize).toHaveBeenCalledWith('session-1', 120, 40);
+    });
+
+    it('should delegate destroySession to ptyManager.kill for shell sessions', () => {
+      // shellModeでセッション作成
+      hostAdapter.createSession('session-1', '/path/to/work', undefined, {
+        shellMode: true,
+      });
+
+      hostAdapter.destroySession('session-1');
+
+      expect(mockPtyManager.kill).toHaveBeenCalledWith('session-1');
+    });
+
+    it('should check ptyManager for shell session existence', () => {
+      // shellModeでセッション作成
+      hostAdapter.createSession('session-1', '/path/to/work', undefined, {
+        shellMode: true,
+      });
+      mockPtyManager.hasSession.mockReturnValue(true);
+
+      const result = hostAdapter.hasSession('session-1');
+
+      expect(mockPtyManager.hasSession).toHaveBeenCalledWith('session-1');
+      expect(result).toBe(true);
     });
   });
 });
