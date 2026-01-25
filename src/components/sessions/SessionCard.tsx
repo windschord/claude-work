@@ -6,6 +6,7 @@ import { Session, useAppStore } from '@/store';
 import { SessionStatusIcon } from './SessionStatusIcon';
 import { GitStatusBadge } from './GitStatusBadge';
 import { DeleteSessionDialog } from './DeleteSessionDialog';
+import { EnvironmentBadge } from './EnvironmentBadge';
 
 interface SessionCardProps {
   session: Session;
@@ -75,11 +76,7 @@ export function SessionCard({ session, onClick }: SessionCardProps) {
         <div className="flex items-start justify-between mb-2">
           <div className="flex items-center gap-2">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{session.name}</h3>
-            {session.docker_mode && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                Docker
-              </span>
-            )}
+            <EnvironmentBadge session={session} />
           </div>
           <div className="flex items-center gap-2">
             <button

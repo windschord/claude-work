@@ -21,6 +21,20 @@ model Project {
   scripts       RunScript[]
 }
 
+model ExecutionEnvironment {
+  id            String   @id @default(uuid())
+  name          String   // 表示名（例: "Docker Dev", "Production Server"）
+  type          String   // 'HOST' | 'DOCKER' | 'SSH'
+  description   String?  // 環境の説明
+  config        String   // JSON形式の設定（type固有）
+  auth_dir_path String?  // Docker用認証情報ディレクトリ（data/environments/<id>/）
+  is_default    Boolean  @default(false) // デフォルト環境フラグ
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  sessions      Session[]
+}
+
 model Session {
   id                 String    @id @default(uuid())
   project_id         String
@@ -36,10 +50,12 @@ model Session {
   pr_updated_at      DateTime? // 最終PR情報更新日時
   docker_mode        Boolean   @default(false) // Dockerコンテナ内でClaude Codeを実行
   container_id       String?   // 実行中のDockerコンテナID
+  environment_id     String?   // 実行環境への参照
   created_at         DateTime  @default(now())
   updated_at         DateTime  @updatedAt
 
   project            Project   @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  environment        ExecutionEnvironment? @relation(fields: [environment_id], references: [id], onDelete: SetNull)
   messages           Message[]
 }
 

@@ -13,6 +13,7 @@ import {
   getProcessLifecycleManager,
   ProcessLifecycleManager,
 } from './src/services/process-lifecycle-manager';
+import { environmentService } from './src/services/environment-service';
 
 // 環境変数を.envファイルから明示的にロード（PM2で設定されている場合はそちらを優先）
 const dotenvResult = dotenv.config();
@@ -210,12 +211,21 @@ app.prepare().then(() => {
   });
 
   // サーバー起動
-  server.listen(port, () => {
+  server.listen(port, async () => {
     logger.info('Server started', {
       url: `http://${hostname}:${port}`,
       environment: dev ? 'development' : 'production',
     });
     console.log(`> Ready on http://${hostname}:${port}`);
+
+    // デフォルト環境の初期化（TASK-EE-016）
+    try {
+      await environmentService.ensureDefaultExists();
+      logger.info('Default environment initialized');
+    } catch (error) {
+      logger.error('Failed to initialize default environment', { error });
+      // デフォルト環境の初期化失敗はクリティカルではないため、サーバーは継続
+    }
 
     // アイドルタイムアウトチェッカーを開始
     const idleTimeoutMinutes = ProcessLifecycleManager.getIdleTimeoutMinutes();

@@ -37,8 +37,8 @@ export function DeleteSessionButton({ session, className }: DeleteSessionButtonP
     try {
       await deleteSession(session.id);
       setIsDeleteDialogOpen(false);
-      // プロジェクトページにリダイレクト
-      router.push(`/projects/${session.project_id}`);
+      // プロジェクト一覧ページにリダイレクト
+      router.push('/projects');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'セッションの削除に失敗しました';
       setDeleteError(errorMessage);

@@ -30,7 +30,8 @@
     "pm2:delete": "pm2 delete ecosystem.config.js",
     "pm2:status": "pm2 status",
     "pm2:logs": "pm2 logs",
-    "pm2:monit": "pm2 monit"
+    "pm2:monit": "pm2 monit",
+    "db:migrate-environments": "npx ts-node -r tsconfig-paths/register prisma/seed-environments.ts"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.9",

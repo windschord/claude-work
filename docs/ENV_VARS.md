@@ -93,11 +93,31 @@ ClaudeWork で使用可能な環境変数の一覧です。
 
 ### DOCKER_ENABLED
 
-- **説明**: Docker統合機能の有効/無効
+- **説明**: Docker統合機能の有効/無効（レガシー設定）
 - **形式**: `true` | `false`
 - **例**: `DOCKER_ENABLED=true`
 - **デフォルト**: `true`
-- **備考**: `false`に設定すると、Dockerモードのセッション作成が無効になります。
+- **備考**: `false`に設定すると、レガシーDockerモードのセッション作成が無効になります。新しい実行環境機能では、環境ごとにDocker利用の有無を設定できます。
+
+## 実行環境関連
+
+### 概要
+
+実行環境機能では、Claude Codeをローカル（HOST）、Docker、SSH（未実装）で実行できます。各環境は独立した認証情報を持ち、セッションごとに実行環境を選択できます。
+
+### 認証ディレクトリ
+
+Docker環境では、環境ごとに独立した認証ディレクトリが作成されます:
+- パス: `data/environments/<environment-id>/`
+- サブディレクトリ:
+  - `claude/`: Claude認証情報
+  - `config/claude/`: Claude設定ファイル
+
+### 注意事項
+
+- レガシーの`dockerMode`パラメータは非推奨です。新しい`environment_id`パラメータを使用してください
+- デフォルトHOST環境はサーバー起動時に自動作成されます
+- 既存の`docker_mode=true`セッションは、マイグレーションスクリプト（`npm run db:migrate-environments`）でレガシーDocker環境に移行できます
 
 ## 設定例
 
