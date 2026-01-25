@@ -357,6 +357,175 @@ type SessionStatus =
 
 **実装場所**: `src/services/pty-manager.ts`（node-ptyライブラリ使用）
 
+#### コンポーネント: Execution Environment Service
+
+**目的**: 実行環境（HOST/DOCKER/SSH）の管理
+
+**責務**:
+- 実行環境のCRUD操作
+- デフォルト環境の管理
+- 環境ごとの認証ディレクトリ管理
+- Docker環境のステータス確認
+
+**実装場所**: `src/services/environment-service.ts`
+
+**環境タイプ**:
+
+| タイプ | 説明 | 認証情報 |
+|--------|------|----------|
+| HOST | ローカルマシンで直接実行 | ホストの認証情報を共有 |
+| DOCKER | Dockerコンテナ内で実行 | 環境専用ディレクトリに隔離 |
+| SSH | リモートマシンで実行（未実装） | - |
+
+#### コンポーネント: Environment Adapter
+
+**目的**: 実行環境の抽象化とPTY操作の統一インターフェース提供
+
+**責務**:
+- 環境タイプに依存しないPTY操作の提供
+- セッションのライフサイクル管理
+- 入出力イベントの統一的な発行
+
+**実装場所**: `src/services/environment-adapter.ts`
+
+**インターフェース**:
+```typescript
+interface EnvironmentAdapter extends EventEmitter {
+  createSession(sessionId: string, workingDir: string, initialPrompt?: string, options?: CreateSessionOptions): Promise<void>;
+  write(sessionId: string, data: string): void;
+  resize(sessionId: string, cols: number, rows: number): void;
+  destroySession(sessionId: string): void;
+  restartSession(sessionId: string): void;
+  hasSession(sessionId: string): boolean;
+  getWorkingDir(sessionId: string): string | undefined;
+
+  // イベント: 'data', 'exit', 'error', 'claudeSessionId'
+}
+```
+
+#### コンポーネント: Host Adapter
+
+**目的**: ホスト環境でのClaude Code/シェル実行
+
+**責務**:
+- ローカルPTYプロセスの管理
+- ClaudePTYManagerのラッパー
+- ホスト認証情報の継承
+
+**実装場所**: `src/services/adapters/host-adapter.ts`
+
+#### コンポーネント: Docker Adapter
+
+**目的**: Docker環境でのClaude Code/シェル実行
+
+**責務**:
+- Dockerコンテナの起動・管理
+- 環境専用認証ディレクトリのマウント
+- ワークスペースのマウント
+- コンテナ内PTYの管理
+
+**実装場所**: `src/services/adapters/docker-adapter.ts`
+
+**Docker実行構成**:
+```bash
+docker run -it --rm \
+  --cap-drop ALL \
+  --security-opt no-new-privileges \
+  -v /worktrees/session-xxx:/workspace \
+  -v /data/environments/{env-id}/claude:/home/node/.claude \
+  -v /data/environments/{env-id}/config/claude:/home/node/.config/claude \
+  -v ~/.ssh:/home/node/.ssh:ro \
+  -v ~/.gitconfig:/home/node/.gitconfig:ro \
+  --entrypoint claude \
+  {image}:{tag}
+```
+
+**シェル実行時（Terminal WebSocket用）**:
+```bash
+docker run -it --rm \
+  ... (同様のマウント構成) ...
+  --entrypoint /bin/sh \
+  {image}:{tag}
+```
+
+#### コンポーネント: Adapter Factory
+
+**目的**: 環境タイプに応じたアダプターの生成・キャッシュ
+
+**責務**:
+- 環境設定からアダプターを生成
+- アダプターインスタンスのキャッシュ管理
+- シングルトンパターンの適用
+
+**実装場所**: `src/services/adapter-factory.ts`
+
+### WebSocket環境対応
+
+#### Claude WebSocket (`/ws/claude/:id`)
+
+**環境切替ロジック**:
+1. `session.environment_id`が指定 → AdapterFactory経由でアダプター取得
+2. `session.docker_mode=true`（レガシー） → claudePtyManager直接使用
+3. 未指定 → デフォルト環境のアダプター使用
+
+**実装場所**: `src/lib/websocket/claude-ws.ts`
+
+#### Terminal WebSocket (`/ws/terminal/:id`)
+
+**環境切替ロジック**:
+1. `session.environment_id`が指定 → AdapterFactory経由でアダプター取得
+2. Docker環境 → `--entrypoint /bin/sh`でコンテナ内シェルを起動
+3. HOST環境 → ptyManagerでホストシェルを起動
+
+**実装場所**: `src/lib/websocket/terminal-ws.ts`
+
+**シーケンス図: Terminal WebSocketの環境切替**:
+
+```mermaid
+sequenceDiagram
+    participant Client as ブラウザ
+    participant TWS as Terminal WebSocket
+    participant ES as Environment Service
+    participant AF as Adapter Factory
+    participant DA as Docker Adapter
+    participant PM as PTY Manager
+    participant Docker as Docker Container
+    participant Host as Host Shell
+
+    Client->>TWS: WebSocket接続(/ws/terminal/:sessionId)
+    TWS->>TWS: セッション取得
+    TWS->>TWS: terminalSessionId = sessionId + "-terminal"
+
+    alt environment_id が指定されている
+        TWS->>ES: findById(environment_id)
+        ES-->>TWS: environment
+        TWS->>AF: getAdapter(environment)
+
+        alt environment.type === 'DOCKER'
+            AF-->>TWS: DockerAdapter
+            TWS->>DA: createSession(terminalSessionId, workingDir, shellMode: true)
+            Note over DA: 親セッション(Claude)のコンテナを取得
+            DA->>Docker: docker exec -it containerName bash
+            Docker-->>DA: PTY出力
+            DA-->>TWS: emit('data', output)
+        else environment.type === 'HOST'
+            AF-->>TWS: HostAdapter
+            TWS->>DA: createSession(terminalSessionId, workingDir, shellMode: true)
+            DA->>Host: pty.spawn('/bin/bash')
+            Host-->>DA: PTY出力
+            DA-->>TWS: emit('data', output)
+        end
+    else environment_id が未指定
+        Note over TWS: レガシーモード（ptyManager直接使用）
+        TWS->>PM: createPTY(terminalSessionId, workingDir)
+        PM->>Host: pty.spawn('/bin/bash')
+        Host-->>PM: PTY出力
+        PM-->>TWS: emit('data', output)
+    end
+
+    TWS-->>Client: PTY出力転送
+```
+
 #### コンポーネント: Environment Validator
 
 **目的**: サーバー起動時の環境検証

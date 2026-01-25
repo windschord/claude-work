@@ -65,6 +65,7 @@
 | Phase 42 | セッション操作後のUI自動更新 | 完了 |
 | Phase 43 | UX改善機能（ターミナルリサイズ、Tree表示等） | 完了 |
 | Phase 45 | 認証機能の削除 | 完了 |
+| Phase 47 | Terminal WebSocketのDocker環境対応 | 完了 |
 
 ---
 
@@ -580,6 +581,205 @@
 **依存関係**: タスク44.1〜44.14
 **推定工数**: 60分
 **ステータス**: `TODO`
+
+---
+
+## Phase 47: Terminal WebSocketのDocker環境対応
+
+**推定期間**: 3時間（AIエージェント作業時間）
+
+**関連設計**: docs/design.md - Terminal WebSocket環境切替セクション
+
+### 概要
+
+Terminal WebSocketが常にHOST環境（ptyManager）を使用している問題を修正し、Claude WebSocketと同様にセッションの実行環境設定に応じてアダプターを切り替える。
+
+**問題**:
+- Terminal WebSocketは常にptyManager（HOST）を使用
+- Docker環境のセッションでもホスト側シェルが開いてしまう
+- Claude WebSocketとの不一致
+
+**解決策**:
+- Terminal WebSocketにclaude-ws.tsと同様のアダプター切替パターンを適用
+- Docker環境の場合は`docker exec`で既存コンテナにbashシェルを起動
+
+### 変更サマリ
+
+| カテゴリ | 対象 | 数量 |
+|---------|------|------|
+| 修正ファイル | terminal-ws.ts, docker-adapter.ts, host-adapter.ts, environment-adapter.ts, docker/Dockerfile | 5 |
+| 新規/修正テスト | terminal-ws.test.ts, docker-adapter.test.ts, host-adapter.test.ts | 3 |
+
+---
+
+### フェーズ1: DockerAdapterのシェル対応
+
+#### タスク47.1: DockerAdapterにシェルモードを追加
+
+**説明**:
+- `CreateSessionOptions`にシェルモード用オプションを追加
+- `docker exec`で既存コンテナにbashシェルを起動するロジックを追加
+
+**対象ファイル**:
+- `src/services/environment-adapter.ts`
+- `src/services/adapters/docker-adapter.ts`
+
+**技術的文脈**:
+- 現在のDockerAdapterは`docker run --entrypoint claude`でClaude Codeを起動
+- シェルモードでは`docker exec`で既存コンテナにbashシェルを接続
+- Claudeと同一コンテナでコマンド実行が可能
+- initialPromptは不要（シェルでは使わない）
+
+**情報の明確性**:
+
+| 分類 | 内容 |
+|------|------|
+| 明示された情報 | シェルモード時はdocker execでbashを起動 |
+| 不明/要確認の情報 | なし |
+
+**実装手順（TDD）**:
+1. テスト作成: `docker-adapter.test.ts`にシェルモードテストを追加
+2. テスト実行: 失敗を確認
+3. テストコミット
+4. 実装: `CreateSessionOptions`に`shellMode: boolean`を追加
+5. 実装: shellMode時に`docker exec`でbashを起動
+6. 実装コミット
+
+**受入基準**:
+- [x] `CreateSessionOptions`に`shellMode?: boolean`が追加されている
+- [x] shellMode=trueの場合、`docker exec`でbashが起動される
+- [x] shellMode=falseまたは未指定の場合、`docker run --entrypoint claude`が使用される
+- [x] テストが追加されている
+
+**依存関係**: なし
+**推定工数**: 30分
+**ステータス**: `DONE`
+
+---
+
+### フェーズ2: Terminal WebSocketのアダプター対応
+
+#### タスク47.2: Terminal WebSocketに環境取得ロジックを追加
+
+**説明**:
+- セッションの`environment_id`を確認
+- `environmentService`と`AdapterFactory`をインポート
+- 環境タイプに応じたアダプター取得
+
+**対象ファイル**:
+- `src/lib/websocket/terminal-ws.ts`
+
+**技術的文脈**:
+- claude-ws.tsの環境切替ロジックを参考に実装
+- HostAdapter使用時は既存のptyManagerをラップ
+- DockerAdapter使用時はshellMode=trueでセッション作成
+
+**情報の明確性**:
+
+| 分類 | 内容 |
+|------|------|
+| 明示された情報 | claude-ws.tsと同様のパターンを適用 |
+| 不明/要確認の情報 | なし |
+
+**実装手順（TDD）**:
+1. テスト作成: `terminal-ws.test.ts`に環境切替テストを追加
+2. テスト実行: 失敗を確認
+3. テストコミット
+4. 実装: 環境取得ロジックを追加
+5. 実装: アダプター切替を実装
+6. 実装コミット
+
+**受入基準**:
+- [x] Docker環境のセッションでDockerAdapterが使用される
+- [x] HOST環境のセッションでptyManagerが使用される
+- [x] 環境未指定時はデフォルト環境（HOST）が使用される
+- [x] テストが追加されている
+
+**依存関係**: タスク47.1
+**推定工数**: 45分
+**ステータス**: `DONE`
+
+---
+
+#### タスク47.3: HostAdapterのシェルモード対応
+
+**説明**:
+- HostAdapterがシェルセッションを作成できるようにする
+- ptyManagerをラップして統一インターフェースを提供
+
+**対象ファイル**:
+- `src/services/adapters/host-adapter.ts`
+
+**技術的文脈**:
+- 現在のHostAdapterはclaudePtyManagerをラップ
+- シェルモード用にptyManagerもラップする必要がある
+- またはTerminal用に別のメソッドを追加
+
+**情報の明確性**:
+
+| 分類 | 内容 |
+|------|------|
+| 明示された情報 | HostAdapterでもシェルセッションを作成可能にする |
+| 不明/要確認の情報 | なし |
+
+**実装手順（TDD）**:
+1. テスト作成: `host-adapter.test.ts`にシェルモードテストを追加
+2. テスト実行: 失敗を確認
+3. テストコミット
+4. 実装: shellMode時にptyManagerを使用
+5. 実装コミット
+
+**受入基準**:
+- [x] shellMode=trueの場合、ptyManagerでシェルを起動
+- [x] shellMode=falseの場合、claudePtyManagerでClaude Codeを起動
+- [x] テストが追加されている
+
+**依存関係**: タスク47.1
+**推定工数**: 30分
+**ステータス**: `DONE`
+
+---
+
+### フェーズ3: 統合テスト
+
+#### タスク47.4: 環境切替の統合テスト
+
+**説明**:
+- Docker環境とHOST環境での動作確認
+- Terminal WebSocketの接続・入出力テスト
+
+**対象ファイル**:
+- `src/lib/websocket/__tests__/terminal-ws.test.ts`
+
+**技術的文脈**:
+- モック環境でのテスト
+- 実際のDockerコンテナは使用しない（ユニットテスト）
+
+**情報の明確性**:
+
+| 分類 | 内容 |
+|------|------|
+| 明示された情報 | ユニットテストでモックを使用 |
+| 不明/要確認の情報 | なし |
+
+**受入基準**:
+- [x] Docker環境セッションでDockerAdapterが選択されることをテスト
+- [x] HOST環境セッションでptyManagerが選択されることをテスト
+- [x] 全テストがパス
+
+**依存関係**: タスク47.2, タスク47.3
+**推定工数**: 45分
+**ステータス**: `DONE`
+
+---
+
+### リスクと軽減策
+
+| リスク | 影響度 | 確率 | 軽減策 |
+|--------|--------|------|--------|
+| DockerAdapterのシェル起動が失敗 | 中 | 低 | 手動でdocker runコマンドをテスト |
+| 既存のTerminal機能への影響 | 高 | 低 | HOST環境のテストを優先実施 |
+| アダプター切替のタイミング問題 | 中 | 中 | claude-ws.tsの実装パターンを踏襲 |
 
 ---
 

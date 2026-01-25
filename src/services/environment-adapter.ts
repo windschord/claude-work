@@ -5,6 +5,8 @@ import { EventEmitter } from 'events';
  */
 export interface CreateSessionOptions {
   resumeSessionId?: string;
+  /** シェルモード（Terminal用）: trueの場合、Claude Codeではなくシェルを起動 */
+  shellMode?: boolean;
 }
 
 /**

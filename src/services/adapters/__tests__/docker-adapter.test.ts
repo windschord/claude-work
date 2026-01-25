@@ -115,8 +115,8 @@ describe('DockerAdapter', () => {
           '-v', `${workingDir}:/workspace`,
           '-v', '/data/environments/env-123-456/claude:/home/node/.claude',
           '-v', '/data/environments/env-123-456/config/claude:/home/node/.config/claude',
+          '--entrypoint', 'claude',
           'claude-code-env:v1.0',
-          'claude',
         ]),
         expect.objectContaining({
           name: 'xterm-256color',
@@ -373,6 +373,115 @@ describe('DockerAdapter', () => {
       expect(adapter).toBeInstanceOf(EventEmitter);
       expect(typeof adapter.on).toBe('function');
       expect(typeof adapter.emit).toBe('function');
+    });
+  });
+
+  describe('shellMode', () => {
+    const parentSessionId = 'session-parent-123';
+    const terminalSessionId = 'session-parent-123-terminal';
+    const workingDir = '/projects/my-project';
+
+    it('should use docker exec to attach to existing container when shellMode is true', async () => {
+      // 親セッション（Claude）を作成
+      await adapter.createSession(parentSessionId, workingDir);
+      mockSpawn.mockClear();
+
+      // シェルセッション（-terminal サフィックス付き）を作成
+      await adapter.createSession(terminalSessionId, workingDir, undefined, {
+        shellMode: true,
+      });
+
+      // docker exec が呼ばれることを確認
+      expect(mockSpawn).toHaveBeenCalledWith(
+        'docker',
+        expect.arrayContaining(['exec', '-it']),
+        expect.any(Object),
+      );
+
+      // docker run ではなく exec が使われている
+      const spawnCall = mockSpawn.mock.calls[0];
+      const args = spawnCall[1] as string[];
+      expect(args[0]).toBe('exec');
+      expect(args).toContain('bash');
+    });
+
+    it('should throw error when shellMode is true but no parent container exists', async () => {
+      const errorListener = vi.fn();
+      adapter.on('error', errorListener);
+
+      // 親セッションなしでシェルセッションを作成
+      await expect(
+        adapter.createSession('orphan-session-terminal', workingDir, undefined, {
+          shellMode: true,
+        })
+      ).rejects.toThrow();
+
+      // エラーイベントが発行されることを確認
+      expect(errorListener).toHaveBeenCalledWith(
+        'orphan-session-terminal',
+        expect.objectContaining({
+          message: expect.stringContaining('No parent container found'),
+        })
+      );
+    });
+
+    it('should use --entrypoint claude when shellMode is false', async () => {
+      await adapter.createSession(parentSessionId, workingDir, undefined, {
+        shellMode: false,
+      });
+
+      const spawnCall = mockSpawn.mock.calls[0];
+      const args = spawnCall[1] as string[];
+      const entrypointIndex = args.indexOf('--entrypoint');
+      expect(args[entrypointIndex + 1]).toBe('claude');
+    });
+
+    it('should use --entrypoint claude when shellMode is not specified', async () => {
+      await adapter.createSession(parentSessionId, workingDir);
+
+      const spawnCall = mockSpawn.mock.calls[0];
+      const args = spawnCall[1] as string[];
+      const entrypointIndex = args.indexOf('--entrypoint');
+      expect(args[entrypointIndex + 1]).toBe('claude');
+    });
+
+    it('should not send initial prompt in shellMode (exec session)', async () => {
+      vi.useFakeTimers();
+
+      // 親セッションを作成
+      await adapter.createSession(parentSessionId, workingDir);
+      mockPty.write.mockClear();
+
+      // シェルセッションを作成
+      await adapter.createSession(terminalSessionId, workingDir, 'Initial task', {
+        shellMode: true,
+      });
+
+      vi.advanceTimersByTime(3000);
+
+      // shellModeでは初期プロンプトを送信しない（cd /workspace のみ）
+      const writeCalls = mockPty.write.mock.calls;
+      const hasInitialTask = writeCalls.some((call: string[]) => call[0].includes('Initial task'));
+      expect(hasInitialTask).toBe(false);
+
+      vi.useRealTimers();
+    });
+
+    it('should not extract Claude session ID in shellMode (exec session)', async () => {
+      const claudeSessionIdListener = vi.fn();
+      adapter.on('claudeSessionId', claudeSessionIdListener);
+
+      // 親セッションを作成
+      await adapter.createSession(parentSessionId, workingDir);
+
+      // シェルセッションを作成
+      await adapter.createSession(terminalSessionId, workingDir, undefined, {
+        shellMode: true,
+      });
+      dataHandler('Starting session: abc-def-123');
+
+      // shellModeではClaudeセッションID抽出をスキップ
+      expect(claudeSessionIdListener).not.toHaveBeenCalled();
     });
   });
 });

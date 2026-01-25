@@ -21,6 +21,7 @@ interface DockerSession {
   claudeSessionId?: string;
   errorBuffer: string;
   hasReceivedOutput: boolean;
+  shellMode: boolean;
 }
 
 /**
@@ -99,16 +100,107 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
       args.push('-e', 'ANTHROPIC_API_KEY');
     }
 
+    // シェルモードの場合は/bin/sh、それ以外はclaude
+    const entrypoint = options?.shellMode ? '/bin/sh' : 'claude';
+    args.push('--entrypoint', entrypoint);
+
     // イメージ
     args.push(`${this.config.imageName}:${this.config.imageTag}`);
 
-    // claudeコマンド
-    args.push('claude');
-    if (options?.resumeSessionId) {
+    // claudeコマンドの引数（--entrypoint使用時はイメージ名の後に引数を指定）
+    // シェルモードでは--resumeフラグは不要
+    if (!options?.shellMode && options?.resumeSessionId) {
       args.push('--resume', options.resumeSessionId);
     }
 
     return { args, containerName };
+  }
+
+  /**
+   * 親セッションIDを取得（-terminal サフィックスを除去）
+   */
+  private getParentSessionId(sessionId: string): string | null {
+    if (sessionId.endsWith('-terminal')) {
+      return sessionId.slice(0, -'-terminal'.length);
+    }
+    return null;
+  }
+
+  /**
+   * 親セッション（Claude）のコンテナ名を取得
+   */
+  private getParentContainerName(sessionId: string): string | null {
+    const parentId = this.getParentSessionId(sessionId);
+    if (parentId) {
+      const parentSession = this.sessions.get(parentId);
+      if (parentSession) {
+        return parentSession.containerId;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * docker exec でシェルセッションを作成
+   */
+  private async createExecSession(
+    sessionId: string,
+    containerName: string,
+    workingDir: string
+  ): Promise<void> {
+    // -it オプションでインタラクティブモードとTTYを有効化
+    // -w オプションで作業ディレクトリを /workspace に設定
+    const args = ['exec', '-it', '-w', '/workspace', containerName, 'bash'];
+
+    logger.info('DockerAdapter: Creating exec session (attaching to existing container)', {
+      sessionId,
+      containerName,
+      workingDir,
+    });
+
+    try {
+      const ptyProcess = pty.spawn('docker', args, {
+        name: 'xterm-256color',
+        cols: 80,
+        rows: 24,
+        env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' },
+      });
+
+      this.sessions.set(sessionId, {
+        ptyProcess,
+        workingDir,
+        containerId: containerName, // 親コンテナと同じIDを参照
+        errorBuffer: '',
+        hasReceivedOutput: false,
+        shellMode: true,
+      });
+
+      // イベント転送
+      ptyProcess.onData((data: string) => {
+        const session = this.sessions.get(sessionId);
+        if (session) {
+          if (!session.hasReceivedOutput && data.length > 0) {
+            session.hasReceivedOutput = true;
+          }
+        }
+        this.emit('data', sessionId, data);
+      });
+
+      ptyProcess.onExit(({ exitCode, signal }) => {
+        logger.info('DockerAdapter: Exec session exited', { sessionId, exitCode, signal });
+        this.emit('exit', sessionId, { exitCode, signal } as PTYExitInfo);
+        this.sessions.delete(sessionId);
+      });
+
+    } catch (error) {
+      logger.error('DockerAdapter: Failed to create exec session', {
+        sessionId,
+        containerName,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      this.emit('error', sessionId, error instanceof Error ? error : new Error('Unknown error'));
+      throw error;
+    }
   }
 
   async createSession(
@@ -120,6 +212,25 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
     // 既存セッションのクリーンアップ
     if (this.sessions.has(sessionId)) {
       this.destroySession(sessionId);
+    }
+
+    const shellMode = options?.shellMode ?? false;
+
+    // シェルモードの場合、親コンテナ（Claude）に接続を試みる
+    if (shellMode) {
+      const parentContainerName = this.getParentContainerName(sessionId);
+      if (parentContainerName) {
+        await this.createExecSession(sessionId, parentContainerName, workingDir);
+        return;
+      }
+      // 親コンテナがない場合はエラー
+      const error = new Error('No parent container found. Start Claude session first.');
+      logger.warn('DockerAdapter: Shell mode requested but no parent container found', {
+        sessionId,
+        parentSessionId: this.getParentSessionId(sessionId),
+      });
+      this.emit('error', sessionId, error);
+      throw error;
     }
 
     const { args, containerName } = this.buildDockerArgs(workingDir, options);
@@ -145,6 +256,7 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
         containerId: containerName,
         errorBuffer: '',
         hasReceivedOutput: false,
+        shellMode: false,
       });
 
       // Session.container_idを更新
@@ -164,8 +276,8 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
             session.errorBuffer += data;
           }
 
-          // Claude CodeセッションID抽出
-          if (!session.claudeSessionId) {
+          // Claude CodeセッションID抽出（シェルモードではスキップ）
+          if (!session.shellMode && !session.claudeSessionId) {
             const extracted = this.extractClaudeSessionId(data);
             if (extracted) {
               session.claudeSessionId = extracted;
@@ -193,8 +305,8 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
         this.sessions.delete(sessionId);
       });
 
-      // 初期プロンプト
-      if (initialPrompt) {
+      // 初期プロンプト（シェルモードでは送信しない）
+      if (initialPrompt && !shellMode) {
         setTimeout(() => {
           if (this.sessions.has(sessionId)) {
             ptyProcess.write(initialPrompt + '\n');
