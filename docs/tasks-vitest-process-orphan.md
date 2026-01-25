@@ -24,7 +24,7 @@
 
 ### フェーズ1: ecosystem.config.js の修正
 
-*推定期間: 10分*
+#### 推定期間: 10分
 
 #### タスク1.1: claude-work-test 設定の修正
 
@@ -45,7 +45,7 @@
 | 不明/要確認の情報 | なし |
 
 **実装手順**:
-1. `ecosystem.config.js` の `claude-work-test` エントリを特定（38-51行目）
+1. `ecosystem.config.js` の `claude-work-test` エントリを特定（39-52行目）
 2. `script: 'npm'` を `script: './node_modules/.bin/vitest'` に変更
 3. `args: 'test'` を `args: 'run'` に変更
 4. `kill_timeout: 10000` を追加
@@ -118,7 +118,7 @@
 | 不明/要確認の情報 | なし |
 
 **実装手順**:
-1. `ecosystem.config.js` の `claude-work-test-watch` エントリを特定（52-65行目）
+1. `ecosystem.config.js` の `claude-work-test-watch` エントリを特定（54-67行目）
 2. `script: 'npm'` を `script: './node_modules/.bin/vitest'` に変更
 3. `args: 'run test:watch'` を `args: ''`（空文字列、watchがデフォルト）に変更
 4. `autorestart: true` を `autorestart: false` に変更
@@ -175,7 +175,7 @@
 
 ### フェーズ2: 動作確認
 
-*推定期間: 10分*
+#### 推定期間: 10分
 
 #### タスク2.1: テスト実行・停止の動作確認
 
@@ -258,7 +258,7 @@
 
 ### フェーズ3: コミット
 
-*推定期間: 5分*
+#### 推定期間: 5分
 
 #### タスク3.1: 変更をコミット
 
