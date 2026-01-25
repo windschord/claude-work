@@ -1381,7 +1381,7 @@ ws://host/ws/terminal/{session_id}
 **決定**: Zustand
 
 **根拠**:
-- APIがシンプルでボイラープレートが少ない
+- シンプルなAPIでボイラープレートが少ない
 - TypeScriptとの相性が良い
 - 中規模アプリケーションに適切なサイズ
 
@@ -3346,7 +3346,7 @@ sequenceDiagram
 | REQ-149 | 新規プロジェクトは展開状態で表示 | デフォルトtrue |
 | REQ-150 | 削除ボタン表示 | DeleteSessionButton |
 | REQ-151 | 確認ダイアログ表示 | DeleteSessionDialog |
-| REQ-152 | セッション名とパス表示 | Dialog内のpタグ |
+| REQ-152 | セッション名とパス表示 | Dialog内の`<p>`タグ |
 | REQ-153 | セッションとworktree削除 | DELETE API |
 | REQ-154 | 削除後プロジェクトページへ | router.push() |
 | REQ-155 | エラー時トースト表示 | toast.error() |
