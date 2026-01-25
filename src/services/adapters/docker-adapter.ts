@@ -148,7 +148,9 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
     containerName: string,
     workingDir: string
   ): Promise<void> {
-    const args = ['exec', '-it', containerName, '/bin/sh'];
+    // -it オプションでインタラクティブモードとTTYを有効化
+    // -w オプションで作業ディレクトリを /workspace に設定
+    const args = ['exec', '-it', '-w', '/workspace', containerName, 'sh', '-c', 'exec sh'];
 
     logger.info('DockerAdapter: Creating exec session (attaching to existing container)', {
       sessionId,
@@ -189,13 +191,6 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
         this.emit('exit', sessionId, { exitCode, signal } as PTYExitInfo);
         this.sessions.delete(sessionId);
       });
-
-      // シェルセッションでは /workspace に移動
-      setTimeout(() => {
-        if (this.sessions.has(sessionId)) {
-          ptyProcess.write('cd /workspace\n');
-        }
-      }, 500);
 
     } catch (error) {
       logger.error('DockerAdapter: Failed to create exec session', {
