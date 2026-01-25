@@ -601,14 +601,14 @@ Terminal WebSocketが常にHOST環境（ptyManager）を使用している問題
 
 **解決策**:
 - Terminal WebSocketにclaude-ws.tsと同様のアダプター切替パターンを適用
-- Docker環境の場合は`--entrypoint /bin/sh`でコンテナ内シェルを起動
+- Docker環境の場合は`docker exec`で既存コンテナにbashシェルを起動
 
 ### 変更サマリ
 
 | カテゴリ | 対象 | 数量 |
 |---------|------|------|
-| 修正ファイル | terminal-ws.ts, docker-adapter.ts | 2 |
-| 新規ファイル | terminal-ws.test.ts（環境切替テスト追加） | 1 |
+| 修正ファイル | terminal-ws.ts, docker-adapter.ts, host-adapter.ts, environment-adapter.ts, docker/Dockerfile | 5 |
+| 新規/修正テスト | terminal-ws.test.ts, docker-adapter.test.ts, host-adapter.test.ts | 3 |
 
 ---
 
@@ -618,22 +618,23 @@ Terminal WebSocketが常にHOST環境（ptyManager）を使用している問題
 
 **説明**:
 - `CreateSessionOptions`にシェルモード用オプションを追加
-- `--entrypoint /bin/sh`でシェルを起動するロジックを追加
+- `docker exec`で既存コンテナにbashシェルを起動するロジックを追加
 
 **対象ファイル**:
 - `src/services/environment-adapter.ts`
 - `src/services/adapters/docker-adapter.ts`
 
 **技術的文脈**:
-- 現在のDockerAdapterは`--entrypoint claude`でClaude Codeを起動
-- シェルモードでは`--entrypoint /bin/sh`に変更
+- 現在のDockerAdapterは`docker run --entrypoint claude`でClaude Codeを起動
+- シェルモードでは`docker exec`で既存コンテナにbashシェルを接続
+- Claudeと同一コンテナでコマンド実行が可能
 - initialPromptは不要（シェルでは使わない）
 
 **情報の明確性**:
 
 | 分類 | 内容 |
 |------|------|
-| 明示された情報 | シェルモード時は/bin/shをentrypointにする |
+| 明示された情報 | シェルモード時はdocker execでbashを起動 |
 | 不明/要確認の情報 | なし |
 
 **実装手順（TDD）**:
@@ -641,13 +642,13 @@ Terminal WebSocketが常にHOST環境（ptyManager）を使用している問題
 2. テスト実行: 失敗を確認
 3. テストコミット
 4. 実装: `CreateSessionOptions`に`shellMode: boolean`を追加
-5. 実装: `buildDockerArgs`でshellMode時にentrypointを`/bin/sh`に変更
+5. 実装: shellMode時に`docker exec`でbashを起動
 6. 実装コミット
 
 **受入基準**:
 - [x] `CreateSessionOptions`に`shellMode?: boolean`が追加されている
-- [x] shellMode=trueの場合、`--entrypoint /bin/sh`が使用される
-- [x] shellMode=falseまたは未指定の場合、`--entrypoint claude`が使用される
+- [x] shellMode=trueの場合、`docker exec`でbashが起動される
+- [x] shellMode=falseまたは未指定の場合、`docker run --entrypoint claude`が使用される
 - [x] テストが追加されている
 
 **依存関係**: なし
