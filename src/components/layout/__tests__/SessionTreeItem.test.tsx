@@ -99,4 +99,78 @@ describe('SessionTreeItem', () => {
       unmount();
     });
   });
+
+  // 削除アイコン関連のテスト
+  describe('削除アイコン', () => {
+    it('ホバー時に削除アイコンが表示される', () => {
+      render(
+        <SessionTreeItem
+          session={mockSession}
+          isActive={false}
+          onClick={() => {}}
+          onDelete={() => {}}
+        />
+      );
+
+      const container = screen.getByTestId('session-tree-item');
+      fireEvent.mouseEnter(container);
+
+      expect(screen.getByTestId('delete-icon')).toBeInTheDocument();
+    });
+
+    it('非ホバー時は削除アイコンが表示されない', () => {
+      render(
+        <SessionTreeItem
+          session={mockSession}
+          isActive={false}
+          onClick={() => {}}
+          onDelete={() => {}}
+        />
+      );
+
+      expect(screen.queryByTestId('delete-icon')).not.toBeInTheDocument();
+    });
+
+    it('削除アイコンクリックでonDeleteが呼ばれる', () => {
+      const handleDelete = vi.fn();
+      render(
+        <SessionTreeItem
+          session={mockSession}
+          isActive={false}
+          onClick={() => {}}
+          onDelete={handleDelete}
+        />
+      );
+
+      const container = screen.getByTestId('session-tree-item');
+      fireEvent.mouseEnter(container);
+
+      const deleteIcon = screen.getByTestId('delete-icon');
+      fireEvent.click(deleteIcon);
+
+      expect(handleDelete).toHaveBeenCalledTimes(1);
+    });
+
+    it('削除アイコンクリック時にセッションクリックは伝播しない', () => {
+      const handleClick = vi.fn();
+      const handleDelete = vi.fn();
+      render(
+        <SessionTreeItem
+          session={mockSession}
+          isActive={false}
+          onClick={handleClick}
+          onDelete={handleDelete}
+        />
+      );
+
+      const container = screen.getByTestId('session-tree-item');
+      fireEvent.mouseEnter(container);
+
+      const deleteIcon = screen.getByTestId('delete-icon');
+      fireEvent.click(deleteIcon);
+
+      expect(handleDelete).toHaveBeenCalledTimes(1);
+      expect(handleClick).not.toHaveBeenCalled();
+    });
+  });
 });
