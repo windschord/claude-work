@@ -92,8 +92,18 @@ npm run dev
 
 # Development server (pm2 managed - recommended)
 npm run dev:pm2           # Start with pm2
+npm run dev:stop          # Stop dev server
+npm run dev:restart       # Restart dev server
+npm run dev:logs          # View dev server logs
+
+# Production server (pm2 managed)
+npm run prod:start        # Start production server
+npm run prod:stop         # Stop production server
+npm run prod:restart      # Restart production server
+npm run prod:logs         # View production server logs
+
+# PM2 general commands
 npm run pm2:status        # Check process status
-npm run pm2:logs          # View logs
 npm run pm2:stop          # Stop all processes
 npm run pm2:delete        # Remove from pm2 registry
 
