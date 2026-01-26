@@ -51,7 +51,7 @@ export function SessionTreeItem({ session, isActive, onClick, onDelete }: Sessio
   const handlePRClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (session.pr_url) {
-      window.open(session.pr_url, '_blank');
+      window.open(session.pr_url, '_blank', 'noopener,noreferrer');
     }
   };
 

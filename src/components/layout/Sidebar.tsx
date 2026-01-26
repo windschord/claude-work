@@ -291,7 +291,7 @@ export function Sidebar() {
           }}
           onConfirm={handleDeleteProject}
           title="プロジェクトを削除"
-          message={`「${projectToDelete.name}」を削除しますか？この操作は取り消せません。関連するセッションも全て削除されます。`}
+          message={`「${projectToDelete.name}」を削除しますか？この操作は取り消せません。関連するセッションも全て削除されます。(worktreeは削除されません)`}
           isLoading={isDeleting}
         />
       )}
@@ -306,7 +306,7 @@ export function Sidebar() {
           }}
           onConfirm={handleDeleteSession}
           title="セッションを削除"
-          message={`「${sessionToDelete.name}」を削除しますか？worktreeとブランチも削除されます。`}
+          message={`「${sessionToDelete.name}」を削除しますか？worktree(${sessionToDelete.worktree_path})とブランチも削除されます。`}
           isLoading={isDeletingSession}
         />
       )}

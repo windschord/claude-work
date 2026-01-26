@@ -263,7 +263,7 @@ describe('SessionTreeItem', () => {
       fireEvent.click(badge);
 
       expect(handleClick).not.toHaveBeenCalled();
-      expect(openSpy).toHaveBeenCalledWith('https://github.com/owner/repo/pull/123', '_blank');
+      expect(openSpy).toHaveBeenCalledWith('https://github.com/owner/repo/pull/123', '_blank', 'noopener,noreferrer');
 
       openSpy.mockRestore();
     });

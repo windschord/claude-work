@@ -148,22 +148,26 @@ export function ProjectTreeItem({
             className="fixed z-50 min-w-[140px] py-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg"
             style={{ left: contextMenu.x, top: contextMenu.y }}
           >
-            <button
-              type="button"
-              onClick={handleSettingsClick}
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-            >
-              <Settings className="w-4 h-4" />
-              設定
-            </button>
-            <button
-              type="button"
-              onClick={handleDeleteClick}
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700"
-            >
-              <Trash2 className="w-4 h-4" />
-              削除
-            </button>
+            {onSettings && (
+              <button
+                type="button"
+                onClick={handleSettingsClick}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                <Settings className="w-4 h-4" />
+                設定
+              </button>
+            )}
+            {onDelete && (
+              <button
+                type="button"
+                onClick={handleDeleteClick}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                <Trash2 className="w-4 h-4" />
+                削除
+              </button>
+            )}
           </div>
         )}
       </div>

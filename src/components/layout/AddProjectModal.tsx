@@ -41,6 +41,9 @@ export function AddProjectModal({
   }, [isOpen]);
 
   const handleSubmit = async () => {
+    if (isSubmitting) {
+      return;
+    }
     if (!path.trim()) {
       return;
     }

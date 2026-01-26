@@ -3,7 +3,8 @@ import * as pty from 'node-pty';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
-import { spawnSync } from 'child_process';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 import { EnvironmentAdapter, CreateSessionOptions, PTYExitInfo } from '../environment-adapter';
 import { prisma } from '@/lib/db';
 import { logger } from '@/lib/logger';
@@ -144,13 +145,13 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
   /**
    * Dockerコンテナが実際に存在し、実行中かを確認
    */
-  private isContainerRunning(containerName: string): boolean {
+  private async isContainerRunning(containerName: string): Promise<boolean> {
+    const execFileAsync = promisify(execFile);
     try {
-      const result = spawnSync('docker', ['inspect', '--format', '{{.State.Running}}', containerName], {
-        encoding: 'utf-8',
+      const { stdout } = await execFileAsync('docker', ['inspect', '--format', '{{.State.Running}}', containerName], {
         timeout: 5000,
       });
-      return result.status === 0 && result.stdout.trim() === 'true';
+      return stdout.trim() === 'true';
     } catch {
       return false;
     }
@@ -266,7 +267,7 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
 
       if (parentContainerName) {
         // コンテナが実際に実行中か確認
-        if (!this.isContainerRunning(parentContainerName)) {
+        if (!(await this.isContainerRunning(parentContainerName))) {
           const error = new Error(
             'Dockerコンテナが実行されていません。Claude Codeセッションが終了した可能性があります。' +
             'Shellタブを使用するにはClaudeセッションを再起動してください。'
