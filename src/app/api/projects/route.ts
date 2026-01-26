@@ -35,17 +35,35 @@ import { logger } from '@/lib/logger';
  */
 export async function GET(_request: NextRequest) {
   try {
-    const projects = await prisma.project.findMany({
+    const rawProjects = await prisma.project.findMany({
       orderBy: { created_at: 'desc' },
       include: {
         sessions: {
           orderBy: { created_at: 'desc' },
+          include: {
+            environment: true,
+          },
         },
+        scripts: true,
       },
     });
 
-    // セッションをフラット化して返す
-    const allSessions = projects.flatMap((project) => project.sessions);
+    // scriptsをrun_scriptsに変換
+    const projects = rawProjects.map((project) => ({
+      ...project,
+      run_scripts: project.scripts.map((s) => ({ name: s.name, command: s.command })),
+      scripts: undefined,
+    }));
+
+    // セッションをフラット化し、環境情報を追加
+    const allSessions = rawProjects.flatMap((project) =>
+      project.sessions.map((session) => ({
+        ...session,
+        environment_name: session.environment?.name || null,
+        environment_type: session.environment?.type || null,
+        environment: undefined,
+      }))
+    );
 
     logger.debug('Projects retrieved', { count: projects.length, sessions: allSessions.length });
     return NextResponse.json({ projects, sessions: allSessions });
