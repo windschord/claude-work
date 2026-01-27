@@ -14,6 +14,7 @@ model Project {
   id            String   @id @default(uuid())
   name          String
   path          String   @unique
+  remote_url    String?  // リモートリポジトリURL（nullの場合はローカル登録）
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
 

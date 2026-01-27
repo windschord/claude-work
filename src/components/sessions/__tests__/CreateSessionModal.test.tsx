@@ -59,9 +59,25 @@ describe('CreateSessionModal', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({ session: { id: 'new-session-id' } }),
+    // URLに応じて異なるレスポンスを返す
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes('/branches')) {
+        // ブランチ一覧API
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            branches: [
+              { name: 'main', isDefault: true, isRemote: false },
+              { name: 'develop', isDefault: false, isRemote: false },
+            ],
+          }),
+        });
+      }
+      // セッション作成API
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ session: { id: 'new-session-id' } }),
+      });
     });
   });
 
@@ -300,8 +316,16 @@ describe('CreateSessionModal', () => {
     });
 
     it('作成中は作成ボタンがdisabledになる', async () => {
-      // 解決されないPromiseを返してローディング状態を維持
-      mockFetch.mockImplementation(() => new Promise(() => {}));
+      // ブランチは即座に返し、セッション作成は解決しないPromiseを返す
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes('/branches')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ branches: [] }),
+          });
+        }
+        return new Promise(() => {});
+      });
 
       render(
         <CreateSessionModal
@@ -321,8 +345,16 @@ describe('CreateSessionModal', () => {
     });
 
     it('作成中は「作成中...」と表示される', async () => {
-      // 解決されないPromiseを返してローディング状態を維持
-      mockFetch.mockImplementation(() => new Promise(() => {}));
+      // ブランチは即座に返し、セッション作成は解決しないPromiseを返す
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes('/branches')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ branches: [] }),
+          });
+        }
+        return new Promise(() => {});
+      });
 
       render(
         <CreateSessionModal
@@ -344,9 +376,18 @@ describe('CreateSessionModal', () => {
 
   describe('エラーハンドリング', () => {
     it('セッション作成失敗時にエラーメッセージが表示される', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        json: async () => ({ error: 'セッション作成に失敗しました' }),
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes('/branches')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ branches: [] }),
+          });
+        }
+        // セッション作成APIはエラーを返す
+        return Promise.resolve({
+          ok: false,
+          json: async () => ({ error: 'セッション作成に失敗しました' }),
+        });
       });
 
       render(
@@ -367,7 +408,16 @@ describe('CreateSessionModal', () => {
     });
 
     it('ネットワークエラー時にエラーメッセージが表示される', async () => {
-      mockFetch.mockRejectedValueOnce(new Error('Network error'));
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes('/branches')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ branches: [] }),
+          });
+        }
+        // セッション作成APIはネットワークエラー
+        return Promise.reject(new Error('Network error'));
+      });
 
       render(
         <CreateSessionModal
@@ -387,9 +437,17 @@ describe('CreateSessionModal', () => {
     });
 
     it('エラー時はonSuccessが呼ばれない', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        json: async () => ({ error: 'セッション作成に失敗しました' }),
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes('/branches')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ branches: [] }),
+          });
+        }
+        return Promise.resolve({
+          ok: false,
+          json: async () => ({ error: 'セッション作成に失敗しました' }),
+        });
       });
 
       render(
@@ -412,9 +470,17 @@ describe('CreateSessionModal', () => {
     });
 
     it('エラー時はモーダルが閉じない', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        json: async () => ({ error: 'セッション作成に失敗しました' }),
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes('/branches')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ branches: [] }),
+          });
+        }
+        return Promise.resolve({
+          ok: false,
+          json: async () => ({ error: 'セッション作成に失敗しました' }),
+        });
       });
 
       render(

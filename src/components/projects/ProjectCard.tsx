@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, type MouseEvent } from 'react';
-import { Project } from '@/store';
+import { Project, useAppStore } from '@/store';
 import { CreateSessionModal } from '@/components/sessions/CreateSessionModal';
 import { useRouter } from 'next/navigation';
+import { RefreshCw, Globe } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 interface ProjectCardProps {
   project: Project;
@@ -15,6 +17,7 @@ interface ProjectCardProps {
  * プロジェクトカードコンポーネント
  *
  * プロジェクトの情報を表示し、開く、設定、削除のアクションを提供します。
+ * リモートリポジトリの場合はバッジと更新ボタンを表示します。
  *
  * @param props - コンポーネントのプロパティ
  * @param props.project - 表示するプロジェクト情報
@@ -24,7 +27,11 @@ interface ProjectCardProps {
  */
 export function ProjectCard({ project, onDelete, onSettings }: ProjectCardProps) {
   const router = useRouter();
+  const { pullProject } = useAppStore();
   const [isCreateSessionModalOpen, setIsCreateSessionModalOpen] = useState(false);
+  const [isPulling, setIsPulling] = useState(false);
+
+  const isRemote = !!project.remote_url;
 
   const handleNewSession = (e: MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
@@ -41,6 +48,25 @@ export function ProjectCard({ project, onDelete, onSettings }: ProjectCardProps)
     onSettings(project);
   };
 
+  const handlePull = async (e: MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    setIsPulling(true);
+
+    try {
+      const result = await pullProject(project.id);
+      if (result.updated) {
+        toast.success('リポジトリを更新しました');
+      } else {
+        toast.success('既に最新です');
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : '更新に失敗しました';
+      toast.error(errorMessage);
+    } finally {
+      setIsPulling(false);
+    }
+  };
+
   const handleSessionCreated = (sessionId: string) => {
     router.push(`/sessions/${sessionId}`);
   };
@@ -49,9 +75,17 @@ export function ProjectCard({ project, onDelete, onSettings }: ProjectCardProps)
     <>
       <div className="border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg p-4 hover:shadow-md transition-shadow">
         <div className="flex justify-between items-start mb-2">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            {project.name}
-          </h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+              {project.name}
+            </h3>
+            {isRemote && (
+              <span className="inline-flex items-center gap-1 bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200 rounded-full px-2 py-0.5 text-xs font-medium">
+                <Globe className="w-3 h-3" />
+                Remote
+              </span>
+            )}
+          </div>
           <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded-full px-2 py-1 text-xs font-medium">
             {project.session_count}
           </span>
@@ -65,6 +99,17 @@ export function ProjectCard({ project, onDelete, onSettings }: ProjectCardProps)
           >
             新規セッション
           </button>
+          {isRemote && (
+            <button
+              type="button"
+              onClick={handlePull}
+              disabled={isPulling}
+              className="bg-green-600 dark:bg-green-600 text-white px-3 py-2 rounded-md hover:bg-green-700 dark:hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="リモートから更新"
+            >
+              <RefreshCw className={`w-5 h-5 ${isPulling ? 'animate-spin' : ''}`} />
+            </button>
+          )}
           <button
             type="button"
             onClick={handleSettings}

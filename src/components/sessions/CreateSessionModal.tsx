@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, Fragment } from 'react';
-import { Dialog, Transition, RadioGroup } from '@headlessui/react';
-import { Check } from 'lucide-react';
+import { Dialog, Transition, RadioGroup, Listbox } from '@headlessui/react';
+import { Check, ChevronsUpDown, GitBranch } from 'lucide-react';
 import { useEnvironments, Environment } from '@/hooks/useEnvironments';
 
 export interface CreateSessionModalProps {
@@ -10,6 +10,11 @@ export interface CreateSessionModalProps {
   onClose: () => void;
   projectId: string;
   onSuccess: (sessionId: string) => void;
+}
+
+interface Branch {
+  name: string;
+  isDefault: boolean;
 }
 
 /**
@@ -51,6 +56,9 @@ export function CreateSessionModal({
   const [selectedEnvironmentId, setSelectedEnvironmentId] = useState<string>('');
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string>('');
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [selectedBranch, setSelectedBranch] = useState<string>('');
+  const [isBranchesLoading, setIsBranchesLoading] = useState(false);
 
   // デフォルト環境または最初の環境を初期選択
   useEffect(() => {
@@ -73,6 +81,38 @@ export function CreateSessionModal({
     }
   }, [isOpen]);
 
+  // プロジェクトのブランチ一覧を取得
+  useEffect(() => {
+    if (!isOpen || !projectId) {
+      return;
+    }
+
+    const fetchBranches = async () => {
+      setIsBranchesLoading(true);
+      try {
+        const response = await fetch(`/api/projects/${projectId}/branches`);
+        if (response.ok) {
+          const data = await response.json();
+          setBranches(data.branches || []);
+          // デフォルトブランチを初期選択
+          const defaultBranch = data.branches?.find((b: Branch) => b.isDefault);
+          if (defaultBranch) {
+            setSelectedBranch(defaultBranch.name);
+          } else if (data.branches?.length > 0) {
+            setSelectedBranch(data.branches[0].name);
+          }
+        }
+      } catch {
+        // ブランチ取得失敗は無視（ローカルプロジェクトでは失敗する場合がある）
+        setBranches([]);
+      } finally {
+        setIsBranchesLoading(false);
+      }
+    };
+
+    fetchBranches();
+  }, [isOpen, projectId]);
+
   const handleSubmit = async () => {
     if (!selectedEnvironmentId) {
       return;
@@ -89,6 +129,7 @@ export function CreateSessionModal({
         },
         body: JSON.stringify({
           environment_id: selectedEnvironmentId,
+          source_branch: selectedBranch || undefined,
         }),
       });
 
@@ -226,6 +267,77 @@ export function CreateSessionModal({
                     </RadioGroup>
                   )}
                 </div>
+
+                {/* ブランチ選択 */}
+                {branches.length > 0 && (
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      <div className="flex items-center gap-1">
+                        <GitBranch className="w-4 h-4" />
+                        ベースブランチ
+                      </div>
+                    </label>
+                    {isBranchesLoading ? (
+                      <div className="flex items-center justify-center py-2 text-gray-500 dark:text-gray-400 text-sm">
+                        ブランチを読み込み中...
+                      </div>
+                    ) : (
+                      <Listbox value={selectedBranch} onChange={setSelectedBranch} disabled={isCreating}>
+                        <div className="relative">
+                          <Listbox.Button className="relative w-full cursor-pointer rounded-lg bg-white dark:bg-gray-700 py-2 pl-3 pr-10 text-left border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm">
+                            <span className="block truncate text-gray-900 dark:text-gray-100">
+                              {selectedBranch || 'ブランチを選択'}
+                            </span>
+                            <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                              <ChevronsUpDown className="h-5 w-5 text-gray-400" aria-hidden="true" />
+                            </span>
+                          </Listbox.Button>
+                          <Transition
+                            as={Fragment}
+                            leave="transition ease-in duration-100"
+                            leaveFrom="opacity-100"
+                            leaveTo="opacity-0"
+                          >
+                            <Listbox.Options className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white dark:bg-gray-700 py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
+                              {branches.map((branch) => (
+                                <Listbox.Option
+                                  key={branch.name}
+                                  className={({ active }) =>
+                                    `relative cursor-pointer select-none py-2 pl-10 pr-4 ${
+                                      active
+                                        ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-900 dark:text-blue-100'
+                                        : 'text-gray-900 dark:text-gray-100'
+                                    }`
+                                  }
+                                  value={branch.name}
+                                >
+                                  {({ selected }) => (
+                                    <>
+                                      <span className={`block truncate ${selected ? 'font-medium' : 'font-normal'}`}>
+                                        {branch.name}
+                                        {branch.isDefault && (
+                                          <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">(default)</span>
+                                        )}
+                                      </span>
+                                      {selected && (
+                                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-blue-600 dark:text-blue-400">
+                                          <Check className="h-5 w-5" aria-hidden="true" />
+                                        </span>
+                                      )}
+                                    </>
+                                  )}
+                                </Listbox.Option>
+                              ))}
+                            </Listbox.Options>
+                          </Transition>
+                        </div>
+                      </Listbox>
+                    )}
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      セッションのワークツリーを作成するベースとなるブランチを選択
+                    </p>
+                  </div>
+                )}
 
                 {error && (
                   <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">

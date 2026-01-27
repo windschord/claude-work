@@ -102,18 +102,29 @@ export class GitService {
    *
    * @param sessionName - セッション名（worktreeディレクトリ名として使用）
    * @param branchName - 作成するブランチ名
+   * @param sourceBranch - 元にするブランチ名（任意、指定するとそのブランチを起点に新ブランチを作成）
    * @returns 作成されたworktreeのパス
    * @throws Git操作が失敗した場合にエラーをスロー
    */
-  createWorktree(sessionName: string, branchName: string): string {
+  createWorktree(sessionName: string, branchName: string, sourceBranch?: string): string {
     this.validateName(sessionName, 'session');
     this.validateName(branchName, 'branch');
+    if (sourceBranch) {
+      this.validateName(sourceBranch, 'branch');
+    }
 
     const worktreePath = join(this.repoPath, '.worktrees', sessionName);
     this.validateWorktreePath(worktreePath);
 
     try {
-      const result = spawnSync('git', ['worktree', 'add', '-b', branchName, worktreePath], {
+      // sourceBranchが指定されている場合: git worktree add -b branchName worktreePath sourceBranch
+      // 指定されていない場合: git worktree add -b branchName worktreePath (現在のHEADから)
+      const args = ['worktree', 'add', '-b', branchName, worktreePath];
+      if (sourceBranch) {
+        args.push(sourceBranch);
+      }
+
+      const result = spawnSync('git', args, {
         cwd: this.repoPath,
         encoding: 'utf-8',
       });
@@ -122,10 +133,10 @@ export class GitService {
         throw new Error(result.stderr || result.error?.message || 'Failed to create worktree');
       }
 
-      this.logger.info('Created worktree', { sessionName, branchName, worktreePath });
+      this.logger.info('Created worktree', { sessionName, branchName, worktreePath, sourceBranch });
       return worktreePath;
     } catch (error) {
-      this.logger.error('Failed to create worktree', { sessionName, branchName, error });
+      this.logger.error('Failed to create worktree', { sessionName, branchName, sourceBranch, error });
       throw error;
     }
   }

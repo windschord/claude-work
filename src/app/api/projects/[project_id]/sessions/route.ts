@@ -144,7 +144,7 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
 
-    const { name, prompt = '', dockerMode = false, environment_id } = body;
+    const { name, prompt = '', dockerMode = false, environment_id, source_branch } = body;
 
     // 実効環境とdockerModeを決定
     let effectiveEnvironmentId: string | null = null;
@@ -282,7 +282,7 @@ export async function POST(
     let worktreePath: string;
 
     try {
-      worktreePath = gitService.createWorktree(sessionName, branchName);
+      worktreePath = gitService.createWorktree(sessionName, branchName, source_branch || undefined);
     } catch (worktreeError) {
       logger.error('Failed to create worktree', {
         error: worktreeError,
@@ -344,6 +344,7 @@ export async function POST(
       name: sessionDisplayName,
       project_id,
       worktree_path: worktreePath,
+      source_branch: source_branch || undefined,
     });
 
     return NextResponse.json({ session: newSession }, { status: 201 });

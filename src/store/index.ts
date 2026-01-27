@@ -11,6 +11,8 @@ export interface Project {
   name: string;
   /** Gitリポジトリのパス */
   path: string;
+  /** リモートリポジトリURL（nullの場合はローカル登録） */
+  remote_url?: string | null;
   /** 実行スクリプトの配列 */
   run_scripts: Array<{ name: string; command: string }>;
   /** セッション数 */
@@ -173,6 +175,10 @@ export interface AppState {
   setProjects: (projects: Project[]) => void;
   /** プロジェクトを追加 */
   addProject: (path: string) => Promise<void>;
+  /** リモートリポジトリをcloneしてプロジェクトを追加 */
+  cloneProject: (url: string, targetDir?: string) => Promise<void>;
+  /** リモートリポジトリをpull */
+  pullProject: (projectId: string) => Promise<{ updated: boolean; message: string }>;
   /** プロジェクトを更新 */
   updateProject: (id: string, data: Partial<Project>) => Promise<void>;
   /** プロジェクトを削除 */
@@ -361,6 +367,87 @@ export const useAppStore = create<AppState>((set) => ({
         throw error;
       }
       throw new Error('プロジェクトの追加に失敗しました');
+    }
+  },
+
+  cloneProject: async (url: string, targetDir?: string) => {
+    try {
+      const response = await fetch('/api/projects/clone', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ url, targetDir }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+
+        if (response.status === 400) {
+          throw new Error(errorData.error || 'リポジトリのcloneに失敗しました');
+        }
+
+        if (response.status === 403) {
+          throw new Error('指定されたディレクトリは許可されていません');
+        }
+
+        if (response.status === 409) {
+          throw new Error('このリポジトリは既に登録されています');
+        }
+
+        throw new Error(errorData.error || 'リポジトリのcloneに失敗しました');
+      }
+
+      const data = await response.json();
+
+      if (!data.project || !data.project.id) {
+        throw new Error('リポジトリのcloneに失敗しました');
+      }
+
+      set((state) => ({
+        projects: [...state.projects, data.project],
+      }));
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.includes('Failed to fetch') || error.message.includes('Network')) {
+          throw new Error('ネットワークエラーが発生しました');
+        }
+        throw error;
+      }
+      throw new Error('リポジトリのcloneに失敗しました');
+    }
+  },
+
+  pullProject: async (projectId: string) => {
+    try {
+      const response = await fetch(`/api/projects/${projectId}/pull`, {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+
+        if (response.status === 400) {
+          throw new Error(errorData.error || 'リポジトリの更新に失敗しました');
+        }
+
+        if (response.status === 404) {
+          throw new Error('プロジェクトが見つかりません');
+        }
+
+        throw new Error(errorData.error || 'リポジトリの更新に失敗しました');
+      }
+
+      const data = await response.json();
+      return { updated: data.updated, message: data.message };
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.includes('Failed to fetch') || error.message.includes('Network')) {
+          throw new Error('ネットワークエラーが発生しました');
+        }
+        throw error;
+      }
+      throw new Error('リポジトリの更新に失敗しました');
     }
   },
 

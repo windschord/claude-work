@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, Fragment } from 'react';
-import { Dialog, Transition } from '@headlessui/react';
+import { Dialog, Transition, Tab } from '@headlessui/react';
 import { useAppStore } from '@/store';
+import { RemoteRepoForm } from './RemoteRepoForm';
 import toast from 'react-hot-toast';
 
 interface AddProjectModalProps {
@@ -13,8 +14,9 @@ interface AddProjectModalProps {
 /**
  * プロジェクト追加モーダルコンポーネント
  *
- * 新しいGitリポジトリパスを入力してプロジェクトを追加するモーダルダイアログです。
- * バリデーション、エラーハンドリング、ローディング状態の管理を行います。
+ * ローカルGitリポジトリパスまたはリモートリポジトリURLを入力して
+ * プロジェクトを追加するモーダルダイアログです。
+ * タブUIでローカル/リモートを切り替えられます。
  *
  * @param props - コンポーネントのプロパティ
  * @param props.isOpen - モーダルの開閉状態
@@ -22,12 +24,12 @@ interface AddProjectModalProps {
  * @returns プロジェクト追加モーダルのJSX要素
  */
 export function AddProjectModal({ isOpen, onClose }: AddProjectModalProps) {
-  const { addProject, fetchProjects } = useAppStore();
+  const { addProject, cloneProject, fetchProjects } = useAppStore();
   const [path, setPath] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleLocalSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -45,6 +47,24 @@ export function AddProjectModal({ isOpen, onClose }: AddProjectModalProps) {
       onClose();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'プロジェクトの追加に失敗しました';
+      setError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRemoteSubmit = async (url: string, targetDir?: string) => {
+    setError('');
+    setIsLoading(true);
+
+    try {
+      await cloneProject(url, targetDir);
+      await fetchProjects();
+      toast.success('リポジトリをcloneしました');
+      onClose();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'リポジトリのcloneに失敗しました';
       setError(errorMessage);
       toast.error(errorMessage);
     } finally {
@@ -84,57 +104,100 @@ export function AddProjectModal({ isOpen, onClose }: AddProjectModalProps) {
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
+              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white dark:bg-gray-900 p-6 text-left align-middle shadow-xl transition-all">
                 <Dialog.Title
                   as="h3"
-                  className="text-lg font-medium leading-6 text-gray-900 mb-4"
+                  className="text-lg font-medium leading-6 text-gray-900 dark:text-gray-100 mb-4"
                 >
                   プロジェクトを追加
                 </Dialog.Title>
 
-                <form onSubmit={handleSubmit}>
-                  <div className="mb-4">
-                    <label
-                      htmlFor="project-path"
-                      className="block text-sm font-medium text-gray-700 mb-2"
+                <Tab.Group>
+                  <Tab.List className="flex space-x-1 rounded-xl bg-gray-100 dark:bg-gray-800 p-1 mb-4">
+                    <Tab
+                      className={({ selected }) =>
+                        `w-full rounded-lg py-2.5 text-sm font-medium leading-5 transition-colors
+                        ${
+                          selected
+                            ? 'bg-white dark:bg-gray-700 text-blue-700 dark:text-blue-400 shadow'
+                            : 'text-gray-600 dark:text-gray-400 hover:bg-white/[0.12] hover:text-gray-800 dark:hover:text-gray-200'
+                        }`
+                      }
                     >
-                      Gitリポジトリのパス
-                    </label>
-                    <input
-                      id="project-path"
-                      type="text"
-                      value={path}
-                      onChange={(e) => setPath(e.target.value)}
-                      placeholder="/path/to/git/repo"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      disabled={isLoading}
-                    />
-                  </div>
+                      ローカル
+                    </Tab>
+                    <Tab
+                      className={({ selected }) =>
+                        `w-full rounded-lg py-2.5 text-sm font-medium leading-5 transition-colors
+                        ${
+                          selected
+                            ? 'bg-white dark:bg-gray-700 text-blue-700 dark:text-blue-400 shadow'
+                            : 'text-gray-600 dark:text-gray-400 hover:bg-white/[0.12] hover:text-gray-800 dark:hover:text-gray-200'
+                        }`
+                      }
+                    >
+                      リモート
+                    </Tab>
+                  </Tab.List>
+                  <Tab.Panels>
+                    {/* ローカルタブ */}
+                    <Tab.Panel>
+                      <form onSubmit={handleLocalSubmit}>
+                        <div className="mb-4">
+                          <label
+                            htmlFor="project-path"
+                            className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+                          >
+                            Gitリポジトリのパス
+                          </label>
+                          <input
+                            id="project-path"
+                            type="text"
+                            value={path}
+                            onChange={(e) => setPath(e.target.value)}
+                            placeholder="/path/to/git/repo"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-100"
+                            disabled={isLoading}
+                          />
+                        </div>
 
-                  {error && (
-                    <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
-                      <p className="text-sm text-red-600">{error}</p>
-                    </div>
-                  )}
+                        {error && (
+                          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+                            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+                          </div>
+                        )}
 
-                  <div className="flex gap-3 justify-end">
-                    <button
-                      type="button"
-                      onClick={handleClose}
-                      className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
-                      disabled={isLoading}
-                    >
-                      キャンセル
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      disabled={!path.trim() || isLoading}
-                    >
-                      {isLoading ? '追加中...' : '追加'}
-                    </button>
-                  </div>
-                </form>
+                        <div className="flex gap-3 justify-end">
+                          <button
+                            type="button"
+                            onClick={handleClose}
+                            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                            disabled={isLoading}
+                          >
+                            キャンセル
+                          </button>
+                          <button
+                            type="submit"
+                            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={!path.trim() || isLoading}
+                          >
+                            {isLoading ? '追加中...' : '追加'}
+                          </button>
+                        </div>
+                      </form>
+                    </Tab.Panel>
+
+                    {/* リモートタブ */}
+                    <Tab.Panel>
+                      <RemoteRepoForm
+                        onSubmit={handleRemoteSubmit}
+                        onCancel={handleClose}
+                        isLoading={isLoading}
+                        error={error}
+                      />
+                    </Tab.Panel>
+                  </Tab.Panels>
+                </Tab.Group>
               </Dialog.Panel>
             </Transition.Child>
           </div>
