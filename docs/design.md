@@ -110,6 +110,182 @@ graph TD
 - `/projects/[id]` - プロジェクト詳細（セッション一覧）
 - `/sessions/[id]` - セッション詳細（Claude Code対話）
 
+#### コンポーネント: Sidebar
+
+**目的**: 左メニューのナビゲーションとプロジェクト/セッション管理
+
+**責務**:
+- プロジェクト一覧のツリー表示
+- セッション一覧の表示（プロジェクト配下）
+- プロジェクト追加ボタンの提供
+- プロジェクトコンテキストメニュー（設定・削除）
+- セッション削除アイコンの表示（ホバー時）
+- PR番号とステータスの表示
+
+**実装場所**: `src/components/layout/Sidebar.tsx`
+
+**サブコンポーネント**:
+
+| コンポーネント | ファイル | 責務 |
+|---------------|----------|------|
+| ProjectTreeItem | `ProjectTreeItem.tsx` | プロジェクトノードの表示、コンテキストメニュー |
+| SessionTreeItem | `SessionTreeItem.tsx` | セッションノード、削除アイコン、PR表示 |
+| AddProjectButton | `AddProjectButton.tsx` | リポジトリ追加ボタン |
+| AddProjectModal | `AddProjectModal.tsx` | リポジトリ追加モーダル |
+| ProjectSettingsModal | `ProjectSettingsModal.tsx` | プロジェクト設定モーダル |
+| DeleteConfirmDialog | `DeleteConfirmDialog.tsx` | 削除確認ダイアログ |
+
+**UIフロー図**:
+
+```text
+Sidebar
+├── AddProjectButton [+ リポジトリを追加]
+│   └── onClick → AddProjectModal
+│
+├── ProjectTreeItem (各プロジェクト)
+│   ├── プロジェクト名
+│   ├── 展開/折りたたみボタン
+│   ├── セッション追加ボタン [+]
+│   ├── onContextMenu → ContextMenu
+│   │   ├── [設定] → ProjectSettingsModal
+│   │   └── [削除] → DeleteConfirmDialog
+│   │
+│   └── SessionTreeItem (各セッション)
+│       ├── ステータスアイコン
+│       ├── セッション名
+│       ├── 動作環境バッジ (HOST/DOCKER/SSH)
+│       │   └── onHover → 環境名ツールチップ
+│       ├── PR番号バッジ (存在時)
+│       │   └── onClick → GitHubページを新規タブで開く
+│       └── 削除アイコン (ホバー時表示)
+│           └── onClick → DeleteConfirmDialog
+```
+
+#### コンポーネント: AddProjectModal
+
+**目的**: 新規リポジトリの追加
+
+**責務**:
+- リポジトリパスの入力
+- プロジェクト名の入力（パスから自動推定）
+- バリデーション（パスの存在確認、Git リポジトリ確認）
+- API呼び出し（POST /api/projects）
+
+**Props**:
+```typescript
+interface AddProjectModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess?: (project: Project) => void;
+}
+```
+
+**実装場所**: `src/components/layout/AddProjectModal.tsx`
+
+#### コンポーネント: ProjectSettingsModal
+
+**目的**: プロジェクト設定の編集
+
+**責務**:
+- プロジェクト名の編集
+- リポジトリパスの編集
+- ランスクリプトの追加・編集・削除
+- API呼び出し（PUT /api/projects/[id]）
+
+**Props**:
+```typescript
+interface ProjectSettingsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  project: Project;
+  onSuccess?: (project: Project) => void;
+}
+```
+
+**実装場所**: `src/components/layout/ProjectSettingsModal.tsx`
+
+**フォーム構造**:
+```typescript
+interface ProjectSettingsForm {
+  name: string;
+  path: string;
+  runScripts: Array<{
+    name: string;
+    command: string;
+  }>;
+}
+```
+
+#### コンポーネント: SessionTreeItem（拡張）
+
+**目的**: セッションノードの表示と操作
+
+**追加責務**:
+- 動作環境バッジの表示
+- PR番号とステータスバッジの表示
+- ホバー時の削除アイコン表示
+- 削除確認ダイアログとの連携
+
+**Props**:
+```typescript
+interface SessionTreeItemProps {
+  session: Session;
+  isActive: boolean;
+  onClick: () => void;
+  onDelete: () => void;
+}
+```
+
+**動作環境バッジ表示ロジック**:
+```typescript
+// 環境タイプに応じたバッジの色
+const environmentColors = {
+  HOST: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+  DOCKER: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+  SSH: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
+};
+
+// 環境タイプの短縮表示
+const environmentLabels = {
+  HOST: 'H',
+  DOCKER: 'D',
+  SSH: 'S',
+};
+
+// 環境バッジの表示
+{session.environment_type && (
+  <span
+    className={`text-xs px-1 py-0.5 rounded font-medium ${environmentColors[session.environment_type]}`}
+    title={session.environment_name || session.environment_type}
+  >
+    {environmentLabels[session.environment_type]}
+  </span>
+)}
+```
+
+**PR表示ロジック**:
+```typescript
+// PRステータスに応じたバッジの色
+const prStatusColors = {
+  open: 'bg-green-100 text-green-800',
+  merged: 'bg-purple-100 text-purple-800',
+  closed: 'bg-red-100 text-red-800',
+};
+
+// PR番号の表示（例: #123）
+{session.pr_number && (
+  <a
+    href={session.pr_url}
+    target="_blank"
+    rel="noopener noreferrer"
+    className={`text-xs px-1.5 py-0.5 rounded ${prStatusColors[session.pr_status]}`}
+    onClick={(e) => e.stopPropagation()}
+  >
+    #{session.pr_number}
+  </a>
+)}
+```
+
 #### コンポーネント: Zustand Store
 
 **目的**: クライアント状態管理
@@ -952,23 +1128,28 @@ sequenceDiagram
 **リクエスト**:
 ```json
 {
-  "default_model": "sonnet",
+  "name": "新しいプロジェクト名",
+  "path": "/path/to/git/repo",
   "run_scripts": [
     {"name": "test", "command": "npm test"}
   ]
 }
 ```
 
+**実装詳細**:
+- `name`: プロジェクト名を更新
+- `path`: リポジトリパスを更新（Git リポジトリの存在確認必須）
+- `run_scripts`: RunScriptテーブルを一括更新（既存削除→新規作成）
+
 **レスポンス（200）**:
 ```json
 {
   "project": {
     "id": "uuid",
-    "name": "repo-name",
+    "name": "新しいプロジェクト名",
     "path": "/path/to/git/repo",
-    "default_model": "sonnet",
     "run_scripts": [
-      {"name": "test", "command": "npm test"}
+      {"id": "uuid", "name": "test", "command": "npm test"}
     ],
     "created_at": "2025-12-01T00:00:00Z"
   }

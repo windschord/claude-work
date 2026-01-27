@@ -99,4 +99,291 @@ describe('SessionTreeItem', () => {
       unmount();
     });
   });
+
+  // 削除アイコン関連のテスト
+  describe('削除アイコン', () => {
+    it('ホバー時に削除アイコンが表示される', () => {
+      render(
+        <SessionTreeItem
+          session={mockSession}
+          isActive={false}
+          onClick={() => {}}
+          onDelete={() => {}}
+        />
+      );
+
+      const container = screen.getByTestId('session-tree-item');
+      fireEvent.mouseEnter(container);
+
+      expect(screen.getByTestId('delete-icon')).toBeInTheDocument();
+    });
+
+    it('非ホバー時は削除アイコンが表示されない', () => {
+      render(
+        <SessionTreeItem
+          session={mockSession}
+          isActive={false}
+          onClick={() => {}}
+          onDelete={() => {}}
+        />
+      );
+
+      expect(screen.queryByTestId('delete-icon')).not.toBeInTheDocument();
+    });
+
+    it('削除アイコンクリックでonDeleteが呼ばれる', () => {
+      const handleDelete = vi.fn();
+      render(
+        <SessionTreeItem
+          session={mockSession}
+          isActive={false}
+          onClick={() => {}}
+          onDelete={handleDelete}
+        />
+      );
+
+      const container = screen.getByTestId('session-tree-item');
+      fireEvent.mouseEnter(container);
+
+      const deleteIcon = screen.getByTestId('delete-icon');
+      fireEvent.click(deleteIcon);
+
+      expect(handleDelete).toHaveBeenCalledTimes(1);
+    });
+
+    it('削除アイコンクリック時にセッションクリックは伝播しない', () => {
+      const handleClick = vi.fn();
+      const handleDelete = vi.fn();
+      render(
+        <SessionTreeItem
+          session={mockSession}
+          isActive={false}
+          onClick={handleClick}
+          onDelete={handleDelete}
+        />
+      );
+
+      const container = screen.getByTestId('session-tree-item');
+      fireEvent.mouseEnter(container);
+
+      const deleteIcon = screen.getByTestId('delete-icon');
+      fireEvent.click(deleteIcon);
+
+      expect(handleDelete).toHaveBeenCalledTimes(1);
+      expect(handleClick).not.toHaveBeenCalled();
+    });
+  });
+
+  // PR番号表示関連のテスト
+  describe('PR番号表示', () => {
+    const sessionWithPR = {
+      ...mockSession,
+      pr_number: 123,
+      pr_url: 'https://github.com/owner/repo/pull/123',
+      pr_status: 'open' as const,
+    };
+
+    it('PRがある場合、PR番号が表示される', () => {
+      render(
+        <SessionTreeItem
+          session={sessionWithPR}
+          isActive={false}
+          onClick={() => {}}
+        />
+      );
+
+      expect(screen.getByText('#123')).toBeInTheDocument();
+    });
+
+    it('PRがない場合、PR番号は表示されない', () => {
+      render(
+        <SessionTreeItem
+          session={mockSession}
+          isActive={false}
+          onClick={() => {}}
+        />
+      );
+
+      expect(screen.queryByText(/#\d+/)).not.toBeInTheDocument();
+    });
+
+    it('ステータスがopenの場合、緑色のバッジが表示される', () => {
+      render(
+        <SessionTreeItem
+          session={{ ...sessionWithPR, pr_status: 'open' }}
+          isActive={false}
+          onClick={() => {}}
+        />
+      );
+
+      const badge = screen.getByTestId('pr-badge');
+      expect(badge).toHaveClass('text-green-600');
+    });
+
+    it('ステータスがmergedの場合、紫色のバッジが表示される', () => {
+      render(
+        <SessionTreeItem
+          session={{ ...sessionWithPR, pr_status: 'merged' }}
+          isActive={false}
+          onClick={() => {}}
+        />
+      );
+
+      const badge = screen.getByTestId('pr-badge');
+      expect(badge).toHaveClass('text-purple-600');
+    });
+
+    it('ステータスがclosedの場合、赤色のバッジが表示される', () => {
+      render(
+        <SessionTreeItem
+          session={{ ...sessionWithPR, pr_status: 'closed' }}
+          isActive={false}
+          onClick={() => {}}
+        />
+      );
+
+      const badge = screen.getByTestId('pr-badge');
+      expect(badge).toHaveClass('text-red-600');
+    });
+
+    it('PRバッジクリックでセッションクリックは伝播しない', () => {
+      const handleClick = vi.fn();
+      // window.openをモック
+      const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+
+      render(
+        <SessionTreeItem
+          session={sessionWithPR}
+          isActive={false}
+          onClick={handleClick}
+        />
+      );
+
+      const badge = screen.getByTestId('pr-badge');
+      fireEvent.click(badge);
+
+      expect(handleClick).not.toHaveBeenCalled();
+      expect(openSpy).toHaveBeenCalledWith('https://github.com/owner/repo/pull/123', '_blank', 'noopener,noreferrer');
+
+      openSpy.mockRestore();
+    });
+  });
+
+  // 動作環境バッジ関連のテスト
+  describe('動作環境バッジ', () => {
+    it('環境タイプがHOSTの場合、緑色のHバッジが表示される', () => {
+      const sessionWithHost = {
+        ...mockSession,
+        environment_type: 'HOST' as const,
+        environment_name: 'Default Host',
+      };
+
+      render(
+        <SessionTreeItem
+          session={sessionWithHost}
+          isActive={false}
+          onClick={() => {}}
+        />
+      );
+
+      const badge = screen.getByTestId('environment-badge');
+      expect(badge).toBeInTheDocument();
+      expect(badge).toHaveTextContent('H');
+      expect(badge).toHaveClass('bg-green-100');
+      expect(badge).toHaveAttribute('title', 'Default Host');
+    });
+
+    it('環境タイプがDOCKERの場合、青色のDバッジが表示される', () => {
+      const sessionWithDocker = {
+        ...mockSession,
+        environment_type: 'DOCKER' as const,
+        environment_name: 'Docker Dev',
+      };
+
+      render(
+        <SessionTreeItem
+          session={sessionWithDocker}
+          isActive={false}
+          onClick={() => {}}
+        />
+      );
+
+      const badge = screen.getByTestId('environment-badge');
+      expect(badge).toBeInTheDocument();
+      expect(badge).toHaveTextContent('D');
+      expect(badge).toHaveClass('bg-blue-100');
+      expect(badge).toHaveAttribute('title', 'Docker Dev');
+    });
+
+    it('環境タイプがSSHの場合、紫色のSバッジが表示される', () => {
+      const sessionWithSSH = {
+        ...mockSession,
+        environment_type: 'SSH' as const,
+        environment_name: 'Remote Server',
+      };
+
+      render(
+        <SessionTreeItem
+          session={sessionWithSSH}
+          isActive={false}
+          onClick={() => {}}
+        />
+      );
+
+      const badge = screen.getByTestId('environment-badge');
+      expect(badge).toBeInTheDocument();
+      expect(badge).toHaveTextContent('S');
+      expect(badge).toHaveClass('bg-purple-100');
+      expect(badge).toHaveAttribute('title', 'Remote Server');
+    });
+
+    it('環境タイプがnullの場合、バッジは表示されない', () => {
+      const sessionWithoutEnv = {
+        ...mockSession,
+        environment_type: null,
+        environment_name: null,
+      };
+
+      render(
+        <SessionTreeItem
+          session={sessionWithoutEnv}
+          isActive={false}
+          onClick={() => {}}
+        />
+      );
+
+      expect(screen.queryByTestId('environment-badge')).not.toBeInTheDocument();
+    });
+
+    it('環境タイプが未定義の場合、バッジは表示されない', () => {
+      render(
+        <SessionTreeItem
+          session={mockSession}
+          isActive={false}
+          onClick={() => {}}
+        />
+      );
+
+      expect(screen.queryByTestId('environment-badge')).not.toBeInTheDocument();
+    });
+
+    it('環境名がnullの場合、環境タイプがツールチップに表示される', () => {
+      const sessionWithTypeOnly = {
+        ...mockSession,
+        environment_type: 'DOCKER' as const,
+        environment_name: null,
+      };
+
+      render(
+        <SessionTreeItem
+          session={sessionWithTypeOnly}
+          isActive={false}
+          onClick={() => {}}
+        />
+      );
+
+      const badge = screen.getByTestId('environment-badge');
+      expect(badge).toHaveAttribute('title', 'DOCKER');
+    });
+  });
 });

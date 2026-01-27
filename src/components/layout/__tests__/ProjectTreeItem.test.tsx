@@ -211,4 +211,148 @@ describe('ProjectTreeItem', () => {
     // 展開時はChevronDownアイコン
     expect(screen.getByTestId('chevron-down-icon')).toBeInTheDocument();
   });
+
+  // コンテキストメニュー関連のテスト
+  describe('コンテキストメニュー', () => {
+    it('右クリックでコンテキストメニューが表示される', () => {
+      render(
+        <ProjectTreeItem
+          project={mockProject}
+          sessions={mockSessions}
+          isExpanded={false}
+          currentSessionId={null}
+          onToggle={() => {}}
+          onSessionClick={() => {}}
+          onAddSession={() => {}}
+        />
+      );
+
+      const projectToggle = screen.getByTestId('project-toggle');
+      fireEvent.contextMenu(projectToggle);
+
+      expect(screen.getByTestId('context-menu')).toBeInTheDocument();
+    });
+
+    it('コンテキストメニューに「設定」オプションがある（onSettingsが渡されている場合）', () => {
+      render(
+        <ProjectTreeItem
+          project={mockProject}
+          sessions={mockSessions}
+          isExpanded={false}
+          currentSessionId={null}
+          onToggle={() => {}}
+          onSessionClick={() => {}}
+          onAddSession={() => {}}
+          onSettings={() => {}}
+        />
+      );
+
+      const projectToggle = screen.getByTestId('project-toggle');
+      fireEvent.contextMenu(projectToggle);
+
+      expect(screen.getByText('設定')).toBeInTheDocument();
+    });
+
+    it('コンテキストメニューに「設定」オプションがない（onSettingsが渡されていない場合）', () => {
+      render(
+        <ProjectTreeItem
+          project={mockProject}
+          sessions={mockSessions}
+          isExpanded={false}
+          currentSessionId={null}
+          onToggle={() => {}}
+          onSessionClick={() => {}}
+          onAddSession={() => {}}
+        />
+      );
+
+      const projectToggle = screen.getByTestId('project-toggle');
+      fireEvent.contextMenu(projectToggle);
+
+      expect(screen.queryByText('設定')).not.toBeInTheDocument();
+    });
+
+    it('コンテキストメニューに「削除」オプションがある（onDeleteが渡されている場合）', () => {
+      render(
+        <ProjectTreeItem
+          project={mockProject}
+          sessions={mockSessions}
+          isExpanded={false}
+          currentSessionId={null}
+          onToggle={() => {}}
+          onSessionClick={() => {}}
+          onAddSession={() => {}}
+          onDelete={() => {}}
+        />
+      );
+
+      const projectToggle = screen.getByTestId('project-toggle');
+      fireEvent.contextMenu(projectToggle);
+
+      expect(screen.getByText('削除')).toBeInTheDocument();
+    });
+
+    it('コンテキストメニューに「削除」オプションがない（onDeleteが渡されていない場合）', () => {
+      render(
+        <ProjectTreeItem
+          project={mockProject}
+          sessions={mockSessions}
+          isExpanded={false}
+          currentSessionId={null}
+          onToggle={() => {}}
+          onSessionClick={() => {}}
+          onAddSession={() => {}}
+        />
+      );
+
+      const projectToggle = screen.getByTestId('project-toggle');
+      fireEvent.contextMenu(projectToggle);
+
+      expect(screen.queryByText('削除')).not.toBeInTheDocument();
+    });
+
+    it('「設定」クリックでonSettingsが呼ばれる', () => {
+      const handleSettings = vi.fn();
+      render(
+        <ProjectTreeItem
+          project={mockProject}
+          sessions={mockSessions}
+          isExpanded={false}
+          currentSessionId={null}
+          onToggle={() => {}}
+          onSessionClick={() => {}}
+          onAddSession={() => {}}
+          onSettings={handleSettings}
+        />
+      );
+
+      const projectToggle = screen.getByTestId('project-toggle');
+      fireEvent.contextMenu(projectToggle);
+      fireEvent.click(screen.getByText('設定'));
+
+      expect(handleSettings).toHaveBeenCalledTimes(1);
+    });
+
+    it('「削除」クリックでonDeleteが呼ばれる', () => {
+      const handleDelete = vi.fn();
+      render(
+        <ProjectTreeItem
+          project={mockProject}
+          sessions={mockSessions}
+          isExpanded={false}
+          currentSessionId={null}
+          onToggle={() => {}}
+          onSessionClick={() => {}}
+          onAddSession={() => {}}
+          onDelete={handleDelete}
+        />
+      );
+
+      const projectToggle = screen.getByTestId('project-toggle');
+      fireEvent.contextMenu(projectToggle);
+      fireEvent.click(screen.getByText('削除'));
+
+      expect(handleDelete).toHaveBeenCalledTimes(1);
+    });
+  });
 });

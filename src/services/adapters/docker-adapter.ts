@@ -3,6 +3,8 @@ import * as pty from 'node-pty';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 import { EnvironmentAdapter, CreateSessionOptions, PTYExitInfo } from '../environment-adapter';
 import { prisma } from '@/lib/db';
 import { logger } from '@/lib/logger';
@@ -141,6 +143,21 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
   }
 
   /**
+   * Dockerコンテナが実際に存在し、実行中かを確認
+   */
+  private async isContainerRunning(containerName: string): Promise<boolean> {
+    const execFileAsync = promisify(execFile);
+    try {
+      const { stdout } = await execFileAsync('docker', ['inspect', '--format', '{{.State.Running}}', containerName], {
+        timeout: 5000,
+      });
+      return stdout.trim() === 'true';
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * docker exec でシェルセッションを作成
    */
   private async createExecSession(
@@ -218,13 +235,58 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
 
     // シェルモードの場合、親コンテナ（Claude）に接続を試みる
     if (shellMode) {
-      const parentContainerName = this.getParentContainerName(sessionId);
+      // まずメモリから親コンテナ名を取得
+      let parentContainerName = this.getParentContainerName(sessionId);
+
+      // メモリにない場合、データベースから取得を試みる
+      if (!parentContainerName) {
+        const parentSessionId = this.getParentSessionId(sessionId);
+        if (parentSessionId) {
+          try {
+            const parentSession = await prisma.session.findUnique({
+              where: { id: parentSessionId },
+              select: { container_id: true },
+            });
+            if (parentSession?.container_id) {
+              parentContainerName = parentSession.container_id;
+              logger.info('DockerAdapter: Found container_id from database', {
+                sessionId,
+                parentSessionId,
+                containerName: parentContainerName,
+              });
+            }
+          } catch (error) {
+            logger.warn('DockerAdapter: Failed to fetch container_id from database', {
+              sessionId,
+              parentSessionId,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            });
+          }
+        }
+      }
+
       if (parentContainerName) {
+        // コンテナが実際に実行中か確認
+        if (!(await this.isContainerRunning(parentContainerName))) {
+          const error = new Error(
+            'Dockerコンテナが実行されていません。Claude Codeセッションが終了した可能性があります。' +
+            'Shellタブを使用するにはClaudeセッションを再起動してください。'
+          );
+          logger.warn('DockerAdapter: Parent container is not running', {
+            sessionId,
+            parentContainerName,
+            parentSessionId: this.getParentSessionId(sessionId),
+          });
+          this.emit('error', sessionId, error);
+          throw error;
+        }
         await this.createExecSession(sessionId, parentContainerName, workingDir);
         return;
       }
       // 親コンテナがない場合はエラー
-      const error = new Error('No parent container found. Start Claude session first.');
+      const error = new Error(
+        'Dockerコンテナが見つかりません。Claude Codeセッションを先に開始してください。'
+      );
       logger.warn('DockerAdapter: Shell mode requested but no parent container found', {
         sessionId,
         parentSessionId: this.getParentSessionId(sessionId),
