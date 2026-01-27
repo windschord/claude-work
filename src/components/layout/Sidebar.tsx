@@ -7,7 +7,7 @@ import { useUIStore } from '@/store/ui';
 import { ProjectTreeItem } from './ProjectTreeItem';
 import { CreateSessionModal } from '@/components/sessions/CreateSessionModal';
 import { AddProjectButton } from './AddProjectButton';
-import { AddProjectModal } from './AddProjectModal';
+import { AddProjectModal } from '@/components/projects/AddProjectModal';
 import { ProjectSettingsModal } from './ProjectSettingsModal';
 import { DeleteConfirmDialog } from './DeleteConfirmDialog';
 import { Project, Session } from '@/store';
@@ -99,11 +99,6 @@ export function Sidebar() {
     },
     [selectedProjectIdForSession, fetchSessions, router, setIsSidebarOpen]
   );
-
-  // プロジェクト追加成功時の処理
-  const handleProjectAdded = useCallback(async () => {
-    await fetchProjects();
-  }, [fetchProjects]);
 
   // プロジェクト設定を開く
   const handleOpenSettings = useCallback((project: Project) => {
@@ -265,7 +260,6 @@ export function Sidebar() {
       <AddProjectModal
         isOpen={isAddProjectModalOpen}
         onClose={() => setIsAddProjectModalOpen(false)}
-        onSuccess={handleProjectAdded}
       />
 
       {/* プロジェクト設定モーダル */}
