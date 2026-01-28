@@ -48,6 +48,6 @@ export const sessionOptions: SessionOptions = {
  * セッション型定義をモジュール拡張で宣言
  */
 declare module 'iron-session' {
-  // eslint-disable-next-line @typescript-eslint/no-empty-object-type
+   
   interface IronSessionData extends SessionData {}
 }

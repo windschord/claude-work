@@ -11,7 +11,7 @@ const nextConfig = {
   },
   // Exclude specific directories from being processed
   pageExtensions: ['tsx', 'ts', 'jsx', 'js'],
-  webpack: (config, { isServer }) => {
+  webpack: (config, { _isServer }) => {
     // Ignore the frontend directory
     config.watchOptions = {
       ...config.watchOptions,

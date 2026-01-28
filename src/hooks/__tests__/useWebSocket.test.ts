@@ -77,7 +77,7 @@ describe('useWebSocket', () => {
   beforeEach(() => {
     MockWebSocket.instances = [];
     // グローバルなWebSocketをモックで置き換え
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     global.WebSocket = MockWebSocket as any;
     vi.useFakeTimers();
   });

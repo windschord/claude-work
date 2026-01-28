@@ -58,7 +58,7 @@ interface ProcessData {
  * Next.jsの開発モードでHot Reloadが発生しても同じインスタンスを使い回すため
  */
 declare global {
-  // eslint-disable-next-line no-var
+   
   var processManager: ProcessManager | undefined;
 }
 

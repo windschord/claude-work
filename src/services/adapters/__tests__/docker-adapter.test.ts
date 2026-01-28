@@ -408,7 +408,7 @@ describe('DockerAdapter', () => {
 
     it('should use docker exec to attach to existing container when shellMode is true', async () => {
       // isContainerRunningがtrueを返すようにスパイ
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const isContainerRunningSpy = vi.spyOn(adapter as any, 'isContainerRunning').mockReturnValue(true);
 
       // 親セッション（Claude）を作成
@@ -458,7 +458,7 @@ describe('DockerAdapter', () => {
 
     it('should throw error when parent container is not running', async () => {
       // isContainerRunningがfalseを返すようにスパイ
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const isContainerRunningSpy = vi.spyOn(adapter as any, 'isContainerRunning').mockReturnValue(false);
 
       const errorListener = vi.fn();
@@ -509,7 +509,7 @@ describe('DockerAdapter', () => {
       vi.useFakeTimers();
 
       // isContainerRunningがtrueを返すようにスパイ
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const isContainerRunningSpy = vi.spyOn(adapter as any, 'isContainerRunning').mockReturnValue(true);
 
       // 親セッションを作成
@@ -534,7 +534,7 @@ describe('DockerAdapter', () => {
 
     it('should not extract Claude session ID in shellMode (exec session)', async () => {
       // isContainerRunningがtrueを返すようにスパイ
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const isContainerRunningSpy = vi.spyOn(adapter as any, 'isContainerRunning').mockReturnValue(true);
 
       const claudeSessionIdListener = vi.fn();
