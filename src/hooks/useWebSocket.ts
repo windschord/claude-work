@@ -118,7 +118,7 @@ export function useWebSocket(
       console.error('Failed to create WebSocket connection:', error);
       setStatus('error');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [sessionId]);
 
   // メッセージ送信関数

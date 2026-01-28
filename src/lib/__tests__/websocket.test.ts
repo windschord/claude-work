@@ -1,5 +1,5 @@
-/* eslint-disable @typescript-eslint/no-require-imports */
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
+ 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ConnectionManager } from '../websocket/connection-manager';
 import { SessionWebSocketHandler } from '../websocket/session-ws';

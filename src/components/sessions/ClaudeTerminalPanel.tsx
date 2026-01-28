@@ -75,7 +75,7 @@ function ClaudeTerminalPanel({
         if (rect.width > 0 && rect.height > 0) {
           // ターミナルが既にDOMにアタッチされているかチェック
           // XTerm.jsのTerminalはelement プロパティでアタッチ状態を確認できる
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+           
           const terminalElement = (terminal as any).element;
           if (terminalElement) {
             setIsTerminalOpened(true);
