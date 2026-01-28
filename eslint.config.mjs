@@ -48,6 +48,9 @@ export default [
       ...nextPlugin.configs["core-web-vitals"].rules,
       ...reactPlugin.configs.recommended.rules,
       ...hooksPlugin.configs.recommended.rules,
+      // React 19のreact-hooks新ルールを一時的に無効化
+      "react-hooks/set-state-in-effect": "off",
+      "react-hooks/immutability": "off",
       "react/react-in-jsx-scope": "off",
       "react/prop-types": "off",
       "@typescript-eslint/no-unused-vars": [
