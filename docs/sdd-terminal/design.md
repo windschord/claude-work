@@ -235,6 +235,7 @@ sequenceDiagram
     participant ES as Environment Service
     participant AF as Adapter Factory
     participant DA as Docker Adapter
+    participant HA as Host Adapter
     participant PM as PTY Manager
     participant Docker as Docker Container
     participant Host as Host Shell
@@ -257,10 +258,10 @@ sequenceDiagram
             DA-->>TWS: emit('data', output)
         else environment.type === 'HOST'
             AF-->>TWS: HostAdapter
-            TWS->>DA: createSession(terminalSessionId, workingDir, undefined, { shellMode: true })
-            DA->>Host: pty.spawn('/bin/bash')
-            Host-->>DA: PTY出力
-            DA-->>TWS: emit('data', output)
+            TWS->>HA: createSession(terminalSessionId, workingDir, undefined, { shellMode: true })
+            HA->>Host: pty.spawn('/bin/bash')
+            Host-->>HA: PTY出力
+            HA-->>TWS: emit('data', output)
         end
     else environment_id が未指定
         Note over TWS: レガシーモード（ptyManager直接使用）
