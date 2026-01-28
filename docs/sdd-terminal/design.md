@@ -250,14 +250,14 @@ sequenceDiagram
 
         alt environment.type === 'DOCKER'
             AF-->>TWS: DockerAdapter
-            TWS->>DA: createSession(terminalSessionId, workingDir, shellMode: true)
+            TWS->>DA: createSession(terminalSessionId, workingDir, undefined, { shellMode: true })
             Note over DA: 親セッション(Claude)のコンテナを取得
             DA->>Docker: docker exec -it containerName bash
             Docker-->>DA: PTY出力
             DA-->>TWS: emit('data', output)
         else environment.type === 'HOST'
             AF-->>TWS: HostAdapter
-            TWS->>DA: createSession(terminalSessionId, workingDir, shellMode: true)
+            TWS->>DA: createSession(terminalSessionId, workingDir, undefined, { shellMode: true })
             DA->>Host: pty.spawn('/bin/bash')
             Host-->>DA: PTY出力
             DA-->>TWS: emit('data', output)

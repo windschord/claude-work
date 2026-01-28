@@ -194,13 +194,17 @@ import { spawn } from 'child_process';
 import { execSync } from 'child_process';
 
 // gh CLI の利用可能性を事前チェック
+// 注意: 本番実装ではサーバー起動時に一度だけチェックしてキャッシュすることを推奨
+let ghAvailableCache: boolean | null = null;
 function checkGhAvailable(): boolean {
+  if (ghAvailableCache !== null) return ghAvailableCache;
   try {
     execSync('gh --version', { stdio: 'ignore' });
-    return true;
+    ghAvailableCache = true;
   } catch {
-    return false;
+    ghAvailableCache = false;
   }
+  return ghAvailableCache;
 }
 
 export async function POST(
@@ -228,12 +232,14 @@ export async function POST(
 
   try {
     // gh CLI でPR作成（spawn を使用してコマンドインジェクションを防止）
+    // --json オプションで構造化出力を取得し、正規表現パースの脆弱性を回避
     const stdout = await new Promise<string>((resolve, reject) => {
       const args = [
         'pr', 'create',
         '--title', title,
         '--body', body,
-        '--head', session.branch_name
+        '--head', session.branch_name,
+        '--json', 'url,number'
       ];
 
       const proc = spawn('gh', args, {
@@ -259,16 +265,10 @@ export async function POST(
       proc.on('error', reject);
     });
 
-    // PRのURLを抽出
-    const prUrlMatch = stdout.match(/https:\/\/github\.com\/[^\s]+\/pull\/\d+/);
-    const prNumberMatch = stdout.match(/pull\/(\d+)/);
-
-    if (!prUrlMatch) {
-      throw new Error('Failed to parse PR URL from gh output');
-    }
-
-    const prUrl = prUrlMatch[0];
-    const prNumber = prNumberMatch ? parseInt(prNumberMatch[1], 10) : null;
+    // JSON出力からPR情報を抽出（--json オプション使用時）
+    const prData = JSON.parse(stdout);
+    const prUrl = prData.url;
+    const prNumber = prData.number;
 
     // セッションにPR情報を保存
     await prisma.session.update({
