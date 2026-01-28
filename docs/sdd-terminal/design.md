@@ -117,7 +117,7 @@ sequenceDiagram
 
 ### ターミナルWebSocket
 
-```
+```text
 ws://host/ws/terminal/{session_id}
 ```
 

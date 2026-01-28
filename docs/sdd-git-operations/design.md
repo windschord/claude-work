@@ -285,7 +285,11 @@ export async function POST(
       pr: { url: prUrl, number: prNumber, status: 'open' },
     }, { status: 201 });
   } catch (error) {
-    throw error;
+    console.error('PR creation failed:', error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'PR creation failed' },
+      { status: 500 }
+    );
   }
 }
 ```
