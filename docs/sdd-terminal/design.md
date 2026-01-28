@@ -277,10 +277,10 @@ sequenceDiagram
 
 ## 要件との整合性チェック
 
-| 要件ID | 要件内容 | 設計対応 |
-|--------|----------|----------|
-| REQ-114 | コンテナサイズに合わせたターミナルサイズ計算 | FitAddon + ResizeObserver |
-| REQ-115 | ウィンドウリサイズ時の300ms以内再計算 | debounce(300ms) + fit() |
-| REQ-116 | タブ切り替え時のリサイズ | isVisible prop + useEffect |
-| REQ-117 | WebSocketでリサイズイベント送信 | ResizeMessage + pty.resize() |
-| REQ-118 | Claude/Shell両方に同じリサイズ動作 | 共通フック実装 |
+| 要件ID  | 要件内容                                       | 設計対応                      |
+| ------- | ---------------------------------------------- | ----------------------------- |
+| REQ-114 | コンテナサイズに合わせたターミナルサイズ計算   | FitAddon + ResizeObserver     |
+| REQ-115 | ウィンドウリサイズ時の300ms以内再計算          | debounce(300ms) + fit()       |
+| REQ-116 | タブ切り替え時のリサイズ                       | isVisible prop + useEffect    |
+| REQ-117 | WebSocketでリサイズイベント送信                | ResizeMessage + pty.resize()  |
+| REQ-118 | Claude/Shell両方に同じリサイズ動作             | 共通フック実装                |
