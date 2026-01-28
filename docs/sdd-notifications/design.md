@@ -47,6 +47,10 @@ function sendNotification(event: NotificationEvent): void {
     // OS通知（権限がある場合のみ）
     if (Notification.permission === 'granted') {
       showOSNotification(event);
+    } else {
+      // 権限が未許可の場合はtoast通知にフォールバック
+      // （ユーザーがページに戻った際に表示される）
+      showToast(event);
     }
   }
 }

@@ -45,6 +45,11 @@
 
 **インターフェース**:
 ```typescript
+interface CreateSessionOptions {
+  model?: string;
+  shellMode?: boolean;  // true: シェルターミナルモード、false: Claude対話モード（デフォルト）
+}
+
 interface EnvironmentAdapter extends EventEmitter {
   createSession(sessionId: string, workingDir: string, initialPrompt?: string, options?: CreateSessionOptions): Promise<void>;
   write(sessionId: string, data: string): void;
@@ -120,10 +125,16 @@ ws://host/ws/terminal/{session_id}
 
 ### メッセージ形式
 
+**データ送受信**:
+- **入力データ（クライアント → サーバー）**: バイナリ（UTF-8エンコードされたテキスト）として送信。制御メッセージ（リサイズなど）はJSON形式
+- **出力データ（サーバー → クライアント）**: バイナリ（UTF-8エンコードされたテキスト）として送信
+
 #### クライアント → サーバー
 
 ```typescript
-// リサイズメッセージ
+// テキスト入力: バイナリ（UTF-8文字列）として直接送信
+
+// リサイズメッセージ: JSON形式
 interface ResizeMessage {
   type: 'resize';
   cols: number;

@@ -416,7 +416,7 @@ sequenceDiagram
 
 ### 接続
 
-```
+```text
 ws://host/ws/sessions/{session_id}
 ```
 

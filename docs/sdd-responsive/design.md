@@ -12,16 +12,20 @@
 
 #### コンポーネント: Zustand Store（テーマ関連）
 
-**目的**: テーマ状態の管理
+**目的**: テーマ状態の補助的管理
+
+**説明**: テーマの主要な管理は `next-themes` ライブラリが担当します。Zustand ストアは、テーマに関連するアプリ固有の状態（モバイル判定など）や、コンポーネント間で共有する必要がある派生状態を管理するために使用します。実際のテーマ切り替えは `next-themes` の `useTheme` フックを使用してください。
 
 **ストア構成**:
 ```typescript
 interface AppState {
-  // UI
+  // UI（next-themesで管理されるthemeの参照用キャッシュ）
   theme: 'light' | 'dark' | 'system';
   isMobile: boolean;
 }
 ```
+
+**注意**: `theme` 状態は `next-themes` との同期用であり、テーマ変更時は必ず `next-themes` の `setTheme()` を使用してください。
 
 #### コンポーネント: ThemeProvider
 
@@ -117,8 +121,8 @@ export default function RootLayout({ children }) {
 |--------|----------|----------|
 | REQ-063 | 768px未満でモバイルレイアウト | Tailwind CSSブレークポイント |
 | REQ-064 | セッション一覧のカード形式 | SessionCard コンポーネント |
-| REQ-065 | タッチ操作対応 | Tailwind CSSタッチ対応クラス |
+| REQ-065 | タッチ操作対応 | Tailwind CSSタッチ対応クラス（`touch-manipulation`）、モバイルで48px以上のタップターゲット、スワイプジェスチャー対応（将来拡張） |
 | REQ-066 | OSテーマ設定の検出 | next-themes enableSystem |
-| REQ-067 | テーマ切り替え | ThemeToggle コンポーネント |
+| REQ-067 | テーマ切り替え | ThemeToggle コンポーネント: ヘッダー右上に配置、ライト/ダーク/システムの3状態をドロップダウンまたはトグルボタンで選択 |
 | REQ-068 | ローカルストレージ保存 | next-themes 自動保存 |
 | REQ-069 | 保存テーマの復元 | next-themes 自動復元 |

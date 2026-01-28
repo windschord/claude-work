@@ -190,15 +190,31 @@ Git操作（コミット履歴、差分表示、rebase、merge）およびPR作�
 **実装場所**: `src/app/api/sessions/[id]/pr/route.ts`
 
 ```typescript
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import { spawn } from 'child_process';
+import { execSync } from 'child_process';
 
-const execAsync = promisify(exec);
+// gh CLI の利用可能性を事前チェック
+function checkGhAvailable(): boolean {
+  try {
+    execSync('gh --version', { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export async function POST(
   request: Request,
   { params }: { params: { id: string } }
 ) {
+  // gh CLI の事前チェック
+  if (!checkGhAvailable()) {
+    return NextResponse.json(
+      { error: 'GitHub CLI (gh) is not installed or not in PATH' },
+      { status: 503 }
+    );
+  }
+
   const session = await prisma.session.findUnique({
     where: { id: params.id },
     include: { project: true },
@@ -211,11 +227,37 @@ export async function POST(
   const { title, body } = await request.json();
 
   try {
-    // gh CLI でPR作成
-    const { stdout } = await execAsync(
-      `gh pr create --title "${title.replace(/"/g, '\\"')}" --body "${body.replace(/"/g, '\\"')}" --head "${session.branch_name}"`,
-      { cwd: session.worktree_path, timeout: 30000 }
-    );
+    // gh CLI でPR作成（spawn を使用してコマンドインジェクションを防止）
+    const stdout = await new Promise<string>((resolve, reject) => {
+      const args = [
+        'pr', 'create',
+        '--title', title,
+        '--body', body,
+        '--head', session.branch_name
+      ];
+
+      const proc = spawn('gh', args, {
+        cwd: session.worktree_path,
+        timeout: 30000,
+        stdio: ['ignore', 'pipe', 'pipe']
+      });
+
+      let output = '';
+      let errorOutput = '';
+
+      proc.stdout.on('data', (data) => { output += data.toString(); });
+      proc.stderr.on('data', (data) => { errorOutput += data.toString(); });
+
+      proc.on('close', (code) => {
+        if (code === 0) {
+          resolve(output);
+        } else {
+          reject(new Error(`gh pr create failed: ${errorOutput}`));
+        }
+      });
+
+      proc.on('error', reject);
+    });
 
     // PRのURLを抽出
     const prUrlMatch = stdout.match(/https:\/\/github\.com\/[^\s]+\/pull\/\d+/);
@@ -243,13 +285,6 @@ export async function POST(
       pr: { url: prUrl, number: prNumber, status: 'open' },
     }, { status: 201 });
   } catch (error) {
-    // gh CLIが利用できない場合のエラーハンドリング
-    if (error instanceof Error && error.message.includes('gh: command not found')) {
-      return NextResponse.json(
-        { error: 'GitHub CLI (gh) is not installed or not in PATH' },
-        { status: 503 }
-      );
-    }
     throw error;
   }
 }
@@ -331,7 +366,7 @@ function PRStatusBadge({ status }: { status: string }) {
 | pr_url | TEXT | NULLABLE | GitHub PR URL |
 | pr_number | INTEGER | NULLABLE | PR番号 |
 | pr_status | TEXT | NULLABLE | open, merged, closed |
-| pr_updated_at | TEXT | NULLABLE | PRステータス最終確認日時 |
+| pr_updated_at | DateTime | NULLABLE | PRステータス最終確認日時 |
 
 ---
 
