@@ -154,7 +154,7 @@ interface ResizeMessage {
 
 ```typescript
 // XTerm.js FitAddon の追加
-import { FitAddon } from 'xterm-addon-fit';
+import { FitAddon } from '@xterm/addon-fit';
 
 interface UseTerminalOptions {
   sessionId: string;
@@ -210,7 +210,7 @@ handleMessage(sessionId: string, message: WebSocketMessage) {
 #### 依存パッケージ追加
 
 ```bash
-npm install xterm-addon-fit
+npm install @xterm/addon-fit
 ```
 
 ---
