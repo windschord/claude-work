@@ -35,12 +35,15 @@ test.describe.serial('npx CLI installation test', () => {
 
     // npm pack で tarball を作成（--ignore-scripts でprepareをスキップ）
     // npm pack は通常 prepare スクリプトを実行するため、--ignore-scripts で防止
+    // --json を使用して確実にtarball名のみを取得
     console.log('Creating tarball with npm pack...');
-    const packOutput = execSync('npm pack --ignore-scripts', {
+    const packOutput = execSync('npm pack --ignore-scripts --json', {
       cwd: projectRoot,
       encoding: 'utf-8',
     });
-    const tarballName = packOutput.trim();
+    // JSON出力からtarball名を抽出
+    const packResult = JSON.parse(packOutput);
+    const tarballName = packResult[0].filename;
     const tarballPath = path.join(projectRoot, tarballName);
 
     console.log(`Created tarball: ${tarballPath}`);
