@@ -48,31 +48,12 @@ test.describe.serial('npx CLI installation test', () => {
 
     console.log(`Created tarball: ${tarballPath}`);
 
-    // 一時ディレクトリに package.json を作成（npm install に必要）
-    const packageJson = {
-      name: 'claude-work-e2e-test',
-      version: '1.0.0',
-      private: true,
-    };
-    fs.writeFileSync(
-      path.join(tempDir, 'package.json'),
-      JSON.stringify(packageJson, null, 2)
-    );
-
-    // tarball をインストール（prepare スクリプトが実行される）
-    console.log('Installing tarball (this will trigger prepare script)...');
-    try {
-      execSync(`npm install "${tarballPath}"`, {
-        cwd: tempDir,
-        encoding: 'utf-8',
-        stdio: 'inherit',
-        timeout: 240000, // 4分タイムアウト（ビルドに時間がかかる）
-      });
-    } catch (error) {
-      // インストールエラーの詳細を出力
-      console.error('Installation failed:', error);
-      throw error;
-    }
+    // tarball を一時ディレクトリに展開
+    // npx github:... の実際の動作を模擬（cloneしてnpm installを実行）
+    console.log('Extracting tarball...');
+    execSync(`tar -xzf "${tarballPath}" -C "${tempDir}"`, {
+      encoding: 'utf-8',
+    });
 
     // tarball を削除（クリーンアップ）
     try {
@@ -80,8 +61,28 @@ test.describe.serial('npx CLI installation test', () => {
       console.log('Cleaned up tarball');
     } catch (error) {
       console.warn('Failed to clean up tarball:', error);
-      // 非クリティカルなエラーのため、テストは続行する
     }
+
+    // 展開されたディレクトリ（package/）に移動
+    const packageDir = path.join(tempDir, 'package');
+
+    // npm install を実行（prepare スクリプトが発火する）
+    // npx github:... と同じ動作をシミュレート
+    console.log('Running npm install (this will trigger prepare script)...');
+    try {
+      execSync('npm install', {
+        cwd: packageDir,
+        encoding: 'utf-8',
+        stdio: 'inherit',
+        timeout: 240000, // 4分タイムアウト（ビルドに時間がかかる）
+      });
+    } catch (error) {
+      console.error('Installation failed:', error);
+      throw error;
+    }
+
+    // tempDirを展開されたパッケージディレクトリに更新
+    tempDir = packageDir;
 
     console.log('Installation completed successfully');
   });
@@ -101,24 +102,24 @@ test.describe.serial('npx CLI installation test', () => {
   });
 
   test('claude-work CLI is installed and built', async () => {
-    // CLI バイナリが存在することを確認
-    const cliBinPath = path.join(tempDir, 'node_modules', '.bin', 'claude-work');
-    expect(fs.existsSync(cliBinPath)).toBe(true);
-
     // prepare スクリプトでビルドされたファイルが存在することを確認
-    const claudeWorkPath = path.join(tempDir, 'node_modules', 'claude-work');
-    const distPath = path.join(claudeWorkPath, 'dist');
+    const distPath = path.join(tempDir, 'dist');
     expect(fs.existsSync(distPath)).toBe(true);
     expect(fs.existsSync(path.join(distPath, 'src', 'bin', 'cli.js'))).toBe(true);
 
     // Next.js ビルド成果物が存在することを確認
-    const nextPath = path.join(claudeWorkPath, '.next');
+    const nextPath = path.join(tempDir, '.next');
     expect(fs.existsSync(nextPath)).toBe(true);
+
+    // CLI バイナリがpackage.jsonで正しく指定されていることを確認
+    const packageJsonPath = path.join(tempDir, 'package.json');
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+    expect(packageJson.bin['claude-work']).toBe('dist/src/bin/cli.js');
   });
 
   test('claude-work help shows usage', async () => {
-    // help コマンドを実行
-    const output = execSync('npx claude-work help', {
+    // help コマンドを実行（展開されたパッケージ内のCLIを直接実行）
+    const output = execSync('node dist/src/bin/cli.js help', {
       cwd: tempDir,
       encoding: 'utf-8',
     });
@@ -135,7 +136,7 @@ test.describe.serial('npx CLI installation test', () => {
 
   test('claude-work --help shows usage', async () => {
     // --help オプションでもヘルプが表示される
-    const output = execSync('npx claude-work --help', {
+    const output = execSync('node dist/src/bin/cli.js --help', {
       cwd: tempDir,
       encoding: 'utf-8',
     });
@@ -146,7 +147,7 @@ test.describe.serial('npx CLI installation test', () => {
 
   test('claude-work -h shows usage', async () => {
     // -h オプションでもヘルプが表示される
-    const output = execSync('npx claude-work -h', {
+    const output = execSync('node dist/src/bin/cli.js -h', {
       cwd: tempDir,
       encoding: 'utf-8',
     });
@@ -157,7 +158,7 @@ test.describe.serial('npx CLI installation test', () => {
 
   test('claude-work status shows pm2 status', async () => {
     // status コマンドを実行（pm2 がインストールされていることを確認）
-    const output = execSync('npx claude-work status', {
+    const output = execSync('node dist/src/bin/cli.js status', {
       cwd: tempDir,
       encoding: 'utf-8',
     });
@@ -171,7 +172,7 @@ test.describe.serial('npx CLI installation test', () => {
     // 不明なコマンドを実行
     let commandSucceeded = false;
     try {
-      execSync('npx claude-work unknown-command', {
+      execSync('node dist/src/bin/cli.js unknown-command', {
         cwd: tempDir,
         encoding: 'utf-8',
         timeout: 30000,
