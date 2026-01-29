@@ -34,7 +34,9 @@ npx github:user/claude-work 実行フロー:
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │  2. npm install 実行                                         │
-│     └─ prepare スクリプト発火 → npm run build               │
+│     └─ prepare スクリプト発火                                │
+│        1. npx prisma generate (Prismaクライアント生成)       │
+│        2. DATABASE_URL設定 + npm run build                   │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -51,20 +53,22 @@ npx github:user/claude-work 実行フロー:
 **目的**: GitHubからのインストール時に自動ビルドを実行する
 
 **責務**:
-- `npm install` 実行後に `npm run build` を自動実行
+- `npm install` 実行後にPrismaクライアント生成とビルドを自動実行
 - CI環境（`npm ci`）でも動作
 
 **変更内容**:
 ```json
 {
   "scripts": {
-    "prepare": "npm run build"
+    "prepare": "npx prisma generate && DATABASE_URL=file:./data/build.db npm run build"
   }
 }
 ```
 
 **明示された情報**:
 - prepareスクリプトはnpm install後に自動実行される
+- `npx prisma generate` でPrismaクライアントをスキーマから生成
+- `DATABASE_URL` をビルド時に設定（Next.jsビルドで環境変数が必要なため）
 - `npm run build` で Next.js と TypeScript サーバーの両方をビルド
 
 ### コンポーネント2: E2Eテスト (npx動作検証)

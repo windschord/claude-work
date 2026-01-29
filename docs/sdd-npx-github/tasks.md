@@ -27,24 +27,28 @@
 
 **説明**:
 - 対象ファイル: `package.json`
-- 実装内容: `scripts` セクションに `"prepare": "npm run build"` を追加
-- 目的: `npm install` 実行時に自動でビルドを実行させる
+- 実装内容: `scripts` セクションに `"prepare": "npx prisma generate && DATABASE_URL=file:./data/build.db npm run build"` を追加
+- 目的: `npm install` 実行時に自動でPrismaクライアント生成とビルドを実行させる
 
 **技術的文脈**:
 - npm のライフサイクルスクリプト `prepare` は `npm install` 後に自動実行される
+- `npx prisma generate` でPrismaクライアントをスキーマから生成（TypeScriptビルドに必要）
+- `DATABASE_URL` 環境変数をビルド時に設定（Next.jsビルドで環境変数検証が必要なため）
 - `npm run build` は Next.js とサーバーの両方をビルドする
 - GitHubからの `npx github:...` 実行時にこのスクリプトが発火する
 
 **情報の明確性**:
 
-| 分類 | 内容 |
-|------|------|
-| 明示された情報 | prepareスクリプトでnpm run buildを実行 |
-| 不明/要確認の情報 | なし |
+| 分類               | 内容                                                                 |
+|--------------------|----------------------------------------------------------------------|
+| 明示された情報     | prepareスクリプトでprisma generate + npm run buildを実行             |
+| 不明/要確認の情報  | なし                                                                 |
 
 **受入基準**:
-- [ ] `package.json` の `scripts` に `"prepare": "npm run build"` が追加されている
-- [ ] `npm install` 実行後にビルドが自動実行される（手動確認）
+- [x] `package.json` の `scripts` に prepare スクリプトが追加されている
+- [x] prepare スクリプトが `npx prisma generate` を実行する
+- [x] prepare スクリプトが `DATABASE_URL` を設定してビルドを実行する
+- [x] `npm install` 実行後にビルドが自動実行される
 
 **依存関係**: なし
 **ステータス**: `DONE`

@@ -24,7 +24,7 @@
 
 - **REQ-001**: `npx github:windschord/claude-work` を実行した時、システムは自動的にビルドを実行し、CLIが起動しなければならない
 - **REQ-002**: `npx github:windschord/claude-work#branch-name` を実行した時、システムは指定ブランチのコードでCLIが起動しなければならない
-- **REQ-003**: `npm install` を実行した時、システムは自動的に `npm run build` を実行しなければならない
+- **REQ-003**: `npm install` を実行した時、システムはprepareフックで `npx prisma generate` と `npm run build` を自動的に実行しなければならない
 
 ### ストーリー2: npx動作のE2Eテスト
 
