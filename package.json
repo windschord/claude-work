@@ -9,7 +9,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "prepare": "prisma generate && npm run build",
+    "prepare": "npx prisma generate && npm run build",
     "dev": "ts-node -r tsconfig-paths/register --project tsconfig.server.json server.ts",
     "dev:pm2": "pm2 start ecosystem.config.js --only claude-work-dev",
     "dev:stop": "pm2 stop claude-work-dev",
