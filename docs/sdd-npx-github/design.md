@@ -170,17 +170,21 @@ User                 npx                  npm                 CLI
 
 ```text
 e2e/npx-cli.spec.ts
-├── describe: npx CLI installation test
+├── describe.serial: npx CLI installation test
 │   ├── beforeAll: npm pack → 一時ディレクトリにインストール
+│   ├── test: claude-work CLI is installed
 │   ├── test: claude-work help shows usage
-│   ├── test: claude-work start starts server
-│   ├── test: claude-work stop stops server
-│   ├── test: claude-work status shows status
-│   └── afterAll: 一時ディレクトリ削除、プロセス停止
+│   ├── test: claude-work --help shows usage
+│   ├── test: claude-work -h shows usage
+│   ├── test: claude-work status shows pm2 status
+│   ├── test: unknown command exits with error
+│   └── afterAll: 一時ディレクトリ削除
 ```
+
+**注意**: start/stopコマンドのテストはバックグラウンドプロセス管理の複雑さから、このE2Eテストスイートでは除外。
 
 ### テスト環境
 
 - 一時ディレクトリ: `os.tmpdir()/claude-work-e2e-{random}`
-- タイムアウト: 各テスト120秒（ビルド時間を考慮）
+- タイムアウト: 各テスト300秒（ビルド時間を考慮）
 - クリーンアップ: afterAllで確実に削除

@@ -6,18 +6,19 @@
  *
  * npx github:windschord/claude-work 形式での実行を模擬しています。
  *
- * 注意: このテストは直列実行が必要（test.describe.serial）
+ * 注意:
+ * - このテストは直列実行が必要（test.describe.serial）
+ * - pnpmではなくnpmを使用（ユーザーがnpxで実行することを想定）
  */
 
 import { test, expect } from '@playwright/test';
-import { execSync, ChildProcess } from 'child_process';
+import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 
-// テスト用の一時ディレクトリとプロセス
+// テスト用の一時ディレクトリ
 let tempDir: string;
-let cliProcess: ChildProcess | null = null;
 
 // プロジェクトルート
 const projectRoot = path.resolve(__dirname, '..');
@@ -71,27 +72,18 @@ test.describe.serial('npx CLI installation test', () => {
     }
 
     // tarball を削除（クリーンアップ）
-    fs.unlinkSync(tarballPath);
+    try {
+      fs.unlinkSync(tarballPath);
+      console.log('Cleaned up tarball');
+    } catch (error) {
+      console.warn('Failed to clean up tarball:', error);
+      // 非クリティカルなエラーのため、テストは続行する
+    }
+
     console.log('Installation completed successfully');
   });
 
   test.afterAll(async () => {
-    // プロセスを停止
-    if (cliProcess) {
-      cliProcess.kill();
-      cliProcess = null;
-    }
-
-    // pm2 プロセスを停止（念のため）
-    try {
-      execSync('npx pm2 delete claude-work 2>/dev/null || true', {
-        cwd: tempDir,
-        encoding: 'utf-8',
-      });
-    } catch {
-      // 無視
-    }
-
     // 一時ディレクトリを削除
     if (tempDir && fs.existsSync(tempDir)) {
       fs.rmSync(tempDir, { recursive: true, force: true });
@@ -99,10 +91,15 @@ test.describe.serial('npx CLI installation test', () => {
     }
   });
 
-  test('claude-work CLI is installed', async () => {
+  test('claude-work CLI is installed and built', async () => {
     // CLI バイナリが存在することを確認
     const cliBinPath = path.join(tempDir, 'node_modules', '.bin', 'claude-work');
     expect(fs.existsSync(cliBinPath)).toBe(true);
+
+    // prepare スクリプトでビルドされたファイルが存在することを確認
+    const distPath = path.join(tempDir, 'node_modules', 'claude-work', 'dist');
+    expect(fs.existsSync(distPath)).toBe(true);
+    expect(fs.existsSync(path.join(distPath, 'src', 'bin', 'cli.js'))).toBe(true);
   });
 
   test('claude-work help shows usage', async () => {
@@ -158,18 +155,20 @@ test.describe.serial('npx CLI installation test', () => {
 
   test('unknown command exits with error', async () => {
     // 不明なコマンドを実行
+    let commandSucceeded = false;
     try {
       execSync('npx claude-work unknown-command', {
         cwd: tempDir,
         encoding: 'utf-8',
         timeout: 30000,
       });
-      // エラーで終了するはずなので、ここに到達したらテスト失敗
-      expect(true).toBe(false);
+      commandSucceeded = true;
     } catch (error: unknown) {
       // エラーで終了することを確認（エラーコード != 0）
       const execError = error as { status?: number };
       expect(execError.status).not.toBe(0);
     }
+    // コマンドが成功した場合はテスト失敗
+    expect(commandSucceeded).toBe(false);
   });
 });
