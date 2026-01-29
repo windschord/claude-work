@@ -34,7 +34,7 @@ test.describe.serial('npx CLI installation test', () => {
     console.log(`Created temp directory: ${tempDir}`);
 
     // npm pack で tarball を作成（--ignore-scripts でprepareをスキップ）
-    // npm pack 自体は prepare を実行しないが、念のため指定
+    // npm pack は通常 prepare スクリプトを実行するため、--ignore-scripts で防止
     console.log('Creating tarball with npm pack...');
     const packOutput = execSync('npm pack --ignore-scripts', {
       cwd: projectRoot,

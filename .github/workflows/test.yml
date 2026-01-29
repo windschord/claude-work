@@ -119,15 +119,13 @@ jobs:
         fi
       timeout-minutes: 8
 
-  # E2E tests - Playwright browser tests and CLI tests
+  # E2E tests - CLI installation tests (browser tests require Claude CLI)
   test-e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
     env:
       DATABASE_URL: file:./data/test.db
-      CLAUDE_WORK_TOKEN: test-token
-      SESSION_SECRET: test-session-secret-key-for-e2e-testing-purposes-only
 
     steps:
     - uses: actions/checkout@v4
@@ -149,11 +147,8 @@ jobs:
     - name: Generate Prisma Client
       run: pnpm exec prisma generate
 
-    - name: Install Playwright browsers
-      run: pnpm exec playwright install --with-deps chromium
-
-    - name: Run E2E tests
-      run: pnpm run e2e
+    - name: Run CLI E2E tests
+      run: SKIP_WEBSERVER=true pnpm exec playwright test --project=cli
       timeout-minutes: 10
 
   # Build job - depends on all tests passing

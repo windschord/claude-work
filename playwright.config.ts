@@ -1,5 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
+// CLIテストのみの場合はWebサーバー不要
+const skipWebServer = process.env.SKIP_WEBSERVER === 'true';
+
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
@@ -15,19 +18,29 @@ export default defineConfig({
   },
   projects: [
     {
+      name: 'cli',
+      testMatch: /npx-cli\.spec\.ts/,
+      // CLIテストはWebサーバー不要
+    },
+    {
       name: 'chromium',
+      testIgnore: /npx-cli\.spec\.ts/,
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:3001',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120000,
-    env: {
-      CLAUDE_WORK_TOKEN: process.env.CLAUDE_WORK_TOKEN || 'test-token',
-      SESSION_SECRET: process.env.SESSION_SECRET || 'test-session-secret-key-for-e2e-testing-purposes-only',
-      PORT: '3001',
-    },
-  },
+  webServer: skipWebServer
+    ? undefined
+    : {
+        command: 'npm run dev',
+        url: 'http://localhost:3001',
+        reuseExistingServer: !process.env.CI,
+        timeout: 120000,
+        env: {
+          CLAUDE_WORK_TOKEN: process.env.CLAUDE_WORK_TOKEN || 'test-token',
+          SESSION_SECRET:
+            process.env.SESSION_SECRET ||
+            'test-session-secret-key-for-e2e-testing-purposes-only',
+          PORT: '3001',
+        },
+      },
 });
