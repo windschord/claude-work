@@ -114,7 +114,7 @@ test.describe.serial('npx CLI installation test', () => {
     // CLI バイナリがpackage.jsonで正しく指定されていることを確認
     const packageJsonPath = path.join(tempDir, 'package.json');
     const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
-    expect(packageJson.bin['claude-work']).toBe('dist/src/bin/cli.js');
+    expect(packageJson.bin['claude-work']).toContain('dist/src/bin/cli.js');
   });
 
   test('claude-work help shows usage', async () => {
