@@ -106,7 +106,8 @@ User                 npx                  npm                 CLI
   │                   │───────────────────>│                   │
   │                   │                    │                   │
   │                   │                    │ prepare script    │
-  │                   │                    │ (npm run build)   │
+  │                   │                    │ 1. prisma generate│
+  │                   │                    │ 2. npm run build  │
   │                   │                    │──────────────────>│
   │                   │                    │                   │
   │                   │                    │ build complete    │

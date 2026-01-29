@@ -84,10 +84,16 @@ test.describe.serial('npx CLI installation test', () => {
   });
 
   test.afterAll(async () => {
-    // 一時ディレクトリを削除
-    if (tempDir && fs.existsSync(tempDir)) {
-      fs.rmSync(tempDir, { recursive: true, force: true });
-      console.log(`Cleaned up temp directory: ${tempDir}`);
+    // 一時ディレクトリを削除（beforeAllでエラーが発生した場合もtempDirが設定されている場合のみ）
+    if (tempDir) {
+      try {
+        if (fs.existsSync(tempDir)) {
+          fs.rmSync(tempDir, { recursive: true, force: true });
+          console.log(`Cleaned up temp directory: ${tempDir}`);
+        }
+      } catch (error) {
+        console.warn('Failed to clean up temp directory:', error);
+      }
     }
   });
 
@@ -97,9 +103,14 @@ test.describe.serial('npx CLI installation test', () => {
     expect(fs.existsSync(cliBinPath)).toBe(true);
 
     // prepare スクリプトでビルドされたファイルが存在することを確認
-    const distPath = path.join(tempDir, 'node_modules', 'claude-work', 'dist');
+    const claudeWorkPath = path.join(tempDir, 'node_modules', 'claude-work');
+    const distPath = path.join(claudeWorkPath, 'dist');
     expect(fs.existsSync(distPath)).toBe(true);
     expect(fs.existsSync(path.join(distPath, 'src', 'bin', 'cli.js'))).toBe(true);
+
+    // Next.js ビルド成果物が存在することを確認
+    const nextPath = path.join(claudeWorkPath, '.next');
+    expect(fs.existsSync(nextPath)).toBe(true);
   });
 
   test('claude-work help shows usage', async () => {
