@@ -133,7 +133,7 @@ User                 npx                  npm                 CLI
    - デメリット: GitHubからのnpxでは実行されない
 3. `postinstall` スクリプト
    - メリット: インストール後に実行
-   - デメリット: npm公式は依存パッケージのpostinstallを非推奨
+   - デメリット: npmは公開パッケージのpostinstallを推奨していない（セキュリティ上の懸念）
 
 **決定**: `prepare` スクリプト
 
