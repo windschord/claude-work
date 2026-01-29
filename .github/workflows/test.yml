@@ -119,11 +119,48 @@ jobs:
         fi
       timeout-minutes: 8
 
+  # E2E tests - Playwright browser tests and CLI tests
+  test-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      DATABASE_URL: file:./data/test.db
+      CLAUDE_WORK_TOKEN: test-token
+      SESSION_SECRET: test-session-secret-key-for-e2e-testing-purposes-only
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: 9
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'pnpm'
+
+    - name: Install dependencies
+      run: pnpm install --frozen-lockfile
+
+    - name: Generate Prisma Client
+      run: pnpm exec prisma generate
+
+    - name: Install Playwright browsers
+      run: pnpm exec playwright install --with-deps chromium
+
+    - name: Run E2E tests
+      run: pnpm run e2e
+      timeout-minutes: 10
+
   # Build job - depends on all tests passing
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: [lint, test-backend, test-frontend]
+    needs: [lint, test-backend, test-frontend, test-e2e]
 
     env:
       DATABASE_URL: file:./data/test.db
