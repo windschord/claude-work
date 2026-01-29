@@ -19,6 +19,8 @@ import * as os from 'os';
 
 // テスト用の一時ディレクトリ
 let tempDir: string;
+// tarballパス（afterAllでのクリーンアップ用）
+let tarballPath: string | null = null;
 
 // プロジェクトルート
 const projectRoot = path.resolve(__dirname, '..');
@@ -44,7 +46,7 @@ test.describe.serial('npx CLI installation test', () => {
     // 出力の最終行からtarball名を取得（余分な出力がある場合に対応）
     const lines = packOutput.trim().split('\n');
     const tarballName = lines[lines.length - 1].trim();
-    const tarballPath = path.join(projectRoot, tarballName);
+    tarballPath = path.join(projectRoot, tarballName);
 
     console.log(`Created tarball: ${tarballPath}`);
 
@@ -59,8 +61,10 @@ test.describe.serial('npx CLI installation test', () => {
     try {
       fs.unlinkSync(tarballPath);
       console.log('Cleaned up tarball');
+      tarballPath = null; // クリーンアップ済みを示す
     } catch (error) {
       console.warn('Failed to clean up tarball:', error);
+      // afterAllで再試行
     }
 
     // 展開されたディレクトリ（package/）に移動
@@ -88,6 +92,18 @@ test.describe.serial('npx CLI installation test', () => {
   });
 
   test.afterAll(async () => {
+    // tarball を削除（beforeAllで失敗した場合の保険）
+    if (tarballPath) {
+      try {
+        if (fs.existsSync(tarballPath)) {
+          fs.unlinkSync(tarballPath);
+          console.log('Cleaned up tarball in afterAll');
+        }
+      } catch (error) {
+        console.warn('Failed to clean up tarball:', error);
+      }
+    }
+
     // 一時ディレクトリを削除（beforeAllでエラーが発生した場合もtempDirが設定されている場合のみ）
     if (tempDir) {
       try {
