@@ -40,6 +40,18 @@ npx claude-work stop    # 停止
 npx claude-work         # Ctrl+C で停止
 ```
 
+#### GitHub リポジトリから直接実行
+
+npm registry に公開前のバージョンや、特定のブランチを試す場合:
+
+```bash
+# main ブランチから実行
+npx github:windschord/claude-work start
+
+# 特定のブランチから実行
+npx github:windschord/claude-work#feature-branch start
+```
+
 初回実行時は以下が自動的にセットアップされます:
 
 | ステップ | 処理内容 |
