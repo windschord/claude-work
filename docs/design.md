@@ -1263,7 +1263,7 @@ graph TD
         subgraph "音声入力モジュール"
             MediaRecorder[MediaRecorder API]
             SpeechRecognition[Web Speech API<br/>SpeechRecognition]
-            WhisperJS[Whisper.js<br/>オプション]
+            WhisperJS[Whisper-Web<br/>オプション]
         end
 
         subgraph "音声出力モジュール"
@@ -1331,6 +1331,7 @@ src/
 │   └── voice.ts                      # 音声状態管理
 └── lib/
     └── voice/
+        ├── browser-support.ts        # ブラウザ互換性チェック
         ├── speech-recognition.ts     # SpeechRecognition ユーティリティ
         ├── speech-synthesis.ts       # SpeechSynthesis ユーティリティ
         └── text-processor.ts         # Markdown→プレーンテキスト変換
