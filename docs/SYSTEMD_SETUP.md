@@ -267,7 +267,7 @@ systemd サービスはセキュリティ強化のため `ProtectHome=read-only`
 
 ```bash
 # claude-work ユーザーとして手動実行（デバッグ用）
-sudo -u claude-work bash -c 'source /etc/claude-work/env && cd /opt/claude-work && npx claude-work'
+sudo -u claude-work bash -c 'source /etc/claude-work/env && cd /opt/claude-work && node dist/src/bin/cli.js'
 ```
 
 ---

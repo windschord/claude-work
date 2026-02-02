@@ -112,6 +112,18 @@ LOG_LEVEL=info
 
 # Node.js 環境
 NODE_ENV=production
+
+# Claude Code CLI パス（オプション）
+# デフォルトでは PATH から自動検出
+# CLAUDE_CODE_PATH=/usr/local/bin/claude
+
+# 許可するプロジェクトディレクトリ（オプション）
+# カンマ区切りで複数指定可能
+# ALLOWED_PROJECT_DIRS=/home/projects,/opt/projects
+
+# プロセスのアイドルタイムアウト時間（分）（オプション）
+# 一定時間操作がない Claude Code プロセスを自動的にサスペンドします（デフォルト: 30）
+# PROCESS_IDLE_TIMEOUT_MINUTES=30
 ```
 
 ### コンポーネント3: セットアップドキュメント
