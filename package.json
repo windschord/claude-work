@@ -47,6 +47,7 @@
     "@headlessui/react": "^2.2.9",
     "@prisma/adapter-better-sqlite3": "^7.3.0",
     "@prisma/client": "^7.3.0",
+    "better-sqlite3": "^12.6.2",
     "@types/bcryptjs": "^2.4.6",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/xterm": "^5.5.0",

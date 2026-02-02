@@ -40,7 +40,8 @@ export default async function setup() {
 
   return async () => {
     // Teardown: Disconnect all Prisma clients
-    // Set DATABASE_URL for teardown (db.ts requires it on import)
+    // Prisma 7: db.ts validates DATABASE_URL at module import time (top-level).
+    // Since teardown runs after tests, we must set DATABASE_URL before importing db.ts.
     process.env.DATABASE_URL = testDbUrl;
     const { prisma } = await import('./src/lib/db');
     await prisma.$disconnect();

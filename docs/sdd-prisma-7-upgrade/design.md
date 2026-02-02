@@ -158,7 +158,7 @@ import { PrismaClient, Prisma } from '../../prisma/generated/prisma';
 **目的**: 生成されたクライアントをバージョン管理から除外
 
 **追加内容**:
-```
+```gitignore
 # Prisma generated client
 prisma/generated/
 ```
