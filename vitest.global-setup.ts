@@ -22,8 +22,8 @@ export default async function setup() {
   const testDbUrl = pathToFileURL(testDbPath).href;
 
   // Initialize database schema using prisma db push
-  const result = spawnSync('npx', ['prisma', 'db', 'push', '--skip-generate', '--accept-data-loss'], {
-    env: { ...process.env, DATABASE_URL: testDbUrl },
+  // Prisma 7: --skip-generate is no longer available, use --url instead of env var
+  const result = spawnSync('npx', ['prisma', 'db', 'push', '--url', testDbUrl, '--accept-data-loss'], {
     encoding: 'utf-8',
     cwd: process.cwd(),
   });
@@ -40,6 +40,9 @@ export default async function setup() {
 
   return async () => {
     // Teardown: Disconnect all Prisma clients
+    // Prisma 7: db.ts validates DATABASE_URL at module import time (top-level).
+    // Since teardown runs after tests, we must set DATABASE_URL before importing db.ts.
+    process.env.DATABASE_URL = testDbUrl;
     const { prisma } = await import('./src/lib/db');
     await prisma.$disconnect();
     console.log('Test database connections closed');

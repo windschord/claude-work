@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
-import { Prisma } from '@prisma/client';
+import { prisma, Prisma } from '@/lib/db';
 import { remoteRepoService } from '@/services/remote-repo-service';
 import { relative, resolve, join } from 'path';
 import { realpathSync, existsSync, mkdirSync } from 'fs';

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
-import { Prisma } from '@prisma/client';
+import { prisma, Prisma } from '@/lib/db';
 import { spawnSync } from 'child_process';
 import { basename, relative, resolve } from 'path';
 import { realpathSync } from 'fs';

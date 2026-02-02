@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { GET, POST } from '../route';
 import { prisma } from '@/lib/db';
 import { NextRequest } from 'next/server';
-import type { Project } from '@prisma/client';
+import type { Project } from '@/lib/db';
 import { setupTestEnvironment, cleanupTestEnvironment } from './test-helpers';
 
 describe('GET /api/projects/[project_id]/scripts', () => {
