@@ -70,26 +70,22 @@ sudo chown -R claude-work:claude-work /opt/claude-work
 # インストールディレクトリに移動
 cd /opt/claude-work
 
-# リポジトリをクローン（または npm パッケージをインストール）
+# リポジトリをクローン
 sudo -u claude-work git clone https://github.com/windschord/claude-work.git .
 
-# 依存パッケージのインストール
-sudo -u claude-work npm install --production
+# 依存パッケージのインストール（ビルドに必要な devDependencies を含む）
+sudo -u claude-work npm install
+
+# アプリケーションのビルド
+sudo -u claude-work npm run build
 
 # Prisma クライアントの生成とデータベースの初期化
-sudo -u claude-work npx prisma generate
-sudo -u claude-work npx prisma db push
+# DATABASE_URL を明示的に指定してデータベースを正しい場所に作成
+sudo -u claude-work env DATABASE_URL=file:/opt/claude-work/data/claudework.db npx prisma generate
+sudo -u claude-work env DATABASE_URL=file:/opt/claude-work/data/claudework.db npx prisma db push
 ```
 
-**npm グローバルインストールの場合**:
-
-```bash
-# グローバルにインストール
-sudo npm install -g claude-work
-
-# シンボリックリンクを作成（オプション）
-which claude-work
-```
+> **注意**: npm グローバルインストール（`npm install -g claude-work`）は systemd セットアップには対応していません。上記の git clone 方式を使用してください。
 
 ---
 
@@ -236,11 +232,36 @@ sudo journalctl -u claude-work -p err
 ### よくあるエラーと対処法
 
 | エラー | 原因 | 対処法 |
-|--------|------|--------|
+| ------ | ------ | ------ |
 | `Permission denied` | ファイル権限の問題 | `chown -R claude-work:claude-work /opt/claude-work` |
 | `DATABASE_URL not set` | 環境変数が未設定 | `/etc/claude-work/env` を確認 |
 | `EADDRINUSE` | ポートが使用中 | `PORT` を変更するか、競合プロセスを停止 |
-| `npx: command not found` | Node.js の PATH 問題 | フルパスで指定: `/usr/bin/npx` |
+| `Read-only file system` | ProtectSystem 制限 | `ReadWritePaths` に必要なパスを追加 |
+
+### セキュリティ設定による制限事項
+
+**ProtectHome=read-only について**:
+
+systemd サービスはセキュリティ強化のため `ProtectHome=read-only` が設定されています。これにより、ホームディレクトリ（`/home/*`）への書き込みができません。
+
+ユーザーのホームディレクトリ内のプロジェクト（例: `/home/user/projects`）を登録して使用する場合は、以下のいずれかの対応が必要です:
+
+1. **プロジェクトを `/opt` 配下に配置する（推奨）**:
+   ```bash
+   # プロジェクトを /opt/projects に移動
+   sudo mkdir -p /opt/projects
+   sudo chown claude-work:claude-work /opt/projects
+   ```
+
+2. **systemd 設定を変更する**:
+   ```bash
+   sudo systemctl edit claude-work
+   ```
+   以下を追加:
+   ```ini
+   [Service]
+   ProtectHome=false
+   ```
 
 ### 手動でのテスト実行
 

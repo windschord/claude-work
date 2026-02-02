@@ -1,7 +1,8 @@
 [Unit]
 Description=ClaudeWork - Claude Code Session Manager
 Documentation=https://github.com/windschord/claude-work
-After=network.target
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
@@ -9,7 +10,8 @@ User=claude-work
 Group=claude-work
 WorkingDirectory=/opt/claude-work
 EnvironmentFile=/etc/claude-work/env
-ExecStart=/usr/bin/npx claude-work
+# npx ではなくビルド済みの CLI を直接実行（セキュリティ向上）
+ExecStart=/usr/bin/node /opt/claude-work/dist/src/bin/cli.js
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal

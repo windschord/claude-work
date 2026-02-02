@@ -100,7 +100,7 @@ Ubuntu システムで ClaudeWork を systemd サービスとして自動起動�
 ## 成果物
 
 | 成果物 | 説明 |
-|--------|------|
+| -------- | ------ |
 | docs/SYSTEMD_SETUP.md | セットアップ手順ドキュメント |
 | systemd/claude-work.service | systemd ユニットファイルテンプレート |
 | systemd/claude-work.env.example | 環境変数ファイルテンプレート |

@@ -22,7 +22,7 @@
 │  │    ├─ User=claude-work                              │    │
 │  │    ├─ WorkingDirectory=/opt/claude-work             │    │
 │  │    ├─ EnvironmentFile=/etc/claude-work/env          │    │
-│  │    └─ ExecStart=npx claude-work                     │    │
+│  │    └─ ExecStart=node dist/src/bin/cli.js            │    │
 │  │                                                      │    │
 │  └─────────────────────────────────────────────────────┘    │
 │                          │                                   │
@@ -54,7 +54,8 @@
 [Unit]
 Description=ClaudeWork - Claude Code Session Manager
 Documentation=https://github.com/windschord/claude-work
-After=network.target
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
@@ -62,7 +63,8 @@ User=claude-work
 Group=claude-work
 WorkingDirectory=/opt/claude-work
 EnvironmentFile=/etc/claude-work/env
-ExecStart=/usr/bin/npx claude-work
+# npx ではなくビルド済みの CLI を直接実行（セキュリティ向上）
+ExecStart=/usr/bin/node /opt/claude-work/dist/src/bin/cli.js
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal
@@ -153,13 +155,13 @@ NODE_ENV=production
 ### ユーザー権限
 
 | ユーザー | 権限 | 用途 |
-|---------|------|------|
+| -------- | ------ | ------ |
 | claude-work | システムユーザー（ログイン不可） | サービス実行専用 |
 
 ### ファイル権限
 
 | パス | 所有者 | パーミッション |
-|------|--------|----------------|
+| ------ | -------- | ---------------- |
 | /opt/claude-work | claude-work:claude-work | 755 |
 | /opt/claude-work/data | claude-work:claude-work | 700 |
 | /etc/claude-work/env | root:claude-work | 640 |
@@ -168,7 +170,7 @@ NODE_ENV=production
 ### systemd セキュリティ機能
 
 | 設定 | 効果 |
-|------|------|
+| ------ | ------ |
 | NoNewPrivileges=true | 権限昇格を防止 |
 | ProtectSystem=strict | /usr, /boot, /efi を読み取り専用に |
 | ProtectHome=read-only | /home, /root, /run/user を読み取り専用に |
@@ -204,7 +206,7 @@ NODE_ENV=production
 ## 成果物一覧
 
 | ファイル | 説明 | 対応要件 |
-|----------|------|----------|
+| ---------- | ------ | ---------- |
 | docs/SYSTEMD_SETUP.md | セットアップ手順ドキュメント | REQ-001〜REQ-005 |
 | systemd/claude-work.service | systemd ユニットファイル | REQ-002, NFR-001, NFR-002, NFR-003 |
 | systemd/claude-work.env.example | 環境変数テンプレート | REQ-002 |
