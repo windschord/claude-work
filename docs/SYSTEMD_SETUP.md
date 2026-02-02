@@ -21,7 +21,15 @@
 - Ubuntu 20.04 LTS 以降
 - Node.js 20 以上がインストール済み
 - npm または pnpm がインストール済み
+- git がインストール済み
 - sudo 権限を持つユーザーでログイン
+
+### git のインストール（未インストールの場合）
+
+```bash
+sudo apt-get update
+sudo apt-get install -y git
+```
 
 ### Node.js のインストール（未インストールの場合）
 
@@ -40,8 +48,8 @@ sudo apt-get install -y nodejs
 セキュリティのため、ClaudeWork 専用のシステムユーザーを作成します。
 
 ```bash
-# claude-work ユーザーを作成（ログイン不可、ホームディレクトリなし）
-sudo useradd --system --no-create-home --shell /usr/sbin/nologin claude-work
+# claude-work ユーザーを作成（ログイン不可、ホームディレクトリは /opt/claude-work）
+sudo useradd --system --home /opt/claude-work --shell /usr/sbin/nologin claude-work
 
 # ユーザーが作成されたことを確認
 id claude-work
