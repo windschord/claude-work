@@ -23,9 +23,6 @@ if (!databaseUrl || databaseUrl.trim() === '') {
   );
 }
 
-// SQLite アダプターを作成
-const adapter = new PrismaBetterSqlite3({ url: databaseUrl });
-
 /**
  * グローバルスコープでPrisma Clientインスタンスを保持するための型定義
  */
@@ -37,10 +34,12 @@ const globalForPrisma = globalThis as unknown as {
  * Prisma Clientのインスタンスを作成
  *
  * Prisma 7 ではアダプターパターンを使用してデータベースに接続します。
+ * アダプターはシングルトンパターンとの一貫性を保つため、この関数内で作成します。
  *
  * @returns 設定されたPrisma Clientインスタンス
  */
 function createPrismaClient() {
+  const adapter = new PrismaBetterSqlite3({ url: databaseUrl });
   return new PrismaClient({ adapter });
 }
 

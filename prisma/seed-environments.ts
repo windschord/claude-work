@@ -15,11 +15,15 @@ import 'dotenv/config';
 import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
 import { PrismaClient } from './generated/prisma/client';
 
+// DATABASE_URL環境変数の検証（src/lib/db.ts と同じロジック）
 const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) {
+if (!databaseUrl || databaseUrl.trim() === '') {
   throw new Error('DATABASE_URL environment variable is not set.');
 }
 
+// seed スクリプト用のスタンドアロン PrismaClient インスタンス
+// 注: src/lib/db.ts のシングルトンを使用できないのは、
+// このスクリプトが ts-node で直接実行されるため
 const adapter = new PrismaBetterSqlite3({ url: databaseUrl });
 const prisma = new PrismaClient({ adapter });
 
