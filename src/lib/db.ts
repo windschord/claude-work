@@ -13,15 +13,18 @@ export type {
 } from '../../prisma/generated/prisma/client';
 
 // DATABASE_URL環境変数の検証
-const databaseUrl = process.env.DATABASE_URL;
+const envDatabaseUrl = process.env.DATABASE_URL;
 
-if (!databaseUrl || databaseUrl.trim() === '') {
+if (!envDatabaseUrl || envDatabaseUrl.trim() === '') {
   throw new Error(
     'DATABASE_URL environment variable is not set. ' +
     'Please set it in your .env file. ' +
     'Example: DATABASE_URL=file:../data/claudework.db'
   );
 }
+
+// 検証後は string 型として扱う（TypeScript の型推論を助ける）
+const databaseUrl: string = envDatabaseUrl;
 
 /**
  * グローバルスコープでPrisma Clientインスタンスを保持するための型定義
