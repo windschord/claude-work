@@ -1,4 +1,16 @@
-import { PrismaClient, Prisma } from '@prisma/client';
+import 'dotenv/config';
+import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
+import { PrismaClient, Prisma } from '../../prisma/generated/prisma/client';
+
+// 型の再エクスポート（他のファイルから @/lib/db 経由でインポート可能）
+export type {
+  Project,
+  Session,
+  Message,
+  Prompt,
+  RunScript,
+  ExecutionEnvironment,
+} from '../../prisma/generated/prisma/client';
 
 // DATABASE_URL環境変数の検証
 const databaseUrl = process.env.DATABASE_URL;
@@ -11,6 +23,9 @@ if (!databaseUrl || databaseUrl.trim() === '') {
   );
 }
 
+// SQLite アダプターを作成
+const adapter = new PrismaBetterSqlite3({ url: databaseUrl });
+
 /**
  * グローバルスコープでPrisma Clientインスタンスを保持するための型定義
  */
@@ -21,17 +36,12 @@ const globalForPrisma = globalThis as unknown as {
 /**
  * Prisma Clientのインスタンスを作成
  *
- * 開発環境ではクエリ、エラー、警告をログ出力し、
- * 本番環境ではエラーのみをログ出力します。
+ * Prisma 7 ではアダプターパターンを使用してデータベースに接続します。
  *
  * @returns 設定されたPrisma Clientインスタンス
  */
 function createPrismaClient() {
-  const options: Prisma.PrismaClientOptions = {
-    log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
-  };
-
-  return new PrismaClient(options);
+  return new PrismaClient({ adapter });
 }
 
 /**
@@ -43,5 +53,8 @@ function createPrismaClient() {
 export const prisma = globalForPrisma.prisma ?? createPrismaClient();
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+
+// Prisma 名前空間も再エクスポート
+export { Prisma };
 
 export default prisma;

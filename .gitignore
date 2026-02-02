@@ -248,6 +248,9 @@ test-screenshots/
 
 /src/generated/prisma
 
+# Prisma generated client
+prisma/generated/
+
 # Git worktrees
 .worktrees/
 

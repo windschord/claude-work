@@ -1,5 +1,5 @@
-import { ExecutionEnvironment } from '@prisma/client';
 import { prisma } from '@/lib/db';
+import type { ExecutionEnvironment } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import * as path from 'path';
 import * as fsPromises from 'fs/promises';

@@ -6,7 +6,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { execSync } from 'child_process';
-import type { Project } from '@prisma/client';
+import type { Project } from '@/lib/db';
 
 function createTempGitRepo(): string {
   const repoPath = mkdtempSync(join(tmpdir(), 'project-test-'));

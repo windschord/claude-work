@@ -14,6 +14,7 @@ export default defineConfig({
       '**/dist/**',
       '**/e2e/**',  // Playwrightのe2eテストを除外
       '.worktrees/**',  // worktreeディレクトリのテストを除外
+      'data/**',  // dataディレクトリのテストを除外
       // CI環境で不安定なテストを一時的に除外
       // NOTE: 以下のテストはCI環境でのみ除外。ローカルでは実行可能
       ...(process.env.CI ? [

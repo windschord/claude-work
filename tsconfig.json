@@ -14,7 +14,7 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     "incremental": true,
     "plugins": [
       {
@@ -24,6 +24,12 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "@prisma/generated": [
+        "./prisma/generated/prisma"
+      ],
+      "@prisma/generated/*": [
+        "./prisma/generated/prisma/*"
       ]
     },
     "target": "ES2017"
@@ -32,11 +38,13 @@
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
-    ".next/types/**/*.ts"
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",
     "frontend",
-    "backend"
+    "backend",
+    "data"
   ]
 }

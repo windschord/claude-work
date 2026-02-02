@@ -6,7 +6,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { execSync } from 'child_process';
-import type { Project, Session } from '@prisma/client';
+import type { Project, Session } from '@/lib/db';
 
 describe('GET /api/sessions/{id}/commits', () => {
   let testRepoPath: string;

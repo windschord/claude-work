@@ -1,7 +1,7 @@
 import { EnvironmentAdapter } from './environment-adapter';
 import { HostAdapter } from './adapters/host-adapter';
 import { DockerAdapter, DockerAdapterConfig } from './adapters/docker-adapter';
-import type { ExecutionEnvironment } from '@prisma/client';
+import type { ExecutionEnvironment } from '@/lib/db';
 import { logger } from '@/lib/logger';
 
 interface DockerEnvironmentConfig {

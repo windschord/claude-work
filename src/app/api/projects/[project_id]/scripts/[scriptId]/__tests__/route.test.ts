@@ -3,7 +3,7 @@ import { PUT, DELETE } from '../route';
 import { prisma } from '@/lib/db';
 import { NextRequest } from 'next/server';
 import { randomUUID } from 'crypto';
-import type { Project, RunScript } from '@prisma/client';
+import type { Project, RunScript } from '@/lib/db';
 import { setupTestEnvironment, cleanupTestEnvironment } from '../../__tests__/test-helpers';
 
 // 共通テストセットアップ

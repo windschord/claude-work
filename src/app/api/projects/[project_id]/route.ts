@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { prisma, Prisma } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { existsSync } from 'fs';
 import { execSync } from 'child_process';
-import { Prisma } from '@prisma/client';
 
 /**
  * Gitリポジトリが存在するか確認

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { ExecutionEnvironment } from '@prisma/client';
+import type { ExecutionEnvironment } from '@/lib/db';
 
 // vi.hoistedでモッククラスを事前定義
 const { MockHostAdapter, MockDockerAdapter } = vi.hoisted(() => {
