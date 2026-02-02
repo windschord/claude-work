@@ -1,0 +1,27 @@
+[Unit]
+Description=ClaudeWork - Claude Code Session Manager
+Documentation=https://github.com/windschord/claude-work
+After=network.target
+
+[Service]
+Type=simple
+User=claude-work
+Group=claude-work
+WorkingDirectory=/opt/claude-work
+EnvironmentFile=/etc/claude-work/env
+ExecStart=/usr/bin/npx claude-work
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=claude-work
+
+# セキュリティ設定
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+ReadWritePaths=/opt/claude-work/data
+
+[Install]
+WantedBy=multi-user.target
