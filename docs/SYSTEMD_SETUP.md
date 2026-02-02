@@ -311,6 +311,6 @@ sudo userdel claude-work
 
 ## 関連ドキュメント
 
-- [環境変数リファレンス](ENV_VARS.md)
-- [セットアップガイド](SETUP.md)
-- [API リファレンス](API.md)
+- [環境変数リファレンス](./ENV_VARS.md)
+- [セットアップガイド](./SETUP.md)
+- [API リファレンス](./API.md)
