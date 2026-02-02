@@ -40,7 +40,12 @@ const command = args[0] || '';
 
 // プラットフォーム固有のコマンド
 const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-const npxCmd = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+
+// ローカルバイナリのパス（npx ではなく node_modules/.bin を直接参照）
+// これにより、グローバルバージョンではなくロックされたバージョンが使用される
+const binDir = path.join(projectRoot, 'node_modules', '.bin');
+const prismaCmd = path.join(binDir, process.platform === 'win32' ? 'prisma.cmd' : 'prisma');
+const pm2Cmd = path.join(binDir, process.platform === 'win32' ? 'pm2.cmd' : 'pm2');
 
 const PM2_APP_NAME = 'claude-work';
 
@@ -109,7 +114,7 @@ function checkPrismaClient(): boolean {
 function generatePrismaClient(): boolean {
   console.log('Generating Prisma client...');
 
-  const result = spawnSync(npxCmd, ['prisma', 'generate'], {
+  const result = spawnSync(prismaCmd, ['generate'], {
     cwd: projectRoot,
     stdio: 'inherit',
   });
@@ -143,7 +148,7 @@ function setupDatabase(): boolean {
   }
 
   // prisma db push でスキーマを適用
-  const result = spawnSync(npxCmd, ['prisma', 'db', 'push', '--skip-generate'], {
+  const result = spawnSync(prismaCmd, ['db', 'push', '--skip-generate'], {
     cwd: projectRoot,
     stdio: 'inherit',
   });
@@ -255,7 +260,7 @@ function startDaemon(): void {
 
   const ecosystemPath = path.join(projectRoot, 'ecosystem.config.js');
 
-  const result = spawnSync(npxCmd, ['pm2', 'start', ecosystemPath, '--only', PM2_APP_NAME], {
+  const result = spawnSync(pm2Cmd, ['start', ecosystemPath, '--only', PM2_APP_NAME], {
     cwd: projectRoot,
     stdio: 'inherit',
     env: { ...process.env, NODE_ENV: 'production', PORT },
@@ -277,7 +282,7 @@ function startDaemon(): void {
 function stopDaemon(): void {
   console.log('Stopping ClaudeWork daemon...');
 
-  const result = spawnSync(npxCmd, ['pm2', 'stop', PM2_APP_NAME], {
+  const result = spawnSync(pm2Cmd, ['stop', PM2_APP_NAME], {
     cwd: projectRoot,
     stdio: 'inherit',
   });
@@ -298,7 +303,7 @@ function restartDaemon(): void {
 
   const ecosystemPath = path.join(projectRoot, 'ecosystem.config.js');
 
-  const result = spawnSync(npxCmd, ['pm2', 'restart', ecosystemPath, '--only', PM2_APP_NAME], {
+  const result = spawnSync(pm2Cmd, ['restart', ecosystemPath, '--only', PM2_APP_NAME], {
     cwd: projectRoot,
     stdio: 'inherit',
     env: { ...process.env, NODE_ENV: 'production' },
@@ -316,7 +321,7 @@ function restartDaemon(): void {
  * pm2プロセスの状態を表示
  */
 function showStatus(): void {
-  spawnSync(npxCmd, ['pm2', 'status'], {
+  spawnSync(pm2Cmd, ['status'], {
     cwd: projectRoot,
     stdio: 'inherit',
   });
@@ -328,7 +333,7 @@ function showStatus(): void {
 function showLogs(): void {
   console.log('Showing logs (Ctrl+C to exit)...\n');
 
-  const logs = spawn(npxCmd, ['pm2', 'logs', PM2_APP_NAME, '--lines', '50'], {
+  const logs = spawn(pm2Cmd, ['logs', PM2_APP_NAME, '--lines', '50'], {
     cwd: projectRoot,
     stdio: 'inherit',
   });
