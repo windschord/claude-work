@@ -11,14 +11,28 @@
  * - 既にマイグレーション済みのセッションはスキップ
  */
 
+/**
+ * TASK-EE-017: 既存docker_modeセッションのマイグレーションスクリプト
+ *
+ * 注意: このスクリプトは本番データベースに対して実行することを想定しており、
+ * DATABASE_URL環境変数の設定が必須です。CI環境のフォールバック値は使用しません。
+ * 実行例: DATABASE_URL=file:../data/claudework.db npm run db:migrate-environments
+ */
+
 import 'dotenv/config';
 import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
 import { PrismaClient } from './generated/prisma/client';
 
-// DATABASE_URL環境変数の検証（src/lib/db.ts と同じロジック）
+// DATABASE_URL環境変数の検証
+// prisma.config.ts とは異なり、このスクリプトは本番データベースへのマイグレーション用のため
+// フォールバック値を使用せず、明示的な設定を必須とする
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl || databaseUrl.trim() === '') {
-  throw new Error('DATABASE_URL environment variable is not set.');
+  throw new Error(
+    'DATABASE_URL environment variable is not set.\n' +
+    'This script requires an explicit database path for migration.\n' +
+    'Example: DATABASE_URL=file:../data/claudework.db npm run db:migrate-environments'
+  );
 }
 
 // seed スクリプト用のスタンドアロン PrismaClient インスタンス
