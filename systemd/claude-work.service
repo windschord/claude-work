@@ -21,6 +21,9 @@ SyslogIdentifier=claude-work
 # セキュリティ設定
 NoNewPrivileges=true
 ProtectSystem=strict
+# ProtectHome=read-only: ホームディレクトリへの書き込みを制限
+# /home 配下のプロジェクトを使用する場合は docs/SYSTEMD_SETUP.md の
+# 「セキュリティ設定による制限事項」を参照してください
 ProtectHome=read-only
 PrivateTmp=true
 ReadWritePaths=/opt/claude-work/data
