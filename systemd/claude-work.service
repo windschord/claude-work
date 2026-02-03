@@ -10,10 +10,17 @@ User=claude-work
 Group=claude-work
 WorkingDirectory=/opt/claude-work
 EnvironmentFile=/etc/claude-work/env
-# ビルド済みのサーバーエントリーポイントを直接実行（セキュリティ向上 & 安定動作）
-# 注意: npm スクリプトや CLI の自動セットアップ機能は本サービス起動時には実行されません。
-#       サービスを有効化・起動する前に、セットアップ手順を完了させてください。
-ExecStart=/usr/bin/node /opt/claude-work/dist/server.js
+# npx claude-work でフォアグラウンド起動
+# 初回起動時に Prisma クライアント生成、DB 初期化、Next.js ビルドを検証し、不足分のみ実行
+# HOME を設定する理由:
+#   1. npm キャッシュを /opt/claude-work/.npm に配置
+#   2. ProtectHome=read-only との競合を回避
+#   3. 自己完結型インストールを維持
+Environment=HOME=/opt/claude-work
+# --no: ローカルにインストール済みのパッケージのみ実行（ネットワークインストールを防止）
+ExecStart=/usr/bin/npx --no claude-work
+# 初回起動時のビルドに時間がかかるためタイムアウトを延長
+TimeoutStartSec=300
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal
@@ -22,13 +29,15 @@ SyslogIdentifier=claude-work
 
 # セキュリティ設定
 NoNewPrivileges=true
+# strict: ファイルシステム全体を読み取り専用に（ReadWritePaths で許可したパス以外）
 ProtectSystem=strict
 # ProtectHome=read-only: ホームディレクトリへの書き込みを制限
 # /home 配下のプロジェクトを使用する場合は docs/SYSTEMD_SETUP.md の
 # 「セキュリティ設定による制限事項」を参照してください
 ProtectHome=read-only
 PrivateTmp=true
-ReadWritePaths=/opt/claude-work/data
+# アプリケーションディレクトリへの書き込みを許可（データ、キャッシュ、ビルド出力）
+ReadWritePaths=/opt/claude-work
 
 [Install]
 WantedBy=multi-user.target

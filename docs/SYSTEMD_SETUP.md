@@ -81,19 +81,19 @@ cd /opt/claude-work
 # リポジトリをクローン
 sudo -u claude-work git clone https://github.com/windschord/claude-work.git .
 
-# データディレクトリを作成（git clone 後に作成）
+# データディレクトリと npm キャッシュディレクトリを作成
 sudo -u claude-work mkdir -p /opt/claude-work/data
+sudo -u claude-work mkdir -p /opt/claude-work/.npm
 
-# 依存パッケージのインストール（ビルドに必要な devDependencies を含む）
-# DATABASE_URL を設定して prepare スクリプトで正しいパスを使用
-sudo -u claude-work env DATABASE_URL=file:/opt/claude-work/data/claudework.db npm install
-
-# Prisma クライアントの生成とデータベースの初期化
-# ローカルの Prisma バージョンを使用
-sudo -u claude-work env DATABASE_URL=file:/opt/claude-work/data/claudework.db ./node_modules/.bin/prisma generate
-sudo -u claude-work env DATABASE_URL=file:/opt/claude-work/data/claudework.db ./node_modules/.bin/prisma db push
+# 依存パッケージのインストール
+sudo -u claude-work env HOME=/opt/claude-work npm install
 ```
 
+> **注意**:
+> - `npm install` 実行時に `package.json` の `prepare` スクリプトにより Prisma クライアントの生成と Next.js のビルドが自動実行されます。
+> - `npx claude-work` の初回起動時には、CLI が上記セットアップの完了を検証し、不足分のみ再実行します（フォールバック機能）。
+> - これにより、`npm install` 時の `prepare` が失敗した場合でもサービスを正常に起動できます。
+>
 > **注意**: npm グローバルインストール（`npm install -g claude-work`）は systemd セットアップには対応していません。上記の git clone 方式を使用してください。
 
 ---
@@ -282,7 +282,7 @@ systemd サービスはセキュリティ強化のため `ProtectHome=read-only`
 
 ```bash
 # claude-work ユーザーとして手動実行（デバッグ用）
-sudo -u claude-work bash -c 'source /etc/claude-work/env && cd /opt/claude-work && node dist/server.js'
+sudo -u claude-work bash -c 'source /etc/claude-work/env && cd /opt/claude-work && HOME=/opt/claude-work npx claude-work'
 ```
 
 ---

@@ -22,7 +22,7 @@
 │  │    ├─ User=claude-work                              │    │
 │  │    ├─ WorkingDirectory=/opt/claude-work             │    │
 │  │    ├─ EnvironmentFile=/etc/claude-work/env          │    │
-│  │    └─ ExecStart=/usr/bin/node /opt/claude-work/dist/server.js │
+│  │    └─ ExecStart=/usr/bin/npx --no claude-work              │
 │  │                                                      │    │
 │  └─────────────────────────────────────────────────────┘    │
 │                          │                                   │
@@ -63,8 +63,13 @@ User=claude-work
 Group=claude-work
 WorkingDirectory=/opt/claude-work
 EnvironmentFile=/etc/claude-work/env
-# ビルド済みのサーバーを直接実行（セキュリティ向上 & 安定動作）
-ExecStart=/usr/bin/node /opt/claude-work/dist/server.js
+# npx claude-work でフォアグラウンド起動
+# 初回起動時に Prisma クライアント生成、DB 初期化、Next.js ビルドを検証し、不足分のみ実行
+Environment=HOME=/opt/claude-work
+# --no: ローカルにインストール済みのパッケージのみ実行（ネットワークインストールを防止）
+ExecStart=/usr/bin/npx --no claude-work
+# 初回起動時のビルドに時間がかかるためタイムアウトを延長
+TimeoutStartSec=300
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal
@@ -76,7 +81,7 @@ NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=read-only
 PrivateTmp=true
-ReadWritePaths=/opt/claude-work/data
+ReadWritePaths=/opt/claude-work
 
 [Install]
 WantedBy=multi-user.target
@@ -84,11 +89,12 @@ WantedBy=multi-user.target
 
 **設計決定**:
 - `Type=simple`: フォアグラウンドで実行されるため
+- `ExecStart=npx --no claude-work`: CLI が Prisma・DB・ビルド成果物の存在を検証し、不足している場合のみセットアップを実行（npm install 時の prepare スクリプトによるセットアップを前提としたフォールバック）
 - `Restart=on-failure`: 異常終了時のみ再起動
 - `RestartSec=10`: 再起動間隔を10秒に設定（無限ループ防止）
-- `ProtectSystem=strict`: システムディレクトリを読み取り専用に
+- `ProtectSystem=strict`: ファイルシステム全体を読み取り専用に（ReadWritePaths で許可したパス以外）
 - `ProtectHome=read-only`: ホームディレクトリを読み取り専用に
-- `ReadWritePaths`: データディレクトリのみ書き込み可能
+- `ReadWritePaths=/opt/claude-work`: アプリケーションディレクトリ全体への書き込みを許可（データ、キャッシュ、ビルド出力）
 
 ### コンポーネント2: 環境変数ファイル
 
@@ -190,10 +196,10 @@ NODE_ENV=production
 | 設定 | 効果 |
 | ------ | ------ |
 | NoNewPrivileges=true | 権限昇格を防止 |
-| ProtectSystem=strict | /usr, /boot, /efi を読み取り専用に |
+| ProtectSystem=strict | ファイルシステム全体を読み取り専用に（ReadWritePaths で許可したパス以外） |
 | ProtectHome=read-only | /home, /root, /run/user を読み取り専用に |
 | PrivateTmp=true | /tmp を隔離 |
-| ReadWritePaths=/opt/claude-work/data | データディレクトリへの書き込みを許可 |
+| ReadWritePaths=/opt/claude-work | アプリケーションディレクトリへの書き込みを許可 |
 
 ---
 
