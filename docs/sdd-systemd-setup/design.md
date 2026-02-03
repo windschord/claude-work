@@ -78,10 +78,10 @@ SyslogIdentifier=claude-work
 
 # セキュリティ設定
 NoNewPrivileges=true
-ProtectSystem=full
+ProtectSystem=strict
 ProtectHome=read-only
 PrivateTmp=true
-ReadWritePaths=/opt/claude-work/data /opt/claude-work/.npm /opt/claude-work/.next /opt/claude-work/node_modules/.cache
+ReadWritePaths=/opt/claude-work
 
 [Install]
 WantedBy=multi-user.target
@@ -92,13 +92,9 @@ WantedBy=multi-user.target
 - `ExecStart=npx --no claude-work`: CLI が Prisma・DB・ビルド成果物の存在を検証し、不足している場合のみセットアップを実行（npm install 時の prepare スクリプトによるセットアップを前提としたフォールバック）
 - `Restart=on-failure`: 異常終了時のみ再起動
 - `RestartSec=10`: 再起動間隔を10秒に設定（無限ループ防止）
-- `ProtectSystem=full`: npm キャッシュ書き込みのため strict ではなく full を使用
+- `ProtectSystem=strict`: /usr, /boot, /efi, /etc を読み取り専用に（最小権限の原則）
 - `ProtectHome=read-only`: ホームディレクトリを読み取り専用に
-- `ReadWritePaths`: データおよびキャッシュ関連ディレクトリのみ書き込み可能
-  - `/opt/claude-work/data`: データベースおよびアプリケーションデータ用
-  - `/opt/claude-work/.npm`: npm キャッシュ用
-  - `/opt/claude-work/.next`: Next.js ビルド成果物用（ランタイム検証時の再ビルド用）
-  - `/opt/claude-work/node_modules/.cache`: 各種パッケージキャッシュ用
+- `ReadWritePaths=/opt/claude-work`: アプリケーションディレクトリ全体への書き込みを許可（データ、キャッシュ、ビルド出力）
 
 ### コンポーネント2: 環境変数ファイル
 
@@ -200,10 +196,10 @@ NODE_ENV=production
 | 設定 | 効果 |
 | ------ | ------ |
 | NoNewPrivileges=true | 権限昇格を防止 |
-| ProtectSystem=full | /usr, /boot を読み取り専用に（npm キャッシュ書き込みのため strict ではなく full を使用） |
+| ProtectSystem=strict | /usr, /boot, /efi, /etc を読み取り専用に（最小権限の原則） |
 | ProtectHome=read-only | /home, /root, /run/user を読み取り専用に |
 | PrivateTmp=true | /tmp を隔離 |
-| ReadWritePaths=/opt/claude-work/data .npm .next node_modules/.cache | データ、npm キャッシュ、ビルド出力への書き込みを許可 |
+| ReadWritePaths=/opt/claude-work | アプリケーションディレクトリへの書き込みを許可 |
 
 ---
 

@@ -13,7 +13,7 @@ EnvironmentFile=/etc/claude-work/env
 # npx claude-work でフォアグラウンド起動
 # 初回起動時に Prisma クライアント生成、DB 初期化、Next.js ビルドを検証し、不足分のみ実行
 # HOME を設定する理由:
-#   1. npm キャッシュを ReadWritePaths 内（/opt/claude-work/.npm）に配置
+#   1. npm キャッシュを /opt/claude-work/.npm に配置
 #   2. ProtectHome=read-only との競合を回避
 #   3. 自己完結型インストールを維持
 Environment=HOME=/opt/claude-work
@@ -29,15 +29,15 @@ SyslogIdentifier=claude-work
 
 # セキュリティ設定
 NoNewPrivileges=true
-# npx/npm がキャッシュに書き込むため full に設定（strict だと書き込み不可）
-ProtectSystem=full
+# strict: /usr, /boot, /efi, /etc を読み取り専用に（最小権限の原則）
+ProtectSystem=strict
 # ProtectHome=read-only: ホームディレクトリへの書き込みを制限
 # /home 配下のプロジェクトを使用する場合は docs/SYSTEMD_SETUP.md の
 # 「セキュリティ設定による制限事項」を参照してください
 ProtectHome=read-only
 PrivateTmp=true
-# データディレクトリ、npm キャッシュ、ビルド出力への書き込みを許可
-ReadWritePaths=/opt/claude-work/data /opt/claude-work/.npm /opt/claude-work/.next /opt/claude-work/node_modules/.cache
+# アプリケーションディレクトリへの書き込みを許可（データ、キャッシュ、ビルド出力）
+ReadWritePaths=/opt/claude-work
 
 [Install]
 WantedBy=multi-user.target
