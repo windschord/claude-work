@@ -259,21 +259,27 @@ systemd サービスはセキュリティ強化のため `ProtectHome=read-only`
    sudo chown claude-work:claude-work /opt/projects
    ```
 
-2. **systemd 設定を変更する**:
+2. **systemd 設定を変更する（必要なディレクトリのみ書き込み可能にする）**:
    ```bash
    sudo systemctl edit claude-work
    ```
-   以下を追加:
+   以下を追加（`/home/user/projects` は実際のプロジェクトパスに置き換えてください）:
    ```ini
    [Service]
-   ProtectHome=false
+   ReadWritePaths=/home/user/projects
+   ```
+
+   複数のディレクトリを許可する場合:
+   ```ini
+   [Service]
+   ReadWritePaths=/home/user1/projects /home/user2/projects
    ```
 
 ### 手動でのテスト実行
 
 ```bash
 # claude-work ユーザーとして手動実行（デバッグ用）
-sudo -u claude-work bash -c 'source /etc/claude-work/env && cd /opt/claude-work && node dist/src/bin/cli.js'
+sudo -u claude-work bash -c 'source /etc/claude-work/env && cd /opt/claude-work && node dist/server.js'
 ```
 
 ---

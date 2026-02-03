@@ -22,7 +22,7 @@
 │  │    ├─ User=claude-work                              │    │
 │  │    ├─ WorkingDirectory=/opt/claude-work             │    │
 │  │    ├─ EnvironmentFile=/etc/claude-work/env          │    │
-│  │    └─ ExecStart=/usr/bin/node dist/src/bin/cli.js   │    │
+│  │    └─ ExecStart=/usr/bin/node /opt/claude-work/dist/server.js │
 │  │                                                      │    │
 │  └─────────────────────────────────────────────────────┘    │
 │                          │                                   │
@@ -63,8 +63,8 @@ User=claude-work
 Group=claude-work
 WorkingDirectory=/opt/claude-work
 EnvironmentFile=/etc/claude-work/env
-# npx ではなくビルド済みの CLI を直接実行（セキュリティ向上）
-ExecStart=/usr/bin/node /opt/claude-work/dist/src/bin/cli.js
+# ビルド済みのサーバーを直接実行（セキュリティ向上 & 安定動作）
+ExecStart=/usr/bin/node /opt/claude-work/dist/server.js
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal

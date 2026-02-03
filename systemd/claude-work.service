@@ -10,10 +10,10 @@ User=claude-work
 Group=claude-work
 WorkingDirectory=/opt/claude-work
 EnvironmentFile=/etc/claude-work/env
-# npx ではなくビルド済みの CLI を直接実行（セキュリティ向上）
+# ビルド済みのサーバーエントリーポイントを直接実行（セキュリティ向上 & 安定動作）
 # 注意: npm スクリプトや CLI の自動セットアップ機能は本サービス起動時には実行されません。
 #       サービスを有効化・起動する前に、セットアップ手順を完了させてください。
-ExecStart=/usr/bin/node /opt/claude-work/dist/src/bin/cli.js
+ExecStart=/usr/bin/node /opt/claude-work/dist/server.js
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal
