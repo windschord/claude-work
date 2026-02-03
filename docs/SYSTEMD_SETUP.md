@@ -65,9 +65,6 @@ id claude-work
 # /opt/claude-work ディレクトリを作成
 sudo mkdir -p /opt/claude-work
 
-# データディレクトリを作成
-sudo mkdir -p /opt/claude-work/data
-
 # 所有者を claude-work ユーザーに変更
 sudo chown -R claude-work:claude-work /opt/claude-work
 ```
@@ -81,16 +78,17 @@ cd /opt/claude-work
 # リポジトリをクローン
 sudo -u claude-work git clone https://github.com/windschord/claude-work.git .
 
-# 依存パッケージのインストール（ビルドに必要な devDependencies を含む）
-sudo -u claude-work npm install
+# データディレクトリを作成（git clone 後に作成）
+sudo -u claude-work mkdir -p /opt/claude-work/data
 
-# アプリケーションのビルド
-sudo -u claude-work npm run build
+# 依存パッケージのインストール（ビルドに必要な devDependencies を含む）
+# DATABASE_URL を設定して prepare スクリプトで正しいパスを使用
+sudo -u claude-work env DATABASE_URL=file:/opt/claude-work/data/claudework.db npm install
 
 # Prisma クライアントの生成とデータベースの初期化
-# DATABASE_URL を明示的に指定してデータベースを正しい場所に作成
-sudo -u claude-work env DATABASE_URL=file:/opt/claude-work/data/claudework.db npx prisma generate
-sudo -u claude-work env DATABASE_URL=file:/opt/claude-work/data/claudework.db npx prisma db push
+# ローカルの Prisma バージョンを使用
+sudo -u claude-work env DATABASE_URL=file:/opt/claude-work/data/claudework.db ./node_modules/.bin/prisma generate
+sudo -u claude-work env DATABASE_URL=file:/opt/claude-work/data/claudework.db ./node_modules/.bin/prisma db push
 ```
 
 > **注意**: npm グローバルインストール（`npm install -g claude-work`）は systemd セットアップには対応していません。上記の git clone 方式を使用してください。
