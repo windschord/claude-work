@@ -64,9 +64,12 @@ Group=claude-work
 WorkingDirectory=/opt/claude-work
 EnvironmentFile=/etc/claude-work/env
 # npx claude-work でフォアグラウンド起動
-# 初回起動時に Prisma クライアント生成、DB 初期化、Next.js ビルドを自動実行
+# 初回起動時に Prisma クライアント生成、DB 初期化、Next.js ビルドを検証し、不足分のみ実行
 Environment=HOME=/opt/claude-work
-ExecStart=/usr/bin/npx claude-work
+# --no: ローカルにインストール済みのパッケージのみ実行（ネットワークインストールを防止）
+ExecStart=/usr/bin/npx --no claude-work
+# 初回起動時のビルドに時間がかかるためタイムアウトを延長
+TimeoutStartSec=300
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal
@@ -86,12 +89,16 @@ WantedBy=multi-user.target
 
 **設計決定**:
 - `Type=simple`: フォアグラウンドで実行されるため
-- `ExecStart=npx claude-work`: CLI が自動セットアップ（Prisma、DB、ビルド）を実行
+- `ExecStart=npx --no claude-work`: CLI が Prisma・DB・ビルド成果物の存在を検証し、不足している場合のみセットアップを実行（npm install 時の prepare スクリプトによるセットアップを前提としたフォールバック）
 - `Restart=on-failure`: 異常終了時のみ再起動
 - `RestartSec=10`: 再起動間隔を10秒に設定（無限ループ防止）
 - `ProtectSystem=full`: npm キャッシュ書き込みのため strict ではなく full を使用
 - `ProtectHome=read-only`: ホームディレクトリを読み取り専用に
-- `ReadWritePaths`: データディレクトリのみ書き込み可能
+- `ReadWritePaths`: データおよびキャッシュ関連ディレクトリのみ書き込み可能
+  - `/opt/claude-work/data`: データベースおよびアプリケーションデータ用
+  - `/opt/claude-work/.npm`: npm キャッシュ用
+  - `/opt/claude-work/.next`: Next.js ビルド成果物用（ランタイム検証時の再ビルド用）
+  - `/opt/claude-work/node_modules/.cache`: 各種パッケージキャッシュ用
 
 ### コンポーネント2: 環境変数ファイル
 
