@@ -29,7 +29,7 @@ SyslogIdentifier=claude-work
 
 # セキュリティ設定
 NoNewPrivileges=true
-# strict: /usr, /boot, /efi, /etc を読み取り専用に（最小権限の原則）
+# strict: ファイルシステム全体を読み取り専用に（ReadWritePaths で許可したパス以外）
 ProtectSystem=strict
 # ProtectHome=read-only: ホームディレクトリへの書き込みを制限
 # /home 配下のプロジェクトを使用する場合は docs/SYSTEMD_SETUP.md の

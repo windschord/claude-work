@@ -22,7 +22,7 @@
 │  │    ├─ User=claude-work                              │    │
 │  │    ├─ WorkingDirectory=/opt/claude-work             │    │
 │  │    ├─ EnvironmentFile=/etc/claude-work/env          │    │
-│  │    └─ ExecStart=/usr/bin/npx claude-work                   │
+│  │    └─ ExecStart=/usr/bin/npx --no claude-work              │
 │  │                                                      │    │
 │  └─────────────────────────────────────────────────────┘    │
 │                          │                                   │
@@ -92,7 +92,7 @@ WantedBy=multi-user.target
 - `ExecStart=npx --no claude-work`: CLI が Prisma・DB・ビルド成果物の存在を検証し、不足している場合のみセットアップを実行（npm install 時の prepare スクリプトによるセットアップを前提としたフォールバック）
 - `Restart=on-failure`: 異常終了時のみ再起動
 - `RestartSec=10`: 再起動間隔を10秒に設定（無限ループ防止）
-- `ProtectSystem=strict`: /usr, /boot, /efi, /etc を読み取り専用に（最小権限の原則）
+- `ProtectSystem=strict`: ファイルシステム全体を読み取り専用に（ReadWritePaths で許可したパス以外）
 - `ProtectHome=read-only`: ホームディレクトリを読み取り専用に
 - `ReadWritePaths=/opt/claude-work`: アプリケーションディレクトリ全体への書き込みを許可（データ、キャッシュ、ビルド出力）
 
@@ -196,7 +196,7 @@ NODE_ENV=production
 | 設定 | 効果 |
 | ------ | ------ |
 | NoNewPrivileges=true | 権限昇格を防止 |
-| ProtectSystem=strict | /usr, /boot, /efi, /etc を読み取り専用に（最小権限の原則） |
+| ProtectSystem=strict | ファイルシステム全体を読み取り専用に（ReadWritePaths で許可したパス以外） |
 | ProtectHome=read-only | /home, /root, /run/user を読み取り専用に |
 | PrivateTmp=true | /tmp を隔離 |
 | ReadWritePaths=/opt/claude-work | アプリケーションディレクトリへの書き込みを許可 |
