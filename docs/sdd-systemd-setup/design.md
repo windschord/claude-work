@@ -22,7 +22,7 @@
 │  │    ├─ User=claude-work                              │    │
 │  │    ├─ WorkingDirectory=/opt/claude-work             │    │
 │  │    ├─ EnvironmentFile=/etc/claude-work/env          │    │
-│  │    └─ ExecStart=/usr/bin/node /opt/claude-work/dist/server.js │
+│  │    └─ ExecStart=/usr/bin/npx claude-work                   │
 │  │                                                      │    │
 │  └─────────────────────────────────────────────────────┘    │
 │                          │                                   │
@@ -63,8 +63,10 @@ User=claude-work
 Group=claude-work
 WorkingDirectory=/opt/claude-work
 EnvironmentFile=/etc/claude-work/env
-# ビルド済みのサーバーを直接実行（セキュリティ向上 & 安定動作）
-ExecStart=/usr/bin/node /opt/claude-work/dist/server.js
+# npx claude-work でフォアグラウンド起動
+# 初回起動時に Prisma クライアント生成、DB 初期化、Next.js ビルドを自動実行
+Environment=HOME=/opt/claude-work
+ExecStart=/usr/bin/npx claude-work
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal
@@ -73,10 +75,10 @@ SyslogIdentifier=claude-work
 
 # セキュリティ設定
 NoNewPrivileges=true
-ProtectSystem=strict
+ProtectSystem=full
 ProtectHome=read-only
 PrivateTmp=true
-ReadWritePaths=/opt/claude-work/data
+ReadWritePaths=/opt/claude-work/data /opt/claude-work/.npm /opt/claude-work/.next /opt/claude-work/node_modules/.cache
 
 [Install]
 WantedBy=multi-user.target
@@ -84,9 +86,10 @@ WantedBy=multi-user.target
 
 **設計決定**:
 - `Type=simple`: フォアグラウンドで実行されるため
+- `ExecStart=npx claude-work`: CLI が自動セットアップ（Prisma、DB、ビルド）を実行
 - `Restart=on-failure`: 異常終了時のみ再起動
 - `RestartSec=10`: 再起動間隔を10秒に設定（無限ループ防止）
-- `ProtectSystem=strict`: システムディレクトリを読み取り専用に
+- `ProtectSystem=full`: npm キャッシュ書き込みのため strict ではなく full を使用
 - `ProtectHome=read-only`: ホームディレクトリを読み取り専用に
 - `ReadWritePaths`: データディレクトリのみ書き込み可能
 
