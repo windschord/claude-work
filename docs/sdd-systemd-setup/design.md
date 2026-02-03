@@ -193,10 +193,10 @@ NODE_ENV=production
 | 設定 | 効果 |
 | ------ | ------ |
 | NoNewPrivileges=true | 権限昇格を防止 |
-| ProtectSystem=strict | /usr, /boot, /efi を読み取り専用に |
+| ProtectSystem=full | /usr, /boot を読み取り専用に（npm キャッシュ書き込みのため strict ではなく full を使用） |
 | ProtectHome=read-only | /home, /root, /run/user を読み取り専用に |
 | PrivateTmp=true | /tmp を隔離 |
-| ReadWritePaths=/opt/claude-work/data | データディレクトリへの書き込みを許可 |
+| ReadWritePaths=/opt/claude-work/data .npm .next node_modules/.cache | データ、npm キャッシュ、ビルド出力への書き込みを許可 |
 
 ---
 

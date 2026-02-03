@@ -14,6 +14,8 @@ EnvironmentFile=/etc/claude-work/env
 # 初回起動時に Prisma クライアント生成、DB 初期化、Next.js ビルドを自動実行
 Environment=HOME=/opt/claude-work
 ExecStart=/usr/bin/npx claude-work
+# 初回起動時のビルドに時間がかかるためタイムアウトを延長
+TimeoutStartSec=300
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal

@@ -90,7 +90,7 @@ sudo -u claude-work env HOME=/opt/claude-work npm install
 ```
 
 > **注意**: Prisma クライアントの生成、データベースの初期化、Next.js のビルドは `npx claude-work` の初回起動時に自動的に実行されます。
-
+>
 > **注意**: npm グローバルインストール（`npm install -g claude-work`）は systemd セットアップには対応していません。上記の git clone 方式を使用してください。
 
 ---
@@ -279,7 +279,7 @@ systemd サービスはセキュリティ強化のため `ProtectHome=read-only`
 
 ```bash
 # claude-work ユーザーとして手動実行（デバッグ用）
-sudo -u claude-work bash -c 'source /etc/claude-work/env && cd /opt/claude-work && node dist/server.js'
+sudo -u claude-work bash -c 'source /etc/claude-work/env && cd /opt/claude-work && HOME=/opt/claude-work npx claude-work'
 ```
 
 ---
