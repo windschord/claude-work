@@ -22,7 +22,7 @@
 │  │    ├─ User=claude-work                              │    │
 │  │    ├─ WorkingDirectory=/opt/claude-work             │    │
 │  │    ├─ EnvironmentFile=/etc/claude-work/env          │    │
-│  │    └─ ExecStart=node dist/src/bin/cli.js            │    │
+│  │    └─ ExecStart=/usr/bin/node dist/src/bin/cli.js   │    │
 │  │                                                      │    │
 │  └─────────────────────────────────────────────────────┘    │
 │                          │                                   │
@@ -187,6 +187,7 @@ NODE_ENV=production
 | ProtectSystem=strict | /usr, /boot, /efi を読み取り専用に |
 | ProtectHome=read-only | /home, /root, /run/user を読み取り専用に |
 | PrivateTmp=true | /tmp を隔離 |
+| ReadWritePaths=/opt/claude-work/data | データディレクトリへの書き込みを許可 |
 
 ---
 
