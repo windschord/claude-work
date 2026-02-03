@@ -35,6 +35,15 @@ jobs:
     - name: Run linter
       run: pnpm run lint
 
+    - name: Verify systemd unit files
+      run: |
+        if ls systemd/*.service 1> /dev/null 2>&1; then
+          echo "Verifying systemd unit files..."
+          systemd-analyze --user verify systemd/*.service
+        else
+          echo "No systemd service files found, skipping"
+        fi
+
   # Backend tests - API routes, services, libs
   test-backend:
     runs-on: ubuntu-latest
