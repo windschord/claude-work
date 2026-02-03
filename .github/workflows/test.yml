@@ -35,14 +35,15 @@ jobs:
     - name: Run linter
       run: pnpm run lint
 
-    - name: Verify systemd unit files
-      run: |
-        if ls systemd/*.service 1> /dev/null 2>&1; then
-          echo "Verifying systemd unit files..."
-          systemd-analyze --user verify systemd/*.service
-        else
-          echo "No systemd service files found, skipping"
-        fi
+    - name: Install systemd-linter
+      if: hashFiles('systemd/*.service') != ''
+      uses: baptiste0928/cargo-install@v3
+      with:
+        crate: systemd-linter
+
+    - name: Lint systemd unit files
+      if: hashFiles('systemd/*.service') != ''
+      run: systemd-linter systemd/*.service
 
   # Backend tests - API routes, services, libs
   test-backend:
