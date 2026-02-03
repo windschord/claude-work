@@ -22,7 +22,10 @@
 - Node.js 20 以上がインストール済み
 - npm または pnpm がインストール済み
 - git がインストール済み
+- Claude Code CLI がインストール済み（システム PATH でアクセス可能）
 - sudo 権限を持つユーザーでログイン
+
+> **重要**: ClaudeWork は Claude Code CLI を使用してセッションを管理します。サービス起動前に `claude --version` コマンドで Claude Code CLI がインストールされていることを確認してください。
 
 ### git のインストール（未インストールの場合）
 
