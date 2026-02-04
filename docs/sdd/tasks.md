@@ -57,14 +57,15 @@
 - 作成: src/db/schema.ts
 
 **受入基準**:
-- [ ] src/db/schema.ts が作成されている
-- [ ] 6つのテーブルが定義されている
-- [ ] リレーションが定義されている
-- [ ] 型がエクスポートされている
-- [ ] TypeScriptコンパイルエラーがない
+- [x] src/db/schema.ts が作成されている
+- [x] 6つのテーブルが定義されている
+- [x] リレーションが定義されている
+- [x] 型がエクスポートされている
+- [x] TypeScriptコンパイルエラーがない
 
 **依存関係**: タスク1.1
-**ステータス**: `TODO`
+**ステータス**: `DONE`
+**完了サマリー**: 6テーブル（projects, sessions, messages, prompts, runScripts, executionEnvironments）とリレーション、型定義を作成
 
 #### タスク1.3: Drizzle設定ファイルの作成
 
