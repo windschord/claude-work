@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma, Prisma } from '@/lib/db';
+import { db, schema } from '@/lib/db';
 import { remoteRepoService } from '@/services/remote-repo-service';
 import { relative, resolve, join } from 'path';
 import { realpathSync, existsSync, mkdirSync } from 'fs';
@@ -123,13 +123,11 @@ export async function POST(request: NextRequest) {
 
     // プロジェクトをDBに登録
     try {
-      const project = await prisma.project.create({
-        data: {
-          name: projectName,
-          path: cloneResult.path,
-          remote_url: url,
-        },
-      });
+      const project = db.insert(schema.projects).values({
+        name: projectName,
+        path: cloneResult.path,
+        remote_url: url,
+      }).returning().get();
 
       logger.info('Project created from remote', {
         id: project.id,
@@ -140,15 +138,13 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({ project }, { status: 201 });
     } catch (error) {
-      // Prisma P2002エラー（Unique constraint violation）のハンドリング
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        if (error.code === 'P2002') {
-          logger.warn('Duplicate project path', { error });
-          return NextResponse.json(
-            { error: 'このリポジトリは既に登録されています' },
-            { status: 409 }
-          );
-        }
+      // SQLite UNIQUE constraint violationのハンドリング
+      if (error instanceof Error && error.message.includes('UNIQUE constraint failed')) {
+        logger.warn('Duplicate project path', { error });
+        return NextResponse.json(
+          { error: 'このリポジトリは既に登録されています' },
+          { status: 409 }
+        );
       }
       throw error;
     }
