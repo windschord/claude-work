@@ -54,7 +54,7 @@ try {
 }
 
 const dev = process.env.NODE_ENV !== 'production';
-const hostname = 'localhost';
+const hostname = process.env.HOST || 'localhost';
 const port = parseInt(process.env.PORT || '3000', 10);
 
 // Next.jsアプリを初期化
@@ -211,7 +211,7 @@ app.prepare().then(() => {
   });
 
   // サーバー起動
-  server.listen(port, async () => {
+  server.listen(port, hostname, async () => {
     logger.info('Server started', {
       url: `http://${hostname}:${port}`,
       environment: dev ? 'development' : 'production',
