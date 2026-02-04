@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { db, schema } from '@/lib/db';
+import { eq } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
 
 /**
@@ -39,18 +40,18 @@ export async function DELETE(
     const { id } = await params;
 
     // プロンプトの存在確認
-    const prompt = await prisma.prompt.findUnique({
-      where: { id },
-    });
+    const prompt = db.select().from(schema.prompts)
+      .where(eq(schema.prompts.id, id))
+      .get();
 
     if (!prompt) {
       return NextResponse.json({ error: 'Prompt not found' }, { status: 404 });
     }
 
     // プロンプトを削除
-    await prisma.prompt.delete({
-      where: { id },
-    });
+    db.delete(schema.prompts)
+      .where(eq(schema.prompts.id, id))
+      .run();
 
     logger.debug('Prompt deleted', { id });
     return NextResponse.json({ message: 'Deleted successfully' });

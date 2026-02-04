@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { db, schema } from '@/lib/db';
+import { eq } from 'drizzle-orm';
 import { getProcessLifecycleManager } from '@/services/process-lifecycle-manager';
 import { logger } from '@/lib/logger';
 
@@ -26,8 +27,8 @@ export async function POST(
     const { id } = await params;
 
     // セッション取得
-    const targetSession = await prisma.session.findUnique({
-      where: { id },
+    const targetSession = await db.query.sessions.findFirst({
+      where: eq(schema.sessions.id, id),
     });
 
     if (!targetSession) {
@@ -63,13 +64,14 @@ export async function POST(
     }
 
     // ステータスをrunningに更新
-    const updatedSession = await prisma.session.update({
-      where: { id },
-      data: {
+    const [updatedSession] = await db.update(schema.sessions)
+      .set({
         status: 'running',
         last_activity_at: new Date(),
-      },
-    });
+        updated_at: new Date(),
+      })
+      .where(eq(schema.sessions.id, id))
+      .returning();
 
     const resumedWithHistory = !!targetSession.resume_session_id;
 

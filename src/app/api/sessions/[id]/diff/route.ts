@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { db, schema } from '@/lib/db';
+import { eq } from 'drizzle-orm';
 import { GitService } from '@/services/git-service';
 import { logger } from '@/lib/logger';
 import { basename } from 'path';
@@ -47,9 +48,9 @@ export async function GET(
   try {
     const { id } = await params;
 
-    const targetSession = await prisma.session.findUnique({
-      where: { id },
-      include: { project: true },
+    const targetSession = await db.query.sessions.findFirst({
+      where: eq(schema.sessions.id, id),
+      with: { project: true },
     });
 
     if (!targetSession) {

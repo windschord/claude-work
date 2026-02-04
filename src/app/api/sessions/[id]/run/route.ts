@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { db, schema } from '@/lib/db';
+import { eq, and } from 'drizzle-orm';
 import { RunScriptManager } from '@/services/run-script-manager';
 import { logger } from '@/lib/logger';
 
@@ -41,9 +42,9 @@ export async function POST(
   try {
     const { id } = await params;
 
-    const targetSession = await prisma.session.findUnique({
-      where: { id },
-      include: {
+    const targetSession = await db.query.sessions.findFirst({
+      where: eq(schema.sessions.id, id),
+      with: {
         project: true,
       },
     });
@@ -60,11 +61,11 @@ export async function POST(
     }
 
     // Find the run script
-    const runScript = await prisma.runScript.findFirst({
-      where: {
-        project_id: targetSession.project_id,
-        name: script_name,
-      },
+    const runScript = await db.query.runScripts.findFirst({
+      where: and(
+        eq(schema.runScripts.project_id, targetSession.project_id),
+        eq(schema.runScripts.name, script_name)
+      ),
     });
 
     if (!runScript) {

@@ -1,25 +1,24 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { DELETE } from '../route';
-import { prisma } from '@/lib/db';
+import { db, schema } from '@/lib/db';
+import { eq } from 'drizzle-orm';
 import { NextRequest } from 'next/server';
 
 describe('DELETE /api/prompts/[id]', () => {
-  beforeEach(async () => {
-    await prisma.prompt.deleteMany();
+  beforeEach(() => {
+    db.delete(schema.prompts).run();
   });
 
-  afterEach(async () => {
-    await prisma.prompt.deleteMany();
+  afterEach(() => {
+    db.delete(schema.prompts).run();
   });
 
   it('プロンプトを削除する（200）', async () => {
-    const prompt = await prisma.prompt.create({
-      data: {
-        content: 'Test prompt',
-        used_count: 5,
-        last_used_at: new Date(),
-      },
-    });
+    const prompt = db.insert(schema.prompts).values({
+      content: 'Test prompt',
+      used_count: 5,
+      last_used_at: new Date(),
+    }).returning().get();
 
     const request = new NextRequest(`http://localhost:3000/api/prompts/${prompt.id}`, {
       method: 'DELETE',
@@ -31,10 +30,10 @@ describe('DELETE /api/prompts/[id]', () => {
     const data = await response.json();
     expect(data.message).toBe('Deleted successfully');
 
-    const deletedPrompt = await prisma.prompt.findUnique({
-      where: { id: prompt.id },
-    });
-    expect(deletedPrompt).toBeNull();
+    const deletedPrompt = db.select().from(schema.prompts)
+      .where(eq(schema.prompts.id, prompt.id))
+      .get();
+    expect(deletedPrompt).toBeUndefined();
   });
 
   it('存在しないプロンプトを削除しようとすると404エラー', async () => {
@@ -50,21 +49,17 @@ describe('DELETE /api/prompts/[id]', () => {
   });
 
   it('削除後、他のプロンプトは残っている', async () => {
-    const prompt1 = await prisma.prompt.create({
-      data: {
-        content: 'Prompt 1',
-        used_count: 1,
-        last_used_at: new Date(),
-      },
-    });
+    const prompt1 = db.insert(schema.prompts).values({
+      content: 'Prompt 1',
+      used_count: 1,
+      last_used_at: new Date(),
+    }).returning().get();
 
-    const prompt2 = await prisma.prompt.create({
-      data: {
-        content: 'Prompt 2',
-        used_count: 2,
-        last_used_at: new Date(),
-      },
-    });
+    const prompt2 = db.insert(schema.prompts).values({
+      content: 'Prompt 2',
+      used_count: 2,
+      last_used_at: new Date(),
+    }).returning().get();
 
     const request = new NextRequest(`http://localhost:3000/api/prompts/${prompt1.id}`, {
       method: 'DELETE',
@@ -73,9 +68,9 @@ describe('DELETE /api/prompts/[id]', () => {
     const response = await DELETE(request, { params: Promise.resolve({ id: prompt1.id }) });
     expect(response.status).toBe(200);
 
-    const remainingPrompt = await prisma.prompt.findUnique({
-      where: { id: prompt2.id },
-    });
+    const remainingPrompt = db.select().from(schema.prompts)
+      .where(eq(schema.prompts.id, prompt2.id))
+      .get();
     expect(remainingPrompt).toBeTruthy();
     expect(remainingPrompt?.content).toBe('Prompt 2');
   });

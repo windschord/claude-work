@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { db, schema } from '@/lib/db';
+import { eq } from 'drizzle-orm';
 import { RunScriptManager } from '@/services/run-script-manager';
 import { logger } from '@/lib/logger';
 
@@ -36,8 +37,8 @@ export async function POST(
   try {
     const { id, run_id } = await params;
 
-    const targetSession = await prisma.session.findUnique({
-      where: { id },
+    const targetSession = await db.query.sessions.findFirst({
+      where: eq(schema.sessions.id, id),
     });
 
     if (!targetSession) {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { db, schema } from '@/lib/db';
+import { eq, desc, and } from 'drizzle-orm';
 import { GitService } from '@/services/git-service';
 import { logger } from '@/lib/logger';
 import { generateUniqueSessionName } from '@/lib/session-name-generator';
@@ -45,21 +46,21 @@ export async function GET(
   try {
     const { project_id } = await params;
 
-    const sessions = await prisma.session.findMany({
-      where: { project_id },
-      orderBy: { created_at: 'desc' },
-      include: {
+    const sessions = db.query.sessions.findMany({
+      where: eq(schema.sessions.project_id, project_id),
+      orderBy: desc(schema.sessions.created_at),
+      with: {
         environment: {
-          select: {
+          columns: {
             name: true,
             type: true,
           },
         },
       },
-    });
+    }).sync();
 
     // フロントエンド用にフラット化した形式に変換
-    const sessionsWithEnvironment = sessions.map((session) => ({
+    const sessionsWithEnvironment = sessions.map((session: typeof sessions[number]) => ({
       ...session,
       environment_name: session.environment?.name || null,
       environment_type: session.environment?.type as 'HOST' | 'DOCKER' | 'SSH' | null,
@@ -247,9 +248,7 @@ export async function POST(
     if (name?.trim()) {
       sessionDisplayName = name.trim();
       // ユーザー指定の名前も重複チェック
-      const existingSession = await prisma.session.findFirst({
-        where: { project_id, name: sessionDisplayName },
-      });
+      const existingSession = db.select().from(schema.sessions).where(and(eq(schema.sessions.project_id, project_id), eq(schema.sessions.name, sessionDisplayName))).get();
       if (existingSession) {
         return NextResponse.json(
           { error: 'Session name already exists in this project' },
@@ -258,17 +257,12 @@ export async function POST(
       }
     } else {
       // 既存のセッション名を取得して重複を避ける
-      const existingSessions = await prisma.session.findMany({
-        where: { project_id },
-        select: { name: true },
-      });
+      const existingSessions = db.select({ name: schema.sessions.name }).from(schema.sessions).where(eq(schema.sessions.project_id, project_id)).all();
       const existingNames = existingSessions.map((s) => s.name);
       sessionDisplayName = generateUniqueSessionName(existingNames);
     }
 
-    const project = await prisma.project.findUnique({
-      where: { id: project_id },
-    });
+    const project = db.select().from(schema.projects).where(eq(schema.projects.id, project_id)).get();
 
     if (!project) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
@@ -292,51 +286,41 @@ export async function POST(
       throw worktreeError;
     }
 
-    const newSession = await prisma.session.create({
-      data: {
-        project_id,
-        name: sessionDisplayName,
-        status: 'initializing',  // PTY接続時に'running'に変更される
-        worktree_path: worktreePath,
-        branch_name: branchName,
-        docker_mode: effectiveDockerMode,
-        environment_id: effectiveEnvironmentId,
-      },
-    });
+    const newSession = db.insert(schema.sessions).values({
+      project_id,
+      name: sessionDisplayName,
+      status: 'initializing',  // PTY接続時に'running'に変更される
+      worktree_path: worktreePath,
+      branch_name: branchName,
+      docker_mode: effectiveDockerMode,
+      environment_id: effectiveEnvironmentId,
+    }).returning().get();
 
     // プロンプトが存在する場合のみ保存または更新
     if (prompt && prompt.trim()) {
-      const existingPrompt = await prisma.prompt.findFirst({
-        where: { content: prompt },
-      });
+      const existingPrompt = db.select().from(schema.prompts).where(eq(schema.prompts.content, prompt)).get();
 
       if (existingPrompt) {
-        await prisma.prompt.update({
-          where: { id: existingPrompt.id },
-          data: {
-            used_count: { increment: 1 },
-            last_used_at: new Date(),
-          },
-        });
+        db.update(schema.prompts).set({
+          used_count: existingPrompt.used_count + 1,
+          last_used_at: new Date(),
+          updated_at: new Date(),
+        }).where(eq(schema.prompts.id, existingPrompt.id)).run();
       } else {
-        await prisma.prompt.create({
-          data: {
-            content: prompt,
-            used_count: 1,
-            last_used_at: new Date(),
-          },
-        });
+        db.insert(schema.prompts).values({
+          content: prompt,
+          used_count: 1,
+          last_used_at: new Date(),
+        }).run();
       }
 
       // 初期プロンプトをユーザーメッセージとして保存
       // WebSocket接続時にこのメッセージがClaude PTYに送信される
-      await prisma.message.create({
-        data: {
-          session_id: newSession.id,
-          role: 'user',
-          content: prompt,
-        },
-      });
+      db.insert(schema.messages).values({
+        session_id: newSession.id,
+        role: 'user',
+        content: prompt,
+      }).run();
     }
 
     logger.info('Session created', {
