@@ -67,6 +67,7 @@ id claude-work
 sudo mkdir -p /opt/claude-work
 
 # データディレクトリと npm キャッシュディレクトリを作成
+# .npm ディレクトリは systemd サービスで HOME=/opt/claude-work を設定するため必要
 sudo mkdir -p /opt/claude-work/data
 sudo mkdir -p /opt/claude-work/.npm
 
@@ -278,7 +279,7 @@ systemd サービスはセキュリティ強化のため `ProtectHome=read-only`
 
 ```bash
 # claude-work ユーザーとして手動実行（デバッグ用）
-sudo -u claude-work bash -c 'source /etc/claude-work/env && cd /opt/claude-work && HOME=/opt/claude-work npx github:windschord/claude-work'
+sudo -u claude-work bash -c 'set -a && source /etc/claude-work/env && set +a && cd /opt/claude-work && HOME=/opt/claude-work npx github:windschord/claude-work'
 ```
 
 ---
