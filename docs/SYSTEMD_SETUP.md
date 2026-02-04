@@ -74,9 +74,9 @@ sudo mkdir -p /opt/claude-work/.npm
 sudo chown -R claude-work:claude-work /opt/claude-work
 ```
 
-> **注意**: `npx github:windschord/claude-work` は起動時に GitHub から最新版を取得し、Prisma クライアント生成、データベース初期化、Next.js ビルドを自動実行します。git clone や npm install は不要です。
+> **注意**: `npx github:windschord/claude-work` は初回実行時に GitHub からパッケージを取得し、ローカルにキャッシュします。2回目以降はキャッシュから起動されるため高速です。Prisma クライアント生成、データベース初期化、Next.js ビルドは自動実行されます。git clone や npm install は不要です。
 
-> **ネットワーク要件**: このセットアップ手順および初回起動時には、GitHub へのインターネット接続が必要です。設定ファイルは main ブランチから最新版をダウンロードするため、常に最新の設定が適用されます。
+> **ネットワーク要件**: このセットアップ手順および初回起動時には、GitHub へのインターネット接続が必要です。設定ファイルは main ブランチから最新版をダウンロードします。
 
 ---
 
@@ -163,7 +163,7 @@ claude-work.service - ClaudeWork - Claude Code Session Manager
      Active: active (running) since ...
 ```
 
-> **注意**: 初回起動時は GitHub からのダウンロード、Prisma クライアント生成、Next.js ビルドが実行されるため、起動に数分かかる場合があります。
+> **注意**: 初回起動時は GitHub からのダウンロード、Prisma クライアント生成、Next.js ビルドが実行されるため、起動に数分かかる場合があります。2回目以降はキャッシュから起動されるため高速です。
 
 ### 動作確認
 
@@ -297,9 +297,11 @@ sudo systemctl daemon-reload
 # 設定ファイルを削除
 sudo rm -rf /etc/claude-work
 
-# アプリケーションディレクトリを削除（データも削除される）
+# アプリケーションディレクトリを削除（データおよび npm キャッシュも削除される）
 sudo rm -rf /opt/claude-work
 ```
+
+> **注意**: `/opt/claude-work` を削除すると、npx のキャッシュ（`/opt/claude-work/.npm`）も同時に削除されます。
 
 ### ユーザーの削除（オプション）
 
