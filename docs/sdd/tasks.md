@@ -135,11 +135,12 @@ npx drizzle-kit push
 - 修正: src/lib/__tests__/db.test.ts
 
 **受入基準**:
-- [ ] テストがDrizzle APIを使用している
-- [ ] `npm test src/lib/__tests__/db.test.ts` がパスする
+- [x] テストがDrizzle APIを使用している
+- [x] `npm test src/lib/__tests__/db.test.ts` がパスする
 
 **依存関係**: タスク1.4
-**ステータス**: `TODO`
+**ステータス**: `DONE`
+**完了サマリー**: db.test.ts をDrizzle APIに変換、12テスト全てパス
 
 #### タスク2.2: environment-service.ts の移行
 

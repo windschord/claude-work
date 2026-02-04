@@ -5,7 +5,7 @@ import { pathToFileURL } from 'url';
 
 export default async function setup() {
   // Create a temporary test database file
-  const testDbPath = path.join(process.cwd(), 'prisma', 'data', 'test.db');
+  const testDbPath = path.join(process.cwd(), 'data', 'test.db');
   const testDbDir = path.dirname(testDbPath);
 
   // Ensure directory exists
@@ -18,14 +18,17 @@ export default async function setup() {
     fs.unlinkSync(testDbPath);
   }
 
-  // Convert to file URL (handles Windows backslashes correctly)
-  const testDbUrl = pathToFileURL(testDbPath).href;
+  // Convert to file URL for DATABASE_URL
+  const testDbUrl = `file:${testDbPath}`;
 
-  // Initialize database schema using prisma db push
-  // Prisma 7: --skip-generate is no longer available, use --url instead of env var
-  const result = spawnSync('npx', ['prisma', 'db', 'push', '--url', testDbUrl, '--accept-data-loss'], {
+  // Set DATABASE_URL for drizzle-kit
+  process.env.DATABASE_URL = testDbUrl;
+
+  // Initialize database schema using drizzle-kit push
+  const result = spawnSync('npx', ['drizzle-kit', 'push'], {
     encoding: 'utf-8',
     cwd: process.cwd(),
+    env: { ...process.env, DATABASE_URL: testDbUrl },
   });
 
   if (result.error || result.status !== 0) {
@@ -39,12 +42,8 @@ export default async function setup() {
   console.log(`Test database initialized at ${testDbPath}`);
 
   return async () => {
-    // Teardown: Disconnect all Prisma clients
-    // Prisma 7: db.ts validates DATABASE_URL at module import time (top-level).
-    // Since teardown runs after tests, we must set DATABASE_URL before importing db.ts.
-    process.env.DATABASE_URL = testDbUrl;
-    const { prisma } = await import('./src/lib/db');
-    await prisma.$disconnect();
-    console.log('Test database connections closed');
+    // Teardown: No explicit disconnect needed for better-sqlite3
+    // The database connection is synchronous and closed automatically
+    console.log('Test database teardown complete');
   };
 }
