@@ -76,6 +76,8 @@ sudo chown -R claude-work:claude-work /opt/claude-work
 
 > **注意**: `npx github:windschord/claude-work` は起動時に GitHub から最新版を取得し、Prisma クライアント生成、データベース初期化、Next.js ビルドを自動実行します。git clone や npm install は不要です。
 
+> **ネットワーク要件**: このセットアップ手順および初回起動時には、GitHub へのインターネット接続が必要です。設定ファイルは main ブランチから最新版をダウンロードするため、常に最新の設定が適用されます。
+
 ---
 
 ## 環境変数の設定
