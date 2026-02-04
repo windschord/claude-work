@@ -6,7 +6,7 @@
 
 1. [前提条件](#前提条件)
 2. [専用ユーザーの作成](#専用ユーザーの作成)
-3. [アプリケーションのインストール](#アプリケーションのインストール)
+3. [ディレクトリの準備](#ディレクトリの準備)
 4. [環境変数の設定](#環境変数の設定)
 5. [systemd サービスの設定](#systemd-サービスの設定)
 6. [サービスの起動と確認](#サービスの起動と確認)
@@ -20,8 +20,8 @@
 
 - Ubuntu 20.04 LTS 以降
 - Node.js 20 以上がインストール済み
-- npm または pnpm がインストール済み
-- git がインストール済み
+- npm がインストール済み
+- git がインストール済み（ワークツリー操作に必要）
 - Claude Code CLI がインストール済み（システム PATH でアクセス可能）
 - sudo 権限を持つユーザーでログイン
 
@@ -60,41 +60,31 @@ id claude-work
 
 ---
 
-## アプリケーションのインストール
-
-### インストールディレクトリの準備
+## ディレクトリの準備
 
 ```bash
 # /opt/claude-work ディレクトリを作成
 sudo mkdir -p /opt/claude-work
 
+# データディレクトリと npm キャッシュディレクトリを作成
+# .npm ディレクトリは systemd サービスで HOME=/opt/claude-work を設定するため必要
+# 手動で npm/npx コマンドを実行する場合は HOME=/opt/claude-work を設定してください
+sudo mkdir -p /opt/claude-work/data
+sudo mkdir -p /opt/claude-work/.npm
+
 # 所有者を claude-work ユーザーに変更
 sudo chown -R claude-work:claude-work /opt/claude-work
 ```
 
-### ClaudeWork のインストール
-
-```bash
-# インストールディレクトリに移動
-cd /opt/claude-work
-
-# リポジトリをクローン
-sudo -u claude-work git clone https://github.com/windschord/claude-work.git .
-
-# データディレクトリと npm キャッシュディレクトリを作成
-sudo -u claude-work mkdir -p /opt/claude-work/data
-sudo -u claude-work mkdir -p /opt/claude-work/.npm
-
-# 依存パッケージのインストール
-sudo -u claude-work env HOME=/opt/claude-work npm install
-```
-
-> **注意**:
-> - `npm install` 実行時に `package.json` の `prepare` スクリプトにより Prisma クライアントの生成と Next.js のビルドが自動実行されます。
-> - `npx claude-work` の初回起動時には、CLI が上記セットアップの完了を検証し、不足分のみ再実行します（フォールバック機能）。
-> - これにより、`npm install` 時の `prepare` が失敗した場合でもサービスを正常に起動できます。
+> **注意**: `npx github:windschord/claude-work` は初回実行時に GitHub からパッケージを取得し、ローカルにキャッシュします。キャッシュは `/opt/claude-work/.npm` に保存され、2回目以降はキャッシュから起動されるため高速です。Prisma クライアント生成、データベース初期化、Next.js ビルドは自動実行されます。git clone や npm install は不要です。
 >
-> **注意**: npm グローバルインストール（`npm install -g claude-work`）は systemd セットアップには対応していません。上記の git clone 方式を使用してください。
+> **ネットワーク要件**:
+> - **初回起動**: GitHub へのインターネット接続が必須
+> - **2回目以降**: キャッシュが有効な場合はオフラインでも起動可能
+> - **キャッシュ更新**: npx は定期的に更新を確認するため、その際にはネットワーク接続が必要
+> - **ネットワーク障害時**: キャッシュが存在すればそのキャッシュから起動、存在しなければ起動失敗
+>
+> キャッシュを手動で更新する場合は、`sudo -u claude-work HOME=/opt/claude-work npx github:windschord/claude-work@latest` を実行してください。
 
 ---
 
@@ -106,8 +96,11 @@ sudo -u claude-work env HOME=/opt/claude-work npm install
 # 設定ディレクトリを作成
 sudo mkdir -p /etc/claude-work
 
-# 環境変数ファイルをコピー
-sudo cp /opt/claude-work/systemd/claude-work.env.example /etc/claude-work/env
+# 環境変数ファイルをダウンロード（HTTPS を利用）
+# 本番環境では、/main/ の代わりに特定のタグやコミットハッシュへの URL を使用することを推奨します
+sudo curl -fsSL https://raw.githubusercontent.com/windschord/claude-work/main/systemd/claude-work.env.example \
+  -o /etc/claude-work/env \
+  || { echo "環境変数ファイルのダウンロードに失敗しました。ネットワーク接続と URL を確認してください。"; exit 1; }
 
 # 権限を設定（root と claude-work グループのみ読み取り可能）
 sudo chown root:claude-work /etc/claude-work/env
@@ -137,11 +130,14 @@ NODE_ENV=production
 
 ## systemd サービスの設定
 
-### ユニットファイルのコピー
+### ユニットファイルのダウンロード
 
 ```bash
-# ユニットファイルをコピー
-sudo cp /opt/claude-work/systemd/claude-work.service /etc/systemd/system/
+# ユニットファイルをダウンロード（HTTPS を利用）
+# 本番環境では、/main/ の代わりに特定のタグやコミットハッシュへの URL を使用することを推奨します
+sudo curl -fsSL https://raw.githubusercontent.com/windschord/claude-work/main/systemd/claude-work.service \
+  -o /etc/systemd/system/claude-work.service \
+  || { echo "ユニットファイルのダウンロードに失敗しました。ネットワーク接続と URL を確認してください。"; exit 1; }
 
 # systemd にリロードを通知
 sudo systemctl daemon-reload
@@ -178,6 +174,8 @@ claude-work.service - ClaudeWork - Claude Code Session Manager
      Loaded: loaded (/etc/systemd/system/claude-work.service; enabled; vendor preset: enabled)
      Active: active (running) since ...
 ```
+
+> **注意**: 初回起動時は GitHub からのダウンロード、Prisma クライアント生成、Next.js ビルドが実行されるため、起動に数分かかる場合があります。2回目以降はキャッシュから起動されるため高速です。
 
 ### 動作確認
 
@@ -282,7 +280,7 @@ systemd サービスはセキュリティ強化のため `ProtectHome=read-only`
 
 ```bash
 # claude-work ユーザーとして手動実行（デバッグ用）
-sudo -u claude-work bash -c 'source /etc/claude-work/env && cd /opt/claude-work && HOME=/opt/claude-work npx claude-work'
+sudo -u claude-work bash -c 'set -a && source /etc/claude-work/env && set +a && cd /opt/claude-work && HOME=/opt/claude-work npx github:windschord/claude-work'
 ```
 
 ---
@@ -311,9 +309,14 @@ sudo systemctl daemon-reload
 # 設定ファイルを削除
 sudo rm -rf /etc/claude-work
 
-# アプリケーションを削除（データも削除される）
+# アプリケーションディレクトリを削除（データおよび npm キャッシュも削除される）
 sudo rm -rf /opt/claude-work
 ```
+
+> **注意**: `/opt/claude-work` を削除すると、npx のキャッシュ（`/opt/claude-work/.npm`）も同時に削除されます。root ユーザーのグローバル npm キャッシュをクリアする場合は、以下のコマンドを実行してください（他のパッケージのキャッシュも削除されます）：
+> ```bash
+> sudo npm cache clean --force
+> ```
 
 ### ユーザーの削除（オプション）
 
