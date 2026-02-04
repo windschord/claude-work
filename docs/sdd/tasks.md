@@ -94,13 +94,14 @@
 - 修正: src/lib/db.ts
 
 **受入基準**:
-- [ ] src/lib/db.ts がDrizzle接続を使用している
-- [ ] db インスタンスがエクスポートされている
-- [ ] 型（Project, Session等）がエクスポートされている
-- [ ] TypeScriptコンパイルエラーがない
+- [x] src/lib/db.ts がDrizzle接続を使用している
+- [x] db インスタンスがエクスポートされている
+- [x] 型（Project, Session等）がエクスポートされている
+- [x] TypeScriptコンパイルエラーがない
 
 **依存関係**: タスク1.2
-**ステータス**: `TODO`
+**ステータス**: `DONE`
+**完了サマリー**: Drizzle接続に変更、db・schema・型をエクスポート
 
 #### タスク1.5: データベース初期化とスキーマ同期
 
