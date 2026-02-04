@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/db';
+import { db, schema } from '@/lib/db';
 import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -27,18 +27,16 @@ export async function setupTestEnvironment(): Promise<{
   testRepoPath: string;
   project: Project;
 }> {
-  await prisma.runScript.deleteMany();
-  await prisma.project.deleteMany();
+  db.delete(schema.runScripts).run();
+  db.delete(schema.projects).run();
 
   const testRepoPath = mkdtempSync(join(tmpdir(), 'project-test-'));
   initTestRepo(testRepoPath);
 
-  const project = await prisma.project.create({
-    data: {
-      name: 'Test Project',
-      path: testRepoPath,
-    },
-  });
+  const project = db.insert(schema.projects).values({
+    name: 'Test Project',
+    path: testRepoPath,
+  }).returning().get();
 
   return { testRepoPath, project };
 }
@@ -47,8 +45,8 @@ export async function setupTestEnvironment(): Promise<{
  * テスト用の共通クリーンアップを実行
  */
 export async function cleanupTestEnvironment(testRepoPath?: string): Promise<void> {
-  await prisma.runScript.deleteMany();
-  await prisma.project.deleteMany();
+  db.delete(schema.runScripts).run();
+  db.delete(schema.projects).run();
   if (testRepoPath) {
     rmSync(testRepoPath, { recursive: true, force: true });
   }

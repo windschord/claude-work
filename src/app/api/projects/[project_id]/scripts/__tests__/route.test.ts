@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { GET, POST } from '../route';
-import { prisma } from '@/lib/db';
+import { db, schema } from '@/lib/db';
+import { eq } from 'drizzle-orm';
 import { NextRequest } from 'next/server';
 import type { Project } from '@/lib/db';
 import { setupTestEnvironment, cleanupTestEnvironment } from './test-helpers';
@@ -20,22 +21,20 @@ describe('GET /api/projects/[project_id]/scripts', () => {
   });
 
   it('should return 200 and list of run scripts', async () => {
-    await prisma.runScript.createMany({
-      data: [
-        {
-          project_id: project.id,
-          name: 'Test',
-          description: 'Run unit tests',
-          command: 'npm test',
-        },
-        {
-          project_id: project.id,
-          name: 'Build',
-          description: 'Build the project',
-          command: 'npm run build',
-        },
-      ],
-    });
+    db.insert(schema.runScripts).values([
+      {
+        project_id: project.id,
+        name: 'Test',
+        description: 'Run unit tests',
+        command: 'npm test',
+      },
+      {
+        project_id: project.id,
+        name: 'Build',
+        description: 'Build the project',
+        command: 'npm run build',
+      },
+    ]).run();
 
     const request = new NextRequest(
       `http://localhost:3000/api/projects/${project.id}/scripts`
@@ -109,9 +108,7 @@ describe('POST /api/projects/[project_id]/scripts', () => {
     expect(data.script.command).toBe('npm test');
     expect(data.script.project_id).toBe(project.id);
 
-    const script = await prisma.runScript.findFirst({
-      where: { project_id: project.id },
-    });
+    const script = db.select().from(schema.runScripts).where(eq(schema.runScripts.project_id, project.id)).get();
     expect(script).toBeTruthy();
     expect(script?.name).toBe('Test');
   });
