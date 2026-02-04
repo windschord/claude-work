@@ -74,9 +74,15 @@ sudo mkdir -p /opt/claude-work/.npm
 sudo chown -R claude-work:claude-work /opt/claude-work
 ```
 
-> **注意**: `npx github:windschord/claude-work` は初回実行時に GitHub からパッケージを取得し、ローカルにキャッシュします。2回目以降はキャッシュから起動されるため高速です。Prisma クライアント生成、データベース初期化、Next.js ビルドは自動実行されます。git clone や npm install は不要です。
+> **注意**: `npx github:windschord/claude-work` は初回実行時に GitHub からパッケージを取得し、ローカルにキャッシュします。キャッシュは `/opt/claude-work/.npm` に保存され、2回目以降はキャッシュから起動されるため高速です。Prisma クライアント生成、データベース初期化、Next.js ビルドは自動実行されます。git clone や npm install は不要です。
 >
-> **ネットワーク要件**: このセットアップ手順には GitHub へのインターネット接続が必要です。サービス起動時も、キャッシュが無い場合やキャッシュの更新時にはネットワーク接続が必要になります。
+> **ネットワーク要件**:
+> - **初回起動**: GitHub へのインターネット接続が必須
+> - **2回目以降**: キャッシュが有効な場合はオフラインでも起動可能
+> - **キャッシュ更新**: npx は定期的に更新を確認するため、その際にはネットワーク接続が必要
+> - **ネットワーク障害時**: キャッシュが存在すればそのキャッシュから起動、存在しなければ起動失敗
+>
+> キャッシュを手動で更新する場合は、`sudo -u claude-work HOME=/opt/claude-work npx github:windschord/claude-work@latest` を実行してください。
 
 ---
 
@@ -88,9 +94,11 @@ sudo chown -R claude-work:claude-work /opt/claude-work
 # 設定ディレクトリを作成
 sudo mkdir -p /etc/claude-work
 
-# 環境変数ファイルをダウンロード
+# 環境変数ファイルをダウンロード（HTTPS を利用）
+# 本番環境では、/main/ の代わりに特定のタグやコミットハッシュへの URL を使用することを推奨します
 sudo curl -fsSL https://raw.githubusercontent.com/windschord/claude-work/main/systemd/claude-work.env.example \
-  -o /etc/claude-work/env
+  -o /etc/claude-work/env \
+  || { echo "環境変数ファイルのダウンロードに失敗しました。ネットワーク接続と URL を確認してください。"; exit 1; }
 
 # 権限を設定（root と claude-work グループのみ読み取り可能）
 sudo chown root:claude-work /etc/claude-work/env
@@ -123,9 +131,11 @@ NODE_ENV=production
 ### ユニットファイルのダウンロード
 
 ```bash
-# ユニットファイルをダウンロード
+# ユニットファイルをダウンロード（HTTPS を利用）
+# 本番環境では、/main/ の代わりに特定のタグやコミットハッシュへの URL を使用することを推奨します
 sudo curl -fsSL https://raw.githubusercontent.com/windschord/claude-work/main/systemd/claude-work.service \
-  -o /etc/systemd/system/claude-work.service
+  -o /etc/systemd/system/claude-work.service \
+  || { echo "ユニットファイルのダウンロードに失敗しました。ネットワーク接続と URL を確認してください。"; exit 1; }
 
 # systemd にリロードを通知
 sudo systemctl daemon-reload
@@ -301,7 +311,10 @@ sudo rm -rf /etc/claude-work
 sudo rm -rf /opt/claude-work
 ```
 
-> **注意**: `/opt/claude-work` を削除すると、npx のキャッシュ（`/opt/claude-work/.npm`）も同時に削除されます。
+> **注意**: `/opt/claude-work` を削除すると、npx のキャッシュ（`/opt/claude-work/.npm`）も同時に削除されます。root ユーザーのグローバル npm キャッシュをクリアする場合は、以下のコマンドを実行してください（他のパッケージのキャッシュも削除されます）：
+> ```bash
+> sudo npm cache clean --force
+> ```
 
 ### ユーザーの削除（オプション）
 

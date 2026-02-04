@@ -64,7 +64,10 @@ Group=claude-work
 WorkingDirectory=/opt/claude-work
 EnvironmentFile=/etc/claude-work/env
 # npx github:windschord/claude-work でフォアグラウンド起動
-# 初回実行時に GitHub から取得しキャッシュ、自動セットアップ（Prisma、DB、ビルド）を実行
+# ネットワーク要件:
+#   - 初回実行時は必ず GitHub への接続が必要（パッケージ取得）
+#   - 2回目以降はキャッシュを利用（オフライン起動可能）
+# 初回実行時に自動セットアップ（Prisma、DB、ビルド）を実行
 Environment=HOME=/opt/claude-work
 ExecStart=/usr/bin/npx github:windschord/claude-work
 # 初回起動時のビルドに時間がかかるためタイムアウトを延長

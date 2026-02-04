@@ -11,7 +11,11 @@ Group=claude-work
 WorkingDirectory=/opt/claude-work
 EnvironmentFile=/etc/claude-work/env
 # npx github:windschord/claude-work でフォアグラウンド起動
-# 初回実行時に GitHub から取得しキャッシュ、自動セットアップ（Prisma、DB、ビルド）を実行
+# ネットワーク要件:
+#   - 初回実行時は必ず GitHub への接続が必要（パッケージ取得）
+#   - 2回目以降はキャッシュを利用（オフライン起動可能）
+#   - npx は定期的にキャッシュ更新を確認するため、その際ネットワーク接続が必要になる場合あり
+# 初回実行時に自動セットアップ（Prisma、DB、ビルド）を実行
 # HOME を設定する理由:
 #   1. npm キャッシュを /opt/claude-work/.npm に配置
 #   2. ProtectHome=read-only との競合を回避
