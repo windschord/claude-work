@@ -76,11 +76,12 @@
 - 作成: drizzle.config.ts
 
 **受入基準**:
-- [ ] drizzle.config.ts が作成されている
-- [ ] `npx drizzle-kit generate` が成功する
+- [x] drizzle.config.ts が作成されている
+- [x] `npx drizzle-kit generate` が成功する
 
 **依存関係**: タスク1.2
-**ステータス**: `TODO`
+**ステータス**: `DONE`
+**完了サマリー**: drizzle.config.ts作成、マイグレーションファイル生成成功
 
 #### タスク1.4: データベース接続モジュールの更新
 
