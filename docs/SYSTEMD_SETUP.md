@@ -21,10 +21,18 @@
 - Ubuntu 20.04 LTS 以降
 - Node.js 20 以上がインストール済み
 - npm がインストール済み
+- git がインストール済み（ワークツリー操作に必要）
 - Claude Code CLI がインストール済み（システム PATH でアクセス可能）
 - sudo 権限を持つユーザーでログイン
 
 > **重要**: ClaudeWork は Claude Code CLI を使用してセッションを管理します。サービス起動前に `claude --version` コマンドで Claude Code CLI がインストールされていることを確認してください。
+
+### git のインストール（未インストールの場合）
+
+```bash
+sudo apt-get update
+sudo apt-get install -y git
+```
 
 ### Node.js のインストール（未インストールの場合）
 
@@ -66,7 +74,7 @@ sudo mkdir -p /opt/claude-work/.npm
 sudo chown -R claude-work:claude-work /opt/claude-work
 ```
 
-> **注意**: `npx claude-work` は起動時に npm レジストリから最新版を取得し、Prisma クライアント生成、データベース初期化、Next.js ビルドを自動実行します。git clone や npm install は不要です。
+> **注意**: `npx github:windschord/claude-work` は起動時に GitHub から最新版を取得し、Prisma クライアント生成、データベース初期化、Next.js ビルドを自動実行します。git clone や npm install は不要です。
 
 ---
 
@@ -153,7 +161,7 @@ claude-work.service - ClaudeWork - Claude Code Session Manager
      Active: active (running) since ...
 ```
 
-> **注意**: 初回起動時は npm パッケージのダウンロード、Prisma クライアント生成、Next.js ビルドが実行されるため、起動に数分かかる場合があります。
+> **注意**: 初回起動時は GitHub からのダウンロード、Prisma クライアント生成、Next.js ビルドが実行されるため、起動に数分かかる場合があります。
 
 ### 動作確認
 
