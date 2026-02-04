@@ -11,14 +11,13 @@ Group=claude-work
 WorkingDirectory=/opt/claude-work
 EnvironmentFile=/etc/claude-work/env
 # npx claude-work でフォアグラウンド起動
-# 初回起動時に Prisma クライアント生成、DB 初期化、Next.js ビルドを検証し、不足分のみ実行
+# 起動時に最新版をチェックし、自動セットアップ（Prisma、DB、ビルド）を実行
 # HOME を設定する理由:
 #   1. npm キャッシュを /opt/claude-work/.npm に配置
 #   2. ProtectHome=read-only との競合を回避
 #   3. 自己完結型インストールを維持
 Environment=HOME=/opt/claude-work
-# --no: ローカルにインストール済みのパッケージのみ実行（ネットワークインストールを防止）
-ExecStart=/usr/bin/npx --no claude-work
+ExecStart=/usr/bin/npx claude-work
 # 初回起動時のビルドに時間がかかるためタイムアウトを延長
 TimeoutStartSec=300
 Restart=on-failure

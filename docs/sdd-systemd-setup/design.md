@@ -22,7 +22,7 @@
 │  │    ├─ User=claude-work                              │    │
 │  │    ├─ WorkingDirectory=/opt/claude-work             │    │
 │  │    ├─ EnvironmentFile=/etc/claude-work/env          │    │
-│  │    └─ ExecStart=/usr/bin/npx --no claude-work              │
+│  │    └─ ExecStart=/usr/bin/npx claude-work                   │
 │  │                                                      │    │
 │  └─────────────────────────────────────────────────────┘    │
 │                          │                                   │
@@ -64,10 +64,9 @@ Group=claude-work
 WorkingDirectory=/opt/claude-work
 EnvironmentFile=/etc/claude-work/env
 # npx claude-work でフォアグラウンド起動
-# 初回起動時に Prisma クライアント生成、DB 初期化、Next.js ビルドを検証し、不足分のみ実行
+# 起動時に最新版をチェックし、自動セットアップ（Prisma、DB、ビルド）を実行
 Environment=HOME=/opt/claude-work
-# --no: ローカルにインストール済みのパッケージのみ実行（ネットワークインストールを防止）
-ExecStart=/usr/bin/npx --no claude-work
+ExecStart=/usr/bin/npx claude-work
 # 初回起動時のビルドに時間がかかるためタイムアウトを延長
 TimeoutStartSec=300
 Restart=on-failure
@@ -89,7 +88,7 @@ WantedBy=multi-user.target
 
 **設計決定**:
 - `Type=simple`: フォアグラウンドで実行されるため
-- `ExecStart=npx --no claude-work`: CLI が Prisma・DB・ビルド成果物の存在を検証し、不足している場合のみセットアップを実行（npm install 時の prepare スクリプトによるセットアップを前提としたフォールバック）
+- `ExecStart=npx claude-work`: 起動時に npm レジストリから最新版を取得し、自動セットアップ（Prisma、DB、ビルド）を実行
 - `Restart=on-failure`: 異常終了時のみ再起動
 - `RestartSec=10`: 再起動間隔を10秒に設定（無限ループ防止）
 - `ProtectSystem=strict`: ファイルシステム全体を読み取り専用に（ReadWritePaths で許可したパス以外）

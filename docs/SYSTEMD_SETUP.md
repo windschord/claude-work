@@ -6,7 +6,7 @@
 
 1. [前提条件](#前提条件)
 2. [専用ユーザーの作成](#専用ユーザーの作成)
-3. [アプリケーションのインストール](#アプリケーションのインストール)
+3. [ディレクトリの準備](#ディレクトリの準備)
 4. [環境変数の設定](#環境変数の設定)
 5. [systemd サービスの設定](#systemd-サービスの設定)
 6. [サービスの起動と確認](#サービスの起動と確認)
@@ -20,19 +20,11 @@
 
 - Ubuntu 20.04 LTS 以降
 - Node.js 20 以上がインストール済み
-- npm または pnpm がインストール済み
-- git がインストール済み
+- npm がインストール済み
 - Claude Code CLI がインストール済み（システム PATH でアクセス可能）
 - sudo 権限を持つユーザーでログイン
 
 > **重要**: ClaudeWork は Claude Code CLI を使用してセッションを管理します。サービス起動前に `claude --version` コマンドで Claude Code CLI がインストールされていることを確認してください。
-
-### git のインストール（未インストールの場合）
-
-```bash
-sudo apt-get update
-sudo apt-get install -y git
-```
 
 ### Node.js のインストール（未インストールの場合）
 
@@ -60,41 +52,21 @@ id claude-work
 
 ---
 
-## アプリケーションのインストール
-
-### インストールディレクトリの準備
+## ディレクトリの準備
 
 ```bash
 # /opt/claude-work ディレクトリを作成
 sudo mkdir -p /opt/claude-work
 
+# データディレクトリと npm キャッシュディレクトリを作成
+sudo mkdir -p /opt/claude-work/data
+sudo mkdir -p /opt/claude-work/.npm
+
 # 所有者を claude-work ユーザーに変更
 sudo chown -R claude-work:claude-work /opt/claude-work
 ```
 
-### ClaudeWork のインストール
-
-```bash
-# インストールディレクトリに移動
-cd /opt/claude-work
-
-# リポジトリをクローン
-sudo -u claude-work git clone https://github.com/windschord/claude-work.git .
-
-# データディレクトリと npm キャッシュディレクトリを作成
-sudo -u claude-work mkdir -p /opt/claude-work/data
-sudo -u claude-work mkdir -p /opt/claude-work/.npm
-
-# 依存パッケージのインストール
-sudo -u claude-work env HOME=/opt/claude-work npm install
-```
-
-> **注意**:
-> - `npm install` 実行時に `package.json` の `prepare` スクリプトにより Prisma クライアントの生成と Next.js のビルドが自動実行されます。
-> - `npx claude-work` の初回起動時には、CLI が上記セットアップの完了を検証し、不足分のみ再実行します（フォールバック機能）。
-> - これにより、`npm install` 時の `prepare` が失敗した場合でもサービスを正常に起動できます。
->
-> **注意**: npm グローバルインストール（`npm install -g claude-work`）は systemd セットアップには対応していません。上記の git clone 方式を使用してください。
+> **注意**: `npx claude-work` は起動時に npm レジストリから最新版を取得し、Prisma クライアント生成、データベース初期化、Next.js ビルドを自動実行します。git clone や npm install は不要です。
 
 ---
 
@@ -106,8 +78,9 @@ sudo -u claude-work env HOME=/opt/claude-work npm install
 # 設定ディレクトリを作成
 sudo mkdir -p /etc/claude-work
 
-# 環境変数ファイルをコピー
-sudo cp /opt/claude-work/systemd/claude-work.env.example /etc/claude-work/env
+# 環境変数ファイルをダウンロード
+sudo curl -fsSL https://raw.githubusercontent.com/windschord/claude-work/main/systemd/claude-work.env.example \
+  -o /etc/claude-work/env
 
 # 権限を設定（root と claude-work グループのみ読み取り可能）
 sudo chown root:claude-work /etc/claude-work/env
@@ -137,11 +110,12 @@ NODE_ENV=production
 
 ## systemd サービスの設定
 
-### ユニットファイルのコピー
+### ユニットファイルのダウンロード
 
 ```bash
-# ユニットファイルをコピー
-sudo cp /opt/claude-work/systemd/claude-work.service /etc/systemd/system/
+# ユニットファイルをダウンロード
+sudo curl -fsSL https://raw.githubusercontent.com/windschord/claude-work/main/systemd/claude-work.service \
+  -o /etc/systemd/system/claude-work.service
 
 # systemd にリロードを通知
 sudo systemctl daemon-reload
@@ -178,6 +152,8 @@ claude-work.service - ClaudeWork - Claude Code Session Manager
      Loaded: loaded (/etc/systemd/system/claude-work.service; enabled; vendor preset: enabled)
      Active: active (running) since ...
 ```
+
+> **注意**: 初回起動時は npm パッケージのダウンロード、Prisma クライアント生成、Next.js ビルドが実行されるため、起動に数分かかる場合があります。
 
 ### 動作確認
 
@@ -311,7 +287,7 @@ sudo systemctl daemon-reload
 # 設定ファイルを削除
 sudo rm -rf /etc/claude-work
 
-# アプリケーションを削除（データも削除される）
+# アプリケーションディレクトリを削除（データも削除される）
 sudo rm -rf /opt/claude-work
 ```
 
