@@ -68,6 +68,7 @@ sudo mkdir -p /opt/claude-work
 
 # データディレクトリと npm キャッシュディレクトリを作成
 # .npm ディレクトリは systemd サービスで HOME=/opt/claude-work を設定するため必要
+# 手動で npm/npx コマンドを実行する場合は HOME=/opt/claude-work を設定してください
 sudo mkdir -p /opt/claude-work/data
 sudo mkdir -p /opt/claude-work/.npm
 
