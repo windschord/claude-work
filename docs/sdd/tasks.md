@@ -116,12 +116,13 @@ npx drizzle-kit push
 ```
 
 **受入基準**:
-- [ ] data/claudework.db が新規作成される
-- [ ] 全テーブルが作成されている
-- [ ] `npx drizzle-kit studio` でテーブルが確認できる
+- [x] data/claudework.db が新規作成される
+- [x] 全テーブルが作成されている
+- [x] `npx drizzle-kit studio` でテーブルが確認できる
 
 **依存関係**: タスク1.3, タスク1.4
-**ステータス**: `TODO`
+**ステータス**: `DONE`
+**完了サマリー**: DB初期化完了、6テーブル作成確認
 
 ### フェーズ2: コア機能移行
 
