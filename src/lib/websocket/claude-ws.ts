@@ -3,7 +3,8 @@ import {
   claudePtyManager,
   type ClaudePTYExitInfo,
 } from '@/services/claude-pty-manager';
-import { prisma } from '@/lib/db';
+import { db, schema } from '@/lib/db';
+import { eq, asc } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
 import { environmentService } from '@/services/environment-service';
 import { AdapterFactory } from '@/services/adapter-factory';
@@ -100,8 +101,8 @@ export function setupClaudeWebSocket(
 
     // セッション存在確認
     try {
-      const session = await prisma.session.findUnique({
-        where: { id: sessionId },
+      const session = await db.query.sessions.findFirst({
+        where: eq(schema.sessions.id, sessionId),
       });
 
       if (!session) {
@@ -193,12 +194,9 @@ export function setupClaudeWebSocket(
       // Claude PTY作成（既に存在する場合はスキップ）
       if (!hasSession) {
         // 最初のユーザーメッセージを取得（初期プロンプト）
-        const firstMessage = await prisma.message.findFirst({
-          where: {
-            session_id: sessionId,
-            role: 'user',
-          },
-          orderBy: { created_at: 'asc' },
+        const firstMessage = await db.query.messages.findFirst({
+          where: eq(schema.messages.session_id, sessionId),
+          orderBy: [asc(schema.messages.created_at)],
         });
 
         logger.info('Claude WebSocket: Fetched initial prompt from database', {
@@ -235,10 +233,10 @@ export function setupClaudeWebSocket(
           });
 
           // セッションステータスを'running'に更新
-          await prisma.session.update({
-            where: { id: sessionId },
-            data: { status: 'running' },
-          });
+          await db.update(schema.sessions)
+            .set({ status: 'running' })
+            .where(eq(schema.sessions.id, sessionId))
+            .run();
         } catch (ptyError) {
           // PTY作成エラーをクライアントに通知
           const errorMessage = ptyError instanceof Error ? ptyError.message : 'Failed to create PTY';
@@ -259,10 +257,10 @@ export function setupClaudeWebSocket(
           ws.close(1000, 'PTY creation failed');
 
           // セッションステータスをエラーに更新
-          await prisma.session.update({
-            where: { id: sessionId },
-            data: { status: 'error' },
-          });
+          await db.update(schema.sessions)
+            .set({ status: 'error' })
+            .where(eq(schema.sessions.id, sessionId))
+            .run();
           return;
         }
       }
@@ -303,10 +301,10 @@ export function setupClaudeWebSocket(
       const claudeSessionIdHandler = async (sid: string, claudeSessionId: string) => {
         if (sid === sessionId) {
           try {
-            await prisma.session.update({
-              where: { id: sessionId },
-              data: { resume_session_id: claudeSessionId },
-            });
+            await db.update(schema.sessions)
+              .set({ resume_session_id: claudeSessionId })
+              .where(eq(schema.sessions.id, sessionId))
+              .run();
             logger.info('Claude session ID saved to database', {
               sessionId,
               claudeSessionId,

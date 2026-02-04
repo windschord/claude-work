@@ -3,7 +3,8 @@ import { ConnectionManager } from './connection-manager';
 import { getRunScriptManager } from '../../services/run-script-manager';
 import { getProcessLifecycleManager } from '../../services/process-lifecycle-manager';
 import { logger } from '../logger';
-import { prisma } from '../db';
+import { db, schema } from '../db';
+import { eq } from 'drizzle-orm';
 import type {
   ClientMessage,
   ServerMessage,
@@ -178,9 +179,9 @@ export class SessionWebSocketHandler {
 
     // データベースから実際のセッションステータスを取得
     try {
-      const session = await prisma.session.findUnique({
-        where: { id: sessionId },
-        select: { status: true },
+      const session = await db.query.sessions.findFirst({
+        where: eq(schema.sessions.id, sessionId),
+        columns: { status: true },
       });
 
       const status = session?.status || 'error';

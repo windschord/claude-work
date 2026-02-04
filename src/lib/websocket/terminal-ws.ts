@@ -1,6 +1,7 @@
 import { WebSocket, WebSocketServer } from 'ws';
 import { ptyManager, type PTYExitInfo } from '@/services/pty-manager';
-import { prisma } from '@/lib/db';
+import { db, schema } from '@/lib/db';
+import { eq } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
 import { environmentService } from '@/services/environment-service';
 import { AdapterFactory } from '@/services/adapter-factory';
@@ -88,8 +89,8 @@ export function setupTerminalWebSocket(
 
     // セッション存在確認
     try {
-      const session = await prisma.session.findUnique({
-        where: { id: sessionId },
+      const session = await db.query.sessions.findFirst({
+        where: eq(schema.sessions.id, sessionId),
       });
 
       if (!session) {
