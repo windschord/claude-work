@@ -296,6 +296,10 @@ export async function POST(
       environment_id: effectiveEnvironmentId,
     }).returning().get();
 
+    if (!newSession) {
+      throw new Error('Failed to create session');
+    }
+
     // プロンプトが存在する場合のみ保存または更新
     if (prompt && prompt.trim()) {
       const existingPrompt = db.select().from(schema.prompts).where(eq(schema.prompts.content, prompt)).get();

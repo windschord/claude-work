@@ -129,6 +129,10 @@ export async function POST(request: NextRequest) {
         remote_url: url,
       }).returning().get();
 
+      if (!project) {
+        throw new Error('Failed to create project');
+      }
+
       logger.info('Project created from remote', {
         id: project.id,
         name: projectName,

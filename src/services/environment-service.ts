@@ -127,6 +127,10 @@ export class EnvironmentService {
       is_default: false,
     }).returning().get();
 
+    if (!environment) {
+      throw new Error('Failed to create environment');
+    }
+
     logger.info('環境を作成しました', { id: environment.id, name: environment.name });
 
     return environment;

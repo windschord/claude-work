@@ -183,6 +183,10 @@ export async function POST(request: NextRequest) {
         path: absolutePath,
       }).returning().get();
 
+      if (!project) {
+        throw new Error('Failed to create project');
+      }
+
       logger.info('Project created', { id: project.id, name, path: absolutePath });
       return NextResponse.json({ project }, { status: 201 });
     } catch (error) {

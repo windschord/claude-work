@@ -129,6 +129,10 @@ export async function PUT(
       updated_at: new Date(),
     }).where(eq(schema.runScripts.id, existing.id)).returning().get();
 
+    if (!script) {
+      return NextResponse.json({ error: 'Script not found' }, { status: 404 });
+    }
+
     logger.info('Script updated', { scriptId, name: script.name });
     return NextResponse.json({ script });
   } catch (error) {

@@ -171,6 +171,10 @@ export async function POST(
       command: command.trim(),
     }).returning().get();
 
+    if (!script) {
+      throw new Error('Failed to create script');
+    }
+
     logger.info('Script created', { scriptId: script.id, name: script.name });
     return NextResponse.json({ script }, { status: 201 });
   } catch (error) {
