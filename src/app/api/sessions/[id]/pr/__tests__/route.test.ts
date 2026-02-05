@@ -4,11 +4,23 @@ import { POST, GET } from '../route';
 
 // Mock dependencies
 vi.mock('@/lib/db', () => ({
-  prisma: {
-    session: {
-      findUnique: vi.fn(),
-      update: vi.fn(),
+  db: {
+    query: {
+      sessions: {
+        findFirst: vi.fn(),
+      },
     },
+    update: vi.fn(() => ({
+      set: vi.fn(() => ({
+        where: vi.fn(() => ({
+          returning: vi.fn(() => []),
+          run: vi.fn(),
+        })),
+      })),
+    })),
+  },
+  schema: {
+    sessions: { id: 'id' },
   },
 }));
 
@@ -18,14 +30,16 @@ vi.mock('@/services/gh-cli', () => ({
   extractPRNumber: vi.fn(),
 }));
 
-import { prisma } from '@/lib/db';
+import { db } from '@/lib/db';
 import { createPR, getPRStatus, extractPRNumber } from '@/services/gh-cli';
 
-const mockPrisma = prisma as unknown as {
-  session: {
-    findUnique: ReturnType<typeof vi.fn>;
-    update: ReturnType<typeof vi.fn>;
+const mockDb = db as unknown as {
+  query: {
+    sessions: {
+      findFirst: ReturnType<typeof vi.fn>;
+    };
   };
+  update: ReturnType<typeof vi.fn>;
 };
 
 const mockCreatePR = createPR as unknown as ReturnType<typeof vi.fn>;
@@ -54,15 +68,23 @@ describe('PR API Route', () => {
 
   describe('POST /api/sessions/[id]/pr', () => {
     it('PRを正常に作成できる', async () => {
-      mockPrisma.session.findUnique.mockResolvedValue(mockSession);
+      mockDb.query.sessions.findFirst.mockResolvedValue(mockSession);
       mockCreatePR.mockReturnValue('https://github.com/owner/repo/pull/123');
       mockExtractPRNumber.mockReturnValue(123);
-      mockPrisma.session.update.mockResolvedValue({
-        ...mockSession,
-        pr_url: 'https://github.com/owner/repo/pull/123',
-        pr_number: 123,
-        pr_status: 'open',
-      });
+
+      const mockUpdateChain = {
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            returning: vi.fn().mockReturnValue([{
+              ...mockSession,
+              pr_url: 'https://github.com/owner/repo/pull/123',
+              pr_number: 123,
+              pr_status: 'open',
+            }]),
+          }),
+        }),
+      };
+      mockDb.update.mockReturnValue(mockUpdateChain);
 
       const request = new NextRequest(
         'http://localhost:3000/api/sessions/session-123/pr',
@@ -88,7 +110,7 @@ describe('PR API Route', () => {
     });
 
     it('セッションが見つからない場合は404を返す', async () => {
-      mockPrisma.session.findUnique.mockResolvedValue(null);
+      mockDb.query.sessions.findFirst.mockResolvedValue(undefined);
 
       const request = new NextRequest(
         'http://localhost:3000/api/sessions/session-123/pr',
@@ -109,7 +131,7 @@ describe('PR API Route', () => {
     });
 
     it('タイトルが未指定の場合は400を返す', async () => {
-      mockPrisma.session.findUnique.mockResolvedValue(mockSession);
+      mockDb.query.sessions.findFirst.mockResolvedValue(mockSession);
 
       const request = new NextRequest(
         'http://localhost:3000/api/sessions/session-123/pr',
@@ -128,7 +150,7 @@ describe('PR API Route', () => {
     });
 
     it('gh CLI未インストール時に503を返す', async () => {
-      mockPrisma.session.findUnique.mockResolvedValue(mockSession);
+      mockDb.query.sessions.findFirst.mockResolvedValue(mockSession);
       mockCreatePR.mockImplementation(() => {
         const error = new Error('GitHub CLI (gh) is not installed') as NodeJS.ErrnoException;
         error.code = 'GH_NOT_INSTALLED';
@@ -154,7 +176,7 @@ describe('PR API Route', () => {
     });
 
     it('既にPRが存在する場合は409を返す', async () => {
-      mockPrisma.session.findUnique.mockResolvedValue({
+      mockDb.query.sessions.findFirst.mockResolvedValue({
         ...mockSession,
         pr_url: 'https://github.com/owner/repo/pull/100',
         pr_number: 100,
@@ -181,19 +203,22 @@ describe('PR API Route', () => {
 
   describe('GET /api/sessions/[id]/pr', () => {
     it('PRステータスを正常に取得できる', async () => {
-      mockPrisma.session.findUnique.mockResolvedValue({
+      mockDb.query.sessions.findFirst.mockResolvedValue({
         ...mockSession,
         pr_url: 'https://github.com/owner/repo/pull/123',
         pr_number: 123,
         pr_status: 'open',
       });
       mockGetPRStatus.mockReturnValue({ state: 'open', merged: false });
-      mockPrisma.session.update.mockResolvedValue({
-        ...mockSession,
-        pr_url: 'https://github.com/owner/repo/pull/123',
-        pr_number: 123,
-        pr_status: 'open',
-      });
+
+      const mockUpdateChain = {
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            run: vi.fn(),
+          }),
+        }),
+      };
+      mockDb.update.mockReturnValue(mockUpdateChain);
 
       const request = new NextRequest(
         'http://localhost:3000/api/sessions/session-123/pr'
@@ -207,7 +232,7 @@ describe('PR API Route', () => {
     });
 
     it('PRが存在しない場合は404を返す', async () => {
-      mockPrisma.session.findUnique.mockResolvedValue(mockSession);
+      mockDb.query.sessions.findFirst.mockResolvedValue(mockSession);
 
       const request = new NextRequest(
         'http://localhost:3000/api/sessions/session-123/pr'

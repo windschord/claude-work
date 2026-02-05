@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { db, schema } from '@/lib/db';
+import { eq, asc } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
 
 /**
@@ -42,10 +43,7 @@ export async function GET(
     const resolvedParams = await params;
     const { project_id: projectId } = resolvedParams;
 
-    const scripts = await prisma.runScript.findMany({
-      where: { project_id: projectId },
-      orderBy: { created_at: 'asc' },
-    });
+    const scripts = db.select().from(schema.runScripts).where(eq(schema.runScripts.project_id, projectId)).orderBy(asc(schema.runScripts.created_at)).all();
 
     logger.info('Scripts fetched', { projectId, count: scripts.length });
     return NextResponse.json({ scripts });
@@ -157,9 +155,7 @@ export async function POST(
     }
 
     // プロジェクト存在確認
-    const project = await prisma.project.findUnique({
-      where: { id: projectId },
-    });
+    const project = db.select().from(schema.projects).where(eq(schema.projects.id, projectId)).get();
 
     if (!project) {
       return NextResponse.json(
@@ -168,14 +164,16 @@ export async function POST(
       );
     }
 
-    const script = await prisma.runScript.create({
-      data: {
-        project_id: projectId,
-        name: name.trim(),
-        description: description?.trim() || null,
-        command: command.trim(),
-      },
-    });
+    const script = db.insert(schema.runScripts).values({
+      project_id: projectId,
+      name: name.trim(),
+      description: description?.trim() || null,
+      command: command.trim(),
+    }).returning().get();
+
+    if (!script) {
+      throw new Error('Failed to create script');
+    }
 
     logger.info('Script created', { scriptId: script.id, name: script.name });
     return NextResponse.json({ script }, { status: 201 });

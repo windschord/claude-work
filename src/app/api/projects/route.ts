@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma, Prisma } from '@/lib/db';
+import { db, schema } from '@/lib/db';
+import { desc } from 'drizzle-orm';
 import { spawnSync } from 'child_process';
 import { basename, relative, resolve } from 'path';
 import { realpathSync } from 'fs';
@@ -34,12 +35,12 @@ import { logger } from '@/lib/logger';
  */
 export async function GET(_request: NextRequest) {
   try {
-    const rawProjects = await prisma.project.findMany({
-      orderBy: { created_at: 'desc' },
-      include: {
+    const rawProjects = await db.query.projects.findMany({
+      orderBy: [desc(schema.projects.created_at)],
+      with: {
         sessions: {
-          orderBy: { created_at: 'desc' },
-          include: {
+          orderBy: [desc(schema.sessions.created_at)],
+          with: {
             environment: true,
           },
         },
@@ -177,25 +178,28 @@ export async function POST(request: NextRequest) {
     const name = basename(absolutePath);
 
     try {
-      const project = await prisma.project.create({
-        data: {
-          name,
-          path: absolutePath,
-        },
-      });
+      const project = db.insert(schema.projects).values({
+        name,
+        path: absolutePath,
+      }).returning().get();
+
+      if (!project) {
+        throw new Error('Failed to create project');
+      }
 
       logger.info('Project created', { id: project.id, name, path: absolutePath });
       return NextResponse.json({ project }, { status: 201 });
     } catch (error) {
-      // Prisma P2002エラー（Unique constraint violation）のハンドリング
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        if (error.code === 'P2002') {
-          logger.warn('Duplicate project path', { error });
-          return NextResponse.json(
-            { error: 'このパスは既に登録されています' },
-            { status: 409 }
-          );
-        }
+      // SQLite UNIQUE constraint violationのハンドリング
+      const sqliteError = error as { code?: string };
+      const isUniqueViolation = sqliteError.code === 'SQLITE_CONSTRAINT_UNIQUE' ||
+        (error instanceof Error && error.message.includes('UNIQUE constraint failed'));
+      if (isUniqueViolation) {
+        logger.warn('Duplicate project path', { code: sqliteError.code, error });
+        return NextResponse.json(
+          { error: 'このパスは既に登録されています' },
+          { status: 409 }
+        );
       }
       throw error;
     }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { db, schema } from '@/lib/db';
+import { eq, and } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
 
 /**
@@ -115,22 +116,22 @@ export async function PUT(
       }
     }
 
-    const existing = await prisma.runScript.findFirst({
-      where: { id: scriptId, project_id: projectId },
-    });
+    const existing = db.select().from(schema.runScripts).where(and(eq(schema.runScripts.id, scriptId), eq(schema.runScripts.project_id, projectId))).get();
 
     if (!existing) {
       return NextResponse.json({ error: 'Script not found' }, { status: 404 });
     }
 
-    const script = await prisma.runScript.update({
-      where: { id: existing.id },
-      data: {
-        name: body.name ? body.name.trim() : existing.name,
-        description: body.description !== undefined ? body.description.trim() || null : existing.description,
-        command: body.command ? body.command.trim() : existing.command,
-      },
-    });
+    const script = db.update(schema.runScripts).set({
+      name: body.name ? body.name.trim() : existing.name,
+      description: body.description !== undefined ? body.description.trim() || null : existing.description,
+      command: body.command ? body.command.trim() : existing.command,
+      updated_at: new Date(),
+    }).where(eq(schema.runScripts.id, existing.id)).returning().get();
+
+    if (!script) {
+      return NextResponse.json({ error: 'Script not found' }, { status: 404 });
+    }
 
     logger.info('Script updated', { scriptId, name: script.name });
     return NextResponse.json({ script });
@@ -180,17 +181,13 @@ export async function DELETE(
     const resolvedParams = await params;
     const { project_id: projectId, scriptId } = resolvedParams;
 
-    const existing = await prisma.runScript.findFirst({
-      where: { id: scriptId, project_id: projectId },
-    });
+    const existing = db.select().from(schema.runScripts).where(and(eq(schema.runScripts.id, scriptId), eq(schema.runScripts.project_id, projectId))).get();
 
     if (!existing) {
       return NextResponse.json({ error: 'Script not found' }, { status: 404 });
     }
 
-    await prisma.runScript.delete({
-      where: { id: existing.id },
-    });
+    db.delete(schema.runScripts).where(eq(schema.runScripts.id, existing.id)).run();
 
     logger.info('Script deleted', { scriptId });
     return new NextResponse(null, { status: 204 });

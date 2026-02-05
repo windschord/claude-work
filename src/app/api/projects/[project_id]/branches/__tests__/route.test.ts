@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { GET } from '../route';
-import { prisma } from '@/lib/db';
+import { db, schema } from '@/lib/db';
 import { NextRequest } from 'next/server';
 import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
@@ -11,7 +11,7 @@ describe('GET /api/projects/[project_id]/branches', () => {
   let testRepoPath: string;
 
   beforeEach(async () => {
-    await prisma.project.deleteMany();
+    db.delete(schema.projects).run();
 
     // テスト用のGitリポジトリを作成
     testRepoPath = mkdtempSync(join(tmpdir(), 'branches-test-'));
@@ -33,7 +33,7 @@ describe('GET /api/projects/[project_id]/branches', () => {
   });
 
   afterEach(async () => {
-    await prisma.project.deleteMany();
+    db.delete(schema.projects).run();
     if (testRepoPath) {
       rmSync(testRepoPath, { recursive: true, force: true });
     }
@@ -41,12 +41,10 @@ describe('GET /api/projects/[project_id]/branches', () => {
 
   it('should return branches for a project', async () => {
     // プロジェクトを登録
-    const project = await prisma.project.create({
-      data: {
-        name: 'Test Project',
-        path: testRepoPath,
-      },
-    });
+    const project = db.insert(schema.projects).values({
+      name: 'Test Project',
+      path: testRepoPath,
+    }).returning().get();
 
     const request = new NextRequest(
       `http://localhost:3000/api/projects/${project.id}/branches`,
@@ -83,12 +81,10 @@ describe('GET /api/projects/[project_id]/branches', () => {
 
   it('should include isRemote flag for branches', async () => {
     // プロジェクトを登録
-    const project = await prisma.project.create({
-      data: {
-        name: 'Test Project',
-        path: testRepoPath,
-      },
-    });
+    const project = db.insert(schema.projects).values({
+      name: 'Test Project',
+      path: testRepoPath,
+    }).returning().get();
 
     const request = new NextRequest(
       `http://localhost:3000/api/projects/${project.id}/branches`,

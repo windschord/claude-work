@@ -44,14 +44,14 @@ export function checkNextBuild(projectRoot: string): boolean {
 }
 
 /**
- * Prismaクライアントが生成されているか確認
+ * drizzle-ormがインストールされているか確認
  *
  * @param projectRoot - プロジェクトルートディレクトリ
- * @returns Prismaクライアントが存在する場合はtrue
+ * @returns drizzle-ormが存在する場合はtrue
  */
-export function checkPrismaClient(projectRoot: string): boolean {
-  const prismaClientPath = path.join(projectRoot, 'node_modules', '.prisma', 'client');
-  return fs.existsSync(prismaClientPath);
+export function checkDrizzle(projectRoot: string): boolean {
+  const drizzlePath = path.join(projectRoot, 'node_modules', 'drizzle-orm');
+  return fs.existsSync(drizzlePath);
 }
 
 /**

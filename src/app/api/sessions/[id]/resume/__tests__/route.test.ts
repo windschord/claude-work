@@ -7,11 +7,22 @@ import { NextRequest } from 'next/server';
 
 // モジュールのモック
 vi.mock('@/lib/db', () => ({
-  prisma: {
-    session: {
-      findUnique: vi.fn(),
-      update: vi.fn(),
+  db: {
+    query: {
+      sessions: {
+        findFirst: vi.fn(),
+      },
     },
+    update: vi.fn(() => ({
+      set: vi.fn(() => ({
+        where: vi.fn(() => ({
+          returning: vi.fn(() => []),
+        })),
+      })),
+    })),
+  },
+  schema: {
+    sessions: { id: 'id' },
   },
 }));
 
@@ -31,8 +42,17 @@ vi.mock('@/services/process-lifecycle-manager', () => ({
 }));
 
 import { POST } from '../route';
-import { prisma } from '@/lib/db';
+import { db } from '@/lib/db';
 import { getProcessLifecycleManager } from '@/services/process-lifecycle-manager';
+
+const mockDb = db as unknown as {
+  query: {
+    sessions: {
+      findFirst: ReturnType<typeof vi.fn>;
+    };
+  };
+  update: ReturnType<typeof vi.fn>;
+};
 
 describe('POST /api/sessions/[id]/resume', () => {
   beforeEach(() => {
@@ -49,7 +69,7 @@ describe('POST /api/sessions/[id]/resume', () => {
     const request = createMockRequest();
     const params = Promise.resolve({ id: 'nonexistent-session' });
 
-    vi.mocked(prisma.session.findUnique).mockResolvedValue(null);
+    mockDb.query.sessions.findFirst.mockResolvedValue(undefined);
 
     const response = await POST(request, { params });
     const data = await response.json();
@@ -62,7 +82,7 @@ describe('POST /api/sessions/[id]/resume', () => {
     const request = createMockRequest();
     const params = Promise.resolve({ id: 'session-123' });
 
-    vi.mocked(prisma.session.findUnique).mockResolvedValue({
+    mockDb.query.sessions.findFirst.mockResolvedValue({
       id: 'session-123',
       project_id: 'project-1',
       name: 'Test Session',
@@ -90,7 +110,7 @@ describe('POST /api/sessions/[id]/resume', () => {
     const request = createMockRequest();
     const params = Promise.resolve({ id: 'session-123' });
 
-    vi.mocked(prisma.session.findUnique).mockResolvedValue({
+    mockDb.query.sessions.findFirst.mockResolvedValue({
       id: 'session-123',
       project_id: 'project-1',
       name: 'Test Session',
@@ -106,22 +126,30 @@ describe('POST /api/sessions/[id]/resume', () => {
       created_at: new Date(),
       updated_at: new Date(),
     });
-    vi.mocked(prisma.session.update).mockResolvedValue({
-      id: 'session-123',
-      project_id: 'project-1',
-      name: 'Test Session',
-      status: 'running',
-      worktree_path: '/path/to/worktree',
-      branch_name: 'feature/test',
-      resume_session_id: null,
-      last_activity_at: new Date(),
-      pr_url: null,
-      pr_number: null,
-      pr_status: null,
-      pr_updated_at: null,
-      created_at: new Date(),
-      updated_at: new Date(),
-    });
+
+    const mockUpdateChain = {
+      set: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          returning: vi.fn().mockReturnValue([{
+            id: 'session-123',
+            project_id: 'project-1',
+            name: 'Test Session',
+            status: 'running',
+            worktree_path: '/path/to/worktree',
+            branch_name: 'feature/test',
+            resume_session_id: null,
+            last_activity_at: new Date(),
+            pr_url: null,
+            pr_number: null,
+            pr_status: null,
+            pr_updated_at: null,
+            created_at: new Date(),
+            updated_at: new Date(),
+          }]),
+        }),
+      }),
+    };
+    mockDb.update.mockReturnValue(mockUpdateChain);
 
     const response = await POST(request, { params });
     const data = await response.json();
@@ -139,7 +167,7 @@ describe('POST /api/sessions/[id]/resume', () => {
       resumeSession: mockResumeSession,
     } as ReturnType<typeof getProcessLifecycleManager>);
 
-    vi.mocked(prisma.session.findUnique).mockResolvedValue({
+    mockDb.query.sessions.findFirst.mockResolvedValue({
       id: 'session-123',
       project_id: 'project-1',
       name: 'Test Session',
@@ -155,22 +183,30 @@ describe('POST /api/sessions/[id]/resume', () => {
       created_at: new Date(),
       updated_at: new Date(),
     });
-    vi.mocked(prisma.session.update).mockResolvedValue({
-      id: 'session-123',
-      project_id: 'project-1',
-      name: 'Test Session',
-      status: 'running',
-      worktree_path: '/path/to/worktree',
-      branch_name: 'feature/test',
-      resume_session_id: 'claude-session-abc123',
-      last_activity_at: new Date(),
-      pr_url: null,
-      pr_number: null,
-      pr_status: null,
-      pr_updated_at: null,
-      created_at: new Date(),
-      updated_at: new Date(),
-    });
+
+    const mockUpdateChain = {
+      set: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          returning: vi.fn().mockReturnValue([{
+            id: 'session-123',
+            project_id: 'project-1',
+            name: 'Test Session',
+            status: 'running',
+            worktree_path: '/path/to/worktree',
+            branch_name: 'feature/test',
+            resume_session_id: 'claude-session-abc123',
+            last_activity_at: new Date(),
+            pr_url: null,
+            pr_number: null,
+            pr_status: null,
+            pr_updated_at: null,
+            created_at: new Date(),
+            updated_at: new Date(),
+          }]),
+        }),
+      }),
+    };
+    mockDb.update.mockReturnValue(mockUpdateChain);
 
     await POST(request, { params });
 
@@ -190,7 +226,7 @@ describe('POST /api/sessions/[id]/resume', () => {
       resumeSession: mockResumeSession,
     } as ReturnType<typeof getProcessLifecycleManager>);
 
-    vi.mocked(prisma.session.findUnique).mockResolvedValue({
+    mockDb.query.sessions.findFirst.mockResolvedValue({
       id: 'session-123',
       project_id: 'project-1',
       name: 'Test Session',

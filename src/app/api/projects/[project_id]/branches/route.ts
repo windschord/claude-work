@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { db, schema } from '@/lib/db';
+import { eq } from 'drizzle-orm';
 import { remoteRepoService } from '@/services/remote-repo-service';
 import { logger } from '@/lib/logger';
 
@@ -22,9 +23,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const { project_id } = await params;
 
     // プロジェクトを取得
-    const project = await prisma.project.findUnique({
-      where: { id: project_id },
-    });
+    const project = db.select().from(schema.projects).where(eq(schema.projects.id, project_id)).get();
 
     if (!project) {
       return NextResponse.json({ error: 'プロジェクトが見つかりません' }, { status: 404 });

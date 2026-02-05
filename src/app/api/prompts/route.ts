@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { db, schema } from '@/lib/db';
+import { desc, eq } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
 
 /**
@@ -34,10 +35,10 @@ import { logger } from '@/lib/logger';
  */
 export async function GET(_request: NextRequest) {
   try {
-    const prompts = await prisma.prompt.findMany({
-      orderBy: { used_count: 'desc' },
-      take: 50,
-    });
+    const prompts = db.select().from(schema.prompts)
+      .orderBy(desc(schema.prompts.used_count))
+      .limit(50)
+      .all();
 
     logger.debug('Prompts retrieved', { count: prompts.length });
     return NextResponse.json({ prompts });
@@ -101,31 +102,34 @@ export async function POST(request: NextRequest) {
     }
 
     // 既存のプロンプトを検索
-    const existingPrompt = await prisma.prompt.findFirst({
-      where: { content },
-    });
+    const existingPrompt = db.select().from(schema.prompts)
+      .where(eq(schema.prompts.content, content))
+      .get();
 
     if (existingPrompt) {
       // 既存プロンプトのused_countをインクリメント
-      const updatedPrompt = await prisma.prompt.update({
-        where: { id: existingPrompt.id },
-        data: {
-          used_count: { increment: 1 },
+      const updatedPrompt = db.update(schema.prompts)
+        .set({
+          used_count: existingPrompt.used_count + 1,
           last_used_at: new Date(),
-        },
-      });
+          updated_at: new Date(),
+        })
+        .where(eq(schema.prompts.id, existingPrompt.id))
+        .returning()
+        .get();
 
       logger.debug('Prompt updated', { id: updatedPrompt.id, used_count: updatedPrompt.used_count });
       return NextResponse.json(updatedPrompt, { status: 200 });
     } else {
       // 新規プロンプトを作成
-      const newPrompt = await prisma.prompt.create({
-        data: {
+      const newPrompt = db.insert(schema.prompts)
+        .values({
           content,
           used_count: 1,
           last_used_at: new Date(),
-        },
-      });
+        })
+        .returning()
+        .get();
 
       logger.debug('Prompt created', { id: newPrompt.id });
       return NextResponse.json(newPrompt, { status: 201 });

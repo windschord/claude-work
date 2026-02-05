@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { POST } from '../route';
-import { prisma } from '@/lib/db';
+import { db, schema } from '@/lib/db';
+import { eq } from 'drizzle-orm';
 import { NextRequest } from 'next/server';
 import { mkdtempSync, rmSync, existsSync, mkdirSync } from 'fs';
 import { tmpdir } from 'os';
@@ -13,7 +14,7 @@ describe('POST /api/projects/clone', () => {
   let originalAllowedDirs: string | undefined;
 
   beforeEach(async () => {
-    await prisma.project.deleteMany();
+    db.delete(schema.projects).run();
 
     // 環境変数をバックアップして無効化
     originalAllowedDirs = process.env.ALLOWED_PROJECT_DIRS;
@@ -36,7 +37,7 @@ describe('POST /api/projects/clone', () => {
   });
 
   afterEach(async () => {
-    await prisma.project.deleteMany();
+    db.delete(schema.projects).run();
     if (testDir) {
       rmSync(testDir, { recursive: true, force: true });
     }
@@ -74,9 +75,7 @@ describe('POST /api/projects/clone', () => {
     expect(existsSync(join(targetDir, '.git'))).toBe(true);
 
     // DBに登録されているか確認
-    const project = await prisma.project.findUnique({
-      where: { id: data.project.id },
-    });
+    const project = db.select().from(schema.projects).where(eq(schema.projects.id, data.project.id)).get();
     expect(project).toBeTruthy();
     expect(project?.remote_url).toBe(testRepoPath);
   });

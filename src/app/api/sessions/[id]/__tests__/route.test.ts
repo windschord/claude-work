@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { GET, DELETE, PATCH } from '../route';
-import { prisma } from '@/lib/db';
+import { db, schema } from '@/lib/db';
+import { eq } from 'drizzle-orm';
 import { NextRequest } from 'next/server';
 import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
@@ -32,8 +33,8 @@ describe('GET /api/sessions/[id]', () => {
   let session: Session;
 
   beforeEach(async () => {
-    await prisma.session.deleteMany();
-    await prisma.project.deleteMany();
+    db.delete(schema.sessions).run();
+    db.delete(schema.projects).run();
 
     testRepoPath = mkdtempSync(join(tmpdir(), 'session-test-'));
     execSync('git init', { cwd: testRepoPath });
@@ -45,27 +46,31 @@ describe('GET /api/sessions/[id]', () => {
     });
     execSync('git branch -M main', { cwd: testRepoPath });
 
-    project = await prisma.project.create({
-      data: {
+    project = db
+      .insert(schema.projects)
+      .values({
         name: 'Test Project',
         path: testRepoPath,
-      },
-    });
+      })
+      .returning()
+      .get();
 
-    session = await prisma.session.create({
-      data: {
+    session = db
+      .insert(schema.sessions)
+      .values({
         project_id: project.id,
         name: 'Test Session',
         status: 'running',
         worktree_path: join(testRepoPath, '.worktrees', 'test-session'),
         branch_name: 'test-branch',
-      },
-    });
+      })
+      .returning()
+      .get();
   });
 
   afterEach(async () => {
-    await prisma.session.deleteMany();
-    await prisma.project.deleteMany();
+    db.delete(schema.sessions).run();
+    db.delete(schema.projects).run();
     if (testRepoPath) {
       rmSync(testRepoPath, { recursive: true, force: true });
     }
@@ -99,8 +104,8 @@ describe('DELETE /api/sessions/[id]', () => {
   let session: Session;
 
   beforeEach(async () => {
-    await prisma.session.deleteMany();
-    await prisma.project.deleteMany();
+    db.delete(schema.sessions).run();
+    db.delete(schema.projects).run();
 
     testRepoPath = mkdtempSync(join(tmpdir(), 'session-test-'));
     execSync('git init', { cwd: testRepoPath });
@@ -112,27 +117,31 @@ describe('DELETE /api/sessions/[id]', () => {
     });
     execSync('git branch -M main', { cwd: testRepoPath });
 
-    project = await prisma.project.create({
-      data: {
+    project = db
+      .insert(schema.projects)
+      .values({
         name: 'Test Project',
         path: testRepoPath,
-      },
-    });
+      })
+      .returning()
+      .get();
 
-    session = await prisma.session.create({
-      data: {
+    session = db
+      .insert(schema.sessions)
+      .values({
         project_id: project.id,
         name: 'Test Session',
         status: 'running',
         worktree_path: join(testRepoPath, '.worktrees', 'test-session'),
         branch_name: 'test-branch',
-      },
-    });
+      })
+      .returning()
+      .get();
   });
 
   afterEach(async () => {
-    await prisma.session.deleteMany();
-    await prisma.project.deleteMany();
+    db.delete(schema.sessions).run();
+    db.delete(schema.projects).run();
     if (testRepoPath) {
       rmSync(testRepoPath, { recursive: true, force: true });
     }
@@ -146,10 +155,10 @@ describe('DELETE /api/sessions/[id]', () => {
     const response = await DELETE(request, { params: Promise.resolve({ id: session.id }) });
     expect(response.status).toBe(204);
 
-    const deletedSession = await prisma.session.findUnique({
-      where: { id: session.id },
+    const deletedSession = await db.query.sessions.findFirst({
+      where: eq(schema.sessions.id, session.id),
     });
-    expect(deletedSession).toBeNull();
+    expect(deletedSession).toBeUndefined();
   });
 
   it('should return 404 for non-existent session', async () => {
@@ -168,8 +177,8 @@ describe('PATCH /api/sessions/[id]', () => {
   let session: Session;
 
   beforeEach(async () => {
-    await prisma.session.deleteMany();
-    await prisma.project.deleteMany();
+    db.delete(schema.sessions).run();
+    db.delete(schema.projects).run();
 
     testRepoPath = mkdtempSync(join(tmpdir(), 'session-test-'));
     execSync('git init', { cwd: testRepoPath });
@@ -181,27 +190,31 @@ describe('PATCH /api/sessions/[id]', () => {
     });
     execSync('git branch -M main', { cwd: testRepoPath });
 
-    project = await prisma.project.create({
-      data: {
+    project = db
+      .insert(schema.projects)
+      .values({
         name: 'Test Project',
         path: testRepoPath,
-      },
-    });
+      })
+      .returning()
+      .get();
 
-    session = await prisma.session.create({
-      data: {
+    session = db
+      .insert(schema.sessions)
+      .values({
         project_id: project.id,
         name: 'Original Name',
         status: 'running',
         worktree_path: join(testRepoPath, '.worktrees', 'test-session'),
         branch_name: 'test-branch',
-      },
-    });
+      })
+      .returning()
+      .get();
   });
 
   afterEach(async () => {
-    await prisma.session.deleteMany();
-    await prisma.project.deleteMany();
+    db.delete(schema.sessions).run();
+    db.delete(schema.projects).run();
     if (testRepoPath) {
       rmSync(testRepoPath, { recursive: true, force: true });
     }
@@ -223,8 +236,8 @@ describe('PATCH /api/sessions/[id]', () => {
     expect(data).toHaveProperty('session');
     expect(data.session.name).toBe('Updated Name');
 
-    const updatedSession = await prisma.session.findUnique({
-      where: { id: session.id },
+    const updatedSession = await db.query.sessions.findFirst({
+      where: eq(schema.sessions.id, session.id),
     });
     expect(updatedSession?.name).toBe('Updated Name');
   });

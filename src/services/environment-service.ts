@@ -1,5 +1,6 @@
-import { prisma } from '@/lib/db';
+import { db, schema } from '@/lib/db';
 import type { ExecutionEnvironment } from '@/lib/db';
+import { eq, asc, count } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
 import * as path from 'path';
 import * as fsPromises from 'fs/promises';
@@ -118,15 +119,17 @@ export class EnvironmentService {
 
     logger.info('環境を作成中', { name: input.name, type: input.type });
 
-    const environment = await prisma.executionEnvironment.create({
-      data: {
-        name: input.name,
-        type: input.type,
-        description: input.description,
-        config: configJson,
-        is_default: false,
-      },
-    });
+    const environment = db.insert(schema.executionEnvironments).values({
+      name: input.name,
+      type: input.type,
+      description: input.description,
+      config: configJson,
+      is_default: false,
+    }).returning().get();
+
+    if (!environment) {
+      throw new Error('Failed to create environment');
+    }
 
     logger.info('環境を作成しました', { id: environment.id, name: environment.name });
 
@@ -139,9 +142,10 @@ export class EnvironmentService {
    * @returns 環境またはnull
    */
   async findById(id: string): Promise<ExecutionEnvironment | null> {
-    return prisma.executionEnvironment.findUnique({
-      where: { id },
-    });
+    const environment = db.select().from(schema.executionEnvironments)
+      .where(eq(schema.executionEnvironments.id, id))
+      .get();
+    return environment || null;
   }
 
   /**
@@ -149,9 +153,9 @@ export class EnvironmentService {
    * @returns 環境の配列
    */
   async findAll(): Promise<ExecutionEnvironment[]> {
-    return prisma.executionEnvironment.findMany({
-      orderBy: { created_at: 'asc' },
-    });
+    return db.select().from(schema.executionEnvironments)
+      .orderBy(asc(schema.executionEnvironments.created_at))
+      .all();
   }
 
   /**
@@ -173,12 +177,20 @@ export class EnvironmentService {
       updateData.config = JSON.stringify(input.config);
     }
 
+    // updated_at を常に更新
+    updateData.updated_at = new Date();
+
     logger.info('環境を更新中', { id, updates: Object.keys(updateData) });
 
-    const environment = await prisma.executionEnvironment.update({
-      where: { id },
-      data: updateData,
-    });
+    const environment = db.update(schema.executionEnvironments)
+      .set(updateData)
+      .where(eq(schema.executionEnvironments.id, id))
+      .returning()
+      .get();
+
+    if (!environment) {
+      throw new Error('環境が見つかりません');
+    }
 
     logger.info('環境を更新しました', { id: environment.id });
 
@@ -203,9 +215,10 @@ export class EnvironmentService {
     }
 
     // 使用中のセッション数を確認
-    const sessionCount = await prisma.session.count({
-      where: { environment_id: id },
-    });
+    const result = db.select({ count: count() }).from(schema.sessions)
+      .where(eq(schema.sessions.environment_id, id))
+      .get();
+    const sessionCount = result?.count ?? 0;
 
     if (sessionCount > 0) {
       logger.warn('使用中のセッションがある環境を削除します', {
@@ -241,9 +254,9 @@ export class EnvironmentService {
       }
     }
 
-    await prisma.executionEnvironment.delete({
-      where: { id },
-    });
+    db.delete(schema.executionEnvironments)
+      .where(eq(schema.executionEnvironments.id, id))
+      .run();
 
     logger.info('環境を削除しました', { id });
   }
@@ -254,9 +267,9 @@ export class EnvironmentService {
    * @throws デフォルト環境が見つからない場合
    */
   async getDefault(): Promise<ExecutionEnvironment> {
-    const environment = await prisma.executionEnvironment.findFirst({
-      where: { is_default: true },
-    });
+    const environment = db.select().from(schema.executionEnvironments)
+      .where(eq(schema.executionEnvironments.is_default, true))
+      .get();
 
     if (!environment) {
       throw new Error('デフォルト環境が見つかりません');
@@ -269,25 +282,23 @@ export class EnvironmentService {
    * デフォルト環境が存在しない場合に作成する
    */
   async ensureDefaultExists(): Promise<void> {
-    const existing = await prisma.executionEnvironment.findFirst({
-      where: { is_default: true },
-    });
+    const existing = db.select().from(schema.executionEnvironments)
+      .where(eq(schema.executionEnvironments.is_default, true))
+      .get();
 
     if (existing) {
       logger.debug('デフォルト環境は既に存在します', { id: existing.id });
       return;
     }
 
-    await prisma.executionEnvironment.create({
-      data: {
-        id: DEFAULT_HOST_ENVIRONMENT.id,
-        name: DEFAULT_HOST_ENVIRONMENT.name,
-        type: DEFAULT_HOST_ENVIRONMENT.type,
-        description: DEFAULT_HOST_ENVIRONMENT.description,
-        config: DEFAULT_HOST_ENVIRONMENT.config,
-        is_default: DEFAULT_HOST_ENVIRONMENT.is_default,
-      },
-    });
+    db.insert(schema.executionEnvironments).values({
+      id: DEFAULT_HOST_ENVIRONMENT.id,
+      name: DEFAULT_HOST_ENVIRONMENT.name,
+      type: DEFAULT_HOST_ENVIRONMENT.type,
+      description: DEFAULT_HOST_ENVIRONMENT.description,
+      config: DEFAULT_HOST_ENVIRONMENT.config,
+      is_default: DEFAULT_HOST_ENVIRONMENT.is_default,
+    }).run();
 
     logger.info('デフォルト環境を作成しました', { id: DEFAULT_HOST_ENVIRONMENT.id });
   }
@@ -441,10 +452,10 @@ export class EnvironmentService {
     await fsPromises.mkdir(path.join(authDirPath, 'claude'), { recursive: true, mode: 0o700 });
     await fsPromises.mkdir(path.join(authDirPath, 'config', 'claude'), { recursive: true, mode: 0o700 });
 
-    await prisma.executionEnvironment.update({
-      where: { id },
-      data: { auth_dir_path: authDirPath },
-    });
+    db.update(schema.executionEnvironments)
+      .set({ auth_dir_path: authDirPath, updated_at: new Date() })
+      .where(eq(schema.executionEnvironments.id, id))
+      .run();
 
     logger.info('認証ディレクトリを作成しました', { id, path: authDirPath });
 
@@ -470,10 +481,10 @@ export class EnvironmentService {
 
     await fsPromises.rm(environment.auth_dir_path, { recursive: true, force: true });
 
-    await prisma.executionEnvironment.update({
-      where: { id },
-      data: { auth_dir_path: null },
-    });
+    db.update(schema.executionEnvironments)
+      .set({ auth_dir_path: null, updated_at: new Date() })
+      .where(eq(schema.executionEnvironments.id, id))
+      .run();
 
     logger.info('認証ディレクトリを削除しました', { id, path: environment.auth_dir_path });
   }

@@ -9,14 +9,14 @@
     "node": ">=20"
   },
   "scripts": {
-    "prepare": "prisma generate && DATABASE_URL=file:./data/build.db npm run build",
+    "prepare": "DATABASE_URL=file:./data/build.db npm run build",
     "dev": "ts-node -r tsconfig-paths/register --project tsconfig.server.json server.ts",
     "dev:pm2": "pm2 start ecosystem.config.js --only claude-work-dev",
     "dev:stop": "pm2 stop claude-work-dev",
     "dev:restart": "pm2 restart claude-work-dev",
     "dev:logs": "pm2 logs claude-work-dev",
     "build": "npm run build:next && npm run build:server",
-    "build:next": "next build",
+    "build:next": "next build --webpack",
     "build:server": "tsc --project tsconfig.server.json && tsc-alias -p tsconfig.server.json",
     "start": "node dist/server.js",
     "prod:start": "pm2 start ecosystem.config.js --only claude-work",
@@ -39,20 +39,21 @@
     "pm2:status": "pm2 status",
     "pm2:logs": "pm2 logs",
     "pm2:monit": "pm2 monit",
-    "db:migrate-environments": "npx ts-node -r tsconfig-paths/register prisma/seed-environments.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
     "textlint": "textlint \"**/*.md\"",
     "textlint:fix": "textlint --fix \"**/*.md\""
   },
   "dependencies": {
     "@headlessui/react": "^2.2.9",
-    "@prisma/adapter-better-sqlite3": "^7.3.0",
-    "@prisma/client": "^7.3.0",
-    "better-sqlite3": "^12.6.2",
     "@types/bcryptjs": "^2.4.6",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/xterm": "^5.5.0",
     "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^12.6.2",
     "dotenv": "^17.2.3",
+    "drizzle-orm": "^0.45.1",
     "iron-session": "^8.0.4",
     "lucide-react": "^0.561.0",
     "next": "^16.1.5",
@@ -84,6 +85,7 @@
     "@types/react-syntax-highlighter": "^15.5.13",
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^5.1.2",
+    "drizzle-kit": "^0.31.8",
     "eslint": "^9.39.2",
     "eslint-config-next": "^16.1.5",
     "eslint-plugin-react": "^7.37.5",
@@ -91,7 +93,6 @@
     "jsdom": "^27.3.0",
     "mock-spawn": "^0.2.6",
     "postcss": "^8",
-    "prisma": "^7.3.0",
     "tailwindcss": "^3.4.1",
     "textlint": "14.8.4",
     "textlint-rule-preset-ja-technical-writing": "^10.0.1",
@@ -105,9 +106,7 @@
   },
   "pnpm": {
     "onlyBuiltDependencies": [
-      "better-sqlite3",
-      "@prisma/engines",
-      "prisma"
+      "better-sqlite3"
     ]
   }
 }

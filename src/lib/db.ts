@@ -1,6 +1,10 @@
 import 'dotenv/config';
-import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
-import { PrismaClient, Prisma } from '../../prisma/generated/prisma/client';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
+import Database from 'better-sqlite3';
+import * as schema from '@/db/schema';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 // 型の再エクスポート（他のファイルから @/lib/db 経由でインポート可能）
 export type {
@@ -10,7 +14,13 @@ export type {
   Prompt,
   RunScript,
   ExecutionEnvironment,
-} from '../../prisma/generated/prisma/client';
+  NewProject,
+  NewSession,
+  NewMessage,
+  NewPrompt,
+  NewRunScript,
+  NewExecutionEnvironment,
+} from '@/db/schema';
 
 // DATABASE_URL環境変数の検証
 const envDatabaseUrl = process.env.DATABASE_URL;
@@ -23,40 +33,52 @@ if (!envDatabaseUrl || envDatabaseUrl.trim() === '') {
   );
 }
 
-// 検証後は string 型として扱う（TypeScript の型推論を助ける）
-const databaseUrl: string = envDatabaseUrl;
+// file:プレフィックスを除去してパスを取得
+// file:// (full URL format from pathToFileURL) or file: (simple prefix) both handled
+const dbPath = envDatabaseUrl.startsWith('file://')
+  ? fileURLToPath(envDatabaseUrl)
+  : envDatabaseUrl.replace(/^file:/, '');
 
-/**
- * グローバルスコープでPrisma Clientインスタンスを保持するための型定義
- */
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
-};
-
-/**
- * Prisma Clientのインスタンスを作成
- *
- * Prisma 7 ではアダプターパターンを使用してデータベースに接続します。
- * アダプターはシングルトンパターンとの一貫性を保つため、この関数内で作成します。
- *
- * @returns 設定されたPrisma Clientインスタンス
- */
-function createPrismaClient() {
-  const adapter = new PrismaBetterSqlite3({ url: databaseUrl });
-  return new PrismaClient({ adapter });
+// データベースディレクトリが存在しない場合は作成
+const dbDir = path.dirname(dbPath);
+if (dbDir && !fs.existsSync(dbDir)) {
+  fs.mkdirSync(dbDir, { recursive: true });
 }
 
 /**
- * Prisma Clientのシングルトンインスタンス
+ * グローバルスコープでDrizzle DBインスタンスを保持するための型定義
+ */
+const globalForDb = globalThis as unknown as {
+  db: ReturnType<typeof drizzle<typeof schema>> | undefined;
+};
+
+/**
+ * Drizzle DBのインスタンスを作成
+ *
+ * better-sqlite3を使用してSQLiteに接続し、WALモードを有効化します。
+ *
+ * @returns 設定されたDrizzle DBインスタンス
+ */
+function createDb() {
+  const sqlite = new Database(dbPath);
+  sqlite.pragma('journal_mode = WAL');
+  return drizzle(sqlite, { schema });
+}
+
+/**
+ * Drizzle DBのシングルトンインスタンス
  *
  * Next.jsの開発モードでHot Reloadが発生しても同じインスタンスを使い回すため、
  * グローバルスコープに保存します。本番環境では毎回新しいインスタンスを作成します。
  */
-export const prisma = globalForPrisma.prisma ?? createPrismaClient();
+export const db = globalForDb.db ?? createDb();
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+if (process.env.NODE_ENV !== 'production') {
+  globalForDb.db = db;
+}
 
-// Prisma 名前空間も再エクスポート
-export { Prisma };
+// スキーマの再エクスポート
+export { schema };
 
-export default prisma;
+// デフォルトエクスポート
+export default db;

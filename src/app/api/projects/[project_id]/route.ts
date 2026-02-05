@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma, Prisma } from '@/lib/db';
+import { db, schema } from '@/lib/db';
+import { eq } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
 import { existsSync } from 'fs';
 import { execSync } from 'child_process';
@@ -70,9 +71,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
 
-    const existing = await prisma.project.findUnique({
-      where: { id: project_id },
-    });
+    const existing = db.select().from(schema.projects).where(eq(schema.projects.id, project_id)).get();
 
     if (!existing) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
@@ -99,9 +98,7 @@ export async function PUT(
       }
 
       // ユニーク制約の事前チェック
-      const existingWithPath = await prisma.project.findUnique({
-        where: { path: body.path },
-      });
+      const existingWithPath = db.select().from(schema.projects).where(eq(schema.projects.path, body.path)).get();
       if (existingWithPath && existingWithPath.id !== project_id) {
         logger.warn('Path already exists for another project', {
           path: body.path,
@@ -116,38 +113,43 @@ export async function PUT(
     }
 
     // トランザクションでプロジェクトとrun_scriptsを更新
-    const project = await prisma.$transaction(async (tx) => {
+    const project = db.transaction((tx) => {
       // run_scriptsが指定されている場合は一括更新（既存削除→新規作成）
       if (body.run_scripts !== undefined) {
         // 既存のRunScriptを削除
-        await tx.runScript.deleteMany({
-          where: { project_id },
-        });
+        tx.delete(schema.runScripts).where(eq(schema.runScripts.project_id, project_id)).run();
 
         // 新しいRunScriptを作成
         if (body.run_scripts.length > 0) {
-          await tx.runScript.createMany({
-            data: body.run_scripts.map((script: RunScriptInput) => ({
+          for (const script of body.run_scripts) {
+            tx.insert(schema.runScripts).values({
               project_id,
               name: script.name,
               command: script.command,
               description: script.description ?? null,
-            })),
-          });
+            }).run();
+          }
         }
       }
 
       // プロジェクトを更新
-      return tx.project.update({
-        where: { id: project_id },
-        data: {
+      const updatedProject = tx.update(schema.projects)
+        .set({
           name: body.name ?? existing.name,
           path: body.path ?? existing.path,
-        },
-        include: {
-          scripts: true,
-        },
-      });
+          updated_at: new Date(),
+        })
+        .where(eq(schema.projects.id, project_id))
+        .returning()
+        .get();
+
+      // scriptsを取得
+      const scripts = tx.select().from(schema.runScripts).where(eq(schema.runScripts.project_id, project_id)).all();
+
+      return {
+        ...updatedProject,
+        scripts,
+      };
     });
 
     logger.info('Project updated', {
@@ -159,15 +161,17 @@ export async function PUT(
     return NextResponse.json({ project });
   } catch (error) {
     const { project_id: errorProjectId } = await params;
-    // Prismaのユニーク制約違反をハンドリング
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      if (error.code === 'P2002') {
-        logger.warn('Unique constraint violation', { error, id: errorProjectId });
-        return NextResponse.json(
-          { error: 'A project with this path already exists' },
-          { status: 409 }
-        );
-      }
+    // SQLiteのユニーク制約違反をハンドリング（pathカラムのみ）
+    const sqliteError = error as { code?: string };
+    const isPathUniqueViolation = (sqliteError.code === 'SQLITE_CONSTRAINT_UNIQUE' ||
+      (error instanceof Error && error.message.includes('UNIQUE constraint failed'))) &&
+      (error instanceof Error && error.message.includes('path'));
+    if (isPathUniqueViolation) {
+      logger.warn('Unique constraint violation on path', { code: sqliteError.code, error, id: errorProjectId });
+      return NextResponse.json(
+        { error: 'A project with this path already exists' },
+        { status: 409 }
+      );
     }
     logger.error('Failed to update project', { error, id: errorProjectId });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -202,17 +206,13 @@ export async function DELETE(
   try {
     const { project_id } = await params;
 
-    const existing = await prisma.project.findUnique({
-      where: { id: project_id },
-    });
+    const existing = db.select().from(schema.projects).where(eq(schema.projects.id, project_id)).get();
 
     if (!existing) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    await prisma.project.delete({
-      where: { id: project_id },
-    });
+    db.delete(schema.projects).where(eq(schema.projects.id, project_id)).run();
 
     logger.info('Project deleted', { id: project_id });
     return new NextResponse(null, { status: 204 });

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { PUT, DELETE } from '../route';
-import { prisma } from '@/lib/db';
+import { db, schema } from '@/lib/db';
+import { eq } from 'drizzle-orm';
 import { NextRequest } from 'next/server';
 import { randomUUID } from 'crypto';
 import type { Project, RunScript } from '@/lib/db';
@@ -16,14 +17,12 @@ beforeEach(async () => {
   testRepoPath = env.testRepoPath;
   project = env.project;
 
-  script = await prisma.runScript.create({
-    data: {
-      project_id: project.id,
-      name: 'Test',
-      description: 'Run unit tests',
-      command: 'npm test',
-    },
-  });
+  script = db.insert(schema.runScripts).values({
+    project_id: project.id,
+    name: 'Test',
+    description: 'Run unit tests',
+    command: 'npm test',
+  }).returning().get();
 });
 
 afterEach(async () => {
@@ -58,9 +57,7 @@ describe('PUT /api/projects/[project_id]/scripts/[scriptId]', () => {
     expect(data.script.description).toBe('Run all tests');
     expect(data.script.command).toBe('npm run test:all');
 
-    const updatedScript = await prisma.runScript.findUnique({
-      where: { id: script.id },
-    });
+    const updatedScript = db.select().from(schema.runScripts).where(eq(schema.runScripts.id, script.id)).get();
     expect(updatedScript?.name).toBe('Test Updated');
   });
 
@@ -126,10 +123,8 @@ describe('DELETE /api/projects/[project_id]/scripts/[scriptId]', () => {
     });
     expect(response.status).toBe(204);
 
-    const deletedScript = await prisma.runScript.findUnique({
-      where: { id: script.id },
-    });
-    expect(deletedScript).toBeNull();
+    const deletedScript = db.select().from(schema.runScripts).where(eq(schema.runScripts.id, script.id)).get();
+    expect(deletedScript).toBeUndefined();
   });
 
   it('should return 404 if script not found', async () => {

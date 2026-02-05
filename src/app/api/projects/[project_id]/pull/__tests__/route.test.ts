@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { POST } from '../route';
-import { prisma } from '@/lib/db';
+import { db, schema } from '@/lib/db';
 import { NextRequest } from 'next/server';
 import { mkdtempSync, rmSync, mkdirSync } from 'fs';
 import { tmpdir } from 'os';
@@ -13,7 +13,7 @@ describe('POST /api/projects/[project_id]/pull', () => {
   let clonedRepoPath: string;
 
   beforeEach(async () => {
-    await prisma.project.deleteMany();
+    db.delete(schema.projects).run();
 
     // テスト用ディレクトリを作成
     testDir = mkdtempSync(join(tmpdir(), 'pull-test-'));
@@ -36,7 +36,7 @@ describe('POST /api/projects/[project_id]/pull', () => {
   });
 
   afterEach(async () => {
-    await prisma.project.deleteMany();
+    db.delete(schema.projects).run();
     if (testDir) {
       rmSync(testDir, { recursive: true, force: true });
     }
@@ -44,13 +44,11 @@ describe('POST /api/projects/[project_id]/pull', () => {
 
   it('should pull changes from remote', async () => {
     // プロジェクトを登録
-    const project = await prisma.project.create({
-      data: {
-        name: 'Test Project',
-        path: clonedRepoPath,
-        remote_url: sourceRepoPath,
-      },
-    });
+    const project = db.insert(schema.projects).values({
+      name: 'Test Project',
+      path: clonedRepoPath,
+      remote_url: sourceRepoPath,
+    }).returning().get();
 
     // ソースリポジトリに変更を加える
     execSync('echo "updated" > new-file.md && git add . && git commit -m "new commit"', {
@@ -73,13 +71,11 @@ describe('POST /api/projects/[project_id]/pull', () => {
 
   it('should return success with updated=false when already up to date', async () => {
     // プロジェクトを登録
-    const project = await prisma.project.create({
-      data: {
-        name: 'Test Project',
-        path: clonedRepoPath,
-        remote_url: sourceRepoPath,
-      },
-    });
+    const project = db.insert(schema.projects).values({
+      name: 'Test Project',
+      path: clonedRepoPath,
+      remote_url: sourceRepoPath,
+    }).returning().get();
 
     const request = new NextRequest(
       `http://localhost:3000/api/projects/${project.id}/pull`,
@@ -106,13 +102,11 @@ describe('POST /api/projects/[project_id]/pull', () => {
 
   it('should return 400 for non-remote project', async () => {
     // ローカル登録のプロジェクト（remote_url がない）
-    const project = await prisma.project.create({
-      data: {
-        name: 'Local Project',
-        path: sourceRepoPath,
-        // remote_url を設定しない
-      },
-    });
+    const project = db.insert(schema.projects).values({
+      name: 'Local Project',
+      path: sourceRepoPath,
+      // remote_url を設定しない
+    }).returning().get();
 
     const request = new NextRequest(
       `http://localhost:3000/api/projects/${project.id}/pull`,

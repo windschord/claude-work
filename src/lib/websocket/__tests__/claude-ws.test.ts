@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // vi.hoisted()でモックを先に定義
 const {
   mockClaudePtyManager,
-  mockPrisma,
+  mockDb,
   mockEnvironmentService,
   mockAdapterFactory,
   createMockAdapter,
@@ -33,18 +33,22 @@ const {
       on: vi.fn(),
       off: vi.fn(),
     },
-    mockPrisma: {
-      session: {
-        findUnique: vi.fn(),
-        update: vi.fn(),
+    mockDb: {
+      query: {
+        sessions: {
+          findFirst: vi.fn(),
+        },
+        messages: {
+          findFirst: vi.fn(),
+        },
       },
-      message: {
-        findFirst: vi.fn(),
-      },
-      executionEnvironment: {
-        findUnique: vi.fn(),
-        findFirst: vi.fn(),
-      },
+      update: vi.fn().mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            run: vi.fn(),
+          }),
+        }),
+      }),
     },
     mockEnvironmentService: {
       findById: vi.fn(),
@@ -64,7 +68,11 @@ vi.mock('@/services/claude-pty-manager', () => ({
 }));
 
 vi.mock('@/lib/db', () => ({
-  prisma: mockPrisma,
+  db: mockDb,
+  schema: {
+    sessions: {},
+    messages: {},
+  },
 }));
 
 vi.mock('@/lib/logger', () => ({
@@ -124,8 +132,16 @@ describe('Claude WebSocket Handler - Environment Support', () => {
     } as unknown as WebSocket;
 
     // デフォルトのモック設定
-    mockPrisma.session.update.mockResolvedValue({});
-    mockPrisma.message.findFirst.mockResolvedValue(null);
+    mockDb.query.messages.findFirst.mockResolvedValue(null);
+
+    // db.update チェーンを再設定（resetAllMocksで壊れるため）
+    mockDb.update.mockReturnValue({
+      set: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          run: vi.fn(),
+        }),
+      }),
+    });
   });
 
   afterEach(() => {
@@ -148,7 +164,7 @@ describe('Claude WebSocket Handler - Environment Support', () => {
       };
 
       // セッション（environment_idあり）
-      mockPrisma.session.findUnique.mockResolvedValue({
+      mockDb.query.sessions.findFirst.mockResolvedValue({
         id: sessionId,
         worktree_path: '/path/to/worktree',
         docker_mode: false,
@@ -196,7 +212,7 @@ describe('Claude WebSocket Handler - Environment Support', () => {
         updated_at: new Date(),
       };
 
-      mockPrisma.session.findUnique.mockResolvedValue({
+      mockDb.query.sessions.findFirst.mockResolvedValue({
         id: sessionId,
         worktree_path: '/path/to/worktree',
         docker_mode: false,
@@ -223,7 +239,7 @@ describe('Claude WebSocket Handler - Environment Support', () => {
       const sessionId = 'session-legacy-docker';
 
       // docker_mode=true, environment_id=null（レガシー動作）
-      mockPrisma.session.findUnique.mockResolvedValue({
+      mockDb.query.sessions.findFirst.mockResolvedValue({
         id: sessionId,
         worktree_path: '/path/to/worktree',
         docker_mode: true,
@@ -262,7 +278,7 @@ describe('Claude WebSocket Handler - Environment Support', () => {
         updated_at: new Date(),
       };
 
-      mockPrisma.session.findUnique.mockResolvedValue({
+      mockDb.query.sessions.findFirst.mockResolvedValue({
         id: sessionId,
         worktree_path: '/path/to/worktree',
         docker_mode: false,
@@ -292,7 +308,7 @@ describe('Claude WebSocket Handler - Environment Support', () => {
       const sessionId = 'session-events';
       const environmentId = 'env-events';
 
-      mockPrisma.session.findUnique.mockResolvedValue({
+      mockDb.query.sessions.findFirst.mockResolvedValue({
         id: sessionId,
         worktree_path: '/path/to/worktree',
         docker_mode: false,
@@ -330,7 +346,7 @@ describe('Claude WebSocket Handler - Environment Support', () => {
       const sessionId = 'session-input';
       const environmentId = 'env-input';
 
-      mockPrisma.session.findUnique.mockResolvedValue({
+      mockDb.query.sessions.findFirst.mockResolvedValue({
         id: sessionId,
         worktree_path: '/path/to/worktree',
         docker_mode: false,
@@ -376,7 +392,7 @@ describe('Claude WebSocket Handler - Environment Support', () => {
       const sessionId = 'session-resize';
       const environmentId = 'env-resize';
 
-      mockPrisma.session.findUnique.mockResolvedValue({
+      mockDb.query.sessions.findFirst.mockResolvedValue({
         id: sessionId,
         worktree_path: '/path/to/worktree',
         docker_mode: false,
@@ -420,7 +436,7 @@ describe('Claude WebSocket Handler - Environment Support', () => {
       const sessionId = 'session-close';
       const environmentId = 'env-close';
 
-      mockPrisma.session.findUnique.mockResolvedValue({
+      mockDb.query.sessions.findFirst.mockResolvedValue({
         id: sessionId,
         worktree_path: '/path/to/worktree',
         docker_mode: false,
@@ -470,7 +486,7 @@ describe('Claude WebSocket Handler - Environment Support', () => {
       const sessionId = 'session-no-env';
       const environmentId = 'non-existent-env';
 
-      mockPrisma.session.findUnique.mockResolvedValue({
+      mockDb.query.sessions.findFirst.mockResolvedValue({
         id: sessionId,
         worktree_path: '/path/to/worktree',
         docker_mode: false,
@@ -495,7 +511,7 @@ describe('Claude WebSocket Handler - Environment Support', () => {
     it('should handle default environment not found error', async () => {
       const sessionId = 'session-no-default';
 
-      mockPrisma.session.findUnique.mockResolvedValue({
+      mockDb.query.sessions.findFirst.mockResolvedValue({
         id: sessionId,
         worktree_path: '/path/to/worktree',
         docker_mode: false,

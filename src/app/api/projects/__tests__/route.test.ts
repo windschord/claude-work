@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { GET, POST } from '../route';
-import { prisma } from '@/lib/db';
+import { db, schema } from '@/lib/db';
+import { eq } from 'drizzle-orm';
 import { NextRequest } from 'next/server';
 import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
@@ -12,7 +13,7 @@ describe('GET /api/projects', () => {
   let originalAllowedDirs: string | undefined;
 
   beforeEach(async () => {
-    await prisma.project.deleteMany();
+    db.delete(schema.projects).run();
 
     // 環境変数をバックアップして無効化（テストごとに制御するため）
     originalAllowedDirs = process.env.ALLOWED_PROJECT_DIRS;
@@ -30,7 +31,7 @@ describe('GET /api/projects', () => {
   });
 
   afterEach(async () => {
-    await prisma.project.deleteMany();
+    db.delete(schema.projects).run();
     if (testRepoPath) {
       rmSync(testRepoPath, { recursive: true, force: true });
     }
@@ -43,12 +44,10 @@ describe('GET /api/projects', () => {
   });
 
   it('should return 200 and list of projects', async () => {
-    await prisma.project.create({
-      data: {
-        name: 'Test Project',
-        path: testRepoPath,
-      },
-    });
+    db.insert(schema.projects).values({
+      name: 'Test Project',
+      path: testRepoPath,
+    }).run();
 
     const request = new NextRequest('http://localhost:3000/api/projects');
 
@@ -63,12 +62,10 @@ describe('GET /api/projects', () => {
   });
 
   it('should return response in {projects: [...]} format when projects exist', async () => {
-    await prisma.project.create({
-      data: {
-        name: 'Test Project',
-        path: testRepoPath,
-      },
-    });
+    db.insert(schema.projects).values({
+      name: 'Test Project',
+      path: testRepoPath,
+    }).run();
 
     const request = new NextRequest('http://localhost:3000/api/projects');
 
@@ -101,7 +98,7 @@ describe('POST /api/projects', () => {
   let originalAllowedDirs: string | undefined;
 
   beforeEach(async () => {
-    await prisma.project.deleteMany();
+    db.delete(schema.projects).run();
 
     // 環境変数をバックアップして無効化（テストごとに制御するため）
     originalAllowedDirs = process.env.ALLOWED_PROJECT_DIRS;
@@ -119,7 +116,7 @@ describe('POST /api/projects', () => {
   });
 
   afterEach(async () => {
-    await prisma.project.deleteMany();
+    db.delete(schema.projects).run();
     if (testRepoPath) {
       rmSync(testRepoPath, { recursive: true, force: true });
     }
@@ -150,9 +147,7 @@ describe('POST /api/projects', () => {
     expect(data.project.path).toContain('project-test-');
     expect(data.project.name).toBeTruthy();
 
-    const project = await prisma.project.findFirst({
-      where: { path: data.project.path },
-    });
+    const project = db.select().from(schema.projects).where(eq(schema.projects.path, data.project.path)).get();
     expect(project).toBeTruthy();
   });
 

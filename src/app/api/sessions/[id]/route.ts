@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { db, schema } from '@/lib/db';
+import { eq } from 'drizzle-orm';
 import { GitService } from '@/services/git-service';
 import { ProcessManager } from '@/services/process-manager';
 import { logger } from '@/lib/logger';
@@ -45,15 +46,10 @@ export async function GET(
   try {
     const { id } = await params;
 
-    const targetSession = await prisma.session.findUnique({
-      where: { id },
-      include: {
-        environment: {
-          select: {
-            name: true,
-            type: true,
-          },
-        },
+    const targetSession = await db.query.sessions.findFirst({
+      where: eq(schema.sessions.id, id),
+      with: {
+        environment: true,
       },
     });
 
@@ -107,9 +103,9 @@ export async function DELETE(
   try {
     const { id } = await params;
 
-    const targetSession = await prisma.session.findUnique({
-      where: { id },
-      include: { project: true },
+    const targetSession = await db.query.sessions.findFirst({
+      where: eq(schema.sessions.id, id),
+      with: { project: true },
     });
 
     if (!targetSession) {
@@ -143,9 +139,7 @@ export async function DELETE(
     }
 
     // Delete session from database
-    await prisma.session.delete({
-      where: { id },
-    });
+    await db.delete(schema.sessions).where(eq(schema.sessions.id, id)).run();
 
     logger.info('Session deleted', { id });
     return new NextResponse(null, { status: 204 });
@@ -213,8 +207,8 @@ export async function PATCH(
     const trimmedName = name.trim();
 
     // セッションが存在するか確認
-    const existingSession = await prisma.session.findUnique({
-      where: { id },
+    const existingSession = await db.query.sessions.findFirst({
+      where: eq(schema.sessions.id, id),
     });
 
     if (!existingSession) {
@@ -222,18 +216,21 @@ export async function PATCH(
     }
 
     // セッション名を更新
-    const updatedSession = await prisma.session.update({
-      where: { id },
-      data: { name: trimmedName },
-      include: {
-        environment: {
-          select: {
-            name: true,
-            type: true,
-          },
-        },
+    await db.update(schema.sessions)
+      .set({ name: trimmedName, updated_at: new Date() })
+      .where(eq(schema.sessions.id, id))
+      .run();
+
+    const updatedSession = await db.query.sessions.findFirst({
+      where: eq(schema.sessions.id, id),
+      with: {
+        environment: true,
       },
     });
+
+    if (!updatedSession) {
+      return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+    }
 
     // フロントエンド用にフラット化した形式に変換
     const sessionWithEnvironment = {

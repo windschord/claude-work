@@ -24,12 +24,6 @@
     "paths": {
       "@/*": [
         "./src/*"
-      ],
-      "@prisma/generated": [
-        "./prisma/generated/prisma"
-      ],
-      "@prisma/generated/*": [
-        "./prisma/generated/prisma/*"
       ]
     },
     "target": "ES2017"

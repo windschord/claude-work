@@ -1,335 +1,272 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import prisma from '../../lib/db';
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
+import { db, schema } from '../../lib/db';
+import { eq, sql } from 'drizzle-orm';
 import fs from 'fs';
 import path from 'path';
 
+const { projects, sessions, messages } = schema;
+
 describe('Database Tests', () => {
-  beforeAll(async () => {
+  beforeAll(() => {
     // データベースディレクトリを作成
     const dataDir = path.join(process.cwd(), 'data');
     if (!fs.existsSync(dataDir)) {
       fs.mkdirSync(dataDir, { recursive: true });
     }
+    // SQLiteで外部キー制約を有効化
+    db.run(sql`PRAGMA foreign_keys = ON`);
   });
 
-  afterAll(async () => {
-    await prisma.$disconnect();
-  });
-
-  beforeEach(async () => {
+  beforeEach(() => {
     // 各テスト前にデータベースをクリーンアップ
-    await prisma.message.deleteMany();
-    await prisma.session.deleteMany();
-    await prisma.project.deleteMany();
+    db.delete(messages).run();
+    db.delete(sessions).run();
+    db.delete(projects).run();
   });
 
   describe('Project CRUD', () => {
-    it('should create a project', async () => {
-      const project = await prisma.project.create({
-        data: {
-          name: 'Test Project',
-          path: '/path/to/project',
-        }
-      });
+    it('should create a project', () => {
+      const result = db.insert(projects).values({
+        name: 'Test Project',
+        path: '/path/to/project',
+      }).returning().get();
 
-      expect(project.id).toBeDefined();
-      expect(project.name).toBe('Test Project');
-      expect(project.path).toBe('/path/to/project');
+      expect(result.id).toBeDefined();
+      expect(result.name).toBe('Test Project');
+      expect(result.path).toBe('/path/to/project');
     });
 
-    it('should read a project', async () => {
-      const created = await prisma.project.create({
-        data: {
-          name: 'Test Project',
-          path: '/path/to/project'
-        }
-      });
+    it('should read a project', () => {
+      const created = db.insert(projects).values({
+        name: 'Test Project',
+        path: '/path/to/project'
+      }).returning().get();
 
-      const found = await prisma.project.findUnique({
-        where: { id: created.id }
-      });
+      const found = db.select().from(projects).where(eq(projects.id, created.id)).get();
 
       expect(found).not.toBeNull();
       expect(found?.name).toBe('Test Project');
     });
 
-    it('should update a project', async () => {
-      const project = await prisma.project.create({
-        data: {
-          name: 'Test Project',
-          path: '/path/to/project'
-        }
-      });
+    it('should update a project', () => {
+      const project = db.insert(projects).values({
+        name: 'Test Project',
+        path: '/path/to/project'
+      }).returning().get();
 
-      // 時刻の差を確実にするため10ms待機
-      await new Promise(resolve => setTimeout(resolve, 10));
+      const originalTime = project.updated_at.getTime();
 
-      const updated = await prisma.project.update({
-        where: { id: project.id },
-        data: { name: 'Updated Project' }
-      });
+      // 異なる時刻を設定するため、明示的に新しいDateを作成
+      const newDate = new Date(originalTime + 1000);
+
+      const updated = db.update(projects)
+        .set({ name: 'Updated Project', updated_at: newDate })
+        .where(eq(projects.id, project.id))
+        .returning()
+        .get();
 
       expect(updated.name).toBe('Updated Project');
-      expect(updated.updated_at.getTime()).toBeGreaterThan(project.updated_at.getTime());
+      expect(updated.updated_at.getTime()).toBeGreaterThan(originalTime);
     });
 
-    it('should delete a project', async () => {
-      const project = await prisma.project.create({
-        data: {
-          name: 'Test Project',
-          path: '/path/to/project'
-        }
-      });
+    it('should delete a project', () => {
+      const project = db.insert(projects).values({
+        name: 'Test Project',
+        path: '/path/to/project'
+      }).returning().get();
 
-      await prisma.project.delete({
-        where: { id: project.id }
-      });
+      db.delete(projects).where(eq(projects.id, project.id)).run();
 
-      const found = await prisma.project.findUnique({
-        where: { id: project.id }
-      });
+      const found = db.select().from(projects).where(eq(projects.id, project.id)).get();
 
-      expect(found).toBeNull();
+      expect(found).toBeUndefined();
     });
   });
 
   describe('Session CRUD', () => {
-    it('should create a session', async () => {
-      const project = await prisma.project.create({
-        data: {
-          name: 'Test Project',
-          path: '/path/to/project'
-        }
-      });
+    it('should create a session', () => {
+      const project = db.insert(projects).values({
+        name: 'Test Project',
+        path: '/path/to/project'
+      }).returning().get();
 
-      const session = await prisma.session.create({
-        data: {
-          project_id: project.id,
-          name: 'Test Session',
-          status: 'running',
-          worktree_path: '/path/to/worktree',
-          branch_name: 'feature-test'
-        }
-      });
+      const session = db.insert(sessions).values({
+        project_id: project.id,
+        name: 'Test Session',
+        status: 'running',
+        worktree_path: '/path/to/worktree',
+        branch_name: 'feature-test'
+      }).returning().get();
 
       expect(session.id).toBeDefined();
       expect(session.name).toBe('Test Session');
       expect(session.status).toBe('running');
     });
 
-    it('should read a session', async () => {
-      const project = await prisma.project.create({
-        data: {
-          name: 'Test Project',
-          path: '/path/to/project'
-        }
-      });
+    it('should read a session', () => {
+      const project = db.insert(projects).values({
+        name: 'Test Project',
+        path: '/path/to/project'
+      }).returning().get();
 
-      const created = await prisma.session.create({
-        data: {
-          project_id: project.id,
-          name: 'Test Session',
-          status: 'running',
-          worktree_path: '/path/to/worktree',
-          branch_name: 'feature-test'
-        }
-      });
+      const created = db.insert(sessions).values({
+        project_id: project.id,
+        name: 'Test Session',
+        status: 'running',
+        worktree_path: '/path/to/worktree',
+        branch_name: 'feature-test'
+      }).returning().get();
 
-      const found = await prisma.session.findUnique({
-        where: { id: created.id }
-      });
+      const found = db.select().from(sessions).where(eq(sessions.id, created.id)).get();
 
-      expect(found).not.toBeNull();
+      expect(found).not.toBeUndefined();
       expect(found?.name).toBe('Test Session');
     });
 
-    it('should update a session', async () => {
-      const project = await prisma.project.create({
-        data: {
-          name: 'Test Project',
-          path: '/path/to/project'
-        }
-      });
+    it('should update a session', () => {
+      const project = db.insert(projects).values({
+        name: 'Test Project',
+        path: '/path/to/project'
+      }).returning().get();
 
-      const session = await prisma.session.create({
-        data: {
-          project_id: project.id,
-          name: 'Test Session',
-          status: 'running',
-          worktree_path: '/path/to/worktree',
-          branch_name: 'feature-test'
-        }
-      });
+      const session = db.insert(sessions).values({
+        project_id: project.id,
+        name: 'Test Session',
+        status: 'running',
+        worktree_path: '/path/to/worktree',
+        branch_name: 'feature-test'
+      }).returning().get();
 
-      const updated = await prisma.session.update({
-        where: { id: session.id },
-        data: { status: 'completed' }
-      });
+      const updated = db.update(sessions)
+        .set({ status: 'completed' })
+        .where(eq(sessions.id, session.id))
+        .returning()
+        .get();
 
       expect(updated.status).toBe('completed');
     });
 
-    it('should delete a session', async () => {
-      const project = await prisma.project.create({
-        data: {
-          name: 'Test Project',
-          path: '/path/to/project'
-        }
-      });
+    it('should delete a session', () => {
+      const project = db.insert(projects).values({
+        name: 'Test Project',
+        path: '/path/to/project'
+      }).returning().get();
 
-      const session = await prisma.session.create({
-        data: {
-          project_id: project.id,
-          name: 'Test Session',
-          status: 'running',
-          worktree_path: '/path/to/worktree',
-          branch_name: 'feature-test'
-        }
-      });
+      const session = db.insert(sessions).values({
+        project_id: project.id,
+        name: 'Test Session',
+        status: 'running',
+        worktree_path: '/path/to/worktree',
+        branch_name: 'feature-test'
+      }).returning().get();
 
-      await prisma.session.delete({
-        where: { id: session.id }
-      });
+      db.delete(sessions).where(eq(sessions.id, session.id)).run();
 
-      const found = await prisma.session.findUnique({
-        where: { id: session.id }
-      });
+      const found = db.select().from(sessions).where(eq(sessions.id, session.id)).get();
 
-      expect(found).toBeNull();
+      expect(found).toBeUndefined();
     });
   });
 
   describe('Message CRUD', () => {
-    it('should create a message', async () => {
-      const project = await prisma.project.create({
-        data: {
-          name: 'Test Project',
-          path: '/path/to/project'
-        }
-      });
+    it('should create a message', () => {
+      const project = db.insert(projects).values({
+        name: 'Test Project',
+        path: '/path/to/project'
+      }).returning().get();
 
-      const session = await prisma.session.create({
-        data: {
-          project_id: project.id,
-          name: 'Test Session',
-          status: 'running',
-          worktree_path: '/path/to/worktree',
-          branch_name: 'feature-test'
-        }
-      });
+      const session = db.insert(sessions).values({
+        project_id: project.id,
+        name: 'Test Session',
+        status: 'running',
+        worktree_path: '/path/to/worktree',
+        branch_name: 'feature-test'
+      }).returning().get();
 
-      const message = await prisma.message.create({
-        data: {
-          session_id: session.id,
-          role: 'user',
-          content: 'Hello, Claude!'
-        }
-      });
+      const message = db.insert(messages).values({
+        session_id: session.id,
+        role: 'user',
+        content: 'Hello, Claude!'
+      }).returning().get();
 
       expect(message.id).toBeDefined();
       expect(message.content).toBe('Hello, Claude!');
     });
 
-    it('should read a message', async () => {
-      const project = await prisma.project.create({
-        data: {
-          name: 'Test Project',
-          path: '/path/to/project'
-        }
-      });
+    it('should read a message', () => {
+      const project = db.insert(projects).values({
+        name: 'Test Project',
+        path: '/path/to/project'
+      }).returning().get();
 
-      const session = await prisma.session.create({
-        data: {
-          project_id: project.id,
-          name: 'Test Session',
-          status: 'running',
-          worktree_path: '/path/to/worktree',
-          branch_name: 'feature-test'
-        }
-      });
+      const session = db.insert(sessions).values({
+        project_id: project.id,
+        name: 'Test Session',
+        status: 'running',
+        worktree_path: '/path/to/worktree',
+        branch_name: 'feature-test'
+      }).returning().get();
 
-      const created = await prisma.message.create({
-        data: {
-          session_id: session.id,
-          role: 'user',
-          content: 'Hello, Claude!'
-        }
-      });
+      const created = db.insert(messages).values({
+        session_id: session.id,
+        role: 'user',
+        content: 'Hello, Claude!'
+      }).returning().get();
 
-      const found = await prisma.message.findUnique({
-        where: { id: created.id }
-      });
+      const found = db.select().from(messages).where(eq(messages.id, created.id)).get();
 
-      expect(found).not.toBeNull();
+      expect(found).not.toBeUndefined();
       expect(found?.content).toBe('Hello, Claude!');
     });
   });
 
   describe('CASCADE behavior', () => {
-    it('should cascade delete sessions when project is deleted', async () => {
-      const project = await prisma.project.create({
-        data: {
-          name: 'Test Project',
-          path: '/path/to/project'
-        }
-      });
+    it('should cascade delete sessions when project is deleted', () => {
+      const project = db.insert(projects).values({
+        name: 'Test Project',
+        path: '/path/to/project'
+      }).returning().get();
 
-      const session = await prisma.session.create({
-        data: {
-          project_id: project.id,
-          name: 'Test Session',
-          status: 'running',
-          worktree_path: '/path/to/worktree',
-          branch_name: 'feature-test'
-        }
-      });
+      const session = db.insert(sessions).values({
+        project_id: project.id,
+        name: 'Test Session',
+        status: 'running',
+        worktree_path: '/path/to/worktree',
+        branch_name: 'feature-test'
+      }).returning().get();
 
-      await prisma.project.delete({
-        where: { id: project.id }
-      });
+      db.delete(projects).where(eq(projects.id, project.id)).run();
 
-      const foundSession = await prisma.session.findUnique({
-        where: { id: session.id }
-      });
+      const foundSession = db.select().from(sessions).where(eq(sessions.id, session.id)).get();
 
-      expect(foundSession).toBeNull();
+      expect(foundSession).toBeUndefined();
     });
 
-    it('should cascade delete messages when session is deleted', async () => {
-      const project = await prisma.project.create({
-        data: {
-          name: 'Test Project',
-          path: '/path/to/project'
-        }
-      });
+    it('should cascade delete messages when session is deleted', () => {
+      const project = db.insert(projects).values({
+        name: 'Test Project',
+        path: '/path/to/project'
+      }).returning().get();
 
-      const session = await prisma.session.create({
-        data: {
-          project_id: project.id,
-          name: 'Test Session',
-          status: 'running',
-          worktree_path: '/path/to/worktree',
-          branch_name: 'feature-test'
-        }
-      });
+      const session = db.insert(sessions).values({
+        project_id: project.id,
+        name: 'Test Session',
+        status: 'running',
+        worktree_path: '/path/to/worktree',
+        branch_name: 'feature-test'
+      }).returning().get();
 
-      const message = await prisma.message.create({
-        data: {
-          session_id: session.id,
-          role: 'user',
-          content: 'Hello!'
-        }
-      });
+      const message = db.insert(messages).values({
+        session_id: session.id,
+        role: 'user',
+        content: 'Hello!'
+      }).returning().get();
 
-      await prisma.session.delete({
-        where: { id: session.id }
-      });
+      db.delete(sessions).where(eq(sessions.id, session.id)).run();
 
-      const foundMessage = await prisma.message.findUnique({
-        where: { id: message.id }
-      });
+      const foundMessage = db.select().from(messages).where(eq(messages.id, message.id)).get();
 
-      expect(foundMessage).toBeNull();
+      expect(foundMessage).toBeUndefined();
     });
   });
 });

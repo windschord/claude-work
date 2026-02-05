@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { PUT, DELETE } from '../route';
-import { prisma } from '@/lib/db';
+import { db, schema } from '@/lib/db';
+import { eq } from 'drizzle-orm';
 import { NextRequest } from 'next/server';
 import { mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
@@ -24,7 +25,8 @@ describe('PUT /api/projects/[project_id]', () => {
   let project: Project;
 
   beforeEach(async () => {
-    await prisma.project.deleteMany();
+    db.delete(schema.runScripts).run();
+    db.delete(schema.projects).run();
 
     testRepoPath = mkdtempSync(join(tmpdir(), 'project-test-'));
     execSync('git init', { cwd: testRepoPath });
@@ -36,16 +38,15 @@ describe('PUT /api/projects/[project_id]', () => {
     });
     execSync('git branch -M main', { cwd: testRepoPath });
 
-    project = await prisma.project.create({
-      data: {
-        name: 'Test Project',
-        path: testRepoPath,
-      },
-    });
+    project = db.insert(schema.projects).values({
+      name: 'Test Project',
+      path: testRepoPath,
+    }).returning().get();
   });
 
   afterEach(async () => {
-    await prisma.project.deleteMany();
+    db.delete(schema.runScripts).run();
+    db.delete(schema.projects).run();
     if (testRepoPath) {
       rmSync(testRepoPath, { recursive: true, force: true });
     }
@@ -74,9 +75,7 @@ describe('PUT /api/projects/[project_id]', () => {
     expect(data.project).toHaveProperty('updated_at');
     expect(data.project.name).toBe('Updated Project');
 
-    const updated = await prisma.project.findUnique({
-      where: { id: project.id },
-    });
+    const updated = db.select().from(schema.projects).where(eq(schema.projects.id, project.id)).get();
     expect(updated?.name).toBe('Updated Project');
   });
 
@@ -119,9 +118,7 @@ describe('PUT /api/projects/[project_id]', () => {
       const data = await response.json();
       expect(data.project.path).toBe(newRepoPath);
 
-      const updated = await prisma.project.findUnique({
-        where: { id: project.id },
-      });
+      const updated = db.select().from(schema.projects).where(eq(schema.projects.id, project.id)).get();
       expect(updated?.path).toBe(newRepoPath);
     });
 
@@ -161,12 +158,10 @@ describe('PUT /api/projects/[project_id]', () => {
       newRepoPath = createTempGitRepo();
 
       // Create another project with newRepoPath
-      await prisma.project.create({
-        data: {
-          name: 'Another Project',
-          path: newRepoPath,
-        },
-      });
+      db.insert(schema.projects).values({
+        name: 'Another Project',
+        path: newRepoPath,
+      }).run();
 
       const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
         method: 'PUT',
@@ -207,21 +202,17 @@ describe('PUT /api/projects/[project_id]', () => {
       expect(data.project.scripts[1].command).toBe('npm test');
       expect(data.project.scripts[1].description).toBeNull();
 
-      const scripts = await prisma.runScript.findMany({
-        where: { project_id: project.id },
-      });
+      const scripts = db.select().from(schema.runScripts).where(eq(schema.runScripts.project_id, project.id)).all();
       expect(scripts).toHaveLength(2);
     });
 
     it('should replace existing run_scripts', async () => {
       // Create initial scripts
-      await prisma.runScript.create({
-        data: {
-          project_id: project.id,
-          name: 'old-script',
-          command: 'old command',
-        },
-      });
+      db.insert(schema.runScripts).values({
+        project_id: project.id,
+        name: 'old-script',
+        command: 'old command',
+      }).run();
 
       const newScripts = [
         { name: 'new-script', command: 'new command' },
@@ -236,22 +227,18 @@ describe('PUT /api/projects/[project_id]', () => {
       const response = await PUT(request, { params: Promise.resolve({ project_id: project.id }) });
       expect(response.status).toBe(200);
 
-      const scripts = await prisma.runScript.findMany({
-        where: { project_id: project.id },
-      });
+      const scripts = db.select().from(schema.runScripts).where(eq(schema.runScripts.project_id, project.id)).all();
       expect(scripts).toHaveLength(1);
       expect(scripts[0].name).toBe('new-script');
     });
 
     it('should clear all run_scripts when empty array provided', async () => {
       // Create initial scripts
-      await prisma.runScript.create({
-        data: {
-          project_id: project.id,
-          name: 'to-delete',
-          command: 'command',
-        },
-      });
+      db.insert(schema.runScripts).values({
+        project_id: project.id,
+        name: 'to-delete',
+        command: 'command',
+      }).run();
 
       const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
         method: 'PUT',
@@ -262,21 +249,17 @@ describe('PUT /api/projects/[project_id]', () => {
       const response = await PUT(request, { params: Promise.resolve({ project_id: project.id }) });
       expect(response.status).toBe(200);
 
-      const scripts = await prisma.runScript.findMany({
-        where: { project_id: project.id },
-      });
+      const scripts = db.select().from(schema.runScripts).where(eq(schema.runScripts.project_id, project.id)).all();
       expect(scripts).toHaveLength(0);
     });
 
     it('should not modify run_scripts when not provided', async () => {
       // Create initial scripts
-      await prisma.runScript.create({
-        data: {
-          project_id: project.id,
-          name: 'existing',
-          command: 'existing command',
-        },
-      });
+      db.insert(schema.runScripts).values({
+        project_id: project.id,
+        name: 'existing',
+        command: 'existing command',
+      }).run();
 
       const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
         method: 'PUT',
@@ -287,9 +270,7 @@ describe('PUT /api/projects/[project_id]', () => {
       const response = await PUT(request, { params: Promise.resolve({ project_id: project.id }) });
       expect(response.status).toBe(200);
 
-      const scripts = await prisma.runScript.findMany({
-        where: { project_id: project.id },
-      });
+      const scripts = db.select().from(schema.runScripts).where(eq(schema.runScripts.project_id, project.id)).all();
       expect(scripts).toHaveLength(1);
       expect(scripts[0].name).toBe('existing');
     });
@@ -333,7 +314,8 @@ describe('DELETE /api/projects/[project_id]', () => {
   let project: Project;
 
   beforeEach(async () => {
-    await prisma.project.deleteMany();
+    db.delete(schema.runScripts).run();
+    db.delete(schema.projects).run();
 
     testRepoPath = mkdtempSync(join(tmpdir(), 'project-test-'));
     execSync('git init', { cwd: testRepoPath });
@@ -345,16 +327,15 @@ describe('DELETE /api/projects/[project_id]', () => {
     });
     execSync('git branch -M main', { cwd: testRepoPath });
 
-    project = await prisma.project.create({
-      data: {
-        name: 'Test Project',
-        path: testRepoPath,
-      },
-    });
+    project = db.insert(schema.projects).values({
+      name: 'Test Project',
+      path: testRepoPath,
+    }).returning().get();
   });
 
   afterEach(async () => {
-    await prisma.project.deleteMany();
+    db.delete(schema.runScripts).run();
+    db.delete(schema.projects).run();
     if (testRepoPath) {
       rmSync(testRepoPath, { recursive: true, force: true });
     }
@@ -368,10 +349,8 @@ describe('DELETE /api/projects/[project_id]', () => {
     const response = await DELETE(request, { params: Promise.resolve({ project_id: project.id }) });
     expect(response.status).toBe(204);
 
-    const deleted = await prisma.project.findUnique({
-      where: { id: project.id },
-    });
-    expect(deleted).toBeNull();
+    const deleted = db.select().from(schema.projects).where(eq(schema.projects.id, project.id)).get();
+    expect(deleted).toBeUndefined();
   });
 
   it('should return 404 for non-existent project', async () => {

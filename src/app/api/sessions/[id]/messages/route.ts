@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { db, schema } from '@/lib/db';
+import { eq, asc } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
 
 /**
@@ -41,18 +42,19 @@ export async function GET(
   try {
     const { id } = await params;
 
-    const targetSession = await prisma.session.findUnique({
-      where: { id },
+    const targetSession = await db.query.sessions.findFirst({
+      where: eq(schema.sessions.id, id),
     });
 
     if (!targetSession) {
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });
     }
 
-    const messages = await prisma.message.findMany({
-      where: { session_id: id },
-      orderBy: { created_at: 'asc' },
-    });
+    const messages = await db.select()
+      .from(schema.messages)
+      .where(eq(schema.messages.session_id, id))
+      .orderBy(asc(schema.messages.created_at))
+      .all();
 
     logger.debug('Messages retrieved', { session_id: id, count: messages.length });
     return NextResponse.json({ messages });

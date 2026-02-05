@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { db, schema } from '@/lib/db';
+import { eq } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
 
 /**
@@ -44,8 +45,8 @@ export async function POST(
   try {
     const { id } = await params;
 
-    const targetSession = await prisma.session.findUnique({
-      where: { id },
+    const targetSession = await db.query.sessions.findFirst({
+      where: eq(schema.sessions.id, id),
     });
 
     if (!targetSession) {
@@ -67,13 +68,13 @@ export async function POST(
     }
 
     // Create user message
-    const message = await prisma.message.create({
-      data: {
+    const [message] = await db.insert(schema.messages)
+      .values({
         session_id: id,
         role: 'user',
         content,
-      },
-    });
+      })
+      .returning();
 
     logger.info('Message sent to session', { session_id: id, message_id: message.id });
     return NextResponse.json({ message }, { status: 201 });

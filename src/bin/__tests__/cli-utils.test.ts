@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { checkNextBuild, checkPrismaClient, checkDatabase } from '../cli-utils';
+import { checkNextBuild, checkDrizzle, checkDatabase } from '../cli-utils';
 
 describe('cli-utils', () => {
   let testDir: string;
@@ -61,31 +61,24 @@ describe('cli-utils', () => {
     });
   });
 
-  describe('checkPrismaClient', () => {
-    it('should return false when Prisma client does not exist', () => {
-      const result = checkPrismaClient(testDir);
+  describe('checkDrizzle', () => {
+    it('should return false when drizzle-orm does not exist', () => {
+      const result = checkDrizzle(testDir);
       expect(result).toBe(false);
     });
 
-    it('should return true when Prisma client directory exists', () => {
-      const prismaClientDir = join(testDir, 'node_modules', '.prisma', 'client');
-      mkdirSync(prismaClientDir, { recursive: true });
+    it('should return true when drizzle-orm directory exists', () => {
+      const drizzleDir = join(testDir, 'node_modules', 'drizzle-orm');
+      mkdirSync(drizzleDir, { recursive: true });
 
-      const result = checkPrismaClient(testDir);
+      const result = checkDrizzle(testDir);
       expect(result).toBe(true);
     });
 
     it('should return false when only node_modules exists', () => {
       mkdirSync(join(testDir, 'node_modules'));
 
-      const result = checkPrismaClient(testDir);
-      expect(result).toBe(false);
-    });
-
-    it('should return false when .prisma exists but client does not', () => {
-      mkdirSync(join(testDir, 'node_modules', '.prisma'), { recursive: true });
-
-      const result = checkPrismaClient(testDir);
+      const result = checkDrizzle(testDir);
       expect(result).toBe(false);
     });
   });

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { GET, POST } from '../route';
-import { prisma } from '@/lib/db';
+import { db, schema } from '@/lib/db';
+import { eq } from 'drizzle-orm';
 import { NextRequest } from 'next/server';
 import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
@@ -34,8 +35,8 @@ describe('GET /api/sessions/[id]/process', () => {
   let session: Session;
 
   beforeEach(async () => {
-    await prisma.session.deleteMany();
-    await prisma.project.deleteMany();
+    db.delete(schema.sessions).run();
+    db.delete(schema.projects).run();
 
     testRepoPath = mkdtempSync(join(tmpdir(), 'session-test-'));
     execSync('git init', { cwd: testRepoPath });
@@ -47,30 +48,34 @@ describe('GET /api/sessions/[id]/process', () => {
     });
     execSync('git branch -M main', { cwd: testRepoPath });
 
-    project = await prisma.project.create({
-      data: {
+    project = db
+      .insert(schema.projects)
+      .values({
         name: 'Test Project',
         path: testRepoPath,
-      },
-    });
+      })
+      .returning()
+      .get();
 
-    session = await prisma.session.create({
-      data: {
+    session = db
+      .insert(schema.sessions)
+      .values({
         project_id: project.id,
         name: 'Test Session',
         status: 'running',
         worktree_path: join(testRepoPath, '.worktrees', 'test-session'),
         branch_name: 'test-branch',
-      },
-    });
+      })
+      .returning()
+      .get();
 
     mockHasProcess.mockReset();
     mockStartClaudeCode.mockReset();
   });
 
   afterEach(async () => {
-    await prisma.session.deleteMany();
-    await prisma.project.deleteMany();
+    db.delete(schema.sessions).run();
+    db.delete(schema.projects).run();
     if (testRepoPath) {
       rmSync(testRepoPath, { recursive: true, force: true });
     }
@@ -131,8 +136,8 @@ describe('POST /api/sessions/[id]/process', () => {
   let session: Session;
 
   beforeEach(async () => {
-    await prisma.session.deleteMany();
-    await prisma.project.deleteMany();
+    db.delete(schema.sessions).run();
+    db.delete(schema.projects).run();
 
     testRepoPath = mkdtempSync(join(tmpdir(), 'session-test-'));
     execSync('git init', { cwd: testRepoPath });
@@ -144,30 +149,34 @@ describe('POST /api/sessions/[id]/process', () => {
     });
     execSync('git branch -M main', { cwd: testRepoPath });
 
-    project = await prisma.project.create({
-      data: {
+    project = db
+      .insert(schema.projects)
+      .values({
         name: 'Test Project',
         path: testRepoPath,
-      },
-    });
+      })
+      .returning()
+      .get();
 
-    session = await prisma.session.create({
-      data: {
+    session = db
+      .insert(schema.sessions)
+      .values({
         project_id: project.id,
         name: 'Test Session',
         status: 'running',
         worktree_path: join(testRepoPath, '.worktrees', 'test-session'),
         branch_name: 'test-branch',
-      },
-    });
+      })
+      .returning()
+      .get();
 
     mockHasProcess.mockReset();
     mockStartClaudeCode.mockReset();
   });
 
   afterEach(async () => {
-    await prisma.session.deleteMany();
-    await prisma.project.deleteMany();
+    db.delete(schema.sessions).run();
+    db.delete(schema.projects).run();
     if (testRepoPath) {
       rmSync(testRepoPath, { recursive: true, force: true });
     }
@@ -202,10 +211,10 @@ describe('POST /api/sessions/[id]/process', () => {
 
   it('should update session status to running in database after starting process', async () => {
     // セッションのステータスを 'stopped' に設定
-    await prisma.session.update({
-      where: { id: session.id },
-      data: { status: 'stopped' },
-    });
+    db.update(schema.sessions)
+      .set({ status: 'stopped' })
+      .where(eq(schema.sessions.id, session.id))
+      .run();
 
     mockHasProcess.mockReturnValue(false);
     mockStartClaudeCode.mockResolvedValue({
@@ -225,14 +234,15 @@ describe('POST /api/sessions/[id]/process', () => {
     expect(response.status).toBe(200);
 
     // データベースのセッションステータスが 'running' に更新されていることを確認
-    const updatedSession = await prisma.session.findUnique({
-      where: { id: session.id },
+    const updatedSession = await db.query.sessions.findFirst({
+      where: eq(schema.sessions.id, session.id),
     });
     expect(updatedSession?.status).toBe('running');
   });
 
   it('should update last_activity_at after starting process', async () => {
-    const beforeTime = new Date();
+    // SQLiteは秒精度なので、テスト開始1秒前から比較
+    const beforeTime = new Date(Date.now() - 1000);
 
     mockHasProcess.mockReturnValue(false);
     mockStartClaudeCode.mockResolvedValue({
@@ -251,8 +261,8 @@ describe('POST /api/sessions/[id]/process', () => {
     await POST(request, { params: Promise.resolve({ id: session.id }) });
 
     // last_activity_at が更新されていることを確認
-    const updatedSession = await prisma.session.findUnique({
-      where: { id: session.id },
+    const updatedSession = await db.query.sessions.findFirst({
+      where: eq(schema.sessions.id, session.id),
     });
     expect(updatedSession?.last_activity_at).not.toBeNull();
     expect(new Date(updatedSession!.last_activity_at!).getTime()).toBeGreaterThanOrEqual(beforeTime.getTime());

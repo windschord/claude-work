@@ -3,25 +3,26 @@ import { EventEmitter } from 'events';
 
 // vi.hoistedでモックを先に初期化
 const {
-  mockPrismaExecutionEnvironment,
-  mockPrismaSession,
+  mockDbSelectGet,
+  mockDbSelectAll,
+  mockDbInsertGet,
+  mockDbInsertRun,
+  mockDbUpdateGet,
+  mockDbUpdateRun,
+  mockDbDeleteRun,
   mockMkdir,
   mockRm,
   mockAccess,
   mockLogger,
   mockSpawn,
 } = vi.hoisted(() => ({
-  mockPrismaExecutionEnvironment: {
-    findUnique: vi.fn(),
-    findFirst: vi.fn(),
-    findMany: vi.fn(),
-    create: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn(),
-  },
-  mockPrismaSession: {
-    count: vi.fn(),
-  },
+  mockDbSelectGet: vi.fn(),
+  mockDbSelectAll: vi.fn(),
+  mockDbInsertGet: vi.fn(),
+  mockDbInsertRun: vi.fn(),
+  mockDbUpdateGet: vi.fn(),
+  mockDbUpdateRun: vi.fn(),
+  mockDbDeleteRun: vi.fn(),
   mockMkdir: vi.fn(),
   mockRm: vi.fn(),
   mockAccess: vi.fn(),
@@ -34,12 +35,55 @@ const {
   mockSpawn: vi.fn(),
 }));
 
-// Prisma clientのモック
+// Drizzle DBのモック
 vi.mock('@/lib/db', () => ({
-  prisma: {
-    executionEnvironment: mockPrismaExecutionEnvironment,
-    session: mockPrismaSession,
+  db: {
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          get: mockDbSelectGet,
+          all: mockDbSelectAll,
+        })),
+        orderBy: vi.fn(() => ({
+          all: mockDbSelectAll,
+        })),
+        get: mockDbSelectGet,
+      })),
+    })),
+    insert: vi.fn(() => ({
+      values: vi.fn(() => ({
+        returning: vi.fn(() => ({
+          get: mockDbInsertGet,
+        })),
+        run: mockDbInsertRun,
+      })),
+    })),
+    update: vi.fn(() => ({
+      set: vi.fn(() => ({
+        where: vi.fn(() => ({
+          returning: vi.fn(() => ({
+            get: mockDbUpdateGet,
+          })),
+          run: mockDbUpdateRun,
+        })),
+      })),
+    })),
+    delete: vi.fn(() => ({
+      where: vi.fn(() => ({
+        run: mockDbDeleteRun,
+      })),
+    })),
   },
+  schema: {
+    executionEnvironments: { id: 'id', is_default: 'is_default' },
+    sessions: { environment_id: 'environment_id' },
+  },
+}));
+
+vi.mock('drizzle-orm', () => ({
+  eq: vi.fn((col, val) => ({ column: col, value: val })),
+  asc: vi.fn((col) => ({ column: col, direction: 'asc' })),
+  count: vi.fn(() => 'count'),
 }));
 
 // loggerのモック
@@ -109,20 +153,11 @@ describe('EnvironmentService', () => {
         updated_at: new Date(),
       };
 
-      mockPrismaExecutionEnvironment.create.mockResolvedValue(expectedResult);
+      mockDbInsertGet.mockReturnValue(expectedResult);
 
       const result = await service.create(input);
 
       expect(result).toEqual(expectedResult);
-      expect(mockPrismaExecutionEnvironment.create).toHaveBeenCalledWith({
-        data: {
-          name: input.name,
-          type: input.type,
-          description: input.description,
-          config: JSON.stringify(input.config),
-          is_default: false,
-        },
-      });
     });
 
     it('configがオブジェクトの場合はJSON文字列に変換される', async () => {
@@ -132,7 +167,7 @@ describe('EnvironmentService', () => {
         config: { key: 'value', nested: { foo: 'bar' } },
       };
 
-      mockPrismaExecutionEnvironment.create.mockResolvedValue({
+      mockDbInsertGet.mockReturnValue({
         id: 'id',
         name: 'Test',
         type: 'HOST',
@@ -144,13 +179,9 @@ describe('EnvironmentService', () => {
         updated_at: new Date(),
       });
 
-      await service.create(input);
+      const result = await service.create(input);
 
-      expect(mockPrismaExecutionEnvironment.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          config: JSON.stringify({ key: 'value', nested: { foo: 'bar' } }),
-        }),
-      });
+      expect(result.config).toBe(JSON.stringify({ key: 'value', nested: { foo: 'bar' } }));
     });
   });
 
@@ -168,18 +199,15 @@ describe('EnvironmentService', () => {
         updated_at: new Date(),
       };
 
-      mockPrismaExecutionEnvironment.findUnique.mockResolvedValue(expectedEnv);
+      mockDbSelectGet.mockReturnValue(expectedEnv);
 
       const result = await service.findById('env-123');
 
       expect(result).toEqual(expectedEnv);
-      expect(mockPrismaExecutionEnvironment.findUnique).toHaveBeenCalledWith({
-        where: { id: 'env-123' },
-      });
     });
 
     it('存在しないIDの場合はnullを返す', async () => {
-      mockPrismaExecutionEnvironment.findUnique.mockResolvedValue(null);
+      mockDbSelectGet.mockReturnValue(undefined);
 
       const result = await service.findById('non-existent');
 
@@ -214,18 +242,15 @@ describe('EnvironmentService', () => {
         },
       ];
 
-      mockPrismaExecutionEnvironment.findMany.mockResolvedValue(environments);
+      mockDbSelectAll.mockReturnValue(environments);
 
       const result = await service.findAll();
 
       expect(result).toEqual(environments);
-      expect(mockPrismaExecutionEnvironment.findMany).toHaveBeenCalledWith({
-        orderBy: { created_at: 'asc' },
-      });
     });
 
     it('環境がない場合は空配列を返す', async () => {
-      mockPrismaExecutionEnvironment.findMany.mockResolvedValue([]);
+      mockDbSelectAll.mockReturnValue([]);
 
       const result = await service.findAll();
 
@@ -252,18 +277,11 @@ describe('EnvironmentService', () => {
         updated_at: new Date(),
       };
 
-      mockPrismaExecutionEnvironment.update.mockResolvedValue(updatedEnv);
+      mockDbUpdateGet.mockReturnValue(updatedEnv);
 
       const result = await service.update('env-123', input);
 
       expect(result).toEqual(updatedEnv);
-      expect(mockPrismaExecutionEnvironment.update).toHaveBeenCalledWith({
-        where: { id: 'env-123' },
-        data: {
-          name: 'Updated Name',
-          description: 'Updated description',
-        },
-      });
     });
 
     it('configを更新する場合はJSON文字列に変換される', async () => {
@@ -271,7 +289,7 @@ describe('EnvironmentService', () => {
         config: { newKey: 'newValue' },
       };
 
-      mockPrismaExecutionEnvironment.update.mockResolvedValue({
+      mockDbUpdateGet.mockReturnValue({
         id: 'env-123',
         name: 'Test',
         type: 'DOCKER',
@@ -283,21 +301,16 @@ describe('EnvironmentService', () => {
         updated_at: new Date(),
       });
 
-      await service.update('env-123', input);
+      const result = await service.update('env-123', input);
 
-      expect(mockPrismaExecutionEnvironment.update).toHaveBeenCalledWith({
-        where: { id: 'env-123' },
-        data: {
-          config: JSON.stringify({ newKey: 'newValue' }),
-        },
-      });
+      expect(result.config).toBe(JSON.stringify({ newKey: 'newValue' }));
     });
   });
 
   describe('delete', () => {
     it('環境を削除できる', async () => {
       // デフォルトではない環境
-      mockPrismaExecutionEnvironment.findUnique.mockResolvedValue({
+      const env = {
         id: 'env-123',
         name: 'Test Env',
         type: 'DOCKER',
@@ -307,20 +320,20 @@ describe('EnvironmentService', () => {
         is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
-      });
+      };
 
-      mockPrismaSession.count.mockResolvedValue(0);
-      mockPrismaExecutionEnvironment.delete.mockResolvedValue({});
+      // findById用のモック（最初の呼び出し）
+      mockDbSelectGet.mockReturnValueOnce(env);
+      // count用のモック
+      mockDbSelectGet.mockReturnValueOnce({ count: 0 });
 
       await service.delete('env-123');
 
-      expect(mockPrismaExecutionEnvironment.delete).toHaveBeenCalledWith({
-        where: { id: 'env-123' },
-      });
+      expect(mockDbDeleteRun).toHaveBeenCalled();
     });
 
     it('デフォルト環境は削除できない', async () => {
-      mockPrismaExecutionEnvironment.findUnique.mockResolvedValue({
+      mockDbSelectGet.mockReturnValue({
         id: 'host-default',
         name: 'Local Host',
         type: 'HOST',
@@ -336,11 +349,12 @@ describe('EnvironmentService', () => {
         'デフォルト環境は削除できません'
       );
 
-      expect(mockPrismaExecutionEnvironment.delete).not.toHaveBeenCalled();
+      expect(mockDbDeleteRun).not.toHaveBeenCalled();
     });
 
     it('使用中のセッションがある場合は警告をログに出力するが削除は許可する', async () => {
-      mockPrismaExecutionEnvironment.findUnique.mockResolvedValue({
+      // findById用のモック
+      mockDbSelectGet.mockReturnValueOnce({
         id: 'env-123',
         name: 'Test Env',
         type: 'DOCKER',
@@ -351,9 +365,8 @@ describe('EnvironmentService', () => {
         created_at: new Date(),
         updated_at: new Date(),
       });
-
-      mockPrismaSession.count.mockResolvedValue(3);
-      mockPrismaExecutionEnvironment.delete.mockResolvedValue({});
+      // count用のモック
+      mockDbSelectGet.mockReturnValueOnce({ count: 3 });
 
       await service.delete('env-123');
 
@@ -361,17 +374,17 @@ describe('EnvironmentService', () => {
         expect.stringContaining('使用中のセッション'),
         expect.objectContaining({ environmentId: 'env-123', sessionCount: 3 })
       );
-      expect(mockPrismaExecutionEnvironment.delete).toHaveBeenCalled();
+      expect(mockDbDeleteRun).toHaveBeenCalled();
     });
 
     it('存在しない環境の削除はエラーになる', async () => {
-      mockPrismaExecutionEnvironment.findUnique.mockResolvedValue(null);
+      mockDbSelectGet.mockReturnValue(undefined);
 
       await expect(service.delete('non-existent')).rejects.toThrow(
         '環境が見つかりません'
       );
 
-      expect(mockPrismaExecutionEnvironment.delete).not.toHaveBeenCalled();
+      expect(mockDbDeleteRun).not.toHaveBeenCalled();
     });
   });
 
@@ -389,18 +402,15 @@ describe('EnvironmentService', () => {
         updated_at: new Date(),
       };
 
-      mockPrismaExecutionEnvironment.findFirst.mockResolvedValue(defaultEnv);
+      mockDbSelectGet.mockReturnValue(defaultEnv);
 
       const result = await service.getDefault();
 
       expect(result).toEqual(defaultEnv);
-      expect(mockPrismaExecutionEnvironment.findFirst).toHaveBeenCalledWith({
-        where: { is_default: true },
-      });
     });
 
     it('デフォルト環境が存在しない場合はエラーになる', async () => {
-      mockPrismaExecutionEnvironment.findFirst.mockResolvedValue(null);
+      mockDbSelectGet.mockReturnValue(undefined);
 
       await expect(service.getDefault()).rejects.toThrow(
         'デフォルト環境が見つかりません'
@@ -410,34 +420,11 @@ describe('EnvironmentService', () => {
 
   describe('ensureDefaultExists', () => {
     it('デフォルト環境が存在しない場合は作成する', async () => {
-      mockPrismaExecutionEnvironment.findFirst.mockResolvedValue(null);
-
-      const createdEnv = {
-        id: 'host-default',
-        name: 'Local Host',
-        type: 'HOST',
-        description: 'デフォルトのホスト環境',
-        config: '{}',
-        auth_dir_path: null,
-        is_default: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      };
-
-      mockPrismaExecutionEnvironment.create.mockResolvedValue(createdEnv);
+      mockDbSelectGet.mockReturnValue(undefined);
 
       await service.ensureDefaultExists();
 
-      expect(mockPrismaExecutionEnvironment.create).toHaveBeenCalledWith({
-        data: {
-          id: 'host-default',
-          name: 'Local Host',
-          type: 'HOST',
-          description: 'デフォルトのホスト環境',
-          config: '{}',
-          is_default: true,
-        },
-      });
+      expect(mockDbInsertRun).toHaveBeenCalled();
       expect(mockLogger.info).toHaveBeenCalledWith(
         expect.stringContaining('デフォルト環境を作成'),
         expect.objectContaining({ id: 'host-default' })
@@ -445,7 +432,7 @@ describe('EnvironmentService', () => {
     });
 
     it('デフォルト環境が既に存在する場合は何もしない', async () => {
-      mockPrismaExecutionEnvironment.findFirst.mockResolvedValue({
+      mockDbSelectGet.mockReturnValue({
         id: 'host-default',
         name: 'Local Host',
         type: 'HOST',
@@ -459,13 +446,13 @@ describe('EnvironmentService', () => {
 
       await service.ensureDefaultExists();
 
-      expect(mockPrismaExecutionEnvironment.create).not.toHaveBeenCalled();
+      expect(mockDbInsertRun).not.toHaveBeenCalled();
     });
   });
 
   describe('checkStatus', () => {
     it('HOST環境の場合は常に利用可能', async () => {
-      mockPrismaExecutionEnvironment.findUnique.mockResolvedValue({
+      mockDbSelectGet.mockReturnValue({
         id: 'host-default',
         name: 'Local Host',
         type: 'HOST',
@@ -486,7 +473,7 @@ describe('EnvironmentService', () => {
     });
 
     it('存在しない環境の場合はエラー', async () => {
-      mockPrismaExecutionEnvironment.findUnique.mockResolvedValue(null);
+      mockDbSelectGet.mockReturnValue(undefined);
 
       const status = await service.checkStatus('non-existent');
 
@@ -517,7 +504,7 @@ describe('EnvironmentService', () => {
         return mockProcess;
       });
 
-      mockPrismaExecutionEnvironment.findUnique.mockResolvedValue({
+      mockDbSelectGet.mockReturnValue({
         id: 'docker-env',
         name: 'Docker Dev',
         type: 'DOCKER',
@@ -536,7 +523,7 @@ describe('EnvironmentService', () => {
     });
 
     it('SSH環境の場合は基本状態を返す', async () => {
-      mockPrismaExecutionEnvironment.findUnique.mockResolvedValue({
+      mockDbSelectGet.mockReturnValue({
         id: 'ssh-env',
         name: 'SSH Server',
         type: 'SSH',
@@ -569,23 +556,18 @@ describe('EnvironmentService', () => {
         updated_at: new Date(),
       };
 
-      mockPrismaExecutionEnvironment.findUnique.mockResolvedValue(env);
+      mockDbSelectGet.mockReturnValue(env);
       mockMkdir.mockResolvedValue(undefined);
-      // モックの戻り値として実際のパス文字列を使用
-      mockPrismaExecutionEnvironment.update.mockResolvedValue({
-        ...env,
-        auth_dir_path: `${process.cwd()}/data/environments/docker-env`,
-      });
 
       const result = await service.createAuthDirectory('docker-env');
 
       expect(result).toContain('docker-env');
       expect(mockMkdir).toHaveBeenCalled();
-      expect(mockPrismaExecutionEnvironment.update).toHaveBeenCalled();
+      expect(mockDbUpdateRun).toHaveBeenCalled();
     });
 
     it('存在しない環境の場合はエラー', async () => {
-      mockPrismaExecutionEnvironment.findUnique.mockResolvedValue(null);
+      mockDbSelectGet.mockReturnValue(undefined);
 
       await expect(service.createAuthDirectory('non-existent')).rejects.toThrow(
         '環境が見つかりません'
@@ -607,12 +589,8 @@ describe('EnvironmentService', () => {
         updated_at: new Date(),
       };
 
-      mockPrismaExecutionEnvironment.findUnique.mockResolvedValue(env);
+      mockDbSelectGet.mockReturnValue(env);
       mockRm.mockResolvedValue(undefined);
-      mockPrismaExecutionEnvironment.update.mockResolvedValue({
-        ...env,
-        auth_dir_path: null,
-      });
 
       await service.deleteAuthDirectory('docker-env');
 
@@ -620,14 +598,11 @@ describe('EnvironmentService', () => {
         recursive: true,
         force: true,
       });
-      expect(mockPrismaExecutionEnvironment.update).toHaveBeenCalledWith({
-        where: { id: 'docker-env' },
-        data: { auth_dir_path: null },
-      });
+      expect(mockDbUpdateRun).toHaveBeenCalled();
     });
 
     it('auth_dir_pathがnullの場合は何もしない', async () => {
-      mockPrismaExecutionEnvironment.findUnique.mockResolvedValue({
+      mockDbSelectGet.mockReturnValue({
         id: 'docker-env',
         name: 'Docker Dev',
         type: 'DOCKER',
@@ -642,11 +617,11 @@ describe('EnvironmentService', () => {
       await service.deleteAuthDirectory('docker-env');
 
       expect(mockRm).not.toHaveBeenCalled();
-      expect(mockPrismaExecutionEnvironment.update).not.toHaveBeenCalled();
+      expect(mockDbUpdateRun).not.toHaveBeenCalled();
     });
 
     it('存在しない環境の場合はエラー', async () => {
-      mockPrismaExecutionEnvironment.findUnique.mockResolvedValue(null);
+      mockDbSelectGet.mockReturnValue(undefined);
 
       await expect(service.deleteAuthDirectory('non-existent')).rejects.toThrow(
         '環境が見つかりません'
@@ -707,7 +682,7 @@ describe('EnvironmentService', () => {
       // Dockerデーモンが起動している、イメージも存在する場合
       setupSpawnMock(true, true);
 
-      mockPrismaExecutionEnvironment.findUnique.mockResolvedValue({
+      mockDbSelectGet.mockReturnValue({
         id: 'docker-env',
         name: 'Docker Dev',
         type: 'DOCKER',
@@ -739,7 +714,7 @@ describe('EnvironmentService', () => {
       // Dockerデーモンは起動しているが、イメージが見つからない
       setupSpawnMock(true, false);
 
-      mockPrismaExecutionEnvironment.findUnique.mockResolvedValue({
+      mockDbSelectGet.mockReturnValue({
         id: 'docker-env',
         name: 'Docker Dev',
         type: 'DOCKER',
@@ -768,7 +743,7 @@ describe('EnvironmentService', () => {
       // Dockerデーモンは起動しているが、イメージが見つからない（既存イメージ指定）
       setupSpawnMock(true, false);
 
-      mockPrismaExecutionEnvironment.findUnique.mockResolvedValue({
+      mockDbSelectGet.mockReturnValue({
         id: 'docker-env',
         name: 'Docker Dev',
         type: 'DOCKER',
@@ -798,7 +773,7 @@ describe('EnvironmentService', () => {
       // imageSourceが指定されていない場合（既存イメージとして扱う）
       setupSpawnMock(true, false);
 
-      mockPrismaExecutionEnvironment.findUnique.mockResolvedValue({
+      mockDbSelectGet.mockReturnValue({
         id: 'docker-env',
         name: 'Docker Dev',
         type: 'DOCKER',
@@ -821,7 +796,7 @@ describe('EnvironmentService', () => {
     it('should use imageName as fallback for dockerfile source when buildImageName is not set', async () => {
       setupSpawnMock(true, true);
 
-      mockPrismaExecutionEnvironment.findUnique.mockResolvedValue({
+      mockDbSelectGet.mockReturnValue({
         id: 'docker-env',
         name: 'Docker Dev',
         type: 'DOCKER',

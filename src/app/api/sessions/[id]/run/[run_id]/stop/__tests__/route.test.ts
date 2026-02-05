@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { POST } from '../route';
-import { prisma } from '@/lib/db';
+import { db, schema } from '@/lib/db';
 import { NextRequest } from 'next/server';
 import { mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
@@ -31,8 +31,8 @@ describe('POST /api/sessions/[id]/run/[run_id]/stop', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
 
-    await prisma.session.deleteMany();
-    await prisma.project.deleteMany();
+    db.delete(schema.sessions).run();
+    db.delete(schema.projects).run();
 
     testRepoPath = mkdtempSync(join(tmpdir(), 'run-script-stop-test-'));
     execSync('git init', { cwd: testRepoPath });
@@ -45,23 +45,27 @@ describe('POST /api/sessions/[id]/run/[run_id]/stop', () => {
     });
     execSync('git branch -M main', { cwd: testRepoPath });
 
-    project = await prisma.project.create({
-      data: {
+    project = db
+      .insert(schema.projects)
+      .values({
         name: 'Test Project',
         path: testRepoPath,
-      },
-    });
+      })
+      .returning()
+      .get();
 
     const worktreePath = join(testRepoPath, '.worktrees', 'test-session');
-    session = await prisma.session.create({
-      data: {
+    session = db
+      .insert(schema.sessions)
+      .values({
         project_id: project.id,
         name: 'Test Session',
         status: 'running',
         worktree_path: worktreePath,
         branch_name: 'test-branch',
-      },
-    });
+      })
+      .returning()
+      .get();
 
     // Setup default mock behavior
     mockGetStatus.mockReturnValue({
@@ -74,8 +78,8 @@ describe('POST /api/sessions/[id]/run/[run_id]/stop', () => {
   });
 
   afterEach(async () => {
-    await prisma.session.deleteMany();
-    await prisma.project.deleteMany();
+    db.delete(schema.sessions).run();
+    db.delete(schema.projects).run();
     if (testRepoPath) {
       rmSync(testRepoPath, { recursive: true, force: true });
     }

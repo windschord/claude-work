@@ -29,9 +29,6 @@ jobs:
     - name: Install dependencies
       run: pnpm install --frozen-lockfile
 
-    - name: Generate Prisma Client
-      run: pnpm exec prisma generate
-
     - name: Run linter
       run: pnpm run lint
 
@@ -70,8 +67,11 @@ jobs:
     - name: Install dependencies
       run: pnpm install --frozen-lockfile
 
-    - name: Generate Prisma Client
-      run: pnpm exec prisma generate
+    - name: Prepare DB directory
+      run: mkdir -p data
+
+    - name: Setup Database
+      run: pnpm exec drizzle-kit push
 
     - name: Run backend tests
       run: pnpm exec vitest run src/app/api src/lib src/services src/bin --reporter=verbose
@@ -102,8 +102,11 @@ jobs:
     - name: Install dependencies
       run: pnpm install --frozen-lockfile
 
-    - name: Generate Prisma Client
-      run: pnpm exec prisma generate
+    - name: Prepare DB directory
+      run: mkdir -p data
+
+    - name: Setup Database
+      run: pnpm exec drizzle-kit push
 
     - name: Run frontend tests
       run: |
@@ -154,8 +157,11 @@ jobs:
     - name: Install dependencies
       run: pnpm install --frozen-lockfile
 
-    - name: Generate Prisma Client
-      run: pnpm exec prisma generate
+    - name: Prepare DB directory
+      run: mkdir -p data
+
+    - name: Setup Database
+      run: pnpm exec drizzle-kit push
 
     - name: Run CLI E2E tests
       run: SKIP_WEBSERVER=true pnpm exec playwright test --project=cli
@@ -187,8 +193,11 @@ jobs:
     - name: Install dependencies
       run: pnpm install --frozen-lockfile
 
-    - name: Generate Prisma Client
-      run: pnpm exec prisma generate
+    - name: Prepare DB directory
+      run: mkdir -p data
+
+    - name: Setup Database
+      run: pnpm exec drizzle-kit push
 
     - name: Build
       run: pnpm run build

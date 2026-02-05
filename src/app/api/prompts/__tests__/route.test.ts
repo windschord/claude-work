@@ -1,15 +1,16 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { GET, POST } from '../route';
-import { prisma } from '@/lib/db';
+import { db, schema } from '@/lib/db';
+import { eq } from 'drizzle-orm';
 import { NextRequest } from 'next/server';
 
 describe('GET /api/prompts', () => {
-  beforeEach(async () => {
-    await prisma.prompt.deleteMany();
+  beforeEach(() => {
+    db.delete(schema.prompts).run();
   });
 
-  afterEach(async () => {
-    await prisma.prompt.deleteMany();
+  afterEach(() => {
+    db.delete(schema.prompts).run();
   });
 
   it('空の履歴を返す', async () => {
@@ -24,20 +25,18 @@ describe('GET /api/prompts', () => {
   });
 
   it('プロンプト履歴を取得する', async () => {
-    await prisma.prompt.createMany({
-      data: [
-        {
-          content: 'Implement user authentication',
-          used_count: 5,
-          last_used_at: new Date('2025-12-10T10:00:00Z'),
-        },
-        {
-          content: 'Add unit tests',
-          used_count: 3,
-          last_used_at: new Date('2025-12-11T10:00:00Z'),
-        },
-      ],
-    });
+    db.insert(schema.prompts).values([
+      {
+        content: 'Implement user authentication',
+        used_count: 5,
+        last_used_at: new Date('2025-12-10T10:00:00Z'),
+      },
+      {
+        content: 'Add unit tests',
+        used_count: 3,
+        last_used_at: new Date('2025-12-11T10:00:00Z'),
+      },
+    ]).run();
 
     const request = new NextRequest('http://localhost:3000/api/prompts');
 
@@ -52,25 +51,23 @@ describe('GET /api/prompts', () => {
   });
 
   it('プロンプト履歴がused_count降順でソートされる', async () => {
-    await prisma.prompt.createMany({
-      data: [
-        {
-          content: 'Low usage prompt',
-          used_count: 1,
-          last_used_at: new Date('2025-12-10T10:00:00Z'),
-        },
-        {
-          content: 'High usage prompt',
-          used_count: 10,
-          last_used_at: new Date('2025-12-11T10:00:00Z'),
-        },
-        {
-          content: 'Medium usage prompt',
-          used_count: 5,
-          last_used_at: new Date('2025-12-12T10:00:00Z'),
-        },
-      ],
-    });
+    db.insert(schema.prompts).values([
+      {
+        content: 'Low usage prompt',
+        used_count: 1,
+        last_used_at: new Date('2025-12-10T10:00:00Z'),
+      },
+      {
+        content: 'High usage prompt',
+        used_count: 10,
+        last_used_at: new Date('2025-12-11T10:00:00Z'),
+      },
+      {
+        content: 'Medium usage prompt',
+        used_count: 5,
+        last_used_at: new Date('2025-12-12T10:00:00Z'),
+      },
+    ]).run();
 
     const request = new NextRequest('http://localhost:3000/api/prompts');
 
@@ -91,7 +88,7 @@ describe('GET /api/prompts', () => {
       last_used_at: new Date(baseDate.getTime() + i * 24 * 60 * 60 * 1000),
     }));
 
-    await prisma.prompt.createMany({ data: prompts });
+    db.insert(schema.prompts).values(prompts).run();
 
     const request = new NextRequest('http://localhost:3000/api/prompts');
 
@@ -104,12 +101,12 @@ describe('GET /api/prompts', () => {
 });
 
 describe('POST /api/prompts', () => {
-  beforeEach(async () => {
-    await prisma.prompt.deleteMany();
+  beforeEach(() => {
+    db.delete(schema.prompts).run();
   });
 
-  afterEach(async () => {
-    await prisma.prompt.deleteMany();
+  afterEach(() => {
+    db.delete(schema.prompts).run();
   });
 
   it('新しいプロンプトを作成する（201）', async () => {
@@ -131,22 +128,20 @@ describe('POST /api/prompts', () => {
     expect(data.content).toBe('Implement user authentication');
     expect(data.used_count).toBe(1);
 
-    const savedPrompt = await prisma.prompt.findUnique({
-      where: { id: data.id },
-    });
+    const savedPrompt = db.select().from(schema.prompts)
+      .where(eq(schema.prompts.id, data.id))
+      .get();
     expect(savedPrompt).toBeTruthy();
     expect(savedPrompt?.content).toBe('Implement user authentication');
     expect(savedPrompt?.used_count).toBe(1);
   });
 
   it('既存のプロンプトのused_countをインクリメントする（200）', async () => {
-    const existingPrompt = await prisma.prompt.create({
-      data: {
-        content: 'Implement user authentication',
-        used_count: 5,
-        last_used_at: new Date('2025-12-10T10:00:00Z'),
-      },
-    });
+    const existingPrompt = db.insert(schema.prompts).values({
+      content: 'Implement user authentication',
+      used_count: 5,
+      last_used_at: new Date('2025-12-10T10:00:00Z'),
+    }).returning().get();
 
     const request = new NextRequest('http://localhost:3000/api/prompts', {
       method: 'POST',
@@ -166,9 +161,9 @@ describe('POST /api/prompts', () => {
     expect(data.content).toBe('Implement user authentication');
     expect(data.used_count).toBe(6);
 
-    const updatedPrompt = await prisma.prompt.findUnique({
-      where: { id: existingPrompt.id },
-    });
+    const updatedPrompt = db.select().from(schema.prompts)
+      .where(eq(schema.prompts.id, existingPrompt.id))
+      .get();
     expect(updatedPrompt?.used_count).toBe(6);
     expect(updatedPrompt?.last_used_at.getTime()).toBeGreaterThan(
       existingPrompt.last_used_at.getTime()
@@ -211,15 +206,11 @@ describe('POST /api/prompts', () => {
 
   it('last_used_atが更新される', async () => {
     const pastDate = new Date('2025-12-01T10:00:00Z');
-    const existingPrompt = await prisma.prompt.create({
-      data: {
-        content: 'Test prompt',
-        used_count: 1,
-        last_used_at: pastDate,
-      },
-    });
-
-    const beforeUpdate = new Date();
+    const existingPrompt = db.insert(schema.prompts).values({
+      content: 'Test prompt',
+      used_count: 1,
+      last_used_at: pastDate,
+    }).returning().get();
 
     const request = new NextRequest('http://localhost:3000/api/prompts', {
       method: 'POST',
@@ -234,13 +225,11 @@ describe('POST /api/prompts', () => {
     const response = await POST(request);
     expect(response.status).toBe(200);
 
-    const updatedPrompt = await prisma.prompt.findUnique({
-      where: { id: existingPrompt.id },
-    });
+    const updatedPrompt = db.select().from(schema.prompts)
+      .where(eq(schema.prompts.id, existingPrompt.id))
+      .get();
 
-    expect(updatedPrompt?.last_used_at.getTime()).toBeGreaterThanOrEqual(
-      beforeUpdate.getTime()
-    );
+    // SQLiteはタイムスタンプを秒精度で保存するため、pastDateより新しいことのみを検証
     expect(updatedPrompt?.last_used_at.getTime()).toBeGreaterThan(pastDate.getTime());
   });
 });

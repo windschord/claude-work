@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { db, schema } from '@/lib/db';
+import { eq } from 'drizzle-orm';
 import { createPR, getPRStatus, extractPRNumber } from '@/services/gh-cli';
 
 type RouteParams = {
@@ -15,9 +16,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const { id } = await params;
 
     // セッション取得
-    const dbSession = await prisma.session.findUnique({
-      where: { id },
-      include: { project: true },
+    const dbSession = await db.query.sessions.findFirst({
+      where: eq(schema.sessions.id, id),
+      with: { project: true },
     });
 
     if (!dbSession) {
@@ -71,15 +72,20 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const prNumber = extractPRNumber(prUrl);
 
     // DBを更新
-    const updatedSession = await prisma.session.update({
-      where: { id },
-      data: {
+    const [updatedSession] = await db.update(schema.sessions)
+      .set({
         pr_url: prUrl,
         pr_number: prNumber,
         pr_status: 'open',
         pr_updated_at: new Date(),
-      },
-    });
+        updated_at: new Date(),
+      })
+      .where(eq(schema.sessions.id, id))
+      .returning();
+
+    if (!updatedSession) {
+      return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+    }
 
     return NextResponse.json(
       {
@@ -107,9 +113,9 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     const { id } = await params;
 
     // セッション取得
-    const dbSession = await prisma.session.findUnique({
-      where: { id },
-      include: { project: true },
+    const dbSession = await db.query.sessions.findFirst({
+      where: eq(schema.sessions.id, id),
+      with: { project: true },
     });
 
     if (!dbSession) {
@@ -135,21 +141,24 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     }
 
     // ステータスが変わった場合はDBを更新
+    let prUpdatedAt = dbSession.pr_updated_at;
     if (prStatus !== dbSession.pr_status) {
-      await prisma.session.update({
-        where: { id },
-        data: {
+      prUpdatedAt = new Date();
+      db.update(schema.sessions)
+        .set({
           pr_status: prStatus,
-          pr_updated_at: new Date(),
-        },
-      });
+          pr_updated_at: prUpdatedAt,
+          updated_at: new Date(),
+        })
+        .where(eq(schema.sessions.id, id))
+        .run();
     }
 
     return NextResponse.json({
       pr_url: dbSession.pr_url,
       pr_number: dbSession.pr_number,
       pr_status: prStatus,
-      pr_updated_at: dbSession.pr_updated_at,
+      pr_updated_at: prUpdatedAt,
     });
   } catch (error) {
     console.error('Error getting PR status:', error);

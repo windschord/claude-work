@@ -27,12 +27,17 @@ const mockDockerEnvironment = {
   }),
 };
 
-// prismaモック
+// dbモック (Drizzle)
 vi.mock('@/lib/db', () => ({
-  prisma: {
-    session: {
-      findUnique: vi.fn(),
+  db: {
+    query: {
+      sessions: {
+        findFirst: vi.fn(),
+      },
     },
+  },
+  schema: {
+    sessions: { id: 'id', environment_id: 'environment_id' },
   },
 }));
 
@@ -130,7 +135,7 @@ describe('Terminal WebSocket', () => {
     // 実際のWebSocket接続は統合テストで検証
 
     it('should use the correct adapter based on session environment_id', async () => {
-      const { prisma } = await import('@/lib/db');
+      const { db } = await import('@/lib/db');
       const { environmentService } = await import('@/services/environment-service');
       const { AdapterFactory } = await import('@/services/adapter-factory');
 
@@ -140,7 +145,7 @@ describe('Terminal WebSocket', () => {
         environment_id: 'env-docker-1',
       };
 
-      vi.mocked(prisma.session.findUnique).mockResolvedValue(dockerSession);
+      vi.mocked(db.query.sessions.findFirst).mockResolvedValue(dockerSession);
       vi.mocked(environmentService.findById).mockResolvedValue(mockDockerEnvironment);
 
       // アダプター取得の検証

@@ -13,7 +13,6 @@
  *
  * 自動セットアップ:
  * - .envファイルがない場合: .env.exampleからコピー
- * - Prismaクライアントがない場合: 自動生成
  * - データベースがない場合: 自動作成
  * - .nextディレクトリがない場合: 自動ビルド
  */
@@ -24,7 +23,7 @@ import fs from 'fs';
 import dotenv from 'dotenv';
 import {
   checkNextBuild as checkNextBuildUtil,
-  checkPrismaClient as checkPrismaClientUtil,
+  checkDrizzle as checkDrizzleUtil,
   checkDatabase as checkDatabaseUtil,
 } from './cli-utils';
 
@@ -44,7 +43,7 @@ const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 // ローカルバイナリのパス（npx ではなく node_modules/.bin を直接参照）
 // これにより、グローバルバージョンではなくロックされたバージョンが使用される
 const binDir = path.join(projectRoot, 'node_modules', '.bin');
-const prismaCmd = path.join(binDir, process.platform === 'win32' ? 'prisma.cmd' : 'prisma');
+const drizzleKitCmd = path.join(binDir, process.platform === 'win32' ? 'drizzle-kit.cmd' : 'drizzle-kit');
 const pm2Cmd = path.join(binDir, process.platform === 'win32' ? 'pm2.cmd' : 'pm2');
 
 const PM2_APP_NAME = 'claude-work';
@@ -102,30 +101,10 @@ function setupEnvFile(): void {
 }
 
 /**
- * Prismaクライアントが生成されているか確認
+ * Drizzle ORMがインストールされているか確認
  */
-function checkPrismaClient(): boolean {
-  return checkPrismaClientUtil(projectRoot);
-}
-
-/**
- * Prismaクライアントを生成
- */
-function generatePrismaClient(): boolean {
-  console.log('Generating Prisma client...');
-
-  const result = spawnSync(prismaCmd, ['generate'], {
-    cwd: projectRoot,
-    stdio: 'inherit',
-  });
-
-  if (result.status !== 0) {
-    console.error('Failed to generate Prisma client');
-    return false;
-  }
-
-  console.log('Prisma client generated successfully.');
-  return true;
+function checkDrizzle(): boolean {
+  return checkDrizzleUtil(projectRoot);
 }
 
 /**
@@ -147,8 +126,8 @@ function setupDatabase(): boolean {
     fs.mkdirSync(dataDir, { recursive: true });
   }
 
-  // prisma db push でスキーマを適用
-  const result = spawnSync(prismaCmd, ['db', 'push', '--skip-generate'], {
+  // drizzle-kit push でスキーマを適用
+  const result = spawnSync(drizzleKitCmd, ['push'], {
     cwd: projectRoot,
     stdio: 'inherit',
   });
@@ -195,12 +174,10 @@ function buildNext(): boolean {
  * 初期セットアップを実行
  */
 function runSetup(): boolean {
-  // 1. Prismaクライアントの確認・生成
-  if (!checkPrismaClient()) {
-    console.log('Prisma client not found. Generating...');
-    if (!generatePrismaClient()) {
-      return false;
-    }
+  // 1. Drizzle ORMの確認
+  if (!checkDrizzle()) {
+    console.error('Drizzle ORM not found. Please run npm install first.');
+    return false;
   }
 
   // 2. データベースの確認・セットアップ

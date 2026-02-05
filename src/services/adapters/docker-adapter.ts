@@ -6,7 +6,8 @@ import * as os from 'os';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { EnvironmentAdapter, CreateSessionOptions, PTYExitInfo } from '../environment-adapter';
-import { prisma } from '@/lib/db';
+import { db, schema } from '@/lib/db';
+import { eq } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
 
 export interface DockerAdapterConfig {
@@ -243,10 +244,10 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
         const parentSessionId = this.getParentSessionId(sessionId);
         if (parentSessionId) {
           try {
-            const parentSession = await prisma.session.findUnique({
-              where: { id: parentSessionId },
-              select: { container_id: true },
-            });
+            const parentSession = db.select({ container_id: schema.sessions.container_id })
+              .from(schema.sessions)
+              .where(eq(schema.sessions.id, parentSessionId))
+              .get();
             if (parentSession?.container_id) {
               parentContainerName = parentSession.container_id;
               logger.info('DockerAdapter: Found container_id from database', {
@@ -322,10 +323,10 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
       });
 
       // Session.container_idを更新
-      await prisma.session.update({
-        where: { id: sessionId },
-        data: { container_id: containerName },
-      });
+      db.update(schema.sessions)
+        .set({ container_id: containerName, updated_at: new Date() })
+        .where(eq(schema.sessions.id, sessionId))
+        .run();
 
       // イベント転送
       ptyProcess.onData((data: string) => {
@@ -355,10 +356,10 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
 
         // container_idをクリア
         try {
-          await prisma.session.update({
-            where: { id: sessionId },
-            data: { container_id: null },
-          });
+          db.update(schema.sessions)
+            .set({ container_id: null, updated_at: new Date() })
+            .where(eq(schema.sessions.id, sessionId))
+            .run();
         } catch {
           // セッションが既に削除されている場合は無視
         }
@@ -401,11 +402,15 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
       session.ptyProcess.kill();
       this.sessions.delete(sessionId);
 
-      // container_idをクリア（非同期だが待たない）
-      prisma.session.update({
-        where: { id: sessionId },
-        data: { container_id: null },
-      }).catch(() => {});
+      // container_idをクリア（同期実行）
+      try {
+        db.update(schema.sessions)
+          .set({ container_id: null, updated_at: new Date() })
+          .where(eq(schema.sessions.id, sessionId))
+          .run();
+      } catch {
+        // 失敗しても無視
+      }
     }
   }
 
