@@ -133,6 +133,15 @@ describe('Claude WebSocket Handler - Environment Support', () => {
 
     // デフォルトのモック設定
     mockDb.query.messages.findFirst.mockResolvedValue(null);
+
+    // db.update チェーンを再設定（resetAllMocksで壊れるため）
+    mockDb.update.mockReturnValue({
+      set: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          run: vi.fn(),
+        }),
+      }),
+    });
   });
 
   afterEach(() => {
