@@ -197,7 +197,10 @@ if (!envDatabaseUrl || envDatabaseUrl.trim() === '') {
 }
 
 // file:プレフィックスを除去してパスを取得
-const dbPath = envDatabaseUrl.replace(/^file:/, '');
+// file:// (full URL format) と file: (simple prefix) の両方に対応
+const dbPath = envDatabaseUrl.startsWith('file://')
+  ? fileURLToPath(envDatabaseUrl)
+  : envDatabaseUrl.replace(/^file:/, '');
 
 const globalForDb = globalThis as unknown as {
   db: ReturnType<typeof drizzle<typeof schema>> | undefined;

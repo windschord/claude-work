@@ -46,7 +46,7 @@ export async function GET(
   try {
     const { project_id } = await params;
 
-    const sessions = db.query.sessions.findMany({
+    const sessions = await db.query.sessions.findMany({
       where: eq(schema.sessions.project_id, project_id),
       orderBy: desc(schema.sessions.created_at),
       with: {
@@ -57,7 +57,7 @@ export async function GET(
           },
         },
       },
-    }).sync();
+    });
 
     // フロントエンド用にフラット化した形式に変換
     const sessionsWithEnvironment = sessions.map((session: typeof sessions[number]) => ({
