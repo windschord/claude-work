@@ -15,7 +15,11 @@ const nextConfig = {
   transpilePackages: ['react-diff-viewer-continued'],
   // Turbopack設定（Next.js 16でデフォルト有効）
   turbopack: {
-    // 必要に応じてTurbopack固有の設定を追加
+    // react-diff-viewer-continuedがWorkerで.tsファイルを参照しようとする問題を回避
+    resolveAlias: {
+      './computeWorker.ts': './computeWorker.js',
+    },
+    resolveExtensions: ['.ts', '.tsx', '.js', '.jsx', '.json'],
   },
   webpack: (config, { _isServer }) => {
     // Ignore the frontend directory
