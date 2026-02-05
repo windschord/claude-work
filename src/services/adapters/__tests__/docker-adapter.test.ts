@@ -173,11 +173,12 @@ describe('DockerAdapter', () => {
     it('should update Session.container_id in database', async () => {
       await adapter.createSession(sessionId, workingDir);
 
-      // Drizzle: db.update(schema.sessions).set({ container_id: ... }).where(...).run()
+      // Drizzle: db.update(schema.sessions).set({ container_id: ..., updated_at: ... }).where(...).run()
       expect(mockDbUpdate).toHaveBeenCalled();
-      expect(mockDbSet).toHaveBeenCalledWith({
+      expect(mockDbSet).toHaveBeenCalledWith(expect.objectContaining({
         container_id: expect.stringMatching(/^claude-env-env-123-/),
-      });
+        updated_at: expect.any(Date),
+      }));
       expect(mockDbRun).toHaveBeenCalled();
     });
 
@@ -220,9 +221,12 @@ describe('DockerAdapter', () => {
       // 非同期処理を待つ
       await new Promise(resolve => setTimeout(resolve, 10));
 
-      // Drizzle: db.update(schema.sessions).set({ container_id: null }).where(...).run()
+      // Drizzle: db.update(schema.sessions).set({ container_id: null, updated_at: ... }).where(...).run()
       expect(mockDbUpdate).toHaveBeenCalled();
-      expect(mockDbSet).toHaveBeenCalledWith({ container_id: null });
+      expect(mockDbSet).toHaveBeenCalledWith(expect.objectContaining({
+        container_id: null,
+        updated_at: expect.any(Date),
+      }));
       expect(mockDbRun).toHaveBeenCalled();
     });
 
