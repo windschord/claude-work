@@ -16,7 +16,7 @@
     "dev:restart": "pm2 restart claude-work-dev",
     "dev:logs": "pm2 logs claude-work-dev",
     "build": "npm run build:next && npm run build:server",
-    "build:next": "next build",
+    "build:next": "next build --webpack",
     "build:server": "tsc --project tsconfig.server.json && tsc-alias -p tsconfig.server.json",
     "start": "node dist/server.js",
     "prod:start": "pm2 start ecosystem.config.js --only claude-work",
