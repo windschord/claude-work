@@ -141,11 +141,13 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     }
 
     // ステータスが変わった場合はDBを更新
+    let prUpdatedAt = dbSession.pr_updated_at;
     if (prStatus !== dbSession.pr_status) {
-      await db.update(schema.sessions)
+      prUpdatedAt = new Date();
+      db.update(schema.sessions)
         .set({
           pr_status: prStatus,
-          pr_updated_at: new Date(),
+          pr_updated_at: prUpdatedAt,
           updated_at: new Date(),
         })
         .where(eq(schema.sessions.id, id))
@@ -156,7 +158,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
       pr_url: dbSession.pr_url,
       pr_number: dbSession.pr_number,
       pr_status: prStatus,
-      pr_updated_at: dbSession.pr_updated_at,
+      pr_updated_at: prUpdatedAt,
     });
   } catch (error) {
     console.error('Error getting PR status:', error);

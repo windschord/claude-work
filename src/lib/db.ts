@@ -4,6 +4,7 @@ import Database from 'better-sqlite3';
 import * as schema from '@/db/schema';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
 // 型の再エクスポート（他のファイルから @/lib/db 経由でインポート可能）
 export type {
@@ -33,7 +34,10 @@ if (!envDatabaseUrl || envDatabaseUrl.trim() === '') {
 }
 
 // file:プレフィックスを除去してパスを取得
-const dbPath = envDatabaseUrl.replace(/^file:/, '');
+// file:// (full URL format from pathToFileURL) or file: (simple prefix) both handled
+const dbPath = envDatabaseUrl.startsWith('file://')
+  ? fileURLToPath(envDatabaseUrl)
+  : envDatabaseUrl.replace(/^file:/, '');
 
 // データベースディレクトリが存在しない場合は作成
 const dbDir = path.dirname(dbPath);

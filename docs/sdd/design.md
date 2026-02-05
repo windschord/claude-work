@@ -201,7 +201,6 @@ const dbPath = envDatabaseUrl.replace(/^file:/, '');
 
 const globalForDb = globalThis as unknown as {
   db: ReturnType<typeof drizzle<typeof schema>> | undefined;
-  sqlite: Database.Database | undefined;
 };
 
 function createDb() {
@@ -373,9 +372,12 @@ prisma/                    # 削除予定
 
 ```typescript
 try {
-  await db.insert(projects).values(data).returning();
+  db.insert(projects).values(data).returning().get();
 } catch (error) {
-  if (error instanceof Error && error.message.includes('UNIQUE constraint failed')) {
+  const sqliteError = error as { code?: string };
+  const isUniqueViolation = sqliteError.code === 'SQLITE_CONSTRAINT_UNIQUE' ||
+    (error instanceof Error && error.message.includes('UNIQUE constraint failed'));
+  if (isUniqueViolation) {
     // 重複エラー処理
   }
   throw error;
