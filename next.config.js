@@ -1,3 +1,5 @@
+const webpack = require('webpack');
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Exclude frontend directory from build (used by Syncthing sync)
@@ -27,6 +29,18 @@ const nextConfig = {
       ...config.watchOptions,
       ignored: ['**/frontend/**', '**/backend/**'],
     };
+
+    // react-diff-viewer-continuedがWorkerで.tsファイルを参照しようとする問題を回避
+    // NormalModuleReplacementPluginで.ts参照を.jsに置き換える
+    config.plugins.push(
+      new webpack.NormalModuleReplacementPlugin(
+        /react-diff-viewer-continued.*computeWorker\.ts$/,
+        (resource) => {
+          resource.request = resource.request.replace(/\.ts$/, '.js');
+        }
+      )
+    );
+
     return config;
   },
 }
