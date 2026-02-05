@@ -15,19 +15,8 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Setup pnpm
-      uses: pnpm/action-setup@v4
-      with:
-        version: 9
-
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'pnpm'
-
-    - name: Install dependencies
-      run: pnpm install --frozen-lockfile
+    - name: Setup project
+      uses: ./.github/actions/setup
 
     - name: Run linter
       run: pnpm run lint
@@ -53,25 +42,8 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Setup pnpm
-      uses: pnpm/action-setup@v4
-      with:
-        version: 9
-
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'pnpm'
-
-    - name: Install dependencies
-      run: pnpm install --frozen-lockfile
-
-    - name: Prepare DB directory
-      run: mkdir -p data
-
-    - name: Setup Database
-      run: pnpm exec drizzle-kit push
+    - name: Setup project
+      uses: ./.github/actions/setup
 
     - name: Run backend tests
       run: pnpm exec vitest run src/app/api src/lib src/services src/bin --reporter=verbose
@@ -88,25 +60,8 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Setup pnpm
-      uses: pnpm/action-setup@v4
-      with:
-        version: 9
-
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'pnpm'
-
-    - name: Install dependencies
-      run: pnpm install --frozen-lockfile
-
-    - name: Prepare DB directory
-      run: mkdir -p data
-
-    - name: Setup Database
-      run: pnpm exec drizzle-kit push
+    - name: Setup project
+      uses: ./.github/actions/setup
 
     - name: Run frontend tests
       run: |
@@ -143,25 +98,10 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Setup pnpm
-      uses: pnpm/action-setup@v4
+    - name: Setup project
+      uses: ./.github/actions/setup
       with:
-        version: 9
-
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'pnpm'
-
-    - name: Install dependencies
-      run: pnpm install --frozen-lockfile
-
-    - name: Prepare DB directory
-      run: mkdir -p data
-
-    - name: Setup Database
-      run: pnpm exec drizzle-kit push
+        install-playwright: 'true'
 
     - name: Run CLI E2E tests
       run: SKIP_WEBSERVER=true pnpm exec playwright test --project=cli
@@ -179,25 +119,8 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Setup pnpm
-      uses: pnpm/action-setup@v4
-      with:
-        version: 9
-
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'pnpm'
-
-    - name: Install dependencies
-      run: pnpm install --frozen-lockfile
-
-    - name: Prepare DB directory
-      run: mkdir -p data
-
-    - name: Setup Database
-      run: pnpm exec drizzle-kit push
+    - name: Setup project
+      uses: ./.github/actions/setup
 
     - name: Build
       run: pnpm run build
