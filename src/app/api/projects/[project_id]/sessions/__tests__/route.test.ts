@@ -2,14 +2,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
 // vi.hoisted()でモックオブジェクトを先に定義
-const { mockDbSelect, mockDbInsert, mockDbUpdate, mockGitService, mockDockerService, mockEnvironmentService } = vi.hoisted(() => ({
-  mockDbSelect: {
+const { _mockDbSelect, _mockDbInsert, _mockDbUpdate, mockGitService, mockDockerService, mockEnvironmentService } = vi.hoisted(() => ({
+  _mockDbSelect: {
     from: vi.fn(),
   },
-  mockDbInsert: {
+  _mockDbInsert: {
     values: vi.fn(),
   },
-  mockDbUpdate: {
+  _mockDbUpdate: {
     set: vi.fn(),
   },
   mockGitService: {

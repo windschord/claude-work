@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
  * db.ts の実装をテスト
  *
  * DATABASE_URL環境変数のバリデーションロジックと
- * PrismaClientのインスタンス化をテストします。
+ * Drizzle DBのインスタンス化をテストします。
  *
  * NOTE: vitestのモジュールキャッシュにより、環境変数のテストは
  * vi.resetModules()を使用して各テスト前にモジュールをリセットする必要があります。

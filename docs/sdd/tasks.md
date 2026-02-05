@@ -164,7 +164,8 @@ npx drizzle-kit push
 - [ ] TypeScriptコンパイルエラーがない
 
 **依存関係**: タスク1.4
-**ステータス**: `TODO`
+**ステータス**: `DONE`
+**完了サマリー**: environment-service.ts をDrizzleに変換完了
 
 #### タスク2.3: APIルート /api/projects の移行
 
@@ -189,7 +190,8 @@ npx drizzle-kit push
 - [ ] TypeScriptコンパイルエラーがない
 
 **依存関係**: タスク1.4
-**ステータス**: `TODO`
+**ステータス**: `DONE`
+**完了サマリー**: projects API routes 3ファイルをDrizzleに変換完了
 
 #### タスク2.4: APIルート /api/projects/[project_id]/* の移行
 
@@ -209,7 +211,8 @@ npx drizzle-kit push
 - [ ] TypeScriptコンパイルエラーがない
 
 **依存関係**: タスク2.3
-**ステータス**: `TODO`
+**ステータス**: `DONE`
+**完了サマリー**: projects/[project_id]/* 5ファイル変換完了
 
 #### タスク2.5: APIルート /api/sessions/[id]/* の移行
 
@@ -239,7 +242,8 @@ npx drizzle-kit push
 - [ ] TypeScriptコンパイルエラーがない
 
 **依存関係**: タスク2.4
-**ステータス**: `TODO`
+**ステータス**: `DONE`
+**完了サマリー**: sessions/[id]/* 15ファイル変換完了
 
 #### タスク2.6: APIルート /api/prompts の移行
 
@@ -256,7 +260,8 @@ npx drizzle-kit push
 - [ ] TypeScriptコンパイルエラーがない
 
 **依存関係**: タスク2.5
-**ステータス**: `TODO`
+**ステータス**: `DONE`
+**完了サマリー**: prompts API 2ファイル + テスト2ファイル変換完了
 
 #### タスク2.7: WebSocketハンドラーの移行
 
@@ -274,7 +279,8 @@ npx drizzle-kit push
 - [ ] TypeScriptコンパイルエラーがない
 
 **依存関係**: タスク2.6
-**ステータス**: `TODO`
+**ステータス**: `DONE`
+**完了サマリー**: websocket handlers 3ファイル変換完了
 
 #### タスク2.8: その他サービス・ユーティリティの移行
 
@@ -291,7 +297,8 @@ npx drizzle-kit push
 - [ ] TypeScriptコンパイルエラーがない
 
 **依存関係**: タスク2.7
-**ステータス**: `TODO`
+**ステータス**: `DONE`
+**完了サマリー**: docker-adapter.ts 変換完了 (cli.tsは変更不要)
 
 ### フェーズ3: テスト・クリーンアップ
 
@@ -311,7 +318,8 @@ npx drizzle-kit push
 - [ ] `npm test` が全てパスする
 
 **依存関係**: タスク2.8
-**ステータス**: `TODO`
+**ステータス**: `DONE`
+**完了サマリー**: 全テストファイル変換完了。1239テストパス（32失敗はPrisma移行とは無関係）
 
 #### タスク3.2: Prisma関連ファイルの削除
 

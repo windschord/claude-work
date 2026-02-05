@@ -9,7 +9,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "prepare": "prisma generate && DATABASE_URL=file:./data/build.db npm run build",
+    "prepare": "DATABASE_URL=file:./data/build.db npm run build",
     "dev": "ts-node -r tsconfig-paths/register --project tsconfig.server.json server.ts",
     "dev:pm2": "pm2 start ecosystem.config.js --only claude-work-dev",
     "dev:stop": "pm2 stop claude-work-dev",
@@ -39,14 +39,14 @@
     "pm2:status": "pm2 status",
     "pm2:logs": "pm2 logs",
     "pm2:monit": "pm2 monit",
-    "db:migrate-environments": "npx ts-node -r tsconfig-paths/register prisma/seed-environments.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
     "textlint": "textlint \"**/*.md\"",
     "textlint:fix": "textlint --fix \"**/*.md\""
   },
   "dependencies": {
     "@headlessui/react": "^2.2.9",
-    "@prisma/adapter-better-sqlite3": "^7.3.0",
-    "@prisma/client": "^7.3.0",
     "@types/bcryptjs": "^2.4.6",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/xterm": "^5.5.0",
@@ -93,7 +93,6 @@
     "jsdom": "^27.3.0",
     "mock-spawn": "^0.2.6",
     "postcss": "^8",
-    "prisma": "^7.3.0",
     "tailwindcss": "^3.4.1",
     "textlint": "14.8.4",
     "textlint-rule-preset-ja-technical-writing": "^10.0.1",
@@ -107,9 +106,7 @@
   },
   "pnpm": {
     "onlyBuiltDependencies": [
-      "better-sqlite3",
-      "@prisma/engines",
-      "prisma"
+      "better-sqlite3"
     ]
   }
 }

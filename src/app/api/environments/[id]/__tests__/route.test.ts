@@ -27,10 +27,17 @@ vi.mock('@/lib/logger', () => ({
 }));
 
 vi.mock('@/lib/db', () => ({
-  prisma: {
-    session: {
-      count: vi.fn().mockResolvedValue(0),
-    },
+  db: {
+    select: vi.fn().mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          get: vi.fn().mockResolvedValue(undefined),
+        }),
+      }),
+    }),
+  },
+  schema: {
+    sessions: {},
   },
 }));
 

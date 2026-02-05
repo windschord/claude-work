@@ -9,13 +9,13 @@ vi.mock('node-pty', () => ({
 }));
 
 // Drizzleのモック (vi.hoisted を使用してモック関数を先に定義)
-const { mockDbRun, mockDbWhere, mockDbSet, mockDbFrom, mockDbSelectGet } = vi.hoisted(() => {
+const { mockDbRun, _mockDbWhere, mockDbSet, mockDbFrom, _mockDbSelectGet } = vi.hoisted(() => {
   const mockDbRun = vi.fn();
-  const mockDbSelectGet = vi.fn().mockReturnValue(null);
-  const mockDbWhere = vi.fn(() => ({ run: mockDbRun, get: mockDbSelectGet }));
-  const mockDbSet = vi.fn(() => ({ where: mockDbWhere }));
-  const mockDbFrom = vi.fn(() => ({ where: mockDbWhere }));
-  return { mockDbRun, mockDbWhere, mockDbSet, mockDbFrom, mockDbSelectGet };
+  const _mockDbSelectGet = vi.fn().mockReturnValue(null);
+  const _mockDbWhere = vi.fn(() => ({ run: mockDbRun, get: _mockDbSelectGet }));
+  const mockDbSet = vi.fn(() => ({ where: _mockDbWhere }));
+  const mockDbFrom = vi.fn(() => ({ where: _mockDbWhere }));
+  return { mockDbRun, _mockDbWhere, mockDbSet, mockDbFrom, _mockDbSelectGet };
 });
 
 vi.mock('@/lib/db', () => ({

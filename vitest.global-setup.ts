@@ -1,7 +1,6 @@
 import { spawnSync } from 'child_process';
 import path from 'path';
 import fs from 'fs';
-import { pathToFileURL } from 'url';
 
 export default async function setup() {
   // Create a temporary test database file

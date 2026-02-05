@@ -8,11 +8,22 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // モジュールのモック
 vi.mock('@/lib/db', () => ({
-  prisma: {
-    session: {
-      findMany: vi.fn(),
-      update: vi.fn(),
+  db: {
+    query: {
+      sessions: {
+        findMany: vi.fn(),
+      },
     },
+    update: vi.fn().mockReturnValue({
+      set: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          run: vi.fn(),
+        }),
+      }),
+    }),
+  },
+  schema: {
+    sessions: {},
   },
 }));
 

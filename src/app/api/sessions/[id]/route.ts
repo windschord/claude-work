@@ -228,6 +228,10 @@ export async function PATCH(
       },
     });
 
+    if (!updatedSession) {
+      return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+    }
+
     // フロントエンド用にフラット化した形式に変換
     const sessionWithEnvironment = {
       ...updatedSession,
