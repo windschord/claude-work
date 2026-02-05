@@ -34,10 +34,8 @@ const nextConfig = {
     // NormalModuleReplacementPluginで.ts参照を.jsに置き換える
     config.plugins.push(
       new webpack.NormalModuleReplacementPlugin(
-        /react-diff-viewer-continued.*computeWorker\.ts$/,
-        (resource) => {
-          resource.request = resource.request.replace(/\.ts$/, '.js');
-        }
+        /\.\/computeWorker\.ts$/,
+        './computeWorker.js'
       )
     );
 
