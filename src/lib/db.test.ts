@@ -45,7 +45,7 @@ describe('Database Configuration', () => {
   it('DATABASE_URLが設定されている場合、エラーをスローしない', async () => {
     process.env.DATABASE_URL = 'file:../data/test.db';
 
-    const db = await import('./db');
-    expect(db.prisma).toBeDefined();
+    const dbModule = await import('./db');
+    expect(dbModule.db).toBeDefined();
   });
 });
