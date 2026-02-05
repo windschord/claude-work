@@ -46,7 +46,6 @@ if (dbDir && !fs.existsSync(dbDir)) {
  */
 const globalForDb = globalThis as unknown as {
   db: ReturnType<typeof drizzle<typeof schema>> | undefined;
-  sqlite: Database.Database | undefined;
 };
 
 /**

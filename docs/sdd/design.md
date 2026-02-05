@@ -324,7 +324,7 @@ sequenceDiagram
 
 ## ファイル構成
 
-```
+```text
 src/
 ├── db/
 │   └── schema.ts          # NEW: Drizzleスキーマ定義

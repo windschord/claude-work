@@ -161,9 +161,13 @@ export async function PUT(
     return NextResponse.json({ project });
   } catch (error) {
     const { project_id: errorProjectId } = await params;
-    // SQLiteのユニーク制約違反をハンドリング
-    if (error instanceof Error && error.message.includes('UNIQUE constraint failed')) {
-      logger.warn('Unique constraint violation', { error, id: errorProjectId });
+    // SQLiteのユニーク制約違反をハンドリング（pathカラムのみ）
+    const sqliteError = error as { code?: string };
+    const isPathUniqueViolation = (sqliteError.code === 'SQLITE_CONSTRAINT_UNIQUE' ||
+      (error instanceof Error && error.message.includes('UNIQUE constraint failed'))) &&
+      (error instanceof Error && error.message.includes('path'));
+    if (isPathUniqueViolation) {
+      logger.warn('Unique constraint violation on path', { code: sqliteError.code, error, id: errorProjectId });
       return NextResponse.json(
         { error: 'A project with this path already exists' },
         { status: 409 }

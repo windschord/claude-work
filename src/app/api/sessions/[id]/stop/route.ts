@@ -70,6 +70,10 @@ export async function POST(
       .where(eq(schema.sessions.id, id))
       .returning();
 
+    if (!updatedSession) {
+      return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+    }
+
     logger.info('Session stopped', { id });
     return NextResponse.json({ session: updatedSession });
   } catch (error) {

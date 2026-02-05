@@ -73,6 +73,10 @@ export async function POST(
       .where(eq(schema.sessions.id, id))
       .returning();
 
+    if (!updatedSession) {
+      return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+    }
+
     const resumedWithHistory = !!targetSession.resume_session_id;
 
     logger.info('Session resumed', {

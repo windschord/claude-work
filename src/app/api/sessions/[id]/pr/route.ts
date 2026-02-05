@@ -83,6 +83,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       .where(eq(schema.sessions.id, id))
       .returning();
 
+    if (!updatedSession) {
+      return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+    }
+
     return NextResponse.json(
       {
         pr_url: updatedSession.pr_url,

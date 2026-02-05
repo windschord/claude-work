@@ -1,9 +1,10 @@
 import '@testing-library/jest-dom';
 import path from 'path';
+import { pathToFileURL } from 'url';
 
 // Set up test environment variables
 const testDbPath = path.join(process.cwd(), 'data', 'test.db');
-process.env.DATABASE_URL = `file:${testDbPath}`;
+process.env.DATABASE_URL = pathToFileURL(testDbPath).href;
 
 // Mock ResizeObserver for Headless UI components
 global.ResizeObserver = class ResizeObserver {

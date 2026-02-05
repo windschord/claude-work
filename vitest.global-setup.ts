@@ -1,6 +1,7 @@
 import { spawnSync } from 'child_process';
 import path from 'path';
 import fs from 'fs';
+import { pathToFileURL } from 'url';
 
 export default async function setup() {
   // Create a temporary test database file
@@ -17,8 +18,8 @@ export default async function setup() {
     fs.unlinkSync(testDbPath);
   }
 
-  // Convert to file URL for DATABASE_URL
-  const testDbUrl = `file:${testDbPath}`;
+  // Convert to file URL for DATABASE_URL (using pathToFileURL for cross-platform compatibility)
+  const testDbUrl = pathToFileURL(testDbPath).href;
 
   // Set DATABASE_URL for drizzle-kit
   process.env.DATABASE_URL = testDbUrl;
