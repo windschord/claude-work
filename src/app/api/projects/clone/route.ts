@@ -139,8 +139,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ project }, { status: 201 });
     } catch (error) {
       // SQLite UNIQUE constraint violationのハンドリング
-      if (error instanceof Error && error.message.includes('UNIQUE constraint failed')) {
-        logger.warn('Duplicate project path', { error });
+      const sqliteError = error as { code?: string };
+      const isUniqueViolation = sqliteError.code === 'SQLITE_CONSTRAINT_UNIQUE' ||
+        (error instanceof Error && error.message.includes('UNIQUE constraint failed'));
+      if (isUniqueViolation) {
+        logger.warn('Duplicate project path', { code: sqliteError.code, error });
         return NextResponse.json(
           { error: 'このリポジトリは既に登録されています' },
           { status: 409 }
