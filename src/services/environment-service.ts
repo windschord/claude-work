@@ -173,6 +173,9 @@ export class EnvironmentService {
       updateData.config = JSON.stringify(input.config);
     }
 
+    // updated_at を常に更新
+    updateData.updated_at = new Date();
+
     logger.info('環境を更新中', { id, updates: Object.keys(updateData) });
 
     const environment = db.update(schema.executionEnvironments)
@@ -446,7 +449,7 @@ export class EnvironmentService {
     await fsPromises.mkdir(path.join(authDirPath, 'config', 'claude'), { recursive: true, mode: 0o700 });
 
     db.update(schema.executionEnvironments)
-      .set({ auth_dir_path: authDirPath })
+      .set({ auth_dir_path: authDirPath, updated_at: new Date() })
       .where(eq(schema.executionEnvironments.id, id))
       .run();
 
@@ -475,7 +478,7 @@ export class EnvironmentService {
     await fsPromises.rm(environment.auth_dir_path, { recursive: true, force: true });
 
     db.update(schema.executionEnvironments)
-      .set({ auth_dir_path: null })
+      .set({ auth_dir_path: null, updated_at: new Date() })
       .where(eq(schema.executionEnvironments.id, id))
       .run();
 

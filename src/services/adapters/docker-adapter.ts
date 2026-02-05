@@ -324,7 +324,7 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
 
       // Session.container_idを更新
       db.update(schema.sessions)
-        .set({ container_id: containerName })
+        .set({ container_id: containerName, updated_at: new Date() })
         .where(eq(schema.sessions.id, sessionId))
         .run();
 
@@ -357,7 +357,7 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
         // container_idをクリア
         try {
           db.update(schema.sessions)
-            .set({ container_id: null })
+            .set({ container_id: null, updated_at: new Date() })
             .where(eq(schema.sessions.id, sessionId))
             .run();
         } catch {
@@ -405,7 +405,7 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
       // container_idをクリア（同期実行）
       try {
         db.update(schema.sessions)
-          .set({ container_id: null })
+          .set({ container_id: null, updated_at: new Date() })
           .where(eq(schema.sessions.id, sessionId))
           .run();
       } catch {

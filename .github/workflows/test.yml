@@ -67,6 +67,9 @@ jobs:
     - name: Install dependencies
       run: pnpm install --frozen-lockfile
 
+    - name: Prepare DB directory
+      run: mkdir -p data
+
     - name: Setup Database
       run: pnpm exec drizzle-kit push
 
@@ -98,6 +101,9 @@ jobs:
 
     - name: Install dependencies
       run: pnpm install --frozen-lockfile
+
+    - name: Prepare DB directory
+      run: mkdir -p data
 
     - name: Setup Database
       run: pnpm exec drizzle-kit push
@@ -151,6 +157,9 @@ jobs:
     - name: Install dependencies
       run: pnpm install --frozen-lockfile
 
+    - name: Prepare DB directory
+      run: mkdir -p data
+
     - name: Setup Database
       run: pnpm exec drizzle-kit push
 
@@ -183,6 +192,9 @@ jobs:
 
     - name: Install dependencies
       run: pnpm install --frozen-lockfile
+
+    - name: Prepare DB directory
+      run: mkdir -p data
 
     - name: Setup Database
       run: pnpm exec drizzle-kit push
