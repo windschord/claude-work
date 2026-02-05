@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { POST } from '../route';
-import { prisma } from '@/lib/db';
+import { db, schema } from '@/lib/db';
+import { eq } from 'drizzle-orm';
 import { NextRequest } from 'next/server';
 import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
@@ -32,8 +33,8 @@ describe('POST /api/sessions/[id]/stop', () => {
   let session: Session;
 
   beforeEach(async () => {
-    await prisma.session.deleteMany();
-    await prisma.project.deleteMany();
+    db.delete(schema.sessions).run();
+    db.delete(schema.projects).run();
 
     testRepoPath = mkdtempSync(join(tmpdir(), 'session-test-'));
     execSync('git init', { cwd: testRepoPath });
@@ -45,27 +46,31 @@ describe('POST /api/sessions/[id]/stop', () => {
     });
     execSync('git branch -M main', { cwd: testRepoPath });
 
-    project = await prisma.project.create({
-      data: {
+    project = db
+      .insert(schema.projects)
+      .values({
         name: 'Test Project',
         path: testRepoPath,
-      },
-    });
+      })
+      .returning()
+      .get();
 
-    session = await prisma.session.create({
-      data: {
+    session = db
+      .insert(schema.sessions)
+      .values({
         project_id: project.id,
         name: 'Test Session',
         status: 'running',
         worktree_path: join(testRepoPath, '.worktrees', 'test-session'),
         branch_name: 'test-branch',
-      },
-    });
+      })
+      .returning()
+      .get();
   });
 
   afterEach(async () => {
-    await prisma.session.deleteMany();
-    await prisma.project.deleteMany();
+    db.delete(schema.sessions).run();
+    db.delete(schema.projects).run();
     if (testRepoPath) {
       rmSync(testRepoPath, { recursive: true, force: true });
     }
@@ -87,8 +92,8 @@ describe('POST /api/sessions/[id]/stop', () => {
     expect(data.session.id).toBe(session.id);
     expect(data.session.status).toBe('completed');
 
-    const updatedSession = await prisma.session.findUnique({
-      where: { id: session.id },
+    const updatedSession = await db.query.sessions.findFirst({
+      where: eq(schema.sessions.id, session.id),
     });
     expect(updatedSession?.status).toBe('completed');
   });

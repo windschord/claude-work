@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { POST } from '../route';
-import { prisma } from '@/lib/db';
+import { db, schema } from '@/lib/db';
 import { NextRequest } from 'next/server';
 import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync } from 'fs';
 import { tmpdir } from 'os';
@@ -15,8 +15,8 @@ describe('POST /api/sessions/[id]/reset', () => {
   let commitHashes: string[] = [];
 
   beforeEach(async () => {
-    await prisma.session.deleteMany();
-    await prisma.project.deleteMany();
+    db.delete(schema.sessions).run();
+    db.delete(schema.projects).run();
 
     testRepoPath = mkdtempSync(join(tmpdir(), 'reset-test-'));
     execSync('git init', { cwd: testRepoPath });
@@ -28,22 +28,26 @@ describe('POST /api/sessions/[id]/reset', () => {
     });
     execSync('git branch -M main', { cwd: testRepoPath });
 
-    project = await prisma.project.create({
-      data: {
+    project = db
+      .insert(schema.projects)
+      .values({
         name: 'Test Project',
         path: testRepoPath,
-      },
-    });
+      })
+      .returning()
+      .get();
 
-    session = await prisma.session.create({
-      data: {
+    session = db
+      .insert(schema.sessions)
+      .values({
         project_id: project.id,
         name: 'Test Session',
         status: 'running',
         worktree_path: join(testRepoPath, '.worktrees', 'test-session'),
         branch_name: 'test-branch',
-      },
-    });
+      })
+      .returning()
+      .get();
 
     // Create worktree and make several commits
     execSync(
@@ -89,8 +93,8 @@ describe('POST /api/sessions/[id]/reset', () => {
   });
 
   afterEach(async () => {
-    await prisma.session.deleteMany();
-    await prisma.project.deleteMany();
+    db.delete(schema.sessions).run();
+    db.delete(schema.projects).run();
     if (testRepoPath) {
       rmSync(testRepoPath, { recursive: true, force: true });
     }
