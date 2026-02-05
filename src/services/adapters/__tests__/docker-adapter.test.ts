@@ -8,14 +8,33 @@ vi.mock('node-pty', () => ({
   spawn: vi.fn(),
 }));
 
-// Prismaのモック
+// Drizzleのモック (vi.hoisted を使用してモック関数を先に定義)
+const { mockDbRun, mockDbWhere, mockDbSet, mockDbFrom, mockDbSelectGet } = vi.hoisted(() => {
+  const mockDbRun = vi.fn();
+  const mockDbSelectGet = vi.fn().mockReturnValue(null);
+  const mockDbWhere = vi.fn(() => ({ run: mockDbRun, get: mockDbSelectGet }));
+  const mockDbSet = vi.fn(() => ({ where: mockDbWhere }));
+  const mockDbFrom = vi.fn(() => ({ where: mockDbWhere }));
+  return { mockDbRun, mockDbWhere, mockDbSet, mockDbFrom, mockDbSelectGet };
+});
+
 vi.mock('@/lib/db', () => ({
-  prisma: {
-    session: {
-      update: vi.fn().mockResolvedValue({}),
-      findUnique: vi.fn().mockResolvedValue(null),
+  db: {
+    query: {
+      sessions: {
+        findFirst: vi.fn().mockResolvedValue(null),
+      },
     },
+    update: vi.fn(() => ({ set: mockDbSet })),
+    select: vi.fn(() => ({ from: mockDbFrom })),
   },
+  schema: {
+    sessions: { id: 'id', container_id: 'container_id' },
+  },
+}));
+
+vi.mock('drizzle-orm', () => ({
+  eq: vi.fn((col, val) => ({ column: col, value: val })),
 }));
 
 // loggerのモック
@@ -59,7 +78,7 @@ describe('DockerAdapter', () => {
   let adapter: DockerAdapter;
   let mockPty: Partial<IPty> & EventEmitter;
   let mockSpawn: Mock;
-  let mockPrismaUpdate: Mock;
+  let mockDbUpdate: Mock;
   let dataHandler: (data: string) => void;
   let exitHandler: (info: { exitCode: number; signal?: number }) => void;
 
@@ -107,8 +126,8 @@ describe('DockerAdapter', () => {
     mockSpawn = pty.spawn as Mock;
     mockSpawn.mockReturnValue(mockPty);
 
-    const { prisma } = await import('@/lib/db');
-    mockPrismaUpdate = prisma.session.update as Mock;
+    const { db } = await import('@/lib/db');
+    mockDbUpdate = db.update as Mock;
 
     adapter = new DockerAdapter(defaultConfig);
   });
@@ -154,10 +173,12 @@ describe('DockerAdapter', () => {
     it('should update Session.container_id in database', async () => {
       await adapter.createSession(sessionId, workingDir);
 
-      expect(mockPrismaUpdate).toHaveBeenCalledWith({
-        where: { id: sessionId },
-        data: { container_id: expect.stringMatching(/^claude-env-env-123-/) },
+      // Drizzle: db.update(schema.sessions).set({ container_id: ... }).where(...).run()
+      expect(mockDbUpdate).toHaveBeenCalled();
+      expect(mockDbSet).toHaveBeenCalledWith({
+        container_id: expect.stringMatching(/^claude-env-env-123-/),
       });
+      expect(mockDbRun).toHaveBeenCalled();
     });
 
     it('should emit data events from PTY', async () => {
@@ -190,17 +211,19 @@ describe('DockerAdapter', () => {
       await adapter.createSession(sessionId, workingDir);
 
       // リセットしてexit時の呼び出しを確認
-      mockPrismaUpdate.mockClear();
+      mockDbUpdate.mockClear();
+      mockDbSet.mockClear();
+      mockDbRun.mockClear();
 
       exitHandler({ exitCode: 0 });
 
       // 非同期処理を待つ
       await new Promise(resolve => setTimeout(resolve, 10));
 
-      expect(mockPrismaUpdate).toHaveBeenCalledWith({
-        where: { id: sessionId },
-        data: { container_id: null },
-      });
+      // Drizzle: db.update(schema.sessions).set({ container_id: null }).where(...).run()
+      expect(mockDbUpdate).toHaveBeenCalled();
+      expect(mockDbSet).toHaveBeenCalledWith({ container_id: null });
+      expect(mockDbRun).toHaveBeenCalled();
     });
 
     it('should add --resume flag when resumeSessionId is provided', async () => {
@@ -288,7 +311,7 @@ describe('DockerAdapter', () => {
     it('should kill PTY and clear container_id', async () => {
       const sessionId = 'session-abc';
       await adapter.createSession(sessionId, '/projects/test');
-      mockPrismaUpdate.mockClear();
+      mockDbUpdate.mockClear();
 
       adapter.destroySession(sessionId);
 
