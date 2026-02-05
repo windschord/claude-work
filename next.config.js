@@ -11,6 +11,8 @@ const nextConfig = {
   },
   // Exclude specific directories from being processed
   pageExtensions: ['tsx', 'ts', 'jsx', 'js'],
+  // Transpile packages that have Turbopack compatibility issues
+  transpilePackages: ['react-diff-viewer-continued'],
   // Turbopack設定（Next.js 16でデフォルト有効）
   turbopack: {
     // 必要に応じてTurbopack固有の設定を追加
