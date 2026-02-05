@@ -2,6 +2,8 @@ import 'dotenv/config';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import Database from 'better-sqlite3';
 import * as schema from '@/db/schema';
+import fs from 'fs';
+import path from 'path';
 
 // 型の再エクスポート（他のファイルから @/lib/db 経由でインポート可能）
 export type {
@@ -32,6 +34,12 @@ if (!envDatabaseUrl || envDatabaseUrl.trim() === '') {
 
 // file:プレフィックスを除去してパスを取得
 const dbPath = envDatabaseUrl.replace(/^file:/, '');
+
+// データベースディレクトリが存在しない場合は作成
+const dbDir = path.dirname(dbPath);
+if (dbDir && !fs.existsSync(dbDir)) {
+  fs.mkdirSync(dbDir, { recursive: true });
+}
 
 /**
  * グローバルスコープでDrizzle DBインスタンスを保持するための型定義
