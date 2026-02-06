@@ -25,6 +25,7 @@ import {
   checkNextBuild as checkNextBuildUtil,
   checkDrizzle as checkDrizzleUtil,
   checkDatabase as checkDatabaseUtil,
+  findBinDir,
 } from './cli-utils';
 
 // CommonJSビルド時は__dirnameが利用可能
@@ -41,8 +42,8 @@ const command = args[0] || '';
 const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
 // ローカルバイナリのパス（npx ではなく node_modules/.bin を直接参照）
-// これにより、グローバルバージョンではなくロックされたバージョンが使用される
-const binDir = path.join(projectRoot, 'node_modules', '.bin');
+// npx実行時は親の node_modules/.bin にバイナリが配置されるため、上位探索する
+const binDir = findBinDir(projectRoot);
 const drizzleKitCmd = path.join(binDir, process.platform === 'win32' ? 'drizzle-kit.cmd' : 'drizzle-kit');
 const pm2Cmd = path.join(binDir, process.platform === 'win32' ? 'pm2.cmd' : 'pm2');
 

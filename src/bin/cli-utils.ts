@@ -72,6 +72,34 @@ export function checkDrizzle(projectRoot: string): boolean {
 }
 
 /**
+ * node_modules/.bin ディレクトリを探索する
+ *
+ * projectRoot から上位ディレクトリを辿り、node_modules/.bin を探す。
+ * npx実行時はバイナリが親の node_modules/.bin に配置されるケースに対応。
+ * 見つからない場合は projectRoot/node_modules/.bin をフォールバックとして返す。
+ *
+ * @param projectRoot - プロジェクトルートディレクトリ
+ * @returns node_modules/.bin ディレクトリのパス
+ */
+export function findBinDir(projectRoot: string): string {
+  const fallback = path.join(projectRoot, 'node_modules', '.bin');
+  let current = path.resolve(projectRoot);
+  const root = path.parse(current).root;
+
+  while (current !== root) {
+    const binDir = path.join(current, 'node_modules', '.bin');
+    if (fs.existsSync(binDir)) {
+      return binDir;
+    }
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+
+  return fallback;
+}
+
+/**
  * データベースファイルが存在するか確認
  *
  * @param projectRoot - プロジェクトルートディレクトリ
