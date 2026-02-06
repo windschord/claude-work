@@ -177,11 +177,11 @@ describe('cli-utils', () => {
 
       const idCol = columns.find((c) => c.name === 'id');
       expect(idCol?.pk).toBe(1);
-      expect(idCol?.type).toBe('text');
+      expect(idCol?.type.toLowerCase()).toBe('text');
 
       const nameCol = columns.find((c) => c.name === 'name');
       expect(nameCol?.notnull).toBe(1);
-      expect(nameCol?.type).toBe('text');
+      expect(nameCol?.type.toLowerCase()).toBe('text');
 
       const pathCol = columns.find((c) => c.name === 'path');
       expect(pathCol?.notnull).toBe(1);
@@ -191,7 +191,7 @@ describe('cli-utils', () => {
 
       const createdAtCol = columns.find((c) => c.name === 'created_at');
       expect(createdAtCol?.notnull).toBe(1);
-      expect(createdAtCol?.type).toBe('integer');
+      expect(createdAtCol?.type.toLowerCase()).toBe('integer');
 
       const updatedAtCol = columns.find((c) => c.name === 'updated_at');
       expect(updatedAtCol?.notnull).toBe(1);
