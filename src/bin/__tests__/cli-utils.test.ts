@@ -81,6 +81,28 @@ describe('cli-utils', () => {
       const result = checkDrizzle(testDir);
       expect(result).toBe(false);
     });
+
+    it('should return true when drizzle-orm exists in parent node_modules (npx flat structure)', () => {
+      // Simulate npx cache structure:
+      // testDir/node_modules/drizzle-orm/  (flat install)
+      // testDir/node_modules/claude-work/  (projectRoot)
+      const parentNodeModules = join(testDir, 'node_modules');
+      mkdirSync(join(parentNodeModules, 'drizzle-orm'), { recursive: true });
+      const projectRoot = join(parentNodeModules, 'claude-work');
+      mkdirSync(projectRoot, { recursive: true });
+
+      const result = checkDrizzle(projectRoot);
+      expect(result).toBe(true);
+    });
+
+    it('should return false when drizzle-orm does not exist in any ancestor node_modules', () => {
+      const parentNodeModules = join(testDir, 'node_modules');
+      const projectRoot = join(parentNodeModules, 'claude-work');
+      mkdirSync(projectRoot, { recursive: true });
+
+      const result = checkDrizzle(projectRoot);
+      expect(result).toBe(false);
+    });
   });
 
   describe('checkDatabase', () => {
