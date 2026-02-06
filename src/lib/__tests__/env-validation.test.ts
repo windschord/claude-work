@@ -111,7 +111,7 @@ describe('detectClaudePath', () => {
     expect(mockExistsSync).toHaveBeenCalledWith(testPath);
   });
 
-  it('CLAUDE_CODE_PATHが設定されているがパスが存在しない場合、エラーをスローする', () => {
+  it('CLAUDE_CODE_PATHが絶対パスで存在しない場合、エラーをスローする', () => {
     const testPath = '/invalid/path/claude';
     process.env.CLAUDE_CODE_PATH = testPath;
     mockExistsSync.mockReturnValue(false);
@@ -119,6 +119,33 @@ describe('detectClaudePath', () => {
     expect(() => {
       detectClaudePath();
     }).toThrow(`CLAUDE_CODE_PATH is set but the path does not exist: ${testPath}`);
+  });
+
+  it('CLAUDE_CODE_PATHがコマンド名でwhichで見つかる場合、解決されたパスを返す', () => {
+    process.env.CLAUDE_CODE_PATH = 'claude';
+    mockExistsSync.mockReturnValue(false);
+    const resolvedPath = '/home/user/.local/bin/claude';
+    mockExecSync.mockReturnValue(`${resolvedPath}\n`);
+
+    const result = detectClaudePath();
+
+    expect(result).toBe(resolvedPath);
+    expect(mockExecSync).toHaveBeenCalledWith('which claude', {
+      encoding: 'utf-8',
+      timeout: 5000,
+    });
+  });
+
+  it('CLAUDE_CODE_PATHがコマンド名でwhichでも見つからない場合、エラーをスローする', () => {
+    process.env.CLAUDE_CODE_PATH = 'claude';
+    mockExistsSync.mockReturnValue(false);
+    mockExecSync.mockImplementation(() => {
+      throw new Error('command not found');
+    });
+
+    expect(() => {
+      detectClaudePath();
+    }).toThrow('CLAUDE_CODE_PATH is set but the path does not exist: claude');
   });
 
   it('CLAUDE_CODE_PATHが未設定で、whichコマンドでclaudeが見つかる場合、そのパスを返す', () => {
