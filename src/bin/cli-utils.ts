@@ -46,12 +46,29 @@ export function checkNextBuild(projectRoot: string): boolean {
 /**
  * drizzle-ormがインストールされているか確認
  *
+ * projectRoot/node_modules/drizzle-orm を最初に確認し、
+ * 見つからない場合は上位ディレクトリの node_modules も探索する。
+ * npx実行時はパッケージがフラットにインストールされるため、
+ * drizzle-orm が親の node_modules に配置されるケースに対応。
+ *
  * @param projectRoot - プロジェクトルートディレクトリ
  * @returns drizzle-ormが存在する場合はtrue
  */
 export function checkDrizzle(projectRoot: string): boolean {
-  const drizzlePath = path.join(projectRoot, 'node_modules', 'drizzle-orm');
-  return fs.existsSync(drizzlePath);
+  let current = path.resolve(projectRoot);
+  const root = path.parse(current).root;
+
+  while (current !== root) {
+    const drizzlePath = path.join(current, 'node_modules', 'drizzle-orm');
+    if (fs.existsSync(drizzlePath)) {
+      return true;
+    }
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+
+  return false;
 }
 
 /**
