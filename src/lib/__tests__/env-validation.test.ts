@@ -145,7 +145,7 @@ describe('detectClaudePath', () => {
 
     expect(() => {
       detectClaudePath();
-    }).toThrow(/CLAUDE_CODE_PATH.*claude.*not found/);
+    }).toThrow('CLAUDE_CODE_PATH is set but the path does not exist: claude');
   });
 
   it('CLAUDE_CODE_PATHが未設定で、whichコマンドでclaudeが見つかる場合、そのパスを返す', () => {

@@ -72,10 +72,27 @@ export function detectClaudePath(): string {
   // CLAUDE_CODE_PATHが設定済みの場合
   const envPath = process.env.CLAUDE_CODE_PATH;
   if (envPath) {
-    if (!existsSync(envPath)) {
-      throw new Error(`CLAUDE_CODE_PATH is set but the path does not exist: ${envPath}`);
+    // 絶対パスまたはファイルとして存在する場合はそのまま使用
+    if (existsSync(envPath)) {
+      return envPath;
     }
-    return envPath;
+
+    // コマンド名（非絶対パス）の場合はwhichで解決を試みる
+    if (!envPath.startsWith('/')) {
+      try {
+        const resolved = execSync(`which ${envPath}`, {
+          encoding: 'utf-8',
+          timeout: 5000,
+        }).trim();
+        if (resolved) {
+          return resolved;
+        }
+      } catch {
+        // whichでも見つからない場合は下にフォールスルー
+      }
+    }
+
+    throw new Error(`CLAUDE_CODE_PATH is set but the path does not exist: ${envPath}`);
   }
 
   // PATH環境変数から自動検出
