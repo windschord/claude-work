@@ -21,7 +21,7 @@ EnvironmentFile=/etc/claude-work/env
 #   2. ProtectHome=read-only との競合を回避
 #   3. 自己完結型インストールを維持
 Environment=HOME=/opt/claude-work
-ExecStart=/usr/bin/npx --yes github:windschord/claude-work@latest
+ExecStart=/usr/bin/npx --yes github:windschord/claude-work
 # 初回起動時のビルドに時間がかかるためタイムアウトを延長
 TimeoutStartSec=300
 Restart=on-failure
