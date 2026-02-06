@@ -76,7 +76,7 @@ sudo mkdir -p /opt/claude-work/.npm
 sudo chown -R claude-work:claude-work /opt/claude-work
 ```
 
-> **注意**: `npx github:windschord/claude-work` は初回実行時に GitHub からパッケージを取得し、ローカルにキャッシュします。キャッシュは `/opt/claude-work/.npm` に保存され、2回目以降はキャッシュから起動されるため高速です。Prisma クライアント生成、データベース初期化、Next.js ビルドは自動実行されます。git clone や npm install は不要です。
+> **注意**: `npx github:windschord/claude-work` は初回実行時に GitHub からパッケージを取得し、ローカルにキャッシュします。キャッシュは `/opt/claude-work/.npm` に保存され、2回目以降はキャッシュから起動されるため高速です。データベース初期化、Next.js ビルドは自動実行されます。git clone や npm install は不要です。
 >
 > **ネットワーク要件**:
 > - **初回起動**: GitHub へのインターネット接続が必須
@@ -127,9 +127,16 @@ NODE_ENV=production
 
 # 外部からのアクセスを許可する場合（デフォルト: localhost）
 HOST=0.0.0.0
+
+# Claude Code CLI のパス（推奨: 絶対パスで指定）
+# systemd の claude-work ユーザーは PATH が制限されているため、
+# which claude で自動検出できない場合があります
+CLAUDE_CODE_PATH=/usr/local/bin/claude
 ```
 
 > **注意**: `HOST=0.0.0.0` を設定すると、すべてのネットワークインターフェースでリッスンします。セキュリティのため、ファイアウォールや認証（`CLAUDE_WORK_TOKEN`）の設定を推奨します。
+>
+> **CLAUDE_CODE_PATH について**: `claude-work` ユーザーの PATH には Claude Code CLI が含まれていない場合があります。`which claude` で CLI が見つからない場合は、`CLAUDE_CODE_PATH` に Claude Code CLI の絶対パスを設定してください。パスの確認方法: `which claude`（管理者ユーザーで実行）
 
 ---
 
@@ -180,7 +187,7 @@ claude-work.service - ClaudeWork - Claude Code Session Manager
      Active: active (running) since ...
 ```
 
-> **注意**: 初回起動時は GitHub からのダウンロード、Prisma クライアント生成、Next.js ビルドが実行されるため、起動に数分かかる場合があります。2回目以降はキャッシュから起動されるため高速です。
+> **注意**: 初回起動時は GitHub からのダウンロード、データベース初期化、Next.js ビルドが実行されるため、起動に数分かかる場合があります。2回目以降はキャッシュから起動されるため高速です。
 
 ### 動作確認
 
@@ -249,6 +256,9 @@ sudo journalctl -u claude-work -p err
 | `DATABASE_URL not set` | 環境変数が未設定 | `/etc/claude-work/env` を確認 |
 | `EADDRINUSE` | ポートが使用中 | `PORT` を変更するか、競合プロセスを停止 |
 | `Read-only file system` | ProtectSystem 制限 | `ReadWritePaths` に必要なパスを追加 |
+| `CLAUDE_CODE_PATH is set but the path does not exist` | CLI パスが見つからない | 絶対パスで `CLAUDE_CODE_PATH` を設定 |
+| `claude command not found in PATH` | `which claude` で検出不可 | `CLAUDE_CODE_PATH` に絶対パスを設定 |
+| `Module not found: Can't resolve '@/...'` | npx キャッシュ破損 | `sudo rm -rf /opt/claude-work/.npm/_npx` で再取得 |
 
 ### セキュリティ設定による制限事項
 

@@ -110,10 +110,82 @@
 **受入基準**:
 - [x] すべてのファイルがコミットされている
 - [x] PR が作成されている
-- [ ] CI が通過している
+- [x] CI が通過している
 
 **依存関係**: タスク3.1
-**ステータス**: `IN_PROGRESS`
+**ステータス**: `DONE`
+
+---
+
+### フェーズ4: npx パッケージング修正
+
+#### タスク4.1: .npmignore の追加（PR #71）
+
+**説明**:
+- `.npmignore` ファイルを作成し、ビルド成果物（`.next/`, `dist/`）が npx パッケージに含まれるようにする
+- `.gitignore` がパッケージフィルタリングに使用される問題を解消
+
+**受入基準**:
+- [x] `.npmignore` ファイルが作成されている
+- [x] `.next/` と `dist/` がパッケージに含まれる
+- [x] `.next/cache/` は除外されている
+- [x] テスト、ドキュメント等の開発ファイルは除外されている
+- [x] `.npmignore` の内容を検証するユニットテストが追加されている
+
+**依存関係**: タスク3.2
+**ステータス**: `DONE`
+
+---
+
+#### タスク4.2: pnpm-lock.yaml の修正（PR #71）
+
+**説明**:
+- `pnpm-lock.yaml` が `package.json` と一致していなかった問題を修正
+- drizzle-kit が dependencies から devDependencies に移動された変更をロックファイルに反映
+
+**受入基準**:
+- [x] `pnpm-lock.yaml` が `package.json` と一致している
+- [x] CI の `ERR_PNPM_OUTDATED_LOCKFILE` エラーが解消されている
+
+**依存関係**: タスク4.1
+**ステータス**: `DONE`
+
+---
+
+### フェーズ5: Claude Code CLI パス検出修正
+
+#### タスク5.1: detectClaudePath のコマンド名対応（PR #72）
+
+**説明**:
+- `detectClaudePath()` がコマンド名（非絶対パス）を受け付けるように修正
+- コマンド名の場合は `which` で解決を試みる
+- `.env.example` の `CLAUDE_CODE_PATH` をコメントアウトし、自動検出をデフォルトに変更
+
+**受入基準**:
+- [x] コマンド名指定時に `which` で解決される
+- [x] `which` でも見つからない場合は適切なエラーを表示
+- [x] `.env.example` で `CLAUDE_CODE_PATH` がコメントアウトされている
+- [x] ユニットテストが追加されている
+
+**依存関係**: タスク4.2
+**ステータス**: `DONE`
+
+---
+
+#### タスク5.2: systemd 環境での動作確認
+
+**説明**:
+- systemd サービスが正常に起動することを確認
+- `http://localhost:3000/` で HTTP 200 が返ることを確認
+- `/api/health` で `{"status":"ok"}` が返ることを確認
+
+**受入基準**:
+- [x] `systemctl status claude-work` が `active (running)` を表示する
+- [x] `curl http://localhost:3000/` が HTTP 200 を返す
+- [x] `curl http://localhost:3000/api/health` が `{"status":"ok"}` を返す
+
+**依存関係**: タスク5.1
+**ステータス**: `DONE`
 
 ---
 

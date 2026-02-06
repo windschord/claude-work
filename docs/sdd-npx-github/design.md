@@ -35,8 +35,15 @@ npx github:user/claude-work 実行フロー:
 ┌─────────────────────────────────────────────────────────────┐
 │  2. npm install 実行                                         │
 │     └─ prepare スクリプト発火                                │
-│        1. npx prisma generate (Prismaクライアント生成)       │
+│        1. DB初期化（better-sqlite3 直接実行）                │
 │        2. DATABASE_URL設定 + npm run build                   │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│  2.5 npm pack 時: .npmignore に基づきファイルをフィルタリング │
+│      .next/ と dist/ はパッケージに含まれる                  │
+│      テスト、ドキュメント等は除外される                      │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -53,23 +60,35 @@ npx github:user/claude-work 実行フロー:
 **目的**: GitHubからのインストール時に自動ビルドを実行する
 
 **責務**:
-- `npm install` 実行後にPrismaクライアント生成とビルドを自動実行
+- `npm install` 実行後にDB初期化とビルドを自動実行
 - CI環境（`npm ci`）でも動作
 
 **変更内容**:
 ```json
 {
   "scripts": {
-    "prepare": "npx prisma generate && DATABASE_URL=file:./data/build.db npm run build"
+    "prepare": "node scripts/init-db.js && DATABASE_URL=file:./data/build.db npm run build"
   }
 }
 ```
 
 **明示された情報**:
 - prepareスクリプトはnpm install後に自動実行される
-- `npx prisma generate` でPrismaクライアントをスキーマから生成
+- `node scripts/init-db.js` でbetter-sqlite3を使用してDBを直接初期化（drizzle-kit不要）
 - `DATABASE_URL` をビルド時に設定（Next.jsビルドで環境変数が必要なため）
 - `npm run build` で Next.js と TypeScript サーバーの両方をビルド
+
+### コンポーネント1.5: .npmignore
+
+**目的**: npx パッケージにビルド成果物を含め、不要なファイルを除外する
+
+**背景**:
+`.npmignore` が存在しない場合、npm は `.gitignore` をパッケージフィルタリングに使用する。`.gitignore` には `.next/` と `dist/` が含まれているため、ビルド成果物がパッケージから除外される問題があった。
+
+**責務**:
+- `.next/` と `dist/` をパッケージに含める（除外しない）
+- `.next/cache/` は除外（サイズ削減）
+- テスト、ドキュメント、環境ファイル等の開発用ファイルを除外
 
 ### コンポーネント2: E2Eテスト (npx動作検証)
 
@@ -106,7 +125,7 @@ User                 npx                  npm                 CLI
   │                   │───────────────────>│                   │
   │                   │                    │                   │
   │                   │                    │ prepare script    │
-  │                   │                    │ 1. prisma generate│
+  │                   │                    │ 1. DB初期化       │
   │                   │                    │ 2. npm run build  │
   │                   │                    │──────────────────>│
   │                   │                    │                   │
@@ -162,12 +181,34 @@ User                 npx                  npm                 CLI
 - 実際のnpx動作（tarballからのインストール）を再現
 - 外部依存なしで繰り返しテスト可能
 
-## ファイル変更一覧
+### 決定3: .npmignore による明示的なパッケージフィルタリング
 
-| ファイル                | 変更内容                         |
-| ----------------------- | -------------------------------- |
-| `package.json`          | `prepare` スクリプト追加         |
-| `e2e/npx-cli.spec.ts`   | npx動作検証E2Eテスト新規作成     |
+**検討した選択肢**:
+1. `.npmignore` ファイルを追加
+   - メリット: `.gitignore` と独立してパッケージ内容を制御可能
+   - デメリット: 2つの除外設定ファイルの管理が必要
+2. `package.json` の `files` フィールドで包含リストを定義
+   - メリット: 明示的に含めるファイルのみ指定
+   - デメリット: ファイル追加のたびに `files` フィールドの更新が必要
+3. `.gitignore` から `.next/` と `dist/` を削除
+   - メリット: `.npmignore` 不要
+   - デメリット: ビルド成果物がリポジトリに含まれてしまう
+
+**決定**: `.npmignore` ファイルを追加
+
+**根拠**:
+- `.gitignore` の役割（リポジトリからビルド成果物を除外）を維持しつつ、npm パッケージには含められる
+- npm の標準的なメカニズムであり、追加の設定不要
+- 包含リスト方式と比較して、新規ファイル追加時の保守コストが低い
+
+## 成果物一覧
+
+| ファイル | 説明 | 対応要件 |
+| -------- | ---- | -------- |
+| `package.json` | `prepare` スクリプト追加 | REQ-001, REQ-002, REQ-003 |
+| `.npmignore` | npm パッケージ除外制御（新規作成） | REQ-007, REQ-008 |
+| `e2e/npx-cli.spec.ts` | npx動作検証E2Eテスト新規作成 | REQ-004, REQ-005, REQ-006 |
+| `src/bin/__tests__/npmignore.test.ts` | .npmignore 検証ユニットテスト | REQ-007, REQ-008 |
 
 ## テスト戦略
 

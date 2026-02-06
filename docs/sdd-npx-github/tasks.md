@@ -27,12 +27,12 @@
 
 **説明**:
 - 対象ファイル: `package.json`
-- 実装内容: `scripts` セクションに `"prepare": "npx prisma generate && DATABASE_URL=file:./data/build.db npm run build"` を追加
-- 目的: `npm install` 実行時に自動でPrismaクライアント生成とビルドを実行させる
+- 実装内容: `scripts` セクションに `"prepare": "node scripts/init-db.js && DATABASE_URL=file:./data/build.db npm run build"` を追加
+- 目的: `npm install` 実行時に自動でDB初期化とビルドを実行させる
 
 **技術的文脈**:
 - npm のライフサイクルスクリプト `prepare` は `npm install` 後に自動実行される
-- `npx prisma generate` でPrismaクライアントをスキーマから生成（TypeScriptビルドに必要）
+- `node scripts/init-db.js` で better-sqlite3 を使用してDBを直接初期化（drizzle-kit不要）
 - `DATABASE_URL` 環境変数をビルド時に設定（Next.jsビルドで環境変数検証が必要なため）
 - `npm run build` は Next.js とサーバーの両方をビルドする
 - GitHubからの `npx github:...` 実行時にこのスクリプトが発火する
@@ -41,12 +41,12 @@
 
 | 分類               | 内容                                                                 |
 |--------------------|----------------------------------------------------------------------|
-| 明示された情報     | prepareスクリプトでprisma generate + npm run buildを実行             |
+| 明示された情報     | prepareスクリプトでDB初期化 + npm run buildを実行                    |
 | 不明/要確認の情報  | なし                                                                 |
 
 **受入基準**:
 - [x] `package.json` の `scripts` に prepare スクリプトが追加されている
-- [x] prepare スクリプトが `npx prisma generate` を実行する
+- [x] prepare スクリプトが DB初期化を実行する
 - [x] prepare スクリプトが `DATABASE_URL` を設定してビルドを実行する
 - [x] `npm install` 実行後にビルドが自動実行される
 
@@ -151,6 +151,31 @@
 - [ ] または、既存のドキュメントで十分な場合は変更なし
 
 **依存関係**: タスク3.1
+**ステータス**: `DONE`
+
+---
+
+### フェーズ5: パッケージング修正
+
+#### タスク5.1: .npmignore の追加（PR #71）
+
+**説明**:
+- 対象ファイル: `.npmignore` (新規作成)
+- 実装内容: `.gitignore` がnpmパッケージフィルタリングに使われることで `.next/` と `dist/` が除外される問題を修正
+- ユニットテスト: `src/bin/__tests__/npmignore.test.ts` を追加
+
+**技術的文脈**:
+- `.npmignore` が存在しない場合、npm は `.gitignore` をパッケージフィルタリングに使用する
+- `.gitignore` には `.next/` と `dist/` が含まれているため、ビルド成果物がパッケージから除外されていた
+- これにより npx 経由でインストールした際に `Module not found: Can't resolve '@/components/layout/MainLayout'` エラーが発生
+
+**受入基準**:
+- [x] `.npmignore` ファイルが作成されている
+- [x] `.next/` と `dist/` がパッケージに含まれる
+- [x] 不要な開発ファイルは除外されている
+- [x] ユニットテストが追加・通過している
+
+**依存関係**: なし
 **ステータス**: `DONE`
 
 ---

@@ -15,7 +15,7 @@ EnvironmentFile=/etc/claude-work/env
 #   - 初回実行時は必ず GitHub への接続が必要（パッケージ取得）
 #   - 2回目以降は npm キャッシュを利用するが、キャッシュ有効期限などの設定により
 #     npx/npm が定期的に更新確認やダウンロードのためネットワークアクセスを行う可能性あり
-# 初回実行時に自動セットアップ（Prisma、DB、ビルド）を実行
+# 初回実行時に自動セットアップ（DB初期化、ビルド）を実行
 # HOME を設定する理由:
 #   1. npm キャッシュを /opt/claude-work/.npm に配置（HOME=/opt/claude-work 配下に保持）
 #   2. ProtectHome=read-only との競合を回避
