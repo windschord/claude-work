@@ -84,7 +84,7 @@ sudo chown -R claude-work:claude-work /opt/claude-work
 > - **キャッシュ更新**: npx は定期的に更新を確認するため、その際にはネットワーク接続が必要
 > - **ネットワーク障害時**: キャッシュが存在すればそのキャッシュから起動、存在しなければ起動失敗
 >
-> キャッシュを手動で更新する場合は、`sudo -u claude-work HOME=/opt/claude-work npx github:windschord/claude-work@latest` を実行してください。
+> キャッシュを手動で更新する場合は、`sudo -u claude-work HOME=/opt/claude-work npx github:windschord/claude-work` を実行してください。
 
 ---
 

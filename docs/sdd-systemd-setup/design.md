@@ -22,7 +22,7 @@
 │  │    ├─ User=claude-work                              │    │
 │  │    ├─ WorkingDirectory=/opt/claude-work             │    │
 │  │    ├─ EnvironmentFile=/etc/claude-work/env          │    │
-│  │    └─ ExecStart=/usr/bin/npx --yes github:windschord/claude-work@latest │
+│  │    └─ ExecStart=/usr/bin/npx --yes github:windschord/claude-work │
 │  │                                                      │    │
 │  └─────────────────────────────────────────────────────┘    │
 │                          │                                   │
@@ -69,7 +69,7 @@ EnvironmentFile=/etc/claude-work/env
 #   - 2回目以降はキャッシュを利用（オフライン起動可能）
 # 初回実行時に自動セットアップ（Prisma、DB、ビルド）を実行
 Environment=HOME=/opt/claude-work
-ExecStart=/usr/bin/npx --yes github:windschord/claude-work@latest
+ExecStart=/usr/bin/npx --yes github:windschord/claude-work
 # 初回起動時のビルドに時間がかかるためタイムアウトを延長
 TimeoutStartSec=300
 Restart=on-failure
