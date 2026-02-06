@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { checkNextBuild, checkDrizzle, checkDatabase } from '../cli-utils';
+import { checkNextBuild, checkDrizzle, checkDatabase, findBinDir } from '../cli-utils';
 
 describe('cli-utils', () => {
   let testDir: string;
@@ -102,6 +102,33 @@ describe('cli-utils', () => {
 
       const result = checkDrizzle(projectRoot);
       expect(result).toBe(false);
+    });
+  });
+
+  describe('findBinDir', () => {
+    it('should return local .bin when it exists in projectRoot', () => {
+      const binDir = join(testDir, 'node_modules', '.bin');
+      mkdirSync(binDir, { recursive: true });
+
+      const result = findBinDir(testDir);
+      expect(result).toBe(binDir);
+    });
+
+    it('should return parent .bin when projectRoot has no .bin (npx flat structure)', () => {
+      // Simulate npx cache: .bin is in parent node_modules
+      const parentNodeModules = join(testDir, 'node_modules');
+      const parentBinDir = join(parentNodeModules, '.bin');
+      mkdirSync(parentBinDir, { recursive: true });
+      const projectRoot = join(parentNodeModules, 'claude-work');
+      mkdirSync(projectRoot, { recursive: true });
+
+      const result = findBinDir(projectRoot);
+      expect(result).toBe(parentBinDir);
+    });
+
+    it('should return local .bin as fallback when not found anywhere', () => {
+      const result = findBinDir(testDir);
+      expect(result).toBe(join(testDir, 'node_modules', '.bin'));
     });
   });
 
