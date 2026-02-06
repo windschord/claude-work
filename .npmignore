@@ -1,0 +1,60 @@
+# .npmignore
+# .gitignoreの代わりにnpmパッケージのファイル除外を制御する。
+# .next/ と dist/ はビルド成果物として必要なため除外しない。
+
+# テスト関連
+coverage/
+test-results/
+playwright-report/
+test-screenshots/
+**/__tests__/
+*.test.ts
+*.test.tsx
+*.spec.ts
+vitest.config.*
+playwright.config.*
+
+# 環境ファイル
+.env
+.env*.local
+.envrc
+
+# 開発設定
+.claude/
+.worktrees/
+
+# ログ
+logs/
+*.log
+npm-debug.log*
+
+# データベースファイル（実行時に自動作成）
+data/
+*.db
+*.db-journal
+
+# ドキュメント（実行時に不要）
+docs/
+
+# Prisma（レガシー、不要）
+prisma/
+src/generated/
+
+# OS固有
+.DS_Store
+
+# ビルドキャッシュ
+*.tsbuildinfo
+.next/cache/
+
+# Drizzle開発ツール設定
+drizzle/
+drizzle.config.ts
+
+# PM2ログ
+logs/
+
+# その他開発用ファイル
+.editorconfig
+.prettierrc*
+.textlintrc*
