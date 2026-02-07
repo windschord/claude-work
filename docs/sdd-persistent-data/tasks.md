@@ -8,8 +8,8 @@
 | T-002 | remote-repo-service.tsのパス外部化 | DONE | REQ-001 |
 | T-003 | clone/route.tsのパス外部化 | DONE | REQ-001 |
 | T-004 | auth-directory-manager.tsのパス外部化 | DONE | REQ-002 |
-| T-005 | server.tsの起動時初期化 | TODO | REQ-004 |
-| T-006 | ドキュメント更新 | TODO | REQ-005, REQ-006 |
+| T-005 | server.tsの起動時初期化 | DONE | REQ-004 |
+| T-006 | ドキュメント更新 | DONE | REQ-005, REQ-006 |
 
 ## タスク詳細
 
@@ -110,7 +110,8 @@
 
 ### T-005: server.tsの起動時初期化
 
-**状態:** TODO
+**状態:** DONE
+**完了サマリー:** ensureDataDirs/getDataDirをインポートし、起動時のDATA_DIRログ出力とディレクトリ初期化を追加。ビルド成功。
 **要件:** REQ-004
 **ファイル:** `server.ts`
 **依存:** T-001
@@ -130,7 +131,8 @@
 
 ### T-006: ドキュメント更新
 
-**状態:** TODO
+**状態:** DONE
+**完了サマリー:** ENV_VARS.mdにDATA_DIRの説明を追加。SYSTEMD_SETUP.mdにDATA_DIR推奨設定と解説を追加。
 **要件:** REQ-005, REQ-006
 **ファイル:** `docs/ENV_VARS.md`, `docs/SYSTEMD_SETUP.md`
 **依存:** T-001
