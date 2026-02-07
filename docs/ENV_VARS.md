@@ -46,7 +46,7 @@ ClaudeWork で使用可能な環境変数の一覧です。
 - **形式**: 絶対パスまたは相対パス
 - **例**: `DATA_DIR=/opt/claude-work/data`
 - **デフォルト**: `<process.cwd()>/data`（未設定時はカレントディレクトリ配下の `data/`）
-- **備考**: systemd 環境では `npx` キャッシュの再構築時にカレントディレクトリ内のデータが消失する可能性があるため、`DATABASE_URL` と同じディレクトリ（例: `/opt/claude-work/data`）を指定することを推奨します
+- **備考**: systemd 環境では `npx` キャッシュの再構築時にカレントディレクトリ内のデータを消失する可能性があるため、`DATABASE_URL` と同じディレクトリ（例: `/opt/claude-work/data`）を指定することを推奨します
 
 ### NODE_ENV
 
