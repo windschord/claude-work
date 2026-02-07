@@ -1,6 +1,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { logger } from '@/lib/logger';
+import { getEnvironmentsDir } from '@/lib/data-dir';
 
 /**
  * 環境IDの正規表現パターン
@@ -17,7 +18,7 @@ export class AuthDirectoryManager {
 
   constructor(baseDir?: string) {
     // デフォルト: プロジェクトルート/data/environments
-    this.baseDir = baseDir || path.resolve(process.cwd(), 'data', 'environments');
+    this.baseDir = baseDir || getEnvironmentsDir();
   }
 
   /**
