@@ -21,6 +21,8 @@ jobs:
 
       - name: Setup project
         uses: ./.github/actions/setup
+        with:
+          skip-db-setup: 'true'
 
       - name: Run textlint
         run: pnpm run textlint
