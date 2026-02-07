@@ -116,22 +116,54 @@ function checkDatabase(): boolean {
 }
 
 /**
+ * DATABASE_URL環境変数からDBファイルパスを解決する
+ */
+function resolveDbPathFromEnv(): string | null {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl || databaseUrl.trim() === '') {
+    return null;
+  }
+  if (databaseUrl.startsWith('file://')) {
+    // file:// 形式（URL形式）
+    const { fileURLToPath } = require('url');
+    return fileURLToPath(databaseUrl);
+  }
+  if (databaseUrl.startsWith('file:')) {
+    // file: 形式（簡易プレフィックス）
+    return databaseUrl.replace(/^file:/, '');
+  }
+  return null;
+}
+
+/**
  * データベースディレクトリを作成し、テーブルを初期化
  */
 function setupDatabase(): boolean {
   console.log('Setting up database...');
 
-  // データベースディレクトリを作成
+  // プロジェクトルート内のデフォルトDBを初期化
   const dataDir = path.join(projectRoot, 'data');
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
   }
-
-  // better-sqlite3で直接テーブルを作成（drizzle-kit不要）
-  const dbPath = path.join(dataDir, 'claudework.db');
-  if (!initializeDatabase(dbPath)) {
+  const defaultDbPath = path.join(dataDir, 'claudework.db');
+  if (!initializeDatabase(defaultDbPath)) {
     console.error('Failed to setup database');
     return false;
+  }
+
+  // DATABASE_URLが外部パスを指している場合、そちらも初期化
+  const envDbPath = resolveDbPathFromEnv();
+  if (envDbPath && path.resolve(envDbPath) !== path.resolve(defaultDbPath)) {
+    const envDbDir = path.dirname(envDbPath);
+    if (!fs.existsSync(envDbDir)) {
+      fs.mkdirSync(envDbDir, { recursive: true });
+    }
+    console.log(`Initializing DATABASE_URL database: ${envDbPath}`);
+    if (!initializeDatabase(envDbPath)) {
+      console.error(`Failed to initialize database at ${envDbPath}`);
+      return false;
+    }
   }
 
   console.log('Database setup completed.');
