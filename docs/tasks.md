@@ -95,7 +95,7 @@
 **要件:** REQ-005
 **ファイル:** `src/lib/websocket/claude-ws.ts`
 **依存:** なし
-**完了サマリー:** handlePasteImage関数を実装。MIME検証、10MBサイズ制限、パストラバーサル防止付き。.claude-images/ディレクトリへの自動保存とPTYパス入力を実装。
+**完了サマリー:** handlePasteImage関数を実装。MIME検証、10MBサイズ制限、パストラバーサル防止付き。
 
 **受入基準:**
 - [x] 画像がworktree配下に保存される
@@ -112,7 +112,7 @@
 **要件:** REQ-005
 **ファイル:** `src/hooks/useClaudeTerminal.ts`
 **依存:** T-004 (handlePaste関数), T-006 (サーバー側API)
-**完了サマリー:** handlePaste内で画像判定(画像優先)、sendImageToServer関数でblob→base64→WebSocket送信、image-errorメッセージハンドラを実装。
+**完了サマリー:** handlePaste内の画像判定(画像優先)、sendImageToServer関数によるblob→base64→WebSocket送信、image-errorハンドラを実装。
 
 **受入基準:**
 - [x] 画像がbase64でサーバーに送信される
