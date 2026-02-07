@@ -59,6 +59,25 @@ Ubuntu システムで ClaudeWork を systemd サービスとして自動起動�
 - [x] ユニットファイル削除手順が記載されている
 - [x] 専用ユーザー削除手順（オプション）が記載されている
 
+### REQ-006: npx パッケージにビルド成果物を含める
+
+npx github:windschord/claude-work でインストールする時、パッケージにはビルド済みの成果物（`.next/`, `dist/`）が含まれなければならない。
+
+**受入基準**:
+- [x] `.npmignore` が存在し、`.next/` と `dist/` を除外していない
+- [x] `.gitignore` で除外されているビルド成果物が npx パッケージには含まれる
+- [x] 不要な開発ファイル（テスト、ドキュメント等）はパッケージから除外されている
+
+### REQ-007: Claude Code CLI パスの柔軟な検出
+
+システムは CLAUDE_CODE_PATH 環境変数に絶対パスだけでなくコマンド名も受け付け、`which` コマンドで自動解決しなければならない。
+
+**受入基準**:
+- [x] 絶対パス指定時はファイル存在チェックで検証する
+- [x] コマンド名指定時は `which` で解決を試みる
+- [x] 未設定時は `which claude` で自動検出する
+- [x] いずれの方法でも見つからない場合は適切なエラーメッセージを表示する
+
 ---
 
 ## 非機能要件
@@ -104,3 +123,5 @@ Ubuntu システムで ClaudeWork を systemd サービスとして自動起動�
 | docs/SYSTEMD_SETUP.md | セットアップ手順ドキュメント |
 | systemd/claude-work.service | systemd ユニットファイルテンプレート |
 | systemd/claude-work.env.example | 環境変数ファイルテンプレート |
+| .npmignore | npm パッケージのファイル除外制御 |
+| src/lib/env-validation.ts | CLI パス検出ロジック（detectClaudePath） |

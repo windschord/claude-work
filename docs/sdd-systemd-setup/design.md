@@ -67,7 +67,7 @@ EnvironmentFile=/etc/claude-work/env
 # ネットワーク要件:
 #   - 初回実行時は必ず GitHub への接続が必要（パッケージ取得）
 #   - 2回目以降はキャッシュを利用（オフライン起動可能）
-# 初回実行時に自動セットアップ（Prisma、DB、ビルド）を実行
+# 初回実行時に自動セットアップ（DB初期化、ビルド）を実行
 Environment=HOME=/opt/claude-work
 ExecStart=/usr/bin/npx --yes github:windschord/claude-work
 # 初回起動時のビルドに時間がかかるためタイムアウトを延長
@@ -91,7 +91,7 @@ WantedBy=multi-user.target
 
 **設計決定**:
 - `Type=simple`: フォアグラウンドで実行されるため
-- `ExecStart=npx github:windschord/claude-work`: 初回実行時に GitHub から取得しキャッシュ、自動セットアップ（Prisma、DB、ビルド）を実行
+- `ExecStart=npx github:windschord/claude-work`: 初回実行時に GitHub から取得しキャッシュ、自動セットアップ（DB初期化、ビルド）を実行
 - `Restart=on-failure`: 異常終了時のみ再起動
 - `RestartSec=10`: 再起動間隔を10秒に設定（無限ループ防止）
 - `ProtectSystem=strict`: ファイルシステム全体を読み取り専用に（ReadWritePaths で許可したパス以外）
@@ -126,7 +126,11 @@ NODE_ENV=production
 # PROCESS_IDLE_TIMEOUT_MINUTES=30
 
 # Claude Code CLI パス（オプション）
-# デフォルトでは PATH から自動検出
+# デフォルトでは PATH から自動検出（which claude）
+# 絶対パス、または PATH 上のコマンド名を指定可能
+# コマンド名を指定した場合は which で自動解決される
+# systemd 環境では claude-work ユーザーの PATH に claude がない場合があるため
+# 絶対パスでの指定を推奨
 # CLAUDE_CODE_PATH=/usr/local/bin/claude
 
 # 許可するプロジェクトディレクトリ（オプション）
@@ -138,6 +142,15 @@ NODE_ENV=production
 # 本番環境では "*" は使用せず、必要なドメインのみを列挙してください
 # 例: ALLOWED_ORIGINS=https://example.com,https://app.example.com
 # ALLOWED_ORIGINS=
+
+# 認証トークン（オプション）
+# 設定すると API アクセス時にトークン認証が必要になります
+# 安全なランダム文字列を生成してください（例: openssl rand -hex 32）
+# CLAUDE_WORK_TOKEN=
+
+# セッションシークレット（オプション）
+# 設定する場合は 32 文字以上の安全なランダム文字列を使用してください
+# SESSION_SECRET=
 ```
 
 ### コンポーネント3: セットアップドキュメント
@@ -155,6 +168,35 @@ NODE_ENV=production
 6. サービスの起動と確認
 7. トラブルシューティング
 8. アンインストール手順
+
+### コンポーネント4: .npmignore ファイル
+
+**ファイル**: `.npmignore`
+
+**目的**: npx パッケージにビルド成果物（`.next/`, `dist/`）を含める
+
+**背景**:
+`.npmignore` の未設定時、npm は `.gitignore` をパッケージのフィルタリングに使用する。`.gitignore` は `.next/` と `dist/` を含んでおり、npx 経由のインストールでビルド成果物が除外されていた。この結果、Next.js のモジュール解決に失敗する問題があった（PR #71 で修正）。
+
+**設計決定**:
+- `.next/` と `dist/` を **除外しない**（パッケージに含める）
+- `.next/cache/` は除外（サイズ削減のため）
+- テスト、ドキュメント、環境ファイル等の開発用ファイルは除外
+
+### コンポーネント5: Claude Code CLI パス検出ロジック
+
+**ファイル**: `src/lib/env-validation.ts` の `detectClaudePath()`
+
+**目的**: CLAUDE_CODE_PATH の柔軟な検出
+
+**背景**:
+`CLAUDE_CODE_PATH=claude` のようにコマンド名のみが指定された場合、`existsSync('claude')` ではファイルとして存在チェックするため失敗する。systemd 環境では `claude-work` ユーザーの PATH に `claude` コマンドがない場合もある（PR #72 で修正）。
+
+**検出優先順位**:
+1. `CLAUDE_CODE_PATH` が設定済みで `existsSync()` で存在する場合 -> そのまま使用
+2. `CLAUDE_CODE_PATH` が非絶対パス（コマンド名）の場合 -> `which` で解決を試みる
+3. `CLAUDE_CODE_PATH` が未設定の場合 -> `which claude` で自動検出
+4. いずれも見つからない場合 -> エラー
 
 ---
 
@@ -237,3 +279,5 @@ NODE_ENV=production
 | docs/SYSTEMD_SETUP.md | セットアップ手順ドキュメント | REQ-001〜REQ-005 |
 | systemd/claude-work.service | systemd ユニットファイル | REQ-002, NFR-001, NFR-002, NFR-003 |
 | systemd/claude-work.env.example | 環境変数テンプレート | REQ-002 |
+| .npmignore | npm パッケージのファイル除外制御 | REQ-006 |
+| src/lib/env-validation.ts | CLI パス検出ロジック | REQ-007 |

@@ -24,7 +24,18 @@
 
 - **REQ-001**: `npx github:windschord/claude-work` を実行した時、システムは自動的にビルドを実行し、CLIが起動しなければならない
 - **REQ-002**: `npx github:windschord/claude-work#branch-name` を実行した時、システムは指定ブランチのコードでCLIが起動しなければならない
-- **REQ-003**: `npm install` を実行した時、システムはprepareフックで `npx prisma generate` と `npm run build` を自動的に実行しなければならない
+- **REQ-003**: `npm install` を実行した時、システムはprepareフックで DB初期化と `npm run build` を自動的に実行しなければならない
+
+### ストーリー1.5: ビルド成果物のパッケージング
+
+**私は** 開発者として
+**〜したい** npx でインストールされたパッケージにビルド成果物が含まれていてほしい
+**なぜなら** ビルド成果物がないと Next.js のモジュール解決が失敗するから
+
+#### 受入基準（EARS記法）
+
+- **REQ-007**: `.npmignore` が存在しない場合、npm は `.gitignore` をパッケージフィルタリングに使用し、`.next/` と `dist/` がパッケージから除外されるため、`.npmignore` を作成してビルド成果物をパッケージに含めなければならない
+- **REQ-008**: `.npmignore` はテスト、ドキュメント、環境ファイル等の開発用ファイルをパッケージから除外しなければならない
 
 ### ストーリー2: npx動作のE2Eテスト
 

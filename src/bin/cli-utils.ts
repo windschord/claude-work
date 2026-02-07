@@ -101,14 +101,57 @@ export function findBinDir(projectRoot: string): string {
 }
 
 /**
- * データベースファイルが存在するか確認
+ * データベースファイルが存在し、テーブルが初期化されているか確認
+ *
+ * DATABASE_URL環境変数が外部パスを指している場合、そちらもチェックする。
  *
  * @param projectRoot - プロジェクトルートディレクトリ
- * @returns データベースが存在する場合はtrue
+ * @returns データベースが存在し、テーブルが初期化されている場合はtrue
  */
 export function checkDatabase(projectRoot: string): boolean {
-  const dbPath = path.join(projectRoot, 'data', 'claudework.db');
-  return fs.existsSync(dbPath);
+  const defaultDbPath = path.join(projectRoot, 'data', 'claudework.db');
+
+  // DATABASE_URLが外部パスを指している場合、そちらもチェック
+  const databaseUrl = process.env.DATABASE_URL;
+  if (databaseUrl && databaseUrl.trim() !== '') {
+    let envDbPath: string | null = null;
+    if (databaseUrl.startsWith('file://')) {
+      const { fileURLToPath } = require('url');
+      envDbPath = fileURLToPath(databaseUrl);
+    } else if (databaseUrl.startsWith('file:')) {
+      envDbPath = databaseUrl.replace(/^file:/, '');
+    }
+
+    if (envDbPath && path.resolve(envDbPath) !== path.resolve(defaultDbPath)) {
+      // 外部DBが存在しない、またはテーブルが未初期化なら false を返す
+      if (!fs.existsSync(envDbPath) || !isDatabaseInitialized(envDbPath)) {
+        return false;
+      }
+    }
+  }
+
+  return fs.existsSync(defaultDbPath);
+}
+
+/**
+ * データベースにテーブルが初期化されているか確認
+ *
+ * @param dbPath - SQLiteデータベースファイルのパス
+ * @returns テーブルが存在する場合はtrue
+ */
+function isDatabaseInitialized(dbPath: string): boolean {
+  let db: InstanceType<typeof Database> | null = null;
+  try {
+    db = new Database(dbPath, { readonly: true });
+    const row = db.prepare(
+      "SELECT count(*) as cnt FROM sqlite_master WHERE type='table' AND name='Project'"
+    ).get() as { cnt: number } | undefined;
+    return (row?.cnt ?? 0) > 0;
+  } catch {
+    return false;
+  } finally {
+    db?.close();
+  }
 }
 
 /**
