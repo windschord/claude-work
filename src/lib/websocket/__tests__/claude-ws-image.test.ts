@@ -71,9 +71,10 @@ const mockFs = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('fs', () => ({
-  default: mockFs,
-  promises: mockFs.promises,
+vi.mock('fs/promises', () => ({
+  default: mockFs.promises,
+  mkdir: mockFs.promises.mkdir,
+  writeFile: mockFs.promises.writeFile,
 }));
 
 import { setupClaudeWebSocket } from '../claude-ws';

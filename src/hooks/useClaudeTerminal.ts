@@ -382,7 +382,7 @@ export function useClaudeTerminal(
 
           // CTRL+V: ペースト
           if (event.ctrlKey && !event.shiftKey && !event.altKey && event.key === 'v') {
-            handlePaste(wsRef, terminalRef);
+            void handlePaste(wsRef, terminalRef);
             return false; // イベント消費
           }
 

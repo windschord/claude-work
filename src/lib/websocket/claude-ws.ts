@@ -1,6 +1,6 @@
 import { WebSocket, WebSocketServer } from 'ws';
 import path from 'path';
-import fs from 'fs';
+import fs from 'fs/promises';
 import {
   claudePtyManager,
   type ClaudePTYExitInfo,
@@ -149,7 +149,7 @@ async function handlePasteImage(
       throw new Error('Invalid image directory path');
     }
 
-    await fs.promises.mkdir(resolvedDir, { recursive: true });
+    await fs.mkdir(resolvedDir, { recursive: true });
 
     // ファイル名生成（タイムスタンプ + ランダム文字列）
     const timestamp = Date.now();
@@ -158,13 +158,15 @@ async function handlePasteImage(
     const filePath = path.join(resolvedDir, filename);
 
     // ファイル保存
-    await fs.promises.writeFile(filePath, buffer);
+    await fs.writeFile(filePath, buffer);
 
     // ファイルパスをPTY入力として送信
     if (isLegacy) {
       claudePtyManager.write(sessionId, filePath);
+    } else if (adapter) {
+      adapter.write(sessionId, filePath);
     } else {
-      adapter!.write(sessionId, filePath);
+      throw new Error('Adapter not available');
     }
 
     // 成功メッセージを送信
