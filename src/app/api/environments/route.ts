@@ -4,10 +4,11 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { environmentService } from '@/services/environment-service';
 import { logger } from '@/lib/logger';
+import { getEnvironmentsDir } from '@/lib/data-dir';
 
 // 許可されたベースディレクトリ
 const ALLOWED_BASE_DIRS = [
-  path.resolve(process.cwd(), 'data', 'environments'),
+  getEnvironmentsDir(),
 ];
 
 // ファイル名のバリデーション正規表現

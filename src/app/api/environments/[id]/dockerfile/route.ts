@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { environmentService } from '@/services/environment-service';
+import { getEnvironmentsDir } from '@/lib/data-dir';
 
 export async function POST(
   request: NextRequest,
@@ -30,7 +31,7 @@ export async function POST(
   }
 
   // 環境専用ディレクトリにDockerfileを保存
-  const envDir = path.join(process.cwd(), 'data', 'environments', id);
+  const envDir = path.join(getEnvironmentsDir(), id);
   await fs.mkdir(envDir, { recursive: true });
 
   const dockerfilePath = path.join(envDir, 'Dockerfile');
@@ -68,7 +69,7 @@ export async function DELETE(
   }
 
   // Dockerfileを削除
-  const dockerfilePath = path.join(process.cwd(), 'data', 'environments', id, 'Dockerfile');
+  const dockerfilePath = path.join(getEnvironmentsDir(), id, 'Dockerfile');
   try {
     await fs.unlink(dockerfilePath);
   } catch {

@@ -3,10 +3,11 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
+import { getEnvironmentsDir } from '@/lib/data-dir';
 
 // 許可されたベースディレクトリ
 const ALLOWED_BASE_DIRS = [
-  path.resolve(process.cwd(), 'data', 'environments'),
+  getEnvironmentsDir(),
 ];
 
 // イメージ名/タグのバリデーション正規表現
