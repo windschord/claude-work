@@ -1,4 +1,6 @@
 import { WebSocket, WebSocketServer } from 'ws';
+import path from 'path';
+import fs from 'fs';
 import {
   claudePtyManager,
   type ClaudePTYExitInfo,
@@ -43,10 +45,18 @@ interface ClaudeRestartMessage {
   type: 'restart';
 }
 
+// クライアント → サーバー（画像ペースト）
+interface ClaudePasteImageMessage {
+  type: 'paste-image';
+  data: string;      // base64エンコードされた画像データ
+  mimeType: string;  // 'image/png', 'image/jpeg' 等
+}
+
 export type ClaudeClientMessage =
   | ClaudeInputMessage
   | ClaudeResizeMessage
-  | ClaudeRestartMessage;
+  | ClaudeRestartMessage
+  | ClaudePasteImageMessage;
 
 // サーバー → クライアント（出力）
 interface ClaudeDataMessage {
@@ -67,10 +77,119 @@ interface ClaudeErrorMessage {
   message: string;
 }
 
+// サーバー → クライアント（画像保存結果）
+interface ClaudeImageSavedMessage {
+  type: 'image-saved';
+  filePath: string;
+}
+
+interface ClaudeImageErrorMessage {
+  type: 'image-error';
+  message: string;
+}
+
 export type ClaudeServerMessage =
   | ClaudeDataMessage
   | ClaudeExitMessage
-  | ClaudeErrorMessage;
+  | ClaudeErrorMessage
+  | ClaudeImageSavedMessage
+  | ClaudeImageErrorMessage;
+
+// 画像の最大サイズ（10MB）
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
+
+// 許可するMIMEタイプと拡張子のマッピング
+const ALLOWED_IMAGE_TYPES: Record<string, string> = {
+  'image/png': '.png',
+  'image/jpeg': '.jpg',
+  'image/gif': '.gif',
+  'image/webp': '.webp',
+};
+
+/**
+ * クリップボードからペーストされた画像をファイルに保存し、
+ * パスをPTY入力として送信する
+ */
+async function handlePasteImage(
+  data: { data: string; mimeType: string },
+  sessionId: string,
+  worktreePath: string,
+  ws: WebSocket,
+  isLegacy: boolean,
+  adapter: EnvironmentAdapter | null,
+): Promise<void> {
+  try {
+    // MIMEタイプ検証
+    const ext = ALLOWED_IMAGE_TYPES[data.mimeType];
+    if (!ext) {
+      throw new Error(`Unsupported image type: ${data.mimeType}`);
+    }
+
+    // Base64デコード
+    const buffer = Buffer.from(data.data, 'base64');
+
+    // サイズ制限チェック
+    if (buffer.length > MAX_IMAGE_SIZE) {
+      throw new Error(`Image too large: ${buffer.length} bytes (max: ${MAX_IMAGE_SIZE})`);
+    }
+
+    // 保存先ディレクトリ
+    const imageDir = path.join(worktreePath, '.claude-images');
+    const resolvedDir = path.resolve(imageDir);
+    const resolvedWorktree = path.resolve(worktreePath);
+
+    // パストラバーサル防止
+    if (!resolvedDir.startsWith(resolvedWorktree + path.sep) && resolvedDir !== resolvedWorktree) {
+      throw new Error('Invalid image directory path');
+    }
+
+    if (!fs.existsSync(resolvedDir)) {
+      fs.mkdirSync(resolvedDir, { recursive: true });
+    }
+
+    // ファイル名生成（タイムスタンプ + ランダム文字列）
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).substring(2, 8);
+    const filename = `clipboard-${timestamp}-${random}${ext}`;
+    const filePath = path.join(resolvedDir, filename);
+
+    // ファイル保存
+    fs.writeFileSync(filePath, buffer);
+
+    // ファイルパスをPTY入力として送信
+    if (isLegacy) {
+      claudePtyManager.write(sessionId, filePath);
+    } else {
+      adapter!.write(sessionId, filePath);
+    }
+
+    // 成功メッセージを送信
+    const msg: ClaudeImageSavedMessage = {
+      type: 'image-saved',
+      filePath,
+    };
+    ws.send(JSON.stringify(msg));
+
+    logger.info('Claude WebSocket: Image saved', {
+      sessionId,
+      filePath,
+      mimeType: data.mimeType,
+      size: buffer.length,
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Failed to save image';
+    logger.error('Claude WebSocket: Failed to save image', {
+      sessionId,
+      error: errorMessage,
+    });
+
+    const msg: ClaudeImageErrorMessage = {
+      type: 'image-error',
+      message: errorMessage,
+    };
+    ws.send(JSON.stringify(msg));
+  }
+}
 
 /**
  * Claude Code WebSocketサーバーをセットアップ
@@ -345,7 +464,7 @@ export function setupClaudeWebSocket(
       }
 
       // WebSocket入力 → PTY
-      ws.on('message', (message: Buffer) => {
+      ws.on('message', async (message: Buffer) => {
         try {
           const data = JSON.parse(message.toString());
 
@@ -412,6 +531,13 @@ export function setupClaudeWebSocket(
             } else {
               adapter!.restartSession(sessionId, session.worktree_path);
             }
+          } else if (data.type === 'paste-image') {
+            // 画像ペースト処理
+            if (typeof data.data !== 'string' || typeof data.mimeType !== 'string') {
+              logger.warn('Claude WebSocket: Invalid paste-image data', { sessionId });
+              return;
+            }
+            await handlePasteImage(data, sessionId, session.worktree_path, ws, isLegacy, adapter);
           } else {
             logger.warn('Claude WebSocket: Unknown message type', {
               sessionId,
