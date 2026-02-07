@@ -331,7 +331,7 @@ async function handlePasteImage(
 
 ### TD-001: 画像送信方式 - WebSocket JSON (base64)
 **選択:** WebSocket経由でbase64エンコードしたJSONを送信
-**理由:** 既存のWebSocketプロトコルと一貫性がある。別途HTTP APIを用意する必要がない。5MB以下の画像であれば十分な性能。
+**理由:** 既存のWebSocketプロトコルと一貫性がある。別途HTTP APIを用意する必要がない。性能面では5MB程度を推奨し、セキュリティ制限として10MB上限を設定。
 
 ### TD-002: 画像保存場所 - worktree内 `.claude-images/`
 **選択:** 各セッションのworktreeパス配下に `.claude-images/` ディレクトリを作成
