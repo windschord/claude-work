@@ -403,7 +403,12 @@ export function setupClaudeWebSocket(
               sessionId,
             });
             if (isLegacy) {
-              claudePtyManager.restartSession(sessionId, session.worktree_path);
+              claudePtyManager.restartSession(
+                sessionId,
+                session.worktree_path,
+                undefined,
+                { dockerMode: session.docker_mode }
+              );
             } else {
               adapter!.restartSession(sessionId, session.worktree_path);
             }

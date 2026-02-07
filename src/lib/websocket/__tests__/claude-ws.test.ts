@@ -611,7 +611,12 @@ describe('Claude WebSocket Handler - Environment Support', () => {
       const restartMessage = JSON.stringify({ type: 'restart' });
       messageHandler!(Buffer.from(restartMessage));
 
-      expect(mockClaudePtyManager.restartSession).toHaveBeenCalledWith(sessionId, worktreePath);
+      expect(mockClaudePtyManager.restartSession).toHaveBeenCalledWith(
+        sessionId,
+        worktreePath,
+        undefined,
+        { dockerMode: true }
+      );
     });
   });
 });
