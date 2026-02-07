@@ -6,13 +6,14 @@
 
 1. [前提条件](#前提条件)
 2. [専用ユーザーの作成](#専用ユーザーの作成)
-3. [ディレクトリの準備](#ディレクトリの準備)
-4. [環境変数の設定](#環境変数の設定)
-5. [systemd サービスの設定](#systemd-サービスの設定)
-6. [サービスの起動と確認](#サービスの起動と確認)
-7. [ログの確認](#ログの確認)
-8. [トラブルシューティング](#トラブルシューティング)
-9. [アンインストール](#アンインストール)
+3. [SSH 鍵の設定（プライベートリポジトリ用）](#ssh-鍵の設定プライベートリポジトリ用)
+4. [ディレクトリの準備](#ディレクトリの準備)
+5. [環境変数の設定](#環境変数の設定)
+6. [systemd サービスの設定](#systemd-サービスの設定)
+7. [サービスの起動と確認](#サービスの起動と確認)
+8. [ログの確認](#ログの確認)
+9. [トラブルシューティング](#トラブルシューティング)
+10. [アンインストール](#アンインストール)
 
 ---
 
@@ -22,10 +23,11 @@
 - Node.js 20 以上がインストール済み
 - npm がインストール済み
 - git がインストール済み（ワークツリー操作に必要）
-- Claude Code CLI がインストール済み（システム PATH でアクセス可能）
+- Claude Code CLI がインストール済み
 - sudo 権限を持つユーザーでログイン
+- Docker を使用する場合: Docker Engine がインストール済み
 
-> **重要**: ClaudeWork は Claude Code CLI を使用してセッションを管理します。サービス起動前に `claude --version` コマンドで Claude Code CLI がインストールされていることを確認してください。
+> **重要**: ClaudeWork は Claude Code CLI を使用してセッションを管理します。サービス起動前に `claude --version` コマンドで Claude Code CLI がインストールされていることを確認してください。`claude-work` ユーザーの PATH には Claude Code CLI が含まれない場合があるため、セットアップ時に絶対パスを設定します（後述）。
 
 ### git のインストール（未インストールの場合）
 
@@ -54,9 +56,50 @@ sudo apt-get install -y nodejs
 # claude-work ユーザーを作成（ログイン不可、ホームディレクトリは /opt/claude-work）
 sudo useradd --system --home /opt/claude-work --shell /usr/sbin/nologin claude-work
 
+# Docker を使用する場合: docker グループに追加
+sudo usermod -aG docker claude-work
+
 # ユーザーが作成されたことを確認
 id claude-work
 ```
+
+> **注意**: Docker グループへの追加は Docker Engine がインストールされている場合のみ必要です。Docker を使用しない場合はスキップしてください。グループ追加後、サービスの再起動が必要です。
+
+---
+
+## SSH 鍵の設定（プライベートリポジトリ用）
+
+ClaudeWork でプライベート Git リポジトリを Clone する場合、`claude-work` ユーザー用の SSH 鍵を設定する必要があります。パブリックリポジトリのみ使用する場合はこのセクションをスキップしてください。
+
+```bash
+# claude-work ユーザーの .ssh ディレクトリを作成
+sudo mkdir -p /opt/claude-work/.ssh
+sudo chmod 700 /opt/claude-work/.ssh
+
+# SSH 鍵ペアを生成
+sudo ssh-keygen -t ed25519 -C "claude-work@$(hostname)" -f /opt/claude-work/.ssh/id_ed25519 -N ""
+
+# 所有者を変更
+sudo chown -R claude-work:claude-work /opt/claude-work/.ssh
+
+# 公開鍵を表示（GitHub の Deploy Key などに登録）
+sudo cat /opt/claude-work/.ssh/id_ed25519.pub
+```
+
+### GitHub への鍵登録
+
+1. 表示された公開鍵をコピーします
+2. GitHub リポジトリの **Settings** > **Deploy keys** > **Add deploy key** で登録します
+3. **Allow write access** にチェックを入れます（ワークツリーの push が必要な場合）
+
+### SSH 接続の確認
+
+```bash
+# claude-work ユーザーとして SSH 接続をテスト
+sudo -u claude-work ssh -i /opt/claude-work/.ssh/id_ed25519 -T git@github.com
+```
+
+> **注意**: systemd サービスの `ProtectHome=read-only` 設定により、通常のホームディレクトリ（`~/.ssh`）は使用できません。SSH 鍵は `/opt/claude-work/.ssh` に配置してください。`HOME=/opt/claude-work` が設定されているため、SSH はこのディレクトリを参照します。
 
 ---
 
@@ -259,6 +302,9 @@ sudo journalctl -u claude-work -p err
 | `CLAUDE_CODE_PATH is set but the path does not exist` | CLI パスが見つからない | 絶対パスで `CLAUDE_CODE_PATH` を設定 |
 | `claude command not found in PATH` | `which claude` で検出不可 | `CLAUDE_CODE_PATH` に絶対パスを設定 |
 | `Module not found: Can't resolve '@/...'` | npx キャッシュ破損 | `sudo rm -rf /opt/claude-work/.npm/_npx` で再取得 |
+| `permission denied while trying to connect to the Docker daemon` | docker グループ未参加 | `sudo usermod -aG docker claude-work` 後にサービス再起動 |
+| `SQLITE_ERROR` / `no such table: Project` | DATABASE_URL 先の DB が未初期化 | サービスを再起動して自動初期化を実行、または手動で DB ファイルを確認 |
+| `Permission denied (publickey)` （git clone 時） | SSH 鍵が未設定 | [SSH 鍵の設定](#ssh-鍵の設定プライベートリポジトリ用)を参照 |
 
 ### セキュリティ設定による制限事項
 
