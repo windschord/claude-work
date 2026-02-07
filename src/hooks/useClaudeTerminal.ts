@@ -71,12 +71,22 @@ async function sendImageToServer(
   blob: Blob,
   mimeType: string
 ) {
-  const arrayBuffer = await blob.arrayBuffer();
-  const base64 = btoa(
-    new Uint8Array(arrayBuffer).reduce(
-      (data, byte) => data + String.fromCharCode(byte), ''
-    )
-  );
+  const base64 = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      const commaIndex = result.indexOf(',');
+      if (commaIndex !== -1) {
+        resolve(result.slice(commaIndex + 1));
+      } else {
+        reject(new Error('Invalid data URL format'));
+      }
+    };
+    reader.onerror = () => {
+      reject(reader.error ?? new Error('Failed to read blob as data URL'));
+    };
+    reader.readAsDataURL(blob);
+  });
   if (wsRef.current?.readyState === WebSocket.OPEN) {
     wsRef.current.send(JSON.stringify({
       type: 'paste-image',
@@ -356,8 +366,15 @@ export function useClaudeTerminal(
           if (event.ctrlKey && !event.shiftKey && !event.altKey && event.key === 'c') {
             const selection = term.getSelection();
             if (selection) {
-              navigator.clipboard.writeText(selection);
-              term.clearSelection();
+              navigator.clipboard
+                .writeText(selection)
+                .then(() => {
+                  term.clearSelection();
+                })
+                .catch(err => {
+                  console.error('Clipboard copy failed:', err);
+                  terminalRef.current?.write('\r\n[Clipboard copy failed: clipboard access denied]\r\n');
+                });
               return false; // イベント消費（SIGINTを送らない）
             }
             return true; // 選択なし: XTerm.jsデフォルト（SIGINT）
