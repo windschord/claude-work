@@ -161,6 +161,9 @@ async function handlePasteImage(
     await fs.writeFile(filePath, buffer);
 
     // ファイルパスをPTY入力として送信
+    // NOTE: ホスト上の絶対パスをPTYに送信する。
+    // Docker/SSH環境では、このパスがコンテナ/リモート上で無効になる可能性がある。
+    // 環境ごとのパス変換は将来の課題として残す。
     if (isLegacy) {
       claudePtyManager.write(sessionId, filePath);
     } else if (adapter) {

@@ -380,10 +380,13 @@ export function useClaudeTerminal(
             return true; // 選択なし: XTerm.jsデフォルト（SIGINT）
           }
 
-          // CTRL+V: ペースト
+          // CTRL+V: ペースト（Clipboard API利用可能時のみ）
           if (event.ctrlKey && !event.shiftKey && !event.altKey && event.key === 'v') {
-            void handlePaste(wsRef, terminalRef);
-            return false; // イベント消費
+            if (navigator.clipboard) {
+              void handlePaste(wsRef, terminalRef);
+              return false; // イベント消費
+            }
+            return true; // Clipboard API非対応: XTerm.jsデフォルトのペーストを使用
           }
 
           // SHIFT+ENTER: 改行
