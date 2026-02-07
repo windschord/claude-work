@@ -4,30 +4,36 @@
 
 FROM node:20-slim
 
-# メタデータ
 LABEL maintainer="Claude Work"
 LABEL description="Sandboxed environment for running Claude Code"
-LABEL version="1.0"
 
-# 必要なツールをインストール
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    git \
-    openssh-client \
-    curl \
-    ca-certificates \
-    bash \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
+# 必要最低限のツールをインストール (git, gh, openssh-client, curl, wget, bash)
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        git \
+        openssh-client \
+        curl \
+        wget \
+        bash \
+        ca-certificates \
+    && mkdir -p /etc/apt/keyrings \
+    && wget -qO- https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+        | tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
+    && chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+        | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends gh \
+    && apt-get autoremove -y \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 # Claude Codeをインストール
 RUN npm install -g @anthropic-ai/claude-code
 
-# nodeユーザーを使用（node:20-slimでは既にUID 1000のnodeユーザーが存在）
-# /home/claudeを/home/nodeへのシンボリックリンクとして作成
-# 理由: 設計ドキュメントでは/home/claudeを参照していたが、node:20-slimイメージでは
-# 既にnodeユーザー（UID 1000）が存在するため、新しいユーザーを作成する代わりに
-# 既存のnodeユーザーを使用。シンボリックリンクにより/home/claudeへのパス参照も動作する
-RUN ln -s /home/node /home/claude
+# nodeユーザーを使用（node:20-slimに既存のUID 1000）
+# /home/claude → /home/node のシンボリックリンク
+RUN [ -e /home/claude ] || ln -s /home/node /home/claude
 
 # SSHディレクトリの準備（マウント用）
 RUN mkdir -p /home/node/.ssh \
@@ -35,29 +41,22 @@ RUN mkdir -p /home/node/.ssh \
     && chown node:node /home/node/.ssh
 
 # Claude設定ディレクトリの準備（マウント用）
-RUN mkdir -p /home/node/.claude \
-    && mkdir -p /home/node/.config/claude \
-    && chown -R node:node /home/node/.claude \
-    && chown -R node:node /home/node/.config
+RUN mkdir -p /home/node/.claude /home/node/.config/claude \
+    && chmod 700 /home/node/.claude /home/node/.config/claude \
+    && chown -R node:node /home/node/.claude /home/node/.config
 
 # ワークスペースディレクトリの準備
-RUN mkdir -p /workspace \
-    && chown node:node /workspace
+RUN mkdir -p /workspace && chown node:node /workspace
 
-# 非rootユーザーに切り替え
 USER node
 
-# 環境変数設定
 ENV HOME=/home/node
 ENV TERM=xterm-256color
 ENV COLORTERM=truecolor
 
-# 作業ディレクトリ
 WORKDIR /workspace
 
-# ヘルスチェック
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD claude --version || exit 1
 
-# デフォルトコマンド
 CMD ["claude"]
