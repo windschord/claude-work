@@ -334,19 +334,20 @@ export function useClaudeTerminal(
         onDataDisposableRef.current = onDataDisposable;
 
         // フォーカス状態管理
-        if (typeof term.onFocus === 'function') {
-          onFocusDisposableRef.current = term.onFocus(() => {
+        // XTerm.jsのonFocus/onBlurはランタイムには存在するが型定義にないためanyキャスト
+        const termAny = term as any;
+        if (typeof termAny.onFocus === 'function') {
+          onFocusDisposableRef.current = termAny.onFocus(() => {
             if (isMountedRef.current) setIsFocused(true);
           });
         }
-        if (typeof term.onBlur === 'function') {
-          onBlurDisposableRef.current = term.onBlur(() => {
+        if (typeof termAny.onBlur === 'function') {
+          onBlurDisposableRef.current = termAny.onBlur(() => {
             if (isMountedRef.current) setIsFocused(false);
           });
         }
 
         // カスタムキーイベントハンドラ
-        if (typeof term.attachCustomKeyEventHandler === 'function') {
         term.attachCustomKeyEventHandler((event: KeyboardEvent) => {
           // keydownイベントのみ処理
           if (event.type !== 'keydown') return true;
@@ -378,7 +379,6 @@ export function useClaudeTerminal(
 
           return true; // その他: XTerm.jsデフォルト
         });
-        }
 
         // WebSocket接続を作成
         createWebSocket();
