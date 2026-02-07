@@ -341,7 +341,13 @@ class ClaudePTYManager extends EventEmitter {
       this.destroySession(sessionId);
       // 少し待ってから再作成（オプションを保持して再起動）
       setTimeout(() => {
-        this.createSession(sessionId, wd, ip, opts);
+        try {
+          this.createSession(sessionId, wd, ip, opts);
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          logger.error('Failed to restart Claude PTY session', { sessionId, error: errorMessage });
+          this.emit('error', sessionId, new Error(`Failed to restart Claude process: ${errorMessage}`));
+        }
       }, 500);
     } else if (workingDir) {
       // セッションがメモリにない場合（exit後など）、引数のworkingDirで再作成
