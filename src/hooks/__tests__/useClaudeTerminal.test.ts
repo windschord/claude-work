@@ -4,7 +4,74 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
+import { renderHook, waitFor, act } from '@testing-library/react';
+
+// MockTerminalクラス: XTerm.jsのTerminalを模倣
+// attachCustomKeyEventHandler, onFocus, onBlurのコールバックを保存し、テストから呼び出せるようにする
+class MockTerminal {
+  cols = 80;
+  rows = 24;
+  _customKeyEventHandler: ((event: KeyboardEvent) => boolean) | null = null;
+  _onFocusCallback: (() => void) | null = null;
+  _onBlurCallback: (() => void) | null = null;
+  _onDataCallback: ((data: string) => void) | null = null;
+
+  options = {};
+  write = vi.fn();
+  dispose = vi.fn();
+  getSelection = vi.fn().mockReturnValue('');
+  clearSelection = vi.fn();
+  loadAddon = vi.fn();
+
+  onData(callback: (data: string) => void) {
+    this._onDataCallback = callback;
+    return { dispose: vi.fn() };
+  }
+
+  onFocus(callback: () => void) {
+    this._onFocusCallback = callback;
+    return { dispose: vi.fn() };
+  }
+
+  onBlur(callback: () => void) {
+    this._onBlurCallback = callback;
+    return { dispose: vi.fn() };
+  }
+
+  attachCustomKeyEventHandler(handler: (event: KeyboardEvent) => boolean) {
+    this._customKeyEventHandler = handler;
+  }
+}
+
+class MockFitAddon {
+  fit = vi.fn();
+  activate = vi.fn();
+  dispose = vi.fn();
+}
+
+// モック用のインスタンスを保持する変数
+let mockTerminalInstance: MockTerminal | null = null;
+
+// @xterm/xtermと@xterm/addon-fitをモック
+// vi.mockのfactoryではclassをそのまま返す（new演算子で呼ばれるため）
+vi.mock('@xterm/xterm', () => ({
+  Terminal: class {
+    constructor() {
+      const instance = new MockTerminal();
+      mockTerminalInstance = instance;
+      return instance;
+    }
+  },
+}));
+
+vi.mock('@xterm/addon-fit', () => ({
+  FitAddon: class {
+    constructor() {
+      return new MockFitAddon();
+    }
+  },
+}));
+
 import { useClaudeTerminal } from '../useClaudeTerminal';
 
 // WebSocketのモック
@@ -67,6 +134,7 @@ describe('useClaudeTerminal', () => {
   afterEach(() => {
     vi.clearAllMocks();
     mockWebSocketInstance = null;
+    mockTerminalInstance = null;
     // WebSocketを元に戻す
     global.WebSocket = originalWebSocket;
   });
@@ -407,6 +475,43 @@ describe('useClaudeTerminal', () => {
       expect(result.current.isFocused).toBe(false);
       expect(typeof result.current.isFocused).toBe('boolean');
     });
+
+    it('onFocusコールバック発火でisFocusedがtrueになる', async () => {
+      const { result } = renderHook(() => useClaudeTerminal('test-focus-on'));
+
+      await waitFor(() => {
+        expect(result.current.terminal).toBeTruthy();
+      });
+
+      expect(result.current.isFocused).toBe(false);
+
+      // MockTerminalのonFocusコールバックを発火
+      await act(async () => {
+        mockTerminalInstance?._onFocusCallback?.();
+      });
+
+      expect(result.current.isFocused).toBe(true);
+    });
+
+    it('onBlurコールバック発火でisFocusedがfalseに戻る', async () => {
+      const { result } = renderHook(() => useClaudeTerminal('test-focus-blur'));
+
+      await waitFor(() => {
+        expect(result.current.terminal).toBeTruthy();
+      });
+
+      // まずフォーカスする
+      await act(async () => {
+        mockTerminalInstance?._onFocusCallback?.();
+      });
+      expect(result.current.isFocused).toBe(true);
+
+      // ブラーでfalseに戻る
+      await act(async () => {
+        mockTerminalInstance?._onBlurCallback?.();
+      });
+      expect(result.current.isFocused).toBe(false);
+    });
   });
 
   // キーボード操作テスト
@@ -436,77 +541,146 @@ describe('useClaudeTerminal', () => {
         const { result } = renderHook(() => useClaudeTerminal('test-copy'));
         await waitFor(() => expect(result.current.terminal).toBeTruthy());
 
-        // ターミナルにgetSelectionをモック
-        const term = result.current.terminal!;
-        vi.spyOn(term, 'getSelection').mockReturnValue('selected text');
-        vi.spyOn(term, 'clearSelection').mockImplementation(() => {});
+        // MockTerminalのgetSelectionがテキストを返すように設定
+        mockTerminalInstance!.getSelection.mockReturnValue('selected text');
 
-        // ターミナルが存在し、getSelectionが動作することを確認
-        expect(term.getSelection()).toBe('selected text');
+        // キーハンドラが登録されていることを確認
+        const keyHandler = mockTerminalInstance!._customKeyEventHandler;
+        expect(keyHandler).not.toBeNull();
+
+        // CTRL+C KeyboardEventを作成してハンドラに渡す
+        const event = new KeyboardEvent('keydown', { key: 'c', ctrlKey: true });
+        const consumed = keyHandler!(event);
+
+        // イベントが消費される(false=コピー処理が行われSIGINTは送られない)
+        expect(consumed).toBe(false);
+        // クリップボードにコピーされる
+        expect(navigator.clipboard.writeText).toHaveBeenCalledWith('selected text');
       });
 
       it('テキスト未選択でCTRL+Cを押すとSIGINTが送信される（デフォルト動作）', async () => {
         const { result } = renderHook(() => useClaudeTerminal('test-sigint'));
         await waitFor(() => expect(result.current.terminal).toBeTruthy());
 
-        const term = result.current.terminal!;
-        vi.spyOn(term, 'getSelection').mockReturnValue('');
-        // 選択なし時はtrue（デフォルト動作=SIGINT）が返るはず
-        expect(term.getSelection()).toBe('');
+        // MockTerminalのgetSelectionが空文字を返すように設定
+        mockTerminalInstance!.getSelection.mockReturnValue('');
+
+        const keyHandler = mockTerminalInstance!._customKeyEventHandler;
+        expect(keyHandler).not.toBeNull();
+
+        // CTRL+C KeyboardEventを作成してハンドラに渡す
+        const event = new KeyboardEvent('keydown', { key: 'c', ctrlKey: true });
+        const consumed = keyHandler!(event);
+
+        // true=デフォルト動作(SIGINT)が実行される
+        expect(consumed).toBe(true);
+        // クリップボードのwriteTextは呼ばれない
+        expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
+      });
+
+      it('CTRL+Cコピー成功後にclearSelectionが呼ばれる', async () => {
+        const { result } = renderHook(() => useClaudeTerminal('test-copy-clear'));
+        await waitFor(() => expect(result.current.terminal).toBeTruthy());
+
+        mockTerminalInstance!.getSelection.mockReturnValue('selected text');
+
+        const keyHandler = mockTerminalInstance!._customKeyEventHandler;
+        const event = new KeyboardEvent('keydown', { key: 'c', ctrlKey: true });
+        keyHandler!(event);
+
+        // writeTextのPromiseが解決するのを待つ
+        await waitFor(() => {
+          expect(mockTerminalInstance!.clearSelection).toHaveBeenCalled();
+        });
       });
     });
 
     describe('CTRL+V テキストペースト', () => {
-      it('CTRL+Vでクリップボードテキストが読み取り可能であること', async () => {
+      it('CTRL+VでクリップボードテキストがWebSocket経由で送信される', async () => {
         const { result } = renderHook(() => useClaudeTerminal('test-paste'));
-        await waitFor(() => expect(result.current.terminal).toBeTruthy());
+        await waitFor(() => expect(result.current.isConnected).toBe(true));
 
-        // clipboard.readがテキストを返すことを確認
-        const clipboardItems = await navigator.clipboard.read();
-        expect(clipboardItems).toBeTruthy();
-        expect(clipboardItems.length).toBe(1);
-        expect(clipboardItems[0].types).toContain('text/plain');
+        const keyHandler = mockTerminalInstance!._customKeyEventHandler;
+        expect(keyHandler).not.toBeNull();
 
-        // readTextでテキストが取得できることを確認
-        const text = await navigator.clipboard.readText();
-        expect(text).toBe('pasted text');
+        // CTRL+V KeyboardEventを作成してハンドラに渡す
+        const event = new KeyboardEvent('keydown', { key: 'v', ctrlKey: true });
+        const consumed = keyHandler!(event);
+
+        // イベントが消費される(false=ペースト処理実行)
+        expect(consumed).toBe(false);
+
+        // handlePaste内のclipboard.read() -> readText() -> ws.sendのPromiseチェーンを待つ
+        await waitFor(() => {
+          expect(mockWebSocketInstance!.send).toHaveBeenCalledWith(
+            JSON.stringify({ type: 'input', data: 'pasted text' })
+          );
+        });
       });
     });
 
     describe('SHIFT+ENTER 改行', () => {
-      it('SHIFT+ENTERで改行が送信可能な状態であること', async () => {
+      it('SHIFT+ENTERで改行がWebSocket経由で送信される', async () => {
         const { result } = renderHook(() => useClaudeTerminal('test-newline'));
+        await waitFor(() => expect(result.current.isConnected).toBe(true));
+
+        const keyHandler = mockTerminalInstance!._customKeyEventHandler;
+        expect(keyHandler).not.toBeNull();
+
+        // SHIFT+ENTER KeyboardEventを作成してハンドラに渡す
+        const event = new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true });
+        const consumed = keyHandler!(event);
+
+        // イベントが消費される(false=改行送信処理実行)
+        expect(consumed).toBe(false);
+        // WebSocketで改行が送信される
+        expect(mockWebSocketInstance!.send).toHaveBeenCalledWith(
+          JSON.stringify({ type: 'input', data: '\n' })
+        );
+      });
+
+      it('keyupイベントではハンドラがデフォルト動作を返す', async () => {
+        const { result } = renderHook(() => useClaudeTerminal('test-keyup'));
         await waitFor(() => expect(result.current.terminal).toBeTruthy());
 
-        // ターミナルが存在することを確認
-        expect(result.current.terminal).toBeTruthy();
+        const keyHandler = mockTerminalInstance!._customKeyEventHandler;
+        expect(keyHandler).not.toBeNull();
+
+        // keyupイベントはtype !== 'keydown'のためtrue(デフォルト動作)を返す
+        const event = new KeyboardEvent('keyup', { key: 'Enter', shiftKey: true });
+        const result2 = keyHandler!(event);
+        expect(result2).toBe(true);
       });
     });
 
     describe('image-error メッセージ処理', () => {
       it('image-errorメッセージ受信時にターミナルにエラーが表示される', async () => {
         const { result } = renderHook(() => useClaudeTerminal('test-image-error'));
-        await waitFor(() => expect(result.current.terminal).toBeTruthy());
 
-        const term = result.current.terminal!;
-        const writeSpy = vi.spyOn(term, 'write');
+        // WebSocket接続が確立されるのを待つ（onmessageが設定される）
+        await waitFor(() => {
+          expect(result.current.isConnected).toBe(true);
+        });
 
-        // WebSocketインスタンスのonmessageが設定されるのを待つ
-        // ターミナル初期化でonFocusエラーが発生してもWebSocket自体は作成される場合がある
-        // テスト環境ではWebSocket接続が完了しない可能性があるため、
-        // onmessageが設定されている場合のみテスト実行
-        if (mockWebSocketInstance?.onmessage) {
-          mockWebSocketInstance.onmessage(
+        // onmessageが設定されていることを確認
+        expect(mockWebSocketInstance?.onmessage).not.toBeNull();
+
+        // image-errorメッセージを送信
+        await act(async () => {
+          mockWebSocketInstance!.onmessage!(
             new MessageEvent('message', {
               data: JSON.stringify({ type: 'image-error', message: 'File too large' }),
             })
           );
+        });
 
-          expect(writeSpy).toHaveBeenCalledWith(expect.stringContaining('Image paste error'));
-        } else {
-          // WebSocket接続が確立されていない場合は、ターミナルが存在することだけ確認
-          expect(term).toBeTruthy();
-        }
+        // ターミナルにエラーメッセージが書き込まれることを確認
+        expect(mockTerminalInstance!.write).toHaveBeenCalledWith(
+          expect.stringContaining('Image paste error')
+        );
+        expect(mockTerminalInstance!.write).toHaveBeenCalledWith(
+          expect.stringContaining('File too large')
+        );
       });
     });
   });
