@@ -9,6 +9,7 @@ import { setupTerminalWebSocket } from './src/lib/websocket/terminal-ws';
 import { setupClaudeWebSocket } from './src/lib/websocket/claude-ws';
 import { logger } from './src/lib/logger';
 import { validateRequiredEnvVars, detectClaudePath } from './src/lib/env-validation';
+import { ensureDataDirs, getDataDir } from './src/lib/data-dir';
 import {
   getProcessLifecycleManager,
   ProcessLifecycleManager,
@@ -25,6 +26,7 @@ if (dotenvResult.error) {
 // 環境変数のロード状況を確認（デバッグログ）
 console.log('Environment variables loaded:');
 console.log('  DATABASE_URL:', process.env.DATABASE_URL ? 'SET' : 'NOT SET');
+console.log('  DATA_DIR:', process.env.DATA_DIR || 'NOT SET (using default)');
 
 // 環境変数のバリデーション（サーバー起動前）
 try {
@@ -36,6 +38,10 @@ try {
   }
   process.exit(1);
 }
+
+// データディレクトリの初期化
+ensureDataDirs();
+logger.info('Data directories initialized', { dataDir: getDataDir() });
 
 // Claude Code CLIのパスを検出・設定
 try {
