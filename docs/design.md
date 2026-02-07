@@ -4,7 +4,7 @@
 
 ### 変更対象コンポーネント
 
-```
+```text
 ┌─────────────────────────────────────────────────────────┐
 │  フロントエンド                                         │
 │                                                          │
@@ -32,14 +32,14 @@
 ### データフロー
 
 #### コピー (CTRL+C + テキスト選択)
-```
+```text
 ユーザー CTRL+C → attachCustomKeyEventHandler
   → 選択テキストあり? → navigator.clipboard.writeText() → return false (イベント消費)
   → 選択テキストなし? → return true (XTerm.jsデフォルト=SIGINT送信)
 ```
 
 #### テキストペースト (CTRL+V)
-```
+```text
 ユーザー CTRL+V → attachCustomKeyEventHandler → return false (イベント消費)
   → navigator.clipboard.read()
   → テキストのみ? → term.onData経由でWebSocket送信 (input メッセージ)
@@ -47,7 +47,7 @@
 ```
 
 #### 改行 (SHIFT+ENTER)
-```
+```text
 ユーザー SHIFT+ENTER → attachCustomKeyEventHandler → return false (イベント消費)
   → WebSocket送信 { type: 'input', data: '\n' }
 ```
@@ -251,51 +251,72 @@ async function handlePasteImage(
   adapter: EnvironmentAdapter | null,
 ) {
   try {
-    // MIMEタイプから拡張子を決定
-    const extMap: Record<string, string> = {
-      'image/png': '.png',
-      'image/jpeg': '.jpg',
-      'image/gif': '.gif',
-      'image/webp': '.webp',
-    };
-    const ext = extMap[data.mimeType] || '.png';
+    // MIMEタイプ検証（許可リストに含まれるか明示的に確認）
+    const ext = ALLOWED_IMAGE_TYPES[data.mimeType];
+    if (!ext) {
+      throw new Error(`Unsupported image type: ${data.mimeType}`);
+    }
+
+    // Base64文字列長の事前チェック（デコード前にサイズ超過を検出）
+    const maxBase64Length = Math.ceil(MAX_IMAGE_SIZE / 3) * 4;
+    if (data.data.length > maxBase64Length) {
+      throw new Error(`Image too large: base64 string exceeds maximum allowed length (max decoded size: ${MAX_IMAGE_SIZE} bytes)`);
+    }
+
+    // Base64デコード
+    const buffer = Buffer.from(data.data, 'base64');
+
+    // サイズ制限チェック（デコード後の正確なサイズ検証）
+    if (buffer.length > MAX_IMAGE_SIZE) {
+      throw new Error(`Image too large: ${buffer.length} bytes (max: ${MAX_IMAGE_SIZE})`);
+    }
 
     // 保存先ディレクトリ
     const imageDir = path.join(worktreePath, '.claude-images');
-    if (!fs.existsSync(imageDir)) {
-      fs.mkdirSync(imageDir, { recursive: true });
-    }
-
-    // パストラバーサル防止: resolvedPathがimageDir配下であることを検証
     const resolvedDir = path.resolve(imageDir);
     const resolvedWorktree = path.resolve(worktreePath);
-    if (!resolvedDir.startsWith(resolvedWorktree)) {
+
+    // パストラバーサル防止: resolvedDirがworktree配下であることを検証
+    if (!resolvedDir.startsWith(resolvedWorktree + path.sep) && resolvedDir !== resolvedWorktree) {
       throw new Error('Invalid image directory path');
     }
+
+    await fs.promises.mkdir(resolvedDir, { recursive: true });
 
     // ファイル名生成（タイムスタンプ + ランダム文字列）
     const timestamp = Date.now();
     const random = Math.random().toString(36).substring(2, 8);
     const filename = `clipboard-${timestamp}-${random}${ext}`;
-    const filePath = path.join(imageDir, filename);
+    const filePath = path.join(resolvedDir, filename);
 
-    // Base64デコードして保存
-    const buffer = Buffer.from(data.data, 'base64');
-    fs.writeFileSync(filePath, buffer);
+    // パストラバーサル防止: 最終ファイルパスがimageDir配下であることを検証
+    const resolvedFilePath = path.resolve(filePath);
+    if (!resolvedFilePath.startsWith(resolvedDir + path.sep)) {
+      throw new Error('Invalid image file path');
+    }
 
-    // ファイルパスをターミナル入力として送信
+    // ファイル保存（非同期）
+    await fs.promises.writeFile(filePath, buffer);
+
+    // ファイルパスをPTY入力として送信
     if (isLegacy) {
       claudePtyManager.write(sessionId, filePath);
     } else {
-      adapter!.write(sessionId, filePath);
+      if (adapter) {
+        adapter.write(sessionId, filePath);
+      } else {
+        throw new Error('No adapter available for session');
+      }
     }
 
-    // 成功メッセージを送信
-    const msg: ClaudeImageSavedMessage = {
-      type: 'image-saved',
-      filePath,
-    };
-    ws.send(JSON.stringify(msg));
+    // 成功メッセージを送信（readyStateチェック付き）
+    if (ws.readyState === WebSocket.OPEN) {
+      const msg: ClaudeImageSavedMessage = {
+        type: 'image-saved',
+        filePath,
+      };
+      ws.send(JSON.stringify(msg));
+    }
 
     logger.info('Claude WebSocket: Image saved', {
       sessionId,
@@ -310,11 +331,13 @@ async function handlePasteImage(
       error: errorMessage,
     });
 
-    const msg: ClaudeImageErrorMessage = {
-      type: 'image-error',
-      message: errorMessage,
-    };
-    ws.send(JSON.stringify(msg));
+    if (ws.readyState === WebSocket.OPEN) {
+      const msg: ClaudeImageErrorMessage = {
+        type: 'image-error',
+        message: errorMessage,
+      };
+      ws.send(JSON.stringify(msg));
+    }
   }
 }
 ```
