@@ -343,10 +343,8 @@ class ClaudePTYManager extends EventEmitter {
       setTimeout(() => {
         try {
           this.createSession(sessionId, wd, ip, opts);
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          logger.error('Failed to restart Claude PTY session', { sessionId, error: errorMessage });
-          this.emit('error', sessionId, new Error(`Failed to restart Claude process: ${errorMessage}`));
+        } catch {
+          // createSession内部でlogger.error + emit('error')済みのため、ここでは追加処理不要
         }
       }, 500);
     } else if (workingDir) {
@@ -355,10 +353,8 @@ class ClaudePTYManager extends EventEmitter {
       setTimeout(() => {
         try {
           this.createSession(sessionId, workingDir, initialPrompt, options);
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          logger.error('Failed to restart Claude PTY session', { sessionId, error: errorMessage });
-          this.emit('error', sessionId, new Error(`Failed to restart Claude process: ${errorMessage}`));
+        } catch {
+          // createSession内部でlogger.error + emit('error')済みのため、ここでは追加処理不要
         }
       }, 500);
     } else {

@@ -420,14 +420,16 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
       const { workingDir: wd } = session;
       logger.info('DockerAdapter: Restarting session', { sessionId });
       this.destroySession(sessionId);
-      setTimeout(() => this.createSession(sessionId, wd), 500);
+      setTimeout(() => {
+        this.createSession(sessionId, wd).catch(() => {
+          // createSession内部でlogger.error + emit('error')済みのため、ここでは追加処理不要
+        });
+      }, 500);
     } else if (workingDir) {
       logger.info('DockerAdapter: Restarting session (from fallback params)', { sessionId });
       setTimeout(() => {
-        this.createSession(sessionId, workingDir).catch((error: unknown) => {
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          logger.error('DockerAdapter: Failed to restart session', { sessionId, error: errorMessage });
-          this.emit('error', sessionId, new Error(`Failed to restart Docker session: ${errorMessage}`));
+        this.createSession(sessionId, workingDir).catch(() => {
+          // createSession内部でlogger.error + emit('error')済みのため、ここでは追加処理不要
         });
       }, 500);
     } else {
