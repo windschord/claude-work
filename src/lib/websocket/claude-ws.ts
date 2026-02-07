@@ -125,10 +125,16 @@ async function handlePasteImage(
       throw new Error(`Unsupported image type: ${data.mimeType}`);
     }
 
+    // Base64文字列長の事前チェック（デコード前にサイズ超過を検出）
+    const maxBase64Length = Math.ceil(MAX_IMAGE_SIZE / 3) * 4;
+    if (data.data.length > maxBase64Length) {
+      throw new Error(`Image too large: base64 string exceeds maximum allowed length (max decoded size: ${MAX_IMAGE_SIZE} bytes)`);
+    }
+
     // Base64デコード
     const buffer = Buffer.from(data.data, 'base64');
 
-    // サイズ制限チェック
+    // サイズ制限チェック（デコード後の正確なサイズ検証）
     if (buffer.length > MAX_IMAGE_SIZE) {
       throw new Error(`Image too large: ${buffer.length} bytes (max: ${MAX_IMAGE_SIZE})`);
     }
@@ -143,9 +149,7 @@ async function handlePasteImage(
       throw new Error('Invalid image directory path');
     }
 
-    if (!fs.existsSync(resolvedDir)) {
-      fs.mkdirSync(resolvedDir, { recursive: true });
-    }
+    await fs.promises.mkdir(resolvedDir, { recursive: true });
 
     // ファイル名生成（タイムスタンプ + ランダム文字列）
     const timestamp = Date.now();
@@ -154,7 +158,7 @@ async function handlePasteImage(
     const filePath = path.join(resolvedDir, filename);
 
     // ファイル保存
-    fs.writeFileSync(filePath, buffer);
+    await fs.promises.writeFile(filePath, buffer);
 
     // ファイルパスをPTY入力として送信
     if (isLegacy) {
@@ -164,11 +168,13 @@ async function handlePasteImage(
     }
 
     // 成功メッセージを送信
-    const msg: ClaudeImageSavedMessage = {
-      type: 'image-saved',
-      filePath,
-    };
-    ws.send(JSON.stringify(msg));
+    if (ws.readyState === WebSocket.OPEN) {
+      const msg: ClaudeImageSavedMessage = {
+        type: 'image-saved',
+        filePath,
+      };
+      ws.send(JSON.stringify(msg));
+    }
 
     logger.info('Claude WebSocket: Image saved', {
       sessionId,
@@ -183,11 +189,13 @@ async function handlePasteImage(
       error: errorMessage,
     });
 
-    const msg: ClaudeImageErrorMessage = {
-      type: 'image-error',
-      message: errorMessage,
-    };
-    ws.send(JSON.stringify(msg));
+    if (ws.readyState === WebSocket.OPEN) {
+      const msg: ClaudeImageErrorMessage = {
+        type: 'image-error',
+        message: errorMessage,
+      };
+      ws.send(JSON.stringify(msg));
+    }
   }
 }
 

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // vi.hoisted()でモック定義
 const {
@@ -57,44 +57,43 @@ const {
   };
 });
 
-vi.mock("@/services/claude-pty-manager", () => ({ claudePtyManager: mockClaudePtyManager }));
-vi.mock("@/lib/db", () => ({ db: mockDb, schema: { sessions: {}, messages: {} } }));
-vi.mock("@/lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } }));
-vi.mock("@/services/environment-service", () => ({ environmentService: mockEnvironmentService }));
-vi.mock("@/services/adapter-factory", () => ({ AdapterFactory: mockAdapterFactory }));
+vi.mock('@/services/claude-pty-manager', () => ({ claudePtyManager: mockClaudePtyManager }));
+vi.mock('@/lib/db', () => ({ db: mockDb, schema: { sessions: {}, messages: {} } }));
+vi.mock('@/lib/logger', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } }));
+vi.mock('@/services/environment-service', () => ({ environmentService: mockEnvironmentService }));
+vi.mock('@/services/adapter-factory', () => ({ AdapterFactory: mockAdapterFactory }));
 
 // fsモック
 const mockFs = vi.hoisted(() => ({
-  existsSync: vi.fn().mockReturnValue(false),
-  mkdirSync: vi.fn(),
-  writeFileSync: vi.fn(),
+  promises: {
+    mkdir: vi.fn().mockResolvedValue(undefined),
+    writeFile: vi.fn().mockResolvedValue(undefined),
+  },
 }));
 
-vi.mock("fs", () => ({
+vi.mock('fs', () => ({
   default: mockFs,
-  existsSync: mockFs.existsSync,
-  mkdirSync: mockFs.mkdirSync,
-  writeFileSync: mockFs.writeFileSync,
+  promises: mockFs.promises,
 }));
 
-import { setupClaudeWebSocket } from "../claude-ws";
-import { WebSocketServer, WebSocket } from "ws";
+import { setupClaudeWebSocket } from '../claude-ws';
+import { WebSocketServer, WebSocket } from 'ws';
 
-describe("Claude WebSocket - Image Paste", () => {
+describe('Claude WebSocket - Image Paste', () => {
   let mockWss: WebSocketServer;
   let mockWs: WebSocket;
   let connectionHandler: (ws: WebSocket, req: any) => Promise<void>;
   let messageHandler: (message: Buffer) => void;
 
-  const worktreePath = "/tmp/test-worktree";
-  const sessionId = "session-image-test";
+  const worktreePath = '/tmp/test-worktree';
+  const sessionId = 'session-image-test';
 
   beforeEach(() => {
     vi.clearAllMocks();
 
     mockWss = {
       on: vi.fn((event, handler) => {
-        if (event === "connection") connectionHandler = handler;
+        if (event === 'connection') connectionHandler = handler;
       }),
     } as unknown as WebSocketServer;
 
@@ -103,7 +102,7 @@ describe("Claude WebSocket - Image Paste", () => {
       close: vi.fn(),
       send: vi.fn(),
       on: vi.fn((event: string, handler: any) => {
-        if (event === "message") messageHandler = handler;
+        if (event === 'message') messageHandler = handler;
       }),
     } as unknown as WebSocket;
 
@@ -111,7 +110,7 @@ describe("Claude WebSocket - Image Paste", () => {
       id: sessionId,
       worktree_path: worktreePath,
       docker_mode: false,
-      environment_id: "env-test",
+      environment_id: 'env-test',
     });
     mockDb.query.messages.findFirst.mockResolvedValue(null);
     mockDb.update.mockReturnValue({
@@ -121,10 +120,10 @@ describe("Claude WebSocket - Image Paste", () => {
     });
 
     mockEnvironmentService.findById.mockResolvedValue({
-      id: "env-test",
-      name: "Test",
-      type: "HOST",
-      config: "{}",
+      id: 'env-test',
+      name: 'Test',
+      type: 'HOST',
+      config: '{}',
       auth_dir_path: null,
       is_default: true,
       created_at: new Date(),
@@ -140,48 +139,48 @@ describe("Claude WebSocket - Image Paste", () => {
   });
 
   async function connectAndGetAdapter() {
-    setupClaudeWebSocket(mockWss, "/ws/claude");
+    setupClaudeWebSocket(mockWss, '/ws/claude');
     await connectionHandler(mockWs, {
       url: `/ws/claude/${sessionId}`,
-      headers: { host: "localhost:3000" },
+      headers: { host: 'localhost:3000' },
     });
     return mockAdapterFactory.getAdapter.mock.results[0]?.value;
   }
 
-  it("正常なPNG画像が保存される", async () => {
+  it('正常なPNG画像が保存される', async () => {
     const adapter = await connectAndGetAdapter();
 
-    const imageData = Buffer.from("fake-png-data").toString("base64");
+    const imageData = Buffer.from('fake-png-data').toString('base64');
     const pasteMsg = JSON.stringify({
-      type: "paste-image",
+      type: 'paste-image',
       data: imageData,
-      mimeType: "image/png",
+      mimeType: 'image/png',
     });
 
     messageHandler(Buffer.from(pasteMsg));
 
     await vi.waitFor(() => {
-      expect(mockFs.writeFileSync).toHaveBeenCalled();
+      expect(mockFs.promises.writeFile).toHaveBeenCalled();
     });
 
-    const writeCall = mockFs.writeFileSync.mock.calls[0];
-    expect(writeCall[0]).toContain(".claude-images");
+    const writeCall = mockFs.promises.writeFile.mock.calls[0];
+    expect(writeCall[0]).toContain('.claude-images');
     expect(writeCall[0]).toMatch(/clipboard-\d+-[a-z0-9]+\.png$/);
 
-    expect(adapter.write).toHaveBeenCalledWith(sessionId, expect.stringContaining(".claude-images"));
+    expect(adapter.write).toHaveBeenCalledWith(sessionId, expect.stringContaining('.claude-images'));
 
     expect(mockWs.send).toHaveBeenCalledWith(
       expect.stringContaining('"type":"image-saved"')
     );
   });
 
-  it("不正なMIMEタイプが拒否される", async () => {
+  it('不正なMIMEタイプが拒否される', async () => {
     await connectAndGetAdapter();
 
     const pasteMsg = JSON.stringify({
-      type: "paste-image",
-      data: Buffer.from("not-an-image").toString("base64"),
-      mimeType: "text/html",
+      type: 'paste-image',
+      data: Buffer.from('not-an-image').toString('base64'),
+      mimeType: 'text/html',
     });
 
     messageHandler(Buffer.from(pasteMsg));
@@ -193,18 +192,18 @@ describe("Claude WebSocket - Image Paste", () => {
     });
 
     expect(mockWs.send).toHaveBeenCalledWith(
-      expect.stringContaining("Unsupported image type")
+      expect.stringContaining('Unsupported image type')
     );
   });
 
-  it("10MBを超えるデータが拒否される", async () => {
+  it('10MBを超えるデータが拒否される', async () => {
     await connectAndGetAdapter();
 
-    const largeData = Buffer.alloc(11 * 1024 * 1024, "a").toString("base64");
+    const largeData = Buffer.alloc(11 * 1024 * 1024, 'a').toString('base64');
     const pasteMsg = JSON.stringify({
-      type: "paste-image",
+      type: 'paste-image',
       data: largeData,
-      mimeType: "image/png",
+      mimeType: 'image/png',
     });
 
     messageHandler(Buffer.from(pasteMsg));
@@ -216,59 +215,58 @@ describe("Claude WebSocket - Image Paste", () => {
     });
 
     expect(mockWs.send).toHaveBeenCalledWith(
-      expect.stringContaining("Image too large")
+      expect.stringContaining('Image too large')
     );
   });
 
-  it("JPEG画像が.jpg拡張子で保存される", async () => {
+  it('JPEG画像が.jpg拡張子で保存される', async () => {
     await connectAndGetAdapter();
 
-    const imageData = Buffer.from("fake-jpeg-data").toString("base64");
+    const imageData = Buffer.from('fake-jpeg-data').toString('base64');
     const pasteMsg = JSON.stringify({
-      type: "paste-image",
+      type: 'paste-image',
       data: imageData,
-      mimeType: "image/jpeg",
+      mimeType: 'image/jpeg',
     });
 
     messageHandler(Buffer.from(pasteMsg));
 
     await vi.waitFor(() => {
-      expect(mockFs.writeFileSync).toHaveBeenCalled();
+      expect(mockFs.promises.writeFile).toHaveBeenCalled();
     });
 
-    const writeCall = mockFs.writeFileSync.mock.calls[0];
+    const writeCall = mockFs.promises.writeFile.mock.calls[0];
     expect(writeCall[0]).toMatch(/\.jpg$/);
   });
 
-  it(".claude-imagesディレクトリが自動作成される", async () => {
-    mockFs.existsSync.mockReturnValue(false);
+  it('.claude-imagesディレクトリが自動作成される', async () => {
     await connectAndGetAdapter();
 
-    const imageData = Buffer.from("fake-data").toString("base64");
+    const imageData = Buffer.from('fake-data').toString('base64');
     const pasteMsg = JSON.stringify({
-      type: "paste-image",
+      type: 'paste-image',
       data: imageData,
-      mimeType: "image/png",
+      mimeType: 'image/png',
     });
 
     messageHandler(Buffer.from(pasteMsg));
 
     await vi.waitFor(() => {
-      expect(mockFs.mkdirSync).toHaveBeenCalledWith(
-        expect.stringContaining(".claude-images"),
+      expect(mockFs.promises.mkdir).toHaveBeenCalledWith(
+        expect.stringContaining('.claude-images'),
         { recursive: true }
       );
     });
   });
 
-  it("保存後にファイルパスがPTY入力として送信される", async () => {
+  it('保存後にファイルパスがPTY入力として送信される', async () => {
     const adapter = await connectAndGetAdapter();
 
-    const imageData = Buffer.from("test-image-data").toString("base64");
+    const imageData = Buffer.from('test-image-data').toString('base64');
     const pasteMsg = JSON.stringify({
-      type: "paste-image",
+      type: 'paste-image',
       data: imageData,
-      mimeType: "image/webp",
+      mimeType: 'image/webp',
     });
 
     messageHandler(Buffer.from(pasteMsg));
@@ -277,7 +275,7 @@ describe("Claude WebSocket - Image Paste", () => {
       expect(adapter.write).toHaveBeenCalled();
     });
 
-    const writtenPath = mockFs.writeFileSync.mock.calls[0][0];
+    const writtenPath = mockFs.promises.writeFile.mock.calls[0][0];
     expect(adapter.write).toHaveBeenCalledWith(sessionId, writtenPath);
   });
 });
