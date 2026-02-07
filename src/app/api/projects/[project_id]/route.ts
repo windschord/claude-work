@@ -6,6 +6,27 @@ import { existsSync } from 'fs';
 import { execSync } from 'child_process';
 
 /**
+ * GET /api/projects/[project_id] - プロジェクト詳細取得
+ */
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ project_id: string }> }
+) {
+  try {
+    const { project_id } = await params;
+    const project = db.select().from(schema.projects).where(eq(schema.projects.id, project_id)).get();
+    if (!project) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    }
+    return NextResponse.json({ project });
+  } catch (error) {
+    const { project_id: errorProjectId } = await params;
+    logger.error('Failed to get project', { error, id: errorProjectId });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+/**
  * Gitリポジトリが存在するか確認
  */
 function isGitRepository(path: string): boolean {
@@ -63,6 +84,8 @@ export async function PUT(
       name?: string;
       path?: string;
       run_scripts?: RunScriptInput[];
+      claude_code_options?: Record<string, string>;
+      custom_env_vars?: Record<string, string>;
     };
     try {
       body = await request.json();
@@ -137,6 +160,12 @@ export async function PUT(
         .set({
           name: body.name ?? existing.name,
           path: body.path ?? existing.path,
+          claude_code_options: body.claude_code_options !== undefined
+            ? JSON.stringify(body.claude_code_options)
+            : existing.claude_code_options,
+          custom_env_vars: body.custom_env_vars !== undefined
+            ? JSON.stringify(body.custom_env_vars)
+            : existing.custom_env_vars,
           updated_at: new Date(),
         })
         .where(eq(schema.projects.id, project_id))

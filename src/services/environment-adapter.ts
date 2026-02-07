@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events';
+import type { ClaudeCodeOptions, CustomEnvVars } from './claude-options-service';
 
 /**
  * セッション作成オプション
@@ -7,6 +8,10 @@ export interface CreateSessionOptions {
   resumeSessionId?: string;
   /** シェルモード（Terminal用）: trueの場合、Claude Codeではなくシェルを起動 */
   shellMode?: boolean;
+  /** Claude Code CLIオプション */
+  claudeCodeOptions?: ClaudeCodeOptions;
+  /** カスタム環境変数 */
+  customEnvVars?: CustomEnvVars;
 }
 
 /**

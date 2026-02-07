@@ -12,6 +12,8 @@ export const projects = sqliteTable('Project', {
   name: text('name').notNull(),
   path: text('path').notNull().unique(),
   remote_url: text('remote_url'),
+  claude_code_options: text('claude_code_options').notNull().default('{}'),
+  custom_env_vars: text('custom_env_vars').notNull().default('{}'),
   created_at: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
   updated_at: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
 });
@@ -52,6 +54,8 @@ export const sessions = sqliteTable('Session', {
   docker_mode: integer('docker_mode', { mode: 'boolean' }).notNull().default(false),
   container_id: text('container_id'),
   environment_id: text('environment_id').references(() => executionEnvironments.id, { onDelete: 'set null' }),
+  claude_code_options: text('claude_code_options'),
+  custom_env_vars: text('custom_env_vars'),
   created_at: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
   updated_at: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
 });

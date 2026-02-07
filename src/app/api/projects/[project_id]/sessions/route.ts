@@ -145,7 +145,7 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
 
-    const { name, prompt = '', dockerMode = false, environment_id, source_branch } = body;
+    const { name, prompt = '', dockerMode = false, environment_id, source_branch, claude_code_options, custom_env_vars } = body;
 
     // 実効環境とdockerModeを決定
     let effectiveEnvironmentId: string | null = null;
@@ -294,6 +294,8 @@ export async function POST(
       branch_name: branchName,
       docker_mode: effectiveDockerMode,
       environment_id: effectiveEnvironmentId,
+      claude_code_options: claude_code_options ? JSON.stringify(claude_code_options) : null,
+      custom_env_vars: custom_env_vars ? JSON.stringify(custom_env_vars) : null,
     }).returning().get();
 
     if (!newSession) {

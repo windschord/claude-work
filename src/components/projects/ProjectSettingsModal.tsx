@@ -4,6 +4,8 @@ import { useState, Fragment, useEffect, useCallback } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { Project, useAppStore } from '@/store';
 import toast from 'react-hot-toast';
+import { ClaudeOptionsForm } from '@/components/claude-options/ClaudeOptionsForm';
+import type { ClaudeCodeOptions, CustomEnvVars } from '@/components/claude-options/ClaudeOptionsForm';
 
 /**
  * スクリプト編集用のローカル型定義
@@ -46,6 +48,8 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
   const [scripts, setScripts] = useState<EditableScript[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [claudeOptions, setClaudeOptions] = useState<ClaudeCodeOptions>({});
+  const [customEnvVars, setCustomEnvVars] = useState<CustomEnvVars>({});
 
   const fetchScripts = useCallback(async (projectId: string) => {
     try {
@@ -72,11 +76,37 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
     }
   }, []);
 
+  // プロジェクト設定の読み込み
+  const fetchProjectSettings = useCallback(async (projectId: string) => {
+    try {
+      const response = await fetch(`/api/projects/${projectId}`);
+      if (response.ok) {
+        const data = await response.json();
+        const proj = data.project;
+        if (proj) {
+          try {
+            setClaudeOptions(proj.claude_code_options ? JSON.parse(proj.claude_code_options) : {});
+          } catch {
+            setClaudeOptions({});
+          }
+          try {
+            setCustomEnvVars(proj.custom_env_vars ? JSON.parse(proj.custom_env_vars) : {});
+          } catch {
+            setCustomEnvVars({});
+          }
+        }
+      }
+    } catch {
+      // エラー時はデフォルト値を維持
+    }
+  }, []);
+
   useEffect(() => {
     if (isOpen && project) {
       fetchScripts(project.id);
+      fetchProjectSettings(project.id);
     }
-  }, [isOpen, project, fetchScripts]);
+  }, [isOpen, project, fetchScripts, fetchProjectSettings]);
 
   /**
    * スクリプト設定を保存
@@ -137,6 +167,20 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
             throw new Error('Failed to update script');
           }
         }
+      }
+
+      // Claude Codeオプションを保存
+      const optionsResponse = await fetch(`/api/projects/${project.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          claude_code_options: claudeOptions,
+          custom_env_vars: customEnvVars,
+        }),
+      });
+
+      if (!optionsResponse.ok) {
+        throw new Error('Failed to save Claude Code options');
       }
 
       await fetchProjects();
@@ -307,6 +351,20 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
                         </div>
                       ))}
                     </div>
+                  </div>
+
+                  {/* Claude Code デフォルトオプション */}
+                  <div className="mb-6">
+                    <ClaudeOptionsForm
+                      options={claudeOptions}
+                      envVars={customEnvVars}
+                      onOptionsChange={setClaudeOptions}
+                      onEnvVarsChange={setCustomEnvVars}
+                      disabled={isLoading}
+                    />
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      新規セッション作成時のデフォルト設定として使用されます
+                    </p>
                   </div>
 
                   {error && (

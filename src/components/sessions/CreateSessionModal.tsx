@@ -4,6 +4,8 @@ import { useState, useEffect, Fragment } from 'react';
 import { Dialog, Transition, RadioGroup, Listbox } from '@headlessui/react';
 import { Check, ChevronsUpDown, GitBranch } from 'lucide-react';
 import { useEnvironments, Environment } from '@/hooks/useEnvironments';
+import { ClaudeOptionsForm } from '@/components/claude-options/ClaudeOptionsForm';
+import type { ClaudeCodeOptions, CustomEnvVars } from '@/components/claude-options/ClaudeOptionsForm';
 
 export interface CreateSessionModalProps {
   isOpen: boolean;
@@ -59,6 +61,8 @@ export function CreateSessionModal({
   const [branches, setBranches] = useState<Branch[]>([]);
   const [selectedBranch, setSelectedBranch] = useState<string>('');
   const [isBranchesLoading, setIsBranchesLoading] = useState(false);
+  const [claudeOptions, setClaudeOptions] = useState<ClaudeCodeOptions>({});
+  const [customEnvVars, setCustomEnvVars] = useState<CustomEnvVars>({});
 
   // デフォルト環境または最初の環境を初期選択
   useEffect(() => {
@@ -77,6 +81,8 @@ export function CreateSessionModal({
   useEffect(() => {
     if (!isOpen) {
       setError('');
+      setClaudeOptions({});
+      setCustomEnvVars({});
       // selectedEnvironmentIdは維持（再度開いた時に同じ環境が選択される）
     }
   }, [isOpen]);
@@ -130,6 +136,8 @@ export function CreateSessionModal({
         body: JSON.stringify({
           environment_id: selectedEnvironmentId,
           source_branch: selectedBranch || undefined,
+          claude_code_options: Object.keys(claudeOptions).some(k => claudeOptions[k as keyof ClaudeCodeOptions]) ? claudeOptions : undefined,
+          custom_env_vars: Object.keys(customEnvVars).length > 0 ? customEnvVars : undefined,
         }),
       });
 
@@ -338,6 +346,17 @@ export function CreateSessionModal({
                     </p>
                   </div>
                 )}
+
+                {/* Claude Code オプション */}
+                <div className="mb-4">
+                  <ClaudeOptionsForm
+                    options={claudeOptions}
+                    envVars={customEnvVars}
+                    onOptionsChange={setClaudeOptions}
+                    onEnvVarsChange={setCustomEnvVars}
+                    disabled={isCreating}
+                  />
+                </div>
 
                 {error && (
                   <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">

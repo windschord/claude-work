@@ -9,6 +9,7 @@ import { logger } from '@/lib/logger';
 import { environmentService } from '@/services/environment-service';
 import { AdapterFactory } from '@/services/adapter-factory';
 import type { EnvironmentAdapter, PTYExitInfo } from '@/services/environment-adapter';
+import { ClaudeOptionsService } from '@/services/claude-options-service';
 
 // PTY破棄の猶予期間（ミリ秒）
 // クライアントが一時的に切断しても、この期間内に再接続すればPTYセッションを維持できる
@@ -206,6 +207,32 @@ export function setupClaudeWebSocket(
           worktreePath: session.worktree_path,
         });
 
+        // プロジェクトの設定を取得してマージ
+        const project = await db.query.projects.findFirst({
+          where: eq(schema.projects.id, session.project_id),
+        });
+
+        const projectOptions = ClaudeOptionsService.parseOptions(project?.claude_code_options);
+        const projectEnvVars = ClaudeOptionsService.parseEnvVars(project?.custom_env_vars);
+        const sessionOptions = ClaudeOptionsService.parseOptions(session.claude_code_options);
+        const sessionEnvVars = ClaudeOptionsService.parseEnvVars(session.custom_env_vars);
+
+        const mergedOptions = ClaudeOptionsService.mergeOptions(projectOptions, sessionOptions);
+        const mergedEnvVars = ClaudeOptionsService.mergeEnvVars(projectEnvVars, sessionEnvVars);
+
+        const hasCustomOptions = Object.keys(mergedOptions).length > 0;
+        const hasCustomEnvVars = Object.keys(mergedEnvVars).length > 0;
+
+        if (hasCustomOptions || hasCustomEnvVars) {
+          logger.info('Claude WebSocket: Applying custom options', {
+            sessionId,
+            hasCustomOptions,
+            hasCustomEnvVars,
+            optionKeys: Object.keys(mergedOptions),
+            envVarKeys: Object.keys(mergedEnvVars),
+          });
+        }
+
         // Claude PTYを作成し、初期プロンプトを送信
         try {
           if (isLegacy) {
@@ -214,7 +241,11 @@ export function setupClaudeWebSocket(
               sessionId,
               session.worktree_path,
               firstMessage?.content,
-              { dockerMode: session.docker_mode }
+              {
+                dockerMode: session.docker_mode,
+                claudeCodeOptions: hasCustomOptions ? mergedOptions : undefined,
+                customEnvVars: hasCustomEnvVars ? mergedEnvVars : undefined,
+              }
             );
           } else {
             // 新方式（アダプター経由）
@@ -222,7 +253,11 @@ export function setupClaudeWebSocket(
               sessionId,
               session.worktree_path,
               firstMessage?.content,
-              { resumeSessionId: session.resume_session_id || undefined }
+              {
+                resumeSessionId: session.resume_session_id || undefined,
+                claudeCodeOptions: hasCustomOptions ? mergedOptions : undefined,
+                customEnvVars: hasCustomEnvVars ? mergedEnvVars : undefined,
+              }
             );
           }
           logger.info('Claude PTY created for session', {
