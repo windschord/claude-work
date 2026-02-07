@@ -26,7 +26,7 @@ function ClaudeTerminalPanel({
   isVisible,
 }: ClaudeTerminalPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const { terminal, isConnected, fit, restart, reconnect, error } =
+  const { terminal, isConnected, isFocused, fit, restart, reconnect, error } =
     useClaudeTerminal(sessionId);
   const [mounted, setMounted] = useState(false);
   const [isTerminalOpened, setIsTerminalOpened] = useState(false);
@@ -243,7 +243,7 @@ function ClaudeTerminalPanel({
       {/* ターミナルエリア */}
       <div
         ref={containerRef}
-        className="flex-1 p-2 min-h-0 w-full h-full"
+        className={`flex-1 p-2 min-h-0 w-full h-full transition-all duration-200 ${isFocused ? 'ring-2 ring-green-500 ring-inset rounded' : 'ring-0'}`}
         role="application"
         aria-label="Claude Code Terminal"
       />
