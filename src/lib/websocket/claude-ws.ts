@@ -403,9 +403,9 @@ export function setupClaudeWebSocket(
               sessionId,
             });
             if (isLegacy) {
-              claudePtyManager.restartSession(sessionId);
+              claudePtyManager.restartSession(sessionId, session.worktree_path);
             } else {
-              adapter!.restartSession(sessionId);
+              adapter!.restartSession(sessionId, session.worktree_path);
             }
           } else {
             logger.warn('Claude WebSocket: Unknown message type', {

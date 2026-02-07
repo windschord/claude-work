@@ -414,15 +414,21 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
     }
   }
 
-  restartSession(sessionId: string): void {
+  restartSession(sessionId: string, workingDir?: string): void {
     const session = this.sessions.get(sessionId);
     if (session) {
-      const { workingDir } = session;
+      const { workingDir: wd } = session;
       logger.info('DockerAdapter: Restarting session', { sessionId });
       this.destroySession(sessionId);
+      setTimeout(() => this.createSession(sessionId, wd), 500);
+    } else if (workingDir) {
+      logger.info('DockerAdapter: Restarting session (from fallback params)', { sessionId });
       setTimeout(() => this.createSession(sessionId, workingDir), 500);
+    } else {
+      logger.warn('DockerAdapter: Cannot restart session: not found and no workingDir', { sessionId });
     }
   }
+
 
   hasSession(sessionId: string): boolean {
     return this.sessions.has(sessionId);
