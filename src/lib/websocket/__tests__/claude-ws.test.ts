@@ -534,4 +534,89 @@ describe('Claude WebSocket Handler - Environment Support', () => {
       expect(mockWs.close).toHaveBeenCalled();
     });
   });
+
+  describe('restart handling', () => {
+    it('should pass worktree_path to restartSession for adapter', async () => {
+      const sessionId = 'session-restart';
+      const environmentId = 'env-restart';
+      const worktreePath = '/path/to/worktree';
+
+      mockDb.query.sessions.findFirst.mockResolvedValue({
+        id: sessionId,
+        worktree_path: worktreePath,
+        docker_mode: false,
+        environment_id: environmentId,
+      });
+
+      mockEnvironmentService.findById.mockResolvedValue({
+        id: environmentId,
+        name: 'Test Env',
+        type: 'HOST',
+        config: '{}',
+        auth_dir_path: null,
+        is_default: false,
+        created_at: new Date(),
+        updated_at: new Date(),
+      });
+
+      const mockAdapter = createMockAdapter();
+      mockAdapter.hasSession.mockReturnValue(true);
+      mockAdapterFactory.getAdapter.mockReturnValue(mockAdapter);
+
+      let messageHandler: (message: Buffer) => void;
+      mockWs.on = vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+        if (event === 'message') {
+          messageHandler = handler as (message: Buffer) => void;
+        }
+      }) as WebSocket['on'];
+
+      setupClaudeWebSocket(mockWss, '/ws/claude');
+      await connectionHandler(mockWs, {
+        url: `/ws/claude/${sessionId}`,
+        headers: { host: 'localhost:3000' },
+      });
+
+      const restartMessage = JSON.stringify({ type: 'restart' });
+      messageHandler!(Buffer.from(restartMessage));
+
+      expect(mockAdapter.restartSession).toHaveBeenCalledWith(sessionId, worktreePath);
+    });
+
+    it('should pass worktree_path to restartSession for legacy mode', async () => {
+      const sessionId = 'session-restart-legacy';
+      const worktreePath = '/path/to/worktree-legacy';
+
+      mockDb.query.sessions.findFirst.mockResolvedValue({
+        id: sessionId,
+        worktree_path: worktreePath,
+        docker_mode: true,
+        environment_id: null,
+      });
+
+      mockClaudePtyManager.hasSession.mockReturnValue(true);
+
+      let messageHandler: (message: Buffer) => void;
+      mockWs.on = vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+        if (event === 'message') {
+          messageHandler = handler as (message: Buffer) => void;
+        }
+      }) as WebSocket['on'];
+
+      setupClaudeWebSocket(mockWss, '/ws/claude');
+      await connectionHandler(mockWs, {
+        url: `/ws/claude/${sessionId}`,
+        headers: { host: 'localhost:3000' },
+      });
+
+      const restartMessage = JSON.stringify({ type: 'restart' });
+      messageHandler!(Buffer.from(restartMessage));
+
+      expect(mockClaudePtyManager.restartSession).toHaveBeenCalledWith(
+        sessionId,
+        worktreePath,
+        undefined,
+        { dockerMode: true }
+      );
+    });
+  });
 });

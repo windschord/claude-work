@@ -323,8 +323,11 @@ class ClaudePTYManager extends EventEmitter {
    * セッションを再起動
    *
    * @param sessionId - セッションID
+   * @param workingDir - フォールバック用作業ディレクトリ（セッションがメモリにない場合に使用）
+   * @param initialPrompt - フォールバック用初期プロンプト
+   * @param options - フォールバック用オプション
    */
-  restartSession(sessionId: string): void {
+  restartSession(sessionId: string, workingDir?: string, initialPrompt?: string, options?: CreateClaudePTYSessionOptions): void {
     // Dockerセッションの場合はDockerPTYAdapterに委譲
     if (this.dockerAdapter.hasSession(sessionId)) {
       this.dockerAdapter.restartSession(sessionId);
@@ -333,13 +336,29 @@ class ClaudePTYManager extends EventEmitter {
 
     const session = this.sessions.get(sessionId);
     if (session) {
-      const { workingDir, initialPrompt, options } = session;
-      logger.info('Restarting Claude PTY session', { sessionId, dockerMode: options?.dockerMode });
+      const { workingDir: wd, initialPrompt: ip, options: opts } = session;
+      logger.info('Restarting Claude PTY session', { sessionId, dockerMode: opts?.dockerMode });
       this.destroySession(sessionId);
       // 少し待ってから再作成（オプションを保持して再起動）
       setTimeout(() => {
-        this.createSession(sessionId, workingDir, initialPrompt, options);
+        try {
+          this.createSession(sessionId, wd, ip, opts);
+        } catch {
+          // createSession内部でlogger.error + emit('error')済みのため、ここでは追加処理不要
+        }
       }, 500);
+    } else if (workingDir) {
+      // セッションがメモリにない場合（exit後など）、引数のworkingDirで再作成
+      logger.info('Restarting Claude PTY session (from fallback params)', { sessionId });
+      setTimeout(() => {
+        try {
+          this.createSession(sessionId, workingDir, initialPrompt, options);
+        } catch {
+          // createSession内部でlogger.error + emit('error')済みのため、ここでは追加処理不要
+        }
+      }, 500);
+    } else {
+      logger.warn('Cannot restart Claude PTY session: session not found and no workingDir provided', { sessionId });
     }
   }
 

@@ -245,7 +245,7 @@ describe('HostAdapter', () => {
     it('should delegate to claudePtyManager.restartSession', () => {
       hostAdapter.restartSession('session-1');
 
-      expect(mockClaudePtyManager.restartSession).toHaveBeenCalledWith('session-1');
+      expect(mockClaudePtyManager.restartSession).toHaveBeenCalledWith('session-1', undefined);
     });
   });
 
