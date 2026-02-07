@@ -23,6 +23,79 @@ import type { FitAddon } from '@xterm/addon-fit';
 import { detectActionRequest, createCooldownChecker } from '@/lib/action-detector';
 import { sendNotification } from '@/lib/notification-service';
 
+/**
+ * クリップボードからのペースト処理
+ * テキスト: WebSocket経由でPTYに送信
+ * 画像: base64エンコードしてWebSocket経由でサーバーに送信
+ */
+async function handlePaste(
+  wsRef: { current: WebSocket | null },
+  terminalRef: { current: Terminal | null }
+) {
+  try {
+    // Clipboard APIで画像とテキストを判別
+    const clipboardItems = await navigator.clipboard.read();
+    for (const item of clipboardItems) {
+      // 画像チェック（画像を優先）
+      const imageType = item.types.find(t => t.startsWith('image/'));
+      if (imageType) {
+        const blob = await item.getType(imageType);
+        await sendImageToServer(wsRef, blob, imageType);
+        return;
+      }
+    }
+    // テキストのみの場合
+    const text = await navigator.clipboard.readText();
+    if (text && wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'input', data: text }));
+    }
+  } catch {
+    // navigator.clipboard.read()が使えない場合のフォールバック
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text && wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: 'input', data: text }));
+      }
+    } catch (fallbackErr) {
+      console.error('Clipboard paste failed:', fallbackErr);
+      terminalRef.current?.write('\r\n[Clipboard access denied]\r\n');
+    }
+  }
+}
+
+/**
+ * 画像をbase64エンコードしてWebSocket経由でサーバーに送信
+ */
+async function sendImageToServer(
+  wsRef: { current: WebSocket | null },
+  blob: Blob,
+  mimeType: string
+) {
+  const base64 = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      const commaIndex = result.indexOf(',');
+      if (commaIndex !== -1) {
+        resolve(result.slice(commaIndex + 1));
+      } else {
+        reject(new Error('Invalid data URL format'));
+      }
+    };
+    reader.onerror = () => {
+      reject(reader.error ?? new Error('Failed to read blob as data URL'));
+    };
+    reader.readAsDataURL(blob);
+  });
+  if (wsRef.current?.readyState === WebSocket.OPEN) {
+    wsRef.current.send(JSON.stringify({
+      type: 'paste-image',
+      data: base64,
+      mimeType,
+    }));
+  }
+}
+
 export interface UseClaudeTerminalOptions {
   isVisible?: boolean;
   sessionName?: string;
@@ -31,6 +104,7 @@ export interface UseClaudeTerminalOptions {
 export interface UseClaudeTerminalReturn {
   terminal: Terminal | null;
   isConnected: boolean;
+  isFocused: boolean;
   fit: () => void;
   restart: () => void;
   reconnect: () => void;
@@ -67,7 +141,10 @@ export function useClaudeTerminal(
   if (notificationCooldownRef.current === null) {
     notificationCooldownRef.current = createCooldownChecker(NOTIFICATION_COOLDOWN);
   }
+  const onFocusDisposableRef = useRef<IDisposable | null>(null);
+  const onBlurDisposableRef = useRef<IDisposable | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [terminal, setTerminal] = useState<Terminal | null>(null);
 
@@ -148,6 +225,9 @@ export function useClaudeTerminal(
           // エラーメッセージを表示
           terminalRef.current?.write(`\r\n[Error: ${message.message}]\r\n`);
           setError(message.message);
+        } else if (message.type === 'image-error') {
+          // 画像保存エラーメッセージを表示
+          terminalRef.current?.write(`\r\n[Image paste error: ${message.message}]\r\n`);
         }
       } catch (err) {
         console.error('Failed to parse Claude WebSocket message:', err);
@@ -263,6 +343,63 @@ export function useClaudeTerminal(
         });
         onDataDisposableRef.current = onDataDisposable;
 
+        // フォーカス状態管理
+        // XTerm.jsのonFocus/onBlurはランタイムには存在するが型定義にないためanyキャスト
+        const termAny = term as any;
+        if (typeof termAny.onFocus === 'function') {
+          onFocusDisposableRef.current = termAny.onFocus(() => {
+            if (isMountedRef.current) setIsFocused(true);
+          });
+        }
+        if (typeof termAny.onBlur === 'function') {
+          onBlurDisposableRef.current = termAny.onBlur(() => {
+            if (isMountedRef.current) setIsFocused(false);
+          });
+        }
+
+        // カスタムキーイベントハンドラ
+        term.attachCustomKeyEventHandler((event: KeyboardEvent) => {
+          // keydownイベントのみ処理
+          if (event.type !== 'keydown') return true;
+
+          // CTRL+C: コピー（選択テキストあり時）
+          if (event.ctrlKey && !event.shiftKey && !event.altKey && event.key === 'c') {
+            const selection = term.getSelection();
+            if (selection) {
+              navigator.clipboard
+                .writeText(selection)
+                .then(() => {
+                  term.clearSelection();
+                })
+                .catch(err => {
+                  console.error('Clipboard copy failed:', err);
+                  terminalRef.current?.write('\r\n[Clipboard copy failed: clipboard access denied]\r\n');
+                });
+              return false; // イベント消費（SIGINTを送らない）
+            }
+            return true; // 選択なし: XTerm.jsデフォルト（SIGINT）
+          }
+
+          // CTRL+V: ペースト（Clipboard API利用可能時のみ）
+          if (event.ctrlKey && !event.shiftKey && !event.altKey && event.key === 'v') {
+            if (navigator.clipboard) {
+              void handlePaste(wsRef, terminalRef);
+              return false; // イベント消費
+            }
+            return true; // Clipboard API非対応: XTerm.jsデフォルトのペーストを使用
+          }
+
+          // SHIFT+ENTER: 改行
+          if (event.shiftKey && !event.ctrlKey && !event.altKey && event.key === 'Enter') {
+            if (wsRef.current?.readyState === WebSocket.OPEN) {
+              wsRef.current.send(JSON.stringify({ type: 'input', data: '\n' }));
+            }
+            return false;
+          }
+
+          return true; // その他: XTerm.jsデフォルト
+        });
+
         // WebSocket接続を作成
         createWebSocket();
       } catch (err) {
@@ -311,6 +448,14 @@ export function useClaudeTerminal(
         resizeTimerRef.current = null;
       }
 
+      if (onFocusDisposableRef.current) {
+        onFocusDisposableRef.current.dispose();
+        onFocusDisposableRef.current = null;
+      }
+      if (onBlurDisposableRef.current) {
+        onBlurDisposableRef.current.dispose();
+        onBlurDisposableRef.current = null;
+      }
       if (onDataDisposableRef.current) {
         onDataDisposableRef.current.dispose();
         onDataDisposableRef.current = null;
@@ -447,6 +592,7 @@ export function useClaudeTerminal(
   return {
     terminal,
     isConnected,
+    isFocused,
     fit,
     restart,
     reconnect,
