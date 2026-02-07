@@ -80,7 +80,7 @@ ClaudeWork で使用可能な環境変数の一覧です。
   1. 設定済みの値が `existsSync()` でファイルとして存在する場合、そのまま使用
   2. 設定値が非絶対パス（コマンド名）の場合、`which` で解決を試みる
   3. 未設定の場合、`which claude` で PATH から自動検出
-- **備考**: systemd 環境では `claude-work` ユーザーの PATH に `claude` がない場合があるため、絶対パスでの指定を推奨
+- **備考**: systemd 環境では `claude-work` ユーザーの PATH に `claude` が含まれない場合があり、絶対パスでの指定を推奨
 
 ### PROCESS_IDLE_TIMEOUT_MINUTES
 
