@@ -34,6 +34,9 @@ const PTY_DESTROY_GRACE_PERIOD = (() => {
 const destroyTimers = new Map<string, ReturnType<typeof setTimeout>>();
 // セッションごとのアクティブな接続数を管理
 const activeConnections = new Map<string, number>();
+// 非レガシーセッションのスクロールバックリスナー登録済みセットを管理
+// （複数接続で二重appendを防止するため、セッション単位で1回だけ登録）
+const scrollbackListeners = new Set<string>();
 
 // 画像の最大サイズ（10MB）
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
@@ -321,6 +324,27 @@ export function setupClaudeWebSocket(
             dockerMode: session.docker_mode,
           });
 
+          // 非レガシーモード：セッション単位のスクロールバックリスナーを登録
+          // レガシーモードではclaudePtyManager内部でappend済みなので不要
+          if (!isLegacy && !scrollbackListeners.has(sessionId)) {
+            const scrollbackAppendHandler = (sid: string, data: string) => {
+              if (sid === sessionId) {
+                scrollbackBuffer.append(sessionId, data);
+              }
+            };
+            const scrollbackCleanupHandler = (sid: string) => {
+              if (sid === sessionId) {
+                scrollbackBuffer.clear(sessionId);
+                scrollbackListeners.delete(sessionId);
+                adapter!.off('data', scrollbackAppendHandler);
+                adapter!.off('exit', scrollbackCleanupHandler);
+              }
+            };
+            adapter!.on('data', scrollbackAppendHandler);
+            adapter!.on('exit', scrollbackCleanupHandler);
+            scrollbackListeners.add(sessionId);
+          }
+
           // セッションステータスを'running'に更新
           await db.update(schema.sessions)
             .set({ status: 'running' })
@@ -357,19 +381,12 @@ export function setupClaudeWebSocket(
       // イベントハンドラーの定義
       // アダプター用のイベントハンドラー
       const adapterDataHandler = (sid: string, data: string) => {
-        if (sid === sessionId) {
-          // レガシーモードではclaudePtyManager内部でscrollbackBufferにappend済み
-          // 非レガシーモードのみここでappendする（二重蓄積の防止）
-          if (!isLegacy) {
-            scrollbackBuffer.append(sessionId, data);
-          }
-          if (ws.readyState === WebSocket.OPEN) {
-            const message: ClaudeDataMessage = {
-              type: 'data',
-              content: data,
-            };
-            ws.send(JSON.stringify(message));
-          }
+        if (sid === sessionId && ws.readyState === WebSocket.OPEN) {
+          const message: ClaudeDataMessage = {
+            type: 'data',
+            content: data,
+          };
+          ws.send(JSON.stringify(message));
         }
       };
 
@@ -427,20 +444,8 @@ export function setupClaudeWebSocket(
         }
       };
 
-      // イベントハンドラーを登録
-      if (isLegacy) {
-        claudePtyManager.on('data', adapterDataHandler);
-        claudePtyManager.on('exit', legacyExitHandler);
-        claudePtyManager.on('error', adapterErrorHandler);
-        claudePtyManager.on('claudeSessionId', claudeSessionIdHandler);
-      } else {
-        adapter!.on('data', adapterDataHandler);
-        adapter!.on('exit', adapterExitHandler);
-        adapter!.on('error', adapterErrorHandler);
-        adapter!.on('claudeSessionId', claudeSessionIdHandler);
-      }
-
-      // 既存PTYセッションの場合、スクロールバックバッファを再送
+      // 既存PTYセッションの場合、イベントハンドラー登録前にスクロールバックバッファを再送
+      // （ハンドラー登録後だとdataイベントとscrollbackの順序が逆転するレースを防止）
       if (hasSession) {
         const buffer = scrollbackBuffer.getBuffer(sessionId);
         if (buffer && ws.readyState === WebSocket.OPEN) {
@@ -454,6 +459,19 @@ export function setupClaudeWebSocket(
             bufferLength: buffer.length,
           });
         }
+      }
+
+      // イベントハンドラーを登録（scrollback送信後に登録してレースを防止）
+      if (isLegacy) {
+        claudePtyManager.on('data', adapterDataHandler);
+        claudePtyManager.on('exit', legacyExitHandler);
+        claudePtyManager.on('error', adapterErrorHandler);
+        claudePtyManager.on('claudeSessionId', claudeSessionIdHandler);
+      } else {
+        adapter!.on('data', adapterDataHandler);
+        adapter!.on('exit', adapterExitHandler);
+        adapter!.on('error', adapterErrorHandler);
+        adapter!.on('claudeSessionId', claudeSessionIdHandler);
       }
 
       // WebSocket入力 → PTY
