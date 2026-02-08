@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Menu, Settings, Server } from 'lucide-react';
+import { Menu, Server } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { ThemeToggle } from '@/components/common/ThemeToggle';
 import { NotificationSettings } from '@/components/common/NotificationSettings';
@@ -15,7 +15,7 @@ import { NotificationSettings } from '@/components/common/NotificationSettings';
  * - ハンバーガーメニュー（モバイル時のサイドバートグル）
  * - テーマ切り替えボタン
  * - 通知設定
- * - 設定メニュー（実行環境設定へのリンク）
+ * - 実行環境メニュー（実行環境設定へのリンク）
  */
 export function Header() {
   const router = useRouter();
@@ -90,7 +90,7 @@ export function Header() {
             aria-expanded={isSettingsOpen}
             aria-haspopup="true"
           >
-            <Settings className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+            <Server className="w-5 h-5 text-gray-600 dark:text-gray-400" />
           </button>
 
           {/* ドロップダウンメニュー */}
