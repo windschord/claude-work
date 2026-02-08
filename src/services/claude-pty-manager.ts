@@ -200,9 +200,13 @@ class ClaudePTYManager extends EventEmitter {
         const customArgs = ClaudeOptionsService.buildCliArgs(options.claudeCodeOptions);
         if (customArgs.length > 0) {
           cliArgs.push(...customArgs);
+          // ログにはフラグ名のみを出力し、値は出力しない（機密情報対策）
+          const safeArgs = customArgs.map((arg) =>
+            arg.startsWith('-') ? arg : '[REDACTED]'
+          );
           logger.info('Custom CLI options applied', {
             sessionId,
-            args: customArgs,
+            args: safeArgs,
           });
         }
       }

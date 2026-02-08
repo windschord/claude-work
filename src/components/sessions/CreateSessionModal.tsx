@@ -136,7 +136,7 @@ export function CreateSessionModal({
         body: JSON.stringify({
           environment_id: selectedEnvironmentId,
           source_branch: selectedBranch || undefined,
-          claude_code_options: Object.keys(claudeOptions).some(k => claudeOptions[k as keyof ClaudeCodeOptions]) ? claudeOptions : undefined,
+          claude_code_options: Object.keys(claudeOptions).some(k => claudeOptions[k as keyof ClaudeCodeOptions] !== undefined) ? claudeOptions : undefined,
           custom_env_vars: Object.keys(customEnvVars).length > 0 ? customEnvVars : undefined,
         }),
       });

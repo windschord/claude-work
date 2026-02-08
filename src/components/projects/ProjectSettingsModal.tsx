@@ -97,7 +97,8 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
         }
       }
     } catch {
-      // エラー時はデフォルト値を維持
+      // エラー時はデフォルト値を維持（ログは残す）
+      console.error('Failed to fetch project settings');
     }
   }, []);
 
@@ -245,6 +246,8 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
 
   const handleClose = () => {
     setError('');
+    setClaudeOptions({});
+    setCustomEnvVars({});
     onClose();
   };
 

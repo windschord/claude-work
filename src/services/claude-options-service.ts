@@ -17,8 +17,9 @@ export interface CustomEnvVars {
 
 /**
  * 環境変数キーのバリデーション正規表現
+ * 大文字英字・数字・アンダースコアのみ許可（POSIXの環境変数命名規則に準拠）
  */
-const ENV_VAR_KEY_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const ENV_VAR_KEY_PATTERN = /^[A-Z_][A-Z0-9_]*$/;
 
 /**
  * Claude Code実行オプションのマージ・ビルドサービス
@@ -105,9 +106,13 @@ export class ClaudeOptionsService {
   ): Record<string, string> {
     const result = { ...baseEnv };
     for (const [key, value] of Object.entries(customVars)) {
-      if (this.validateEnvVarKey(key)) {
+      if (!this.validateEnvVarKey(key)) {
+        continue;
+      }
+      if (typeof value === 'string') {
         result[key] = value;
       }
+      // 非文字列の値は無視（型安全性のため）
     }
     return result;
   }
@@ -121,11 +126,16 @@ export class ClaudeOptionsService {
 
   /**
    * JSON文字列からClaudeCodeOptionsをパース（安全にパース）
+   * 配列・null・プリミティブ等はplain objectではないため空objectを返す
    */
   static parseOptions(json: string | null | undefined): ClaudeCodeOptions {
     if (!json) return {};
     try {
-      return JSON.parse(json) as ClaudeCodeOptions;
+      const parsed = JSON.parse(json);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return {};
+      }
+      return parsed as ClaudeCodeOptions;
     } catch {
       return {};
     }
@@ -133,11 +143,24 @@ export class ClaudeOptionsService {
 
   /**
    * JSON文字列からCustomEnvVarsをパース（安全にパース）
+   * 配列・null・プリミティブ等はplain objectではないため空objectを返す
+   * 値が文字列でないエントリは除外する
    */
   static parseEnvVars(json: string | null | undefined): CustomEnvVars {
     if (!json) return {};
     try {
-      return JSON.parse(json) as CustomEnvVars;
+      const parsed = JSON.parse(json);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return {};
+      }
+      // 値が文字列でないエントリを除外
+      const result: CustomEnvVars = {};
+      for (const [key, value] of Object.entries(parsed)) {
+        if (typeof value === 'string') {
+          result[key] = value;
+        }
+      }
+      return result;
     } catch {
       return {};
     }

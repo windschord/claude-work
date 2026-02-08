@@ -1,19 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Disclosure } from '@headlessui/react';
 import { ChevronDown, Plus, X } from 'lucide-react';
+import type { ClaudeCodeOptions, CustomEnvVars } from '@/services/claude-options-service';
 
-export interface ClaudeCodeOptions {
-  model?: string;
-  allowedTools?: string;
-  permissionMode?: string;
-  additionalFlags?: string;
-}
-
-export interface CustomEnvVars {
-  [key: string]: string;
-}
+export type { ClaudeCodeOptions, CustomEnvVars } from '@/services/claude-options-service';
 
 interface EnvVarEntry {
   id: string;
@@ -54,6 +46,13 @@ function entriesToEnvVars(entries: EnvVarEntry[]): CustomEnvVars {
   return result;
 }
 
+function areEnvVarsEqual(a: CustomEnvVars, b: CustomEnvVars): boolean {
+  const aKeys = Object.keys(a);
+  const bKeys = Object.keys(b);
+  if (aKeys.length !== bKeys.length) return false;
+  return aKeys.every((key) => a[key] === b[key]);
+}
+
 export function ClaudeOptionsForm({
   options,
   envVars,
@@ -64,6 +63,16 @@ export function ClaudeOptionsForm({
   const [envEntries, setEnvEntries] = useState<EnvVarEntry[]>(() =>
     envVarsToEntries(envVars)
   );
+  const lastSyncedEnvVarsRef = useRef<CustomEnvVars>(envVars);
+
+  // 外部からenvVarsが更新された場合にenvEntriesを同期
+  useEffect(() => {
+    if (areEnvVarsEqual(envVars, lastSyncedEnvVarsRef.current)) {
+      return;
+    }
+    setEnvEntries(envVarsToEntries(envVars));
+    lastSyncedEnvVarsRef.current = envVars;
+  }, [envVars]);
 
   const handleOptionChange = (field: keyof ClaudeCodeOptions, value: string) => {
     onOptionsChange({ ...options, [field]: value });
@@ -74,7 +83,9 @@ export function ClaudeOptionsForm({
       e.id === id ? { ...e, [field]: val } : e
     );
     setEnvEntries(updated);
-    onEnvVarsChange(entriesToEnvVars(updated));
+    const merged = entriesToEnvVars(updated);
+    lastSyncedEnvVarsRef.current = merged;
+    onEnvVarsChange(merged);
   };
 
   const handleAddEnvVar = () => {
@@ -90,7 +101,9 @@ export function ClaudeOptionsForm({
   const handleRemoveEnvVar = (id: string) => {
     const updated = envEntries.filter((e) => e.id !== id);
     setEnvEntries(updated);
-    onEnvVarsChange(entriesToEnvVars(updated));
+    const merged = entriesToEnvVars(updated);
+    lastSyncedEnvVarsRef.current = merged;
+    onEnvVarsChange(merged);
   };
 
   const hasAnySettings = !!(

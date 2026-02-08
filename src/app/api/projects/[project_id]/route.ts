@@ -6,22 +6,28 @@ import { existsSync } from 'fs';
 import { execSync } from 'child_process';
 
 /**
+ * plain objectかどうかを検証（配列・null・プリミティブを排除）
+ */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
  * GET /api/projects/[project_id] - プロジェクト詳細取得
  */
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ project_id: string }> }
 ) {
+  const { project_id } = await params;
   try {
-    const { project_id } = await params;
     const project = db.select().from(schema.projects).where(eq(schema.projects.id, project_id)).get();
     if (!project) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
     return NextResponse.json({ project });
   } catch (error) {
-    const { project_id: errorProjectId } = await params;
-    logger.error('Failed to get project', { error, id: errorProjectId });
+    logger.error('Failed to get project', { error, id: project_id });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -84,14 +90,31 @@ export async function PUT(
       name?: string;
       path?: string;
       run_scripts?: RunScriptInput[];
-      claude_code_options?: Record<string, string>;
-      custom_env_vars?: Record<string, string>;
+      claude_code_options?: unknown;
+      custom_env_vars?: unknown;
     };
     try {
       body = await request.json();
     } catch (error) {
       logger.warn('Invalid JSON in request body', { error, project_id });
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
+    }
+
+    // claude_code_options のバリデーション
+    if (body.claude_code_options !== undefined && !isPlainObject(body.claude_code_options)) {
+      return NextResponse.json({ error: 'claude_code_options must be a plain object' }, { status: 400 });
+    }
+
+    // custom_env_vars のバリデーション（plain objectかつ値がすべて文字列）
+    if (body.custom_env_vars !== undefined) {
+      if (!isPlainObject(body.custom_env_vars)) {
+        return NextResponse.json({ error: 'custom_env_vars must be a plain object' }, { status: 400 });
+      }
+      for (const value of Object.values(body.custom_env_vars)) {
+        if (typeof value !== 'string') {
+          return NextResponse.json({ error: 'custom_env_vars values must be strings' }, { status: 400 });
+        }
+      }
     }
 
     const existing = db.select().from(schema.projects).where(eq(schema.projects.id, project_id)).get();

@@ -107,11 +107,11 @@ describe('ClaudeOptionsService', () => {
   });
 
   describe('validateEnvVarKey', () => {
-    it('should accept valid keys', () => {
+    it('should accept valid keys (uppercase only)', () => {
       expect(ClaudeOptionsService.validateEnvVarKey('MY_VAR')).toBe(true);
       expect(ClaudeOptionsService.validateEnvVarKey('_PRIVATE')).toBe(true);
-      expect(ClaudeOptionsService.validateEnvVarKey('a')).toBe(true);
       expect(ClaudeOptionsService.validateEnvVarKey('ANTHROPIC_API_KEY')).toBe(true);
+      expect(ClaudeOptionsService.validateEnvVarKey('A')).toBe(true);
     });
 
     it('should reject invalid keys', () => {
@@ -119,6 +119,7 @@ describe('ClaudeOptionsService', () => {
       expect(ClaudeOptionsService.validateEnvVarKey('123')).toBe(false);
       expect(ClaudeOptionsService.validateEnvVarKey('my-var')).toBe(false);
       expect(ClaudeOptionsService.validateEnvVarKey('has space')).toBe(false);
+      expect(ClaudeOptionsService.validateEnvVarKey('lowercase')).toBe(false);
     });
   });
 
@@ -145,6 +146,57 @@ describe('ClaudeOptionsService', () => {
     it('should return empty for null/undefined', () => {
       expect(ClaudeOptionsService.parseEnvVars(null)).toEqual({});
       expect(ClaudeOptionsService.parseEnvVars(undefined)).toEqual({});
+    });
+
+    it('should return empty for invalid JSON', () => {
+      expect(ClaudeOptionsService.parseEnvVars('invalid')).toEqual({});
+    });
+
+    it('should return empty for array', () => {
+      expect(ClaudeOptionsService.parseEnvVars('["a","b"]')).toEqual({});
+    });
+
+    it('should filter out non-string values', () => {
+      expect(ClaudeOptionsService.parseEnvVars('{"FOO":"bar","NUM":123}')).toEqual({ FOO: 'bar' });
+    });
+  });
+
+  describe('parseOptions - edge cases', () => {
+    it('should return empty for array JSON', () => {
+      expect(ClaudeOptionsService.parseOptions('["a","b"]')).toEqual({});
+    });
+
+    it('should return empty for null JSON', () => {
+      expect(ClaudeOptionsService.parseOptions('null')).toEqual({});
+    });
+
+    it('should return empty for primitive JSON', () => {
+      expect(ClaudeOptionsService.parseOptions('"string"')).toEqual({});
+      expect(ClaudeOptionsService.parseOptions('42')).toEqual({});
+    });
+  });
+
+  describe('buildEnv - type safety', () => {
+    it('should skip non-string values in customVars', () => {
+      const base = { PATH: '/usr/bin' };
+      // force non-string values via type assertion
+      const custom = { VALID: 'ok', NUM: 123 as unknown as string };
+      expect(ClaudeOptionsService.buildEnv(base, custom)).toEqual({
+        PATH: '/usr/bin',
+        VALID: 'ok',
+      });
+    });
+  });
+
+  describe('validateEnvVarKey - uppercase only', () => {
+    it('should reject lowercase keys', () => {
+      expect(ClaudeOptionsService.validateEnvVarKey('lowercase')).toBe(false);
+      expect(ClaudeOptionsService.validateEnvVarKey('mixedCase')).toBe(false);
+    });
+
+    it('should accept uppercase keys', () => {
+      expect(ClaudeOptionsService.validateEnvVarKey('UPPER_CASE')).toBe(true);
+      expect(ClaudeOptionsService.validateEnvVarKey('_LEADING')).toBe(true);
     });
   });
 });
