@@ -130,13 +130,26 @@ export class GitService {
       });
 
       if (result.error || result.status !== 0) {
-        throw new Error(result.stderr || result.error?.message || 'Failed to create worktree');
+        const errorMessage = result.stderr || result.error?.message || 'Failed to create worktree';
+        this.logger.error('Git worktree add failed', {
+          sessionName,
+          branchName,
+          exitCode: result.status,
+          stderr: result.stderr,
+          spawnError: result.error?.message,
+        });
+        throw new Error(errorMessage);
       }
 
       this.logger.info('Created worktree', { sessionName, branchName, worktreePath, sourceBranch });
       return worktreePath;
     } catch (error) {
-      this.logger.error('Failed to create worktree', { sessionName, branchName, sourceBranch, error });
+      this.logger.error('Failed to create worktree', {
+        sessionName,
+        branchName,
+        sourceBranch,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   }
@@ -174,12 +187,21 @@ export class GitService {
         }
 
         // その他のエラー（権限、ロック等）はthrow
+        this.logger.error('Git worktree remove failed', {
+          sessionName,
+          exitCode: result.status,
+          stderr: result.stderr,
+          spawnError: result.error?.message,
+        });
         throw new Error(errorMsg || 'Failed to remove worktree');
       }
 
       this.logger.info('Deleted worktree', { sessionName });
     } catch (error) {
-      this.logger.error('Failed to delete worktree', { sessionName, error });
+      this.logger.error('Failed to delete worktree', {
+        sessionName,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   }

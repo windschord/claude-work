@@ -279,7 +279,7 @@ export async function POST(
       worktreePath = gitService.createWorktree(sessionName, branchName, source_branch || undefined);
     } catch (worktreeError) {
       logger.error('Failed to create worktree', {
-        error: worktreeError,
+        error: worktreeError instanceof Error ? worktreeError.message : String(worktreeError),
         project_id,
         sessionName,
       });
@@ -338,7 +338,10 @@ export async function POST(
     return NextResponse.json({ session: newSession }, { status: 201 });
   } catch (error) {
     const { project_id: errorProjectId } = await params;
-    logger.error('Failed to create session', { error, project_id: errorProjectId });
+    logger.error('Failed to create session', {
+      errorMessage: error instanceof Error ? error.message : String(error),
+      project_id: errorProjectId,
+    });
 
     // 開発環境では詳細なエラーメッセージを返す
     if (process.env.NODE_ENV === 'development') {
