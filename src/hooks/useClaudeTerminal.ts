@@ -22,6 +22,7 @@ import type { Terminal, IDisposable } from '@xterm/xterm';
 import type { FitAddon } from '@xterm/addon-fit';
 import { detectActionRequest, createCooldownChecker } from '@/lib/action-detector';
 import { sendNotification } from '@/lib/notification-service';
+import type { ClaudeServerMessage } from '@/types/websocket';
 
 /**
  * クリップボードからのペースト処理
@@ -195,7 +196,7 @@ export function useClaudeTerminal(
     ws.onmessage = (event: MessageEvent) => {
       if (!isMountedRef.current) return;
       try {
-        const message = JSON.parse(event.data);
+        const message: ClaudeServerMessage = JSON.parse(event.data);
 
         if (message.type === 'data') {
           // ターミナルに出力を書き込む
@@ -213,6 +214,13 @@ export function useClaudeTerminal(
               sessionName,
               message: 'Claudeがアクションを求めています',
             });
+          }
+        } else if (message.type === 'scrollback') {
+          // サーバーからのスクロールバックバッファ（再接続時の過去出力復元）
+          // 既存の出力をクリアしてからスクロールバックを適用し、二重出力を防ぐ
+          if (terminalRef.current) {
+            terminalRef.current.reset();
+            terminalRef.current.write(message.content);
           }
         } else if (message.type === 'exit') {
           // プロセス終了メッセージを表示

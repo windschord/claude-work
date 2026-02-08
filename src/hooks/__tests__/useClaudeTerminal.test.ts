@@ -18,6 +18,7 @@ class MockTerminal {
 
   options = {};
   write = vi.fn();
+  reset = vi.fn();
   dispose = vi.fn();
   getSelection = vi.fn().mockReturnValue('');
   clearSelection = vi.fn();
@@ -197,6 +198,36 @@ describe('useClaudeTerminal', () => {
 
     // terminalオブジェクトが存在することを確認
     expect(result.current.terminal).toBeTruthy();
+  });
+
+  it('scrollbackメッセージ受信時にreset後writeされる', async () => {
+    const sessionId = 'test-session-scrollback';
+    const { result } = renderHook(() => useClaudeTerminal(sessionId));
+
+    await waitFor(() => {
+      expect(result.current.isConnected).toBe(true);
+    });
+
+    // scrollbackメッセージを送信
+    const message = {
+      type: 'scrollback',
+      content: 'previous terminal output',
+    };
+
+    await act(async () => {
+      mockWebSocketInstance!.onmessage!(
+        new MessageEvent('message', { data: JSON.stringify(message) })
+      );
+    });
+
+    // reset()が先に呼ばれ、その後write()でスクロールバックが書き込まれる
+    expect(mockTerminalInstance!.reset).toHaveBeenCalled();
+    expect(mockTerminalInstance!.write).toHaveBeenCalledWith('previous terminal output');
+
+    // resetがwriteより先に呼ばれたことを確認
+    const resetOrder = mockTerminalInstance!.reset.mock.invocationCallOrder[0];
+    const writeOrder = mockTerminalInstance!.write.mock.invocationCallOrder[0];
+    expect(resetOrder).toBeLessThan(writeOrder);
   });
 
   it('exitタイプのメッセージを受信しても接続を維持する', async () => {

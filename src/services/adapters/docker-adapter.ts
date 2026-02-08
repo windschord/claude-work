@@ -6,6 +6,7 @@ import * as os from 'os';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { EnvironmentAdapter, CreateSessionOptions, PTYExitInfo } from '../environment-adapter';
+import { scrollbackBuffer } from '../scrollback-buffer';
 import { db, schema } from '@/lib/db';
 import { eq } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
@@ -227,9 +228,10 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
     initialPrompt?: string,
     options?: CreateSessionOptions
   ): Promise<void> {
-    // 既存セッションのクリーンアップ
+    // 既存のセッションがあれば再利用（破棄しない）
     if (this.sessions.has(sessionId)) {
-      this.destroySession(sessionId);
+      logger.info('DockerAdapter: Reusing existing session', { sessionId });
+      return;
     }
 
     const shellMode = options?.shellMode ?? false;
@@ -348,11 +350,13 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
             }
           }
         }
+        scrollbackBuffer.append(sessionId, data);
         this.emit('data', sessionId, data);
       });
 
       ptyProcess.onExit(async ({ exitCode, signal }) => {
         logger.info('DockerAdapter: Session exited', { sessionId, exitCode, signal });
+        scrollbackBuffer.clear(sessionId);
 
         // container_idをクリア
         try {
@@ -399,6 +403,7 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
     const session = this.sessions.get(sessionId);
     if (session) {
       logger.info('DockerAdapter: Destroying session', { sessionId, containerId: session.containerId });
+      scrollbackBuffer.clear(sessionId);
       session.ptyProcess.kill();
       this.sessions.delete(sessionId);
 
