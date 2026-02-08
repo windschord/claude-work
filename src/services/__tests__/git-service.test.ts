@@ -207,6 +207,9 @@ describe('GitService', () => {
       const worktreesDir = join(testRepoPath, '.worktrees');
       const tempDir = join(testRepoPath, '.worktrees-backup');
 
+      if (!fs.existsSync(worktreesDir)) {
+        fs.mkdirSync(worktreesDir, { recursive: true });
+      }
       fs.renameSync(worktreesDir, tempDir);
       try {
         const worktreePath = gitService.createWorktree('test-auto-create', 'test-branch-auto-create');

@@ -119,7 +119,7 @@ export class GitService {
 
     // .worktreesディレクトリの書き込み権限チェック
     try {
-      accessSync(worktreesDir, constants.W_OK);
+      accessSync(worktreesDir, constants.W_OK | constants.X_OK);
     } catch {
       throw new Error(
         `No write permission to .worktrees directory at "${worktreesDir}". ` +
@@ -148,8 +148,15 @@ export class GitService {
       }
     }
 
+    if (!existsSync(gitDirToCheck)) {
+      throw new Error(
+        `Git directory not found at "${gitDirToCheck}". ` +
+        `Ensure the repository is properly initialized.`
+      );
+    }
+
     try {
-      accessSync(gitDirToCheck, constants.W_OK);
+      accessSync(gitDirToCheck, constants.W_OK | constants.X_OK);
     } catch {
       throw new Error(
         `No write permission to git directory at "${gitDirToCheck}". ` +
@@ -180,39 +187,35 @@ export class GitService {
     const worktreePath = join(this.repoPath, '.worktrees', sessionName);
     this.validateWorktreePath(worktreePath);
 
-    try {
-      // .worktreesディレクトリの書き込み権限を事前チェック
-      this.ensureWorktreeDirectoryWritable();
-      // sourceBranchが指定されている場合: git worktree add -b branchName worktreePath sourceBranch
-      // 指定されていない場合: git worktree add -b branchName worktreePath (現在のHEADから)
-      const args = ['worktree', 'add', '-b', branchName, worktreePath];
-      if (sourceBranch) {
-        args.push(sourceBranch);
-      }
-
-      const result = spawnSync('git', args, {
-        cwd: this.repoPath,
-        encoding: 'utf-8',
-      });
-
-      if (result.error || result.status !== 0) {
-        const errorMessage = result.stderr || result.error?.message || 'Failed to create worktree';
-        this.logger.error('Failed to create worktree', {
-          sessionName,
-          branchName,
-          errorMessage,
-          exitCode: result.status,
-          stderr: result.stderr,
-          spawnError: result.error?.message,
-        });
-        throw new Error(errorMessage, { cause: result.error });
-      }
-
-      this.logger.info('Created worktree', { sessionName, branchName, worktreePath, sourceBranch });
-      return worktreePath;
-    } catch (error) {
-      throw error;
+    // .worktreesディレクトリの書き込み権限を事前チェック
+    this.ensureWorktreeDirectoryWritable();
+    // sourceBranchが指定されている場合: git worktree add -b branchName worktreePath sourceBranch
+    // 指定されていない場合: git worktree add -b branchName worktreePath (現在のHEADから)
+    const args = ['worktree', 'add', '-b', branchName, worktreePath];
+    if (sourceBranch) {
+      args.push(sourceBranch);
     }
+
+    const result = spawnSync('git', args, {
+      cwd: this.repoPath,
+      encoding: 'utf-8',
+    });
+
+    if (result.error || result.status !== 0) {
+      const errorMessage = result.stderr || result.error?.message || 'Failed to create worktree';
+      this.logger.error('Failed to create worktree', {
+        sessionName,
+        branchName,
+        errorMessage,
+        exitCode: result.status,
+        stderr: result.stderr,
+        spawnError: result.error?.message,
+      });
+      throw new Error(errorMessage, { cause: result.error });
+    }
+
+    this.logger.info('Created worktree', { sessionName, branchName, worktreePath, sourceBranch });
+    return worktreePath;
   }
 
   /**
@@ -229,38 +232,35 @@ export class GitService {
     const worktreePath = join(this.repoPath, '.worktrees', sessionName);
     this.validateWorktreePath(worktreePath);
 
-    try {
-      const result = spawnSync('git', ['worktree', 'remove', worktreePath, '--force'], {
-        cwd: this.repoPath,
-        encoding: 'utf-8',
-      });
+    const result = spawnSync('git', ['worktree', 'remove', worktreePath, '--force'], {
+      cwd: this.repoPath,
+      encoding: 'utf-8',
+    });
 
-      if (result.error || result.status !== 0) {
-        const errorMsg = result.stderr || result.error?.message || '';
+    if (result.error || result.status !== 0) {
+      const errorMsg = result.stderr || result.error?.message || '';
 
-        // "存在しない"系のエラーは警告として握りつぶす
-        if (errorMsg.includes('not found') ||
-            errorMsg.includes('does not exist') ||
-            errorMsg.includes('no such file or directory') ||
-            errorMsg.includes('is not a working tree')) {
-          this.logger.warn('Worktree does not exist (already removed)', { sessionName });
-          return;
-        }
-
-        // その他のエラー（権限、ロック等）はthrow
-        this.logger.error('Failed to delete worktree', {
-          sessionName,
-          exitCode: result.status,
-          stderr: result.stderr,
-          spawnError: result.error?.message,
-        });
-        throw new Error(errorMsg || 'Failed to remove worktree', { cause: result.error });
+      // "存在しない"系のエラーは警告として握りつぶす
+      if (errorMsg.includes('not found') ||
+          errorMsg.includes('does not exist') ||
+          errorMsg.includes('no such file or directory') ||
+          errorMsg.includes('is not a working tree')) {
+        this.logger.warn('Worktree does not exist (already removed)', { sessionName });
+        return;
       }
 
-      this.logger.info('Deleted worktree', { sessionName });
-    } catch (error) {
-      throw error;
+      // その他のエラー（権限、ロック等）はthrow
+      this.logger.error('Failed to delete worktree', {
+        sessionName,
+        errorMessage: errorMsg || 'Failed to remove worktree',
+        exitCode: result.status,
+        stderr: result.stderr,
+        spawnError: result.error?.message,
+      });
+      throw new Error(errorMsg || 'Failed to remove worktree', { cause: result.error });
     }
+
+    this.logger.info('Deleted worktree', { sessionName });
   }
 
   /**
