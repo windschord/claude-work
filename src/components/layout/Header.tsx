@@ -79,14 +79,14 @@ export function Header() {
         </button>
       </div>
 
-      {/* 右側: 設定メニュー + 通知設定 + テーマ切り替え */}
+      {/* 右側: 実行環境メニュー + 通知設定 + テーマ切り替え */}
       <div className="flex items-center gap-2">
-        {/* 設定メニュー */}
+        {/* 実行環境メニュー */}
         <div className="relative" ref={settingsRef}>
           <button
             onClick={handleSettingsClick}
             className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-            aria-label="設定"
+            aria-label="実行環境"
             aria-expanded={isSettingsOpen}
             aria-haspopup="true"
           >
