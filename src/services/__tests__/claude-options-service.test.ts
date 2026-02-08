@@ -174,6 +174,18 @@ describe('ClaudeOptionsService', () => {
       expect(ClaudeOptionsService.parseOptions('"string"')).toEqual({});
       expect(ClaudeOptionsService.parseOptions('42')).toEqual({});
     });
+
+    it('should filter out non-string values from options', () => {
+      expect(ClaudeOptionsService.parseOptions('{"model":"test","additionalFlags":123}')).toEqual({
+        model: 'test',
+      });
+    });
+
+    it('should keep only known string fields', () => {
+      expect(ClaudeOptionsService.parseOptions('{"model":"test","unknown":"ignored"}')).toEqual({
+        model: 'test',
+      });
+    });
   });
 
   describe('buildEnv - type safety', () => {

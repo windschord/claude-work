@@ -22,6 +22,13 @@ export interface CustomEnvVars {
 const ENV_VAR_KEY_PATTERN = /^[A-Z_][A-Z0-9_]*$/;
 
 /**
+ * 制御文字を検出する正規表現（RegExpコンストラクタで定義してlintエラーを回避）
+ * \x00-\x1f: C0制御文字, \x7f: DEL
+ */
+// eslint-disable-next-line no-control-regex
+const CONTROL_CHARS_REGEX = new RegExp('[\\x00-\\x1f\\x7f]', 'g');
+
+/**
  * Claude Code実行オプションのマージ・ビルドサービス
  */
 export class ClaudeOptionsService {
@@ -88,7 +95,7 @@ export class ClaudeOptionsService {
 
     if (options.additionalFlags) {
       // 改行・制御文字をスペースに置換
-      const sanitized = options.additionalFlags.replace(/[\x00-\x1f\x7f]/g, ' ');
+      const sanitized = options.additionalFlags.replace(CONTROL_CHARS_REGEX, ' ');
       // スペースで分割して個別の引数として追加
       const flagParts = sanitized.split(/\s+/).filter(Boolean);
       args.push(...flagParts);
@@ -135,7 +142,15 @@ export class ClaudeOptionsService {
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
         return {};
       }
-      return parsed as ClaudeCodeOptions;
+      // 文字列フィールドのみを抽出（非文字列値による実行時エラーを防止）
+      const result: ClaudeCodeOptions = {};
+      for (const key of ['model', 'allowedTools', 'permissionMode', 'additionalFlags'] as const) {
+        const value = (parsed as Record<string, unknown>)[key];
+        if (typeof value === 'string') {
+          result[key] = value;
+        }
+      }
+      return result;
     } catch {
       return {};
     }
