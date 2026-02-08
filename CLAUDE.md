@@ -222,7 +222,7 @@ The thin wrapper architecture means:
 ### Git Worktree Isolation
 
 Each session:
-1. Creates branch `claude-work/<session-name>`
+1. Creates branch `session/<session-name>`
 2. Creates worktree at `.worktrees/<session-name>/`
 3. Runs Claude Code with cwd set to worktree path
 4. On deletion, removes worktree and prunes references

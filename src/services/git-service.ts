@@ -180,6 +180,15 @@ export class GitService {
   createWorktree(sessionName: string, branchName: string, sourceBranch?: string): string {
     this.validateName(sessionName, 'session');
     this.validateName(branchName, 'branch');
+
+    // ブランチ命名規約の強制: session/<sessionName> 形式であること
+    const expectedBranchName = `session/${sessionName}`;
+    if (branchName !== expectedBranchName) {
+      throw new Error(
+        `Invalid branch name: "${branchName}". Expected "${expectedBranchName}" for session "${sessionName}".`
+      );
+    }
+
     if (sourceBranch) {
       this.validateName(sourceBranch, 'branch');
     }

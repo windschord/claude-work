@@ -29,7 +29,7 @@ describe('GitService', () => {
   describe('createWorktree', () => {
     it('should create worktree at .worktrees/sessionName', () => {
       const sessionName = 'test-session-1';
-      const branchName = 'test-branch-1';
+      const branchName = `session/${sessionName}`;
 
       const worktreePath = gitService.createWorktree(sessionName, branchName);
 
@@ -40,22 +40,29 @@ describe('GitService', () => {
       expect(worktrees).toContain(branchName);
     });
 
-    it('should throw error if branch already exists', () => {
+    it('should throw error if worktree already exists', () => {
       const sessionName = 'test-session-2';
-      const branchName = 'test-branch-2';
+      const branchName = `session/${sessionName}`;
 
       gitService.createWorktree(sessionName, branchName);
 
+      // 同じセッション名で再作成を試みるとブランチが既に存在するためエラー
       expect(() => {
-        gitService.createWorktree('test-session-3', branchName);
+        gitService.createWorktree(sessionName, branchName);
       }).toThrow();
+    });
+
+    it('should throw error if branch name does not follow naming convention', () => {
+      expect(() => {
+        gitService.createWorktree('test-session-naming', 'invalid-branch-name');
+      }).toThrow(/Invalid branch name.*Expected "session\/test-session-naming"/);
     });
   });
 
   describe('deleteWorktree', () => {
     it('should delete worktree', () => {
       const sessionName = 'test-session-delete';
-      const branchName = 'test-branch-delete';
+      const branchName = `session/${sessionName}`;
 
       gitService.createWorktree(sessionName, branchName);
       gitService.deleteWorktree(sessionName);
@@ -74,7 +81,7 @@ describe('GitService', () => {
   describe('getDiff', () => {
     it('should return added/modified/deleted files', () => {
       const sessionName = 'test-session-diff';
-      const branchName = 'test-branch-diff';
+      const branchName = `session/${sessionName}`;
       const worktreePath = gitService.createWorktree(sessionName, branchName);
 
       writeFileSync(join(worktreePath, 'new-file.txt'), 'new content');
@@ -94,7 +101,7 @@ describe('GitService', () => {
   describe('rebaseFromMain', () => {
     it('should rebase worktree branch onto main', () => {
       const sessionName = 'test-session-rebase';
-      const branchName = 'test-branch-rebase';
+      const branchName = `session/${sessionName}`;
       const worktreePath = gitService.createWorktree(sessionName, branchName);
 
       writeFileSync(join(worktreePath, 'branch-file.txt'), 'branch content');
@@ -115,7 +122,7 @@ describe('GitService', () => {
 
     it('should detect conflicts', () => {
       const sessionName = 'test-session-conflict';
-      const branchName = 'test-branch-conflict';
+      const branchName = `session/${sessionName}`;
       const worktreePath = gitService.createWorktree(sessionName, branchName);
 
       writeFileSync(join(worktreePath, 'conflict.txt'), 'branch content');
@@ -135,7 +142,7 @@ describe('GitService', () => {
   describe('squashMerge', () => {
     it('should squash merge into main with commit message', () => {
       const sessionName = 'test-session-squash';
-      const branchName = 'test-branch-squash';
+      const branchName = `session/${sessionName}`;
       const worktreePath = gitService.createWorktree(sessionName, branchName);
 
       writeFileSync(join(worktreePath, 'feature.txt'), 'feature content');
@@ -173,7 +180,7 @@ describe('GitService', () => {
 
       try {
         expect(() => {
-          gitService.createWorktree('test-perm-check', 'test-branch-perm');
+          gitService.createWorktree('test-perm-check', 'session/test-perm-check');
         }).toThrow(/No write permission to .worktrees directory/);
       } finally {
         (gitService as unknown as Record<string, unknown>)['ensureWorktreeDirectoryWritable'] = originalMethod;
@@ -194,7 +201,7 @@ describe('GitService', () => {
 
       try {
         expect(() => {
-          gitService.createWorktree('test-git-perm', 'test-branch-git-perm');
+          gitService.createWorktree('test-git-perm', 'session/test-git-perm');
         }).toThrow(/No write permission to git directory/);
       } finally {
         (gitService as unknown as Record<string, unknown>)['ensureWorktreeDirectoryWritable'] = originalMethod;
@@ -212,7 +219,7 @@ describe('GitService', () => {
       }
       fs.renameSync(worktreesDir, tempDir);
       try {
-        const worktreePath = gitService.createWorktree('test-auto-create', 'test-branch-auto-create');
+        const worktreePath = gitService.createWorktree('test-auto-create', 'session/test-auto-create');
         expect(existsSync(worktreePath)).toBe(true);
       } finally {
         // クリーンアップ
