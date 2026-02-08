@@ -147,6 +147,8 @@ class ClaudePTYManager extends EventEmitter {
       });
       const dockerOptions: CreateDockerPTYSessionOptions = {
         resumeSessionId: options.resumeSessionId,
+        claudeCodeOptions: options.claudeCodeOptions,
+        customEnvVars: options.customEnvVars,
       };
       this.dockerAdapter.createSession(sessionId, workingDir, initialPrompt, dockerOptions);
       return;

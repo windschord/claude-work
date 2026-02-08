@@ -5,6 +5,8 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { logger } from '@/lib/logger';
 import { DockerError } from './docker-service';
+import { ClaudeOptionsService } from './claude-options-service';
+import type { ClaudeCodeOptions, CustomEnvVars } from './claude-options-service';
 
 /**
  * Dockerコンテナ起動エラーを解析してDockerErrorを生成
@@ -79,6 +81,8 @@ export interface DockerPTYAdapterConfig {
  */
 export interface CreateDockerPTYSessionOptions {
   resumeSessionId?: string; // Claude Codeの--resume用セッションID
+  claudeCodeOptions?: ClaudeCodeOptions; // Claude Code CLIオプション
+  customEnvVars?: CustomEnvVars; // カスタム環境変数
 }
 
 /**
@@ -216,6 +220,15 @@ export class DockerPTYAdapter extends EventEmitter {
       args.push('-e', 'ANTHROPIC_API_KEY');
     }
 
+    // カスタム環境変数を-eフラグで渡す
+    if (options?.customEnvVars) {
+      for (const [key, value] of Object.entries(options.customEnvVars)) {
+        if (ClaudeOptionsService.validateEnvVarKey(key) && typeof value === 'string') {
+          args.push('-e', `${key}=${value}`);
+        }
+      }
+    }
+
     // イメージ名
     args.push(this.getFullImageName());
 
@@ -223,6 +236,12 @@ export class DockerPTYAdapter extends EventEmitter {
     args.push('claude');
     if (options?.resumeSessionId) {
       args.push('--resume', options.resumeSessionId);
+    }
+
+    // カスタムCLIオプション
+    if (options?.claudeCodeOptions) {
+      const customArgs = ClaudeOptionsService.buildCliArgs(options.claudeCodeOptions);
+      args.push(...customArgs);
     }
 
     return { args, containerName };

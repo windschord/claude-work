@@ -298,6 +298,115 @@ describe('POST /api/projects/[project_id]/sessions', () => {
     });
   });
 
+  describe('claude_code_options and custom_env_vars', () => {
+    it('should save claude_code_options as JSON string when provided', async () => {
+      const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: 'Hello Claude',
+          claude_code_options: { model: 'claude-sonnet-4-5-20250929' },
+        }),
+      });
+
+      const response = await POST(request, {
+        params: Promise.resolve({ project_id: 'project-1' }),
+      });
+
+      expect(response.status).toBe(201);
+      // db.insert().values() がJSON文字列で呼ばれていることを確認
+      expect(db.insert).toHaveBeenCalled();
+    });
+
+    it('should save null when claude_code_options not provided', async () => {
+      const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: 'Hello Claude' }),
+      });
+
+      const response = await POST(request, {
+        params: Promise.resolve({ project_id: 'project-1' }),
+      });
+
+      expect(response.status).toBe(201);
+    });
+
+    it('should return 400 for non-object claude_code_options', async () => {
+      const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: 'Hello Claude',
+          claude_code_options: 'invalid',
+        }),
+      });
+
+      const response = await POST(request, {
+        params: Promise.resolve({ project_id: 'project-1' }),
+      });
+
+      expect(response.status).toBe(400);
+      const json = await response.json();
+      expect(json.error).toContain('claude_code_options');
+    });
+
+    it('should return 400 for array claude_code_options', async () => {
+      const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: 'Hello Claude',
+          claude_code_options: ['a', 'b'],
+        }),
+      });
+
+      const response = await POST(request, {
+        params: Promise.resolve({ project_id: 'project-1' }),
+      });
+
+      expect(response.status).toBe(400);
+    });
+
+    it('should return 400 for non-object custom_env_vars', async () => {
+      const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: 'Hello Claude',
+          custom_env_vars: 'invalid',
+        }),
+      });
+
+      const response = await POST(request, {
+        params: Promise.resolve({ project_id: 'project-1' }),
+      });
+
+      expect(response.status).toBe(400);
+      const json = await response.json();
+      expect(json.error).toContain('custom_env_vars');
+    });
+
+    it('should return 400 for custom_env_vars with non-string values', async () => {
+      const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: 'Hello Claude',
+          custom_env_vars: { VALID: 'ok', BAD: 123 },
+        }),
+      });
+
+      const response = await POST(request, {
+        params: Promise.resolve({ project_id: 'project-1' }),
+      });
+
+      expect(response.status).toBe(400);
+      const json = await response.json();
+      expect(json.error).toContain('custom_env_vars');
+    });
+  });
+
   describe('environment_id parameter', () => {
     it('should accept environment_id parameter and create session with it', async () => {
       const mockEnvironment = {

@@ -6,6 +6,7 @@ import * as os from 'os';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { EnvironmentAdapter, CreateSessionOptions, PTYExitInfo } from '../environment-adapter';
+import { ClaudeOptionsService } from '../claude-options-service';
 import { db, schema } from '@/lib/db';
 import { eq } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
@@ -103,6 +104,15 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
       args.push('-e', 'ANTHROPIC_API_KEY');
     }
 
+    // カスタム環境変数を-eフラグで渡す（シェルモードではスキップ）
+    if (!options?.shellMode && options?.customEnvVars) {
+      for (const [key, value] of Object.entries(options.customEnvVars)) {
+        if (ClaudeOptionsService.validateEnvVarKey(key) && typeof value === 'string') {
+          args.push('-e', `${key}=${value}`);
+        }
+      }
+    }
+
     // シェルモードの場合は/bin/sh、それ以外はclaude
     const entrypoint = options?.shellMode ? '/bin/sh' : 'claude';
     args.push('--entrypoint', entrypoint);
@@ -114,6 +124,12 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
     // シェルモードでは--resumeフラグは不要
     if (!options?.shellMode && options?.resumeSessionId) {
       args.push('--resume', options.resumeSessionId);
+    }
+
+    // カスタムCLIオプション（シェルモードではスキップ）
+    if (!options?.shellMode && options?.claudeCodeOptions) {
+      const customArgs = ClaudeOptionsService.buildCliArgs(options.claudeCodeOptions);
+      args.push(...customArgs);
     }
 
     return { args, containerName };
