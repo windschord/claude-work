@@ -752,6 +752,56 @@ describe('Claude WebSocket Handler - Environment Support', () => {
     });
   });
 
+  describe('PTY destroy grace period', () => {
+    it('接続が0になるとdestroyタイマーが設定される（デフォルト動作）', async () => {
+      const sessionId = 'session-grace-period';
+      const environmentId = 'env-grace';
+
+      mockDb.query.sessions.findFirst.mockResolvedValue({
+        id: sessionId,
+        worktree_path: '/path/to/worktree',
+        docker_mode: false,
+        environment_id: environmentId,
+        status: 'running',
+        resume_session_id: 'resume-123',
+      });
+
+      mockEnvironmentService.findById.mockResolvedValue({
+        id: environmentId,
+        name: 'Test Env',
+        type: 'HOST',
+        config: '{}',
+        auth_dir_path: null,
+        is_default: false,
+        created_at: new Date(),
+        updated_at: new Date(),
+      });
+
+      const mockAdapter = createMockAdapter();
+      mockAdapter.hasSession.mockReturnValue(true);
+      mockAdapterFactory.getAdapter.mockReturnValue(mockAdapter);
+
+      let closeHandler: () => void;
+      mockWs.on = vi.fn((event, handler) => {
+        if (event === 'close') {
+          closeHandler = handler;
+        }
+      }) as WebSocket['on'];
+
+      setupClaudeWebSocket(mockWss, '/ws/claude');
+      await connectionHandler(mockWs, {
+        url: `/ws/claude/${sessionId}`,
+        headers: { host: 'localhost:3000' },
+      });
+
+      // closeイベントを発火（接続数が0になる）
+      closeHandler!();
+
+      // デフォルトではdestroySessionはまだ呼ばれない（タイマー待ち）
+      expect(mockAdapter.destroySession).not.toHaveBeenCalled();
+    });
+  });
+
   describe('resume session fallback', () => {
     it('resume_session_idがない場合は初回プロンプトにフォールバックする', async () => {
       const sessionId = 'session-no-resume-id';

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { ScrollbackBuffer } from '../scrollback-buffer';
 
 describe('ScrollbackBuffer', () => {
@@ -120,6 +120,53 @@ describe('ScrollbackBuffer', () => {
       const result = compactBuffer.getBuffer('s1');
       expect(result).toContain('chunk0');
       expect(result).toContain('chunk149');
+    });
+  });
+
+  describe('SCROLLBACK_BUFFER_SIZE env var', () => {
+    const originalEnv = process.env.SCROLLBACK_BUFFER_SIZE;
+
+    afterEach(() => {
+      if (originalEnv === undefined) {
+        delete process.env.SCROLLBACK_BUFFER_SIZE;
+      } else {
+        process.env.SCROLLBACK_BUFFER_SIZE = originalEnv;
+      }
+      vi.resetModules();
+    });
+
+    it('環境変数でバッファサイズを変更できる', async () => {
+      process.env.SCROLLBACK_BUFFER_SIZE = '2048';
+      const mod = await import('../scrollback-buffer');
+      const sb = mod.scrollbackBuffer;
+      // 2048バイト以上のデータを追加してサイズ制限を確認
+      sb.append('test', 'a'.repeat(3000));
+      expect(sb.getByteSize('test')).toBeLessThanOrEqual(2048);
+    });
+
+    it('不正な値の場合はデフォルト(100KB)にフォールバック', async () => {
+      process.env.SCROLLBACK_BUFFER_SIZE = 'invalid';
+      const mod = await import('../scrollback-buffer');
+      const sb = mod.scrollbackBuffer;
+      // デフォルトの100KBを超えないデータが保持される
+      sb.append('test', 'a'.repeat(50000));
+      expect(sb.getByteSize('test')).toBe(50000);
+    });
+
+    it('0以下の値はデフォルトにフォールバック', async () => {
+      process.env.SCROLLBACK_BUFFER_SIZE = '0';
+      const mod = await import('../scrollback-buffer');
+      const sb = mod.scrollbackBuffer;
+      sb.append('test', 'a'.repeat(50000));
+      expect(sb.getByteSize('test')).toBe(50000);
+    });
+
+    it('未設定の場合はデフォルト(100KB)', async () => {
+      delete process.env.SCROLLBACK_BUFFER_SIZE;
+      const mod = await import('../scrollback-buffer');
+      const sb = mod.scrollbackBuffer;
+      sb.append('test', 'a'.repeat(50000));
+      expect(sb.getByteSize('test')).toBe(50000);
     });
   });
 });

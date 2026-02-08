@@ -24,9 +24,12 @@ import type {
 // PTY破棄の猶予期間（ミリ秒）
 // クライアントが一時的に切断しても、この期間内に再接続すればPTYセッションを維持できる
 // デフォルト5分。環境変数PTY_DESTROY_GRACE_PERIOD_MSで変更可能
+// -1を指定するとPTY破棄を無効化（クライアント切断後も永続的に維持）
 const PTY_DESTROY_GRACE_PERIOD = (() => {
   const raw = process.env.PTY_DESTROY_GRACE_PERIOD_MS;
-  const parsed = Number.parseInt(raw ?? '', 10);
+  if (!raw) return 300000;
+  const parsed = Number.parseInt(raw, 10);
+  if (parsed === -1) return -1;
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 300000;
 })();
 
@@ -570,29 +573,36 @@ export function setupClaudeWebSocket(
           : adapter!.hasSession(sessionId);
 
         if (newConnections === 0 && hasActiveSession) {
-          logger.info('Claude WebSocket: Starting PTY destroy timer', {
-            sessionId,
-            gracePeriodMs: PTY_DESTROY_GRACE_PERIOD,
-          });
+          if (PTY_DESTROY_GRACE_PERIOD === -1) {
+            // -1: PTY破棄無効化 — クライアント全切断後もPTYを永続的に維持
+            logger.info('Claude WebSocket: PTY destroy disabled (grace period = -1), keeping session alive', {
+              sessionId,
+            });
+          } else {
+            logger.info('Claude WebSocket: Starting PTY destroy timer', {
+              sessionId,
+              gracePeriodMs: PTY_DESTROY_GRACE_PERIOD,
+            });
 
-          const timer = setTimeout(() => {
-            destroyTimers.delete(sessionId);
-            // 猶予期間後も接続がなければPTYを破棄
-            const stillHasSession = isLegacy
-              ? claudePtyManager.hasSession(sessionId)
-              : adapter!.hasSession(sessionId);
+            const timer = setTimeout(() => {
+              destroyTimers.delete(sessionId);
+              // 猶予期間後も接続がなければPTYを破棄
+              const stillHasSession = isLegacy
+                ? claudePtyManager.hasSession(sessionId)
+                : adapter!.hasSession(sessionId);
 
-            if ((activeConnections.get(sessionId) || 0) === 0 && stillHasSession) {
-              if (isLegacy) {
-                claudePtyManager.destroySession(sessionId);
-              } else {
-                adapter!.destroySession(sessionId);
+              if ((activeConnections.get(sessionId) || 0) === 0 && stillHasSession) {
+                if (isLegacy) {
+                  claudePtyManager.destroySession(sessionId);
+                } else {
+                  adapter!.destroySession(sessionId);
+                }
+                logger.info('Claude WebSocket: PTY destroyed after grace period', { sessionId });
               }
-              logger.info('Claude WebSocket: PTY destroyed after grace period', { sessionId });
-            }
-          }, PTY_DESTROY_GRACE_PERIOD);
+            }, PTY_DESTROY_GRACE_PERIOD);
 
-          destroyTimers.set(sessionId, timer);
+            destroyTimers.set(sessionId, timer);
+          }
         }
 
         logger.info('Claude WebSocket connection closed', { sessionId });

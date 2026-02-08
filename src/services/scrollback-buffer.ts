@@ -9,6 +9,17 @@
 
 const DEFAULT_MAX_BUFFER_SIZE = 100 * 1024; // 100KB per session (bytes)
 
+/**
+ * 環境変数 SCROLLBACK_BUFFER_SIZE からバッファサイズを取得する。
+ * 不正な値（NaN、0以下）の場合はデフォルト値にフォールバック。
+ */
+function getConfiguredBufferSize(): number {
+  const raw = process.env.SCROLLBACK_BUFFER_SIZE;
+  if (!raw) return DEFAULT_MAX_BUFFER_SIZE;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_MAX_BUFFER_SIZE;
+}
+
 interface SessionBuffer {
   chunks: string[];
   byteSize: number;
@@ -98,4 +109,4 @@ export class ScrollbackBuffer {
   }
 }
 
-export const scrollbackBuffer = new ScrollbackBuffer();
+export const scrollbackBuffer = new ScrollbackBuffer(getConfiguredBufferSize());
