@@ -24,7 +24,8 @@ EnvironmentFile=/etc/claude-work/env
 Environment=HOME=/opt/claude-work
 # PATH に ~/.local/bin を含めることで、claude-work ユーザーにインストールした
 # Claude Code CLI を自動検出可能にする（CLAUDE_CODE_PATH の明示指定が不要になる）
-Environment=PATH=/opt/claude-work/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+# セキュリティ上の理由から、ユーザー書き込み可能な ~/.local/bin はシステムパスの後に配置する
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/claude-work/.local/bin
 ExecStart=/usr/bin/npx --yes github:windschord/claude-work
 # 初回起動時のビルドに時間がかかるためタイムアウトを延長
 TimeoutStartSec=300

@@ -219,7 +219,7 @@ HOST=0.0.0.0
 > **DATA_DIR について**: `npx github:windschord/claude-work` で起動する場合、カレントディレクトリは npx キャッシュ内のパッケージディレクトリになります。`DATA_DIR` を設定しない場合、`repos/`（clone したリポジトリ）や `environments/`（Docker 環境の認証情報）がキャッシュ内に作成され、`npx` キャッシュの再構築時にデータが消失します。`DATABASE_URL` と同じディレクトリ（`/opt/claude-work/data`）を指定することを推奨します。
 
 > **注意**: `HOST=0.0.0.0` を設定すると、すべてのネットワークインターフェースでリッスンします。セキュリティのため、ファイアウォールや認証（`CLAUDE_WORK_TOKEN`）の設定を推奨します。
-> **CLAUDE_CODE_PATH について**: systemd サービスの PATH に `/opt/claude-work/.local/bin` が含まれているため、通常は設定不要です。別の場所にインストールした場合のみ絶対パスを指定してください。
+> **CLAUDE_CODE_PATH について**: systemd サービスの PATH に `/opt/claude-work/.local/bin` が含まれているため、通常は設定不要です。別の場所にインストールした場合は、絶対パスまたは PATH 上で解決可能なコマンド名を指定できます。
 
 ---
 
@@ -245,7 +245,7 @@ sudo systemctl daemon-reload
 | 設定 | 値 | 説明 |
 | --- | --- | --- |
 | `HOME` | `/opt/claude-work` | ホームディレクトリ (`~/.npm`, `~/.ssh` 等の基準) |
-| `PATH` | `/opt/claude-work/.local/bin:...` | Claude CLI を含む PATH |
+| `PATH` | `...:/opt/claude-work/.local/bin` | システムパスの後に Claude CLI パスを追加 |
 | `ProtectHome` | `read-only` | `/home/*` への書き込みを制限 |
 | `ReadWritePaths` | `/opt/claude-work` | アプリケーションディレクトリへの書き込みを許可 |
 
@@ -398,7 +398,7 @@ systemd サービスはセキュリティ強化のため `ProtectHome=read-only`
 
 ```bash
 # claude-work ユーザーとして手動実行（デバッグ用）
-sudo -u claude-work bash -c 'set -a && source /etc/claude-work/env && set +a && cd /opt/claude-work && HOME=/opt/claude-work PATH=/opt/claude-work/.local/bin:$PATH npx --yes github:windschord/claude-work'
+sudo -u claude-work bash -c 'set -a && source /etc/claude-work/env && set +a && cd /opt/claude-work && HOME=/opt/claude-work PATH=$PATH:/opt/claude-work/.local/bin npx --yes github:windschord/claude-work'
 ```
 
 ---
