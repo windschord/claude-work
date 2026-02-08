@@ -17,6 +17,8 @@ jobs:
 
     - name: Setup project
       uses: ./.github/actions/setup
+      with:
+        skip-db-setup: 'true'
 
     - name: Run linter
       run: pnpm run lint
@@ -107,11 +109,10 @@ jobs:
       run: SKIP_WEBSERVER=true pnpm exec playwright test --project=cli
       timeout-minutes: 10
 
-  # Build job - depends on all tests passing
+  # Build job - runs in parallel with tests
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: [lint, test-backend, test-frontend, test-e2e]
 
     env:
       DATABASE_URL: file:./data/test.db
@@ -124,3 +125,23 @@ jobs:
 
     - name: Build
       run: pnpm run build
+
+  # Final check - ensures all jobs passed
+  ci-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    needs: [lint, test-backend, test-frontend, test-e2e, build]
+    if: always()
+
+    steps:
+    - name: Check all jobs passed
+      run: |
+        if [ "${{ needs.lint.result }}" != "success" ] || \
+           [ "${{ needs.test-backend.result }}" != "success" ] || \
+           [ "${{ needs.test-frontend.result }}" != "success" ] || \
+           [ "${{ needs.test-e2e.result }}" != "success" ] || \
+           [ "${{ needs.build.result }}" != "success" ]; then
+          echo "One or more jobs failed"
+          exit 1
+        fi
+        echo "All jobs passed successfully"
