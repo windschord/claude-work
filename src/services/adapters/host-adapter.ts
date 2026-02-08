@@ -69,6 +69,8 @@ export class HostAdapter extends EventEmitter implements EnvironmentAdapter {
       claudePtyManager.createSession(sessionId, workingDir, initialPrompt, {
         resumeSessionId: options?.resumeSessionId,
         dockerMode: false, // 固定
+        claudeCodeOptions: options?.claudeCodeOptions,
+        customEnvVars: options?.customEnvVars,
       });
     }
   }

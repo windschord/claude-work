@@ -149,7 +149,36 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
 
-    const { name, prompt = '', dockerMode = false, environment_id, source_branch } = body;
+    const { name, prompt = '', dockerMode = false, environment_id, source_branch, claude_code_options, custom_env_vars } = body;
+
+    // claude_code_options のバリデーション（plain objectかつフィールドが文字列）
+    if (claude_code_options !== undefined) {
+      if (typeof claude_code_options !== 'object' || claude_code_options === null || Array.isArray(claude_code_options)) {
+        return NextResponse.json({ error: 'claude_code_options must be a plain object' }, { status: 400 });
+      }
+      const allowedKeys = ['model', 'allowedTools', 'permissionMode', 'additionalFlags'];
+      for (const [key, value] of Object.entries(claude_code_options as Record<string, unknown>)) {
+        if (allowedKeys.includes(key) && value !== undefined && typeof value !== 'string') {
+          return NextResponse.json({ error: `claude_code_options.${key} must be a string` }, { status: 400 });
+        }
+      }
+    }
+
+    // custom_env_vars のバリデーション（plain objectかつキーと値の形式を検証）
+    if (custom_env_vars !== undefined) {
+      if (typeof custom_env_vars !== 'object' || custom_env_vars === null || Array.isArray(custom_env_vars)) {
+        return NextResponse.json({ error: 'custom_env_vars must be a plain object' }, { status: 400 });
+      }
+      const envKeyPattern = /^[A-Z_][A-Z0-9_]*$/;
+      for (const [key, value] of Object.entries(custom_env_vars as Record<string, unknown>)) {
+        if (typeof value !== 'string') {
+          return NextResponse.json({ error: 'custom_env_vars values must be strings' }, { status: 400 });
+        }
+        if (!envKeyPattern.test(key)) {
+          return NextResponse.json({ error: `custom_env_vars key "${key}" must match ^[A-Z_][A-Z0-9_]*$` }, { status: 400 });
+        }
+      }
+    }
 
     // 実効環境とdockerModeを決定
     let effectiveEnvironmentId: string | null = null;
@@ -299,6 +328,8 @@ export async function POST(
       branch_name: branchName,
       docker_mode: effectiveDockerMode,
       environment_id: effectiveEnvironmentId,
+      claude_code_options: claude_code_options ? JSON.stringify(claude_code_options) : null,
+      custom_env_vars: custom_env_vars ? JSON.stringify(custom_env_vars) : null,
     }).returning().get();
 
     if (!newSession) {

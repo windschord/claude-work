@@ -6,6 +6,33 @@ import { existsSync } from 'fs';
 import { execSync } from 'child_process';
 
 /**
+ * plain objectかどうかを検証（配列・null・プリミティブを排除）
+ */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * GET /api/projects/[project_id] - プロジェクト詳細取得
+ */
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ project_id: string }> }
+) {
+  const { project_id } = await params;
+  try {
+    const project = db.select().from(schema.projects).where(eq(schema.projects.id, project_id)).get();
+    if (!project) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    }
+    return NextResponse.json({ project });
+  } catch (error) {
+    logger.error('Failed to get project', { error, id: project_id });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+/**
  * Gitリポジトリが存在するか確認
  */
 function isGitRepository(path: string): boolean {
@@ -63,12 +90,43 @@ export async function PUT(
       name?: string;
       path?: string;
       run_scripts?: RunScriptInput[];
+      claude_code_options?: unknown;
+      custom_env_vars?: unknown;
     };
     try {
       body = await request.json();
     } catch (error) {
       logger.warn('Invalid JSON in request body', { error, project_id });
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
+    }
+
+    // claude_code_options のバリデーション（plain objectかつフィールドが文字列）
+    if (body.claude_code_options !== undefined) {
+      if (!isPlainObject(body.claude_code_options)) {
+        return NextResponse.json({ error: 'claude_code_options must be a plain object' }, { status: 400 });
+      }
+      const allowedKeys = ['model', 'allowedTools', 'permissionMode', 'additionalFlags'];
+      for (const [key, value] of Object.entries(body.claude_code_options)) {
+        if (allowedKeys.includes(key) && value !== undefined && typeof value !== 'string') {
+          return NextResponse.json({ error: `claude_code_options.${key} must be a string` }, { status: 400 });
+        }
+      }
+    }
+
+    // custom_env_vars のバリデーション（plain objectかつキーと値の形式を検証）
+    if (body.custom_env_vars !== undefined) {
+      if (!isPlainObject(body.custom_env_vars)) {
+        return NextResponse.json({ error: 'custom_env_vars must be a plain object' }, { status: 400 });
+      }
+      const envKeyPattern = /^[A-Z_][A-Z0-9_]*$/;
+      for (const [key, value] of Object.entries(body.custom_env_vars)) {
+        if (typeof value !== 'string') {
+          return NextResponse.json({ error: 'custom_env_vars values must be strings' }, { status: 400 });
+        }
+        if (!envKeyPattern.test(key)) {
+          return NextResponse.json({ error: `custom_env_vars key "${key}" must match ^[A-Z_][A-Z0-9_]*$` }, { status: 400 });
+        }
+      }
     }
 
     const existing = db.select().from(schema.projects).where(eq(schema.projects.id, project_id)).get();
@@ -137,6 +195,12 @@ export async function PUT(
         .set({
           name: body.name ?? existing.name,
           path: body.path ?? existing.path,
+          claude_code_options: body.claude_code_options !== undefined
+            ? JSON.stringify(body.claude_code_options)
+            : existing.claude_code_options,
+          custom_env_vars: body.custom_env_vars !== undefined
+            ? JSON.stringify(body.custom_env_vars)
+            : existing.custom_env_vars,
           updated_at: new Date(),
         })
         .where(eq(schema.projects.id, project_id))
