@@ -40,6 +40,14 @@ ClaudeWork で使用可能な環境変数の一覧です。
 - **例**: `DATABASE_URL="file:../data/claudework.db"`（→ プロジェクトルートの `data/claudework.db`）
 - **デフォルト**: `file:../data/claudework.db`
 
+### DATA_DIR
+
+- **説明**: データディレクトリのベースパス。`repos/`（リモートリポジトリの clone 先）と `environments/`（Docker 環境の認証情報）の親ディレクトリを指定する
+- **形式**: 絶対パスまたは相対パス
+- **例**: `DATA_DIR=/opt/claude-work/data`
+- **デフォルト**: `<process.cwd()>/data`（未設定時はカレントディレクトリ配下の `data/`）
+- **備考**: systemd 環境では `npx` キャッシュの再構築時にカレントディレクトリ内のデータを消失する可能性があるため、`DATABASE_URL` と同じディレクトリ（例: `/opt/claude-work/data`）を指定することを推奨します
+
 ### NODE_ENV
 
 - **説明**: 実行環境
@@ -130,7 +138,7 @@ ClaudeWork で使用可能な環境変数の一覧です。
 ### 認証ディレクトリ
 
 Docker環境では、環境ごとに独立した認証ディレクトリが作成されます:
-- パス: `data/environments/<environment-id>/`
+- パス: `<DATA_DIR>/environments/<environment-id>/`（デフォルト: `data/environments/<environment-id>/`）
 - サブディレクトリ:
   - `claude/`: Claude認証情報
   - `config/claude/`: Claude設定ファイル
@@ -148,6 +156,7 @@ Docker環境では、環境ごとに独立した認証ディレクトリが作�
 ```env
 PORT=3000
 DATABASE_URL=file:../data/claudework.db
+DATA_DIR=./data
 NODE_ENV=production
 LOG_LEVEL=info
 ALLOWED_ORIGINS=http://localhost:3000

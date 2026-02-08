@@ -2,6 +2,7 @@ import { spawn, spawnSync } from 'child_process';
 import { join, basename, resolve } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { logger } from '../lib/logger';
+import { getReposDir } from '@/lib/data-dir';
 
 /**
  * Clone操作のオプション
@@ -164,7 +165,7 @@ export class RemoteRepoService {
       clonePath = resolve(targetDir);
     } else {
       const repoName = name || this.extractRepoName(url);
-      const base = baseDir || join(process.cwd(), 'data', 'repos');
+      const base = baseDir || getReposDir();
 
       // ベースディレクトリが存在しない場合は作成
       if (!existsSync(base)) {

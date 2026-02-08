@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, schema } from '@/lib/db';
 import { remoteRepoService } from '@/services/remote-repo-service';
+import { getReposDir } from '@/lib/data-dir';
 import { relative, resolve, join } from 'path';
 import { realpathSync, existsSync, mkdirSync } from 'fs';
 import { logger } from '@/lib/logger';
@@ -99,7 +100,7 @@ export async function POST(request: NextRequest) {
       }
     } else {
       // デフォルトディレクトリ（data/repos/）
-      baseDir = join(process.cwd(), 'data', 'repos');
+      baseDir = getReposDir();
       if (!existsSync(baseDir)) {
         mkdirSync(baseDir, { recursive: true });
       }

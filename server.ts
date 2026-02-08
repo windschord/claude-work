@@ -9,6 +9,7 @@ import { setupTerminalWebSocket } from './src/lib/websocket/terminal-ws';
 import { setupClaudeWebSocket } from './src/lib/websocket/claude-ws';
 import { logger } from './src/lib/logger';
 import { validateRequiredEnvVars, detectClaudePath } from './src/lib/env-validation';
+import { ensureDataDirs, getDataDir } from './src/lib/data-dir';
 import {
   getProcessLifecycleManager,
   ProcessLifecycleManager,
@@ -25,6 +26,7 @@ if (dotenvResult.error) {
 // 環境変数のロード状況を確認（デバッグログ）
 console.log('Environment variables loaded:');
 console.log('  DATABASE_URL:', process.env.DATABASE_URL ? 'SET' : 'NOT SET');
+console.log('  DATA_DIR:', process.env.DATA_DIR || 'NOT SET (using default)');
 
 // 環境変数のバリデーション（サーバー起動前）
 try {
@@ -33,6 +35,21 @@ try {
   if (error instanceof Error) {
     console.error('\nEnvironment variable validation failed:\n');
     console.error(error.message);
+  }
+  process.exit(1);
+}
+
+// データディレクトリの初期化
+try {
+  ensureDataDirs();
+  logger.info('Data directories initialized', { dataDir: getDataDir() });
+} catch (error) {
+  const dataDir = getDataDir();
+  console.error('\nFailed to initialize data directories:\n');
+  console.error(`  DATA_DIR: ${process.env.DATA_DIR || 'NOT SET (using default)'}`);
+  console.error(`  Resolved path: ${dataDir}`);
+  if (error instanceof Error) {
+    console.error(`  Error: ${error.message}`);
   }
   process.exit(1);
 }
