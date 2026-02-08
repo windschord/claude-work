@@ -180,6 +180,44 @@ function getDefaultBody(event: NotificationEvent): string {
 }
 
 /**
+ * Web Audio APIを使って通知音を再生する
+ *
+ * 短いビープ音を生成して再生する。AudioContextが利用できない環境では何もしない。
+ */
+export function playNotificationSound(): void {
+  try {
+    const AudioCtx = typeof window !== 'undefined'
+      ? (window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext)
+      : undefined;
+    if (!AudioCtx) return;
+
+    const ctx = new AudioCtx();
+    const oscillator = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    oscillator.connect(gain);
+    gain.connect(ctx.destination);
+
+    // 2音のチャイム風通知音
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(880, ctx.currentTime);       // A5
+    oscillator.frequency.setValueAtTime(1108.73, ctx.currentTime + 0.15); // C#6
+
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+
+    oscillator.start(ctx.currentTime);
+    oscillator.stop(ctx.currentTime + 0.3);
+
+    oscillator.onended = () => {
+      ctx.close();
+    };
+  } catch {
+    // Audio再生に失敗しても通知自体は続行する
+  }
+}
+
+/**
  * OS通知を表示する
  *
  * @param event - 通知イベント
@@ -199,10 +237,27 @@ function showOSNotification(event: NotificationEvent): void {
 }
 
 /**
+ * ブラウザ内toast通知を表示する（フォールバック用）
+ *
+ * @param event - 通知イベント
+ */
+function showToastNotification(event: NotificationEvent): void {
+  const message = event.message || getDefaultMessage(event.type);
+  const fullMessage = `${event.sessionName}: ${message}`;
+
+  if (event.type === 'error') {
+    toast.error(fullMessage);
+  } else {
+    toast.success(fullMessage);
+  }
+}
+
+/**
  * 通知を送信する
  *
- * タブがアクティブな場合はtoast通知、
- * バックグラウンドの場合はOS通知を表示する
+ * OS通知の許可がある場合はOS通知を使用し、
+ * 許可がない場合はブラウザ内toast通知にフォールバックする。
+ * いずれの場合も通知音を再生する。
  *
  * @param event - 通知イベント
  */
@@ -215,24 +270,18 @@ export function sendNotification(event: NotificationEvent): void {
     return;
   }
 
-  const message = event.message || getDefaultMessage(event.type);
-  const fullMessage = `${event.sessionName}: ${message}`;
+  // 通知音を再生
+  playNotificationSound();
 
-  if (isTabActive()) {
-    // タブがアクティブな場合はtoast通知
-    if (event.type === 'error') {
-      toast.error(fullMessage);
-    } else {
-      toast.success(fullMessage);
-    }
+  // OS通知の許可がある場合はOS通知を使用
+  if (
+    typeof window !== 'undefined' &&
+    'Notification' in window &&
+    Notification.permission === 'granted'
+  ) {
+    showOSNotification(event);
   } else {
-    // タブがバックグラウンドの場合はOS通知
-    if (
-      typeof window !== 'undefined' &&
-      'Notification' in window &&
-      Notification.permission === 'granted'
-    ) {
-      showOSNotification(event);
-    }
+    // OS通知が使えない場合はtoast通知にフォールバック
+    showToastNotification(event);
   }
 }
