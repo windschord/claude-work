@@ -30,6 +30,7 @@ const {
       destroySession: vi.fn(),
       restartSession: vi.fn(),
       hasSession: vi.fn().mockReturnValue(false),
+      getScrollbackBuffer: vi.fn().mockReturnValue(null),
       on: vi.fn(),
       off: vi.fn(),
     },
