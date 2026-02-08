@@ -38,7 +38,13 @@ export class ScrollbackBuffer {
     // データ自体がmaxSizeを超える場合は末尾のみ保持
     if (dataBytes >= this.maxSize) {
       const encoded = Buffer.from(data, 'utf8');
-      const trimmed = encoded.subarray(encoded.length - this.maxSize).toString('utf8');
+      let start = encoded.length - this.maxSize;
+      // UTF-8マルチバイト文字の途中で分断しないよう、文字境界まで進める
+      // 継続バイト(0b10xxxxxx = 0x80-0xBF)をスキップして先頭バイトに揃える
+      while (start < encoded.length && (encoded[start] & 0xC0) === 0x80) {
+        start++;
+      }
+      const trimmed = encoded.subarray(start).toString('utf8');
       buf.chunks = [trimmed];
       buf.byteSize = Buffer.byteLength(trimmed, 'utf8');
       return;
