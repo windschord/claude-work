@@ -1,6 +1,6 @@
 import { spawnSync } from 'child_process';
 import { join, resolve } from 'path';
-import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, accessSync, constants, mkdirSync } from 'fs';
 import type { Logger } from 'winston';
 
 /**
@@ -95,6 +95,51 @@ export class GitService {
   }
 
   /**
+   * worktree関連ディレクトリの書き込み権限を検証
+   *
+   * .worktreesディレクトリと.git内部ディレクトリの書き込み権限を確認します。
+   * 権限が不足している場合は、具体的な対処方法を含むエラーメッセージをスローします。
+   *
+   * @throws ディレクトリが書き込み不可の場合にエラーをスロー
+   */
+  private ensureWorktreeDirectoryWritable(): void {
+    const worktreesDir = join(this.repoPath, '.worktrees');
+    const gitDir = join(this.repoPath, '.git');
+
+    // .worktreesディレクトリが存在しない場合は作成を試みる
+    if (!existsSync(worktreesDir)) {
+      try {
+        mkdirSync(worktreesDir, { recursive: true });
+      } catch (err) {
+        throw new Error(
+          `Cannot create .worktrees directory at "${worktreesDir}": ${err instanceof Error ? err.message : String(err)}. ` +
+          `Check directory ownership: chown -R $(whoami) "${this.repoPath}"`
+        );
+      }
+    }
+
+    // .worktreesディレクトリの書き込み権限チェック
+    try {
+      accessSync(worktreesDir, constants.W_OK);
+    } catch {
+      throw new Error(
+        `No write permission to .worktrees directory at "${worktreesDir}". ` +
+        `Check directory ownership: chown -R $(whoami) "${worktreesDir}"`
+      );
+    }
+
+    // .gitディレクトリの書き込み権限チェック（refs, worktrees等の作成に必要）
+    try {
+      accessSync(gitDir, constants.W_OK);
+    } catch {
+      throw new Error(
+        `No write permission to .git directory at "${gitDir}". ` +
+        `Check directory ownership: chown -R $(whoami) "${gitDir}"`
+      );
+    }
+  }
+
+  /**
    * 新しいGit worktreeを作成
    *
    * 指定されたセッション名とブランチ名で新しいworktreeを作成します。
@@ -115,6 +160,9 @@ export class GitService {
 
     const worktreePath = join(this.repoPath, '.worktrees', sessionName);
     this.validateWorktreePath(worktreePath);
+
+    // .worktreesディレクトリの書き込み権限を事前チェック
+    this.ensureWorktreeDirectoryWritable();
 
     try {
       // sourceBranchが指定されている場合: git worktree add -b branchName worktreePath sourceBranch
