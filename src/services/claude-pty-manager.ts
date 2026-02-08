@@ -313,6 +313,7 @@ class ClaudePTYManager extends EventEmitter {
   destroySession(sessionId: string): void {
     // Dockerセッションの場合はDockerPTYAdapterに委譲
     if (this.dockerAdapter.hasSession(sessionId)) {
+      scrollbackBuffer.clear(sessionId);
       this.dockerAdapter.destroySession(sessionId);
       return;
     }

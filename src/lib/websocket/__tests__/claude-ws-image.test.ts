@@ -63,6 +63,14 @@ vi.mock('@/lib/db', () => ({ db: mockDb, schema: { sessions: {}, messages: {} } 
 vi.mock('@/lib/logger', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } }));
 vi.mock('@/services/environment-service', () => ({ environmentService: mockEnvironmentService }));
 vi.mock('@/services/adapter-factory', () => ({ AdapterFactory: mockAdapterFactory }));
+vi.mock('@/services/scrollback-buffer', () => ({
+  scrollbackBuffer: {
+    append: vi.fn(),
+    getBuffer: vi.fn().mockReturnValue(null),
+    clear: vi.fn(),
+    has: vi.fn().mockReturnValue(false),
+  },
+}));
 
 // fsモック
 const mockFs = vi.hoisted(() => ({

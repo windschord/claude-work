@@ -11,6 +11,7 @@ import { logger } from '@/lib/logger';
 import { environmentService } from '@/services/environment-service';
 import { AdapterFactory } from '@/services/adapter-factory';
 import type { EnvironmentAdapter, PTYExitInfo } from '@/services/environment-adapter';
+import { scrollbackBuffer } from '@/services/scrollback-buffer';
 import type {
   ClaudeDataMessage,
   ClaudeExitMessage,
@@ -264,9 +265,13 @@ export function setupClaudeWebSocket(
 
       // Claude PTY作成（既に存在する場合はスキップ）
       if (!hasSession) {
-        // initializingの場合のみ初回プロンプトを送信（レジューム時は重複防止）
+        // 初回プロンプトの取得判定：
+        // - initializingの場合は常に初回プロンプトを取得
+        // - resume_session_idがない場合もフォールバックで初回プロンプトを取得
+        //   （サーバー再起動後などにresume_session_idが未保存の場合に対応）
         let initialPrompt: string | undefined;
-        if (session.status === 'initializing') {
+        const canResume = !!session.resume_session_id;
+        if (session.status === 'initializing' || !canResume) {
           const firstMessage = await db.query.messages.findFirst({
             where: eq(schema.messages.session_id, sessionId),
             orderBy: [asc(schema.messages.created_at)],
@@ -277,6 +282,7 @@ export function setupClaudeWebSocket(
             hasInitialPrompt: !!initialPrompt,
             promptLength: initialPrompt?.length,
             worktreePath: session.worktree_path,
+            reason: session.status === 'initializing' ? 'initializing' : 'no-resume-session-id',
           });
         } else {
           logger.info('Claude WebSocket: Skipping initial prompt (session already started)', {
@@ -301,12 +307,12 @@ export function setupClaudeWebSocket(
             );
           } else {
             // 新方式（アダプター経由）
-            adapter!.createSession(
+            await Promise.resolve(adapter!.createSession(
               sessionId,
               session.worktree_path,
               initialPrompt,
               { resumeSessionId: session.resume_session_id || undefined }
-            );
+            ));
           }
           logger.info('Claude PTY created for session', {
             sessionId,
@@ -351,12 +357,15 @@ export function setupClaudeWebSocket(
       // イベントハンドラーの定義
       // アダプター用のイベントハンドラー
       const adapterDataHandler = (sid: string, data: string) => {
-        if (sid === sessionId && ws.readyState === WebSocket.OPEN) {
-          const message: ClaudeDataMessage = {
-            type: 'data',
-            content: data,
-          };
-          ws.send(JSON.stringify(message));
+        if (sid === sessionId) {
+          scrollbackBuffer.append(sessionId, data);
+          if (ws.readyState === WebSocket.OPEN) {
+            const message: ClaudeDataMessage = {
+              type: 'data',
+              content: data,
+            };
+            ws.send(JSON.stringify(message));
+          }
         }
       };
 
@@ -428,9 +437,8 @@ export function setupClaudeWebSocket(
       }
 
       // 既存PTYセッションの場合、スクロールバックバッファを再送
-      // scrollbackBufferはClaudePTYManagerで一元管理（Docker含む全セッション）
       if (hasSession) {
-        const buffer = claudePtyManager.getScrollbackBuffer(sessionId);
+        const buffer = scrollbackBuffer.getBuffer(sessionId);
         if (buffer && ws.readyState === WebSocket.OPEN) {
           const scrollbackMsg: ClaudeScrollbackMessage = {
             type: 'scrollback',

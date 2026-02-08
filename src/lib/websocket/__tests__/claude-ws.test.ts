@@ -93,6 +93,15 @@ vi.mock('@/services/adapter-factory', () => ({
   AdapterFactory: mockAdapterFactory,
 }));
 
+vi.mock('@/services/scrollback-buffer', () => ({
+  scrollbackBuffer: {
+    append: vi.fn(),
+    getBuffer: vi.fn().mockReturnValue(null),
+    clear: vi.fn(),
+    has: vi.fn().mockReturnValue(false),
+  },
+}));
+
 // テスト対象をインポート
 import { setupClaudeWebSocket } from '../claude-ws';
 import { WebSocketServer, WebSocket } from 'ws';
