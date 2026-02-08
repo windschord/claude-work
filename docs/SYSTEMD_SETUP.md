@@ -399,7 +399,7 @@ systemd サービスはセキュリティ強化のため `ProtectHome=read-only`
 
 ```bash
 # claude-work ユーザーとして手動実行（デバッグ用）
-sudo -u claude-work bash -c 'set -a && source /etc/claude-work/env && set +a && HOME=/opt/claude-work PATH=/opt/claude-work/.local/bin:$PATH npx github:windschord/claude-work'
+sudo -u claude-work bash -c 'set -a && source /etc/claude-work/env && set +a && cd /opt/claude-work && HOME=/opt/claude-work PATH=/opt/claude-work/.local/bin:$PATH npx --yes github:windschord/claude-work'
 ```
 
 ---
