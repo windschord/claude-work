@@ -17,7 +17,7 @@ export class AuthDirectoryManager {
   private baseDir: string;
 
   constructor(baseDir?: string) {
-    // デフォルト: プロジェクトルート/data/environments
+    // デフォルト: getEnvironmentsDir()で解決（DATA_DIR設定時は ${DATA_DIR}/environments）
     this.baseDir = baseDir || getEnvironmentsDir();
   }
 

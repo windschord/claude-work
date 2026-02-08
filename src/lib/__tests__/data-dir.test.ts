@@ -58,6 +58,22 @@ describe('data-dir', () => {
 
       expect(result).toBe(path.resolve('./my-data'));
     });
+
+    it('DATA_DIRが空白のみの場合はデフォルト(process.cwd()/data)が返される', () => {
+      process.env.DATA_DIR = '   ';
+
+      const result = getDataDir();
+
+      expect(result).toBe(path.resolve(process.cwd(), 'data'));
+    });
+
+    it('DATA_DIRが空文字の場合はデフォルト(process.cwd()/data)が返される', () => {
+      process.env.DATA_DIR = '';
+
+      const result = getDataDir();
+
+      expect(result).toBe(path.resolve(process.cwd(), 'data'));
+    });
   });
 
   describe('getReposDir', () => {

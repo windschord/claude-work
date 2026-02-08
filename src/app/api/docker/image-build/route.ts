@@ -70,8 +70,11 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // dockerfilePathを絶対パスに変換（getEnvironmentsDir()基準）
+  const resolvedDockerfilePath = path.resolve(getEnvironmentsDir(), dockerfilePath);
+
   // パストラバーサル対策: 許可されたディレクトリかチェック
-  if (!isPathAllowed(dockerfilePath)) {
+  if (!isPathAllowed(resolvedDockerfilePath)) {
     logger.warn('Attempted access to unauthorized path', { dockerfilePath });
     return NextResponse.json(
       { error: 'Dockerfile path is not allowed' },
@@ -81,7 +84,7 @@ export async function POST(request: NextRequest) {
 
   // Dockerfile存在チェック
   try {
-    await fs.access(dockerfilePath);
+    await fs.access(resolvedDockerfilePath);
   } catch {
     // パス情報を漏洩させない
     return NextResponse.json(
@@ -91,8 +94,8 @@ export async function POST(request: NextRequest) {
   }
 
   const fullImageName = `${imageName}:${imageTag}`;
-  const dockerfileDir = path.dirname(dockerfilePath);
-  const dockerfileName = path.basename(dockerfilePath);
+  const dockerfileDir = path.dirname(resolvedDockerfilePath);
+  const dockerfileName = path.basename(resolvedDockerfilePath);
 
   logger.info('Starting Docker image build', {
     dockerfilePath,

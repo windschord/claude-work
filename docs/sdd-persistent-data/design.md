@@ -130,7 +130,7 @@ constructor(baseDir?: string) {
 起動処理に `ensureDataDirs()` を追加。DATA_DIR設定時にログ出力。
 
 ```typescript
-import { ensureDataDirs, getDataDir } from '@/lib/data-dir';
+import { ensureDataDirs, getDataDir } from './src/lib/data-dir';
 
 // 起動時（環境変数検証の直後）
 console.log('  DATA_DIR:', process.env.DATA_DIR || 'NOT SET (using default)');

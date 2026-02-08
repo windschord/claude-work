@@ -40,8 +40,19 @@ try {
 }
 
 // データディレクトリの初期化
-ensureDataDirs();
-logger.info('Data directories initialized', { dataDir: getDataDir() });
+try {
+  ensureDataDirs();
+  logger.info('Data directories initialized', { dataDir: getDataDir() });
+} catch (error) {
+  const dataDir = getDataDir();
+  console.error('\nFailed to initialize data directories:\n');
+  console.error(`  DATA_DIR: ${process.env.DATA_DIR || 'NOT SET (using default)'}`);
+  console.error(`  Resolved path: ${dataDir}`);
+  if (error instanceof Error) {
+    console.error(`  Error: ${error.message}`);
+  }
+  process.exit(1);
+}
 
 // Claude Code CLIのパスを検出・設定
 try {

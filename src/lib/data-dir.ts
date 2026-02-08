@@ -6,7 +6,7 @@ import fs from 'fs';
  * @returns 絶対パスに解決されたデータディレクトリパス
  */
 export function getDataDir(): string {
-  const dataDir = process.env.DATA_DIR;
+  const dataDir = process.env.DATA_DIR?.trim();
   if (dataDir) {
     return path.resolve(dataDir);
   }

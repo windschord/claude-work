@@ -47,7 +47,7 @@ export async function POST(
 
   return NextResponse.json({
     success: true,
-    path: `data/environments/${id}/Dockerfile`,
+    path: `environments/${id}/Dockerfile`,
   });
 }
 

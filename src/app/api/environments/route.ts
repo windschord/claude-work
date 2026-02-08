@@ -124,8 +124,11 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // dockerfilePathを絶対パスに変換（getEnvironmentsDir()基準）
+      const resolvedDockerfilePath = path.resolve(getEnvironmentsDir(), config.dockerfilePath);
+
       // パストラバーサル対策: 許可されたディレクトリかチェック
-      if (!isPathAllowed(config.dockerfilePath)) {
+      if (!isPathAllowed(resolvedDockerfilePath)) {
         logger.warn('Attempted access to unauthorized path', { dockerfilePath: config.dockerfilePath });
         return NextResponse.json(
           { error: 'Dockerfile path is not allowed' },
@@ -135,7 +138,7 @@ export async function POST(request: NextRequest) {
 
       // Dockerfile存在チェック
       try {
-        await fs.access(config.dockerfilePath);
+        await fs.access(resolvedDockerfilePath);
       } catch {
         // パス情報を漏洩させない
         return NextResponse.json(
@@ -147,8 +150,8 @@ export async function POST(request: NextRequest) {
       // 一時的なIDを生成（実際のID生成前）
       const tempId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       const buildImageName = `claude-work-env-${tempId}`;
-      const dockerfileDir = path.dirname(config.dockerfilePath);
-      const dockerfileName = path.basename(config.dockerfilePath);
+      const dockerfileDir = path.dirname(resolvedDockerfilePath);
+      const dockerfileName = path.basename(resolvedDockerfilePath);
 
       // ファイル名のバリデーション
       if (!isSafeFilename(dockerfileName)) {
