@@ -15,19 +15,10 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Setup pnpm
-      uses: pnpm/action-setup@v4
+    - name: Setup project
+      uses: ./.github/actions/setup
       with:
-        version: 9
-
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'pnpm'
-
-    - name: Install dependencies
-      run: pnpm install --frozen-lockfile
+        skip-db-setup: 'true'
 
     - name: Run linter
       run: pnpm run lint
@@ -53,25 +44,8 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Setup pnpm
-      uses: pnpm/action-setup@v4
-      with:
-        version: 9
-
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'pnpm'
-
-    - name: Install dependencies
-      run: pnpm install --frozen-lockfile
-
-    - name: Prepare DB directory
-      run: mkdir -p data
-
-    - name: Setup Database
-      run: pnpm exec drizzle-kit push
+    - name: Setup project
+      uses: ./.github/actions/setup
 
     - name: Run backend tests
       run: pnpm exec vitest run src/app/api src/lib src/services src/bin --reporter=verbose
@@ -88,25 +62,8 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Setup pnpm
-      uses: pnpm/action-setup@v4
-      with:
-        version: 9
-
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'pnpm'
-
-    - name: Install dependencies
-      run: pnpm install --frozen-lockfile
-
-    - name: Prepare DB directory
-      run: mkdir -p data
-
-    - name: Setup Database
-      run: pnpm exec drizzle-kit push
+    - name: Setup project
+      uses: ./.github/actions/setup
 
     - name: Run frontend tests
       run: |
@@ -143,35 +100,19 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Setup pnpm
-      uses: pnpm/action-setup@v4
+    - name: Setup project
+      uses: ./.github/actions/setup
       with:
-        version: 9
-
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'pnpm'
-
-    - name: Install dependencies
-      run: pnpm install --frozen-lockfile
-
-    - name: Prepare DB directory
-      run: mkdir -p data
-
-    - name: Setup Database
-      run: pnpm exec drizzle-kit push
+        install-playwright: 'true'
 
     - name: Run CLI E2E tests
       run: SKIP_WEBSERVER=true pnpm exec playwright test --project=cli
       timeout-minutes: 10
 
-  # Build job - depends on all tests passing
+  # Build job - runs in parallel with tests
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: [lint, test-backend, test-frontend, test-e2e]
 
     env:
       DATABASE_URL: file:./data/test.db
@@ -179,25 +120,28 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Setup pnpm
-      uses: pnpm/action-setup@v4
-      with:
-        version: 9
-
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'pnpm'
-
-    - name: Install dependencies
-      run: pnpm install --frozen-lockfile
-
-    - name: Prepare DB directory
-      run: mkdir -p data
-
-    - name: Setup Database
-      run: pnpm exec drizzle-kit push
+    - name: Setup project
+      uses: ./.github/actions/setup
 
     - name: Build
       run: pnpm run build
+
+  # Final check - ensures all jobs passed
+  ci-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    needs: [lint, test-backend, test-frontend, test-e2e, build]
+    if: always()
+
+    steps:
+    - name: Check all jobs passed
+      run: |
+        if [ "${{ needs.lint.result }}" != "success" ] || \
+           [ "${{ needs.test-backend.result }}" != "success" ] || \
+           [ "${{ needs.test-frontend.result }}" != "success" ] || \
+           [ "${{ needs.test-e2e.result }}" != "success" ] || \
+           [ "${{ needs.build.result }}" != "success" ]; then
+          echo "One or more jobs failed"
+          exit 1
+        fi
+        echo "All jobs passed successfully"
