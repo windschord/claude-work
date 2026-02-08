@@ -358,7 +358,11 @@ export function setupClaudeWebSocket(
       // アダプター用のイベントハンドラー
       const adapterDataHandler = (sid: string, data: string) => {
         if (sid === sessionId) {
-          scrollbackBuffer.append(sessionId, data);
+          // レガシーモードではclaudePtyManager内部でscrollbackBufferにappend済み
+          // 非レガシーモードのみここでappendする（二重蓄積の防止）
+          if (!isLegacy) {
+            scrollbackBuffer.append(sessionId, data);
+          }
           if (ws.readyState === WebSocket.OPEN) {
             const message: ClaudeDataMessage = {
               type: 'data',
