@@ -30,7 +30,7 @@ const PERMISSION_MODES = [
 
 function envVarsToEntries(envVars: CustomEnvVars): EnvVarEntry[] {
   return Object.entries(envVars).map(([key, value]) => ({
-    id: `env-${key}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+    id: `env-${key}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     key,
     value,
   }));
@@ -90,7 +90,7 @@ export function ClaudeOptionsForm({
 
   const handleAddEnvVar = () => {
     const newEntry: EnvVarEntry = {
-      id: `env-new-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      id: `env-new-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       key: '',
       value: '',
     };

@@ -147,21 +147,31 @@ export async function POST(
 
     const { name, prompt = '', dockerMode = false, environment_id, source_branch, claude_code_options, custom_env_vars } = body;
 
-    // claude_code_options のバリデーション
+    // claude_code_options のバリデーション（plain objectかつフィールドが文字列）
     if (claude_code_options !== undefined) {
       if (typeof claude_code_options !== 'object' || claude_code_options === null || Array.isArray(claude_code_options)) {
         return NextResponse.json({ error: 'claude_code_options must be a plain object' }, { status: 400 });
       }
+      const allowedKeys = ['model', 'allowedTools', 'permissionMode', 'additionalFlags'];
+      for (const [key, value] of Object.entries(claude_code_options as Record<string, unknown>)) {
+        if (allowedKeys.includes(key) && value !== undefined && typeof value !== 'string') {
+          return NextResponse.json({ error: `claude_code_options.${key} must be a string` }, { status: 400 });
+        }
+      }
     }
 
-    // custom_env_vars のバリデーション（plain objectかつ値がすべて文字列）
+    // custom_env_vars のバリデーション（plain objectかつキーと値の形式を検証）
     if (custom_env_vars !== undefined) {
       if (typeof custom_env_vars !== 'object' || custom_env_vars === null || Array.isArray(custom_env_vars)) {
         return NextResponse.json({ error: 'custom_env_vars must be a plain object' }, { status: 400 });
       }
-      for (const value of Object.values(custom_env_vars)) {
+      const envKeyPattern = /^[A-Z_][A-Z0-9_]*$/;
+      for (const [key, value] of Object.entries(custom_env_vars as Record<string, unknown>)) {
         if (typeof value !== 'string') {
           return NextResponse.json({ error: 'custom_env_vars values must be strings' }, { status: 400 });
+        }
+        if (!envKeyPattern.test(key)) {
+          return NextResponse.json({ error: `custom_env_vars key "${key}" must match ^[A-Z_][A-Z0-9_]*$` }, { status: 400 });
         }
       }
     }

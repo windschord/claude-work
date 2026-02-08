@@ -426,6 +426,28 @@ describe('PUT /api/projects/[project_id]', () => {
       const response = await PUT(request, { params: Promise.resolve({ project_id: project.id }) });
       expect(response.status).toBe(400);
     });
+
+    it('should return 400 for custom_env_vars with invalid key format', async () => {
+      const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ custom_env_vars: { lowercase: 'bad' } }),
+      });
+
+      const response = await PUT(request, { params: Promise.resolve({ project_id: project.id }) });
+      expect(response.status).toBe(400);
+    });
+
+    it('should return 400 for claude_code_options with non-string field', async () => {
+      const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ claude_code_options: { model: 123 } }),
+      });
+
+      const response = await PUT(request, { params: Promise.resolve({ project_id: project.id }) });
+      expect(response.status).toBe(400);
+    });
   });
 
   describe('combined update', () => {

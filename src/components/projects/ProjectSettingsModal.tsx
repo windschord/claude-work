@@ -199,7 +199,7 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
 
   const handleAddScript = () => {
     // 一時的なIDを生成（新規スクリプトの識別用）
-    const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
     setScripts([...scripts, { id: tempId, name: '', description: '', command: '' }]);
   };
 

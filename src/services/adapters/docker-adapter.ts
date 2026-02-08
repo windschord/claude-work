@@ -60,7 +60,7 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
   /**
    * Docker実行引数を構築（環境専用認証ディレクトリを使用）
    */
-  private buildDockerArgs(workingDir: string, options?: CreateSessionOptions): { args: string[]; containerName: string } {
+  private buildDockerArgs(workingDir: string, options?: CreateSessionOptions): { args: string[]; containerName: string; envFilePath?: string } {
     const args: string[] = ['run', '-it', '--rm'];
 
     // コンテナ名（環境ID + タイムスタンプで一意に）
@@ -104,12 +104,19 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
       args.push('-e', 'ANTHROPIC_API_KEY');
     }
 
-    // カスタム環境変数を-eフラグで渡す（シェルモードではスキップ）
+    // カスタム環境変数を一時envファイル経由で渡す（値をプロセス引数に載せない）
+    let envFilePath: string | undefined;
     if (!options?.shellMode && options?.customEnvVars) {
+      const lines: string[] = [];
       for (const [key, value] of Object.entries(options.customEnvVars)) {
         if (ClaudeOptionsService.validateEnvVarKey(key) && typeof value === 'string') {
-          args.push('-e', `${key}=${value}`);
+          lines.push(`${key}=${value}`);
         }
+      }
+      if (lines.length > 0) {
+        envFilePath = path.join(os.tmpdir(), `claude-env-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+        fs.writeFileSync(envFilePath, lines.join('\n'), { mode: 0o600 });
+        args.push('--env-file', envFilePath);
       }
     }
 
@@ -132,7 +139,7 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
       args.push(...customArgs);
     }
 
-    return { args, containerName };
+    return { args, containerName, envFilePath };
   }
 
   /**
@@ -312,7 +319,7 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
       throw error;
     }
 
-    const { args, containerName } = this.buildDockerArgs(workingDir, options);
+    const { args, containerName, envFilePath } = this.buildDockerArgs(workingDir, options);
 
     logger.info('DockerAdapter: Creating session', {
       sessionId,
@@ -369,6 +376,11 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
 
       ptyProcess.onExit(async ({ exitCode, signal }) => {
         logger.info('DockerAdapter: Session exited', { sessionId, exitCode, signal });
+
+        // 一時envファイルのクリーンアップ
+        if (envFilePath) {
+          try { fs.unlinkSync(envFilePath); } catch { /* ignore */ }
+        }
 
         // container_idをクリア
         try {

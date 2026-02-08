@@ -173,7 +173,7 @@ export class DockerPTYAdapter extends EventEmitter {
   private buildDockerArgs(
     workingDir: string,
     options?: CreateDockerPTYSessionOptions
-  ): { args: string[]; containerName: string } {
+  ): { args: string[]; containerName: string; envFilePath?: string } {
     const args: string[] = ['run', '-it', '--rm'];
 
     // コンテナ名を一意に設定
@@ -220,12 +220,19 @@ export class DockerPTYAdapter extends EventEmitter {
       args.push('-e', 'ANTHROPIC_API_KEY');
     }
 
-    // カスタム環境変数を-eフラグで渡す
+    // カスタム環境変数を一時envファイル経由で渡す（値をプロセス引数に載せない）
+    let envFilePath: string | undefined;
     if (options?.customEnvVars) {
+      const lines: string[] = [];
       for (const [key, value] of Object.entries(options.customEnvVars)) {
         if (ClaudeOptionsService.validateEnvVarKey(key) && typeof value === 'string') {
-          args.push('-e', `${key}=${value}`);
+          lines.push(`${key}=${value}`);
         }
+      }
+      if (lines.length > 0) {
+        envFilePath = path.join(os.tmpdir(), `claude-env-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+        fs.writeFileSync(envFilePath, lines.join('\n'), { mode: 0o600 });
+        args.push('--env-file', envFilePath);
       }
     }
 
@@ -244,7 +251,7 @@ export class DockerPTYAdapter extends EventEmitter {
       args.push(...customArgs);
     }
 
-    return { args, containerName };
+    return { args, containerName, envFilePath };
   }
 
   /**
@@ -289,7 +296,7 @@ export class DockerPTYAdapter extends EventEmitter {
     }
 
     try {
-      const { args: dockerArgs, containerName } = this.buildDockerArgs(resolvedCwd, options);
+      const { args: dockerArgs, containerName, envFilePath } = this.buildDockerArgs(resolvedCwd, options);
 
       logger.info('Creating Docker PTY session', {
         sessionId,
@@ -355,6 +362,11 @@ export class DockerPTYAdapter extends EventEmitter {
       ptyProcess.onExit(({ exitCode, signal }) => {
         const session = this.sessions.get(sessionId);
         logger.info('Docker PTY exited', { sessionId, exitCode, signal });
+
+        // 一時envファイルのクリーンアップ
+        if (envFilePath) {
+          try { fs.unlinkSync(envFilePath); } catch { /* ignore */ }
+        }
 
         // 異常終了時にエラー解析
         if (exitCode !== 0 && session) {
