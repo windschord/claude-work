@@ -86,7 +86,7 @@ describe('Dockerfile API', () => {
 
       expect(response.status).toBe(200);
       expect(data.success).toBe(true);
-      expect(data.path).toBe('data/environments/env-123/Dockerfile');
+      expect(data.path).toBe('environments/env-123/Dockerfile');
 
       expect(fs.mkdir).toHaveBeenCalled();
       expect(fs.writeFile).toHaveBeenCalled();
