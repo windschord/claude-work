@@ -136,6 +136,7 @@ describe('ScrollbackBuffer', () => {
     });
 
     it('環境変数でバッファサイズを変更できる', async () => {
+      vi.resetModules();
       process.env.SCROLLBACK_BUFFER_SIZE = '2048';
       const mod = await import('../scrollback-buffer');
       const sb = mod.scrollbackBuffer;
@@ -145,6 +146,7 @@ describe('ScrollbackBuffer', () => {
     });
 
     it('不正な値の場合はデフォルト(100KB)にフォールバック', async () => {
+      vi.resetModules();
       process.env.SCROLLBACK_BUFFER_SIZE = 'invalid';
       const mod = await import('../scrollback-buffer');
       const sb = mod.scrollbackBuffer;
@@ -154,6 +156,7 @@ describe('ScrollbackBuffer', () => {
     });
 
     it('0以下の値はデフォルトにフォールバック', async () => {
+      vi.resetModules();
       process.env.SCROLLBACK_BUFFER_SIZE = '0';
       const mod = await import('../scrollback-buffer');
       const sb = mod.scrollbackBuffer;
@@ -162,6 +165,7 @@ describe('ScrollbackBuffer', () => {
     });
 
     it('未設定の場合はデフォルト(100KB)', async () => {
+      vi.resetModules();
       delete process.env.SCROLLBACK_BUFFER_SIZE;
       const mod = await import('../scrollback-buffer');
       const sb = mod.scrollbackBuffer;
