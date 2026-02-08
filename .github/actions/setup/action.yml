@@ -25,12 +25,19 @@ runs:
         node-version: '20'
         cache: 'pnpm'
 
+    - name: Get versions for cache key
+      id: versions
+      shell: bash
+      run: |
+        echo "node=$(node --version)" >> $GITHUB_OUTPUT
+        echo "pnpm=$(pnpm --version)" >> $GITHUB_OUTPUT
+
     - name: Cache node_modules
       uses: actions/cache@v4
       id: node-modules-cache
       with:
         path: node_modules
-        key: node-modules-${{ runner.os }}-node20-pnpm9-${{ hashFiles('pnpm-lock.yaml') }}
+        key: node-modules-${{ runner.os }}-node${{ steps.versions.outputs.node }}-pnpm${{ steps.versions.outputs.pnpm }}-${{ hashFiles('pnpm-lock.yaml') }}
 
     - name: Install dependencies
       if: steps.node-modules-cache.outputs.cache-hit != 'true'
@@ -48,8 +55,8 @@ runs:
       run: pnpm exec drizzle-kit push
 
     - name: Cache Playwright browsers
-      if: inputs.install-playwright == 'true'
       uses: actions/cache@v4
+      if: inputs.install-playwright == 'true'
       id: playwright-cache
       with:
         path: ~/.cache/ms-playwright
