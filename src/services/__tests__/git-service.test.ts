@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { GitService } from '../git-service';
 import { logger } from '../../lib/logger';
 import * as fs from 'fs';
