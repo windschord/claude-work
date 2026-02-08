@@ -115,6 +115,10 @@ export class GitService {
           `Check directory ownership: chown -R $(whoami) "${this.repoPath}"`
         );
       }
+    } else if (!lstatSync(worktreesDir).isDirectory()) {
+      throw new Error(
+        `"${worktreesDir}" exists but is not a directory. Remove or rename it and retry.`
+      );
     }
 
     // .worktreesディレクトリの書き込み権限チェック
@@ -152,6 +156,13 @@ export class GitService {
       throw new Error(
         `Git directory not found at "${gitDirToCheck}". ` +
         `Ensure the repository is properly initialized.`
+      );
+    }
+
+    if (!lstatSync(gitDirToCheck).isDirectory()) {
+      throw new Error(
+        `Git path "${gitDirToCheck}" is not a directory. ` +
+        `The repository may be corrupted or misconfigured.`
       );
     }
 
@@ -215,6 +226,7 @@ export class GitService {
       this.logger.error('Failed to create worktree', {
         sessionName,
         branchName,
+        sourceBranch,
         errorMessage,
         exitCode: result.status,
         stderr: result.stderr,
