@@ -71,7 +71,7 @@ export async function GET(
     return NextResponse.json({ sessions: sessionsWithEnvironment });
   } catch (error) {
     const { project_id: errorProjectId } = await params;
-    logger.error('Failed to get sessions', { error, project_id: errorProjectId });
+    logger.error('Failed to get sessions', { errorMessage: error instanceof Error ? error.message : String(error), project_id: errorProjectId });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -279,7 +279,7 @@ export async function POST(
       worktreePath = gitService.createWorktree(sessionName, branchName, source_branch || undefined);
     } catch (worktreeError) {
       logger.error('Failed to create worktree', {
-        error: worktreeError instanceof Error ? worktreeError.message : String(worktreeError),
+        errorMessage: worktreeError instanceof Error ? worktreeError.message : String(worktreeError),
         project_id,
         sessionName,
       });

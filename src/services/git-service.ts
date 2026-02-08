@@ -300,7 +300,7 @@ export class GitService {
 
       return { added, modified, deleted };
     } catch (error) {
-      this.logger.error('Failed to get diff', { sessionName, error });
+      this.logger.error('Failed to get diff', { sessionName, errorMessage: error instanceof Error ? error.message : String(error) });
       throw error;
     }
   }
@@ -423,7 +423,7 @@ export class GitService {
 
       return { files, totalAdditions, totalDeletions };
     } catch (error) {
-      this.logger.error('Failed to get diff details', { sessionName, error });
+      this.logger.error('Failed to get diff details', { sessionName, errorMessage: error instanceof Error ? error.message : String(error) });
       throw error;
     }
   }
@@ -479,7 +479,7 @@ export class GitService {
       this.logger.warn('Rebase conflicts detected', { sessionName, conflicts });
       return { success: false, conflicts };
     } catch (error) {
-      this.logger.error('Failed to rebase', { sessionName, error });
+      this.logger.error('Failed to rebase', { sessionName, errorMessage: error instanceof Error ? error.message : String(error) });
       throw error;
     }
   }
@@ -577,7 +577,7 @@ export class GitService {
 
       return commits;
     } catch (error) {
-      this.logger.error('Failed to get commits', { error, sessionName });
+      this.logger.error('Failed to get commits', { errorMessage: error instanceof Error ? error.message : String(error), sessionName });
       return [];
     }
   }
@@ -612,7 +612,7 @@ export class GitService {
       this.logger.info('Reset to commit', { sessionName, commitHash });
       return { success: true };
     } catch (error) {
-      this.logger.error('Failed to reset', { error, sessionName, commitHash });
+      this.logger.error('Failed to reset', { errorMessage: error instanceof Error ? error.message : String(error), sessionName, commitHash });
       return { success: false, error: String(error) };
     }
   }
@@ -736,7 +736,7 @@ export class GitService {
       this.logger.info('Successfully squash merged', { sessionName, commitMessage });
       return { success: true };
     } catch (error) {
-      this.logger.error('Failed to squash merge', { sessionName, error });
+      this.logger.error('Failed to squash merge', { sessionName, errorMessage: error instanceof Error ? error.message : String(error) });
       throw error;
     }
   }
