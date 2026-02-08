@@ -1,6 +1,6 @@
 import { spawnSync } from 'child_process';
 import { join, resolve } from 'path';
-import { existsSync, readFileSync, writeFileSync, accessSync, constants, mkdirSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, accessSync, constants, mkdirSync, lstatSync } from 'fs';
 import type { Logger } from 'winston';
 
 /**
@@ -104,7 +104,6 @@ export class GitService {
    */
   private ensureWorktreeDirectoryWritable(): void {
     const worktreesDir = join(this.repoPath, '.worktrees');
-    const gitDir = join(this.repoPath, '.git');
 
     // .worktreesディレクトリが存在しない場合は作成を試みる
     if (!existsSync(worktreesDir)) {
@@ -129,12 +128,24 @@ export class GitService {
     }
 
     // .gitディレクトリの書き込み権限チェック（refs, worktrees等の作成に必要）
+    // .gitがファイルの場合（worktree/submodule構成）は実際のgitdirを解決する
+    const gitPath = join(this.repoPath, '.git');
+    let gitDirToCheck = gitPath;
+
+    if (existsSync(gitPath) && !lstatSync(gitPath).isDirectory()) {
+      const gitdirLine = readFileSync(gitPath, 'utf-8').trim();
+      const match = /^gitdir:\s*(.+)$/i.exec(gitdirLine);
+      if (match?.[1]) {
+        gitDirToCheck = resolve(this.repoPath, match[1].trim());
+      }
+    }
+
     try {
-      accessSync(gitDir, constants.W_OK);
+      accessSync(gitDirToCheck, constants.W_OK);
     } catch {
       throw new Error(
-        `No write permission to .git directory at "${gitDir}". ` +
-        `Check directory ownership: chown -R $(whoami) "${gitDir}"`
+        `No write permission to git directory at "${gitDirToCheck}". ` +
+        `Check directory ownership: chown -R $(whoami) "${gitDirToCheck}"`
       );
     }
   }
@@ -161,10 +172,9 @@ export class GitService {
     const worktreePath = join(this.repoPath, '.worktrees', sessionName);
     this.validateWorktreePath(worktreePath);
 
-    // .worktreesディレクトリの書き込み権限を事前チェック
-    this.ensureWorktreeDirectoryWritable();
-
     try {
+      // .worktreesディレクトリの書き込み権限を事前チェック
+      this.ensureWorktreeDirectoryWritable();
       // sourceBranchが指定されている場合: git worktree add -b branchName worktreePath sourceBranch
       // 指定されていない場合: git worktree add -b branchName worktreePath (現在のHEADから)
       const args = ['worktree', 'add', '-b', branchName, worktreePath];
@@ -179,25 +189,19 @@ export class GitService {
 
       if (result.error || result.status !== 0) {
         const errorMessage = result.stderr || result.error?.message || 'Failed to create worktree';
-        this.logger.error('Git worktree add failed', {
+        this.logger.error('Failed to create worktree', {
           sessionName,
           branchName,
           exitCode: result.status,
           stderr: result.stderr,
           spawnError: result.error?.message,
         });
-        throw new Error(errorMessage);
+        throw new Error(errorMessage, { cause: result.error });
       }
 
       this.logger.info('Created worktree', { sessionName, branchName, worktreePath, sourceBranch });
       return worktreePath;
     } catch (error) {
-      this.logger.error('Failed to create worktree', {
-        sessionName,
-        branchName,
-        sourceBranch,
-        errorMessage: error instanceof Error ? error.message : String(error),
-      });
       throw error;
     }
   }
@@ -235,21 +239,17 @@ export class GitService {
         }
 
         // その他のエラー（権限、ロック等）はthrow
-        this.logger.error('Git worktree remove failed', {
+        this.logger.error('Failed to delete worktree', {
           sessionName,
           exitCode: result.status,
           stderr: result.stderr,
           spawnError: result.error?.message,
         });
-        throw new Error(errorMsg || 'Failed to remove worktree');
+        throw new Error(errorMsg || 'Failed to remove worktree', { cause: result.error });
       }
 
       this.logger.info('Deleted worktree', { sessionName });
     } catch (error) {
-      this.logger.error('Failed to delete worktree', {
-        sessionName,
-        errorMessage: error instanceof Error ? error.message : String(error),
-      });
       throw error;
     }
   }

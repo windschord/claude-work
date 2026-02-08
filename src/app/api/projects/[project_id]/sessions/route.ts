@@ -71,7 +71,11 @@ export async function GET(
     return NextResponse.json({ sessions: sessionsWithEnvironment });
   } catch (error) {
     const { project_id: errorProjectId } = await params;
-    logger.error('Failed to get sessions', { errorMessage: error instanceof Error ? error.message : String(error), project_id: errorProjectId });
+    logger.error('Failed to get sessions', {
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorStack: error instanceof Error ? error.stack : undefined,
+      project_id: errorProjectId,
+    });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -340,6 +344,7 @@ export async function POST(
     const { project_id: errorProjectId } = await params;
     logger.error('Failed to create session', {
       errorMessage: error instanceof Error ? error.message : String(error),
+      errorStack: error instanceof Error ? error.stack : undefined,
       project_id: errorProjectId,
     });
 
