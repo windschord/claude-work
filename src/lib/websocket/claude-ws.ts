@@ -34,9 +34,6 @@ const PTY_DESTROY_GRACE_PERIOD = (() => {
 const destroyTimers = new Map<string, ReturnType<typeof setTimeout>>();
 // セッションごとのアクティブな接続数を管理
 const activeConnections = new Map<string, number>();
-// 非レガシーセッションのスクロールバックリスナー登録済みセットを管理
-// （複数接続で二重appendを防止するため、セッション単位で1回だけ登録）
-const scrollbackListeners = new Set<string>();
 
 // 画像の最大サイズ（10MB）
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
@@ -324,26 +321,10 @@ export function setupClaudeWebSocket(
             dockerMode: session.docker_mode,
           });
 
-          // 非レガシーモード：セッション単位のスクロールバックリスナーを登録
-          // レガシーモードではclaudePtyManager内部でappend済みなので不要
-          if (!isLegacy && !scrollbackListeners.has(sessionId)) {
-            const scrollbackAppendHandler = (sid: string, data: string) => {
-              if (sid === sessionId) {
-                scrollbackBuffer.append(sessionId, data);
-              }
-            };
-            const scrollbackCleanupHandler = (sid: string) => {
-              if (sid === sessionId) {
-                scrollbackBuffer.clear(sessionId);
-                scrollbackListeners.delete(sessionId);
-                adapter!.off('data', scrollbackAppendHandler);
-                adapter!.off('exit', scrollbackCleanupHandler);
-              }
-            };
-            adapter!.on('data', scrollbackAppendHandler);
-            adapter!.on('exit', scrollbackCleanupHandler);
-            scrollbackListeners.add(sessionId);
-          }
+          // スクロールバックの append/clear は各PTY実装側で管理：
+          // - claudePtyManager: onDataでappend, destroySession/onExitでclear
+          // - DockerAdapter: onDataでappend, destroySession/onExitでclear
+          // WebSocket層では再送のみ行う
 
           // セッションステータスを'running'に更新
           await db.update(schema.sessions)

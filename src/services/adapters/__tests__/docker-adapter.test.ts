@@ -37,6 +37,17 @@ vi.mock('drizzle-orm', () => ({
   eq: vi.fn((col, val) => ({ column: col, value: val })),
 }));
 
+// scrollbackBufferのモック
+vi.mock('@/services/scrollback-buffer', () => ({
+  scrollbackBuffer: {
+    append: vi.fn(),
+    getBuffer: vi.fn().mockReturnValue(null),
+    clear: vi.fn(),
+    has: vi.fn().mockReturnValue(false),
+    getByteSize: vi.fn().mockReturnValue(0),
+  },
+}));
+
 // loggerのモック
 vi.mock('@/lib/logger', () => ({
   logger: {
