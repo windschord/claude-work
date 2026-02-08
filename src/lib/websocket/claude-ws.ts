@@ -11,6 +11,10 @@ import { logger } from '@/lib/logger';
 import { environmentService } from '@/services/environment-service';
 import { AdapterFactory } from '@/services/adapter-factory';
 import type { EnvironmentAdapter, PTYExitInfo } from '@/services/environment-adapter';
+import type { ClaudeClientMessage, ClaudeServerMessage, ClaudeScrollbackMessage } from '@/types/websocket';
+
+// Re-export for consumers that import from this module
+export type { ClaudeClientMessage, ClaudeServerMessage } from '@/types/websocket';
 
 // PTY破棄の猶予期間（ミリ秒）
 // クライアントが一時的に切断しても、この期間内に再接続すればPTYセッションを維持できる
@@ -25,87 +29,6 @@ const PTY_DESTROY_GRACE_PERIOD = (() => {
 const destroyTimers = new Map<string, ReturnType<typeof setTimeout>>();
 // セッションごとのアクティブな接続数を管理
 const activeConnections = new Map<string, number>();
-
-/**
- * Claude Code WebSocketメッセージ型定義
- */
-
-// クライアント → サーバー（入力）
-interface ClaudeInputMessage {
-  type: 'input';
-  data: string;
-}
-
-// クライアント → サーバー（リサイズ）
-interface ClaudeResizeMessage {
-  type: 'resize';
-  data: {
-    cols: number;
-    rows: number;
-  };
-}
-
-// クライアント → サーバー（再起動）
-interface ClaudeRestartMessage {
-  type: 'restart';
-}
-
-// クライアント → サーバー（画像ペースト）
-interface ClaudePasteImageMessage {
-  type: 'paste-image';
-  data: string;      // base64エンコードされた画像データ
-  mimeType: string;  // 'image/png', 'image/jpeg' 等
-}
-
-export type ClaudeClientMessage =
-  | ClaudeInputMessage
-  | ClaudeResizeMessage
-  | ClaudeRestartMessage
-  | ClaudePasteImageMessage;
-
-// サーバー → クライアント（出力）
-interface ClaudeDataMessage {
-  type: 'data';
-  content: string;
-}
-
-// サーバー → クライアント（終了）
-interface ClaudeExitMessage {
-  type: 'exit';
-  exitCode: number;
-  signal: number | null;
-}
-
-// サーバー → クライアント（エラー）
-interface ClaudeErrorMessage {
-  type: 'error';
-  message: string;
-}
-
-// サーバー → クライアント（画像保存結果）
-interface ClaudeImageSavedMessage {
-  type: 'image-saved';
-  filePath: string;
-}
-
-interface ClaudeImageErrorMessage {
-  type: 'image-error';
-  message: string;
-}
-
-// サーバー → クライアント（スクロールバック復元）
-interface ClaudeScrollbackMessage {
-  type: 'scrollback';
-  content: string;
-}
-
-export type ClaudeServerMessage =
-  | ClaudeDataMessage
-  | ClaudeExitMessage
-  | ClaudeErrorMessage
-  | ClaudeImageSavedMessage
-  | ClaudeImageErrorMessage
-  | ClaudeScrollbackMessage;
 
 // 画像の最大サイズ（10MB）
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024;

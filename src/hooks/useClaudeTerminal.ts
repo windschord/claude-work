@@ -22,6 +22,7 @@ import type { Terminal, IDisposable } from '@xterm/xterm';
 import type { FitAddon } from '@xterm/addon-fit';
 import { detectActionRequest, createCooldownChecker } from '@/lib/action-detector';
 import { sendNotification } from '@/lib/notification-service';
+import type { ClaudeServerMessage } from '@/types/websocket';
 
 /**
  * クリップボードからのペースト処理
@@ -195,7 +196,7 @@ export function useClaudeTerminal(
     ws.onmessage = (event: MessageEvent) => {
       if (!isMountedRef.current) return;
       try {
-        const message = JSON.parse(event.data);
+        const message: ClaudeServerMessage = JSON.parse(event.data);
 
         if (message.type === 'data') {
           // ターミナルに出力を書き込む
