@@ -15,9 +15,11 @@ import type { EnvironmentAdapter, PTYExitInfo } from '@/services/environment-ada
 // PTY破棄の猶予期間（ミリ秒）
 // クライアントが一時的に切断しても、この期間内に再接続すればPTYセッションを維持できる
 // デフォルト5分。環境変数PTY_DESTROY_GRACE_PERIOD_MSで変更可能
-const PTY_DESTROY_GRACE_PERIOD = parseInt(
-  process.env.PTY_DESTROY_GRACE_PERIOD_MS || '300000', 10
-);
+const PTY_DESTROY_GRACE_PERIOD = (() => {
+  const raw = process.env.PTY_DESTROY_GRACE_PERIOD_MS;
+  const parsed = Number.parseInt(raw ?? '', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 300000;
+})();
 
 // セッションごとの破棄タイマーを管理
 const destroyTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -91,12 +93,19 @@ interface ClaudeImageErrorMessage {
   message: string;
 }
 
+// サーバー → クライアント（スクロールバック復元）
+interface ClaudeScrollbackMessage {
+  type: 'scrollback';
+  content: string;
+}
+
 export type ClaudeServerMessage =
   | ClaudeDataMessage
   | ClaudeExitMessage
   | ClaudeErrorMessage
   | ClaudeImageSavedMessage
-  | ClaudeImageErrorMessage;
+  | ClaudeImageErrorMessage
+  | ClaudeScrollbackMessage;
 
 // 画像の最大サイズ（10MB）
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
@@ -358,7 +367,10 @@ export function setupClaudeWebSocket(
               sessionId,
               session.worktree_path,
               initialPrompt,
-              { dockerMode: session.docker_mode }
+              {
+                dockerMode: session.docker_mode,
+                resumeSessionId: session.resume_session_id || undefined,
+              }
             );
           } else {
             // 新方式（アダプター経由）
@@ -489,10 +501,15 @@ export function setupClaudeWebSocket(
       }
 
       // 既存PTYセッションの場合、スクロールバックバッファを再送
+      // scrollbackBufferはClaudePTYManagerで一元管理（Docker含む全セッション）
       if (hasSession) {
         const buffer = claudePtyManager.getScrollbackBuffer(sessionId);
         if (buffer && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'scrollback', content: buffer }));
+          const scrollbackMsg: ClaudeScrollbackMessage = {
+            type: 'scrollback',
+            content: buffer,
+          };
+          ws.send(JSON.stringify(scrollbackMsg));
           logger.info('Claude WebSocket: Sent scrollback buffer', {
             sessionId,
             bufferLength: buffer.length,

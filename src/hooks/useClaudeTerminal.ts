@@ -216,7 +216,11 @@ export function useClaudeTerminal(
           }
         } else if (message.type === 'scrollback') {
           // サーバーからのスクロールバックバッファ（再接続時の過去出力復元）
-          terminalRef.current?.write(message.content);
+          // 既存の出力をクリアしてからスクロールバックを適用し、二重出力を防ぐ
+          if (terminalRef.current) {
+            terminalRef.current.reset();
+            terminalRef.current.write(message.content);
+          }
         } else if (message.type === 'exit') {
           // プロセス終了メッセージを表示
           terminalRef.current?.write(

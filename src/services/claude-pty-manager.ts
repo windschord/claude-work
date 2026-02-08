@@ -92,6 +92,7 @@ class ClaudePTYManager extends EventEmitter {
 
     // DockerPTYAdapterからのイベントを中継
     this.dockerAdapter.on('data', (sessionId: string, data: string) => {
+      scrollbackBuffer.append(sessionId, data);
       this.emit('data', sessionId, data);
     });
     this.dockerAdapter.on('exit', (sessionId: string, info: ClaudePTYExitInfo) => {
@@ -227,6 +228,7 @@ class ClaudePTYManager extends EventEmitter {
       ptyProcess.onExit(({ exitCode, signal }) => {
         logger.info('Claude PTY exited', { sessionId, exitCode, signal });
         this.emit('exit', sessionId, { exitCode, signal });
+        scrollbackBuffer.clear(sessionId);
         this.sessions.delete(sessionId);
       });
 
