@@ -31,7 +31,7 @@ describe('GitService', () => {
       const sessionName = 'test-session-1';
       const branchName = `session/${sessionName}`;
 
-      const worktreePath = gitService.createWorktree(sessionName, branchName);
+      const worktreePath = gitService.createWorktree(sessionName);
 
       expect(worktreePath).toBe(join(testRepoPath, '.worktrees', sessionName));
 
@@ -42,29 +42,21 @@ describe('GitService', () => {
 
     it('should throw error if worktree already exists', () => {
       const sessionName = 'test-session-2';
-      const branchName = `session/${sessionName}`;
 
-      gitService.createWorktree(sessionName, branchName);
+      gitService.createWorktree(sessionName);
 
       // 同じセッション名で再作成を試みるとブランチが既に存在するためエラー
       expect(() => {
-        gitService.createWorktree(sessionName, branchName);
+        gitService.createWorktree(sessionName);
       }).toThrow();
-    });
-
-    it('should throw error if branch name does not follow naming convention', () => {
-      expect(() => {
-        gitService.createWorktree('test-session-naming', 'invalid-branch-name');
-      }).toThrow(/Invalid branch name.*Expected "session\/test-session-naming"/);
     });
   });
 
   describe('deleteWorktree', () => {
     it('should delete worktree', () => {
       const sessionName = 'test-session-delete';
-      const branchName = `session/${sessionName}`;
 
-      gitService.createWorktree(sessionName, branchName);
+      gitService.createWorktree(sessionName);
       gitService.deleteWorktree(sessionName);
 
       const worktrees = execSync('git worktree list', { cwd: testRepoPath }).toString();
@@ -81,8 +73,7 @@ describe('GitService', () => {
   describe('getDiff', () => {
     it('should return added/modified/deleted files', () => {
       const sessionName = 'test-session-diff';
-      const branchName = `session/${sessionName}`;
-      const worktreePath = gitService.createWorktree(sessionName, branchName);
+      const worktreePath = gitService.createWorktree(sessionName);
 
       writeFileSync(join(worktreePath, 'new-file.txt'), 'new content');
       writeFileSync(join(worktreePath, 'README.md'), 'modified content');
@@ -101,8 +92,7 @@ describe('GitService', () => {
   describe('rebaseFromMain', () => {
     it('should rebase worktree branch onto main', () => {
       const sessionName = 'test-session-rebase';
-      const branchName = `session/${sessionName}`;
-      const worktreePath = gitService.createWorktree(sessionName, branchName);
+      const worktreePath = gitService.createWorktree(sessionName);
 
       writeFileSync(join(worktreePath, 'branch-file.txt'), 'branch content');
       execSync('git add . && git commit -m "branch commit"', { cwd: worktreePath, shell: true });
@@ -122,8 +112,7 @@ describe('GitService', () => {
 
     it('should detect conflicts', () => {
       const sessionName = 'test-session-conflict';
-      const branchName = `session/${sessionName}`;
-      const worktreePath = gitService.createWorktree(sessionName, branchName);
+      const worktreePath = gitService.createWorktree(sessionName);
 
       writeFileSync(join(worktreePath, 'conflict.txt'), 'branch content');
       execSync('git add . && git commit -m "branch commit"', { cwd: worktreePath, shell: true });
@@ -142,8 +131,7 @@ describe('GitService', () => {
   describe('squashMerge', () => {
     it('should squash merge into main with commit message', () => {
       const sessionName = 'test-session-squash';
-      const branchName = `session/${sessionName}`;
-      const worktreePath = gitService.createWorktree(sessionName, branchName);
+      const worktreePath = gitService.createWorktree(sessionName);
 
       writeFileSync(join(worktreePath, 'feature.txt'), 'feature content');
       execSync('git add . && git commit -m "feature commit 1"', { cwd: worktreePath, shell: true });
@@ -169,42 +157,32 @@ describe('GitService', () => {
     it('should throw when .worktrees directory is not writable', () => {
       const worktreesDir = join(testRepoPath, '.worktrees');
 
-      // ensureWorktreeDirectoryWritableをモックして.worktrees権限エラーをシミュレート
-      const originalMethod = (gitService as unknown as Record<string, unknown>)['ensureWorktreeDirectoryWritable'];
-      (gitService as unknown as Record<string, unknown>)['ensureWorktreeDirectoryWritable'] = vi.fn(() => {
-        throw new Error(
-          `No write permission to .worktrees directory at "${worktreesDir}". ` +
-          `Check directory ownership: chown -R $(whoami) "${worktreesDir}"`
-        );
-      });
+      // 実際にディレクトリの権限を読み取り専用に変更
+      fs.chmodSync(worktreesDir, 0o444);
 
       try {
         expect(() => {
-          gitService.createWorktree('test-perm-check', 'session/test-perm-check');
+          gitService.createWorktree('test-perm-check');
         }).toThrow(/No write permission to .worktrees directory/);
       } finally {
-        (gitService as unknown as Record<string, unknown>)['ensureWorktreeDirectoryWritable'] = originalMethod;
+        // 権限を元に戻す
+        fs.chmodSync(worktreesDir, 0o755);
       }
     });
 
     it('should throw when .git directory is not writable', () => {
       const gitDir = join(testRepoPath, '.git');
 
-      // ensureWorktreeDirectoryWritableをモックして.git権限エラーをシミュレート
-      const originalMethod = (gitService as unknown as Record<string, unknown>)['ensureWorktreeDirectoryWritable'];
-      (gitService as unknown as Record<string, unknown>)['ensureWorktreeDirectoryWritable'] = vi.fn(() => {
-        throw new Error(
-          `No write permission to git directory at "${gitDir}". ` +
-          `Check directory ownership: chown -R $(whoami) "${gitDir}"`
-        );
-      });
+      // 実際にディレクトリの権限を読み取り専用に変更
+      fs.chmodSync(gitDir, 0o444);
 
       try {
         expect(() => {
-          gitService.createWorktree('test-git-perm', 'session/test-git-perm');
+          gitService.createWorktree('test-git-perm');
         }).toThrow(/No write permission to git directory/);
       } finally {
-        (gitService as unknown as Record<string, unknown>)['ensureWorktreeDirectoryWritable'] = originalMethod;
+        // 権限を元に戻す
+        fs.chmodSync(gitDir, 0o755);
       }
     });
 
@@ -219,7 +197,7 @@ describe('GitService', () => {
       }
       fs.renameSync(worktreesDir, tempDir);
       try {
-        const worktreePath = gitService.createWorktree('test-auto-create', 'session/test-auto-create');
+        const worktreePath = gitService.createWorktree('test-auto-create');
         expect(existsSync(worktreePath)).toBe(true);
       } finally {
         // クリーンアップ

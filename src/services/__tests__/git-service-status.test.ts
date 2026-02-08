@@ -28,8 +28,7 @@ describe('GitService - getGitStatus', () => {
   describe('getGitStatus', () => {
     it('クリーン状態で"clean"を返す', () => {
       const sessionName = 'test-session-clean';
-      const branchName = `session/${sessionName}`;
-      const worktreePath = gitService.createWorktree(sessionName, branchName);
+      const worktreePath = gitService.createWorktree(sessionName);
 
       const status = gitService.getGitStatus(worktreePath);
 
@@ -38,8 +37,7 @@ describe('GitService - getGitStatus', () => {
 
     it('未コミット変更がある場合に"dirty"を返す', () => {
       const sessionName = 'test-session-dirty';
-      const branchName = `session/${sessionName}`;
-      const worktreePath = gitService.createWorktree(sessionName, branchName);
+      const worktreePath = gitService.createWorktree(sessionName);
 
       // ファイルを変更
       writeFileSync(join(worktreePath, 'new-file.txt'), 'new content');
@@ -51,8 +49,7 @@ describe('GitService - getGitStatus', () => {
 
     it('ステージされた変更がある場合に"dirty"を返す', () => {
       const sessionName = 'test-session-staged';
-      const branchName = `session/${sessionName}`;
-      const worktreePath = gitService.createWorktree(sessionName, branchName);
+      const worktreePath = gitService.createWorktree(sessionName);
 
       // ファイルを追加してステージ
       writeFileSync(join(worktreePath, 'staged-file.txt'), 'staged content');
@@ -65,8 +62,7 @@ describe('GitService - getGitStatus', () => {
 
     it('既存ファイルを変更した場合に"dirty"を返す', () => {
       const sessionName = 'test-session-modified';
-      const branchName = `session/${sessionName}`;
-      const worktreePath = gitService.createWorktree(sessionName, branchName);
+      const worktreePath = gitService.createWorktree(sessionName);
 
       // 既存ファイルを変更
       writeFileSync(join(worktreePath, 'README.md'), 'modified content');
@@ -78,8 +74,7 @@ describe('GitService - getGitStatus', () => {
 
     it('ファイルを削除した場合に"dirty"を返す', () => {
       const sessionName = 'test-session-deleted';
-      const branchName = `session/${sessionName}`;
-      const worktreePath = gitService.createWorktree(sessionName, branchName);
+      const worktreePath = gitService.createWorktree(sessionName);
 
       // ファイルを削除
       execSync('git rm README.md', { cwd: worktreePath });
@@ -91,8 +86,7 @@ describe('GitService - getGitStatus', () => {
 
     it('変更をコミットした後は"clean"を返す', () => {
       const sessionName = 'test-session-committed';
-      const branchName = `session/${sessionName}`;
-      const worktreePath = gitService.createWorktree(sessionName, branchName);
+      const worktreePath = gitService.createWorktree(sessionName);
 
       // ファイルを変更してコミット
       writeFileSync(join(worktreePath, 'committed-file.txt'), 'committed content');

@@ -280,7 +280,7 @@ export async function POST(
     let worktreePath: string;
 
     try {
-      worktreePath = gitService.createWorktree(sessionName, branchName, source_branch || undefined);
+      worktreePath = gitService.createWorktree(sessionName, source_branch || undefined);
     } catch (worktreeError) {
       logger.error('Failed to create worktree', {
         errorMessage: worktreeError instanceof Error ? worktreeError.message : String(worktreeError),

@@ -201,26 +201,18 @@ export class GitService {
   /**
    * 新しいGit worktreeを作成
    *
-   * 指定されたセッション名とブランチ名で新しいworktreeを作成します。
+   * 指定されたセッション名で新しいworktreeを作成します。ブランチ名はsession/<sessionName>形式で自動生成されます。
    * worktreeは `.worktrees/[sessionName]` ディレクトリに作成されます。
    *
    * @param sessionName - セッション名（worktreeディレクトリ名として使用）
-   * @param branchName - 作成するブランチ名
    * @param sourceBranch - 元にするブランチ名（任意、指定するとそのブランチを起点に新ブランチを作成）
    * @returns 作成されたworktreeのパス
    * @throws Git操作が失敗した場合にエラーをスロー
    */
-  createWorktree(sessionName: string, branchName: string, sourceBranch?: string): string {
+  createWorktree(sessionName: string, sourceBranch?: string): string {
     this.validateName(sessionName, 'session');
-    this.validateName(branchName, 'branch');
 
-    // ブランチ命名規約の強制: session/<sessionName> 形式であること
-    const expectedBranchName = `session/${sessionName}`;
-    if (branchName !== expectedBranchName) {
-      throw new Error(
-        `Invalid branch name: "${branchName}". Expected "${expectedBranchName}" for session "${sessionName}".`
-      );
-    }
+    const branchName = `session/${sessionName}`;
 
     if (sourceBranch) {
       this.validateName(sourceBranch, 'branch');
