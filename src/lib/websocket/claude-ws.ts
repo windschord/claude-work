@@ -11,10 +11,14 @@ import { logger } from '@/lib/logger';
 import { environmentService } from '@/services/environment-service';
 import { AdapterFactory } from '@/services/adapter-factory';
 import type { EnvironmentAdapter, PTYExitInfo } from '@/services/environment-adapter';
-import type { ClaudeClientMessage, ClaudeServerMessage, ClaudeScrollbackMessage } from '@/types/websocket';
-
-// Re-export for consumers that import from this module
-export type { ClaudeClientMessage, ClaudeServerMessage } from '@/types/websocket';
+import type {
+  ClaudeDataMessage,
+  ClaudeExitMessage,
+  ClaudeErrorMessage,
+  ClaudeImageSavedMessage,
+  ClaudeImageErrorMessage,
+  ClaudeScrollbackMessage,
+} from '@/types/websocket';
 
 // PTY破棄の猶予期間（ミリ秒）
 // クライアントが一時的に切断しても、この期間内に再接続すればPTYセッションを維持できる
