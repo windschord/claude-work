@@ -219,7 +219,6 @@ HOST=0.0.0.0
 > **DATA_DIR について**: `npx github:windschord/claude-work` で起動する場合、カレントディレクトリは npx キャッシュ内のパッケージディレクトリになります。`DATA_DIR` を設定しない場合、`repos/`（clone したリポジトリ）や `environments/`（Docker 環境の認証情報）がキャッシュ内に作成され、`npx` キャッシュの再構築時にデータが消失します。`DATABASE_URL` と同じディレクトリ（`/opt/claude-work/data`）を指定することを推奨します。
 
 > **注意**: `HOST=0.0.0.0` を設定すると、すべてのネットワークインターフェースでリッスンします。セキュリティのため、ファイアウォールや認証（`CLAUDE_WORK_TOKEN`）の設定を推奨します。
-
 > **CLAUDE_CODE_PATH について**: systemd サービスの PATH に `/opt/claude-work/.local/bin` が含まれているため、通常は設定不要です。別の場所にインストールした場合のみ絶対パスを指定してください。
 
 ---
