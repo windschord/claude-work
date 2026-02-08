@@ -115,10 +115,22 @@ export class GitService {
           `Check directory ownership: chown -R $(whoami) "${this.repoPath}"`
         );
       }
-    } else if (!lstatSync(worktreesDir).isDirectory()) {
-      throw new Error(
-        `"${worktreesDir}" exists but is not a directory. Remove or rename it and retry.`
-      );
+    } else {
+      try {
+        if (!lstatSync(worktreesDir).isDirectory()) {
+          throw new Error(
+            `"${worktreesDir}" exists but is not a directory. Remove or rename it and retry.`
+          );
+        }
+      } catch (err) {
+        if (err instanceof Error && err.message.includes('not a directory')) {
+          throw err;
+        }
+        throw new Error(
+          `Cannot inspect .worktrees directory at "${worktreesDir}": ${err instanceof Error ? err.message : String(err)}. ` +
+          `Check directory ownership: chown -R $(whoami) "${worktreesDir}"`
+        );
+      }
     }
 
     // .worktreesディレクトリの書き込み権限チェック
@@ -159,10 +171,20 @@ export class GitService {
       );
     }
 
-    if (!lstatSync(gitDirToCheck).isDirectory()) {
+    try {
+      if (!lstatSync(gitDirToCheck).isDirectory()) {
+        throw new Error(
+          `Git path "${gitDirToCheck}" is not a directory. ` +
+          `The repository may be corrupted or misconfigured.`
+        );
+      }
+    } catch (err) {
+      if (err instanceof Error && err.message.includes('not a directory')) {
+        throw err;
+      }
       throw new Error(
-        `Git path "${gitDirToCheck}" is not a directory. ` +
-        `The repository may be corrupted or misconfigured.`
+        `Cannot inspect git directory at "${gitDirToCheck}": ${err instanceof Error ? err.message : String(err)}. ` +
+        `Check directory ownership: chown -R $(whoami) "${gitDirToCheck}"`
       );
     }
 

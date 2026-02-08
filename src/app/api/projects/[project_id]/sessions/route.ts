@@ -284,6 +284,7 @@ export async function POST(
     } catch (worktreeError) {
       logger.error('Failed to create worktree', {
         errorMessage: worktreeError instanceof Error ? worktreeError.message : String(worktreeError),
+        errorStack: worktreeError instanceof Error ? worktreeError.stack : undefined,
         project_id,
         sessionName,
       });

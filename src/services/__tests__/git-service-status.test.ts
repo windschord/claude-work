@@ -28,7 +28,7 @@ describe('GitService - getGitStatus', () => {
   describe('getGitStatus', () => {
     it('クリーン状態で"clean"を返す', () => {
       const sessionName = 'test-session-clean';
-      const branchName = 'test-branch-clean';
+      const branchName = `session/${sessionName}`;
       const worktreePath = gitService.createWorktree(sessionName, branchName);
 
       const status = gitService.getGitStatus(worktreePath);
@@ -38,7 +38,7 @@ describe('GitService - getGitStatus', () => {
 
     it('未コミット変更がある場合に"dirty"を返す', () => {
       const sessionName = 'test-session-dirty';
-      const branchName = 'test-branch-dirty';
+      const branchName = `session/${sessionName}`;
       const worktreePath = gitService.createWorktree(sessionName, branchName);
 
       // ファイルを変更
@@ -51,7 +51,7 @@ describe('GitService - getGitStatus', () => {
 
     it('ステージされた変更がある場合に"dirty"を返す', () => {
       const sessionName = 'test-session-staged';
-      const branchName = 'test-branch-staged';
+      const branchName = `session/${sessionName}`;
       const worktreePath = gitService.createWorktree(sessionName, branchName);
 
       // ファイルを追加してステージ
@@ -65,7 +65,7 @@ describe('GitService - getGitStatus', () => {
 
     it('既存ファイルを変更した場合に"dirty"を返す', () => {
       const sessionName = 'test-session-modified';
-      const branchName = 'test-branch-modified';
+      const branchName = `session/${sessionName}`;
       const worktreePath = gitService.createWorktree(sessionName, branchName);
 
       // 既存ファイルを変更
@@ -78,7 +78,7 @@ describe('GitService - getGitStatus', () => {
 
     it('ファイルを削除した場合に"dirty"を返す', () => {
       const sessionName = 'test-session-deleted';
-      const branchName = 'test-branch-deleted';
+      const branchName = `session/${sessionName}`;
       const worktreePath = gitService.createWorktree(sessionName, branchName);
 
       // ファイルを削除
@@ -91,7 +91,7 @@ describe('GitService - getGitStatus', () => {
 
     it('変更をコミットした後は"clean"を返す', () => {
       const sessionName = 'test-session-committed';
-      const branchName = 'test-branch-committed';
+      const branchName = `session/${sessionName}`;
       const worktreePath = gitService.createWorktree(sessionName, branchName);
 
       // ファイルを変更してコミット
