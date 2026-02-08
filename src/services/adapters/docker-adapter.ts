@@ -227,9 +227,10 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
     initialPrompt?: string,
     options?: CreateSessionOptions
   ): Promise<void> {
-    // 既存セッションのクリーンアップ
+    // 既存のセッションがあれば再利用（破棄しない）
     if (this.sessions.has(sessionId)) {
-      this.destroySession(sessionId);
+      logger.info('DockerAdapter: Reusing existing session', { sessionId });
+      return;
     }
 
     const shellMode = options?.shellMode ?? false;
