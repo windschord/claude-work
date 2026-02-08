@@ -154,10 +154,10 @@ describe('GitService', () => {
   });
 
   describe('ensureWorktreeDirectoryWritable', () => {
-    it('should throw when .worktrees directory is not writable', () => {
+    // rootユーザーはchmod制限を無視するためスキップ
+    it.skipIf(process.getuid?.() === 0)('should throw when .worktrees directory is not writable', () => {
       const worktreesDir = join(testRepoPath, '.worktrees');
 
-      // 実際にディレクトリの権限を読み取り専用に変更
       fs.chmodSync(worktreesDir, 0o444);
 
       try {
@@ -165,15 +165,14 @@ describe('GitService', () => {
           gitService.createWorktree('test-perm-check');
         }).toThrow(/No write permission to .worktrees directory/);
       } finally {
-        // 権限を元に戻す
         fs.chmodSync(worktreesDir, 0o755);
       }
     });
 
-    it('should throw when .git directory is not writable', () => {
+    // rootユーザーはchmod制限を無視するためスキップ
+    it.skipIf(process.getuid?.() === 0)('should throw when .git directory is not writable', () => {
       const gitDir = join(testRepoPath, '.git');
 
-      // 実際にディレクトリの権限を読み取り専用に変更
       fs.chmodSync(gitDir, 0o444);
 
       try {
@@ -181,7 +180,6 @@ describe('GitService', () => {
           gitService.createWorktree('test-git-perm');
         }).toThrow(/No write permission to git directory/);
       } finally {
-        // 権限を元に戻す
         fs.chmodSync(gitDir, 0o755);
       }
     });
