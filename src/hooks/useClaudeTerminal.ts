@@ -214,6 +214,9 @@ export function useClaudeTerminal(
               message: 'Claudeがアクションを求めています',
             });
           }
+        } else if (message.type === 'scrollback') {
+          // サーバーからのスクロールバックバッファ（再接続時の過去出力復元）
+          terminalRef.current?.write(message.content);
         } else if (message.type === 'exit') {
           // プロセス終了メッセージを表示
           terminalRef.current?.write(

@@ -14,7 +14,10 @@ import type { EnvironmentAdapter, PTYExitInfo } from '@/services/environment-ada
 
 // PTY破棄の猶予期間（ミリ秒）
 // クライアントが一時的に切断しても、この期間内に再接続すればPTYセッションを維持できる
-const PTY_DESTROY_GRACE_PERIOD = 5000;
+// デフォルト5分。環境変数PTY_DESTROY_GRACE_PERIOD_MSで変更可能
+const PTY_DESTROY_GRACE_PERIOD = parseInt(
+  process.env.PTY_DESTROY_GRACE_PERIOD_MS || '300000', 10
+);
 
 // セッションごとの破棄タイマーを管理
 const destroyTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -325,27 +328,36 @@ export function setupClaudeWebSocket(
 
       // Claude PTY作成（既に存在する場合はスキップ）
       if (!hasSession) {
-        // 最初のユーザーメッセージを取得（初期プロンプト）
-        const firstMessage = await db.query.messages.findFirst({
-          where: eq(schema.messages.session_id, sessionId),
-          orderBy: [asc(schema.messages.created_at)],
-        });
+        // initializingの場合のみ初回プロンプトを送信（レジューム時は重複防止）
+        let initialPrompt: string | undefined;
+        if (session.status === 'initializing') {
+          const firstMessage = await db.query.messages.findFirst({
+            where: eq(schema.messages.session_id, sessionId),
+            orderBy: [asc(schema.messages.created_at)],
+          });
+          initialPrompt = firstMessage?.content;
+          logger.info('Claude WebSocket: Fetched initial prompt from database', {
+            sessionId,
+            hasInitialPrompt: !!initialPrompt,
+            promptLength: initialPrompt?.length,
+            worktreePath: session.worktree_path,
+          });
+        } else {
+          logger.info('Claude WebSocket: Skipping initial prompt (session already started)', {
+            sessionId,
+            status: session.status,
+            resumeSessionId: session.resume_session_id,
+          });
+        }
 
-        logger.info('Claude WebSocket: Fetched initial prompt from database', {
-          sessionId,
-          hasInitialPrompt: !!firstMessage,
-          promptLength: firstMessage?.content?.length,
-          worktreePath: session.worktree_path,
-        });
-
-        // Claude PTYを作成し、初期プロンプトを送信
+        // Claude PTYを作成
         try {
           if (isLegacy) {
             // レガシー方式
             claudePtyManager.createSession(
               sessionId,
               session.worktree_path,
-              firstMessage?.content,
+              initialPrompt,
               { dockerMode: session.docker_mode }
             );
           } else {
@@ -353,13 +365,13 @@ export function setupClaudeWebSocket(
             adapter!.createSession(
               sessionId,
               session.worktree_path,
-              firstMessage?.content,
+              initialPrompt,
               { resumeSessionId: session.resume_session_id || undefined }
             );
           }
           logger.info('Claude PTY created for session', {
             sessionId,
-            hasInitialPrompt: !!firstMessage,
+            hasInitialPrompt: !!initialPrompt,
             isLegacy,
             dockerMode: session.docker_mode,
           });
@@ -474,6 +486,18 @@ export function setupClaudeWebSocket(
         adapter!.on('exit', adapterExitHandler);
         adapter!.on('error', adapterErrorHandler);
         adapter!.on('claudeSessionId', claudeSessionIdHandler);
+      }
+
+      // 既存PTYセッションの場合、スクロールバックバッファを再送
+      if (hasSession) {
+        const buffer = claudePtyManager.getScrollbackBuffer(sessionId);
+        if (buffer && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'scrollback', content: buffer }));
+          logger.info('Claude WebSocket: Sent scrollback buffer', {
+            sessionId,
+            bufferLength: buffer.length,
+          });
+        }
       }
 
       // WebSocket入力 → PTY

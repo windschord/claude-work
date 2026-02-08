@@ -4,6 +4,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { logger } from '@/lib/logger';
 import { DockerPTYAdapter, CreateDockerPTYSessionOptions } from './docker-pty-adapter';
+import { scrollbackBuffer } from './scrollback-buffer';
 
 /**
  * Claude PTYセッション作成オプション
@@ -143,9 +144,11 @@ class ClaudePTYManager extends EventEmitter {
       throw new Error(`Claude PTY creation already in progress for session ${sessionId}`);
     }
 
-    // 既存のセッションがあればクリーンアップ
+    // 既存のセッションがあれば再利用（破棄しない）
     if (this.sessions.has(sessionId)) {
-      this.destroySession(sessionId);
+      logger.info('Reusing existing PTY session', { sessionId });
+      this.creating.delete(sessionId);
+      return;
     }
 
     // 作成中フラグを立てる
@@ -202,6 +205,7 @@ class ClaudePTYManager extends EventEmitter {
       // PTY出力をイベントとして発火
       // Claude Code出力からセッションIDを抽出
       ptyProcess.onData((data: string) => {
+        scrollbackBuffer.append(sessionId, data);
         this.emit('data', sessionId, data);
 
         // セッションIDの抽出（まだ取得していない場合）
@@ -314,6 +318,7 @@ class ClaudePTYManager extends EventEmitter {
     const session = this.sessions.get(sessionId);
     if (session) {
       logger.info('Destroying Claude PTY session', { sessionId });
+      scrollbackBuffer.clear(sessionId);
       session.ptyProcess.kill();
       this.sessions.delete(sessionId);
     }
@@ -385,6 +390,16 @@ class ClaudePTYManager extends EventEmitter {
       return dockerWorkingDir;
     }
     return this.sessions.get(sessionId)?.workingDir;
+  }
+
+  /**
+   * セッションのスクロールバックバッファを取得
+   *
+   * @param sessionId - セッションID
+   * @returns バッファ内容、存在しない場合はnull
+   */
+  getScrollbackBuffer(sessionId: string): string | null {
+    return scrollbackBuffer.getBuffer(sessionId);
   }
 
   /**
