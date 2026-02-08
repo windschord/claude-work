@@ -37,6 +37,17 @@ vi.mock('drizzle-orm', () => ({
   eq: vi.fn((col, val) => ({ column: col, value: val })),
 }));
 
+// scrollbackBufferのモック
+vi.mock('@/services/scrollback-buffer', () => ({
+  scrollbackBuffer: {
+    append: vi.fn(),
+    getBuffer: vi.fn().mockReturnValue(null),
+    clear: vi.fn(),
+    has: vi.fn().mockReturnValue(false),
+    getByteSize: vi.fn().mockReturnValue(0),
+  },
+}));
+
 // loggerのモック
 vi.mock('@/lib/logger', () => ({
   logger: {
@@ -242,15 +253,18 @@ describe('DockerAdapter', () => {
       );
     });
 
-    it('should destroy existing session before creating new one', async () => {
+    it('should reuse existing session instead of destroying', async () => {
       // 最初のセッションを作成
       await adapter.createSession(sessionId, workingDir);
+      const firstCallCount = mockSpawn.mock.calls.length;
 
-      // 2回目のセッション作成
+      // 2回目のセッション作成 → 既存セッションを再利用
       await adapter.createSession(sessionId, workingDir);
 
-      // killが呼ばれていることを確認
-      expect(mockPty.kill).toHaveBeenCalled();
+      // killは呼ばれない（再利用のため）
+      expect(mockPty.kill).not.toHaveBeenCalled();
+      // spawnも追加で呼ばれない
+      expect(mockSpawn.mock.calls.length).toBe(firstCallCount);
     });
 
     it('should send initial prompt after delay', async () => {
