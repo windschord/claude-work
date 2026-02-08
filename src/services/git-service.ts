@@ -132,11 +132,19 @@ export class GitService {
     const gitPath = join(this.repoPath, '.git');
     let gitDirToCheck = gitPath;
 
-    if (existsSync(gitPath) && !lstatSync(gitPath).isDirectory()) {
-      const gitdirLine = readFileSync(gitPath, 'utf-8').trim();
-      const match = /^gitdir:\s*(.+)$/i.exec(gitdirLine);
-      if (match?.[1]) {
-        gitDirToCheck = resolve(this.repoPath, match[1].trim());
+    if (existsSync(gitPath)) {
+      try {
+        if (!lstatSync(gitPath).isDirectory()) {
+          const gitdirLine = readFileSync(gitPath, 'utf-8').trim();
+          const match = /^gitdir:\s*(.+)$/i.exec(gitdirLine);
+          if (match?.[1]) {
+            gitDirToCheck = resolve(this.repoPath, match[1].trim());
+          }
+        }
+      } catch (err) {
+        throw new Error(
+          `Failed to inspect git directory at "${gitPath}": ${err instanceof Error ? err.message : String(err)}`
+        );
       }
     }
 
@@ -192,6 +200,7 @@ export class GitService {
         this.logger.error('Failed to create worktree', {
           sessionName,
           branchName,
+          errorMessage,
           exitCode: result.status,
           stderr: result.stderr,
           spawnError: result.error?.message,
