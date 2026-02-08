@@ -31,7 +31,7 @@ describe('GitService.getCommits', () => {
 
   it('コミット履歴を正しく取得する', () => {
     const sessionName = 'test-session-commits';
-    const branchName = 'test-branch-commits';
+    const branchName = `session/${sessionName}`;
 
     // worktreeを作成してコミットを追加
     gitService.createWorktree(sessionName, branchName);
@@ -63,7 +63,7 @@ describe('GitService.getCommits', () => {
 
   it('コミットがない場合は空配列を返す', () => {
     const sessionName = 'test-session-no-commits';
-    const branchName = 'test-branch-no-commits';
+    const branchName = `session/${sessionName}`;
 
     // worktreeを作成するがコミットは追加しない
     gitService.createWorktree(sessionName, branchName);

@@ -28,7 +28,7 @@ describe('GitService - reset', () => {
   describe('reset', () => {
     it('should reset to specified commit', () => {
       const sessionName = 'test-session-reset';
-      const branchName = 'test-branch-reset';
+      const branchName = `session/${sessionName}`;
       const worktreePath = gitService.createWorktree(sessionName, branchName);
 
       // Create first commit
@@ -58,7 +58,7 @@ describe('GitService - reset', () => {
 
     it('should execute git reset --hard correctly', () => {
       const sessionName = 'test-session-reset-hard';
-      const branchName = 'test-branch-reset-hard';
+      const branchName = `session/${sessionName}`;
       const worktreePath = gitService.createWorktree(sessionName, branchName);
 
       // Create commit
@@ -81,7 +81,7 @@ describe('GitService - reset', () => {
 
     it('should return error when commit hash is invalid', () => {
       const sessionName = 'test-session-reset-invalid';
-      const branchName = 'test-branch-reset-invalid';
+      const branchName = `session/${sessionName}`;
       gitService.createWorktree(sessionName, branchName);
 
       const result = gitService.reset(sessionName, 'invalid-commit-hash');
