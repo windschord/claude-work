@@ -37,6 +37,8 @@ const PTY_DESTROY_GRACE_PERIOD = (() => {
 const destroyTimers = new Map<string, ReturnType<typeof setTimeout>>();
 // セッションごとのアクティブな接続数を管理
 const activeConnections = new Map<string, number>();
+// セッション作成中のPromiseを管理（同一セッションの同時作成を防止）
+const creatingSessionPromises = new Map<string, Promise<void>>();
 
 // 画像の最大サイズ（10MB）
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
@@ -268,97 +270,117 @@ export function setupClaudeWebSocket(
 
       // Claude PTY作成（既に存在する場合はスキップ）
       if (!hasSession) {
-        // 初回プロンプトの取得判定：
-        // - initializingの場合は常に初回プロンプトを取得
-        // - resume_session_idがない場合もフォールバックで初回プロンプトを取得
-        //   （サーバー再起動後などにresume_session_idが未保存の場合に対応）
-        let initialPrompt: string | undefined;
-        const canResume = !!session.resume_session_id;
-        if (session.status === 'initializing' || !canResume) {
-          const firstMessage = await db.query.messages.findFirst({
-            where: eq(schema.messages.session_id, sessionId),
-            orderBy: [asc(schema.messages.created_at)],
-          });
-          initialPrompt = firstMessage?.content;
-          logger.info('Claude WebSocket: Fetched initial prompt from database', {
-            sessionId,
-            hasInitialPrompt: !!initialPrompt,
-            promptLength: initialPrompt?.length,
-            worktreePath: session.worktree_path,
-            reason: session.status === 'initializing' ? 'initializing' : 'no-resume-session-id',
-          });
-        } else {
-          logger.info('Claude WebSocket: Skipping initial prompt (session already started)', {
-            sessionId,
-            status: session.status,
-            resumeSessionId: session.resume_session_id,
-          });
-        }
-
-        // Claude PTYを作成
-        try {
-          if (isLegacy) {
-            // レガシー方式
-            claudePtyManager.createSession(
-              sessionId,
-              session.worktree_path,
-              initialPrompt,
-              {
-                dockerMode: session.docker_mode,
-                resumeSessionId: session.resume_session_id || undefined,
-              }
-            );
-          } else {
-            // 新方式（アダプター経由）
-            await Promise.resolve(adapter!.createSession(
-              sessionId,
-              session.worktree_path,
-              initialPrompt,
-              { resumeSessionId: session.resume_session_id || undefined }
-            ));
+        // 別の接続が同一セッションのPTYを作成中の場合はそれを待つ
+        const inflightPromise = creatingSessionPromises.get(sessionId);
+        if (inflightPromise) {
+          logger.info('Claude WebSocket: Waiting for inflight createSession', { sessionId });
+          try {
+            await inflightPromise;
+          } catch {
+            // 作成中のセッションが失敗した場合はこの接続もエラー扱い
+            const errorMsg: ClaudeErrorMessage = {
+              type: 'error',
+              message: 'PTY creation failed (concurrent request)',
+            };
+            ws.send(JSON.stringify(errorMsg));
+            ws.close(1000, 'PTY creation failed');
+            return;
           }
-          logger.info('Claude PTY created for session', {
-            sessionId,
-            hasInitialPrompt: !!initialPrompt,
-            isLegacy,
-            dockerMode: session.docker_mode,
-          });
+        } else {
+          // このコネクションがセッション作成を担当
+          const createPromise = (async () => {
+            // 初回プロンプトの取得判定：
+            // - initializingの場合は常に初回プロンプトを取得
+            // - resume_session_idがない場合もフォールバックで初回プロンプトを取得
+            //   （サーバー再起動後などにresume_session_idが未保存の場合に対応）
+            let initialPrompt: string | undefined;
+            const canResume = !!session.resume_session_id;
+            if (session.status === 'initializing' || !canResume) {
+              const firstMessage = await db.query.messages.findFirst({
+                where: eq(schema.messages.session_id, sessionId),
+                orderBy: [asc(schema.messages.created_at)],
+              });
+              initialPrompt = firstMessage?.content;
+              logger.info('Claude WebSocket: Fetched initial prompt from database', {
+                sessionId,
+                hasInitialPrompt: !!initialPrompt,
+                promptLength: initialPrompt?.length,
+                worktreePath: session.worktree_path,
+                reason: session.status === 'initializing' ? 'initializing' : 'no-resume-session-id',
+              });
+            } else {
+              logger.info('Claude WebSocket: Skipping initial prompt (session already started)', {
+                sessionId,
+                status: session.status,
+                resumeSessionId: session.resume_session_id,
+              });
+            }
 
-          // スクロールバックの append/clear は各PTY実装側で管理：
-          // - claudePtyManager: onDataでappend, destroySession/onExitでclear
-          // - DockerAdapter: onDataでappend, destroySession/onExitでclear
-          // WebSocket層では再送のみ行う
+            if (isLegacy) {
+              claudePtyManager.createSession(
+                sessionId,
+                session.worktree_path,
+                initialPrompt,
+                {
+                  dockerMode: session.docker_mode,
+                  resumeSessionId: session.resume_session_id || undefined,
+                }
+              );
+            } else {
+              await Promise.resolve(adapter!.createSession(
+                sessionId,
+                session.worktree_path,
+                initialPrompt,
+                { resumeSessionId: session.resume_session_id || undefined }
+              ));
+            }
 
-          // セッションステータスを'running'に更新
-          await db.update(schema.sessions)
-            .set({ status: 'running' })
-            .where(eq(schema.sessions.id, sessionId))
-            .run();
-        } catch (ptyError) {
-          // PTY作成エラーをクライアントに通知
-          const errorMessage = ptyError instanceof Error ? ptyError.message : 'Failed to create PTY';
-          logger.error('Claude WebSocket: Failed to create PTY', {
-            sessionId,
-            error: errorMessage,
-            worktreePath: session.worktree_path,
-          });
+            logger.info('Claude PTY created for session', {
+              sessionId,
+              hasInitialPrompt: !!initialPrompt,
+              isLegacy,
+              dockerMode: session.docker_mode,
+            });
 
-          // クライアントにエラーメッセージを送信
-          const errorMsg: ClaudeErrorMessage = {
-            type: 'error',
-            message: `PTY creation failed: ${errorMessage}`,
-          };
-          ws.send(JSON.stringify(errorMsg));
-          // PTYが作成できなかったため、このWebSocket接続はこれ以上利用できない
-          // クライアント側の状態と整合性を取るため、接続をクローズする
-          ws.close(1000, 'PTY creation failed');
+            // スクロールバックの append/clear は各PTY実装側で管理：
+            // - claudePtyManager: onDataでappend, destroySession/onExitでclear
+            // - DockerAdapter: onDataでappend, destroySession/onExitでclear
+            // WebSocket層では再送のみ行う
 
-          // セッションステータスをエラーに更新
-          await db.update(schema.sessions)
-            .set({ status: 'error' })
-            .where(eq(schema.sessions.id, sessionId))
-            .run();
-          return;
+            // セッションステータスを'running'に更新
+            await db.update(schema.sessions)
+              .set({ status: 'running' })
+              .where(eq(schema.sessions.id, sessionId))
+              .run();
+          })();
+
+          creatingSessionPromises.set(sessionId, createPromise);
+          try {
+            await createPromise;
+          } catch (ptyError) {
+            // PTY作成エラーをクライアントに通知
+            const errorMessage = ptyError instanceof Error ? ptyError.message : 'Failed to create PTY';
+            logger.error('Claude WebSocket: Failed to create PTY', {
+              sessionId,
+              error: errorMessage,
+              worktreePath: session.worktree_path,
+            });
+
+            const errorMsg: ClaudeErrorMessage = {
+              type: 'error',
+              message: `PTY creation failed: ${errorMessage}`,
+            };
+            ws.send(JSON.stringify(errorMsg));
+            ws.close(1000, 'PTY creation failed');
+
+            await db.update(schema.sessions)
+              .set({ status: 'error' })
+              .where(eq(schema.sessions.id, sessionId))
+              .run();
+            return;
+          } finally {
+            creatingSessionPromises.delete(sessionId);
+          }
         }
       }
 
