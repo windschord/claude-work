@@ -16,11 +16,15 @@ EnvironmentFile=/etc/claude-work/env
 #   - 2回目以降は npm キャッシュを利用するが、キャッシュ有効期限などの設定により
 #     npx/npm が定期的に更新確認やダウンロードのためネットワークアクセスを行う可能性あり
 # 初回実行時に自動セットアップ（DB初期化、ビルド）を実行
-# HOME を設定する理由:
-#   1. npm キャッシュを /opt/claude-work/.npm に配置（HOME=/opt/claude-work 配下に保持）
-#   2. ProtectHome=read-only との競合を回避
-#   3. 自己完結型インストールを維持
+# HOME=/opt/claude-work を設定する理由:
+#   1. claude-work ユーザーのホームディレクトリとして一貫して使用
+#   2. npm キャッシュ (~/.npm)、SSH 鍵 (~/.ssh)、Claude CLI (~/.local/bin) が
+#      すべて /opt/claude-work 配下に自然に配置される
+#   3. ProtectHome=read-only との競合を回避（/home/* への書き込みを防止しつつ動作）
 Environment=HOME=/opt/claude-work
+# PATH に ~/.local/bin を含めることで、claude-work ユーザーにインストールした
+# Claude Code CLI を自動検出可能にする（CLAUDE_CODE_PATH の明示指定が不要になる）
+Environment=PATH=/opt/claude-work/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 ExecStart=/usr/bin/npx --yes github:windschord/claude-work
 # 初回起動時のビルドに時間がかかるためタイムアウトを延長
 TimeoutStartSec=300
