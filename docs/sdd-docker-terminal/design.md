@@ -16,7 +16,7 @@
 1. **WebSocket接続は正常**: 接続確立、scrollbackデータ送受信は正しく動作
 2. **PTYリサイズは伝播する**: `stty -a < /dev/pts/0` で確認済み、node-ptyのresizeはコンテナ内に正しく伝播
 3. **データはブラウザに届く**: WebSocketメッセージでdataが受信されている
-4. **Claude Codeの初回セットアップが表示される**: 認証ディレクトリが空のため、テーマ選択ウィザードが起動
+4. **Claude Codeの初回セットアップ表示を確認**: 認証ディレクトリが空なのでテーマ選択ウィザードが起動
 
 ### 根本原因
 
@@ -24,7 +24,7 @@
 
 Docker環境ではPTY起動からClaude Code描画開始までのフローが以下の通り:
 
-```
+```text
 1. DockerAdapter: pty.spawn('docker', args, { cols: 80, rows: 24 })
 2. docker run: コンテナ起動
 3. Claude Code: 80x24で起動画面(ASCIIアート)を描画
@@ -152,7 +152,7 @@ ptyProcess.onData((data: string) => {
 
 ### タイミング図
 
-```
+```text
 時間 →
 
 クライアント側:
@@ -208,7 +208,7 @@ ptyProcess.onData((data: string) => {
    していない可能性。→ hasReceivedOutput後の1秒待機は保守的な値で通常は十分。
    必要に応じてタイミングを調整可能。
 
-2. **画面のちらつき**: 80x24で描画 → 139x40で再描画するため一瞬ちらつく。
+2. **画面のちらつき**: 80x24サイズで描画後、139x40に再描画するため一瞬ちらつく。
    → HOST環境でも同様のちらつきがあるため許容範囲。
 
 3. **リサイズの重複**: クライアントからのresizeとサーバーの遅延リサイズが
