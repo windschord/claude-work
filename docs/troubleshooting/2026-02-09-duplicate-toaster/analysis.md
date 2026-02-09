@@ -8,14 +8,16 @@
 
 ## 根本原因
 
+※以下の根本原因セクションは、修正前（コミット `a5385ba` 適用前）の実装状態を説明している。現在は `layout.tsx` のグローバルToasterが `position="top-right"` に変更され、`src/app/sessions/[id]/page.tsx` 側の重複Toasterは削除済み。
+
 `react-hot-toast` はシングルトンストアを使用している。`toast()` を呼び出すと、マウントされている全ての `<Toaster />` コンポーネントに同じトーストが表示される。
 
-セッション詳細ページでは2つのToasterが同時にマウントされている:
+修正前のセッション詳細ページでは2つのToasterが同時にマウントされていた:
 
-1. `src/app/layout.tsx:24` - グローバルToaster（上部中央、デフォルト位置）
-2. `src/app/sessions/[id]/page.tsx:506` - ページ固有Toaster（`position="top-right"`）
+1. （修正前）`src/app/layout.tsx:24` - グローバルToaster（上部中央、デフォルト位置）
+2. （修正前）`src/app/sessions/[id]/page.tsx:506` - ページ固有Toaster（`position="top-right"`）
 
-2つのToasterが同じトーストインスタンスを競合管理するため、上部中央のToasterで自動消去タイマーが正常動作しない。
+この2つのToasterが同じトーストインスタンスを競合管理していたため、上部中央のToasterで自動消去タイマーが正常動作しなかった。
 
 ## 影響範囲
 
