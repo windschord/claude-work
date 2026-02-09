@@ -12,6 +12,12 @@ export const metadata: Metadata = {
   description: "AI-powered development workspace",
 };
 
+/**
+ * ルートレイアウト
+ *
+ * アプリケーション全体を囲むレイアウトコンポーネント。
+ * グローバルなToaster（右上表示）とテーマプロバイダーを提供する。
+ */
 export default function RootLayout({
   children,
 }: Readonly<{
