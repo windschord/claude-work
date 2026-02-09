@@ -16,7 +16,7 @@ export const metadata: Metadata = {
  * ルートレイアウト
  *
  * アプリケーション全体を囲むレイアウトコンポーネント。
- * グローバルなToaster（右上表示）とテーマプロバイダーを提供する。
+ * グローバルなToaster（右上固定表示）とテーマプロバイダーを提供する。
  */
 export default function RootLayout({
   children,
