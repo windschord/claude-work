@@ -20,7 +20,7 @@ import { ProcessStatus } from '@/components/sessions/ProcessStatus';
 import { DeleteSessionButton } from '@/components/sessions/DeleteSessionButton';
 import { PRSection } from '@/components/sessions/PRSection';
 import { EnvironmentBadge } from '@/components/sessions/EnvironmentBadge';
-import { Toaster, toast } from 'react-hot-toast';
+import { toast } from 'react-hot-toast';
 import type { ServerMessage } from '@/types/websocket';
 
 // ターミナルコンポーネントはSSRで動作しないため、dynamic importでクライアントサイドのみでロード
@@ -501,9 +501,6 @@ export default function SessionDetailPage() {
             onDelete={handleDeleteWorktree}
             onKeep={handleKeepWorktree}
           />
-
-          {/* Toast Notifications */}
-          <Toaster position="top-right" />
         </div>
     </MainLayout>
   );

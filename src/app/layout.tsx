@@ -12,6 +12,12 @@ export const metadata: Metadata = {
   description: "AI-powered development workspace",
 };
 
+/**
+ * ルートレイアウト
+ *
+ * アプリケーション全体を囲むレイアウトコンポーネント。
+ * グローバルなToaster（右上固定表示）とテーマプロバイダーを提供します。
+ */
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -21,7 +27,7 @@ export default function RootLayout({
     <html lang="ja" suppressHydrationWarning>
       <body className={inter.className}>
         <Providers>{children}</Providers>
-        <Toaster />
+        <Toaster position="top-right" />
       </body>
     </html>
   );

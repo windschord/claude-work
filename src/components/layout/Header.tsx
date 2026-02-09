@@ -20,8 +20,8 @@ import { NotificationSettings } from '@/components/common/NotificationSettings';
 export function Header() {
   const router = useRouter();
   const { isSidebarOpen, setIsSidebarOpen } = useAppStore();
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const settingsRef = useRef<HTMLDivElement>(null);
+  const [isEnvironmentMenuOpen, setIsEnvironmentMenuOpen] = useState(false);
+  const environmentMenuRef = useRef<HTMLDivElement>(null);
 
   const handleToggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
@@ -31,31 +31,31 @@ export function Header() {
     router.push('/');
   };
 
-  const handleSettingsClick = () => {
-    setIsSettingsOpen(!isSettingsOpen);
+  const handleEnvironmentMenuClick = () => {
+    setIsEnvironmentMenuOpen(!isEnvironmentMenuOpen);
   };
 
   const handleNavigateToEnvironments = () => {
     router.push('/settings/environments');
-    setIsSettingsOpen(false);
+    setIsEnvironmentMenuOpen(false);
   };
 
   // クリック外でメニューを閉じる
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (settingsRef.current && !settingsRef.current.contains(event.target as Node)) {
-        setIsSettingsOpen(false);
+      if (environmentMenuRef.current && !environmentMenuRef.current.contains(event.target as Node)) {
+        setIsEnvironmentMenuOpen(false);
       }
     };
 
-    if (isSettingsOpen) {
+    if (isEnvironmentMenuOpen) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isSettingsOpen]);
+  }, [isEnvironmentMenuOpen]);
 
   return (
     <header className="h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-4 md:px-6">
@@ -82,19 +82,19 @@ export function Header() {
       {/* 右側: 実行環境メニュー + 通知設定 + テーマ切り替え */}
       <div className="flex items-center gap-2">
         {/* 実行環境メニュー */}
-        <div className="relative" ref={settingsRef}>
+        <div className="relative" ref={environmentMenuRef}>
           <button
-            onClick={handleSettingsClick}
+            onClick={handleEnvironmentMenuClick}
             className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
             aria-label="実行環境"
-            aria-expanded={isSettingsOpen}
+            aria-expanded={isEnvironmentMenuOpen}
             aria-haspopup="true"
           >
             <Server className="w-5 h-5 text-gray-600 dark:text-gray-400" />
           </button>
 
           {/* ドロップダウンメニュー */}
-          {isSettingsOpen && (
+          {isEnvironmentMenuOpen && (
             <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
               <button
                 onClick={handleNavigateToEnvironments}
