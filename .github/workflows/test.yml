@@ -5,6 +5,7 @@ on:
     branches: [ main, nodejs-architecture ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   # Lint job - runs quickly in parallel
