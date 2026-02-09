@@ -37,6 +37,17 @@ vi.mock('drizzle-orm', () => ({
   eq: vi.fn((col, val) => ({ column: col, value: val })),
 }));
 
+// scrollbackBufferのモック
+vi.mock('@/services/scrollback-buffer', () => ({
+  scrollbackBuffer: {
+    append: vi.fn(),
+    getBuffer: vi.fn().mockReturnValue(null),
+    clear: vi.fn(),
+    has: vi.fn().mockReturnValue(false),
+    getByteSize: vi.fn().mockReturnValue(0),
+  },
+}));
+
 // loggerのモック
 vi.mock('@/lib/logger', () => ({
   logger: {
@@ -242,15 +253,18 @@ describe('DockerAdapter', () => {
       );
     });
 
-    it('should destroy existing session before creating new one', async () => {
+    it('should reuse existing session instead of destroying', async () => {
       // 最初のセッションを作成
       await adapter.createSession(sessionId, workingDir);
+      const firstCallCount = mockSpawn.mock.calls.length;
 
-      // 2回目のセッション作成
+      // 2回目のセッション作成 → 既存セッションを再利用
       await adapter.createSession(sessionId, workingDir);
 
-      // killが呼ばれていることを確認
-      expect(mockPty.kill).toHaveBeenCalled();
+      // killは呼ばれない（再利用のため）
+      expect(mockPty.kill).not.toHaveBeenCalled();
+      // spawnも追加で呼ばれない
+      expect(mockSpawn.mock.calls.length).toBe(firstCallCount);
     });
 
     it('should send initial prompt after delay', async () => {
@@ -308,6 +322,148 @@ describe('DockerAdapter', () => {
 
     it('should do nothing for non-existent session', () => {
       expect(() => adapter.resize('non-existent', 120, 40)).not.toThrow();
+    });
+
+    it('should save lastKnownCols and lastKnownRows on session', async () => {
+      const sessionId = 'session-abc';
+      await adapter.createSession(sessionId, '/projects/test');
+
+      adapter.resize(sessionId, 139, 40);
+
+      // セッション内部のlastKnownCols/Rowsが保存されていることを確認
+      // resize後にonDataを発火させ、遅延リサイズが正しいサイズで呼ばれることで間接的に確認
+      vi.useFakeTimers();
+      (mockPty.resize as Mock).mockClear();
+
+      dataHandler('first output');
+
+      vi.advanceTimersByTime(1000);
+
+      expect(mockPty.resize).toHaveBeenCalledWith(139, 40);
+      vi.useRealTimers();
+    });
+  });
+
+  describe('deferred resize', () => {
+    const sessionId = 'session-deferred';
+    const workingDir = '/projects/test';
+
+    it('should execute deferred resize after first output when lastKnownCols/Rows are set', async () => {
+      vi.useFakeTimers();
+
+      await adapter.createSession(sessionId, workingDir);
+
+      // クライアントがresizeを送信
+      adapter.resize(sessionId, 139, 40);
+      (mockPty.resize as Mock).mockClear();
+
+      // 初回出力 → 遅延リサイズが1秒後に実行される
+      dataHandler('Welcome to Claude Code');
+
+      // 1秒前はまだ実行されていない
+      vi.advanceTimersByTime(999);
+      expect(mockPty.resize).not.toHaveBeenCalled();
+
+      // 1秒後に実行される
+      vi.advanceTimersByTime(1);
+      expect(mockPty.resize).toHaveBeenCalledWith(139, 40);
+      expect(mockPty.resize).toHaveBeenCalledTimes(1);
+
+      vi.useRealTimers();
+    });
+
+    it('should not execute deferred resize when lastKnownCols/Rows are not set', async () => {
+      vi.useFakeTimers();
+
+      await adapter.createSession(sessionId, workingDir);
+
+      // resizeを呼ばない状態で初回出力
+      (mockPty.resize as Mock).mockClear();
+      dataHandler('Welcome to Claude Code');
+
+      vi.advanceTimersByTime(2000);
+
+      // 遅延リサイズは実行されない
+      expect(mockPty.resize).not.toHaveBeenCalled();
+
+      vi.useRealTimers();
+    });
+
+    it('should not execute deferred resize on second or subsequent onData', async () => {
+      vi.useFakeTimers();
+
+      await adapter.createSession(sessionId, workingDir);
+
+      adapter.resize(sessionId, 139, 40);
+      (mockPty.resize as Mock).mockClear();
+
+      // 初回出力
+      dataHandler('First output');
+
+      // 1秒後に遅延リサイズ実行
+      vi.advanceTimersByTime(1000);
+      expect(mockPty.resize).toHaveBeenCalledTimes(1);
+      (mockPty.resize as Mock).mockClear();
+
+      // 2回目以降の出力
+      dataHandler('Second output');
+      dataHandler('Third output');
+
+      vi.advanceTimersByTime(2000);
+
+      // 追加の遅延リサイズは実行されない
+      expect(mockPty.resize).not.toHaveBeenCalled();
+
+      vi.useRealTimers();
+    });
+
+    it('should use latest resize values for deferred resize', async () => {
+      vi.useFakeTimers();
+
+      await adapter.createSession(sessionId, workingDir);
+
+      // 最初のresize
+      adapter.resize(sessionId, 100, 30);
+      // 2回目のresize（最新値で上書き）
+      adapter.resize(sessionId, 139, 40);
+
+      (mockPty.resize as Mock).mockClear();
+
+      dataHandler('First output');
+      vi.advanceTimersByTime(1000);
+
+      // 最新のサイズで遅延リサイズが実行される
+      expect(mockPty.resize).toHaveBeenCalledWith(139, 40);
+
+      vi.useRealTimers();
+    });
+
+    it('should not execute deferred resize in shellMode (exec session)', async () => {
+      vi.useFakeTimers();
+
+      const parentSessionId = 'session-parent-for-deferred';
+      const termSessionId = 'session-parent-for-deferred-terminal';
+
+      const isContainerRunningSpy = vi.spyOn(adapter as any, 'isContainerRunning').mockReturnValue(true);
+
+      // 親セッション作成
+      await adapter.createSession(parentSessionId, workingDir);
+      // shellモードでexecセッション作成
+      await adapter.createSession(termSessionId, workingDir, undefined, {
+        shellMode: true,
+      });
+
+      adapter.resize(termSessionId, 139, 40);
+      (mockPty.resize as Mock).mockClear();
+
+      dataHandler('shell output');
+      vi.advanceTimersByTime(2000);
+
+      // shellModeでは遅延リサイズは実行されない
+      expect(mockPty.resize).not.toHaveBeenCalled();
+
+      vi.useRealTimers();
+      isContainerRunningSpy.mockRestore();
     });
   });
 

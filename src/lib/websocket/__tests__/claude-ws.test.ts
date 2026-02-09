@@ -6,6 +6,7 @@ const {
   mockDb,
   mockEnvironmentService,
   mockAdapterFactory,
+  mockScrollbackBuffer,
   createMockAdapter,
 } = vi.hoisted(() => {
   // EventEmitter をモック内で直接使わず、シンプルなモックオブジェクトを使用
@@ -30,6 +31,7 @@ const {
       destroySession: vi.fn(),
       restartSession: vi.fn(),
       hasSession: vi.fn().mockReturnValue(false),
+      getScrollbackBuffer: vi.fn().mockReturnValue(null),
       on: vi.fn(),
       off: vi.fn(),
     },
@@ -57,6 +59,13 @@ const {
     mockAdapterFactory: {
       getAdapter: vi.fn(),
       reset: vi.fn(),
+    },
+    mockScrollbackBuffer: {
+      append: vi.fn(),
+      getBuffer: vi.fn().mockReturnValue(null),
+      clear: vi.fn(),
+      has: vi.fn().mockReturnValue(false),
+      getByteSize: vi.fn().mockReturnValue(0),
     },
     createMockAdapter: createMockAdapterFn,
   };
@@ -90,6 +99,10 @@ vi.mock('@/services/environment-service', () => ({
 
 vi.mock('@/services/adapter-factory', () => ({
   AdapterFactory: mockAdapterFactory,
+}));
+
+vi.mock('@/services/scrollback-buffer', () => ({
+  scrollbackBuffer: mockScrollbackBuffer,
 }));
 
 // テスト対象をインポート
@@ -616,6 +629,268 @@ describe('Claude WebSocket Handler - Environment Support', () => {
         worktreePath,
         undefined,
         { dockerMode: true }
+      );
+    });
+  });
+
+  describe('scrollback buffer resend', () => {
+    it('既存セッション接続時にスクロールバックバッファが送信される', async () => {
+      const sessionId = 'session-scrollback';
+      const environmentId = 'env-scrollback';
+      const scrollbackContent = 'previous terminal output\r\n$ ';
+
+      mockDb.query.sessions.findFirst.mockResolvedValue({
+        id: sessionId,
+        worktree_path: '/path/to/worktree',
+        docker_mode: false,
+        environment_id: environmentId,
+      });
+
+      mockEnvironmentService.findById.mockResolvedValue({
+        id: environmentId,
+        name: 'Test Env',
+        type: 'HOST',
+        config: '{}',
+        auth_dir_path: null,
+        is_default: false,
+        created_at: new Date(),
+        updated_at: new Date(),
+      });
+
+      const mockAdapter = createMockAdapter();
+      // 既存セッションとして報告
+      mockAdapter.hasSession.mockReturnValue(true);
+      mockAdapterFactory.getAdapter.mockReturnValue(mockAdapter);
+
+      // スクロールバックバッファに内容がある
+      mockScrollbackBuffer.getBuffer.mockReturnValue(scrollbackContent);
+
+      setupClaudeWebSocket(mockWss, '/ws/claude');
+      await connectionHandler(mockWs, {
+        url: `/ws/claude/${sessionId}`,
+        headers: { host: 'localhost:3000' },
+      });
+
+      // scrollback メッセージが送信される
+      expect(mockWs.send).toHaveBeenCalledWith(
+        JSON.stringify({ type: 'scrollback', content: scrollbackContent })
+      );
+
+      // createSessionは呼ばれない（既存セッション再利用）
+      expect(mockAdapter.createSession).not.toHaveBeenCalled();
+    });
+
+    it('スクロールバックバッファが空の場合は送信されない', async () => {
+      const sessionId = 'session-no-scrollback';
+      const environmentId = 'env-no-scrollback';
+
+      mockDb.query.sessions.findFirst.mockResolvedValue({
+        id: sessionId,
+        worktree_path: '/path/to/worktree',
+        docker_mode: false,
+        environment_id: environmentId,
+      });
+
+      mockEnvironmentService.findById.mockResolvedValue({
+        id: environmentId,
+        name: 'Test Env',
+        type: 'HOST',
+        config: '{}',
+        auth_dir_path: null,
+        is_default: false,
+        created_at: new Date(),
+        updated_at: new Date(),
+      });
+
+      const mockAdapter = createMockAdapter();
+      mockAdapter.hasSession.mockReturnValue(true);
+      mockAdapterFactory.getAdapter.mockReturnValue(mockAdapter);
+
+      // バッファは空
+      mockScrollbackBuffer.getBuffer.mockReturnValue(null);
+
+      setupClaudeWebSocket(mockWss, '/ws/claude');
+      await connectionHandler(mockWs, {
+        url: `/ws/claude/${sessionId}`,
+        headers: { host: 'localhost:3000' },
+      });
+
+      // scrollback メッセージは送信されない
+      const sendCalls = mockWs.send.mock.calls;
+      const scrollbackSent = sendCalls.some(
+        (call: unknown[]) => typeof call[0] === 'string' && call[0].includes('"type":"scrollback"')
+      );
+      expect(scrollbackSent).toBe(false);
+    });
+
+    it('レガシーモードでも既存セッションのスクロールバックが送信される', async () => {
+      const sessionId = 'session-legacy-scrollback';
+      const scrollbackContent = 'legacy terminal output';
+
+      mockDb.query.sessions.findFirst.mockResolvedValue({
+        id: sessionId,
+        worktree_path: '/path/to/worktree',
+        docker_mode: true,
+        environment_id: null,
+      });
+
+      mockClaudePtyManager.hasSession.mockReturnValue(true);
+      mockScrollbackBuffer.getBuffer.mockReturnValue(scrollbackContent);
+
+      setupClaudeWebSocket(mockWss, '/ws/claude');
+      await connectionHandler(mockWs, {
+        url: `/ws/claude/${sessionId}`,
+        headers: { host: 'localhost:3000' },
+      });
+
+      expect(mockWs.send).toHaveBeenCalledWith(
+        JSON.stringify({ type: 'scrollback', content: scrollbackContent })
+      );
+
+      // 既存セッションなのでcreateSessionは呼ばれない
+      expect(mockClaudePtyManager.createSession).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('PTY destroy grace period', () => {
+    it('接続が0になるとdestroyタイマーが設定される（デフォルト動作）', async () => {
+      const sessionId = 'session-grace-period';
+      const environmentId = 'env-grace';
+
+      mockDb.query.sessions.findFirst.mockResolvedValue({
+        id: sessionId,
+        worktree_path: '/path/to/worktree',
+        docker_mode: false,
+        environment_id: environmentId,
+        status: 'running',
+        resume_session_id: 'resume-123',
+      });
+
+      mockEnvironmentService.findById.mockResolvedValue({
+        id: environmentId,
+        name: 'Test Env',
+        type: 'HOST',
+        config: '{}',
+        auth_dir_path: null,
+        is_default: false,
+        created_at: new Date(),
+        updated_at: new Date(),
+      });
+
+      const mockAdapter = createMockAdapter();
+      mockAdapter.hasSession.mockReturnValue(true);
+      mockAdapterFactory.getAdapter.mockReturnValue(mockAdapter);
+
+      let closeHandler: () => void;
+      mockWs.on = vi.fn((event, handler) => {
+        if (event === 'close') {
+          closeHandler = handler;
+        }
+      }) as WebSocket['on'];
+
+      setupClaudeWebSocket(mockWss, '/ws/claude');
+      await connectionHandler(mockWs, {
+        url: `/ws/claude/${sessionId}`,
+        headers: { host: 'localhost:3000' },
+      });
+
+      // closeイベントを発火（接続数が0になる）
+      closeHandler!();
+
+      // デフォルトではdestroySessionはまだ呼ばれない（タイマー待ち）
+      expect(mockAdapter.destroySession).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('resume session fallback', () => {
+    it('resume_session_idがない場合は初回プロンプトにフォールバックする', async () => {
+      const sessionId = 'session-no-resume-id';
+      const environmentId = 'env-resume';
+
+      mockDb.query.sessions.findFirst.mockResolvedValue({
+        id: sessionId,
+        worktree_path: '/path/to/worktree',
+        docker_mode: false,
+        environment_id: environmentId,
+        status: 'running', // 非initializing
+        resume_session_id: null, // resume_session_idなし
+      });
+
+      mockDb.query.messages.findFirst.mockResolvedValue({
+        content: 'initial prompt text',
+      });
+
+      mockEnvironmentService.findById.mockResolvedValue({
+        id: environmentId,
+        name: 'Test Env',
+        type: 'HOST',
+        config: '{}',
+        auth_dir_path: null,
+        is_default: false,
+        created_at: new Date(),
+        updated_at: new Date(),
+      });
+
+      const mockAdapter = createMockAdapter();
+      mockAdapterFactory.getAdapter.mockReturnValue(mockAdapter);
+
+      setupClaudeWebSocket(mockWss, '/ws/claude');
+      await connectionHandler(mockWs, {
+        url: `/ws/claude/${sessionId}`,
+        headers: { host: 'localhost:3000' },
+      });
+
+      // 初回プロンプトが取得され、createSessionに渡される
+      expect(mockAdapter.createSession).toHaveBeenCalledWith(
+        sessionId,
+        '/path/to/worktree',
+        'initial prompt text',
+        { resumeSessionId: undefined }
+      );
+    });
+
+    it('resume_session_idがある場合は初回プロンプトをスキップする', async () => {
+      const sessionId = 'session-with-resume-id';
+      const environmentId = 'env-resume-id';
+
+      mockDb.query.sessions.findFirst.mockResolvedValue({
+        id: sessionId,
+        worktree_path: '/path/to/worktree',
+        docker_mode: false,
+        environment_id: environmentId,
+        status: 'running',
+        resume_session_id: 'claude-session-abc123',
+      });
+
+      mockEnvironmentService.findById.mockResolvedValue({
+        id: environmentId,
+        name: 'Test Env',
+        type: 'HOST',
+        config: '{}',
+        auth_dir_path: null,
+        is_default: false,
+        created_at: new Date(),
+        updated_at: new Date(),
+      });
+
+      const mockAdapter = createMockAdapter();
+      mockAdapterFactory.getAdapter.mockReturnValue(mockAdapter);
+
+      setupClaudeWebSocket(mockWss, '/ws/claude');
+      await connectionHandler(mockWs, {
+        url: `/ws/claude/${sessionId}`,
+        headers: { host: 'localhost:3000' },
+      });
+
+      // resume_session_idがあるので初回プロンプトDBクエリは呼ばれない
+      expect(mockDb.query.messages.findFirst).not.toHaveBeenCalled();
+
+      // createSessionにresumeSessionIdが渡される
+      expect(mockAdapter.createSession).toHaveBeenCalledWith(
+        sessionId,
+        '/path/to/worktree',
+        undefined,
+        { resumeSessionId: 'claude-session-abc123' }
       );
     });
   });

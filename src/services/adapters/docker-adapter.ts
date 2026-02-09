@@ -6,6 +6,7 @@ import * as os from 'os';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { EnvironmentAdapter, CreateSessionOptions, PTYExitInfo } from '../environment-adapter';
+import { scrollbackBuffer } from '../scrollback-buffer';
 import { db, schema } from '@/lib/db';
 import { eq } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
@@ -25,6 +26,8 @@ interface DockerSession {
   errorBuffer: string;
   hasReceivedOutput: boolean;
   shellMode: boolean;
+  lastKnownCols?: number;
+  lastKnownRows?: number;
 }
 
 /**
@@ -227,9 +230,10 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
     initialPrompt?: string,
     options?: CreateSessionOptions
   ): Promise<void> {
-    // 既存セッションのクリーンアップ
+    // 既存のセッションがあれば再利用（破棄しない）
     if (this.sessions.has(sessionId)) {
-      this.destroySession(sessionId);
+      logger.info('DockerAdapter: Reusing existing session', { sessionId });
+      return;
     }
 
     const shellMode = options?.shellMode ?? false;
@@ -334,6 +338,22 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
         if (session) {
           if (!session.hasReceivedOutput && data.length > 0) {
             session.hasReceivedOutput = true;
+
+            // 初回出力受信後、遅延リサイズを実行
+            // Docker環境ではコンテナ起動のオーバーヘッドにより、クライアントからの
+            // resize()がコンテナ起動完了前に到着し効果がない。初回出力後に
+            // 保存済みのクライアントサイズでリサイズを再適用する。
+            if (session.lastKnownCols && session.lastKnownRows) {
+              setTimeout(() => {
+                const s = this.sessions.get(sessionId);
+                if (s && s.lastKnownCols && s.lastKnownRows) {
+                  logger.info('DockerAdapter: Applying deferred resize after first output', {
+                    sessionId, cols: s.lastKnownCols, rows: s.lastKnownRows,
+                  });
+                  s.ptyProcess.resize(s.lastKnownCols, s.lastKnownRows);
+                }
+              }, 1000);
+            }
           }
           if (session.errorBuffer.length < 5000) {
             session.errorBuffer += data;
@@ -348,11 +368,13 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
             }
           }
         }
+        scrollbackBuffer.append(sessionId, data);
         this.emit('data', sessionId, data);
       });
 
       ptyProcess.onExit(async ({ exitCode, signal }) => {
         logger.info('DockerAdapter: Session exited', { sessionId, exitCode, signal });
+        scrollbackBuffer.clear(sessionId);
 
         // container_idをクリア
         try {
@@ -392,13 +414,20 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
   }
 
   resize(sessionId: string, cols: number, rows: number): void {
-    this.sessions.get(sessionId)?.ptyProcess.resize(cols, rows);
+    const session = this.sessions.get(sessionId);
+    if (!session) return;
+
+    session.lastKnownCols = cols;
+    session.lastKnownRows = rows;
+
+    session.ptyProcess.resize(cols, rows);
   }
 
   destroySession(sessionId: string): void {
     const session = this.sessions.get(sessionId);
     if (session) {
       logger.info('DockerAdapter: Destroying session', { sessionId, containerId: session.containerId });
+      scrollbackBuffer.clear(sessionId);
       session.ptyProcess.kill();
       this.sessions.delete(sessionId);
 

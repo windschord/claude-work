@@ -11,89 +11,34 @@ import { logger } from '@/lib/logger';
 import { environmentService } from '@/services/environment-service';
 import { AdapterFactory } from '@/services/adapter-factory';
 import type { EnvironmentAdapter, PTYExitInfo } from '@/services/environment-adapter';
+import { scrollbackBuffer } from '@/services/scrollback-buffer';
+import type {
+  ClaudeDataMessage,
+  ClaudeExitMessage,
+  ClaudeErrorMessage,
+  ClaudeImageSavedMessage,
+  ClaudeImageErrorMessage,
+  ClaudeScrollbackMessage,
+} from '@/types/websocket';
 
 // PTY破棄の猶予期間（ミリ秒）
 // クライアントが一時的に切断しても、この期間内に再接続すればPTYセッションを維持できる
-const PTY_DESTROY_GRACE_PERIOD = 5000;
+// デフォルト5分。環境変数PTY_DESTROY_GRACE_PERIOD_MSで変更可能
+// -1を指定するとPTY破棄を無効化（クライアント切断後も永続的に維持）
+const PTY_DESTROY_GRACE_PERIOD = (() => {
+  const raw = process.env.PTY_DESTROY_GRACE_PERIOD_MS;
+  if (!raw) return 300000;
+  const parsed = Number.parseInt(raw, 10);
+  if (parsed === -1) return -1;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 300000;
+})();
 
 // セッションごとの破棄タイマーを管理
 const destroyTimers = new Map<string, ReturnType<typeof setTimeout>>();
 // セッションごとのアクティブな接続数を管理
 const activeConnections = new Map<string, number>();
-
-/**
- * Claude Code WebSocketメッセージ型定義
- */
-
-// クライアント → サーバー（入力）
-interface ClaudeInputMessage {
-  type: 'input';
-  data: string;
-}
-
-// クライアント → サーバー（リサイズ）
-interface ClaudeResizeMessage {
-  type: 'resize';
-  data: {
-    cols: number;
-    rows: number;
-  };
-}
-
-// クライアント → サーバー（再起動）
-interface ClaudeRestartMessage {
-  type: 'restart';
-}
-
-// クライアント → サーバー（画像ペースト）
-interface ClaudePasteImageMessage {
-  type: 'paste-image';
-  data: string;      // base64エンコードされた画像データ
-  mimeType: string;  // 'image/png', 'image/jpeg' 等
-}
-
-export type ClaudeClientMessage =
-  | ClaudeInputMessage
-  | ClaudeResizeMessage
-  | ClaudeRestartMessage
-  | ClaudePasteImageMessage;
-
-// サーバー → クライアント（出力）
-interface ClaudeDataMessage {
-  type: 'data';
-  content: string;
-}
-
-// サーバー → クライアント（終了）
-interface ClaudeExitMessage {
-  type: 'exit';
-  exitCode: number;
-  signal: number | null;
-}
-
-// サーバー → クライアント（エラー）
-interface ClaudeErrorMessage {
-  type: 'error';
-  message: string;
-}
-
-// サーバー → クライアント（画像保存結果）
-interface ClaudeImageSavedMessage {
-  type: 'image-saved';
-  filePath: string;
-}
-
-interface ClaudeImageErrorMessage {
-  type: 'image-error';
-  message: string;
-}
-
-export type ClaudeServerMessage =
-  | ClaudeDataMessage
-  | ClaudeExitMessage
-  | ClaudeErrorMessage
-  | ClaudeImageSavedMessage
-  | ClaudeImageErrorMessage;
+// セッション作成中のPromiseを管理（同一セッションの同時作成を防止）
+const creatingSessionPromises = new Map<string, Promise<void>>();
 
 // 画像の最大サイズ（10MB）
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
@@ -325,75 +270,117 @@ export function setupClaudeWebSocket(
 
       // Claude PTY作成（既に存在する場合はスキップ）
       if (!hasSession) {
-        // 最初のユーザーメッセージを取得（初期プロンプト）
-        const firstMessage = await db.query.messages.findFirst({
-          where: eq(schema.messages.session_id, sessionId),
-          orderBy: [asc(schema.messages.created_at)],
-        });
-
-        logger.info('Claude WebSocket: Fetched initial prompt from database', {
-          sessionId,
-          hasInitialPrompt: !!firstMessage,
-          promptLength: firstMessage?.content?.length,
-          worktreePath: session.worktree_path,
-        });
-
-        // Claude PTYを作成し、初期プロンプトを送信
-        try {
-          if (isLegacy) {
-            // レガシー方式
-            claudePtyManager.createSession(
-              sessionId,
-              session.worktree_path,
-              firstMessage?.content,
-              { dockerMode: session.docker_mode }
-            );
-          } else {
-            // 新方式（アダプター経由）
-            adapter!.createSession(
-              sessionId,
-              session.worktree_path,
-              firstMessage?.content,
-              { resumeSessionId: session.resume_session_id || undefined }
-            );
+        // 別の接続が同一セッションのPTYを作成中の場合はそれを待つ
+        const inflightPromise = creatingSessionPromises.get(sessionId);
+        if (inflightPromise) {
+          logger.info('Claude WebSocket: Waiting for inflight createSession', { sessionId });
+          try {
+            await inflightPromise;
+          } catch {
+            // 作成中のセッションが失敗した場合はこの接続もエラー扱い
+            const errorMsg: ClaudeErrorMessage = {
+              type: 'error',
+              message: 'PTY creation failed (concurrent request)',
+            };
+            ws.send(JSON.stringify(errorMsg));
+            ws.close(1000, 'PTY creation failed');
+            return;
           }
-          logger.info('Claude PTY created for session', {
-            sessionId,
-            hasInitialPrompt: !!firstMessage,
-            isLegacy,
-            dockerMode: session.docker_mode,
-          });
+        } else {
+          // このコネクションがセッション作成を担当
+          const createPromise = (async () => {
+            // 初回プロンプトの取得判定：
+            // - initializingの場合は常に初回プロンプトを取得
+            // - resume_session_idがない場合もフォールバックで初回プロンプトを取得
+            //   （サーバー再起動後などにresume_session_idが未保存の場合に対応）
+            let initialPrompt: string | undefined;
+            const canResume = !!session.resume_session_id;
+            if (session.status === 'initializing' || !canResume) {
+              const firstMessage = await db.query.messages.findFirst({
+                where: eq(schema.messages.session_id, sessionId),
+                orderBy: [asc(schema.messages.created_at)],
+              });
+              initialPrompt = firstMessage?.content;
+              logger.info('Claude WebSocket: Fetched initial prompt from database', {
+                sessionId,
+                hasInitialPrompt: !!initialPrompt,
+                promptLength: initialPrompt?.length,
+                worktreePath: session.worktree_path,
+                reason: session.status === 'initializing' ? 'initializing' : 'no-resume-session-id',
+              });
+            } else {
+              logger.info('Claude WebSocket: Skipping initial prompt (session already started)', {
+                sessionId,
+                status: session.status,
+                resumeSessionId: session.resume_session_id,
+              });
+            }
 
-          // セッションステータスを'running'に更新
-          await db.update(schema.sessions)
-            .set({ status: 'running' })
-            .where(eq(schema.sessions.id, sessionId))
-            .run();
-        } catch (ptyError) {
-          // PTY作成エラーをクライアントに通知
-          const errorMessage = ptyError instanceof Error ? ptyError.message : 'Failed to create PTY';
-          logger.error('Claude WebSocket: Failed to create PTY', {
-            sessionId,
-            error: errorMessage,
-            worktreePath: session.worktree_path,
-          });
+            if (isLegacy) {
+              claudePtyManager.createSession(
+                sessionId,
+                session.worktree_path,
+                initialPrompt,
+                {
+                  dockerMode: session.docker_mode,
+                  resumeSessionId: session.resume_session_id || undefined,
+                }
+              );
+            } else {
+              await Promise.resolve(adapter!.createSession(
+                sessionId,
+                session.worktree_path,
+                initialPrompt,
+                { resumeSessionId: session.resume_session_id || undefined }
+              ));
+            }
 
-          // クライアントにエラーメッセージを送信
-          const errorMsg: ClaudeErrorMessage = {
-            type: 'error',
-            message: `PTY creation failed: ${errorMessage}`,
-          };
-          ws.send(JSON.stringify(errorMsg));
-          // PTYが作成できなかったため、このWebSocket接続はこれ以上利用できない
-          // クライアント側の状態と整合性を取るため、接続をクローズする
-          ws.close(1000, 'PTY creation failed');
+            logger.info('Claude PTY created for session', {
+              sessionId,
+              hasInitialPrompt: !!initialPrompt,
+              isLegacy,
+              dockerMode: session.docker_mode,
+            });
 
-          // セッションステータスをエラーに更新
-          await db.update(schema.sessions)
-            .set({ status: 'error' })
-            .where(eq(schema.sessions.id, sessionId))
-            .run();
-          return;
+            // スクロールバックの append/clear は各PTY実装側で管理：
+            // - claudePtyManager: onDataでappend, destroySession/onExitでclear
+            // - DockerAdapter: onDataでappend, destroySession/onExitでclear
+            // WebSocket層では再送のみ行う
+
+            // セッションステータスを'running'に更新
+            await db.update(schema.sessions)
+              .set({ status: 'running' })
+              .where(eq(schema.sessions.id, sessionId))
+              .run();
+          })();
+
+          creatingSessionPromises.set(sessionId, createPromise);
+          try {
+            await createPromise;
+          } catch (ptyError) {
+            // PTY作成エラーをクライアントに通知
+            const errorMessage = ptyError instanceof Error ? ptyError.message : 'Failed to create PTY';
+            logger.error('Claude WebSocket: Failed to create PTY', {
+              sessionId,
+              error: errorMessage,
+              worktreePath: session.worktree_path,
+            });
+
+            const errorMsg: ClaudeErrorMessage = {
+              type: 'error',
+              message: `PTY creation failed: ${errorMessage}`,
+            };
+            ws.send(JSON.stringify(errorMsg));
+            ws.close(1000, 'PTY creation failed');
+
+            await db.update(schema.sessions)
+              .set({ status: 'error' })
+              .where(eq(schema.sessions.id, sessionId))
+              .run();
+            return;
+          } finally {
+            creatingSessionPromises.delete(sessionId);
+          }
         }
       }
 
@@ -463,7 +450,24 @@ export function setupClaudeWebSocket(
         }
       };
 
-      // イベントハンドラーを登録
+      // 既存PTYセッションの場合、イベントハンドラー登録前にスクロールバックバッファを再送
+      // （ハンドラー登録後だとdataイベントとscrollbackの順序が逆転するレースを防止）
+      if (hasSession) {
+        const buffer = scrollbackBuffer.getBuffer(sessionId);
+        if (buffer && ws.readyState === WebSocket.OPEN) {
+          const scrollbackMsg: ClaudeScrollbackMessage = {
+            type: 'scrollback',
+            content: buffer,
+          };
+          ws.send(JSON.stringify(scrollbackMsg));
+          logger.info('Claude WebSocket: Sent scrollback buffer', {
+            sessionId,
+            bufferLength: buffer.length,
+          });
+        }
+      }
+
+      // イベントハンドラーを登録（scrollback送信後に登録してレースを防止）
       if (isLegacy) {
         claudePtyManager.on('data', adapterDataHandler);
         claudePtyManager.on('exit', legacyExitHandler);
@@ -591,29 +595,36 @@ export function setupClaudeWebSocket(
           : adapter!.hasSession(sessionId);
 
         if (newConnections === 0 && hasActiveSession) {
-          logger.info('Claude WebSocket: Starting PTY destroy timer', {
-            sessionId,
-            gracePeriodMs: PTY_DESTROY_GRACE_PERIOD,
-          });
+          if (PTY_DESTROY_GRACE_PERIOD === -1) {
+            // -1: PTY破棄無効化 — クライアント全切断後もPTYを永続的に維持
+            logger.info('Claude WebSocket: PTY destroy disabled (grace period = -1), keeping session alive', {
+              sessionId,
+            });
+          } else {
+            logger.info('Claude WebSocket: Starting PTY destroy timer', {
+              sessionId,
+              gracePeriodMs: PTY_DESTROY_GRACE_PERIOD,
+            });
 
-          const timer = setTimeout(() => {
-            destroyTimers.delete(sessionId);
-            // 猶予期間後も接続がなければPTYを破棄
-            const stillHasSession = isLegacy
-              ? claudePtyManager.hasSession(sessionId)
-              : adapter!.hasSession(sessionId);
+            const timer = setTimeout(() => {
+              destroyTimers.delete(sessionId);
+              // 猶予期間後も接続がなければPTYを破棄
+              const stillHasSession = isLegacy
+                ? claudePtyManager.hasSession(sessionId)
+                : adapter!.hasSession(sessionId);
 
-            if ((activeConnections.get(sessionId) || 0) === 0 && stillHasSession) {
-              if (isLegacy) {
-                claudePtyManager.destroySession(sessionId);
-              } else {
-                adapter!.destroySession(sessionId);
+              if ((activeConnections.get(sessionId) || 0) === 0 && stillHasSession) {
+                if (isLegacy) {
+                  claudePtyManager.destroySession(sessionId);
+                } else {
+                  adapter!.destroySession(sessionId);
+                }
+                logger.info('Claude WebSocket: PTY destroyed after grace period', { sessionId });
               }
-              logger.info('Claude WebSocket: PTY destroyed after grace period', { sessionId });
-            }
-          }, PTY_DESTROY_GRACE_PERIOD);
+            }, PTY_DESTROY_GRACE_PERIOD);
 
-          destroyTimers.set(sessionId, timer);
+            destroyTimers.set(sessionId, timer);
+          }
         }
 
         logger.info('Claude WebSocket connection closed', { sessionId });
