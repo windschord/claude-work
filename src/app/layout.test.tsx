@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render } from '@testing-library/react';
 import RootLayout from './layout';
 
@@ -17,14 +17,20 @@ vi.mock('next-themes', () => ({
 }));
 
 // react-hot-toastをモック（propsを検査可能にする）
-const MockToaster = vi.fn((props: Record<string, unknown>) => (
-  <div data-testid="toaster" data-position={props.position}>Toaster</div>
-));
+const { MockToaster } = vi.hoisted(() => ({
+  MockToaster: vi.fn((props: Record<string, unknown>) => (
+    <div data-testid="toaster" data-position={props.position}>Toaster</div>
+  )),
+}));
 vi.mock('react-hot-toast', () => ({
   Toaster: (props: Record<string, unknown>) => MockToaster(props),
 }));
 
 describe('RootLayout', () => {
+  beforeEach(() => {
+    MockToaster.mockClear();
+  });
+
   it('Toasterコンポーネントが配置されている', () => {
     const { getByTestId } = render(
       <RootLayout>
