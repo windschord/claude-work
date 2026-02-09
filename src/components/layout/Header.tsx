@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Menu, Settings, Server } from 'lucide-react';
+import { Menu, Server } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { ThemeToggle } from '@/components/common/ThemeToggle';
 import { NotificationSettings } from '@/components/common/NotificationSettings';
@@ -15,7 +15,7 @@ import { NotificationSettings } from '@/components/common/NotificationSettings';
  * - ハンバーガーメニュー（モバイル時のサイドバートグル）
  * - テーマ切り替えボタン
  * - 通知設定
- * - 設定メニュー（実行環境設定へのリンク）
+ * - 実行環境メニュー（実行環境設定へのリンク）
  */
 export function Header() {
   const router = useRouter();
@@ -79,18 +79,18 @@ export function Header() {
         </button>
       </div>
 
-      {/* 右側: 設定メニュー + 通知設定 + テーマ切り替え */}
+      {/* 右側: 実行環境メニュー + 通知設定 + テーマ切り替え */}
       <div className="flex items-center gap-2">
-        {/* 設定メニュー */}
+        {/* 実行環境メニュー */}
         <div className="relative" ref={settingsRef}>
           <button
             onClick={handleSettingsClick}
             className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-            aria-label="設定"
+            aria-label="実行環境"
             aria-expanded={isSettingsOpen}
             aria-haspopup="true"
           >
-            <Settings className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+            <Server className="w-5 h-5 text-gray-600 dark:text-gray-400" />
           </button>
 
           {/* ドロップダウンメニュー */}
