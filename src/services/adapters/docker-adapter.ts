@@ -26,6 +26,8 @@ interface DockerSession {
   errorBuffer: string;
   hasReceivedOutput: boolean;
   shellMode: boolean;
+  lastKnownCols?: number;
+  lastKnownRows?: number;
 }
 
 /**
@@ -336,6 +338,22 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
         if (session) {
           if (!session.hasReceivedOutput && data.length > 0) {
             session.hasReceivedOutput = true;
+
+            // 初回出力受信後、遅延リサイズを実行
+            // Docker環境ではコンテナ起動のオーバーヘッドにより、クライアントからの
+            // resize()がコンテナ起動完了前に到着し効果がない。初回出力後に
+            // 保存済みのクライアントサイズでリサイズを再適用する。
+            if (session.lastKnownCols && session.lastKnownRows) {
+              setTimeout(() => {
+                const s = this.sessions.get(sessionId);
+                if (s && s.lastKnownCols && s.lastKnownRows) {
+                  logger.info('DockerAdapter: Applying deferred resize after first output', {
+                    sessionId, cols: s.lastKnownCols, rows: s.lastKnownRows,
+                  });
+                  s.ptyProcess.resize(s.lastKnownCols, s.lastKnownRows);
+                }
+              }, 1000);
+            }
           }
           if (session.errorBuffer.length < 5000) {
             session.errorBuffer += data;
@@ -396,7 +414,13 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
   }
 
   resize(sessionId: string, cols: number, rows: number): void {
-    this.sessions.get(sessionId)?.ptyProcess.resize(cols, rows);
+    const session = this.sessions.get(sessionId);
+    if (!session) return;
+
+    session.lastKnownCols = cols;
+    session.lastKnownRows = rows;
+
+    session.ptyProcess.resize(cols, rows);
   }
 
   destroySession(sessionId: string): void {
