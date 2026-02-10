@@ -493,9 +493,15 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
   restartSession(sessionId: string, workingDir?: string): void {
     const session = this.sessions.get(sessionId);
     if (session) {
-      const { workingDir: wd, containerId } = session;
-      logger.info('DockerAdapter: Restarting session', { sessionId });
+      const { workingDir: wd, containerId, shellMode } = session;
+      logger.info('DockerAdapter: Restarting session', { sessionId, shellMode });
       this.destroySession(sessionId);
+
+      // shellModeセッションはコンテナ停止を待たずに再接続
+      if (shellMode) {
+        this.createSession(sessionId, wd, undefined, { shellMode: true }).catch(() => {});
+        return;
+      }
 
       // コンテナ停止を待ってから新コンテナ作成
       this.waitForContainer(containerId)

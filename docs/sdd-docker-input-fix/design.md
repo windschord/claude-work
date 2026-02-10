@@ -21,21 +21,20 @@ DockerAdapterのライフサイクル管理を改善し、PTY終了時にDocker�
  * docker stop コマンドで明示的にコンテナを停止する。
  */
 private stopContainer(containerName: string): void {
-  const execFileAsync = promisify(execFile);
-  execFileAsync('docker', ['stop', '-t', '3', containerName], { timeout: 5000 })
-    .catch(() => {
-      // stopが失敗した場合はkillを試みる
-      return execFileAsync('docker', ['kill', containerName], { timeout: 5000 });
-    })
-    .catch(() => {
-      // killも失敗した場合は無視（既にコンテナが停止している可能性）
-    });
+  childProcess.execFile('docker', ['stop', '-t', '3', containerName], { timeout: 5000 }, (error) => {
+    if (error) {
+      // stop失敗時はkillを試みる
+      childProcess.execFile('docker', ['kill', containerName], { timeout: 5000 }, () => {
+        // 既に停止済み等のエラーは無視
+      });
+    }
+  });
 }
 ```
 
 - `docker stop -t 3` で3秒の猶予後にコンテナを停止
 - 失敗時は `docker kill` でフォールバック
-- Promiseはawaitせずバックグラウンド実行（NFR-001対応）
+- callbackベースで非同期バックグラウンド実行（NFR-001対応）
 - コマンドタイムアウトを設定して無限待ちを防止
 
 ### 修正2: destroySession()にコンテナ停止を追加
