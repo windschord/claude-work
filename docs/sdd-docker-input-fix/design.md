@@ -85,13 +85,17 @@ ptyProcess.onExit(async ({ exitCode, signal }) => {
 restartSession(sessionId: string, workingDir?: string): void {
   const session = this.sessions.get(sessionId);
   if (session) {
-    const { workingDir: wd, containerId } = session;
+    const { workingDir: wd, containerId, shellMode } = session;
     this.destroySession(sessionId);
 
+    // shellModeセッションはコンテナ停止を待たずに再接続
+    if (shellMode) {
+      this.createSession(sessionId, wd, undefined, { shellMode: true }).catch(() => {});
+      return;
+    }
+
     // コンテナ停止を待ってから新コンテナを作成（最大5秒待機）
-    const execFileAsync = promisify(execFile);
-    execFileAsync('docker', ['wait', containerId], { timeout: 5000 })
-      .catch(() => { /* タイムアウトまたはエラー: 無視して続行 */ })
+    this.waitForContainer(containerId)
       .then(() => {
         this.createSession(sessionId, wd).catch(() => {});
       });
