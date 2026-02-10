@@ -1,0 +1,152 @@
+# 設計書: Docker環境ターミナル入力不能の修正
+
+## 概要
+
+DockerAdapterのライフサイクル管理を改善し、PTY終了時にDockerコンテナが
+確実に停止されるようにする。
+
+## 修正対象
+
+- `src/services/adapters/docker-adapter.ts`
+- `src/services/adapters/__tests__/docker-adapter.test.ts`
+
+## 設計
+
+### 修正1: コンテナ停止用プライベートメソッドの追加
+
+```typescript
+/**
+ * Dockerコンテナを強制停止する（バックグラウンド実行）
+ * ptyProcess.kill()だけではdocker CLIが終了するだけでコンテナは停止しないため、
+ * docker stop コマンドで明示的にコンテナを停止する。
+ */
+private stopContainer(containerName: string): void {
+  childProcess.execFile('docker', ['stop', '-t', '3', containerName], { timeout: 5000 }, (error) => {
+    if (error) {
+      // stop失敗時はkillを試みる
+      childProcess.execFile('docker', ['kill', containerName], { timeout: 5000 }, () => {
+        // 既に停止済み等のエラーは無視
+      });
+    }
+  });
+}
+```
+
+- `docker stop -t 3` で3秒の猶予後にコンテナを停止
+- 失敗時は `docker kill` でフォールバック
+- callbackベースで非同期バックグラウンド実行（NFR-001対応）
+- コマンドタイムアウトを設定して無限待ちを防止
+
+### 修正2: destroySession()にコンテナ停止を追加
+
+```typescript
+destroySession(sessionId: string): void {
+  const session = this.sessions.get(sessionId);
+  if (session) {
+    const containerId = session.containerId;
+    // ... 既存処理 ...
+    session.ptyProcess.kill();
+    this.sessions.delete(sessionId);
+
+    // Dockerコンテナを明示的に停止（shellModeではコンテナを止めない）
+    if (!session.shellMode) {
+      this.stopContainer(containerId);
+    }
+  }
+}
+```
+
+- shellMode（docker exec）セッションの場合はコンテナを停止しない
+  （親セッションのコンテナを停止してしまうため）
+- 通常セッション（docker run）の場合のみコンテナを停止
+
+### 修正3: onExitハンドラーにコンテナ停止を追加
+
+```typescript
+ptyProcess.onExit(async ({ exitCode, signal }) => {
+  // restartSession()で新セッションが作成された後に旧PTYのonExitが遅延発火した場合、
+  // 新セッションを消さないようにptyProcess同一性チェックを行う
+  const currentSession = this.sessions.get(sessionId);
+  if (currentSession && currentSession.ptyProcess !== ptyProcess) {
+    // 旧コンテナは停止するがセッション情報は触らない
+    if (containerName && !shellMode) {
+      this.stopContainer(containerName);
+    }
+    return;
+  }
+
+  // ... 既存処理 ...
+  this.sessions.delete(sessionId);
+
+  // PTY終了時にコンテナがまだ実行中なら停止
+  if (containerName && !shellMode) {
+    this.stopContainer(containerName);
+  }
+});
+```
+
+- `containerName`をクロージャで保持（作成時の値を使用）
+- ptyProcess同一性チェックで新セッションを保護
+- shellModeではコンテナを停止しない
+
+### 修正4: restartSession()を非同期化してコンテナ停止を待機
+
+```typescript
+restartSession(sessionId: string, workingDir?: string): void {
+  const session = this.sessions.get(sessionId);
+  if (session) {
+    const { workingDir: wd, containerId, shellMode } = session;
+    this.destroySession(sessionId);
+
+    // shellModeセッションはコンテナ停止を待たずに再接続
+    if (shellMode) {
+      this.createSession(sessionId, wd, undefined, { shellMode: true }).catch(() => {});
+      return;
+    }
+
+    // コンテナ停止を待ってから新コンテナを作成（最大5秒待機）
+    this.waitForContainer(containerId)
+      .then(() => this.createSession(sessionId, wd))
+      .catch(() => {
+        // createSession内部でlogger.error + emit('error')済み
+      });
+  }
+}
+```
+
+- `docker wait`でコンテナの完全停止を待機
+- タイムアウト5秒で応答性を維持
+- 待機失敗時も新コンテナ作成を試行
+
+### 修正5: write()に警告ログを追加
+
+```typescript
+write(sessionId: string, data: string): void {
+  const session = this.sessions.get(sessionId);
+  if (!session) {
+    logger.warn('DockerAdapter: write() called but session not found', { sessionId });
+    return;
+  }
+  session.ptyProcess.write(data);
+}
+```
+
+- セッション不在時に警告ログを出力
+- 過度なログ出力を避けるため`warn`レベル
+
+## 影響範囲
+
+| コンポーネント | 影響 |
+|---------------|------|
+| DockerAdapter | 直接変更 |
+| HostAdapter | 変更なし |
+| claude-ws.ts | 変更なし |
+| terminal-ws.ts | 変更なし |
+
+## リスク
+
+| リスク | 緩和策 |
+|-------|-------|
+| `docker stop`のタイムアウトでrestartが遅延 | 5秒のタイムアウトを設定 |
+| shellModeセッション判定の誤り | `shellMode`フラグで明示的に判別 |
+| コンテナが既に停止済みの場合 | catch節でエラーを無視 |
