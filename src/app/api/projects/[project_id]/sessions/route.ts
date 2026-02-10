@@ -6,6 +6,7 @@ import { logger } from '@/lib/logger';
 import { generateUniqueSessionName } from '@/lib/session-name-generator';
 import { dockerService, DockerError } from '@/services/docker-service';
 import { environmentService } from '@/services/environment-service';
+import { ClaudeOptionsService } from '@/services/claude-options-service';
 
 /**
  * GET /api/projects/[project_id]/sessions - プロジェクトのセッション一覧取得
@@ -149,35 +150,32 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
 
-    const { name, prompt = '', dockerMode = false, environment_id, source_branch, claude_code_options, custom_env_vars } = body;
+    let { name, prompt = '', dockerMode = false, environment_id, source_branch, claude_code_options, custom_env_vars } = body;
 
-    // claude_code_options のバリデーション（plain objectかつフィールドが文字列）
+    // claude_code_options のバリデーション（各フィールドが文字列であることを検証）
     if (claude_code_options !== undefined) {
-      if (typeof claude_code_options !== 'object' || claude_code_options === null || Array.isArray(claude_code_options)) {
-        return NextResponse.json({ error: 'claude_code_options must be a plain object' }, { status: 400 });
+      const validatedOptions = ClaudeOptionsService.validateClaudeCodeOptions(claude_code_options);
+      if (validatedOptions === null) {
+        return NextResponse.json(
+          { error: 'claude_code_options must be a plain object with string fields (model, allowedTools, permissionMode, additionalFlags)' },
+          { status: 400 }
+        );
       }
-      const allowedKeys = ['model', 'allowedTools', 'permissionMode', 'additionalFlags'];
-      for (const [key, value] of Object.entries(claude_code_options as Record<string, unknown>)) {
-        if (allowedKeys.includes(key) && value !== undefined && typeof value !== 'string') {
-          return NextResponse.json({ error: `claude_code_options.${key} must be a string` }, { status: 400 });
-        }
-      }
+      // バリデーション済みの値で上書き
+      claude_code_options = validatedOptions;
     }
 
-    // custom_env_vars のバリデーション（plain objectかつキーと値の形式を検証）
+    // custom_env_vars のバリデーション（キーが^[A-Z_][A-Z0-9_]*$にマッチし、値が文字列であることを検証）
     if (custom_env_vars !== undefined) {
-      if (typeof custom_env_vars !== 'object' || custom_env_vars === null || Array.isArray(custom_env_vars)) {
-        return NextResponse.json({ error: 'custom_env_vars must be a plain object' }, { status: 400 });
+      const validatedEnvVars = ClaudeOptionsService.validateCustomEnvVars(custom_env_vars);
+      if (validatedEnvVars === null) {
+        return NextResponse.json(
+          { error: 'custom_env_vars must be a plain object with keys matching ^[A-Z_][A-Z0-9_]*$ and string values' },
+          { status: 400 }
+        );
       }
-      const envKeyPattern = /^[A-Z_][A-Z0-9_]*$/;
-      for (const [key, value] of Object.entries(custom_env_vars as Record<string, unknown>)) {
-        if (typeof value !== 'string') {
-          return NextResponse.json({ error: 'custom_env_vars values must be strings' }, { status: 400 });
-        }
-        if (!envKeyPattern.test(key)) {
-          return NextResponse.json({ error: `custom_env_vars key "${key}" must match ^[A-Z_][A-Z0-9_]*$` }, { status: 400 });
-        }
-      }
+      // バリデーション済みの値で上書き
+      custom_env_vars = validatedEnvVars;
     }
 
     // 実効環境とdockerModeを決定

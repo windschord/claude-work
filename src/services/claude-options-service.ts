@@ -131,25 +131,73 @@ export class ClaudeOptionsService {
   }
 
   /**
+   * ClaudeCodeOptionsのバリデーション（API層用）
+   * 各フィールドが文字列であることを検証
+   * @returns バリデーション成功時はClaudeCodeOptions、失敗時はnull
+   */
+  static validateClaudeCodeOptions(value: unknown): ClaudeCodeOptions | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return null;
+    }
+
+    const obj = value as Record<string, unknown>;
+    const result: ClaudeCodeOptions = {};
+
+    for (const key of ['model', 'allowedTools', 'permissionMode', 'additionalFlags'] as const) {
+      if (key in obj) {
+        const fieldValue = obj[key];
+        if (typeof fieldValue !== 'string' && fieldValue !== undefined) {
+          return null; // 非文字列フィールドがある場合は失敗
+        }
+        if (typeof fieldValue === 'string') {
+          result[key] = fieldValue;
+        }
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * CustomEnvVarsのバリデーション（API層用）
+   * キーが正規表現にマッチし、値が文字列であることを検証
+   * @returns バリデーション成功時はCustomEnvVars、失敗時はnull
+   */
+  static validateCustomEnvVars(value: unknown): CustomEnvVars | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return null;
+    }
+
+    const obj = value as Record<string, unknown>;
+    const result: CustomEnvVars = {};
+
+    for (const [key, val] of Object.entries(obj)) {
+      // キーの形式を検証
+      if (!this.validateEnvVarKey(key)) {
+        return null; // 無効なキーがある場合は失敗
+      }
+      // 値が文字列であることを検証
+      if (typeof val !== 'string') {
+        return null; // 非文字列の値がある場合は失敗
+      }
+      result[key] = val;
+    }
+
+    return result;
+  }
+
+  /**
    * JSON文字列からClaudeCodeOptionsをパース（安全にパース）
    * 配列・null・プリミティブ等はplain objectではないため空objectを返す
+   * パース後にバリデーション関数を使用して型安全性を確保
    */
   static parseOptions(json: string | null | undefined): ClaudeCodeOptions {
     if (!json) return {};
     try {
       const parsed = JSON.parse(json);
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        return {};
-      }
-      // 文字列フィールドのみを抽出（非文字列値による実行時エラーを防止）
-      const result: ClaudeCodeOptions = {};
-      for (const key of ['model', 'allowedTools', 'permissionMode', 'additionalFlags'] as const) {
-        const value = (parsed as Record<string, unknown>)[key];
-        if (typeof value === 'string') {
-          result[key] = value;
-        }
-      }
-      return result;
+      // バリデーション関数を使用して型安全性を確保
+      const validated = this.validateClaudeCodeOptions(parsed);
+      return validated ?? {};
     } catch {
       return {};
     }
@@ -158,7 +206,7 @@ export class ClaudeOptionsService {
   /**
    * JSON文字列からCustomEnvVarsをパース（安全にパース）
    * 配列・null・プリミティブ等はplain objectではないため空objectを返す
-   * 値が文字列でないエントリは除外する
+   * パース後に無効なキーや非文字列値を除外
    */
   static parseEnvVars(json: string | null | undefined): CustomEnvVars {
     if (!json) return {};
@@ -167,10 +215,10 @@ export class ClaudeOptionsService {
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
         return {};
       }
-      // 値が文字列でないエントリを除外
+      // 値が文字列でないエントリや無効なキーを除外（APIバリデーションより緩い動作）
       const result: CustomEnvVars = {};
       for (const [key, value] of Object.entries(parsed)) {
-        if (typeof value === 'string') {
+        if (typeof value === 'string' && this.validateEnvVarKey(key)) {
           result[key] = value;
         }
       }

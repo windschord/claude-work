@@ -4,13 +4,7 @@ import { eq } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
 import { existsSync } from 'fs';
 import { execSync } from 'child_process';
-
-/**
- * plain objectかどうかを検証（配列・null・プリミティブを排除）
- */
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
+import { ClaudeOptionsService } from '@/services/claude-options-service';
 
 /**
  * GET /api/projects/[project_id] - プロジェクト詳細取得
@@ -100,33 +94,30 @@ export async function PUT(
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
 
-    // claude_code_options のバリデーション（plain objectかつフィールドが文字列）
+    // claude_code_options のバリデーション（各フィールドが文字列であることを検証）
     if (body.claude_code_options !== undefined) {
-      if (!isPlainObject(body.claude_code_options)) {
-        return NextResponse.json({ error: 'claude_code_options must be a plain object' }, { status: 400 });
+      const validatedOptions = ClaudeOptionsService.validateClaudeCodeOptions(body.claude_code_options);
+      if (validatedOptions === null) {
+        return NextResponse.json(
+          { error: 'claude_code_options must be a plain object with string fields (model, allowedTools, permissionMode, additionalFlags)' },
+          { status: 400 }
+        );
       }
-      const allowedKeys = ['model', 'allowedTools', 'permissionMode', 'additionalFlags'];
-      for (const [key, value] of Object.entries(body.claude_code_options)) {
-        if (allowedKeys.includes(key) && value !== undefined && typeof value !== 'string') {
-          return NextResponse.json({ error: `claude_code_options.${key} must be a string` }, { status: 400 });
-        }
-      }
+      // バリデーション済みの値で上書き
+      body.claude_code_options = validatedOptions;
     }
 
-    // custom_env_vars のバリデーション（plain objectかつキーと値の形式を検証）
+    // custom_env_vars のバリデーション（キーが^[A-Z_][A-Z0-9_]*$にマッチし、値が文字列であることを検証）
     if (body.custom_env_vars !== undefined) {
-      if (!isPlainObject(body.custom_env_vars)) {
-        return NextResponse.json({ error: 'custom_env_vars must be a plain object' }, { status: 400 });
+      const validatedEnvVars = ClaudeOptionsService.validateCustomEnvVars(body.custom_env_vars);
+      if (validatedEnvVars === null) {
+        return NextResponse.json(
+          { error: 'custom_env_vars must be a plain object with keys matching ^[A-Z_][A-Z0-9_]*$ and string values' },
+          { status: 400 }
+        );
       }
-      const envKeyPattern = /^[A-Z_][A-Z0-9_]*$/;
-      for (const [key, value] of Object.entries(body.custom_env_vars)) {
-        if (typeof value !== 'string') {
-          return NextResponse.json({ error: 'custom_env_vars values must be strings' }, { status: 400 });
-        }
-        if (!envKeyPattern.test(key)) {
-          return NextResponse.json({ error: `custom_env_vars key "${key}" must match ^[A-Z_][A-Z0-9_]*$` }, { status: 400 });
-        }
-      }
+      // バリデーション済みの値で上書き
+      body.custom_env_vars = validatedEnvVars;
     }
 
     const existing = db.select().from(schema.projects).where(eq(schema.projects.id, project_id)).get();
