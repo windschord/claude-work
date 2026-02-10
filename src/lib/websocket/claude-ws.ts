@@ -505,14 +505,18 @@ export function setupClaudeWebSocket(
       ws.off('message', earlyMessageHandler);
 
       // バッファされたリサイズを適用
-      if (pendingResize) {
+      // NOTE: pendingResizeはearlyMessageHandlerクロージャ内で変更されるが、
+      // TypeScriptの制御フロー解析はクロージャ越しの変更を追跡できない。
+      // 型アサーションで元の型を復元する。
+      const bufferedResize = pendingResize as { cols: number; rows: number } | null;
+      if (bufferedResize) {
         if (isLegacy) {
-          claudePtyManager.resize(sessionId, pendingResize.cols, pendingResize.rows);
+          claudePtyManager.resize(sessionId, bufferedResize.cols, bufferedResize.rows);
         } else {
-          adapter!.resize(sessionId, pendingResize.cols, pendingResize.rows);
+          adapter!.resize(sessionId, bufferedResize.cols, bufferedResize.rows);
         }
         logger.info('Claude WebSocket: Applied pending resize from early buffer', {
-          sessionId, cols: pendingResize.cols, rows: pendingResize.rows,
+          sessionId, cols: bufferedResize.cols, rows: bufferedResize.rows,
         });
         pendingResize = null;
       }
