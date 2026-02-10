@@ -3,7 +3,7 @@ import * as pty from 'node-pty';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
-import { execFile } from 'child_process';
+import * as childProcess from 'child_process';
 import { promisify } from 'util';
 import { EnvironmentAdapter, CreateSessionOptions, PTYExitInfo } from '../environment-adapter';
 import { scrollbackBuffer } from '../scrollback-buffer';
@@ -150,7 +150,7 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
    * Dockerコンテナが実際に存在し、実行中かを確認
    */
   private async isContainerRunning(containerName: string): Promise<boolean> {
-    const execFileAsync = promisify(execFile);
+    const execFileAsync = promisify(childProcess.execFile);
     try {
       const { stdout } = await execFileAsync('docker', ['inspect', '--format', '{{.State.Running}}', containerName], {
         timeout: 5000,
@@ -159,6 +159,34 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Dockerコンテナを停止する（バックグラウンド実行）
+   */
+  private stopContainer(containerName: string): void {
+    childProcess.execFile('docker', ['stop', '-t', '3', containerName], { timeout: 10000 }, (error) => {
+      if (error) {
+        // stop失敗時はkillを試みる
+        childProcess.execFile('docker', ['kill', containerName], { timeout: 5000 }, () => {
+          // 既に停止済み等のエラーは無視
+        });
+      } else {
+        logger.info('DockerAdapter: Container stopped', { containerName });
+      }
+    });
+  }
+
+  /**
+   * コンテナ停止を待つPromiseを返す
+   */
+  private waitForContainer(containerName: string): Promise<void> {
+    return new Promise<void>((resolve) => {
+      childProcess.execFile('docker', ['wait', containerName], { timeout: 5000 }, () => {
+        // タイムアウトやエラーでも続行
+        resolve();
+      });
+    });
   }
 
   /**
@@ -376,6 +404,9 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
         logger.info('DockerAdapter: Session exited', { sessionId, exitCode, signal });
         scrollbackBuffer.clear(sessionId);
 
+        const exitedSession = this.sessions.get(sessionId);
+        const exitedContainerId = exitedSession?.containerId;
+
         // container_idをクリア
         try {
           db.update(schema.sessions)
@@ -388,6 +419,11 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
 
         this.emit('exit', sessionId, { exitCode, signal } as PTYExitInfo);
         this.sessions.delete(sessionId);
+
+        // PTY終了時にコンテナがまだ実行中なら停止
+        if (exitedContainerId && !shellMode) {
+          this.stopContainer(exitedContainerId);
+        }
       });
 
       // 初期プロンプト（シェルモードでは送信しない）
@@ -410,7 +446,12 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
   }
 
   write(sessionId: string, data: string): void {
-    this.sessions.get(sessionId)?.ptyProcess.write(data);
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      logger.warn('DockerAdapter: write() called but session not found', { sessionId });
+      return;
+    }
+    session.ptyProcess.write(data);
   }
 
   resize(sessionId: string, cols: number, rows: number): void {
@@ -426,10 +467,16 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
   destroySession(sessionId: string): void {
     const session = this.sessions.get(sessionId);
     if (session) {
+      const { containerId, shellMode } = session;
       logger.info('DockerAdapter: Destroying session', { sessionId, containerId: session.containerId });
       scrollbackBuffer.clear(sessionId);
       session.ptyProcess.kill();
       this.sessions.delete(sessionId);
+
+      // Dockerコンテナを明示的に停止（shellModeではコンテナを止めない）
+      if (!shellMode) {
+        this.stopContainer(containerId);
+      }
 
       // container_idをクリア（同期実行）
       try {
@@ -446,26 +493,27 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
   restartSession(sessionId: string, workingDir?: string): void {
     const session = this.sessions.get(sessionId);
     if (session) {
-      const { workingDir: wd } = session;
+      const { workingDir: wd, containerId } = session;
       logger.info('DockerAdapter: Restarting session', { sessionId });
       this.destroySession(sessionId);
-      setTimeout(() => {
-        this.createSession(sessionId, wd).catch(() => {
-          // createSession内部でlogger.error + emit('error')済みのため、ここでは追加処理不要
+
+      // コンテナ停止を待ってから新コンテナ作成
+      this.waitForContainer(containerId)
+        .then(() => {
+          return this.createSession(sessionId, wd);
+        })
+        .catch(() => {
+          // createSession内部でlogger.error + emit('error')済み
         });
-      }, 500);
     } else if (workingDir) {
       logger.info('DockerAdapter: Restarting session (from fallback params)', { sessionId });
       setTimeout(() => {
-        this.createSession(sessionId, workingDir).catch(() => {
-          // createSession内部でlogger.error + emit('error')済みのため、ここでは追加処理不要
-        });
+        this.createSession(sessionId, workingDir).catch(() => {});
       }, 500);
     } else {
       logger.warn('DockerAdapter: Cannot restart session: not found and no workingDir', { sessionId });
     }
   }
-
 
   hasSession(sessionId: string): boolean {
     return this.sessions.has(sessionId);

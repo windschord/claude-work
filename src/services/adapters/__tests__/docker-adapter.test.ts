@@ -116,7 +116,7 @@ describe('DockerAdapter', () => {
       stderr: '',
     });
 
-    // mockExecFileをリセット（stopContainer用）
+    // mockExecFileをリセット（stopContainer/waitForContainer用）
     mockExecFile.mockImplementation((_cmd: string, _args: string[], _opts: unknown, callback?: (error: Error | null, stdout: string, stderr: string) => void) => {
       if (callback) {
         callback(null, '', '');
@@ -157,6 +157,7 @@ describe('DockerAdapter', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.clearAllMocks();
   });
 
@@ -473,8 +474,6 @@ describe('DockerAdapter', () => {
 
   describe('restartSession', () => {
     it('should destroy and recreate session', async () => {
-      vi.useFakeTimers();
-
       const sessionId = 'session-abc';
       const workingDir = '/projects/test';
       await adapter.createSession(sessionId, workingDir);
@@ -483,13 +482,10 @@ describe('DockerAdapter', () => {
 
       expect(mockPty.kill).toHaveBeenCalled();
 
-      mockSpawn.mockClear();
+      // waitForContainerとcreateSessionの非同期処理を待つ
+      await new Promise(resolve => setTimeout(resolve, 100));
 
-      vi.advanceTimersByTime(500);
-
-      expect(mockSpawn).toHaveBeenCalled();
-
-      vi.useRealTimers();
+      expect(mockSpawn.mock.calls.length).toBeGreaterThanOrEqual(2);
     });
   });
 
