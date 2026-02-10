@@ -237,6 +237,14 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
 
       ptyProcess.onExit(({ exitCode, signal }) => {
         logger.info('DockerAdapter: Exec session exited', { sessionId, exitCode, signal });
+
+        // 旧PTYのonExit遅延発火で新セッションを消さないようにチェック
+        const currentSession = this.sessions.get(sessionId);
+        if (currentSession && currentSession.ptyProcess !== ptyProcess) {
+          logger.info('DockerAdapter: Stale exec onExit ignored (new session exists)', { sessionId });
+          return;
+        }
+
         this.emit('exit', sessionId, { exitCode, signal } as PTYExitInfo);
         this.sessions.delete(sessionId);
       });
@@ -402,10 +410,20 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
 
       ptyProcess.onExit(async ({ exitCode, signal }) => {
         logger.info('DockerAdapter: Session exited', { sessionId, exitCode, signal });
-        scrollbackBuffer.clear(sessionId);
 
-        const exitedSession = this.sessions.get(sessionId);
-        const exitedContainerId = exitedSession?.containerId;
+        // restartSession()で新セッションが作成された後に旧PTYのonExitが遅延発火した場合、
+        // 新セッションを消さないようにptyProcess同一性チェックを行う
+        const currentSession = this.sessions.get(sessionId);
+        if (currentSession && currentSession.ptyProcess !== ptyProcess) {
+          logger.info('DockerAdapter: Stale onExit ignored (new session exists)', { sessionId });
+          // コンテナは停止する（旧コンテナがゾンビにならないように）
+          if (containerName && !shellMode) {
+            this.stopContainer(containerName);
+          }
+          return;
+        }
+
+        scrollbackBuffer.clear(sessionId);
 
         // container_idをクリア
         try {
@@ -421,8 +439,8 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
         this.sessions.delete(sessionId);
 
         // PTY終了時にコンテナがまだ実行中なら停止
-        if (exitedContainerId && !shellMode) {
-          this.stopContainer(exitedContainerId);
+        if (containerName && !shellMode) {
+          this.stopContainer(containerName);
         }
       });
 

@@ -64,19 +64,29 @@ destroySession(sessionId: string): void {
 
 ```typescript
 ptyProcess.onExit(async ({ exitCode, signal }) => {
+  // restartSession()で新セッションが作成された後に旧PTYのonExitが遅延発火した場合、
+  // 新セッションを消さないようにptyProcess同一性チェックを行う
+  const currentSession = this.sessions.get(sessionId);
+  if (currentSession && currentSession.ptyProcess !== ptyProcess) {
+    // 旧コンテナは停止するがセッション情報は触らない
+    if (containerName && !shellMode) {
+      this.stopContainer(containerName);
+    }
+    return;
+  }
+
   // ... 既存処理 ...
-  const session = this.sessions.get(sessionId);
-  const containerId = session?.containerId;
   this.sessions.delete(sessionId);
 
   // PTY終了時にコンテナがまだ実行中なら停止
-  if (containerId && !shellMode) {
-    this.stopContainer(containerId);
+  if (containerName && !shellMode) {
+    this.stopContainer(containerName);
   }
 });
 ```
 
-- `containerId`を`sessions.delete()`前に取得
+- `containerName`をクロージャで保持（作成時の値を使用）
+- ptyProcess同一性チェックで新セッションを保護
 - shellModeではコンテナを停止しない
 
 ### 修正4: restartSession()を非同期化してコンテナ停止を待機
@@ -96,8 +106,9 @@ restartSession(sessionId: string, workingDir?: string): void {
 
     // コンテナ停止を待ってから新コンテナを作成（最大5秒待機）
     this.waitForContainer(containerId)
-      .then(() => {
-        this.createSession(sessionId, wd).catch(() => {});
+      .then(() => this.createSession(sessionId, wd))
+      .catch(() => {
+        // createSession内部でlogger.error + emit('error')済み
       });
   }
 }

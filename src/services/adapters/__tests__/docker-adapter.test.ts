@@ -581,6 +581,61 @@ describe('DockerAdapter', () => {
 
       expect(mockSpawn).toHaveBeenCalled();
     });
+
+    it('restartSession後に旧PTYのonExitが遅延発火しても新セッションが消えないこと', async () => {
+      const sessionId = 'session-restart-race';
+      const workingDir = '/projects/test';
+      await adapter.createSession(sessionId, workingDir);
+
+      // 旧PTYのexitHandlerを保存
+      const oldExitHandler = exitHandler;
+
+      mockExecFile.mockImplementation((_cmd: string, _args: string[], _opts: unknown, callback?: (error: Error | null, stdout: string, stderr: string) => void) => {
+        if (callback) {
+          callback(null, '', '');
+        }
+      });
+
+      // restartSession後に新しいPTYモックを返すように設定
+      const newMockPty = Object.assign(new EventEmitter(), {
+        pid: 99999,
+        cols: 80,
+        rows: 24,
+        process: 'docker',
+        handleFlowControl: false,
+        write: vi.fn(),
+        resize: vi.fn(),
+        kill: vi.fn(),
+        pause: vi.fn(),
+        resume: vi.fn(),
+        clear: vi.fn(),
+        onData: vi.fn((handler: (data: string) => void) => {
+          dataHandler = handler;
+          return { dispose: vi.fn() };
+        }),
+        onExit: vi.fn((handler: (info: { exitCode: number; signal?: number }) => void) => {
+          exitHandler = handler;
+          return { dispose: vi.fn() };
+        }),
+      });
+      mockSpawn.mockReturnValue(newMockPty);
+
+      // restartSessionで新セッション作成
+      adapter.restartSession(sessionId);
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // 新セッションが存在することを確認
+      expect(adapter.hasSession(sessionId)).toBe(true);
+      const newContainerId = adapter.getContainerId(sessionId);
+
+      // 旧PTYのonExitが遅延発火
+      oldExitHandler({ exitCode: 129 });
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      // 新セッションが消されていないこと
+      expect(adapter.hasSession(sessionId)).toBe(true);
+      expect(adapter.getContainerId(sessionId)).toBe(newContainerId);
+    });
   });
 
   describe('write with logging', () => {
