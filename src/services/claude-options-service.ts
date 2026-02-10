@@ -189,15 +189,23 @@ export class ClaudeOptionsService {
   /**
    * JSON文字列からClaudeCodeOptionsをパース（安全にパース）
    * 配列・null・プリミティブ等はplain objectではないため空objectを返す
-   * パース後にバリデーション関数を使用して型安全性を確保
+   * 非文字列フィールドを除外し、有効なフィールドのみを保持（APIバリデーションより緩い動作）
    */
   static parseOptions(json: string | null | undefined): ClaudeCodeOptions {
     if (!json) return {};
     try {
       const parsed = JSON.parse(json);
-      // バリデーション関数を使用して型安全性を確保
-      const validated = this.validateClaudeCodeOptions(parsed);
-      return validated ?? {};
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return {};
+      }
+      // 非文字列フィールドを除外し、有効なフィールドのみを保持
+      const result: ClaudeCodeOptions = {};
+      for (const key of ['model', 'allowedTools', 'permissionMode', 'additionalFlags'] as const) {
+        if (key in parsed && typeof parsed[key] === 'string') {
+          result[key] = parsed[key];
+        }
+      }
+      return result;
     } catch {
       return {};
     }
