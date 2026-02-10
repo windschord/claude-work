@@ -22,7 +22,7 @@ DockerAdapterのライフサイクル管理を改善し、PTY終了時にDocker�
  */
 private stopContainer(containerName: string): void {
   const execFileAsync = promisify(execFile);
-  execFileAsync('docker', ['stop', '-t', '3', containerName], { timeout: 10000 })
+  execFileAsync('docker', ['stop', '-t', '3', containerName], { timeout: 5000 })
     .catch(() => {
       // stopが失敗した場合はkillを試みる
       return execFileAsync('docker', ['kill', containerName], { timeout: 5000 });
@@ -133,6 +133,6 @@ write(sessionId: string, data: string): void {
 
 | リスク | 緩和策 |
 |-------|-------|
-| `docker stop`のタイムアウトでrestartが遅延 | 3秒の短いタイムアウトを設定 |
+| `docker stop`のタイムアウトでrestartが遅延 | 5秒のタイムアウトを設定 |
 | shellModeセッション判定の誤り | `shellMode`フラグで明示的に判別 |
 | コンテナが既に停止済みの場合 | catch節でエラーを無視 |

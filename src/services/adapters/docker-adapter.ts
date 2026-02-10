@@ -165,7 +165,7 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
    * Dockerコンテナを停止する（バックグラウンド実行）
    */
   private stopContainer(containerName: string): void {
-    childProcess.execFile('docker', ['stop', '-t', '3', containerName], { timeout: 10000 }, (error) => {
+    childProcess.execFile('docker', ['stop', '-t', '3', containerName], { timeout: 5000 }, (error) => {
       if (error) {
         // stop失敗時はkillを試みる
         childProcess.execFile('docker', ['kill', containerName], { timeout: 5000 }, () => {

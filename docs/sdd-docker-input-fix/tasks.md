@@ -4,11 +4,11 @@
 
 | ID | タスク | ステータス | 依存 |
 |----|--------|-----------|------|
-| TASK-001 | テスト追加（RED） | pending | - |
-| TASK-002 | stopContainerメソッド追加 | pending | TASK-001 |
-| TASK-003 | destroySession/onExit/restartSession修正 | pending | TASK-002 |
-| TASK-004 | write()に警告ログ追加 | pending | TASK-003 |
-| TASK-005 | 回帰テスト確認 | pending | TASK-004 |
+| TASK-001 | テスト追加（RED） | done | - |
+| TASK-002 | stopContainerメソッド追加 | done | TASK-001 |
+| TASK-003 | destroySession/onExit/restartSession修正 | done | TASK-002 |
+| TASK-004 | write()に警告ログ追加 | done | TASK-003 |
+| TASK-005 | 回帰テスト確認 | done | TASK-004 |
 
 ## タスク詳細
 
@@ -21,7 +21,7 @@
 1. `child_process.execFile` のモックを追加（既存の`spawnSync`モックに加えて）
 2. 以下のテストケースを追加:
 
-```
+```text
 describe('stopContainer', () => {
   - destroySession()呼び出し後にdocker stopが実行されること
   - destroySession()のshellModeセッションではdocker stopが実行されないこと
@@ -35,7 +35,7 @@ describe('write with logging', () => {
 ```
 
 **受入基準**:
-- [ ] stopContainerに関するテストが5件追加されている
+- [ ] stopContainerに関するテストがcontainer cleanup内に4件追加されている（destroySession非shell/shell, onExit, restartSession）
 - [ ] write()の警告ログテストが1件追加されている
 - [ ] テスト実行時にすべて失敗する（RED）
 

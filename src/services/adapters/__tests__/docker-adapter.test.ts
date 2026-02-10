@@ -504,7 +504,7 @@ describe('DockerAdapter', () => {
       expect(mockExecFile).toHaveBeenCalledWith(
         'docker',
         ['stop', '-t', '3', containerId],
-        expect.objectContaining({ timeout: 10000 }),
+        expect.objectContaining({ timeout: 5000 }),
         expect.any(Function),
       );
     });
@@ -548,7 +548,7 @@ describe('DockerAdapter', () => {
       expect(mockExecFile).toHaveBeenCalledWith(
         'docker',
         ['stop', '-t', '3', containerId],
-        expect.objectContaining({ timeout: 10000 }),
+        expect.objectContaining({ timeout: 5000 }),
         expect.any(Function),
       );
     });
