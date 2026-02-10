@@ -10,7 +10,7 @@
 | TASK-004 | restartSessionのリサイズ情報保存・復元（実装） | REQ-003 | completed |
 | TASK-005 | WebSocketリサイズメッセージの早期バッファリング（テスト） | REQ-001 | completed |
 | TASK-006 | WebSocketリサイズメッセージの早期バッファリング（実装） | REQ-001 | completed |
-| TASK-007 | 全テスト実行・動作確認 | NFR-001, NFR-002 | completed |
+| TASK-007 | 全テスト実行・動作確認 | NFR-001, NFR-002 | completed (テストのみ) |
 
 ## TASK-001: 遅延リサイズの無条件スケジューリング（テスト）
 
