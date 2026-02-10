@@ -556,9 +556,7 @@ export function setupClaudeWebSocket(
       ws.off('message', earlyMessageHandler);
 
       // バッファされたリサイズを適用
-      // NOTE: pendingResizeはearlyMessageHandlerクロージャ内で変更されるが、
-      // TypeScriptの制御フロー解析はクロージャ越しの変更を追跡できない。
-      // 型アサーションで元の型を復元する。
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- クロージャ越しの変更をTSが追跡できないため必要
       const bufferedResize = pendingResize as { cols: number; rows: number } | null;
       if (bufferedResize) {
         if (isLegacy) {

@@ -515,13 +515,14 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
    */
   private restoreResizeInfo(sessionId: string, cols?: number, rows?: number): void {
     if (!cols || !rows) return;
-    const session = this.sessions.get(sessionId);
-    if (session) {
-      session.lastKnownCols = cols;
-      session.lastKnownRows = rows;
-      session.ptyProcess.resize(cols, rows);
+    try {
+      this.resize(sessionId, cols, rows);
       logger.info('DockerAdapter: Restored resize info after restart', {
         sessionId, cols, rows,
+      });
+    } catch (error) {
+      logger.warn('DockerAdapter: Failed to restore resize info after restart', {
+        sessionId, cols, rows, error,
       });
     }
   }
@@ -538,7 +539,11 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
       if (shellMode) {
         this.createSession(sessionId, wd, undefined, { shellMode: true })
           .then(() => this.restoreResizeInfo(sessionId, lastKnownCols, lastKnownRows))
-          .catch(() => {});
+          .catch((error) => {
+            logger.error('DockerAdapter: Failed to restart shell session', {
+              sessionId, error: error instanceof Error ? error.message : error,
+            });
+          });
         return;
       }
 
@@ -550,8 +555,10 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
         .then(() => {
           this.restoreResizeInfo(sessionId, lastKnownCols, lastKnownRows);
         })
-        .catch(() => {
-          // createSession内部でlogger.error + emit('error')済み
+        .catch((error) => {
+          logger.error('DockerAdapter: Failed to restart session', {
+            sessionId, error: error instanceof Error ? error.message : error,
+          });
         });
     } else if (workingDir) {
       logger.info('DockerAdapter: Restarting session (from fallback params)', { sessionId });
