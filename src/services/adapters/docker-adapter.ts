@@ -375,11 +375,13 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
           if (!session.hasReceivedOutput && data.length > 0) {
             session.hasReceivedOutput = true;
 
-            // 初回出力受信後、遅延リサイズを実行
+            // 初回出力受信後、遅延リサイズを無条件スケジュール
             // Docker環境ではコンテナ起動のオーバーヘッドにより、クライアントからの
             // resize()がコンテナ起動完了前に到着し効果がない。初回出力後に
             // 保存済みのクライアントサイズでリサイズを再適用する。
-            if (session.lastKnownCols && session.lastKnownRows) {
+            // 注意: lastKnownCols/Rowsはこの時点で未設定の場合がある
+            // （WebSocketメッセージ競合やrestart時）。チェックはコールバック内で行う。
+            if (!session.shellMode) {
               setTimeout(() => {
                 const s = this.sessions.get(sessionId);
                 if (s && s.lastKnownCols && s.lastKnownRows) {
@@ -508,16 +510,35 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
     }
   }
 
+  /**
+   * リサイズ情報を新セッションに復元する
+   */
+  private restoreResizeInfo(sessionId: string, cols?: number, rows?: number): void {
+    if (!cols || !rows) return;
+    const session = this.sessions.get(sessionId);
+    if (session) {
+      session.lastKnownCols = cols;
+      session.lastKnownRows = rows;
+      session.ptyProcess.resize(cols, rows);
+      logger.info('DockerAdapter: Restored resize info after restart', {
+        sessionId, cols, rows,
+      });
+    }
+  }
+
   restartSession(sessionId: string, workingDir?: string): void {
     const session = this.sessions.get(sessionId);
     if (session) {
-      const { workingDir: wd, containerId, shellMode } = session;
+      const { workingDir: wd, containerId, shellMode,
+              lastKnownCols, lastKnownRows } = session;
       logger.info('DockerAdapter: Restarting session', { sessionId, shellMode });
       this.destroySession(sessionId);
 
       // shellModeセッションはコンテナ停止を待たずに再接続
       if (shellMode) {
-        this.createSession(sessionId, wd, undefined, { shellMode: true }).catch(() => {});
+        this.createSession(sessionId, wd, undefined, { shellMode: true })
+          .then(() => this.restoreResizeInfo(sessionId, lastKnownCols, lastKnownRows))
+          .catch(() => {});
         return;
       }
 
@@ -525,6 +546,9 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
       this.waitForContainer(containerId)
         .then(() => {
           return this.createSession(sessionId, wd);
+        })
+        .then(() => {
+          this.restoreResizeInfo(sessionId, lastKnownCols, lastKnownRows);
         })
         .catch(() => {
           // createSession内部でlogger.error + emit('error')済み

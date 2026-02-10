@@ -114,6 +114,7 @@ describe('Claude WebSocket - Image Paste', () => {
       on: vi.fn((event: string, handler: any) => {
         if (event === 'message') messageHandler = handler;
       }),
+      off: vi.fn(),
     } as unknown as WebSocket;
 
     mockDb.query.sessions.findFirst.mockResolvedValue({

@@ -176,6 +176,27 @@ export function setupClaudeWebSocket(
       return;
     }
 
+    // セッション準備前のリサイズメッセージをキャプチャ
+    // クライアントはws.onopenで即座にresizeを送信するが、
+    // サーバー側のメッセージハンドラーは複数のawait後に登録されるため、
+    // 初期リサイズがEventEmitter上で消失する可能性がある。
+    // この早期ハンドラーでresizeをバッファし、セットアップ完了後に適用する。
+    let pendingResize: { cols: number; rows: number } | null = null;
+    const earlyMessageHandler = (message: Buffer) => {
+      try {
+        const data = JSON.parse(message.toString());
+        if (data?.type === 'resize' && data.data &&
+            typeof data.data.cols === 'number' && typeof data.data.rows === 'number' &&
+            Number.isFinite(data.data.cols) && Number.isFinite(data.data.rows) &&
+            Number.isInteger(data.data.cols) && Number.isInteger(data.data.rows) &&
+            data.data.cols > 0 && data.data.rows > 0 &&
+            data.data.cols <= 1000 && data.data.rows <= 1000) {
+          pendingResize = { cols: data.data.cols, rows: data.data.rows };
+        }
+      } catch { /* パースエラーは無視 */ }
+    };
+    ws.on('message', earlyMessageHandler);
+
     // セッション存在確認
     try {
       const session = await db.query.sessions.findFirst({
@@ -478,6 +499,22 @@ export function setupClaudeWebSocket(
         adapter!.on('exit', adapterExitHandler);
         adapter!.on('error', adapterErrorHandler);
         adapter!.on('claudeSessionId', claudeSessionIdHandler);
+      }
+
+      // 早期リサイズハンドラーを解除（完全ハンドラーに切り替え）
+      ws.off('message', earlyMessageHandler);
+
+      // バッファされたリサイズを適用
+      if (pendingResize) {
+        if (isLegacy) {
+          claudePtyManager.resize(sessionId, pendingResize.cols, pendingResize.rows);
+        } else {
+          adapter!.resize(sessionId, pendingResize.cols, pendingResize.rows);
+        }
+        logger.info('Claude WebSocket: Applied pending resize from early buffer', {
+          sessionId, cols: pendingResize.cols, rows: pendingResize.rows,
+        });
+        pendingResize = null;
       }
 
       // WebSocket入力 → PTY

@@ -142,6 +142,7 @@ describe('Claude WebSocket Handler - Environment Support', () => {
       close: vi.fn(),
       send: vi.fn(),
       on: vi.fn(),
+      off: vi.fn(),
     } as unknown as WebSocket;
 
     // デフォルトのモック設定
