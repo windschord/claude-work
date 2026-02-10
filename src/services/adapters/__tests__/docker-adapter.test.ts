@@ -387,6 +387,27 @@ describe('DockerAdapter', () => {
       vi.useRealTimers();
     });
 
+    it('should schedule deferred resize unconditionally and apply when resize arrives before callback', async () => {
+      vi.useFakeTimers();
+
+      await adapter.createSession(sessionId, workingDir);
+
+      // resize()を呼ばずに初回出力を発火 → 遅延リサイズはスケジュールされるべき
+      (mockPty.resize as Mock).mockClear();
+      dataHandler('Welcome to Claude Code');
+
+      // 500ms後にresizeが到着（遅延リサイズコールバック前）
+      vi.advanceTimersByTime(500);
+      adapter.resize(sessionId, 150, 50);
+      (mockPty.resize as Mock).mockClear(); // resize()自体の直接呼び出しをクリア
+
+      // 残りの500ms経過 → 遅延リサイズコールバック発火
+      vi.advanceTimersByTime(500);
+      expect(mockPty.resize).toHaveBeenCalledWith(150, 50);
+
+      vi.useRealTimers();
+    });
+
     it('should not execute deferred resize on second or subsequent onData', async () => {
       vi.useFakeTimers();
 
@@ -580,6 +601,99 @@ describe('DockerAdapter', () => {
       expect((waitCalls[0][1] as string[])[1]).toBe(oldContainerId);
 
       expect(mockSpawn).toHaveBeenCalled();
+    });
+
+    it('restartSession: リサイズ情報が新セッションに引き継がれること', async () => {
+      const sessionId = 'session-resize-preserve';
+      const workingDir = '/projects/test';
+      await adapter.createSession(sessionId, workingDir);
+
+      // 旧セッションでresizeを呼ぶ
+      adapter.resize(sessionId, 120, 40);
+
+      mockExecFile.mockImplementation((_cmd: string, _args: string[], _opts: unknown, callback?: (error: Error | null, stdout: string, stderr: string) => void) => {
+        if (callback) {
+          callback(null, '', '');
+        }
+      });
+
+      // 新しいPTYモックを準備
+      const newMockPty = Object.assign(new EventEmitter(), {
+        pid: 77777,
+        cols: 80,
+        rows: 24,
+        process: 'docker',
+        handleFlowControl: false,
+        write: vi.fn(),
+        resize: vi.fn(),
+        kill: vi.fn(),
+        pause: vi.fn(),
+        resume: vi.fn(),
+        clear: vi.fn(),
+        onData: vi.fn((handler: (data: string) => void) => {
+          dataHandler = handler;
+          return { dispose: vi.fn() };
+        }),
+        onExit: vi.fn((handler: (info: { exitCode: number; signal?: number }) => void) => {
+          exitHandler = handler;
+          return { dispose: vi.fn() };
+        }),
+      });
+      mockSpawn.mockReturnValue(newMockPty);
+
+      adapter.restartSession(sessionId);
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // 新セッションが作成されていること
+      expect(adapter.hasSession(sessionId)).toBe(true);
+
+      // リサイズ情報が引き継がれて、新PTYにresizeが適用されていること
+      expect(newMockPty.resize).toHaveBeenCalledWith(120, 40);
+    });
+
+    it('restartSession: リサイズ情報が未設定でもエラーにならないこと', async () => {
+      const sessionId = 'session-no-resize-restart';
+      const workingDir = '/projects/test';
+      await adapter.createSession(sessionId, workingDir);
+      // resize()を呼ばない
+
+      mockExecFile.mockImplementation((_cmd: string, _args: string[], _opts: unknown, callback?: (error: Error | null, stdout: string, stderr: string) => void) => {
+        if (callback) {
+          callback(null, '', '');
+        }
+      });
+
+      const newMockPty = Object.assign(new EventEmitter(), {
+        pid: 88888,
+        cols: 80,
+        rows: 24,
+        process: 'docker',
+        handleFlowControl: false,
+        write: vi.fn(),
+        resize: vi.fn(),
+        kill: vi.fn(),
+        pause: vi.fn(),
+        resume: vi.fn(),
+        clear: vi.fn(),
+        onData: vi.fn((handler: (data: string) => void) => {
+          dataHandler = handler;
+          return { dispose: vi.fn() };
+        }),
+        onExit: vi.fn((handler: (info: { exitCode: number; signal?: number }) => void) => {
+          exitHandler = handler;
+          return { dispose: vi.fn() };
+        }),
+      });
+      mockSpawn.mockReturnValue(newMockPty);
+
+      // エラーにならないこと
+      expect(() => adapter.restartSession(sessionId)).not.toThrow();
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // 新セッションが作成されていること
+      expect(adapter.hasSession(sessionId)).toBe(true);
+      // resize()は呼ばれないこと（リサイズ情報がないため）
+      expect(newMockPty.resize).not.toHaveBeenCalled();
     });
 
     it('restartSession後に旧PTYのonExitが遅延発火しても新セッションが消えないこと', async () => {

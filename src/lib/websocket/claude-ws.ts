@@ -43,6 +43,59 @@ const creatingSessionPromises = new Map<string, Promise<void>>();
 // 画像の最大サイズ（10MB）
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
 
+/**
+ * リサイズメッセージのバリデーション
+ *
+ * cols/rowsが正の整数かつ1-1000の範囲内であることを検証する。
+ * 有効な場合は { cols, rows } を返し、無効な場合は null を返す。
+ */
+const validateResizeDimensions = (
+  data: unknown,
+): { cols: number; rows: number } | null => {
+  if (
+    data &&
+    typeof data === 'object' &&
+    'cols' in data &&
+    'rows' in data &&
+    typeof (data as Record<string, unknown>).cols === 'number' &&
+    typeof (data as Record<string, unknown>).rows === 'number' &&
+    Number.isFinite((data as Record<string, unknown>).cols) &&
+    Number.isFinite((data as Record<string, unknown>).rows) &&
+    Number.isInteger((data as Record<string, unknown>).cols) &&
+    Number.isInteger((data as Record<string, unknown>).rows) &&
+    ((data as Record<string, unknown>).cols as number) > 0 &&
+    ((data as Record<string, unknown>).rows as number) > 0 &&
+    ((data as Record<string, unknown>).cols as number) <= 1000 &&
+    ((data as Record<string, unknown>).rows as number) <= 1000
+  ) {
+    return {
+      cols: (data as Record<string, number>).cols,
+      rows: (data as Record<string, number>).rows,
+    };
+  }
+  return null;
+};
+
+/**
+ * Bufferからリサイズメッセージをパース・検証する
+ *
+ * WebSocket接続初期の早期メッセージハンドラーおよびメインハンドラーで使用。
+ * JSONパースに失敗した場合やresizeメッセージでない場合は null を返す。
+ */
+const parseResizeMessage = (
+  message: Buffer,
+): { cols: number; rows: number } | null => {
+  try {
+    const data = JSON.parse(message.toString());
+    if (data?.type === 'resize' && data.data) {
+      return validateResizeDimensions(data.data);
+    }
+  } catch {
+    // パースエラーは無視
+  }
+  return null;
+};
+
 // 許可するMIMEタイプと拡張子のマッピング
 const ALLOWED_IMAGE_TYPES: Record<string, string> = {
   'image/png': '.png',
@@ -176,6 +229,20 @@ export function setupClaudeWebSocket(
       return;
     }
 
+    // セッション準備前のリサイズメッセージをキャプチャ
+    // クライアントはws.onopenで即座にresizeを送信するが、
+    // サーバー側のメッセージハンドラーは複数のawait後に登録されるため、
+    // 初期リサイズがEventEmitter上で消失する可能性がある。
+    // この早期ハンドラーでresizeをバッファし、セットアップ完了後に適用する。
+    let pendingResize: { cols: number; rows: number } | null = null;
+    const earlyMessageHandler = (message: Buffer) => {
+      const resize = parseResizeMessage(message);
+      if (resize) {
+        pendingResize = resize;
+      }
+    };
+    ws.on('message', earlyMessageHandler);
+
     // セッション存在確認
     try {
       const session = await db.query.sessions.findFirst({
@@ -184,6 +251,7 @@ export function setupClaudeWebSocket(
 
       if (!session) {
         logger.warn('Claude WebSocket: Session not found', { sessionId });
+        ws.off('message', earlyMessageHandler);
         ws.close(1008, 'Session not found');
         return;
       }
@@ -223,6 +291,7 @@ export function setupClaudeWebSocket(
             message: `Environment not found: ${session.environment_id}`,
           };
           ws.send(JSON.stringify(errorMsg));
+          ws.off('message', earlyMessageHandler);
           ws.close(1008, 'Environment not found');
           return;
         }
@@ -258,6 +327,7 @@ export function setupClaudeWebSocket(
             message: 'Failed to get default environment',
           };
           ws.send(JSON.stringify(errorMsg));
+          ws.off('message', earlyMessageHandler);
           ws.close(1011, 'Default environment not found');
           return;
         }
@@ -283,6 +353,7 @@ export function setupClaudeWebSocket(
               message: 'PTY creation failed (concurrent request)',
             };
             ws.send(JSON.stringify(errorMsg));
+            ws.off('message', earlyMessageHandler);
             ws.close(1000, 'PTY creation failed');
             return;
           }
@@ -371,6 +442,7 @@ export function setupClaudeWebSocket(
               message: `PTY creation failed: ${errorMessage}`,
             };
             ws.send(JSON.stringify(errorMsg));
+            ws.off('message', earlyMessageHandler);
             ws.close(1000, 'PTY creation failed');
 
             await db.update(schema.sessions)
@@ -480,6 +552,24 @@ export function setupClaudeWebSocket(
         adapter!.on('claudeSessionId', claudeSessionIdHandler);
       }
 
+      // 早期リサイズハンドラーを解除（完全ハンドラーに切り替え）
+      ws.off('message', earlyMessageHandler);
+
+      // バッファされたリサイズを適用
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- クロージャ越しの変更をTSが追跡できないため必要
+      const bufferedResize = pendingResize as { cols: number; rows: number } | null;
+      if (bufferedResize) {
+        if (isLegacy) {
+          claudePtyManager.resize(sessionId, bufferedResize.cols, bufferedResize.rows);
+        } else {
+          adapter!.resize(sessionId, bufferedResize.cols, bufferedResize.rows);
+        }
+        logger.info('Claude WebSocket: Applied pending resize from early buffer', {
+          sessionId, cols: bufferedResize.cols, rows: bufferedResize.rows,
+        });
+        pendingResize = null;
+      }
+
       // WebSocket入力 → PTY
       ws.on('message', async (message: Buffer) => {
         try {
@@ -506,21 +596,9 @@ export function setupClaudeWebSocket(
               adapter!.write(sessionId, data.data);
             }
           } else if (data.type === 'resize') {
-            // resize データの検証
-            // ターミナルサイズは正の整数でなければならない
-            if (
-              !data.data ||
-              typeof data.data.cols !== 'number' ||
-              typeof data.data.rows !== 'number' ||
-              !Number.isFinite(data.data.cols) ||
-              !Number.isFinite(data.data.rows) ||
-              !Number.isInteger(data.data.cols) ||
-              !Number.isInteger(data.data.rows) ||
-              data.data.cols <= 0 ||
-              data.data.rows <= 0 ||
-              data.data.cols > 1000 ||
-              data.data.rows > 1000
-            ) {
+            // resize データの検証（共通バリデーション関数を使用）
+            const resizeDims = validateResizeDimensions(data.data);
+            if (!resizeDims) {
               logger.warn('Claude WebSocket: Invalid resize dimensions', {
                 sessionId,
                 cols: data.data?.cols,
@@ -529,9 +607,9 @@ export function setupClaudeWebSocket(
               return;
             }
             if (isLegacy) {
-              claudePtyManager.resize(sessionId, data.data.cols, data.data.rows);
+              claudePtyManager.resize(sessionId, resizeDims.cols, resizeDims.rows);
             } else {
-              adapter!.resize(sessionId, data.data.cols, data.data.rows);
+              adapter!.resize(sessionId, resizeDims.cols, resizeDims.rows);
             }
           } else if (data.type === 'restart') {
             // Claude Codeプロセスを再起動
@@ -636,6 +714,7 @@ export function setupClaudeWebSocket(
         sessionId,
         error,
       });
+      ws.off('message', earlyMessageHandler);
       ws.close(1011, 'Internal server error');
     }
   });
