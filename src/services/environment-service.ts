@@ -2,6 +2,7 @@ import { db, schema } from '@/lib/db';
 import type { ExecutionEnvironment } from '@/lib/db';
 import { eq, asc, count } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
+import { getEnvironmentsDir } from '@/lib/data-dir';
 import * as path from 'path';
 import * as fsPromises from 'fs/promises';
 import { spawn } from 'child_process';
@@ -106,7 +107,7 @@ export class EnvironmentService {
    * 認証ディレクトリのベースパス
    */
   private getAuthBasePath(): string {
-    return path.resolve(process.cwd(), 'data', 'environments');
+    return getEnvironmentsDir();
   }
 
   /**

@@ -2,17 +2,21 @@
 
 このドキュメントでは、Ubuntu で ClaudeWork を systemd サービスとして設定し、システム起動時に自動起動させる方法を説明します。
 
+`claude-work` ユーザーのホームディレクトリを `/opt/claude-work` に設定し、npm キャッシュ (`~/.npm`)、Claude Code CLI (`~/.local/bin`)、SSH 鍵 (`~/.ssh`) をすべてこのディレクトリ配下に統一します。
+
 ## 目次
 
 1. [前提条件](#前提条件)
 2. [専用ユーザーの作成](#専用ユーザーの作成)
 3. [ディレクトリの準備](#ディレクトリの準備)
-4. [環境変数の設定](#環境変数の設定)
-5. [systemd サービスの設定](#systemd-サービスの設定)
-6. [サービスの起動と確認](#サービスの起動と確認)
-7. [ログの確認](#ログの確認)
-8. [トラブルシューティング](#トラブルシューティング)
-9. [アンインストール](#アンインストール)
+4. [Claude Code CLI のインストール](#claude-code-cli-のインストール)
+5. [SSH 鍵の設定（プライベートリポジトリ用）](#ssh-鍵の設定プライベートリポジトリ用)
+6. [環境変数の設定](#環境変数の設定)
+7. [systemd サービスの設定](#systemd-サービスの設定)
+8. [サービスの起動と確認](#サービスの起動と確認)
+9. [ログの確認](#ログの確認)
+10. [トラブルシューティング](#トラブルシューティング)
+11. [アンインストール](#アンインストール)
 
 ---
 
@@ -22,10 +26,10 @@
 - Node.js 20 以上がインストール済み
 - npm がインストール済み
 - git がインストール済み（ワークツリー操作に必要）
-- Claude Code CLI がインストール済み（システム PATH でアクセス可能）
 - sudo 権限を持つユーザーでログイン
+- Docker を使用する場合: Docker Engine がインストール済み
 
-> **重要**: ClaudeWork は Claude Code CLI を使用してセッションを管理します。サービス起動前に `claude --version` コマンドで Claude Code CLI がインストールされていることを確認してください。
+> **注**: Claude Code CLI はセットアップ手順の中で `claude-work` ユーザーにインストールします（[Claude Code CLI のインストール](#claude-code-cli-のインストール)を参照）。事前のインストールは不要です。
 
 ### git のインストール（未インストールの場合）
 
@@ -48,32 +52,53 @@ sudo apt-get install -y nodejs
 
 ## 専用ユーザーの作成
 
-セキュリティのため、ClaudeWork 専用のシステムユーザーを作成します。
+セキュリティのため、ClaudeWork 専用のシステムユーザーを作成します。ホームディレクトリは `/opt/claude-work` です。
 
 ```bash
 # claude-work ユーザーを作成（ログイン不可、ホームディレクトリは /opt/claude-work）
 sudo useradd --system --home /opt/claude-work --shell /usr/sbin/nologin claude-work
 
+# Docker を使用する場合: docker グループに追加
+sudo usermod -aG docker claude-work
+
 # ユーザーが作成されたことを確認
 id claude-work
 ```
+
+> **注意**: Docker グループへの追加は Docker Engine がインストールされている場合のみ必要です。Docker を使用しない場合はスキップしてください。グループ追加後、サービスの再起動が必要です。
 
 ---
 
 ## ディレクトリの準備
 
+`/opt/claude-work` をホームディレクトリとして、必要なサブディレクトリを作成します。
+
 ```bash
 # /opt/claude-work ディレクトリを作成
 sudo mkdir -p /opt/claude-work
 
-# データディレクトリと npm キャッシュディレクトリを作成
-# .npm ディレクトリは systemd サービスで HOME=/opt/claude-work を設定するため必要
-# 手動で npm/npx コマンドを実行する場合は HOME=/opt/claude-work を設定してください
-sudo mkdir -p /opt/claude-work/data
-sudo mkdir -p /opt/claude-work/.npm
+# 各サブディレクトリを作成
+sudo mkdir -p /opt/claude-work/data        # データベース、リポジトリ
+sudo mkdir -p /opt/claude-work/.npm        # npm キャッシュ
+sudo mkdir -p /opt/claude-work/.local/bin  # Claude Code CLI インストール先
 
 # 所有者を claude-work ユーザーに変更
 sudo chown -R claude-work:claude-work /opt/claude-work
+```
+
+### ディレクトリ構成
+
+systemd サービスでは `HOME=/opt/claude-work` が設定されるため、各ツールが `~` を参照する際にこのディレクトリが使用されます。
+
+```text
+/opt/claude-work/           # HOME ディレクトリ
+  ├── .local/bin/           # Claude Code CLI (PATH に含まれる)
+  ├── .npm/                 # npm/npx キャッシュ
+  ├── .ssh/                 # SSH 鍵（プライベートリポジトリ用）
+  └── data/                 # 永続データ
+      ├── claudework.db     # SQLite データベース
+      ├── repos/            # clone したリポジトリ
+      └── environments/     # Docker 環境の認証情報
 ```
 
 > **注意**: `npx github:windschord/claude-work` は初回実行時に GitHub からパッケージを取得し、ローカルにキャッシュします。キャッシュは `/opt/claude-work/.npm` に保存され、2回目以降はキャッシュから起動されるため高速です。データベース初期化、Next.js ビルドは自動実行されます。git clone や npm install は不要です。
@@ -83,8 +108,66 @@ sudo chown -R claude-work:claude-work /opt/claude-work
 > - **2回目以降**: キャッシュが有効な場合はオフラインでも起動可能
 > - **キャッシュ更新**: npx は定期的に更新を確認するため、その際にはネットワーク接続が必要
 > - **ネットワーク障害時**: キャッシュが存在すればそのキャッシュから起動、存在しなければ起動失敗
->
-> キャッシュを手動で更新する場合は、`sudo -u claude-work HOME=/opt/claude-work npx github:windschord/claude-work` を実行してください。
+
+---
+
+## Claude Code CLI のインストール
+
+ClaudeWork は Claude Code CLI を使用してセッションを管理します。`claude-work` ユーザーのホームディレクトリにインストールします。
+
+```bash
+# claude-work ユーザーとして Claude Code CLI をインストール
+# npm prefix を使用して ~/.local にインストール
+sudo -u claude-work HOME=/opt/claude-work npm install -g @anthropic-ai/claude-code --prefix /opt/claude-work/.local
+
+# インストールされたことを確認
+sudo -u claude-work HOME=/opt/claude-work /opt/claude-work/.local/bin/claude --version
+```
+
+systemd サービスの PATH に `/opt/claude-work/.local/bin` が含まれているため、サービス起動時に `claude` コマンドが自動検出されます。`CLAUDE_CODE_PATH` を明示的に設定する必要はありません。
+
+> **更新**: CLI を更新する場合は、同じコマンドを再実行してください。
+> ```bash
+> sudo -u claude-work HOME=/opt/claude-work npm install -g @anthropic-ai/claude-code --prefix /opt/claude-work/.local
+> ```
+
+---
+
+## SSH 鍵の設定（プライベートリポジトリ用）
+
+ClaudeWork でプライベート Git リポジトリを Clone する場合、`claude-work` ユーザー用の SSH 鍵を設定する必要があります。パブリックリポジトリのみ使用する場合はこのセクションをスキップしてください。
+
+`HOME=/opt/claude-work` が設定されているため、SSH は自動的に `/opt/claude-work/.ssh/` を鍵の配置場所として参照します。
+
+```bash
+# claude-work ユーザーの .ssh ディレクトリを作成
+sudo mkdir -p /opt/claude-work/.ssh
+sudo chmod 700 /opt/claude-work/.ssh
+
+# SSH 鍵ペアを生成
+sudo ssh-keygen -t ed25519 -C "claude-work@$(hostname)" -f /opt/claude-work/.ssh/id_ed25519 -N ""
+
+# 所有者を変更
+sudo chown -R claude-work:claude-work /opt/claude-work/.ssh
+
+# 公開鍵を表示（GitHub の Deploy Key などに登録）
+sudo cat /opt/claude-work/.ssh/id_ed25519.pub
+```
+
+### GitHub への鍵登録
+
+1. 表示された公開鍵をコピーします
+2. GitHub リポジトリの **Settings** > **Deploy keys** > **Add deploy key** で登録します
+3. **Allow write access** にチェックを入れます（ワークツリーの push が必要な場合）
+
+### SSH 接続の確認
+
+```bash
+# claude-work ユーザーとして SSH 接続をテスト
+sudo -u claude-work HOME=/opt/claude-work ssh -T git@github.com
+```
+
+> **注意**: systemd サービスの `ProtectHome=read-only` 設定により `/home/*` への書き込みは制限されますが、`/opt/claude-work/.ssh/` は `ReadWritePaths` で許可されているため問題ありません。
 
 ---
 
@@ -113,11 +196,15 @@ sudo chmod 640 /etc/claude-work/env
 sudo nano /etc/claude-work/env
 ```
 
-最低限、以下の設定を確認・編集してください：
+最低限、以下の設定を確認・編集してください:
 
 ```bash
 # データベースパス
 DATABASE_URL=file:/opt/claude-work/data/claudework.db
+
+# データディレクトリ（repos/ と environments/ の親ディレクトリ）
+# npx キャッシュの再構築でデータが消失しないよう、node_modules 外に配置する
+DATA_DIR=/opt/claude-work/data
 
 # ポート番号
 PORT=3000
@@ -127,16 +214,12 @@ NODE_ENV=production
 
 # 外部からのアクセスを許可する場合（デフォルト: localhost）
 HOST=0.0.0.0
-
-# Claude Code CLI のパス（推奨: 絶対パスで指定）
-# systemd の claude-work ユーザーは PATH が制限されているため、
-# which claude で自動検出できない場合があります
-CLAUDE_CODE_PATH=/usr/local/bin/claude
 ```
 
+> **DATA_DIR について**: `npx github:windschord/claude-work` で起動する場合、カレントディレクトリは npx キャッシュ内のパッケージディレクトリになります。`DATA_DIR` を設定しない場合、`repos/`（clone したリポジトリ）や `environments/`（Docker 環境の認証情報）がキャッシュ内に作成され、`npx` キャッシュの再構築時にデータが消失します。`DATABASE_URL` と同じディレクトリ（`/opt/claude-work/data`）を指定することを推奨します。
+
 > **注意**: `HOST=0.0.0.0` を設定すると、すべてのネットワークインターフェースでリッスンします。セキュリティのため、ファイアウォールや認証（`CLAUDE_WORK_TOKEN`）の設定を推奨します。
->
-> **CLAUDE_CODE_PATH について**: `claude-work` ユーザーの PATH には Claude Code CLI が含まれていない場合があります。`which claude` で CLI が見つからない場合は、`CLAUDE_CODE_PATH` に Claude Code CLI の絶対パスを設定してください。パスの確認方法: `which claude`（管理者ユーザーで実行）
+> **CLAUDE_CODE_PATH について**: systemd サービスの PATH に `/opt/claude-work/.local/bin` が含まれているため、通常は設定不要です。別の場所にインストールした場合は、絶対パスまたは PATH 上で解決可能なコマンド名を指定できます。
 
 ---
 
@@ -154,6 +237,17 @@ sudo curl -fsSL https://raw.githubusercontent.com/windschord/claude-work/main/sy
 # systemd にリロードを通知
 sudo systemctl daemon-reload
 ```
+
+### サービスの主要な設定
+
+サービスファイルでは以下の環境が設定されます:
+
+| 設定 | 値 | 説明 |
+| --- | --- | --- |
+| `HOME` | `/opt/claude-work` | ホームディレクトリ (`~/.npm`, `~/.ssh` 等の基準) |
+| `PATH` | `...:/opt/claude-work/.local/bin` | システムパスの後に Claude CLI パスを追加 |
+| `ProtectHome` | `read-only` | `/home/*` への書き込みを制限 |
+| `ReadWritePaths` | `/opt/claude-work` | アプリケーションディレクトリへの書き込みを許可 |
 
 ### サービスの有効化
 
@@ -179,7 +273,7 @@ sudo systemctl start claude-work
 sudo systemctl status claude-work
 ```
 
-正常に起動した場合、以下のような出力が表示されます：
+正常に起動した場合、以下のような出力が表示されます:
 
 ```text
 claude-work.service - ClaudeWork - Claude Code Session Manager
@@ -245,7 +339,13 @@ sudo journalctl -u claude-work -p err
    ```bash
    ls -la /opt/claude-work/
    ls -la /opt/claude-work/data/
+   ls -la /opt/claude-work/.local/bin/
    ls -la /etc/claude-work/
+   ```
+
+5. **Claude CLI の確認**:
+   ```bash
+   sudo -u claude-work HOME=/opt/claude-work /opt/claude-work/.local/bin/claude --version
    ```
 
 ### よくあるエラーと対処法
@@ -256,15 +356,18 @@ sudo journalctl -u claude-work -p err
 | `DATABASE_URL not set` | 環境変数が未設定 | `/etc/claude-work/env` を確認 |
 | `EADDRINUSE` | ポートが使用中 | `PORT` を変更するか、競合プロセスを停止 |
 | `Read-only file system` | ProtectSystem 制限 | `ReadWritePaths` に必要なパスを追加 |
-| `CLAUDE_CODE_PATH is set but the path does not exist` | CLI パスが見つからない | 絶対パスで `CLAUDE_CODE_PATH` を設定 |
-| `claude command not found in PATH` | `which claude` で検出不可 | `CLAUDE_CODE_PATH` に絶対パスを設定 |
+| `claude command not found in PATH` | CLI が PATH 上にない | [Claude Code CLI のインストール](#claude-code-cli-のインストール)を実行 |
+| `CLAUDE_CODE_PATH is set but the path does not exist` | 指定パスに CLI がない | パスを修正するか `CLAUDE_CODE_PATH` を削除して PATH に任せる |
 | `Module not found: Can't resolve '@/...'` | npx キャッシュ破損 | `sudo rm -rf /opt/claude-work/.npm/_npx` で再取得 |
+| `permission denied while trying to connect to the Docker daemon` | docker グループ未参加 | `sudo usermod -aG docker claude-work` 後にサービス再起動 |
+| `SQLITE_ERROR` / `no such table: Project` | DB が未初期化 | サービスを再起動して自動初期化を実行 |
+| `Permission denied (publickey)` (git clone 時) | SSH 鍵が未設定 | [SSH 鍵の設定](#ssh-鍵の設定プライベートリポジトリ用)を参照 |
 
 ### セキュリティ設定による制限事項
 
 **ProtectHome=read-only について**:
 
-systemd サービスはセキュリティ強化のため `ProtectHome=read-only` が設定されています。これにより、ホームディレクトリ（`/home/*`）への書き込みができません。
+systemd サービスはセキュリティ強化のため `ProtectHome=read-only` が設定されています。これにより、`/home/*` への書き込みができません。`claude-work` ユーザーのホームディレクトリは `/opt/claude-work` のため、この制限の影響を受けません。
 
 ユーザーのホームディレクトリ内のプロジェクト（例: `/home/user/projects`）を登録して使用する場合は、以下のいずれかの対応が必要です:
 
@@ -295,7 +398,7 @@ systemd サービスはセキュリティ強化のため `ProtectHome=read-only`
 
 ```bash
 # claude-work ユーザーとして手動実行（デバッグ用）
-sudo -u claude-work bash -c 'set -a && source /etc/claude-work/env && set +a && cd /opt/claude-work && HOME=/opt/claude-work npx github:windschord/claude-work'
+sudo -u claude-work bash -c 'set -a && source /etc/claude-work/env && set +a && cd /opt/claude-work && HOME=/opt/claude-work PATH=$PATH:/opt/claude-work/.local/bin npx --yes github:windschord/claude-work'
 ```
 
 ---
@@ -324,14 +427,9 @@ sudo systemctl daemon-reload
 # 設定ファイルを削除
 sudo rm -rf /etc/claude-work
 
-# アプリケーションディレクトリを削除（データおよび npm キャッシュも削除される）
+# アプリケーションディレクトリを削除（データ、CLI、npm キャッシュも削除される）
 sudo rm -rf /opt/claude-work
 ```
-
-> **注意**: `/opt/claude-work` を削除すると、npx のキャッシュ（`/opt/claude-work/.npm`）も同時に削除されます。root ユーザーのグローバル npm キャッシュをクリアする場合は、以下のコマンドを実行してください（他のパッケージのキャッシュも削除されます）：
-> ```bash
-> sudo npm cache clean --force
-> ```
 
 ### ユーザーの削除（オプション）
 

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render } from '@testing-library/react';
 import RootLayout from './layout';
 
@@ -16,12 +16,21 @@ vi.mock('next-themes', () => ({
   ),
 }));
 
-// react-hot-toastをモック
+// react-hot-toastをモック（propsを検査可能にする）
+const { MockToaster } = vi.hoisted(() => ({
+  MockToaster: vi.fn((props: Record<string, unknown>) => (
+    <div data-testid="toaster" data-position={props.position}>Toaster</div>
+  )),
+}));
 vi.mock('react-hot-toast', () => ({
-  Toaster: () => <div data-testid="toaster">Toaster</div>,
+  Toaster: (props: Record<string, unknown>) => MockToaster(props),
 }));
 
 describe('RootLayout', () => {
+  beforeEach(() => {
+    MockToaster.mockClear();
+  });
+
   it('Toasterコンポーネントが配置されている', () => {
     const { getByTestId } = render(
       <RootLayout>
@@ -56,6 +65,18 @@ describe('RootLayout', () => {
 
       expect(toasterIndex).toBeGreaterThan(themeProviderIndex);
     }
+  });
+
+  it('Toasterにposition="top-right"が設定されている', () => {
+    render(
+      <RootLayout>
+        <div>テスト</div>
+      </RootLayout>
+    );
+
+    expect(MockToaster).toHaveBeenCalledWith(
+      expect.objectContaining({ position: 'top-right' })
+    );
   });
 
   it('子要素が正しくレンダリングされる', () => {

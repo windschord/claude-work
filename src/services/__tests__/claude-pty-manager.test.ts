@@ -20,23 +20,66 @@ vi.mock('fs', () => ({
   existsSync: vi.fn(() => true),
 }));
 
+// DockerPTYAdapterをモック（vi.hoisted内ではEventEmitterが使えないためプレーンオブジェクトで作成）
+const mockDockerAdapter = vi.hoisted(() => ({
+  createSession: vi.fn(),
+  write: vi.fn(),
+  resize: vi.fn(),
+  destroySession: vi.fn(),
+  restartSession: vi.fn(),
+  hasSession: vi.fn().mockReturnValue(false),
+  getWorkingDir: vi.fn().mockReturnValue(undefined),
+  getContainerId: vi.fn().mockReturnValue(undefined),
+  getClaudeSessionId: vi.fn().mockReturnValue(undefined),
+  on: vi.fn().mockReturnThis(),
+}));
+
+vi.mock('../docker-pty-adapter', () => ({
+  DockerPTYAdapter: class MockDockerPTYAdapter {
+    createSession = mockDockerAdapter.createSession;
+    write = mockDockerAdapter.write;
+    resize = mockDockerAdapter.resize;
+    destroySession = mockDockerAdapter.destroySession;
+    restartSession = mockDockerAdapter.restartSession;
+    hasSession = mockDockerAdapter.hasSession;
+    getWorkingDir = mockDockerAdapter.getWorkingDir;
+    getContainerId = mockDockerAdapter.getContainerId;
+    getClaudeSessionId = mockDockerAdapter.getClaudeSessionId;
+    on = mockDockerAdapter.on;
+  },
+}));
+
+// loggerをモック
+vi.mock('@/lib/logger', () => ({
+  logger: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  },
+}));
+
 // 実際のモジュールをインポート（モック適用後）
 import * as pty from 'node-pty';
 import * as fs from 'fs';
 
 describe('ClaudePTYManager', () => {
   let claudePtyManager: { claudePtyManager: EventEmitter & {
-    createSession: (sessionId: string, workingDir: string, initialPrompt?: string) => void;
+    createSession: (sessionId: string, workingDir: string, initialPrompt?: string, options?: { dockerMode?: boolean; resumeSessionId?: string }) => void;
     write: (sessionId: string, data: string) => void;
     resize: (sessionId: string, cols: number, rows: number) => void;
     destroySession: (sessionId: string) => void;
-    restartSession: (sessionId: string) => void;
+    restartSession: (sessionId: string, workingDir?: string, initialPrompt?: string, options?: { dockerMode?: boolean; resumeSessionId?: string }) => void;
     hasSession: (sessionId: string) => boolean;
     getWorkingDir: (sessionId: string) => string | undefined;
   }};
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    // DockerPTYAdapterモックのデフォルト値をリセット
+    mockDockerAdapter.hasSession.mockReturnValue(false);
+    mockDockerAdapter.getWorkingDir.mockReturnValue(undefined);
+    mockDockerAdapter.getClaudeSessionId.mockReturnValue(undefined);
     // 各テストで新しいインスタンスを作成するためにモジュールをリセット
     vi.resetModules();
     claudePtyManager = await import('../claude-pty-manager');
@@ -209,6 +252,30 @@ describe('ClaudePTYManager', () => {
         claudePtyManager.claudePtyManager.restartSession('nonexistent');
       }).not.toThrow();
     });
+
+    it('should delegate to dockerAdapter.restartSession when dockerAdapter has the session', () => {
+      // DockerPTYAdapterがセッションを持っている状態をシミュレート
+      mockDockerAdapter.hasSession.mockReturnValue(true);
+
+      claudePtyManager.claudePtyManager.restartSession('docker-session-123');
+
+      // dockerAdapterのrestartSessionが正しいsessionIdで呼ばれることを検証
+      expect(mockDockerAdapter.restartSession).toHaveBeenCalledWith('docker-session-123');
+      // ローカルPTYのkillは呼ばれないことを検証（Docker委譲時はローカルの処理を行わない）
+      // ※ beforeEachで作成したtest-sessionのkillは呼ばれていない
+      expect(mockPty.kill).not.toHaveBeenCalled();
+    });
+
+    it('should NOT delegate to dockerAdapter when dockerAdapter does not have the session', () => {
+      // DockerPTYAdapterがセッションを持っていない状態（デフォルト）
+      mockDockerAdapter.hasSession.mockReturnValue(false);
+
+      // ローカルにもないセッションIDで呼び出し → warningログパスへ
+      claudePtyManager.claudePtyManager.restartSession('nonexistent-session');
+
+      // dockerAdapterのrestartSessionは呼ばれないことを検証
+      expect(mockDockerAdapter.restartSession).not.toHaveBeenCalled();
+    });
   });
 
   describe('hasSession', () => {
@@ -294,7 +361,7 @@ describe('ClaudePTYManager', () => {
   });
 
   describe('dockerMode', () => {
-    it('should use DockerPTYAdapter when dockerMode is true', () => {
+    it('should delegate to DockerPTYAdapter when dockerMode is true', () => {
       claudePtyManager.claudePtyManager.createSession(
         'docker-session',
         '/path/to/worktree',
@@ -302,12 +369,11 @@ describe('ClaudePTYManager', () => {
         { dockerMode: true }
       );
 
-      // Dockerモードではnode-ptyは直接呼ばれない（DockerPTYAdapter経由）
-      // このテストではDockerPTYAdapterがモックされていないため、
-      // 実際にはpty.spawnがdockerコマンドで呼ばれることを確認
-      expect(pty.spawn).toHaveBeenCalledWith(
-        'docker',
-        expect.arrayContaining(['run', '-it', '--rm']),
+      // DockerPTYAdapterのcreateSessionに委譲されることを確認
+      expect(mockDockerAdapter.createSession).toHaveBeenCalledWith(
+        'docker-session',
+        '/path/to/worktree',
+        undefined,
         expect.any(Object)
       );
     });

@@ -71,7 +71,11 @@ export async function GET(
     return NextResponse.json({ sessions: sessionsWithEnvironment });
   } catch (error) {
     const { project_id: errorProjectId } = await params;
-    logger.error('Failed to get sessions', { error, project_id: errorProjectId });
+    logger.error('Failed to get sessions', {
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorStack: error instanceof Error ? error.stack : undefined,
+      project_id: errorProjectId,
+    });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -305,10 +309,11 @@ export async function POST(
     let worktreePath: string;
 
     try {
-      worktreePath = gitService.createWorktree(sessionName, branchName, source_branch || undefined);
+      worktreePath = gitService.createWorktree(sessionName, source_branch || undefined);
     } catch (worktreeError) {
       logger.error('Failed to create worktree', {
-        error: worktreeError,
+        errorMessage: worktreeError instanceof Error ? worktreeError.message : String(worktreeError),
+        errorStack: worktreeError instanceof Error ? worktreeError.stack : undefined,
         project_id,
         sessionName,
       });
@@ -369,7 +374,11 @@ export async function POST(
     return NextResponse.json({ session: newSession }, { status: 201 });
   } catch (error) {
     const { project_id: errorProjectId } = await params;
-    logger.error('Failed to create session', { error, project_id: errorProjectId });
+    logger.error('Failed to create session', {
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorStack: error instanceof Error ? error.stack : undefined,
+      project_id: errorProjectId,
+    });
 
     // 開発環境では詳細なエラーメッセージを返す
     if (process.env.NODE_ENV === 'development') {

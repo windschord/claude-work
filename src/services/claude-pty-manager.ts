@@ -6,6 +6,7 @@ import { logger } from '@/lib/logger';
 import { DockerPTYAdapter, CreateDockerPTYSessionOptions } from './docker-pty-adapter';
 import { ClaudeOptionsService } from './claude-options-service';
 import type { ClaudeCodeOptions, CustomEnvVars } from './claude-options-service';
+import { scrollbackBuffer } from './scrollback-buffer';
 
 /**
  * Claude PTYセッション作成オプション
@@ -107,6 +108,7 @@ class ClaudePTYManager extends EventEmitter {
 
     // DockerPTYAdapterからのイベントを中継
     this.dockerAdapter.on('data', (sessionId: string, data: string) => {
+      scrollbackBuffer.append(sessionId, data);
       this.emit('data', sessionId, data);
     });
     this.dockerAdapter.on('exit', (sessionId: string, info: ClaudePTYExitInfo) => {
@@ -161,9 +163,11 @@ class ClaudePTYManager extends EventEmitter {
       throw new Error(`Claude PTY creation already in progress for session ${sessionId}`);
     }
 
-    // 既存のセッションがあればクリーンアップ
+    // 既存のセッションがあれば再利用（破棄しない）
     if (this.sessions.has(sessionId)) {
-      this.destroySession(sessionId);
+      logger.info('Reusing existing PTY session', { sessionId });
+      this.creating.delete(sessionId);
+      return;
     }
 
     // 作成中フラグを立てる
@@ -240,6 +244,7 @@ class ClaudePTYManager extends EventEmitter {
       // PTY出力をイベントとして発火
       // Claude Code出力からセッションIDを抽出
       ptyProcess.onData((data: string) => {
+        scrollbackBuffer.append(sessionId, data);
         this.emit('data', sessionId, data);
 
         // セッションIDの抽出（まだ取得していない場合）
@@ -261,6 +266,7 @@ class ClaudePTYManager extends EventEmitter {
       ptyProcess.onExit(({ exitCode, signal }) => {
         logger.info('Claude PTY exited', { sessionId, exitCode, signal });
         this.emit('exit', sessionId, { exitCode, signal });
+        scrollbackBuffer.clear(sessionId);
         this.sessions.delete(sessionId);
       });
 
@@ -345,6 +351,7 @@ class ClaudePTYManager extends EventEmitter {
   destroySession(sessionId: string): void {
     // Dockerセッションの場合はDockerPTYAdapterに委譲
     if (this.dockerAdapter.hasSession(sessionId)) {
+      scrollbackBuffer.clear(sessionId);
       this.dockerAdapter.destroySession(sessionId);
       return;
     }
@@ -352,6 +359,7 @@ class ClaudePTYManager extends EventEmitter {
     const session = this.sessions.get(sessionId);
     if (session) {
       logger.info('Destroying Claude PTY session', { sessionId });
+      scrollbackBuffer.clear(sessionId);
       session.ptyProcess.kill();
       this.sessions.delete(sessionId);
     }
@@ -361,8 +369,11 @@ class ClaudePTYManager extends EventEmitter {
    * セッションを再起動
    *
    * @param sessionId - セッションID
+   * @param workingDir - フォールバック用作業ディレクトリ（セッションがメモリにない場合に使用）
+   * @param initialPrompt - フォールバック用初期プロンプト
+   * @param options - フォールバック用オプション
    */
-  restartSession(sessionId: string): void {
+  restartSession(sessionId: string, workingDir?: string, initialPrompt?: string, options?: CreateClaudePTYSessionOptions): void {
     // Dockerセッションの場合はDockerPTYAdapterに委譲
     if (this.dockerAdapter.hasSession(sessionId)) {
       this.dockerAdapter.restartSession(sessionId);
@@ -371,13 +382,29 @@ class ClaudePTYManager extends EventEmitter {
 
     const session = this.sessions.get(sessionId);
     if (session) {
-      const { workingDir, initialPrompt, options } = session;
-      logger.info('Restarting Claude PTY session', { sessionId, dockerMode: options?.dockerMode });
+      const { workingDir: wd, initialPrompt: ip, options: opts } = session;
+      logger.info('Restarting Claude PTY session', { sessionId, dockerMode: opts?.dockerMode });
       this.destroySession(sessionId);
       // 少し待ってから再作成（オプションを保持して再起動）
       setTimeout(() => {
-        this.createSession(sessionId, workingDir, initialPrompt, options);
+        try {
+          this.createSession(sessionId, wd, ip, opts);
+        } catch {
+          // createSession内部でlogger.error + emit('error')済みのため、ここでは追加処理不要
+        }
       }, 500);
+    } else if (workingDir) {
+      // セッションがメモリにない場合（exit後など）、引数のworkingDirで再作成
+      logger.info('Restarting Claude PTY session (from fallback params)', { sessionId });
+      setTimeout(() => {
+        try {
+          this.createSession(sessionId, workingDir, initialPrompt, options);
+        } catch {
+          // createSession内部でlogger.error + emit('error')済みのため、ここでは追加処理不要
+        }
+      }, 500);
+    } else {
+      logger.warn('Cannot restart Claude PTY session: session not found and no workingDir provided', { sessionId });
     }
   }
 
@@ -404,6 +431,16 @@ class ClaudePTYManager extends EventEmitter {
       return dockerWorkingDir;
     }
     return this.sessions.get(sessionId)?.workingDir;
+  }
+
+  /**
+   * セッションのスクロールバックバッファを取得
+   *
+   * @param sessionId - セッションID
+   * @returns バッファ内容、存在しない場合はnull
+   */
+  getScrollbackBuffer(sessionId: string): string | null {
+    return scrollbackBuffer.getBuffer(sessionId);
   }
 
   /**

@@ -101,11 +101,11 @@ export class HostAdapter extends EventEmitter implements EnvironmentAdapter {
     }
   }
 
-  restartSession(sessionId: string): void {
+  restartSession(sessionId: string, workingDir?: string): void {
     logger.info('HostAdapter: Restarting session', { sessionId });
     // シェルセッションの再起動は現在サポートしていない
     if (!this.shellSessions.has(sessionId)) {
-      claudePtyManager.restartSession(sessionId);
+      claudePtyManager.restartSession(sessionId, workingDir);
     }
   }
 

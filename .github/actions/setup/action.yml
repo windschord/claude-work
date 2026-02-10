@@ -1,0 +1,68 @@
+name: 'Setup Project'
+description: 'Setup Node.js, pnpm, install dependencies and setup database with caching'
+
+inputs:
+  install-playwright:
+    description: 'Install Playwright browsers'
+    required: false
+    default: 'false'
+  skip-db-setup:
+    description: 'Skip database setup (drizzle-kit push)'
+    required: false
+    default: 'false'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: 9
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'pnpm'
+
+    - name: Get versions for cache key
+      id: versions
+      shell: bash
+      run: |
+        echo "node=$(node --version)" >> $GITHUB_OUTPUT
+        echo "pnpm=$(pnpm --version)" >> $GITHUB_OUTPUT
+
+    - name: Cache node_modules
+      uses: actions/cache@v4
+      id: node-modules-cache
+      with:
+        path: node_modules
+        key: node-modules-${{ runner.os }}-node${{ steps.versions.outputs.node }}-pnpm${{ steps.versions.outputs.pnpm }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+    - name: Install dependencies
+      if: steps.node-modules-cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: pnpm install --frozen-lockfile
+
+    - name: Prepare DB directory
+      if: inputs.skip-db-setup != 'true'
+      shell: bash
+      run: mkdir -p data
+
+    - name: Setup Database
+      if: inputs.skip-db-setup != 'true'
+      shell: bash
+      run: pnpm exec drizzle-kit push
+
+    - name: Cache Playwright browsers
+      uses: actions/cache@v4
+      if: inputs.install-playwright == 'true'
+      id: playwright-cache
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+    - name: Install Playwright browsers
+      if: inputs.install-playwright == 'true' && steps.playwright-cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: pnpm exec playwright install --with-deps chromium

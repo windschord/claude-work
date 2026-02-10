@@ -22,10 +22,9 @@ export interface CustomEnvVars {
 const ENV_VAR_KEY_PATTERN = /^[A-Z_][A-Z0-9_]*$/;
 
 /**
- * 制御文字を検出する正規表現（RegExpコンストラクタで定義してlintエラーを回避）
+ * 制御文字を検出する正規表現（RegExpコンストラクタで定義）
  * \x00-\x1f: C0制御文字, \x7f: DEL
  */
-// eslint-disable-next-line no-control-regex
 const CONTROL_CHARS_REGEX = new RegExp('[\\x00-\\x1f\\x7f]', 'g');
 
 /**

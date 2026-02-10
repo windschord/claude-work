@@ -3,10 +3,11 @@ import * as pty from 'node-pty';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
-import { execFile } from 'child_process';
+import * as childProcess from 'child_process';
 import { promisify } from 'util';
 import { EnvironmentAdapter, CreateSessionOptions, PTYExitInfo } from '../environment-adapter';
 import { ClaudeOptionsService } from '../claude-options-service';
+import { scrollbackBuffer } from '../scrollback-buffer';
 import { db, schema } from '@/lib/db';
 import { eq } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
@@ -26,6 +27,8 @@ interface DockerSession {
   errorBuffer: string;
   hasReceivedOutput: boolean;
   shellMode: boolean;
+  lastKnownCols?: number;
+  lastKnownRows?: number;
 }
 
 /**
@@ -117,6 +120,10 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
         envFilePath = path.join(os.tmpdir(), `claude-env-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
         fs.writeFileSync(envFilePath, lines.join('\n'), { mode: 0o600 });
         args.push('--env-file', envFilePath);
+        // ログには環境変数のKEYのみ出力、VALUEは出力しない
+        logger.info('DockerAdapter: Custom environment variables applied', {
+          keys: Object.keys(options.customEnvVars),
+        });
       }
     }
 
@@ -137,6 +144,17 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
     if (!options?.shellMode && options?.claudeCodeOptions) {
       const customArgs = ClaudeOptionsService.buildCliArgs(options.claudeCodeOptions);
       args.push(...customArgs);
+      // ログにはフラグ名のみを出力し、値は出力しない（機密情報対策）
+      // --flag value 形式: フラグは残し、値は[REDACTED]に
+      // --flag=value 形式: =以降を[REDACTED]に
+      const safeArgs = customArgs.map((arg) => {
+        if (!arg.startsWith('-')) return '[REDACTED]';
+        const eqIndex = arg.indexOf('=');
+        return eqIndex === -1 ? arg : `${arg.slice(0, eqIndex)}=[REDACTED]`;
+      });
+      logger.info('DockerAdapter: Custom CLI options applied', {
+        args: safeArgs,
+      });
     }
 
     return { args, containerName, envFilePath };
@@ -170,7 +188,7 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
    * Dockerコンテナが実際に存在し、実行中かを確認
    */
   private async isContainerRunning(containerName: string): Promise<boolean> {
-    const execFileAsync = promisify(execFile);
+    const execFileAsync = promisify(childProcess.execFile);
     try {
       const { stdout } = await execFileAsync('docker', ['inspect', '--format', '{{.State.Running}}', containerName], {
         timeout: 5000,
@@ -179,6 +197,34 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Dockerコンテナを停止する（バックグラウンド実行）
+   */
+  private stopContainer(containerName: string): void {
+    childProcess.execFile('docker', ['stop', '-t', '3', containerName], { timeout: 5000 }, (error) => {
+      if (error) {
+        // stop失敗時はkillを試みる
+        childProcess.execFile('docker', ['kill', containerName], { timeout: 5000 }, () => {
+          // 既に停止済み等のエラーは無視
+        });
+      } else {
+        logger.info('DockerAdapter: Container stopped', { containerName });
+      }
+    });
+  }
+
+  /**
+   * コンテナ停止を待つPromiseを返す
+   */
+  private waitForContainer(containerName: string): Promise<void> {
+    return new Promise<void>((resolve) => {
+      childProcess.execFile('docker', ['wait', containerName], { timeout: 5000 }, () => {
+        // タイムアウトやエラーでも続行
+        resolve();
+      });
+    });
   }
 
   /**
@@ -229,6 +275,14 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
 
       ptyProcess.onExit(({ exitCode, signal }) => {
         logger.info('DockerAdapter: Exec session exited', { sessionId, exitCode, signal });
+
+        // 旧PTYのonExit遅延発火で新セッションを消さないようにチェック
+        const currentSession = this.sessions.get(sessionId);
+        if (currentSession && currentSession.ptyProcess !== ptyProcess) {
+          logger.info('DockerAdapter: Stale exec onExit ignored (new session exists)', { sessionId });
+          return;
+        }
+
         this.emit('exit', sessionId, { exitCode, signal } as PTYExitInfo);
         this.sessions.delete(sessionId);
       });
@@ -250,9 +304,10 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
     initialPrompt?: string,
     options?: CreateSessionOptions
   ): Promise<void> {
-    // 既存セッションのクリーンアップ
+    // 既存のセッションがあれば再利用（破棄しない）
     if (this.sessions.has(sessionId)) {
-      this.destroySession(sessionId);
+      logger.info('DockerAdapter: Reusing existing session', { sessionId });
+      return;
     }
 
     const shellMode = options?.shellMode ?? false;
@@ -357,6 +412,22 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
         if (session) {
           if (!session.hasReceivedOutput && data.length > 0) {
             session.hasReceivedOutput = true;
+
+            // 初回出力受信後、遅延リサイズを実行
+            // Docker環境ではコンテナ起動のオーバーヘッドにより、クライアントからの
+            // resize()がコンテナ起動完了前に到着し効果がない。初回出力後に
+            // 保存済みのクライアントサイズでリサイズを再適用する。
+            if (session.lastKnownCols && session.lastKnownRows) {
+              setTimeout(() => {
+                const s = this.sessions.get(sessionId);
+                if (s && s.lastKnownCols && s.lastKnownRows) {
+                  logger.info('DockerAdapter: Applying deferred resize after first output', {
+                    sessionId, cols: s.lastKnownCols, rows: s.lastKnownRows,
+                  });
+                  s.ptyProcess.resize(s.lastKnownCols, s.lastKnownRows);
+                }
+              }, 1000);
+            }
           }
           if (session.errorBuffer.length < 5000) {
             session.errorBuffer += data;
@@ -371,6 +442,7 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
             }
           }
         }
+        scrollbackBuffer.append(sessionId, data);
         this.emit('data', sessionId, data);
       });
 
@@ -381,6 +453,20 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
         if (envFilePath) {
           try { fs.unlinkSync(envFilePath); } catch { /* ignore */ }
         }
+
+        // restartSession()で新セッションが作成された後に旧PTYのonExitが遅延発火した場合、
+        // 新セッションを消さないようにptyProcess同一性チェックを行う
+        const currentSession = this.sessions.get(sessionId);
+        if (currentSession && currentSession.ptyProcess !== ptyProcess) {
+          logger.info('DockerAdapter: Stale onExit ignored (new session exists)', { sessionId });
+          // コンテナは停止する（旧コンテナがゾンビにならないように）
+          if (containerName && !shellMode) {
+            this.stopContainer(containerName);
+          }
+          return;
+        }
+
+        scrollbackBuffer.clear(sessionId);
 
         // container_idをクリア
         try {
@@ -394,6 +480,11 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
 
         this.emit('exit', sessionId, { exitCode, signal } as PTYExitInfo);
         this.sessions.delete(sessionId);
+
+        // PTY終了時にコンテナがまだ実行中なら停止
+        if (containerName && !shellMode) {
+          this.stopContainer(containerName);
+        }
       });
 
       // 初期プロンプト（シェルモードでは送信しない）
@@ -416,19 +507,37 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
   }
 
   write(sessionId: string, data: string): void {
-    this.sessions.get(sessionId)?.ptyProcess.write(data);
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      logger.warn('DockerAdapter: write() called but session not found', { sessionId });
+      return;
+    }
+    session.ptyProcess.write(data);
   }
 
   resize(sessionId: string, cols: number, rows: number): void {
-    this.sessions.get(sessionId)?.ptyProcess.resize(cols, rows);
+    const session = this.sessions.get(sessionId);
+    if (!session) return;
+
+    session.lastKnownCols = cols;
+    session.lastKnownRows = rows;
+
+    session.ptyProcess.resize(cols, rows);
   }
 
   destroySession(sessionId: string): void {
     const session = this.sessions.get(sessionId);
     if (session) {
+      const { containerId, shellMode } = session;
       logger.info('DockerAdapter: Destroying session', { sessionId, containerId: session.containerId });
+      scrollbackBuffer.clear(sessionId);
       session.ptyProcess.kill();
       this.sessions.delete(sessionId);
+
+      // Dockerコンテナを明示的に停止（shellModeではコンテナを止めない）
+      if (!shellMode) {
+        this.stopContainer(containerId);
+      }
 
       // container_idをクリア（同期実行）
       try {
@@ -442,13 +551,34 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
     }
   }
 
-  restartSession(sessionId: string): void {
+  restartSession(sessionId: string, workingDir?: string): void {
     const session = this.sessions.get(sessionId);
     if (session) {
-      const { workingDir } = session;
-      logger.info('DockerAdapter: Restarting session', { sessionId });
+      const { workingDir: wd, containerId, shellMode } = session;
+      logger.info('DockerAdapter: Restarting session', { sessionId, shellMode });
       this.destroySession(sessionId);
-      setTimeout(() => this.createSession(sessionId, workingDir), 500);
+
+      // shellModeセッションはコンテナ停止を待たずに再接続
+      if (shellMode) {
+        this.createSession(sessionId, wd, undefined, { shellMode: true }).catch(() => {});
+        return;
+      }
+
+      // コンテナ停止を待ってから新コンテナ作成
+      this.waitForContainer(containerId)
+        .then(() => {
+          return this.createSession(sessionId, wd);
+        })
+        .catch(() => {
+          // createSession内部でlogger.error + emit('error')済み
+        });
+    } else if (workingDir) {
+      logger.info('DockerAdapter: Restarting session (from fallback params)', { sessionId });
+      setTimeout(() => {
+        this.createSession(sessionId, workingDir).catch(() => {});
+      }, 500);
+    } else {
+      logger.warn('DockerAdapter: Cannot restart session: not found and no workingDir', { sessionId });
     }
   }
 

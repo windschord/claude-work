@@ -239,7 +239,7 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                dockerfilePath: `data/environments/${createdEnv.id}/Dockerfile`,
+                dockerfilePath: `${createdEnv.id}/Dockerfile`,
                 imageName: `claude-work-env-${createdEnv.id}`,
                 imageTag: 'latest',
               }),
@@ -284,7 +284,7 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                  dockerfilePath: `data/environments/${environment.id}/Dockerfile`,
+                  dockerfilePath: `${environment.id}/Dockerfile`,
                   imageName: `claude-work-env-${environment.id}`,
                   imageTag: 'latest',
                 }),

@@ -37,6 +37,17 @@ vi.mock('drizzle-orm', () => ({
   eq: vi.fn((col, val) => ({ column: col, value: val })),
 }));
 
+// scrollbackBufferのモック
+vi.mock('@/services/scrollback-buffer', () => ({
+  scrollbackBuffer: {
+    append: vi.fn(),
+    getBuffer: vi.fn().mockReturnValue(null),
+    clear: vi.fn(),
+    has: vi.fn().mockReturnValue(false),
+    getByteSize: vi.fn().mockReturnValue(0),
+  },
+}));
+
 // loggerのモック
 vi.mock('@/lib/logger', () => ({
   logger: {
@@ -52,12 +63,17 @@ vi.mock('fs', () => ({
   existsSync: vi.fn().mockReturnValue(true),
 }));
 
-// child_processのモック（isContainerRunning用）
-const { mockSpawnSync } = vi.hoisted(() => ({
+// child_processのモック（isContainerRunning用 + execFile用）
+const { mockSpawnSync, mockExecFile } = vi.hoisted(() => ({
   mockSpawnSync: vi.fn().mockReturnValue({
     status: 0,
     stdout: 'true',
     stderr: '',
+  }),
+  mockExecFile: vi.fn((_cmd: string, _args: string[], _opts: unknown, callback?: (error: Error | null, stdout: string, stderr: string) => void) => {
+    if (callback) {
+      callback(null, '', '');
+    }
   }),
 }));
 vi.mock('child_process', async (importOriginal) => {
@@ -65,6 +81,7 @@ vi.mock('child_process', async (importOriginal) => {
   return {
     ...actual,
     spawnSync: mockSpawnSync,
+    execFile: mockExecFile,
     default: actual,
   };
 });
@@ -97,6 +114,13 @@ describe('DockerAdapter', () => {
       status: 0,
       stdout: 'true',
       stderr: '',
+    });
+
+    // mockExecFileをリセット（stopContainer/waitForContainer用）
+    mockExecFile.mockImplementation((_cmd: string, _args: string[], _opts: unknown, callback?: (error: Error | null, stdout: string, stderr: string) => void) => {
+      if (callback) {
+        callback(null, '', '');
+      }
     });
 
     // PTYモックの設定
@@ -133,6 +157,7 @@ describe('DockerAdapter', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.clearAllMocks();
   });
 
@@ -173,7 +198,6 @@ describe('DockerAdapter', () => {
     it('should update Session.container_id in database', async () => {
       await adapter.createSession(sessionId, workingDir);
 
-      // Drizzle: db.update(schema.sessions).set({ container_id: ..., updated_at: ... }).where(...).run()
       expect(mockDbUpdate).toHaveBeenCalled();
       expect(mockDbSet).toHaveBeenCalledWith(expect.objectContaining({
         container_id: expect.stringMatching(/^claude-env-env-123-/),
@@ -211,17 +235,14 @@ describe('DockerAdapter', () => {
     it('should clear container_id on exit', async () => {
       await adapter.createSession(sessionId, workingDir);
 
-      // リセットしてexit時の呼び出しを確認
       mockDbUpdate.mockClear();
       mockDbSet.mockClear();
       mockDbRun.mockClear();
 
       exitHandler({ exitCode: 0 });
 
-      // 非同期処理を待つ
       await new Promise(resolve => setTimeout(resolve, 10));
 
-      // Drizzle: db.update(schema.sessions).set({ container_id: null, updated_at: ... }).where(...).run()
       expect(mockDbUpdate).toHaveBeenCalled();
       expect(mockDbSet).toHaveBeenCalledWith(expect.objectContaining({
         container_id: null,
@@ -242,15 +263,14 @@ describe('DockerAdapter', () => {
       );
     });
 
-    it('should destroy existing session before creating new one', async () => {
-      // 最初のセッションを作成
+    it('should reuse existing session instead of destroying', async () => {
+      await adapter.createSession(sessionId, workingDir);
+      const firstCallCount = mockSpawn.mock.calls.length;
+
       await adapter.createSession(sessionId, workingDir);
 
-      // 2回目のセッション作成
-      await adapter.createSession(sessionId, workingDir);
-
-      // killが呼ばれていることを確認
-      expect(mockPty.kill).toHaveBeenCalled();
+      expect(mockPty.kill).not.toHaveBeenCalled();
+      expect(mockSpawn.mock.calls.length).toBe(firstCallCount);
     });
 
     it('should send initial prompt after delay', async () => {
@@ -309,6 +329,130 @@ describe('DockerAdapter', () => {
     it('should do nothing for non-existent session', () => {
       expect(() => adapter.resize('non-existent', 120, 40)).not.toThrow();
     });
+
+    it('should save lastKnownCols and lastKnownRows on session', async () => {
+      const sessionId = 'session-abc';
+      await adapter.createSession(sessionId, '/projects/test');
+
+      adapter.resize(sessionId, 139, 40);
+
+      vi.useFakeTimers();
+      (mockPty.resize as Mock).mockClear();
+
+      dataHandler('first output');
+
+      vi.advanceTimersByTime(1000);
+
+      expect(mockPty.resize).toHaveBeenCalledWith(139, 40);
+      vi.useRealTimers();
+    });
+  });
+
+  describe('deferred resize', () => {
+    const sessionId = 'session-deferred';
+    const workingDir = '/projects/test';
+
+    it('should execute deferred resize after first output when lastKnownCols/Rows are set', async () => {
+      vi.useFakeTimers();
+
+      await adapter.createSession(sessionId, workingDir);
+
+      adapter.resize(sessionId, 139, 40);
+      (mockPty.resize as Mock).mockClear();
+
+      dataHandler('Welcome to Claude Code');
+
+      vi.advanceTimersByTime(999);
+      expect(mockPty.resize).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(1);
+      expect(mockPty.resize).toHaveBeenCalledWith(139, 40);
+      expect(mockPty.resize).toHaveBeenCalledTimes(1);
+
+      vi.useRealTimers();
+    });
+
+    it('should not execute deferred resize when lastKnownCols/Rows are not set', async () => {
+      vi.useFakeTimers();
+
+      await adapter.createSession(sessionId, workingDir);
+
+      (mockPty.resize as Mock).mockClear();
+      dataHandler('Welcome to Claude Code');
+
+      vi.advanceTimersByTime(2000);
+
+      expect(mockPty.resize).not.toHaveBeenCalled();
+
+      vi.useRealTimers();
+    });
+
+    it('should not execute deferred resize on second or subsequent onData', async () => {
+      vi.useFakeTimers();
+
+      await adapter.createSession(sessionId, workingDir);
+
+      adapter.resize(sessionId, 139, 40);
+      (mockPty.resize as Mock).mockClear();
+
+      dataHandler('First output');
+
+      vi.advanceTimersByTime(1000);
+      expect(mockPty.resize).toHaveBeenCalledTimes(1);
+      (mockPty.resize as Mock).mockClear();
+
+      dataHandler('Second output');
+      dataHandler('Third output');
+
+      vi.advanceTimersByTime(2000);
+
+      expect(mockPty.resize).not.toHaveBeenCalled();
+
+      vi.useRealTimers();
+    });
+
+    it('should use latest resize values for deferred resize', async () => {
+      vi.useFakeTimers();
+
+      await adapter.createSession(sessionId, workingDir);
+
+      adapter.resize(sessionId, 100, 30);
+      adapter.resize(sessionId, 139, 40);
+
+      (mockPty.resize as Mock).mockClear();
+
+      dataHandler('First output');
+      vi.advanceTimersByTime(1000);
+
+      expect(mockPty.resize).toHaveBeenCalledWith(139, 40);
+
+      vi.useRealTimers();
+    });
+
+    it('should not execute deferred resize in shellMode (exec session)', async () => {
+      vi.useFakeTimers();
+
+      const parentSessionId = 'session-parent-for-deferred';
+      const termSessionId = 'session-parent-for-deferred-terminal';
+
+      const isContainerRunningSpy = vi.spyOn(adapter as any, 'isContainerRunning').mockReturnValue(true);
+
+      await adapter.createSession(parentSessionId, workingDir);
+      await adapter.createSession(termSessionId, workingDir, undefined, {
+        shellMode: true,
+      });
+
+      adapter.resize(termSessionId, 139, 40);
+      (mockPty.resize as Mock).mockClear();
+
+      dataHandler('shell output');
+      vi.advanceTimersByTime(2000);
+
+      expect(mockPty.resize).not.toHaveBeenCalled();
+
+      vi.useRealTimers();
+      isContainerRunningSpy.mockRestore();
+    });
   });
 
   describe('destroySession', () => {
@@ -330,8 +474,6 @@ describe('DockerAdapter', () => {
 
   describe('restartSession', () => {
     it('should destroy and recreate session', async () => {
-      vi.useFakeTimers();
-
       const sessionId = 'session-abc';
       const workingDir = '/projects/test';
       await adapter.createSession(sessionId, workingDir);
@@ -340,14 +482,172 @@ describe('DockerAdapter', () => {
 
       expect(mockPty.kill).toHaveBeenCalled();
 
-      // mockSpawnをリセット
+      // waitForContainerとcreateSessionの非同期処理を待つ
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      expect(mockSpawn.mock.calls.length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  describe('container cleanup', () => {
+    it('destroySession()でdocker stopが実行されること（非shellModeの場合）', async () => {
+      const sessionId = 'session-cleanup-1';
+      await adapter.createSession(sessionId, '/projects/test');
+
+      const containerId = adapter.getContainerId(sessionId);
+      expect(containerId).toBeDefined();
+
+      mockExecFile.mockClear();
+
+      adapter.destroySession(sessionId);
+
+      expect(mockExecFile).toHaveBeenCalledWith(
+        'docker',
+        ['stop', '-t', '3', containerId],
+        expect.objectContaining({ timeout: 5000 }),
+        expect.any(Function),
+      );
+    });
+
+    it('destroySession()のshellModeセッションではdocker stopが実行されないこと', async () => {
+      const parentSessionId = 'session-shell-parent';
+      const shellSessionId = 'session-shell-parent-terminal';
+
+      const isContainerRunningSpy = vi.spyOn(adapter as any, 'isContainerRunning').mockReturnValue(true);
+
+      await adapter.createSession(parentSessionId, '/projects/test');
+      await adapter.createSession(shellSessionId, '/projects/test', undefined, {
+        shellMode: true,
+      });
+
+      mockExecFile.mockClear();
+
+      adapter.destroySession(shellSessionId);
+
+      const stopCalls = mockExecFile.mock.calls.filter(
+        (call: unknown[]) => (call[1] as string[])[0] === 'stop'
+      );
+      expect(stopCalls).toHaveLength(0);
+
+      isContainerRunningSpy.mockRestore();
+    });
+
+    it('onExit時にdocker stopが実行されること', async () => {
+      const sessionId = 'session-exit-cleanup';
+      await adapter.createSession(sessionId, '/projects/test');
+
+      const containerId = adapter.getContainerId(sessionId);
+      expect(containerId).toBeDefined();
+
+      mockExecFile.mockClear();
+
+      exitHandler({ exitCode: 0 });
+
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      expect(mockExecFile).toHaveBeenCalledWith(
+        'docker',
+        ['stop', '-t', '3', containerId],
+        expect.objectContaining({ timeout: 5000 }),
+        expect.any(Function),
+      );
+    });
+
+    it('restartSession()が旧コンテナ停止後に新コンテナを作成すること', async () => {
+      const sessionId = 'session-restart-cleanup';
+      const workingDir = '/projects/test';
+      await adapter.createSession(sessionId, workingDir);
+
+      const oldContainerId = adapter.getContainerId(sessionId);
+      expect(oldContainerId).toBeDefined();
+
+      mockExecFile.mockImplementation((_cmd: string, _args: string[], _opts: unknown, callback?: (error: Error | null, stdout: string, stderr: string) => void) => {
+        if (callback) {
+          callback(null, '', '');
+        }
+      });
+
       mockSpawn.mockClear();
 
-      vi.advanceTimersByTime(500);
+      adapter.restartSession(sessionId);
+
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      const waitCalls = mockExecFile.mock.calls.filter(
+        (call: unknown[]) => (call[1] as string[])[0] === 'wait'
+      );
+      expect(waitCalls.length).toBeGreaterThanOrEqual(1);
+      expect((waitCalls[0][1] as string[])[1]).toBe(oldContainerId);
 
       expect(mockSpawn).toHaveBeenCalled();
+    });
 
-      vi.useRealTimers();
+    it('restartSession後に旧PTYのonExitが遅延発火しても新セッションが消えないこと', async () => {
+      const sessionId = 'session-restart-race';
+      const workingDir = '/projects/test';
+      await adapter.createSession(sessionId, workingDir);
+
+      // 旧PTYのexitHandlerを保存
+      const oldExitHandler = exitHandler;
+
+      mockExecFile.mockImplementation((_cmd: string, _args: string[], _opts: unknown, callback?: (error: Error | null, stdout: string, stderr: string) => void) => {
+        if (callback) {
+          callback(null, '', '');
+        }
+      });
+
+      // restartSession後に新しいPTYモックを返すように設定
+      const newMockPty = Object.assign(new EventEmitter(), {
+        pid: 99999,
+        cols: 80,
+        rows: 24,
+        process: 'docker',
+        handleFlowControl: false,
+        write: vi.fn(),
+        resize: vi.fn(),
+        kill: vi.fn(),
+        pause: vi.fn(),
+        resume: vi.fn(),
+        clear: vi.fn(),
+        onData: vi.fn((handler: (data: string) => void) => {
+          dataHandler = handler;
+          return { dispose: vi.fn() };
+        }),
+        onExit: vi.fn((handler: (info: { exitCode: number; signal?: number }) => void) => {
+          exitHandler = handler;
+          return { dispose: vi.fn() };
+        }),
+      });
+      mockSpawn.mockReturnValue(newMockPty);
+
+      // restartSessionで新セッション作成
+      adapter.restartSession(sessionId);
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // 新セッションが存在することを確認
+      expect(adapter.hasSession(sessionId)).toBe(true);
+      const newContainerId = adapter.getContainerId(sessionId);
+
+      // 旧PTYのonExitが遅延発火
+      oldExitHandler({ exitCode: 129 });
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      // 新セッションが消されていないこと
+      expect(adapter.hasSession(sessionId)).toBe(true);
+      expect(adapter.getContainerId(sessionId)).toBe(newContainerId);
+    });
+  });
+
+  describe('write with logging', () => {
+    it('セッション不在時にlogger.warnが呼ばれること', async () => {
+      const { logger } = await import('@/lib/logger');
+
+      adapter.write('non-existent-session', 'some data');
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        'DockerAdapter: write() called but session not found',
+        expect.objectContaining({ sessionId: 'non-existent-session' }),
+      );
     });
   });
 
@@ -400,11 +700,9 @@ describe('DockerAdapter', () => {
       const spawnCall = mockSpawn.mock.calls[0];
       const args = spawnCall[1] as string[];
 
-      // 環境専用ディレクトリがマウントされている
       expect(args).toContain('/data/environments/env-123-456/claude:/home/node/.claude');
       expect(args).toContain('/data/environments/env-123-456/config/claude:/home/node/.config/claude');
 
-      // ホストの認証ディレクトリはマウントされていない
       expect(args).not.toContain('/home/testuser/.claude:/home/node/.claude');
       expect(args).not.toContain('/home/testuser/.config/claude:/home/node/.config/claude');
     });
@@ -434,27 +732,21 @@ describe('DockerAdapter', () => {
     const workingDir = '/projects/my-project';
 
     it('should use docker exec to attach to existing container when shellMode is true', async () => {
-      // isContainerRunningがtrueを返すようにスパイ
-       
       const isContainerRunningSpy = vi.spyOn(adapter as any, 'isContainerRunning').mockReturnValue(true);
 
-      // 親セッション（Claude）を作成
       await adapter.createSession(parentSessionId, workingDir);
       mockSpawn.mockClear();
 
-      // シェルセッション（-terminal サフィックス付き）を作成
       await adapter.createSession(terminalSessionId, workingDir, undefined, {
         shellMode: true,
       });
 
-      // docker exec が呼ばれることを確認
       expect(mockSpawn).toHaveBeenCalledWith(
         'docker',
         expect.arrayContaining(['exec', '-it']),
         expect.any(Object),
       );
 
-      // docker run ではなく exec が使われている
       const spawnCall = mockSpawn.mock.calls[0];
       const args = spawnCall[1] as string[];
       expect(args[0]).toBe('exec');
@@ -467,14 +759,12 @@ describe('DockerAdapter', () => {
       const errorListener = vi.fn();
       adapter.on('error', errorListener);
 
-      // 親セッションなしでシェルセッションを作成
       await expect(
         adapter.createSession('orphan-session-terminal', workingDir, undefined, {
           shellMode: true,
         })
       ).rejects.toThrow();
 
-      // エラーイベントが発行されることを確認
       expect(errorListener).toHaveBeenCalledWith(
         'orphan-session-terminal',
         expect.objectContaining({
@@ -484,24 +774,19 @@ describe('DockerAdapter', () => {
     });
 
     it('should throw error when parent container is not running', async () => {
-      // isContainerRunningがfalseを返すようにスパイ
-       
       const isContainerRunningSpy = vi.spyOn(adapter as any, 'isContainerRunning').mockReturnValue(false);
 
       const errorListener = vi.fn();
       adapter.on('error', errorListener);
 
-      // 親セッションを作成
       await adapter.createSession(parentSessionId, workingDir);
 
-      // シェルセッションを作成（コンテナが停止している場合）
       await expect(
         adapter.createSession(terminalSessionId, workingDir, undefined, {
           shellMode: true,
         })
       ).rejects.toThrow();
 
-      // エラーイベントが発行されることを確認
       expect(errorListener).toHaveBeenCalledWith(
         terminalSessionId,
         expect.objectContaining({
@@ -535,22 +820,17 @@ describe('DockerAdapter', () => {
     it('should not send initial prompt in shellMode (exec session)', async () => {
       vi.useFakeTimers();
 
-      // isContainerRunningがtrueを返すようにスパイ
-       
       const isContainerRunningSpy = vi.spyOn(adapter as any, 'isContainerRunning').mockReturnValue(true);
 
-      // 親セッションを作成
       await adapter.createSession(parentSessionId, workingDir);
       mockPty.write.mockClear();
 
-      // シェルセッションを作成
       await adapter.createSession(terminalSessionId, workingDir, 'Initial task', {
         shellMode: true,
       });
 
       vi.advanceTimersByTime(3000);
 
-      // shellModeでは初期プロンプトを送信しない（cd /workspace のみ）
       const writeCalls = mockPty.write.mock.calls;
       const hasInitialTask = writeCalls.some((call: string[]) => call[0].includes('Initial task'));
       expect(hasInitialTask).toBe(false);
@@ -560,23 +840,18 @@ describe('DockerAdapter', () => {
     });
 
     it('should not extract Claude session ID in shellMode (exec session)', async () => {
-      // isContainerRunningがtrueを返すようにスパイ
-       
       const isContainerRunningSpy = vi.spyOn(adapter as any, 'isContainerRunning').mockReturnValue(true);
 
       const claudeSessionIdListener = vi.fn();
       adapter.on('claudeSessionId', claudeSessionIdListener);
 
-      // 親セッションを作成
       await adapter.createSession(parentSessionId, workingDir);
 
-      // シェルセッションを作成
       await adapter.createSession(terminalSessionId, workingDir, undefined, {
         shellMode: true,
       });
       dataHandler('Starting session: abc-def-123');
 
-      // shellModeではClaudeセッションID抽出をスキップ
       expect(claudeSessionIdListener).not.toHaveBeenCalled();
 
       isContainerRunningSpy.mockRestore();
