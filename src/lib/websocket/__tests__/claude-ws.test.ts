@@ -8,7 +8,6 @@ const {
   mockAdapterFactory,
   mockClaudeOptionsService,
   mockScrollbackBuffer,
-  mockConnectionManager,
   createMockAdapter,
 } = vi.hoisted(() => {
   // EventEmitter をモック内で直接使わず、シンプルなモックオブジェクトを使用
@@ -78,30 +77,6 @@ const {
       has: vi.fn().mockReturnValue(false),
       getByteSize: vi.fn().mockReturnValue(0),
     },
-    mockConnectionManager: {
-      addConnection: vi.fn(),
-      removeConnection: vi.fn(),
-      getConnectionCount: vi.fn().mockReturnValue(0),
-      hasConnections: vi.fn().mockReturnValue(false),
-      getConnections: vi.fn().mockReturnValue(new Set()),
-      broadcast: vi.fn(),
-      sendToConnection: vi.fn(),
-      setScrollbackBuffer: vi.fn(),
-      sendScrollbackToConnection: vi.fn(),
-      registerHandler: vi.fn(),
-      unregisterHandler: vi.fn(),
-      hasHandler: vi.fn().mockReturnValue(false),
-      cleanup: vi.fn(),
-      getMetrics: vi.fn().mockReturnValue({
-        totalConnections: 0,
-        activeConnections: 0,
-        messagesSent: 0,
-        messagesDropped: 0,
-      }),
-      on: vi.fn(),
-      off: vi.fn(),
-      emit: vi.fn(),
-    },
     createMockAdapter: createMockAdapterFn,
   };
 });
@@ -145,32 +120,9 @@ vi.mock('@/services/scrollback-buffer', () => ({
   scrollbackBuffer: mockScrollbackBuffer,
 }));
 
-vi.mock('../connection-manager', () => {
-  const MockConnectionManager = vi.fn().mockImplementation(function(this: any) {
-    // モックオブジェクトのメソッドをthisにコピー
-    this.addConnection = mockConnectionManager.addConnection;
-    this.removeConnection = mockConnectionManager.removeConnection;
-    this.getConnectionCount = mockConnectionManager.getConnectionCount;
-    this.hasConnections = mockConnectionManager.hasConnections;
-    this.getConnections = mockConnectionManager.getConnections;
-    this.broadcast = mockConnectionManager.broadcast;
-    this.sendToConnection = mockConnectionManager.sendToConnection;
-    this.setScrollbackBuffer = mockConnectionManager.setScrollbackBuffer;
-    this.sendScrollbackToConnection = mockConnectionManager.sendScrollbackToConnection;
-    this.registerHandler = mockConnectionManager.registerHandler;
-    this.unregisterHandler = mockConnectionManager.unregisterHandler;
-    this.hasHandler = mockConnectionManager.hasHandler;
-    this.cleanup = mockConnectionManager.cleanup;
-    this.getMetrics = mockConnectionManager.getMetrics;
-    this.on = mockConnectionManager.on;
-    this.off = mockConnectionManager.off;
-    this.emit = mockConnectionManager.emit;
-  });
-
-  return {
-    ConnectionManager: MockConnectionManager,
-  };
-});
+// ConnectionManagerは実際のインスタンスを使用（モックしない）
+// 理由: ConnectionManagerは副作用のないユーティリティクラスで、
+// WebSocketの管理のみを行うため、モックする必要がない
 
 // テスト対象をインポート
 import { setupClaudeWebSocket } from '../claude-ws';
@@ -220,6 +172,16 @@ describe('Claude WebSocket Handler - Environment Support', () => {
       custom_env_vars: '{}',
     });
 
+    // デフォルトのセッションモック（各テストで上書き可能）
+    mockDb.query.sessions.findFirst.mockResolvedValue({
+      id: 'default-session',
+      worktree_path: '/path/to/worktree',
+      docker_mode: false,
+      environment_id: null,
+      status: 'ready',
+      resume_session_id: null,
+    });
+
     // ClaudeOptionsServiceのモックを再設定（resetAllMocksで壊れるため）
     mockClaudeOptionsService.parseOptions.mockReturnValue({});
     mockClaudeOptionsService.parseEnvVars.mockReturnValue({});
@@ -234,14 +196,6 @@ describe('Claude WebSocket Handler - Environment Support', () => {
         }),
       }),
     });
-
-    // ConnectionManagerのモックを再設定（resetAllMocksで壊れるため）
-    mockConnectionManager.addConnection.mockClear();
-    mockConnectionManager.removeConnection.mockClear();
-    mockConnectionManager.getConnectionCount.mockReturnValue(0);
-    mockConnectionManager.hasConnections.mockReturnValue(false);
-    mockConnectionManager.broadcast.mockClear();
-    mockConnectionManager.sendToConnection.mockClear();
   });
 
   afterEach(() => {
@@ -269,6 +223,8 @@ describe('Claude WebSocket Handler - Environment Support', () => {
         worktree_path: '/path/to/worktree',
         docker_mode: false,
         environment_id: environmentId,
+        status: 'ready', // セッションのステータスを追加
+        resume_session_id: null,
       });
 
       mockEnvironmentService.findById.mockResolvedValue(mockEnvironment);
