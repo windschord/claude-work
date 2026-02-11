@@ -286,6 +286,7 @@ describe('notification-service', () => {
         onTaskComplete: true,
         onPermissionRequest: false,
         onError: true,
+        onActionRequired: true,
       };
       mockLocalStorage.setItem(
         'claudework:notification-settings',
@@ -309,6 +310,7 @@ describe('notification-service', () => {
         onTaskComplete: true,
         onPermissionRequest: true,
         onError: false,
+        onActionRequired: true,
       };
       mockLocalStorage.setItem(
         'claudework:notification-settings',
