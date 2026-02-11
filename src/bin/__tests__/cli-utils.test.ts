@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { checkNextBuild, checkDrizzle, checkDatabase, findBinDir, initializeDatabase } from '../cli-utils';
+import { checkNextBuild, checkDrizzle, checkDatabase, findBinDir, initializeDatabase, migrateDatabase } from '../cli-utils';
 
 describe('cli-utils', () => {
   let testDir: string;
@@ -162,7 +162,7 @@ describe('cli-utils', () => {
       db.close();
     });
 
-    it('should create Project table with correct columns', () => {
+    it('should create Project table with correct columns including new migration columns', () => {
       const dbPath = join(testDir, 'test.db');
       initializeDatabase(dbPath);
 
@@ -173,7 +173,11 @@ describe('cli-utils', () => {
         name: string; type: string; notnull: number; pk: number;
       }[];
       const columnNames = columns.map((c) => c.name);
-      expect(columnNames).toEqual(['id', 'name', 'path', 'remote_url', 'created_at', 'updated_at']);
+      // v2マイグレーションで追加されるカラムを含む
+      expect(columnNames).toEqual([
+        'id', 'name', 'path', 'remote_url', 'created_at', 'updated_at',
+        'claude_code_options', 'custom_env_vars',
+      ]);
 
       const idCol = columns.find((c) => c.name === 'id');
       expect(idCol?.pk).toBe(1);
@@ -195,6 +199,13 @@ describe('cli-utils', () => {
 
       const updatedAtCol = columns.find((c) => c.name === 'updated_at');
       expect(updatedAtCol?.notnull).toBe(1);
+
+      // v2で追加されたカラム
+      const claudeOptionsCol = columns.find((c) => c.name === 'claude_code_options');
+      expect(claudeOptionsCol?.notnull).toBe(1);
+
+      const customEnvCol = columns.find((c) => c.name === 'custom_env_vars');
+      expect(customEnvCol?.notnull).toBe(1);
       db.close();
     });
 
@@ -246,16 +257,25 @@ describe('cli-utils', () => {
         name: string; type: string; notnull: number; dflt_value: string | null;
       }[];
       const columnNames = columns.map((c) => c.name);
+      // v2マイグレーションで追加されるカラムを含む
       expect(columnNames).toEqual([
         'id', 'project_id', 'name', 'status', 'worktree_path', 'branch_name',
         'resume_session_id', 'last_activity_at', 'pr_url', 'pr_number',
         'pr_status', 'pr_updated_at', 'docker_mode', 'container_id',
         'environment_id', 'created_at', 'updated_at',
+        'claude_code_options', 'custom_env_vars',
       ]);
 
       const dockerModeCol = columns.find((c) => c.name === 'docker_mode');
       expect(dockerModeCol?.notnull).toBe(1);
       expect(dockerModeCol?.dflt_value).toBe('0');
+
+      // v2で追加されたカラム（nullable）
+      const claudeOptionsCol = columns.find((c) => c.name === 'claude_code_options');
+      expect(claudeOptionsCol?.notnull).toBe(0);
+
+      const customEnvCol = columns.find((c) => c.name === 'custom_env_vars');
+      expect(customEnvCol?.notnull).toBe(0);
 
       const fks = db.prepare("PRAGMA foreign_key_list('Session')").all() as {
         table: string; from: string; to: string; on_delete: string;
@@ -387,6 +407,227 @@ describe('cli-utils', () => {
     it('should return false when given an invalid path', () => {
       const invalidPath = join(testDir, 'nonexistent', 'subdir', 'deep', 'test.db');
       const result = initializeDatabase(invalidPath);
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('migrateDatabase', () => {
+    it('should migrate new DB to CURRENT_DB_VERSION', () => {
+      const dbPath = join(testDir, 'migrate-test.db');
+      const result = migrateDatabase(dbPath);
+      expect(result).toBe(true);
+
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const Database = require('better-sqlite3');
+      const db = new Database(dbPath, { readonly: true });
+
+      // user_versionが2になっていることを確認
+      const row = db.prepare('PRAGMA user_version').get() as { user_version: number };
+      expect(row.user_version).toBe(2);
+
+      // 全テーブルが存在することを確認
+      const tables = db.prepare(
+        "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+      ).all() as { name: string }[];
+      const tableNames = tables.map((t: { name: string }) => t.name);
+      expect(tableNames).toContain('Project');
+      expect(tableNames).toContain('Session');
+
+      // v2で追加されたカラムが存在することを確認
+      const projectColumns = db.prepare("PRAGMA table_info('Project')").all() as { name: string }[];
+      const projectColumnNames = projectColumns.map((c) => c.name);
+      expect(projectColumnNames).toContain('claude_code_options');
+      expect(projectColumnNames).toContain('custom_env_vars');
+
+      db.close();
+    });
+
+    it('should migrate v1 DB to v2', () => {
+      const dbPath = join(testDir, 'v1-db.db');
+
+      // v1のDBを手動で作成（user_version = 1、新カラムなし）
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const Database = require('better-sqlite3');
+      const db = new Database(dbPath);
+      db.pragma('journal_mode = WAL');
+
+      // v1のテーブル構造（新カラムなし）
+      db.exec(`
+        CREATE TABLE "Project" (
+          "id" text PRIMARY KEY NOT NULL,
+          "name" text NOT NULL,
+          "path" text NOT NULL,
+          "remote_url" text,
+          "created_at" integer NOT NULL,
+          "updated_at" integer NOT NULL
+        );
+      `);
+      db.exec(`
+        CREATE TABLE "Session" (
+          "id" text PRIMARY KEY NOT NULL,
+          "project_id" text NOT NULL,
+          "name" text NOT NULL,
+          "status" text NOT NULL,
+          "worktree_path" text NOT NULL,
+          "branch_name" text NOT NULL,
+          "created_at" integer NOT NULL,
+          "updated_at" integer NOT NULL
+        );
+      `);
+
+      // user_versionを1に設定
+      db.exec('PRAGMA user_version = 1');
+      db.close();
+
+      // マイグレーション実行
+      const result = migrateDatabase(dbPath);
+      expect(result).toBe(true);
+
+      // 確認
+      const db2 = new Database(dbPath, { readonly: true });
+
+      // user_versionが2になっていることを確認
+      const row = db2.prepare('PRAGMA user_version').get() as { user_version: number };
+      expect(row.user_version).toBe(2);
+
+      // 新カラムが追加されていることを確認
+      const projectColumns = db2.prepare("PRAGMA table_info('Project')").all() as { name: string }[];
+      const projectColumnNames = projectColumns.map((c) => c.name);
+      expect(projectColumnNames).toContain('claude_code_options');
+      expect(projectColumnNames).toContain('custom_env_vars');
+
+      const sessionColumns = db2.prepare("PRAGMA table_info('Session')").all() as { name: string }[];
+      const sessionColumnNames = sessionColumns.map((c) => c.name);
+      expect(sessionColumnNames).toContain('claude_code_options');
+      expect(sessionColumnNames).toContain('custom_env_vars');
+
+      db2.close();
+    });
+
+    it('should skip migration when DB is already at latest version', () => {
+      const dbPath = join(testDir, 'latest-db.db');
+
+      // 最新バージョンのDBを作成
+      migrateDatabase(dbPath);
+
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const Database = require('better-sqlite3');
+      const db = new Database(dbPath, { readonly: true });
+      const rowBefore = db.prepare('PRAGMA user_version').get() as { user_version: number };
+      expect(rowBefore.user_version).toBe(2);
+      db.close();
+
+      // 再度マイグレーション実行（スキップされるはず）
+      const result = migrateDatabase(dbPath);
+      expect(result).toBe(true);
+
+      // バージョンが変わっていないことを確認
+      const db2 = new Database(dbPath, { readonly: true });
+      const rowAfter = db2.prepare('PRAGMA user_version').get() as { user_version: number };
+      expect(rowAfter.user_version).toBe(2);
+      db2.close();
+    });
+
+    it('should be idempotent (multiple executions should not cause issues)', () => {
+      const dbPath = join(testDir, 'idempotent-db.db');
+
+      // 3回実行
+      const result1 = migrateDatabase(dbPath);
+      const result2 = migrateDatabase(dbPath);
+      const result3 = migrateDatabase(dbPath);
+
+      expect(result1).toBe(true);
+      expect(result2).toBe(true);
+      expect(result3).toBe(true);
+
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const Database = require('better-sqlite3');
+      const db = new Database(dbPath, { readonly: true });
+      const row = db.prepare('PRAGMA user_version').get() as { user_version: number };
+      expect(row.user_version).toBe(2);
+      db.close();
+    });
+
+    it('should preserve existing data during migration', () => {
+      const dbPath = join(testDir, 'data-preserve-db.db');
+
+      // v1のDBを作成してデータを挿入（v1は全テーブルが存在する状態）
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const Database = require('better-sqlite3');
+      const db = new Database(dbPath);
+      db.pragma('journal_mode = WAL');
+
+      // Project テーブル（v1 スキーマ）
+      db.exec(`
+        CREATE TABLE "Project" (
+          "id" text PRIMARY KEY NOT NULL,
+          "name" text NOT NULL,
+          "path" text NOT NULL,
+          "remote_url" text,
+          "created_at" integer NOT NULL,
+          "updated_at" integer NOT NULL
+        );
+      `);
+
+      // ExecutionEnvironment テーブル（v1 スキーマ）
+      db.exec(`
+        CREATE TABLE "ExecutionEnvironment" (
+          "id" text PRIMARY KEY NOT NULL,
+          "name" text NOT NULL,
+          "type" text NOT NULL,
+          "description" text,
+          "config" text NOT NULL,
+          "auth_dir_path" text,
+          "is_default" integer NOT NULL DEFAULT 0,
+          "created_at" integer NOT NULL,
+          "updated_at" integer NOT NULL
+        );
+      `);
+
+      // Session テーブル（v1 スキーマ、claude_code_options/custom_env_varsなし）
+      db.exec(`
+        CREATE TABLE "Session" (
+          "id" text PRIMARY KEY NOT NULL,
+          "project_id" text NOT NULL REFERENCES "Project"("id") ON DELETE CASCADE,
+          "name" text NOT NULL,
+          "status" text NOT NULL,
+          "worktree_path" text NOT NULL,
+          "branch_name" text NOT NULL,
+          "resume_session_id" text,
+          "last_activity_at" integer,
+          "pr_url" text,
+          "pr_number" integer,
+          "pr_status" text,
+          "pr_updated_at" integer,
+          "docker_mode" integer NOT NULL DEFAULT 0,
+          "container_id" text,
+          "environment_id" text REFERENCES "ExecutionEnvironment"("id") ON DELETE SET NULL,
+          "created_at" integer NOT NULL,
+          "updated_at" integer NOT NULL
+        );
+      `);
+
+      db.exec('PRAGMA user_version = 1');
+      db.prepare(
+        "INSERT INTO Project (id, name, path, created_at, updated_at) VALUES (?, ?, ?, ?, ?)"
+      ).run('test-id', 'test-project', '/test/path', Date.now(), Date.now());
+      db.close();
+
+      // マイグレーション実行
+      const result = migrateDatabase(dbPath);
+      expect(result).toBe(true);
+
+      // データが保持されていることを確認
+      const db2 = new Database(dbPath, { readonly: true });
+      const row = db2.prepare("SELECT * FROM Project WHERE id = ?").get('test-id') as { name: string } | undefined;
+      expect(row).toBeDefined();
+      expect(row?.name).toBe('test-project');
+      db2.close();
+    });
+
+    it('should return false when migration fails', () => {
+      const invalidPath = join(testDir, 'nonexistent', 'subdir', 'deep', 'test.db');
+      const result = migrateDatabase(invalidPath);
       expect(result).toBe(false);
     });
   });
