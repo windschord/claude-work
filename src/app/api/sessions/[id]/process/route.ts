@@ -5,7 +5,6 @@ import { ProcessManager } from '@/services/process-manager';
 import { environmentService } from '@/services/environment-service';
 import { logger } from '@/lib/logger';
 import type { EnvironmentAdapter } from '@/services/environment-adapter';
-import type { ExecutionEnvironment } from '@/lib/db';
 
 // 動的インポートでAdapterFactoryを取得（node-ptyがビルド時に読み込まれるのを防ぐ）
 async function getAdapterFactory() {
@@ -151,11 +150,10 @@ export async function POST(
     }
 
     // 環境情報を一度だけ取得（環境付きセッションの場合）
-    let environment: ExecutionEnvironment | null | undefined;
     let adapter: EnvironmentAdapter | undefined;
 
     if (targetSession.environment_id) {
-      environment = await environmentService.findById(targetSession.environment_id);
+      const environment = await environmentService.findById(targetSession.environment_id);
       if (!environment) {
         logger.warn('Environment not found for session', {
           session_id: id,
