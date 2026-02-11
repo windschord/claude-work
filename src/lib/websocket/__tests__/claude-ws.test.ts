@@ -8,6 +8,7 @@ const {
   mockAdapterFactory,
   mockClaudeOptionsService,
   mockScrollbackBuffer,
+  mockConnectionManager,
   createMockAdapter,
 } = vi.hoisted(() => {
   // EventEmitter をモック内で直接使わず、シンプルなモックオブジェクトを使用
@@ -77,6 +78,30 @@ const {
       has: vi.fn().mockReturnValue(false),
       getByteSize: vi.fn().mockReturnValue(0),
     },
+    mockConnectionManager: {
+      addConnection: vi.fn(),
+      removeConnection: vi.fn(),
+      getConnectionCount: vi.fn().mockReturnValue(0),
+      hasConnections: vi.fn().mockReturnValue(false),
+      getConnections: vi.fn().mockReturnValue(new Set()),
+      broadcast: vi.fn(),
+      sendToConnection: vi.fn(),
+      setScrollbackBuffer: vi.fn(),
+      sendScrollbackToConnection: vi.fn(),
+      registerHandler: vi.fn(),
+      unregisterHandler: vi.fn(),
+      hasHandler: vi.fn().mockReturnValue(false),
+      cleanup: vi.fn(),
+      getMetrics: vi.fn().mockReturnValue({
+        totalConnections: 0,
+        activeConnections: 0,
+        messagesSent: 0,
+        messagesDropped: 0,
+      }),
+      on: vi.fn(),
+      off: vi.fn(),
+      emit: vi.fn(),
+    },
     createMockAdapter: createMockAdapterFn,
   };
 });
@@ -118,6 +143,14 @@ vi.mock('@/services/adapter-factory', () => ({
 
 vi.mock('@/services/scrollback-buffer', () => ({
   scrollbackBuffer: mockScrollbackBuffer,
+}));
+
+vi.mock('../connection-manager', () => ({
+  ConnectionManager: class {
+    constructor() {
+      return mockConnectionManager;
+    }
+  },
 }));
 
 // テスト対象をインポート
@@ -182,6 +215,14 @@ describe('Claude WebSocket Handler - Environment Support', () => {
         }),
       }),
     });
+
+    // ConnectionManagerのモックを再設定（resetAllMocksで壊れるため）
+    mockConnectionManager.addConnection.mockClear();
+    mockConnectionManager.removeConnection.mockClear();
+    mockConnectionManager.getConnectionCount.mockReturnValue(0);
+    mockConnectionManager.hasConnections.mockReturnValue(false);
+    mockConnectionManager.broadcast.mockClear();
+    mockConnectionManager.sendToConnection.mockClear();
   });
 
   afterEach(() => {

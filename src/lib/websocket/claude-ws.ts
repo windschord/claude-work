@@ -13,6 +13,7 @@ import { AdapterFactory } from '@/services/adapter-factory';
 import type { EnvironmentAdapter, PTYExitInfo } from '@/services/environment-adapter';
 import { ClaudeOptionsService } from '@/services/claude-options-service';
 import { scrollbackBuffer } from '@/services/scrollback-buffer';
+import { ConnectionManager } from './connection-manager';
 import type {
   ClaudeDataMessage,
   ClaudeExitMessage,
@@ -34,10 +35,11 @@ const PTY_DESTROY_GRACE_PERIOD = (() => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 300000;
 })();
 
+// ConnectionManagerインスタンス（接続プール管理）
+const connectionManager = new ConnectionManager();
+
 // セッションごとの破棄タイマーを管理
 const destroyTimers = new Map<string, ReturnType<typeof setTimeout>>();
-// セッションごとのアクティブな接続数を管理
-const activeConnections = new Map<string, number>();
 // セッション作成中のPromiseを管理（同一セッションの同時作成を防止）
 const creatingSessionPromises = new Map<string, Promise<void>>();
 
@@ -265,9 +267,25 @@ export function setupClaudeWebSocket(
         logger.info('Claude WebSocket: Cancelled PTY destroy timer (client reconnected)', { sessionId });
       }
 
-      // 接続数を増やす
-      const currentConnections = activeConnections.get(sessionId) || 0;
-      activeConnections.set(sessionId, currentConnections + 1);
+      // 接続をConnectionManagerに追加（接続数管理）
+      // 注: スクロールバックバッファは後で手動送信（ClaudeScrollbackMessage形式でラップ）
+      connectionManager.addConnection(sessionId, ws);
+
+      // 既存PTYセッションの場合、スクロールバックバッファを送信
+      if (hasSession) {
+        const buffer = scrollbackBuffer.getBuffer(sessionId);
+        if (buffer) {
+          const scrollbackMsg: ClaudeScrollbackMessage = {
+            type: 'scrollback',
+            content: buffer,
+          };
+          connectionManager.sendToConnection(ws, JSON.stringify(scrollbackMsg));
+          logger.info('Claude WebSocket: Sent scrollback buffer', {
+            sessionId,
+            bufferLength: buffer.length,
+          });
+        }
+      }
 
       // アダプター選択とセットアップ
       // 戻り値: { adapter: EnvironmentAdapter, isLegacy: boolean }
@@ -490,35 +508,35 @@ export function setupClaudeWebSocket(
       }
 
       // イベントハンドラーの定義
-      // アダプター用のイベントハンドラー
+      // アダプター用のイベントハンドラー（ConnectionManager経由でブロードキャスト）
       const adapterDataHandler = (sid: string, data: string) => {
-        if (sid === sessionId && ws.readyState === WebSocket.OPEN) {
+        if (sid === sessionId) {
           const message: ClaudeDataMessage = {
             type: 'data',
             content: data,
           };
-          ws.send(JSON.stringify(message));
+          connectionManager.broadcast(sessionId, JSON.stringify(message));
         }
       };
 
       const adapterExitHandler = (sid: string, info: PTYExitInfo) => {
-        if (sid === sessionId && ws.readyState === WebSocket.OPEN) {
+        if (sid === sessionId) {
           const message: ClaudeExitMessage = {
             type: 'exit',
             exitCode: info.exitCode,
             signal: info.signal ?? null,
           };
-          ws.send(JSON.stringify(message));
+          connectionManager.broadcast(sessionId, JSON.stringify(message));
         }
       };
 
       const adapterErrorHandler = (sid: string, error: Error) => {
-        if (sid === sessionId && ws.readyState === WebSocket.OPEN) {
+        if (sid === sessionId) {
           const message: ClaudeErrorMessage = {
             type: 'error',
             message: error.message,
           };
-          ws.send(JSON.stringify(message));
+          connectionManager.broadcast(sessionId, JSON.stringify(message));
         }
       };
 
@@ -543,34 +561,17 @@ export function setupClaudeWebSocket(
         }
       };
 
-      // レガシー用のイベントハンドラー（ClaudePTYExitInfo型用）
+      // レガシー用のイベントハンドラー（ClaudePTYExitInfo型用）（ConnectionManager経由でブロードキャスト）
       const legacyExitHandler = (sid: string, { exitCode, signal }: ClaudePTYExitInfo) => {
-        if (sid === sessionId && ws.readyState === WebSocket.OPEN) {
+        if (sid === sessionId) {
           const message: ClaudeExitMessage = {
             type: 'exit',
             exitCode,
             signal: signal ?? null,
           };
-          ws.send(JSON.stringify(message));
+          connectionManager.broadcast(sessionId, JSON.stringify(message));
         }
       };
-
-      // 既存PTYセッションの場合、イベントハンドラー登録前にスクロールバックバッファを再送
-      // （ハンドラー登録後だとdataイベントとscrollbackの順序が逆転するレースを防止）
-      if (hasSession) {
-        const buffer = scrollbackBuffer.getBuffer(sessionId);
-        if (buffer && ws.readyState === WebSocket.OPEN) {
-          const scrollbackMsg: ClaudeScrollbackMessage = {
-            type: 'scrollback',
-            content: buffer,
-          };
-          ws.send(JSON.stringify(scrollbackMsg));
-          logger.info('Claude WebSocket: Sent scrollback buffer', {
-            sessionId,
-            bufferLength: buffer.length,
-          });
-        }
-      }
 
       // イベントハンドラーを登録（scrollback送信後に登録してレースを防止）
       if (isLegacy) {
@@ -695,10 +696,11 @@ export function setupClaudeWebSocket(
           adapter!.off('claudeSessionId', claudeSessionIdHandler);
         }
 
-        // 接続数を減らす
-        const connections = activeConnections.get(sessionId) || 0;
-        const newConnections = Math.max(0, connections - 1);
-        activeConnections.set(sessionId, newConnections);
+        // ConnectionManagerから接続を削除
+        connectionManager.removeConnection(sessionId, ws);
+
+        // 接続数を取得
+        const newConnections = connectionManager.getConnectionCount(sessionId);
 
         // 接続数が0になった場合のみ、猶予期間後にPTYを破棄
         const hasActiveSession = isLegacy
@@ -724,7 +726,7 @@ export function setupClaudeWebSocket(
                 ? claudePtyManager.hasSession(sessionId)
                 : adapter!.hasSession(sessionId);
 
-              if ((activeConnections.get(sessionId) || 0) === 0 && stillHasSession) {
+              if (connectionManager.getConnectionCount(sessionId) === 0 && stillHasSession) {
                 if (isLegacy) {
                   claudePtyManager.destroySession(sessionId);
                 } else {
