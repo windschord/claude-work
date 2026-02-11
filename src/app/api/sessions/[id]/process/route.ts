@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db, schema } from '@/lib/db';
 import { eq } from 'drizzle-orm';
 import { ProcessManager } from '@/services/process-manager';
+import { AdapterFactory } from '@/services/adapter-factory';
 import { logger } from '@/lib/logger';
 
 const processManager = ProcessManager.getInstance();
@@ -49,7 +50,36 @@ export async function GET(
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });
     }
 
-    const running = processManager.hasProcess(targetSession.id);
+    let running = false;
+
+    if (targetSession.environment_id) {
+      // 新しい環境システム: AdapterFactory経由で状態確認
+      const environment = await db.query.executionEnvironments.findFirst({
+        where: eq(schema.executionEnvironments.id, targetSession.environment_id),
+      });
+      if (environment) {
+        try {
+          const adapter = AdapterFactory.getAdapter(environment);
+          running = adapter.hasSession(targetSession.id);
+        } catch (adapterError) {
+          logger.warn('Failed to get adapter, falling back to ProcessManager', {
+            error: adapterError,
+            session_id: id,
+            environment_id: targetSession.environment_id,
+          });
+          running = processManager.hasProcess(targetSession.id);
+        }
+      } else {
+        logger.warn('Environment not found, falling back to ProcessManager', {
+          session_id: id,
+          environment_id: targetSession.environment_id,
+        });
+        running = processManager.hasProcess(targetSession.id);
+      }
+    } else {
+      // レガシー: ProcessManager
+      running = processManager.hasProcess(targetSession.id);
+    }
 
     logger.debug('Process status checked', { session_id: id, running });
     return NextResponse.json({ running });
@@ -109,7 +139,25 @@ export async function POST(
     }
 
     // プロセスが既に実行中かチェック
-    const isRunning = processManager.hasProcess(targetSession.id);
+    let isRunning = false;
+    if (targetSession.environment_id) {
+      // 新しい環境システム: AdapterFactory経由で状態確認
+      const environment = await db.query.executionEnvironments.findFirst({
+        where: eq(schema.executionEnvironments.id, targetSession.environment_id),
+      });
+      if (environment) {
+        try {
+          const adapter = AdapterFactory.getAdapter(environment);
+          isRunning = adapter.hasSession(targetSession.id);
+        } catch {
+          isRunning = processManager.hasProcess(targetSession.id);
+        }
+      }
+    } else {
+      // レガシー: ProcessManager
+      isRunning = processManager.hasProcess(targetSession.id);
+    }
+
     if (isRunning) {
       logger.debug('Process already running', { session_id: id });
       return NextResponse.json({
@@ -119,11 +167,30 @@ export async function POST(
       });
     }
 
-    // プロセスを起動（promptなしで起動）
-    await processManager.startClaudeCode({
-      sessionId: targetSession.id,
-      worktreePath: targetSession.worktree_path,
-    });
+    // プロセスを起動
+    if (targetSession.environment_id) {
+      // 新しい環境システム: AdapterFactory経由で起動
+      const environment = await db.query.executionEnvironments.findFirst({
+        where: eq(schema.executionEnvironments.id, targetSession.environment_id),
+      });
+      if (environment) {
+        const adapter = AdapterFactory.getAdapter(environment);
+        await adapter.createSession(
+          targetSession.id,
+          targetSession.worktree_path,
+          undefined,
+          { resumeSessionId: targetSession.resume_session_id ?? undefined }
+        );
+      } else {
+        throw new Error(`Environment not found: ${targetSession.environment_id}`);
+      }
+    } else {
+      // レガシー: ProcessManager（promptなしで起動）
+      await processManager.startClaudeCode({
+        sessionId: targetSession.id,
+        worktreePath: targetSession.worktree_path,
+      });
+    }
 
     // セッションのステータスをrunningに更新
     try {
@@ -141,9 +208,23 @@ export async function POST(
         session_id: targetSession.id,
       });
       // プロセスを停止してクリーンアップ
-      await processManager.stopProcess(targetSession.id).catch((err) => {
-        logger.error('Failed to stop process after DB update failure', { error: err });
-      });
+      if (targetSession.environment_id) {
+        const environment = await db.query.executionEnvironments.findFirst({
+          where: eq(schema.executionEnvironments.id, targetSession.environment_id),
+        });
+        if (environment) {
+          try {
+            const adapter = AdapterFactory.getAdapter(environment);
+            adapter.destroySession(targetSession.id);
+          } catch (err) {
+            logger.error('Failed to destroy session after DB update failure', { error: err });
+          }
+        }
+      } else {
+        await processManager.stopProcess(targetSession.id).catch((err) => {
+          logger.error('Failed to stop process after DB update failure', { error: err });
+        });
+      }
       throw dbError;
     }
 

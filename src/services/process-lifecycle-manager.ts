@@ -11,6 +11,9 @@
 import { EventEmitter } from 'events';
 import { logger } from '@/lib/logger';
 import { ProcessManager } from './process-manager';
+import { db, schema } from '@/lib/db';
+import { eq } from 'drizzle-orm';
+import { AdapterFactory } from './adapter-factory';
 
 // globalThisパターン（Next.js Hot Reload対策）
 const globalForProcessLifecycleManager = globalThis as unknown as {
@@ -234,13 +237,42 @@ export class ProcessLifecycleManager extends EventEmitter {
     logger.info(`Pausing session ${sessionId} due to ${reason}`);
 
     try {
-      const processManager = ProcessManager.getInstance();
+      // DBからセッション情報を取得
+      const session = await db.query.sessions.findFirst({
+        where: eq(schema.sessions.id, sessionId),
+      });
 
-      // TODO: Claude Codeセッション識別子を取得して保存
-      // const claudeSessionId = await this.getClaudeSessionId(sessionId);
-
-      // プロセスを停止
-      await processManager.stopProcess(sessionId);
+      if (session?.environment_id) {
+        // 新しい環境システム: AdapterFactory経由で停止
+        const environment = await db.query.executionEnvironments.findFirst({
+          where: eq(schema.executionEnvironments.id, session.environment_id),
+        });
+        if (environment) {
+          try {
+            const adapter = AdapterFactory.getAdapter(environment);
+            adapter.destroySession(sessionId);
+          } catch (adapterError) {
+            logger.warn('Failed to get adapter, falling back to ProcessManager', {
+              error: adapterError,
+              sessionId,
+              environmentId: session.environment_id,
+            });
+            const processManager = ProcessManager.getInstance();
+            await processManager.stopProcess(sessionId);
+          }
+        } else {
+          logger.warn('Environment not found, falling back to ProcessManager', {
+            sessionId,
+            environmentId: session.environment_id,
+          });
+          const processManager = ProcessManager.getInstance();
+          await processManager.stopProcess(sessionId);
+        }
+      } else {
+        // レガシー: ProcessManager
+        const processManager = ProcessManager.getInstance();
+        await processManager.stopProcess(sessionId);
+      }
 
       // アクティビティをクリア
       this.clearActivity(sessionId);
