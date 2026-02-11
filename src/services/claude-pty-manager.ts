@@ -4,6 +4,8 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { logger } from '@/lib/logger';
 import { DockerPTYAdapter, CreateDockerPTYSessionOptions } from './docker-pty-adapter';
+import { ClaudeOptionsService } from './claude-options-service';
+import type { ClaudeCodeOptions, CustomEnvVars } from './claude-options-service';
 import { scrollbackBuffer } from './scrollback-buffer';
 
 /**
@@ -12,6 +14,8 @@ import { scrollbackBuffer } from './scrollback-buffer';
 export interface CreateClaudePTYSessionOptions {
   resumeSessionId?: string; // Claude Codeの--resume用セッションID
   dockerMode?: boolean; // Dockerコンテナ内でClaude Codeを実行
+  claudeCodeOptions?: ClaudeCodeOptions; // Claude Code CLIオプション
+  customEnvVars?: CustomEnvVars; // カスタム環境変数
 }
 
 /**
@@ -36,8 +40,10 @@ export interface ClaudePTYExitInfo {
 
 /**
  * Claude PTY用の安全な環境変数を構築
+ *
+ * @param customEnvVars - カスタム環境変数（任意）
  */
-function buildClaudePtyEnv(): Record<string, string> {
+function buildClaudePtyEnv(customEnvVars?: CustomEnvVars): Record<string, string> {
   const allow = new Set([
     'PATH',
     'HOME',
@@ -65,6 +71,16 @@ function buildClaudePtyEnv(): Record<string, string> {
   // ターミナル設定を追加
   out['TERM'] = 'xterm-256color';
   out['COLORTERM'] = 'truecolor';
+
+  // カスタム環境変数をマージ
+  if (customEnvVars && Object.keys(customEnvVars).length > 0) {
+    const merged = ClaudeOptionsService.buildEnv(out, customEnvVars);
+    logger.info('Custom environment variables applied', {
+      keys: Object.keys(customEnvVars),
+    });
+    return merged;
+  }
+
   return out;
 }
 
@@ -133,6 +149,8 @@ class ClaudePTYManager extends EventEmitter {
       });
       const dockerOptions: CreateDockerPTYSessionOptions = {
         resumeSessionId: options.resumeSessionId,
+        claudeCodeOptions: options.claudeCodeOptions,
+        customEnvVars: options.customEnvVars,
       };
       this.dockerAdapter.createSession(sessionId, workingDir, initialPrompt, dockerOptions);
       return;
@@ -183,13 +201,33 @@ class ClaudePTYManager extends EventEmitter {
         logger.info('Creating Claude PTY session', { sessionId, workingDir: resolvedCwd });
       }
 
+      // カスタムCLIオプションを追加
+      if (options?.claudeCodeOptions) {
+        const customArgs = ClaudeOptionsService.buildCliArgs(options.claudeCodeOptions);
+        if (customArgs.length > 0) {
+          cliArgs.push(...customArgs);
+          // ログにはフラグ名のみを出力し、値は出力しない（機密情報対策）
+          // --flag value 形式: フラグは残し、値は[REDACTED]に
+          // --flag=value 形式: =以降を[REDACTED]に
+          const safeArgs = customArgs.map((arg) => {
+            if (!arg.startsWith('-')) return '[REDACTED]';
+            const eqIndex = arg.indexOf('=');
+            return eqIndex === -1 ? arg : `${arg.slice(0, eqIndex)}=[REDACTED]`;
+          });
+          logger.info('Custom CLI options applied', {
+            sessionId,
+            args: safeArgs,
+          });
+        }
+      }
+
       // Claude Codeプロセスを生成（対話モード）
       const ptyProcess = pty.spawn(this.claudePath, cliArgs, {
         name: 'xterm-256color',
         cols: 80,
         rows: 24,
         cwd: resolvedCwd,
-        env: buildClaudePtyEnv(),
+        env: buildClaudePtyEnv(options?.customEnvVars),
       });
 
       // セッションを登録（再起動時にオプションを保持するため、optionsも保存）

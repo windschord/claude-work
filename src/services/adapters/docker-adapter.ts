@@ -6,6 +6,7 @@ import * as os from 'os';
 import * as childProcess from 'child_process';
 import { promisify } from 'util';
 import { EnvironmentAdapter, CreateSessionOptions, PTYExitInfo } from '../environment-adapter';
+import { ClaudeOptionsService } from '../claude-options-service';
 import { scrollbackBuffer } from '../scrollback-buffer';
 import { db, schema } from '@/lib/db';
 import { eq } from 'drizzle-orm';
@@ -62,7 +63,7 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
   /**
    * Docker実行引数を構築（環境専用認証ディレクトリを使用）
    */
-  private buildDockerArgs(workingDir: string, options?: CreateSessionOptions): { args: string[]; containerName: string } {
+  private buildDockerArgs(workingDir: string, options?: CreateSessionOptions): { args: string[]; containerName: string; envFilePath?: string } {
     const args: string[] = ['run', '-it', '--rm'];
 
     // コンテナ名（環境ID + タイムスタンプで一意に）
@@ -106,6 +107,26 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
       args.push('-e', 'ANTHROPIC_API_KEY');
     }
 
+    // カスタム環境変数を一時envファイル経由で渡す（値をプロセス引数に載せない）
+    let envFilePath: string | undefined;
+    if (!options?.shellMode && options?.customEnvVars) {
+      const lines: string[] = [];
+      for (const [key, value] of Object.entries(options.customEnvVars)) {
+        if (ClaudeOptionsService.validateEnvVarKey(key) && typeof value === 'string') {
+          lines.push(`${key}=${value}`);
+        }
+      }
+      if (lines.length > 0) {
+        envFilePath = path.join(os.tmpdir(), `claude-env-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+        fs.writeFileSync(envFilePath, lines.join('\n'), { mode: 0o600 });
+        args.push('--env-file', envFilePath);
+        // ログには環境変数のKEYのみ出力、VALUEは出力しない
+        logger.info('DockerAdapter: Custom environment variables applied', {
+          keys: Object.keys(options.customEnvVars),
+        });
+      }
+    }
+
     // シェルモードの場合は/bin/sh、それ以外はclaude
     const entrypoint = options?.shellMode ? '/bin/sh' : 'claude';
     args.push('--entrypoint', entrypoint);
@@ -119,7 +140,24 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
       args.push('--resume', options.resumeSessionId);
     }
 
-    return { args, containerName };
+    // カスタムCLIオプション（シェルモードではスキップ）
+    if (!options?.shellMode && options?.claudeCodeOptions) {
+      const customArgs = ClaudeOptionsService.buildCliArgs(options.claudeCodeOptions);
+      args.push(...customArgs);
+      // ログにはフラグ名のみを出力し、値は出力しない（機密情報対策）
+      // --flag value 形式: フラグは残し、値は[REDACTED]に
+      // --flag=value 形式: =以降を[REDACTED]に
+      const safeArgs = customArgs.map((arg) => {
+        if (!arg.startsWith('-')) return '[REDACTED]';
+        const eqIndex = arg.indexOf('=');
+        return eqIndex === -1 ? arg : `${arg.slice(0, eqIndex)}=[REDACTED]`;
+      });
+      logger.info('DockerAdapter: Custom CLI options applied', {
+        args: safeArgs,
+      });
+    }
+
+    return { args, containerName, envFilePath };
   }
 
   /**
@@ -336,7 +374,7 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
       throw error;
     }
 
-    const { args, containerName } = this.buildDockerArgs(workingDir, options);
+    const { args, containerName, envFilePath } = this.buildDockerArgs(workingDir, options);
 
     logger.info('DockerAdapter: Creating session', {
       sessionId,
@@ -412,6 +450,11 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
 
       ptyProcess.onExit(async ({ exitCode, signal }) => {
         logger.info('DockerAdapter: Session exited', { sessionId, exitCode, signal });
+
+        // 一時envファイルのクリーンアップ
+        if (envFilePath) {
+          try { fs.unlinkSync(envFilePath); } catch { /* ignore */ }
+        }
 
         // restartSession()で新セッションが作成された後に旧PTYのonExitが遅延発火した場合、
         // 新セッションを消さないようにptyProcess同一性チェックを行う

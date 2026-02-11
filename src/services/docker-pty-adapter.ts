@@ -5,6 +5,8 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { logger } from '@/lib/logger';
 import { DockerError } from './docker-service';
+import { ClaudeOptionsService } from './claude-options-service';
+import type { ClaudeCodeOptions, CustomEnvVars } from './claude-options-service';
 
 /**
  * Dockerコンテナ起動エラーを解析してDockerErrorを生成
@@ -79,6 +81,8 @@ export interface DockerPTYAdapterConfig {
  */
 export interface CreateDockerPTYSessionOptions {
   resumeSessionId?: string; // Claude Codeの--resume用セッションID
+  claudeCodeOptions?: ClaudeCodeOptions; // Claude Code CLIオプション
+  customEnvVars?: CustomEnvVars; // カスタム環境変数
 }
 
 /**
@@ -169,7 +173,7 @@ export class DockerPTYAdapter extends EventEmitter {
   private buildDockerArgs(
     workingDir: string,
     options?: CreateDockerPTYSessionOptions
-  ): { args: string[]; containerName: string } {
+  ): { args: string[]; containerName: string; envFilePath?: string } {
     const args: string[] = ['run', '-it', '--rm'];
 
     // コンテナ名を一意に設定
@@ -216,6 +220,22 @@ export class DockerPTYAdapter extends EventEmitter {
       args.push('-e', 'ANTHROPIC_API_KEY');
     }
 
+    // カスタム環境変数を一時envファイル経由で渡す（値をプロセス引数に載せない）
+    let envFilePath: string | undefined;
+    if (options?.customEnvVars) {
+      const lines: string[] = [];
+      for (const [key, value] of Object.entries(options.customEnvVars)) {
+        if (ClaudeOptionsService.validateEnvVarKey(key) && typeof value === 'string') {
+          lines.push(`${key}=${value}`);
+        }
+      }
+      if (lines.length > 0) {
+        envFilePath = path.join(os.tmpdir(), `claude-env-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+        fs.writeFileSync(envFilePath, lines.join('\n'), { mode: 0o600 });
+        args.push('--env-file', envFilePath);
+      }
+    }
+
     // イメージ名
     args.push(this.getFullImageName());
 
@@ -225,7 +245,13 @@ export class DockerPTYAdapter extends EventEmitter {
       args.push('--resume', options.resumeSessionId);
     }
 
-    return { args, containerName };
+    // カスタムCLIオプション
+    if (options?.claudeCodeOptions) {
+      const customArgs = ClaudeOptionsService.buildCliArgs(options.claudeCodeOptions);
+      args.push(...customArgs);
+    }
+
+    return { args, containerName, envFilePath };
   }
 
   /**
@@ -270,7 +296,7 @@ export class DockerPTYAdapter extends EventEmitter {
     }
 
     try {
-      const { args: dockerArgs, containerName } = this.buildDockerArgs(resolvedCwd, options);
+      const { args: dockerArgs, containerName, envFilePath } = this.buildDockerArgs(resolvedCwd, options);
 
       logger.info('Creating Docker PTY session', {
         sessionId,
@@ -336,6 +362,11 @@ export class DockerPTYAdapter extends EventEmitter {
       ptyProcess.onExit(({ exitCode, signal }) => {
         const session = this.sessions.get(sessionId);
         logger.info('Docker PTY exited', { sessionId, exitCode, signal });
+
+        // 一時envファイルのクリーンアップ
+        if (envFilePath) {
+          try { fs.unlinkSync(envFilePath); } catch { /* ignore */ }
+        }
 
         // 異常終了時にエラー解析
         if (exitCode !== 0 && session) {

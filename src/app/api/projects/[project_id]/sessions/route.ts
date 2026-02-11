@@ -6,6 +6,7 @@ import { logger } from '@/lib/logger';
 import { generateUniqueSessionName } from '@/lib/session-name-generator';
 import { dockerService, DockerError } from '@/services/docker-service';
 import { environmentService } from '@/services/environment-service';
+import { ClaudeOptionsService } from '@/services/claude-options-service';
 
 /**
  * GET /api/projects/[project_id]/sessions - プロジェクトのセッション一覧取得
@@ -149,7 +150,37 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
 
-    const { name, prompt = '', dockerMode = false, environment_id, source_branch } = body;
+    let { name, prompt = '', dockerMode = false, environment_id, source_branch, claude_code_options, custom_env_vars } = body;
+
+    // claude_code_options のバリデーション（各フィールドが文字列であることを検証）
+    if (claude_code_options !== undefined) {
+      const validatedOptions = ClaudeOptionsService.validateClaudeCodeOptions(claude_code_options);
+      if (validatedOptions === null) {
+        const unknownKeys = ClaudeOptionsService.getUnknownKeys(claude_code_options);
+        const errorMessage = unknownKeys.length > 0
+          ? `Invalid keys in claude_code_options: ${unknownKeys.join(', ')}. Allowed keys: model, allowedTools, permissionMode, additionalFlags`
+          : 'claude_code_options must be a plain object with string fields (model, allowedTools, permissionMode, additionalFlags)';
+        return NextResponse.json(
+          { error: errorMessage },
+          { status: 400 }
+        );
+      }
+      // バリデーション済みの値で上書き
+      claude_code_options = validatedOptions;
+    }
+
+    // custom_env_vars のバリデーション（キーが^[A-Z_][A-Z0-9_]*$にマッチし、値が文字列であることを検証）
+    if (custom_env_vars !== undefined) {
+      const validatedEnvVars = ClaudeOptionsService.validateCustomEnvVars(custom_env_vars);
+      if (validatedEnvVars === null) {
+        return NextResponse.json(
+          { error: 'custom_env_vars must be a plain object with keys matching ^[A-Z_][A-Z0-9_]*$ and string values' },
+          { status: 400 }
+        );
+      }
+      // バリデーション済みの値で上書き
+      custom_env_vars = validatedEnvVars;
+    }
 
     // 実効環境とdockerModeを決定
     let effectiveEnvironmentId: string | null = null;
@@ -299,6 +330,8 @@ export async function POST(
       branch_name: branchName,
       docker_mode: effectiveDockerMode,
       environment_id: effectiveEnvironmentId,
+      claude_code_options: claude_code_options ? JSON.stringify(claude_code_options) : null,
+      custom_env_vars: custom_env_vars ? JSON.stringify(custom_env_vars) : null,
     }).returning().get();
 
     if (!newSession) {

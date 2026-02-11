@@ -6,6 +6,7 @@ const {
   mockDb,
   mockEnvironmentService,
   mockAdapterFactory,
+  mockClaudeOptionsService,
   mockScrollbackBuffer,
   createMockAdapter,
 } = vi.hoisted(() => {
@@ -43,6 +44,9 @@ const {
         messages: {
           findFirst: vi.fn(),
         },
+        projects: {
+          findFirst: vi.fn(),
+        },
       },
       update: vi.fn().mockReturnValue({
         set: vi.fn().mockReturnValue({
@@ -59,6 +63,12 @@ const {
     mockAdapterFactory: {
       getAdapter: vi.fn(),
       reset: vi.fn(),
+    },
+    mockClaudeOptionsService: {
+      parseOptions: vi.fn().mockReturnValue({}),
+      parseEnvVars: vi.fn().mockReturnValue({}),
+      mergeOptions: vi.fn().mockReturnValue({}),
+      mergeEnvVars: vi.fn().mockReturnValue({}),
     },
     mockScrollbackBuffer: {
       append: vi.fn(),
@@ -81,7 +91,12 @@ vi.mock('@/lib/db', () => ({
   schema: {
     sessions: {},
     messages: {},
+    projects: {},
   },
+}));
+
+vi.mock('@/services/claude-options-service', () => ({
+  ClaudeOptionsService: mockClaudeOptionsService,
 }));
 
 vi.mock('@/lib/logger', () => ({
@@ -147,6 +162,17 @@ describe('Claude WebSocket Handler - Environment Support', () => {
 
     // デフォルトのモック設定
     mockDb.query.messages.findFirst.mockResolvedValue(null);
+    mockDb.query.projects.findFirst.mockResolvedValue({
+      id: 'project-id',
+      claude_code_options: '{}',
+      custom_env_vars: '{}',
+    });
+
+    // ClaudeOptionsServiceのモックを再設定（resetAllMocksで壊れるため）
+    mockClaudeOptionsService.parseOptions.mockReturnValue({});
+    mockClaudeOptionsService.parseEnvVars.mockReturnValue({});
+    mockClaudeOptionsService.mergeOptions.mockReturnValue({});
+    mockClaudeOptionsService.mergeEnvVars.mockReturnValue({});
 
     // db.update チェーンを再設定（resetAllMocksで壊れるため）
     mockDb.update.mockReturnValue({
@@ -271,7 +297,7 @@ describe('Claude WebSocket Handler - Environment Support', () => {
         sessionId,
         '/path/to/worktree',
         undefined,
-        { dockerMode: true }
+        expect.objectContaining({ dockerMode: true })
       );
       // AdapterFactoryは呼ばれない
       expect(mockAdapterFactory.getAdapter).not.toHaveBeenCalled();

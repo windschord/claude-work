@@ -11,6 +11,7 @@ import { logger } from '@/lib/logger';
 import { environmentService } from '@/services/environment-service';
 import { AdapterFactory } from '@/services/adapter-factory';
 import type { EnvironmentAdapter, PTYExitInfo } from '@/services/environment-adapter';
+import { ClaudeOptionsService } from '@/services/claude-options-service';
 import { scrollbackBuffer } from '@/services/scrollback-buffer';
 import type {
   ClaudeDataMessage,
@@ -387,6 +388,32 @@ export function setupClaudeWebSocket(
               });
             }
 
+            // プロジェクトの設定を取得してマージ
+            const project = await db.query.projects.findFirst({
+              where: eq(schema.projects.id, session.project_id),
+            });
+
+            const projectOptions = ClaudeOptionsService.parseOptions(project?.claude_code_options);
+            const projectEnvVars = ClaudeOptionsService.parseEnvVars(project?.custom_env_vars);
+            const sessionOptions = ClaudeOptionsService.parseOptions(session.claude_code_options);
+            const sessionEnvVars = ClaudeOptionsService.parseEnvVars(session.custom_env_vars);
+
+            const mergedOptions = ClaudeOptionsService.mergeOptions(projectOptions, sessionOptions);
+            const mergedEnvVars = ClaudeOptionsService.mergeEnvVars(projectEnvVars, sessionEnvVars);
+
+            const hasCustomOptions = Object.keys(mergedOptions).length > 0;
+            const hasCustomEnvVars = Object.keys(mergedEnvVars).length > 0;
+
+            if (hasCustomOptions || hasCustomEnvVars) {
+              logger.info('Claude WebSocket: Applying custom options', {
+                sessionId,
+                hasCustomOptions,
+                hasCustomEnvVars,
+                optionKeys: Object.keys(mergedOptions),
+                envVarKeys: Object.keys(mergedEnvVars),
+              });
+            }
+
             if (isLegacy) {
               claudePtyManager.createSession(
                 sessionId,
@@ -395,6 +422,8 @@ export function setupClaudeWebSocket(
                 {
                   dockerMode: session.docker_mode,
                   resumeSessionId: session.resume_session_id || undefined,
+                  claudeCodeOptions: hasCustomOptions ? mergedOptions : undefined,
+                  customEnvVars: hasCustomEnvVars ? mergedEnvVars : undefined,
                 }
               );
             } else {
@@ -402,7 +431,11 @@ export function setupClaudeWebSocket(
                 sessionId,
                 session.worktree_path,
                 initialPrompt,
-                { resumeSessionId: session.resume_session_id || undefined }
+                {
+                  resumeSessionId: session.resume_session_id || undefined,
+                  claudeCodeOptions: hasCustomOptions ? mergedOptions : undefined,
+                  customEnvVars: hasCustomEnvVars ? mergedEnvVars : undefined,
+                }
               ));
             }
 

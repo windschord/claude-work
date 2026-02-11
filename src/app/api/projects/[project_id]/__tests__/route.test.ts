@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { PUT, DELETE } from '../route';
+import { GET, PUT, DELETE } from '../route';
 import { db, schema } from '@/lib/db';
 import { eq } from 'drizzle-orm';
 import { NextRequest } from 'next/server';
@@ -19,6 +19,63 @@ function createTempGitRepo(): string {
   execSync('git branch -M main', { cwd: repoPath });
   return repoPath;
 }
+
+describe('GET /api/projects/[project_id]', () => {
+  let testRepoPath: string;
+  let project: Project;
+
+  beforeEach(async () => {
+    db.delete(schema.runScripts).run();
+    db.delete(schema.projects).run();
+
+    testRepoPath = mkdtempSync(join(tmpdir(), 'project-get-test-'));
+    execSync('git init', { cwd: testRepoPath });
+    execSync('git config user.name "Test"', { cwd: testRepoPath });
+    execSync('git config user.email "test@example.com"', { cwd: testRepoPath });
+    execSync('echo "test" > README.md && git add . && git commit -m "initial"', {
+      cwd: testRepoPath,
+      shell: true,
+    });
+    execSync('git branch -M main', { cwd: testRepoPath });
+
+    project = db.insert(schema.projects).values({
+      name: 'Test Project',
+      path: testRepoPath,
+    }).returning().get();
+  });
+
+  afterEach(async () => {
+    db.delete(schema.runScripts).run();
+    db.delete(schema.projects).run();
+    if (testRepoPath) {
+      rmSync(testRepoPath, { recursive: true, force: true });
+    }
+  });
+
+  it('should return project', async () => {
+    const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+      method: 'GET',
+    });
+
+    const response = await GET(request, { params: Promise.resolve({ project_id: project.id }) });
+    expect(response.status).toBe(200);
+
+    const data = await response.json();
+    expect(data).toHaveProperty('project');
+    expect(data.project.id).toBe(project.id);
+    expect(data.project.name).toBe('Test Project');
+    expect(data.project.path).toBe(testRepoPath);
+  });
+
+  it('should return 404 for non-existent project', async () => {
+    const request = new NextRequest('http://localhost:3000/api/projects/non-existent-id', {
+      method: 'GET',
+    });
+
+    const response = await GET(request, { params: Promise.resolve({ project_id: 'non-existent-id' }) });
+    expect(response.status).toBe(404);
+  });
+});
 
 describe('PUT /api/projects/[project_id]', () => {
   let testRepoPath: string;
@@ -273,6 +330,123 @@ describe('PUT /api/projects/[project_id]', () => {
       const scripts = db.select().from(schema.runScripts).where(eq(schema.runScripts.project_id, project.id)).all();
       expect(scripts).toHaveLength(1);
       expect(scripts[0].name).toBe('existing');
+    });
+  });
+
+  describe('claude_code_options and custom_env_vars', () => {
+    it('should save claude_code_options as JSON string', async () => {
+      const options = { model: 'claude-sonnet-4-5-20250929', permissionMode: 'plan' };
+      const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ claude_code_options: options }),
+      });
+
+      const response = await PUT(request, { params: Promise.resolve({ project_id: project.id }) });
+      expect(response.status).toBe(200);
+
+      const updated = db.select().from(schema.projects).where(eq(schema.projects.id, project.id)).get();
+      expect(updated?.claude_code_options).toBe(JSON.stringify(options));
+    });
+
+    it('should save custom_env_vars as JSON string', async () => {
+      const envVars = { MY_VAR: 'value', OTHER: 'test' };
+      const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ custom_env_vars: envVars }),
+      });
+
+      const response = await PUT(request, { params: Promise.resolve({ project_id: project.id }) });
+      expect(response.status).toBe(200);
+
+      const updated = db.select().from(schema.projects).where(eq(schema.projects.id, project.id)).get();
+      expect(updated?.custom_env_vars).toBe(JSON.stringify(envVars));
+    });
+
+    it('should keep existing options when not provided', async () => {
+      // Set initial options
+      db.update(schema.projects).set({
+        claude_code_options: '{"model":"test"}',
+      }).where(eq(schema.projects.id, project.id)).run();
+
+      const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'Updated Name' }),
+      });
+
+      const response = await PUT(request, { params: Promise.resolve({ project_id: project.id }) });
+      expect(response.status).toBe(200);
+
+      const updated = db.select().from(schema.projects).where(eq(schema.projects.id, project.id)).get();
+      expect(updated?.claude_code_options).toBe('{"model":"test"}');
+    });
+
+    it('should return 400 for non-object claude_code_options', async () => {
+      const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ claude_code_options: 'invalid' }),
+      });
+
+      const response = await PUT(request, { params: Promise.resolve({ project_id: project.id }) });
+      expect(response.status).toBe(400);
+    });
+
+    it('should return 400 for array claude_code_options', async () => {
+      const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ claude_code_options: ['a', 'b'] }),
+      });
+
+      const response = await PUT(request, { params: Promise.resolve({ project_id: project.id }) });
+      expect(response.status).toBe(400);
+    });
+
+    it('should return 400 for non-object custom_env_vars', async () => {
+      const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ custom_env_vars: 'invalid' }),
+      });
+
+      const response = await PUT(request, { params: Promise.resolve({ project_id: project.id }) });
+      expect(response.status).toBe(400);
+    });
+
+    it('should return 400 for custom_env_vars with non-string values', async () => {
+      const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ custom_env_vars: { VALID: 'ok', BAD: 123 } }),
+      });
+
+      const response = await PUT(request, { params: Promise.resolve({ project_id: project.id }) });
+      expect(response.status).toBe(400);
+    });
+
+    it('should return 400 for custom_env_vars with invalid key format', async () => {
+      const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ custom_env_vars: { lowercase: 'bad' } }),
+      });
+
+      const response = await PUT(request, { params: Promise.resolve({ project_id: project.id }) });
+      expect(response.status).toBe(400);
+    });
+
+    it('should return 400 for claude_code_options with non-string field', async () => {
+      const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ claude_code_options: { model: 123 } }),
+      });
+
+      const response = await PUT(request, { params: Promise.resolve({ project_id: project.id }) });
+      expect(response.status).toBe(400);
     });
   });
 
