@@ -291,7 +291,7 @@ export function setupTerminalWebSocket(
             type: 'data',
             content: data,
           };
-          connectionManager.broadcast(terminalSessionId, message);
+          connectionManager.broadcast(terminalSessionId, JSON.stringify(message));
         }
       };
 
@@ -302,7 +302,7 @@ export function setupTerminalWebSocket(
             exitCode: info.exitCode,
             signal: info.signal ?? null,
           };
-          connectionManager.broadcast(terminalSessionId, message);
+          connectionManager.broadcast(terminalSessionId, JSON.stringify(message));
           connectionManager.closeAllConnections(terminalSessionId);
         }
       };
@@ -318,7 +318,7 @@ export function setupTerminalWebSocket(
             type: 'error',
             message: `Terminal error: ${error.message}`,
           };
-          connectionManager.broadcast(terminalSessionId, message);
+          connectionManager.broadcast(terminalSessionId, JSON.stringify(message));
         }
       };
 
@@ -329,7 +329,7 @@ export function setupTerminalWebSocket(
             type: 'data',
             content: data,
           };
-          connectionManager.broadcast(terminalSessionId, message);
+          connectionManager.broadcast(terminalSessionId, JSON.stringify(message));
         }
       };
 
@@ -343,7 +343,7 @@ export function setupTerminalWebSocket(
             exitCode,
             signal: signal ?? null,
           };
-          connectionManager.broadcast(terminalSessionId, message);
+          connectionManager.broadcast(terminalSessionId, JSON.stringify(message));
           connectionManager.closeAllConnections(terminalSessionId);
         }
       };
