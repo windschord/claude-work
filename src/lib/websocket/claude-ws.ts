@@ -268,24 +268,7 @@ export function setupClaudeWebSocket(
       }
 
       // 接続をConnectionManagerに追加（接続数管理）
-      // 注: スクロールバックバッファは後で手動送信（ClaudeScrollbackMessage形式でラップ）
       connectionManager.addConnection(sessionId, ws);
-
-      // 既存PTYセッションの場合、スクロールバックバッファを送信
-      if (hasSession) {
-        const buffer = scrollbackBuffer.getBuffer(sessionId);
-        if (buffer) {
-          const scrollbackMsg: ClaudeScrollbackMessage = {
-            type: 'scrollback',
-            content: buffer,
-          };
-          connectionManager.sendToConnection(ws, JSON.stringify(scrollbackMsg));
-          logger.info('Claude WebSocket: Sent scrollback buffer', {
-            sessionId,
-            bufferLength: buffer.length,
-          });
-        }
-      }
 
       // アダプター選択とセットアップ
       // 戻り値: { adapter: EnvironmentAdapter, isLegacy: boolean }
@@ -356,6 +339,22 @@ export function setupClaudeWebSocket(
       const hasSession = isLegacy
         ? claudePtyManager.hasSession(sessionId)
         : adapter!.hasSession(sessionId);
+
+      // 既存PTYセッションの場合、スクロールバックバッファを送信
+      if (hasSession) {
+        const buffer = scrollbackBuffer.getBuffer(sessionId);
+        if (buffer) {
+          const scrollbackMsg: ClaudeScrollbackMessage = {
+            type: 'scrollback',
+            content: buffer,
+          };
+          connectionManager.sendToConnection(ws, JSON.stringify(scrollbackMsg));
+          logger.info('Claude WebSocket: Sent scrollback buffer', {
+            sessionId,
+            bufferLength: buffer.length,
+          });
+        }
+      }
 
       // Claude PTY作成（既に存在する場合はスキップ）
       if (!hasSession) {

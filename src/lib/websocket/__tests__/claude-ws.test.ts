@@ -147,8 +147,9 @@ describe('Claude WebSocket Handler - Environment Support', () => {
     vi.clearAllMocks();
 
     // WebSocketServer のモック
+    // 注: setupClaudeWebSocketが呼ばれる度にhandlerを更新する
     mockWss = {
-      on: vi.fn((event, handler) => {
+      on: vi.fn((event: string, handler: any) => {
         if (event === 'connection') {
           connectionHandler = handler;
         }
