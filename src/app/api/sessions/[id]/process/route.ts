@@ -157,9 +157,20 @@ export async function POST(
           const AdapterFactory = await getAdapterFactory();
           const adapter = AdapterFactory.getAdapter(environment);
           isRunning = adapter.hasSession(targetSession.id);
-        } catch {
+        } catch (adapterError) {
+          logger.warn('Failed to get adapter for status check, falling back to ProcessManager', {
+            error: adapterError,
+            session_id: id,
+            environment_id: targetSession.environment_id,
+          });
           isRunning = processManager.hasProcess(targetSession.id);
         }
+      } else {
+        logger.warn('Environment not found for status check, falling back to ProcessManager', {
+          session_id: id,
+          environment_id: targetSession.environment_id,
+        });
+        isRunning = processManager.hasProcess(targetSession.id);
       }
     } else {
       // レガシー: ProcessManager
