@@ -101,14 +101,14 @@
     "typescript": "^5",
     "vitest": "^4.0.15"
   },
-  "overrides": {
-    "glob": "^10.5.0",
-    "diff": "^5.2.2",
-    "lodash": "^4.17.23"
-  },
   "pnpm": {
     "onlyBuiltDependencies": [
       "better-sqlite3"
-    ]
+    ],
+    "overrides": {
+      "glob": "^10.5.0",
+      "diff": "^8.0.3",
+      "lodash": "^4.17.23"
+    }
   }
 }
