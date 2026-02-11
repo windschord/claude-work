@@ -13,7 +13,13 @@ import { logger } from '@/lib/logger';
 import { ProcessManager } from './process-manager';
 import { db, schema } from '@/lib/db';
 import { eq } from 'drizzle-orm';
-import { AdapterFactory } from './adapter-factory';
+import type { AdapterFactory as AdapterFactoryType } from './adapter-factory';
+
+// 動的インポートでAdapterFactoryを取得（node-ptyがビルド時に読み込まれるのを防ぐ）
+async function getAdapterFactory(): Promise<typeof AdapterFactoryType> {
+  const { AdapterFactory } = await import('./adapter-factory');
+  return AdapterFactory;
+}
 
 // globalThisパターン（Next.js Hot Reload対策）
 const globalForProcessLifecycleManager = globalThis as unknown as {
@@ -249,6 +255,7 @@ export class ProcessLifecycleManager extends EventEmitter {
         });
         if (environment) {
           try {
+            const AdapterFactory = await getAdapterFactory();
             const adapter = AdapterFactory.getAdapter(environment);
             adapter.destroySession(sessionId);
           } catch (adapterError) {
