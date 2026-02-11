@@ -2,6 +2,8 @@ const webpack = require('webpack');
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Server-side only packages (native modules that can't be bundled)
+  serverExternalPackages: ['node-pty', 'better-sqlite3'],
   // Exclude frontend directory from build (used by Syncthing sync)
   typescript: {
     // Ignore build errors in excluded directories
@@ -23,7 +25,7 @@ const nextConfig = {
     },
     resolveExtensions: ['.ts', '.tsx', '.js', '.jsx', '.json'],
   },
-  webpack: (config, { _isServer }) => {
+  webpack: (config, { isServer }) => {
     // Ignore the frontend directory
     config.watchOptions = {
       ...config.watchOptions,
@@ -38,6 +40,23 @@ const nextConfig = {
         './computeWorker.js'
       )
     );
+
+    // サーバー側ビルドでネイティブモジュールを外部化
+    if (isServer) {
+      const nativeExternals = {
+        'node-pty': 'commonjs node-pty',
+        'better-sqlite3': 'commonjs better-sqlite3',
+      };
+      if (typeof config.externals === 'function') {
+        config.externals = [config.externals, nativeExternals];
+      } else if (Array.isArray(config.externals)) {
+        config.externals.push(nativeExternals);
+      } else if (config.externals) {
+        config.externals = [config.externals, nativeExternals];
+      } else {
+        config.externals = [nativeExternals];
+      }
+    }
 
     return config;
   },

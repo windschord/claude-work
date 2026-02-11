@@ -12,6 +12,10 @@ vi.mock('@/lib/db', () => ({
     query: {
       sessions: {
         findMany: vi.fn(),
+        findFirst: vi.fn(),
+      },
+      executionEnvironments: {
+        findFirst: vi.fn(),
       },
     },
     update: vi.fn().mockReturnValue({
@@ -23,7 +27,20 @@ vi.mock('@/lib/db', () => ({
     }),
   },
   schema: {
-    sessions: {},
+    sessions: { id: 'id' },
+    executionEnvironments: { id: 'id' },
+  },
+}));
+
+vi.mock('../adapter-factory', () => ({
+  AdapterFactory: {
+    getAdapter: vi.fn(),
+  },
+}));
+
+vi.mock('../environment-service', () => ({
+  environmentService: {
+    findById: vi.fn(),
   },
 }));
 
@@ -35,19 +52,22 @@ vi.mock('@/lib/logger', () => ({
   },
 }));
 
+// ProcessManagerのモックインスタンスを作成（同じインスタンスを返すようにする）
+const mockProcessManagerInstance = {
+  getActiveProcesses: vi.fn(() => new Map()),
+  stopProcess: vi.fn(),
+  startClaudeCode: vi.fn().mockResolvedValue({
+    sessionId: 'test-session',
+    pid: 12345,
+    status: 'running',
+  }),
+  on: vi.fn(),
+  off: vi.fn(),
+};
+
 vi.mock('../process-manager', () => ({
   ProcessManager: {
-    getInstance: vi.fn(() => ({
-      getActiveProcesses: vi.fn(() => new Map()),
-      stopProcess: vi.fn(),
-      startClaudeCode: vi.fn().mockResolvedValue({
-        sessionId: 'test-session',
-        pid: 12345,
-        status: 'running',
-      }),
-      on: vi.fn(),
-      off: vi.fn(),
-    })),
+    getInstance: vi.fn(() => mockProcessManagerInstance),
   },
 }));
 
@@ -56,6 +76,10 @@ import {
   ProcessLifecycleManager,
   getProcessLifecycleManager,
 } from '../process-lifecycle-manager';
+import { db } from '@/lib/db';
+import { AdapterFactory } from '../adapter-factory';
+import { ProcessManager } from '../process-manager';
+import { environmentService } from '../environment-service';
 
 describe('ProcessLifecycleManager', () => {
   beforeEach(() => {
@@ -312,6 +336,92 @@ describe('ProcessLifecycleManager', () => {
       process.env.PROCESS_IDLE_TIMEOUT_MINUTES = '0';
       const timeout = ProcessLifecycleManager.getIdleTimeoutMinutes();
       expect(timeout).toBe(0);
+    });
+  });
+
+  describe('pauseSession with environment_id', () => {
+    const mockSession = {
+      id: 'test-session',
+      environment_id: 'env-123',
+      worktree_path: '/path/to/worktree',
+    };
+
+    const mockEnvironment = {
+      id: 'env-123',
+      type: 'DOCKER',
+      name: 'Test Docker',
+      config: '{}',
+      auth_dir_path: '/tmp/auth',
+    };
+
+    it('environment_idがある場合、adapter.destroySession()が呼ばれるべき', async () => {
+      const manager = ProcessLifecycleManager.getInstance();
+      const mockAdapter = { destroySession: vi.fn() };
+
+      vi.mocked(db.query.sessions.findFirst).mockResolvedValue(mockSession);
+      vi.mocked(environmentService.findById).mockResolvedValue(mockEnvironment);
+      vi.mocked(AdapterFactory.getAdapter).mockReturnValue(mockAdapter as never);
+
+      await manager.pauseSession('test-session', 'idle_timeout');
+
+      expect(mockAdapter.destroySession).toHaveBeenCalledWith('test-session');
+    });
+
+    it('environment_idがない場合、processManager.stopProcess()が呼ばれるべき', async () => {
+      const manager = ProcessLifecycleManager.getInstance();
+      const mockSessionWithoutEnv = { ...mockSession, environment_id: null };
+
+      vi.mocked(db.query.sessions.findFirst).mockResolvedValue(mockSessionWithoutEnv);
+
+      await manager.pauseSession('test-session', 'idle_timeout');
+
+      const processManager = ProcessManager.getInstance();
+      expect(processManager.stopProcess).toHaveBeenCalledWith('test-session');
+    });
+
+    it('環境が見つからない場合、エラーをスローするべき（フォールバックしない）', async () => {
+      const manager = ProcessLifecycleManager.getInstance();
+
+      vi.mocked(db.query.sessions.findFirst).mockResolvedValue(mockSession);
+      vi.mocked(environmentService.findById).mockResolvedValue(null);
+
+      await expect(manager.pauseSession('test-session', 'idle_timeout')).rejects.toThrow(
+        'Execution environment not found for session test-session'
+      );
+
+      const processManager = ProcessManager.getInstance();
+      expect(processManager.stopProcess).not.toHaveBeenCalled();
+    });
+
+    it('adapter取得エラー時、エラーをスローするべき（フォールバックしない）', async () => {
+      const manager = ProcessLifecycleManager.getInstance();
+
+      vi.mocked(db.query.sessions.findFirst).mockResolvedValue(mockSession);
+      vi.mocked(environmentService.findById).mockResolvedValue(mockEnvironment);
+      vi.mocked(AdapterFactory.getAdapter).mockImplementation(() => {
+        throw new Error('Adapter error');
+      });
+
+      await expect(manager.pauseSession('test-session', 'idle_timeout')).rejects.toThrow(
+        'Adapter error'
+      );
+
+      const processManager = ProcessManager.getInstance();
+      expect(processManager.stopProcess).not.toHaveBeenCalled();
+    });
+
+    it('pauseSession後にprocessPausedイベントが発火されるべき', async () => {
+      const manager = ProcessLifecycleManager.getInstance();
+      const eventHandler = vi.fn();
+      manager.on('processPaused', eventHandler);
+
+      vi.mocked(db.query.sessions.findFirst).mockResolvedValue(mockSession);
+      vi.mocked(environmentService.findById).mockResolvedValue(mockEnvironment);
+      vi.mocked(AdapterFactory.getAdapter).mockReturnValue({ destroySession: vi.fn() } as never);
+
+      await manager.pauseSession('test-session', 'idle_timeout');
+
+      expect(eventHandler).toHaveBeenCalledWith('test-session', 'idle_timeout');
     });
   });
 });

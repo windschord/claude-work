@@ -2,7 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db, schema } from '@/lib/db';
 import { eq } from 'drizzle-orm';
 import { ProcessManager } from '@/services/process-manager';
+import { environmentService } from '@/services/environment-service';
 import { logger } from '@/lib/logger';
+import type { EnvironmentAdapter } from '@/services/environment-adapter';
+
+// 動的インポートでAdapterFactoryを取得（node-ptyがビルド時に読み込まれるのを防ぐ）
+async function getAdapterFactory() {
+  const { AdapterFactory } = await import('@/services/adapter-factory');
+  return AdapterFactory;
+}
 
 const processManager = ProcessManager.getInstance();
 
@@ -15,8 +23,8 @@ const processManager = ProcessManager.getInstance();
  *
  * @returns
  * - 200: プロセス状態 { running: boolean }
- * - 404: セッションが見つからない
- * - 500: サーバーエラー
+ * - 404: セッションが見つからない / 環境が見つからない
+ * - 500: サーバーエラー / アダプター取得失敗
  *
  * @example
  * ```typescript
@@ -49,7 +57,40 @@ export async function GET(
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });
     }
 
-    const running = processManager.hasProcess(targetSession.id);
+    let running = false;
+
+    if (targetSession.environment_id) {
+      // 新しい環境システム: AdapterFactory経由で状態確認
+      const environment = await environmentService.findById(targetSession.environment_id);
+      if (!environment) {
+        logger.warn('Environment not found for session', {
+          session_id: id,
+          environment_id: targetSession.environment_id,
+        });
+        return NextResponse.json({ error: 'Environment not found' }, { status: 404 });
+      }
+
+      try {
+        const AdapterFactory = await getAdapterFactory();
+        const adapter = AdapterFactory.getAdapter(environment);
+        running = adapter.hasSession(targetSession.id);
+      } catch (adapterError) {
+        // environment_id付きセッション（DOCKER等）はProcessManagerで管理されないため、
+        // フォールバックせずエラーを返す
+        logger.error('Failed to get adapter for environment-backed session', {
+          error: adapterError,
+          session_id: id,
+          environment_id: targetSession.environment_id,
+        });
+        return NextResponse.json(
+          { error: 'Failed to get environment adapter' },
+          { status: 500 }
+        );
+      }
+    } else {
+      // レガシー: ProcessManager
+      running = processManager.hasProcess(targetSession.id);
+    }
 
     logger.debug('Process status checked', { session_id: id, running });
     return NextResponse.json({ running });
@@ -70,8 +111,8 @@ export async function GET(
  *
  * @returns
  * - 200: 成功 { success: true, running: true } または { success: true, running: true, message: 'Process already running' }
- * - 404: セッションが見つからない
- * - 500: サーバーエラー
+ * - 404: セッションが見つからない / 環境が見つからない
+ * - 500: サーバーエラー / アダプター取得失敗
  *
  * @example
  * ```typescript
@@ -108,8 +149,44 @@ export async function POST(
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });
     }
 
+    // 環境情報を一度だけ取得（環境付きセッションの場合）
+    let adapter: EnvironmentAdapter | undefined;
+
+    if (targetSession.environment_id) {
+      const environment = await environmentService.findById(targetSession.environment_id);
+      if (!environment) {
+        logger.warn('Environment not found for session', {
+          session_id: id,
+          environment_id: targetSession.environment_id,
+        });
+        return NextResponse.json({ error: 'Environment not found' }, { status: 404 });
+      }
+
+      try {
+        const AdapterFactory = await getAdapterFactory();
+        adapter = AdapterFactory.getAdapter(environment);
+      } catch (adapterError) {
+        logger.error('Failed to get adapter for environment-backed session', {
+          error: adapterError,
+          session_id: id,
+          environment_id: targetSession.environment_id,
+        });
+        return NextResponse.json(
+          { error: 'Failed to get environment adapter' },
+          { status: 500 }
+        );
+      }
+    }
+
     // プロセスが既に実行中かチェック
-    const isRunning = processManager.hasProcess(targetSession.id);
+    let isRunning = false;
+    if (adapter) {
+      isRunning = adapter.hasSession(targetSession.id);
+    } else {
+      // レガシー: ProcessManager
+      isRunning = processManager.hasProcess(targetSession.id);
+    }
+
     if (isRunning) {
       logger.debug('Process already running', { session_id: id });
       return NextResponse.json({
@@ -119,11 +196,21 @@ export async function POST(
       });
     }
 
-    // プロセスを起動（promptなしで起動）
-    await processManager.startClaudeCode({
-      sessionId: targetSession.id,
-      worktreePath: targetSession.worktree_path,
-    });
+    // プロセスを起動
+    if (adapter) {
+      await adapter.createSession(
+        targetSession.id,
+        targetSession.worktree_path,
+        undefined,
+        { resumeSessionId: targetSession.resume_session_id ?? undefined }
+      );
+    } else {
+      // レガシー: ProcessManager（promptなしで起動）
+      await processManager.startClaudeCode({
+        sessionId: targetSession.id,
+        worktreePath: targetSession.worktree_path,
+      });
+    }
 
     // セッションのステータスをrunningに更新
     try {
@@ -140,10 +227,18 @@ export async function POST(
         error: dbError,
         session_id: targetSession.id,
       });
-      // プロセスを停止してクリーンアップ
-      await processManager.stopProcess(targetSession.id).catch((err) => {
-        logger.error('Failed to stop process after DB update failure', { error: err });
-      });
+      // プロセスを停止してクリーンアップ（起動時に取得したadapterを使用）
+      if (adapter) {
+        try {
+          await adapter.destroySession(targetSession.id);
+        } catch (err) {
+          logger.error('Failed to destroy session after DB update failure', { error: err });
+        }
+      } else {
+        await processManager.stopProcess(targetSession.id).catch((err) => {
+          logger.error('Failed to stop process after DB update failure', { error: err });
+        });
+      }
       throw dbError;
     }
 

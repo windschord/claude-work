@@ -11,6 +11,14 @@
 import { EventEmitter } from 'events';
 import { logger } from '@/lib/logger';
 import { ProcessManager } from './process-manager';
+import { db, schema } from '@/lib/db';
+import { eq } from 'drizzle-orm';
+import { environmentService } from './environment-service';
+// 動的インポートでAdapterFactoryを取得（node-ptyがビルド時に読み込まれるのを防ぐ）
+async function getAdapterFactory() {
+  const { AdapterFactory } = await import('./adapter-factory');
+  return AdapterFactory;
+}
 
 // globalThisパターン（Next.js Hot Reload対策）
 const globalForProcessLifecycleManager = globalThis as unknown as {
@@ -234,13 +242,43 @@ export class ProcessLifecycleManager extends EventEmitter {
     logger.info(`Pausing session ${sessionId} due to ${reason}`);
 
     try {
-      const processManager = ProcessManager.getInstance();
+      // DBからセッション情報を取得
+      const session = await db.query.sessions.findFirst({
+        where: eq(schema.sessions.id, sessionId),
+      });
 
-      // TODO: Claude Codeセッション識別子を取得して保存
-      // const claudeSessionId = await this.getClaudeSessionId(sessionId);
+      if (session?.environment_id) {
+        // 新しい環境システム: AdapterFactory経由で停止
+        const environment = await environmentService.findById(session.environment_id);
+        if (!environment) {
+          // environment_id付きセッションに対応する環境が存在しない場合は
+          // ProcessManagerへはフォールバックせずエラーとする
+          logger.error('Environment not found for environment-managed session', {
+            sessionId,
+            environmentId: session.environment_id,
+          });
+          throw new Error(`Execution environment not found for session ${sessionId}`);
+        }
 
-      // プロセスを停止
-      await processManager.stopProcess(sessionId);
+        try {
+          const AdapterFactory = await getAdapterFactory();
+          const adapter = AdapterFactory.getAdapter(environment);
+          adapter.destroySession(sessionId);
+        } catch (adapterError) {
+          // environment_id付きセッションはProcessManagerでは管理されないため、
+          // フォールバックせずエラーとして扱う
+          logger.error('Failed to stop session via environment adapter', {
+            error: adapterError,
+            sessionId,
+            environmentId: session.environment_id,
+          });
+          throw adapterError;
+        }
+      } else {
+        // レガシー: ProcessManager
+        const processManager = ProcessManager.getInstance();
+        await processManager.stopProcess(sessionId);
+      }
 
       // アクティビティをクリア
       this.clearActivity(sessionId);
@@ -251,6 +289,9 @@ export class ProcessLifecycleManager extends EventEmitter {
       logger.info(`Session ${sessionId} stopped successfully`);
     } catch (error) {
       logger.error(`Failed to stop session ${sessionId}:`, error);
+      // エラー時もactivityをクリアして、idle checkerが同じセッションを
+      // 毎分再試行し続けるループを防ぐ
+      this.clearActivity(sessionId);
       throw error;
     }
   }
