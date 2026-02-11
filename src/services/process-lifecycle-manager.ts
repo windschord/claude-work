@@ -290,6 +290,9 @@ export class ProcessLifecycleManager extends EventEmitter {
       logger.info(`Session ${sessionId} stopped successfully`);
     } catch (error) {
       logger.error(`Failed to stop session ${sessionId}:`, error);
+      // エラー時もactivityをクリアして、idle checkerが同じセッションを
+      // 毎分再試行し続けるループを防ぐ
+      this.clearActivity(sessionId);
       throw error;
     }
   }

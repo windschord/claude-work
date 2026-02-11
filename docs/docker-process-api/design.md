@@ -176,7 +176,11 @@ if (session?.environment_id) {
 ### 4.1 新規インポート（process/route.ts）
 
 ```typescript
-import { AdapterFactory } from '@/services/adapter-factory';
+// 動的インポート（node-ptyのビルド時読み込み回避）
+async function getAdapterFactory() {
+  const { AdapterFactory } = await import('@/services/adapter-factory');
+  return AdapterFactory;
+}
 ```
 
 ### 4.2 新規インポート（process-lifecycle-manager.ts）
@@ -184,7 +188,12 @@ import { AdapterFactory } from '@/services/adapter-factory';
 ```typescript
 import { db, schema } from '@/lib/db';
 import { eq } from 'drizzle-orm';
-import { AdapterFactory } from './adapter-factory';
+
+// 動的インポート（node-ptyのビルド時読み込み回避）
+async function getAdapterFactory() {
+  const { AdapterFactory } = await import('./adapter-factory');
+  return AdapterFactory;
+}
 ```
 
 ## 5. エラーハンドリング

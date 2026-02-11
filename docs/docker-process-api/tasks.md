@@ -16,7 +16,7 @@
 ### T-001: process/route.ts GET メソッドの環境対応
 
 **状態:** DONE
-**完了サマリー:** environment_idの有無に応じてAdapterFactory経由またはProcessManagerで状態確認する実装を追加。フォールバック処理付き。
+**完了サマリー:** environment_idの有無に応じてAdapterFactory経由またはProcessManagerで状態確認する実装を追加。環境未発見/adapter取得失敗時は404/500エラーを返す。
 **要件:** REQ-001
 **ファイル:** `src/app/api/sessions/[id]/process/route.ts`
 **依存:** なし
@@ -36,8 +36,11 @@
 **実装内容:**
 
 ```typescript
-// インポート追加
-import { AdapterFactory } from '@/services/adapter-factory';
+// 動的インポート（node-ptyのビルド時読み込み回避）
+async function getAdapterFactory() {
+  const { AdapterFactory } = await import('@/services/adapter-factory');
+  return AdapterFactory;
+}
 
 // GETメソッド内
 const targetSession = await db.query.sessions.findFirst({
@@ -55,24 +58,20 @@ if (targetSession.environment_id) {
   const environment = await db.query.executionEnvironments.findFirst({
     where: eq(schema.executionEnvironments.id, targetSession.environment_id),
   });
-  if (environment) {
-    try {
-      const adapter = AdapterFactory.getAdapter(environment);
-      running = adapter.hasSession(targetSession.id);
-    } catch (error) {
-      logger.warn('Failed to get adapter, falling back to ProcessManager', {
-        error,
-        session_id: id,
-        environment_id: targetSession.environment_id,
-      });
-      running = processManager.hasProcess(targetSession.id);
-    }
-  } else {
-    logger.warn('Environment not found, falling back to ProcessManager', {
+  if (!environment) {
+    return NextResponse.json({ error: 'Environment not found' }, { status: 404 });
+  }
+  try {
+    const AdapterFactory = await getAdapterFactory();
+    const adapter = AdapterFactory.getAdapter(environment);
+    running = adapter.hasSession(targetSession.id);
+  } catch (adapterError) {
+    logger.error('Failed to get adapter for environment-backed session', {
+      error: adapterError,
       session_id: id,
       environment_id: targetSession.environment_id,
     });
-    running = processManager.hasProcess(targetSession.id);
+    return NextResponse.json({ error: 'Failed to get environment adapter' }, { status: 500 });
   }
 } else {
   // レガシー: ProcessManager
@@ -83,7 +82,8 @@ if (targetSession.environment_id) {
 **受入基準:**
 - [ ] environment_idがある場合、AdapterFactory経由で状態確認する
 - [ ] environment_idがない場合、ProcessManagerで状態確認する
-- [ ] 環境取得失敗時にProcessManagerにフォールバックする
+- [ ] 環境取得失敗時に404エラーを返す（フォールバックしない）
+- [ ] adapter取得失敗時に500エラーを返す（フォールバックしない）
 - [ ] テストが全て通過する
 
 ---
@@ -190,10 +190,11 @@ if (targetSession.environment_id) {
 **実装内容:**
 
 ```typescript
-// インポート追加
-import { db, schema } from '@/lib/db';
-import { eq } from 'drizzle-orm';
-import { AdapterFactory } from './adapter-factory';
+// 動的インポート（node-ptyのビルド時読み込み回避）
+async function getAdapterFactory() {
+  const { AdapterFactory } = await import('./adapter-factory');
+  return AdapterFactory;
+}
 
 // pauseSessionメソッド修正
 async pauseSession(
@@ -209,30 +210,33 @@ async pauseSession(
     });
 
     if (session?.environment_id) {
-      // 新しい環境システム
+      // 新しい環境システム: AdapterFactory経由で停止
       const environment = await db.query.executionEnvironments.findFirst({
         where: eq(schema.executionEnvironments.id, session.environment_id),
       });
-      if (environment) {
-        try {
-          const adapter = AdapterFactory.getAdapter(environment);
-          adapter.destroySession(sessionId);
-        } catch (adapterError) {
-          logger.warn('Failed to get adapter, falling back to ProcessManager', {
-            error: adapterError,
-            sessionId,
-            environmentId: session.environment_id,
-          });
-          const processManager = ProcessManager.getInstance();
-          await processManager.stopProcess(sessionId);
-        }
-      } else {
-        logger.warn('Environment not found, falling back to ProcessManager', {
+      if (!environment) {
+        // environment_id付きセッションに対応する環境が存在しない場合は
+        // ProcessManagerへはフォールバックせずエラーとする
+        logger.error('Environment not found for environment-managed session', {
           sessionId,
           environmentId: session.environment_id,
         });
-        const processManager = ProcessManager.getInstance();
-        await processManager.stopProcess(sessionId);
+        throw new Error(`Execution environment not found for session ${sessionId}`);
+      }
+
+      try {
+        const AdapterFactory = await getAdapterFactory();
+        const adapter = AdapterFactory.getAdapter(environment);
+        adapter.destroySession(sessionId);
+      } catch (adapterError) {
+        // environment_id付きセッションはProcessManagerでは管理されないため、
+        // フォールバックせずエラーとして扱う
+        logger.error('Failed to stop session via environment adapter', {
+          error: adapterError,
+          sessionId,
+          environmentId: session.environment_id,
+        });
+        throw adapterError;
       }
     } else {
       // レガシー: ProcessManager
@@ -257,7 +261,8 @@ async pauseSession(
 **受入基準:**
 - [ ] environment_idがある場合、AdapterFactory経由で停止する
 - [ ] environment_idがない場合、ProcessManagerで停止する
-- [ ] 環境取得失敗時にProcessManagerにフォールバックする
+- [ ] 環境取得失敗時にエラーをスローする（フォールバックしない）
+- [ ] adapter取得失敗時にエラーをスローする（フォールバックしない）
 - [ ] テストが全て通過する
 
 ---

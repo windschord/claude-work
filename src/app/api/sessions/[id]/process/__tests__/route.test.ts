@@ -456,12 +456,15 @@ describe('GET /api/sessions/[id]/process with environment_id', () => {
 
   it('should return 404 when environment not found', async () => {
     // 環境を削除（セッションはそのまま環境IDを保持）
-    // 外部キー制約を一時的に無効化
+    // 外部キー制約を一時的に無効化し、finally で必ず復元する
     db.run(sql`PRAGMA foreign_keys = OFF`);
-    db.delete(schema.executionEnvironments)
-      .where(eq(schema.executionEnvironments.id, environment.id))
-      .run();
-    db.run(sql`PRAGMA foreign_keys = ON`);
+    try {
+      db.delete(schema.executionEnvironments)
+        .where(eq(schema.executionEnvironments.id, environment.id))
+        .run();
+    } finally {
+      db.run(sql`PRAGMA foreign_keys = ON`);
+    }
 
     const request = new NextRequest(
       `http://localhost:3000/api/sessions/${session.id}/process`,

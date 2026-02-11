@@ -43,7 +43,7 @@ APIエンドポイントがProcessManagerのみに依存しているため、Doc
 
 ### REQ-002: プロセス再起動APIの環境対応
 **EARS記法:** イベント駆動型
-> POST /api/sessions/[id]/process（action: restart）が呼ばれた時、システムはセッションのenvironment_idに基づいて適切なアダプター経由でプロセスを再起動しなければならない
+> POST /api/sessions/[id]/process が呼ばれた時、システムはセッションのenvironment_idに基づいて適切なアダプター経由でプロセスを再起動しなければならない
 
 **受入基準:**
 - [ ] environment_idがある場合、AdapterFactory経由で再起動する
