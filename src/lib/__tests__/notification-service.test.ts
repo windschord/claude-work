@@ -161,6 +161,7 @@ describe('notification-service', () => {
         onTaskComplete: false,
         onPermissionRequest: true,
         onError: false,
+        onActionRequired: true,
       };
 
       saveSettings(settings);
