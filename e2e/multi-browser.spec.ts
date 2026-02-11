@@ -14,7 +14,6 @@ import path from 'path';
 test.describe('複数ブラウザでの同時接続', () => {
   let repoPath: string;
   let repoName: string;
-  let _projectId: string;
   let sessionId: string;
 
   // テスト用のセットアップヘルパー
@@ -77,7 +76,7 @@ test.describe('複数ブラウザでの同時接続', () => {
     const context1 = await browser.newContext();
     const page1 = await context1.newPage();
 
-    _projectId = await loginAndCreateProject(page1);
+    await loginAndCreateProject(page1);
     sessionId = await createSession(page1, 'マルチブラウザテスト');
     await waitForTerminal(page1);
 
@@ -109,7 +108,7 @@ test.describe('複数ブラウザでの同時接続', () => {
     const context1 = await browser.newContext();
     const page1 = await context1.newPage();
 
-    _projectId = await loginAndCreateProject(page1);
+    await loginAndCreateProject(page1);
     sessionId = await createSession(page1, '入力同期テスト');
     await waitForTerminal(page1);
 
@@ -161,7 +160,7 @@ test.describe('複数ブラウザでの同時接続', () => {
     const context1 = await browser.newContext();
     const page1 = await context1.newPage();
 
-    _projectId = await loginAndCreateProject(page1);
+    await loginAndCreateProject(page1);
     sessionId = await createSession(page1, '接続独立性テスト');
     await waitForTerminal(page1);
 
@@ -199,7 +198,7 @@ test.describe('複数ブラウザでの同時接続', () => {
     const context1 = await browser.newContext();
     const page1 = await context1.newPage();
 
-    _projectId = await loginAndCreateProject(page1);
+    await loginAndCreateProject(page1);
     sessionId = await createSession(page1, 'スクロールバックテスト');
     await waitForTerminal(page1);
 
