@@ -1,3 +1,10 @@
+/**
+ * cli-utils のテスト
+ *
+ * 注意: このテストはSQLiteデータベース操作を含むため、実際のファイルシステムを使用します。
+ * better-sqlite3 が内部で fs を使用するため、fs のモック化は現実的ではありません。
+ * テスト用の一時ディレクトリを作成・削除することで分離を保証しています。
+ */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';

@@ -84,7 +84,7 @@ export function migrateDatabase(dbPath: string): boolean {
       }
 
       // バージョン番号を更新
-      db!.prepare(`PRAGMA user_version = ${version}`).run();
+      db!.exec(`PRAGMA user_version = ${version}`);
     });
 
     runMigration();
