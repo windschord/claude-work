@@ -38,6 +38,12 @@ vi.mock('../adapter-factory', () => ({
   },
 }));
 
+vi.mock('../environment-service', () => ({
+  environmentService: {
+    findById: vi.fn(),
+  },
+}));
+
 vi.mock('@/lib/logger', () => ({
   logger: {
     info: vi.fn(),
@@ -73,6 +79,7 @@ import {
 import { db } from '@/lib/db';
 import { AdapterFactory } from '../adapter-factory';
 import { ProcessManager } from '../process-manager';
+import { environmentService } from '../environment-service';
 
 describe('ProcessLifecycleManager', () => {
   beforeEach(() => {
@@ -352,7 +359,7 @@ describe('ProcessLifecycleManager', () => {
       const mockAdapter = { destroySession: vi.fn() };
 
       vi.mocked(db.query.sessions.findFirst).mockResolvedValue(mockSession);
-      vi.mocked(db.query.executionEnvironments.findFirst).mockResolvedValue(mockEnvironment);
+      vi.mocked(environmentService.findById).mockResolvedValue(mockEnvironment);
       vi.mocked(AdapterFactory.getAdapter).mockReturnValue(mockAdapter as never);
 
       await manager.pauseSession('test-session', 'idle_timeout');
@@ -376,7 +383,7 @@ describe('ProcessLifecycleManager', () => {
       const manager = ProcessLifecycleManager.getInstance();
 
       vi.mocked(db.query.sessions.findFirst).mockResolvedValue(mockSession);
-      vi.mocked(db.query.executionEnvironments.findFirst).mockResolvedValue(undefined);
+      vi.mocked(environmentService.findById).mockResolvedValue(null);
 
       await expect(manager.pauseSession('test-session', 'idle_timeout')).rejects.toThrow(
         'Execution environment not found for session test-session'
@@ -390,7 +397,7 @@ describe('ProcessLifecycleManager', () => {
       const manager = ProcessLifecycleManager.getInstance();
 
       vi.mocked(db.query.sessions.findFirst).mockResolvedValue(mockSession);
-      vi.mocked(db.query.executionEnvironments.findFirst).mockResolvedValue(mockEnvironment);
+      vi.mocked(environmentService.findById).mockResolvedValue(mockEnvironment);
       vi.mocked(AdapterFactory.getAdapter).mockImplementation(() => {
         throw new Error('Adapter error');
       });
@@ -409,7 +416,7 @@ describe('ProcessLifecycleManager', () => {
       manager.on('processPaused', eventHandler);
 
       vi.mocked(db.query.sessions.findFirst).mockResolvedValue(mockSession);
-      vi.mocked(db.query.executionEnvironments.findFirst).mockResolvedValue(mockEnvironment);
+      vi.mocked(environmentService.findById).mockResolvedValue(mockEnvironment);
       vi.mocked(AdapterFactory.getAdapter).mockReturnValue({ destroySession: vi.fn() } as never);
 
       await manager.pauseSession('test-session', 'idle_timeout');

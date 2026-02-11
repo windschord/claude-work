@@ -13,6 +13,7 @@ import { logger } from '@/lib/logger';
 import { ProcessManager } from './process-manager';
 import { db, schema } from '@/lib/db';
 import { eq } from 'drizzle-orm';
+import { environmentService } from './environment-service';
 // 動的インポートでAdapterFactoryを取得（node-ptyがビルド時に読み込まれるのを防ぐ）
 async function getAdapterFactory() {
   const { AdapterFactory } = await import('./adapter-factory');
@@ -248,9 +249,7 @@ export class ProcessLifecycleManager extends EventEmitter {
 
       if (session?.environment_id) {
         // 新しい環境システム: AdapterFactory経由で停止
-        const environment = await db.query.executionEnvironments.findFirst({
-          where: eq(schema.executionEnvironments.id, session.environment_id),
-        });
+        const environment = await environmentService.findById(session.environment_id);
         if (!environment) {
           // environment_id付きセッションに対応する環境が存在しない場合は
           // ProcessManagerへはフォールバックせずエラーとする

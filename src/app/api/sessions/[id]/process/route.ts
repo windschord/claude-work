@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db, schema } from '@/lib/db';
 import { eq } from 'drizzle-orm';
 import { ProcessManager } from '@/services/process-manager';
+import { environmentService } from '@/services/environment-service';
 import { logger } from '@/lib/logger';
 import type { EnvironmentAdapter } from '@/services/environment-adapter';
 import type { ExecutionEnvironment } from '@/lib/db';
@@ -61,9 +62,7 @@ export async function GET(
 
     if (targetSession.environment_id) {
       // 新しい環境システム: AdapterFactory経由で状態確認
-      const environment = await db.query.executionEnvironments.findFirst({
-        where: eq(schema.executionEnvironments.id, targetSession.environment_id),
-      });
+      const environment = await environmentService.findById(targetSession.environment_id);
       if (!environment) {
         logger.warn('Environment not found for session', {
           session_id: id,
@@ -152,13 +151,11 @@ export async function POST(
     }
 
     // 環境情報を一度だけ取得（環境付きセッションの場合）
-    let environment: ExecutionEnvironment | undefined;
+    let environment: ExecutionEnvironment | null | undefined;
     let adapter: EnvironmentAdapter | undefined;
 
     if (targetSession.environment_id) {
-      environment = await db.query.executionEnvironments.findFirst({
-        where: eq(schema.executionEnvironments.id, targetSession.environment_id),
-      });
+      environment = await environmentService.findById(targetSession.environment_id);
       if (!environment) {
         logger.warn('Environment not found for session', {
           session_id: id,
