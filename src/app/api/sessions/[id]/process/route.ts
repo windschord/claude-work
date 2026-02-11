@@ -3,12 +3,11 @@ import { db, schema } from '@/lib/db';
 import { eq } from 'drizzle-orm';
 import { ProcessManager } from '@/services/process-manager';
 import { logger } from '@/lib/logger';
-import type { AdapterFactory as AdapterFactoryType } from '@/services/adapter-factory';
 import type { EnvironmentAdapter } from '@/services/environment-adapter';
 import type { ExecutionEnvironment } from '@/lib/db';
 
 // 動的インポートでAdapterFactoryを取得（node-ptyがビルド時に読み込まれるのを防ぐ）
-async function getAdapterFactory(): Promise<typeof AdapterFactoryType> {
+async function getAdapterFactory() {
   const { AdapterFactory } = await import('@/services/adapter-factory');
   return AdapterFactory;
 }
@@ -236,7 +235,7 @@ export async function POST(
       // プロセスを停止してクリーンアップ（起動時に取得したadapterを使用）
       if (adapter) {
         try {
-          adapter.destroySession(targetSession.id);
+          await adapter.destroySession(targetSession.id);
         } catch (err) {
           logger.error('Failed to destroy session after DB update failure', { error: err });
         }

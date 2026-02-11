@@ -43,11 +43,19 @@ const nextConfig = {
 
     // サーバー側ビルドでネイティブモジュールを外部化
     if (isServer) {
-      config.externals = config.externals || [];
-      config.externals.push({
+      const nativeExternals = {
         'node-pty': 'commonjs node-pty',
         'better-sqlite3': 'commonjs better-sqlite3',
-      });
+      };
+      if (typeof config.externals === 'function') {
+        config.externals = [config.externals, nativeExternals];
+      } else if (Array.isArray(config.externals)) {
+        config.externals.push(nativeExternals);
+      } else if (config.externals) {
+        config.externals = [config.externals, nativeExternals];
+      } else {
+        config.externals = [nativeExternals];
+      }
     }
 
     return config;

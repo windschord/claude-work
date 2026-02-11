@@ -13,10 +13,8 @@ import { logger } from '@/lib/logger';
 import { ProcessManager } from './process-manager';
 import { db, schema } from '@/lib/db';
 import { eq } from 'drizzle-orm';
-import type { AdapterFactory as AdapterFactoryType } from './adapter-factory';
-
 // 動的インポートでAdapterFactoryを取得（node-ptyがビルド時に読み込まれるのを防ぐ）
-async function getAdapterFactory(): Promise<typeof AdapterFactoryType> {
+async function getAdapterFactory() {
   const { AdapterFactory } = await import('./adapter-factory');
   return AdapterFactory;
 }
