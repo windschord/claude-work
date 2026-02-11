@@ -26,7 +26,10 @@ Environment=HOME=/opt/claude-work
 # Claude Code CLI を自動検出可能にする（CLAUDE_CODE_PATH の明示指定が不要になる）
 # セキュリティ上の理由から、ユーザー書き込み可能な ~/.local/bin はシステムパスの後に配置する
 Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/claude-work/.local/bin
-ExecStart=/usr/bin/npx --yes github:windschord/claude-work
+# npx キャッシュをクリア（バージョン更新時のENOTEMPTYエラー回避）
+ExecStartPre=/bin/rm -rf /opt/claude-work/.npm/_npx
+# npm_config_loglevel=info でnpxのダウンロード・ビルド進捗をログに出力
+ExecStart=/usr/bin/env npm_config_loglevel=info /usr/bin/npx --yes github:windschord/claude-work
 # 初回起動時のビルドに時間がかかるためタイムアウトを延長
 TimeoutStartSec=300
 Restart=on-failure
