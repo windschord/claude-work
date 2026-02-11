@@ -1,169 +1,40 @@
-/**
- * CLI ユーティリティ関数
- *
- * テスト可能にするため、cli.ts から抽出した関数群
- */
+# タスク管理書: SQLite DBマイグレーション機能
 
-import fs from 'fs';
-import path from 'path';
-import Database from 'better-sqlite3';
+## 1. タスク概要
 
-/**
- * 現在のスキーマバージョン
- *
- * バージョン履歴:
- * - v0: 初期状態（user_versionのデフォルト値）
- * - v1: 初期テーブル作成
- * - v2: claude_code_options, custom_env_vars カラム追加
- */
+| 項目 | 内容 |
+|------|------|
+| 機能名 | SQLite DBマイグレーション機能 |
+| 対象ファイル | `src/bin/cli-utils.ts` |
+| 関連要件 | REQ-001 〜 REQ-006, NFR-001 〜 NFR-004 |
+| 見積もり | 3タスク |
+
+## 2. タスク一覧
+
+| ID | タスク | ステータス | 依存 |
+|----|--------|------------|------|
+| 1 | migrateDatabase関数の実装 | completed | - |
+| 2 | 既存initializeDatabaseの統合 | completed | 1 |
+| 3 | ユニットテストの作成 | completed | 2 |
+
+## 3. タスク詳細
+
+### タスク1: migrateDatabase関数の実装
+
+**目的**: PRAGMA user_versionを使ったマイグレーション関数を新規作成
+
+**対象ファイル**: `src/bin/cli-utils.ts`
+
+**実装内容**:
+
+1. 定数の追加
+```typescript
+/** 現在のスキーマバージョン */
 const CURRENT_DB_VERSION = 2;
+```
 
-/**
- * Next.jsビルドが存在し、完全かどうかを確認
- * BUILD_ID、static、serverディレクトリの存在を検証
- *
- * @param projectRoot - プロジェクトルートディレクトリ
- * @returns ビルドが完全な場合はtrue、それ以外はfalse
- */
-export function checkNextBuild(projectRoot: string): boolean {
-  const nextDir = path.join(projectRoot, '.next');
-  const buildIdPath = path.join(nextDir, 'BUILD_ID');
-  const staticDir = path.join(nextDir, 'static');
-  const serverDir = path.join(nextDir, 'server');
-
-  // 必須ファイル・ディレクトリが全て存在するか確認
-  if (!fs.existsSync(nextDir)) {
-    return false;
-  }
-
-  if (!fs.existsSync(buildIdPath)) {
-    console.log('Build incomplete: BUILD_ID not found');
-    return false;
-  }
-
-  if (!fs.existsSync(staticDir)) {
-    console.log('Build incomplete: static directory not found');
-    return false;
-  }
-
-  if (!fs.existsSync(serverDir)) {
-    console.log('Build incomplete: server directory not found');
-    return false;
-  }
-
-  return true;
-}
-
-/**
- * drizzle-ormがインストールされているか確認
- *
- * projectRoot/node_modules/drizzle-orm を最初に確認し、
- * 見つからない場合は上位ディレクトリの node_modules も探索する。
- * npx実行時はパッケージがフラットにインストールされるため、
- * drizzle-orm が親の node_modules に配置されるケースに対応。
- *
- * @param projectRoot - プロジェクトルートディレクトリ
- * @returns drizzle-ormが存在する場合はtrue
- */
-export function checkDrizzle(projectRoot: string): boolean {
-  let current = path.resolve(projectRoot);
-  const root = path.parse(current).root;
-
-  while (current !== root) {
-    const drizzlePath = path.join(current, 'node_modules', 'drizzle-orm');
-    if (fs.existsSync(drizzlePath)) {
-      return true;
-    }
-    const parent = path.dirname(current);
-    if (parent === current) break;
-    current = parent;
-  }
-
-  return false;
-}
-
-/**
- * node_modules/.bin ディレクトリを探索する
- *
- * projectRoot から上位ディレクトリを辿り、node_modules/.bin を探す。
- * npx実行時はバイナリが親の node_modules/.bin に配置されるケースに対応。
- * 見つからない場合は projectRoot/node_modules/.bin をフォールバックとして返す。
- *
- * @param projectRoot - プロジェクトルートディレクトリ
- * @returns node_modules/.bin ディレクトリのパス
- */
-export function findBinDir(projectRoot: string): string {
-  const fallback = path.join(projectRoot, 'node_modules', '.bin');
-  let current = path.resolve(projectRoot);
-  const root = path.parse(current).root;
-
-  while (current !== root) {
-    const binDir = path.join(current, 'node_modules', '.bin');
-    if (fs.existsSync(binDir)) {
-      return binDir;
-    }
-    const parent = path.dirname(current);
-    if (parent === current) break;
-    current = parent;
-  }
-
-  return fallback;
-}
-
-/**
- * データベースファイルが存在し、テーブルが初期化されているか確認
- *
- * DATABASE_URL環境変数が外部パスを指している場合、そちらもチェックする。
- *
- * @param projectRoot - プロジェクトルートディレクトリ
- * @returns データベースが存在し、テーブルが初期化されている場合はtrue
- */
-export function checkDatabase(projectRoot: string): boolean {
-  const defaultDbPath = path.join(projectRoot, 'data', 'claudework.db');
-
-  // DATABASE_URLが外部パスを指している場合、そちらもチェック
-  const databaseUrl = process.env.DATABASE_URL;
-  if (databaseUrl && databaseUrl.trim() !== '') {
-    let envDbPath: string | null = null;
-    if (databaseUrl.startsWith('file://')) {
-      const { fileURLToPath } = require('url');
-      envDbPath = fileURLToPath(databaseUrl);
-    } else if (databaseUrl.startsWith('file:')) {
-      envDbPath = databaseUrl.replace(/^file:/, '');
-    }
-
-    if (envDbPath && path.resolve(envDbPath) !== path.resolve(defaultDbPath)) {
-      // 外部DBが存在しない、またはテーブルが未初期化なら false を返す
-      if (!fs.existsSync(envDbPath) || !isDatabaseInitialized(envDbPath)) {
-        return false;
-      }
-    }
-  }
-
-  return fs.existsSync(defaultDbPath);
-}
-
-/**
- * データベースにテーブルが初期化されているか確認
- *
- * @param dbPath - SQLiteデータベースファイルのパス
- * @returns テーブルが存在する場合はtrue
- */
-function isDatabaseInitialized(dbPath: string): boolean {
-  let db: InstanceType<typeof Database> | null = null;
-  try {
-    db = new Database(dbPath, { readonly: true });
-    const row = db.prepare(
-      "SELECT count(*) as cnt FROM sqlite_master WHERE type='table' AND name='Project'"
-    ).get() as { cnt: number } | undefined;
-    return (row?.cnt ?? 0) > 0;
-  } catch {
-    return false;
-  } finally {
-    db?.close();
-  }
-}
-
+2. migrateDatabase関数の追加
+```typescript
 /**
  * DBマイグレーションを実行
  *
@@ -178,7 +49,7 @@ export function migrateDatabase(dbPath: string): boolean {
   try {
     db = new Database(dbPath);
 
-    // WALモードを有効化（パフォーマンス向上）
+    // WALモードを有効化
     db.pragma('journal_mode = WAL');
 
     // 外部キー制約を有効化
@@ -233,7 +104,11 @@ export function migrateDatabase(dbPath: string): boolean {
     return false;
   }
 }
+```
 
+3. ヘルパー関数の追加
+
+```typescript
 /**
  * 初期テーブルを作成（v0 → v1）
  */
@@ -250,7 +125,6 @@ function createInitialTables(db: InstanceType<typeof Database>): void {
     );
   `);
 
-  // Project.path のユニーク制約
   db.exec(`
     CREATE UNIQUE INDEX IF NOT EXISTS "Project_path_unique" ON "Project" ("path");
   `);
@@ -317,7 +191,6 @@ function createInitialTables(db: InstanceType<typeof Database>): void {
     );
   `);
 
-  // Prompt.content のユニーク制約
   db.exec(`
     CREATE UNIQUE INDEX IF NOT EXISTS "Prompt_content_unique" ON "Prompt" ("content");
   `);
@@ -335,7 +208,6 @@ function createInitialTables(db: InstanceType<typeof Database>): void {
     );
   `);
 
-  // RunScript.project_id のインデックス
   db.exec(`
     CREATE INDEX IF NOT EXISTS "run_scripts_project_id_idx" ON "RunScript" ("project_id");
   `);
@@ -376,16 +248,113 @@ function safeAddColumn(
     }
   }
 }
+```
 
-/**
- * データベースを初期化またはマイグレーション
- *
- * PRAGMA user_versionを使用してバージョン管理を行い、
- * 必要に応じてスキーマを更新する。
- *
- * @param dbPath - SQLiteデータベースファイルのパス
- * @returns 成功した場合はtrue、失敗した場合はfalse
- */
+**受入基準**:
+- [ ] PRAGMA user_version でバージョンを取得できる
+- [ ] バージョン比較ロジックが正しく動作する
+- [ ] トランザクション内でマイグレーションが実行される
+- [ ] エラー時にロールバックされる
+- [ ] マイグレーション後にバージョンが更新される
+
+---
+
+### タスク2: 既存initializeDatabaseの統合
+
+**目的**: 既存のinitializeDatabase関数をmigrateDatabaseに置き換え
+
+**対象ファイル**: `src/bin/cli-utils.ts`
+
+**実装内容**:
+
+1. 既存のinitializeDatabase関数を修正
+
+```typescript
+// 変更前
+export function initializeDatabase(dbPath: string): boolean {
+  // CREATE TABLE IF NOT EXISTS を直接実行
+  // ...
+}
+
+// 変更後
 export function initializeDatabase(dbPath: string): boolean {
   return migrateDatabase(dbPath);
 }
+```
+
+2. 既存のテーブル作成コードはcreateInitialTables関数に移動済み（タスク1で実装）
+
+**受入基準**:
+- [ ] initializeDatabaseがmigrateDatabase を呼び出す
+- [ ] 既存のコードとの互換性が維持される
+- [ ] checkDatabase関数は変更なし
+
+---
+
+### タスク3: ユニットテストの作成
+
+**目的**: マイグレーション機能のユニットテストを追加
+
+**対象ファイル**: `src/bin/__tests__/cli-utils.test.ts`
+
+**テストケース**:
+
+```typescript
+describe('migrateDatabase', () => {
+  it('新規DBをCURRENT_DB_VERSIONまでマイグレーションする', () => {
+    // 新規DBを作成
+    // migrateDatabase を実行
+    // user_version が CURRENT_DB_VERSION になっていることを確認
+    // 全テーブルと全カラムが存在することを確認
+  });
+
+  it('バージョン1のDBをバージョン2にマイグレーションする', () => {
+    // バージョン1のDBを作成（初期テーブルのみ）
+    // migrateDatabase を実行
+    // user_version が 2 になっていることを確認
+    // 新しいカラムが追加されていることを確認
+  });
+
+  it('最新バージョンのDBはマイグレーションをスキップする', () => {
+    // バージョン2のDBを作成
+    // migrateDatabase を実行
+    // 処理がスキップされることを確認
+  });
+
+  it('複数回実行しても問題が発生しない（冪等性）', () => {
+    // 新規DBを作成
+    // migrateDatabase を3回実行
+    // 全て成功することを確認
+  });
+
+  it('マイグレーション失敗時にfalseを返す', () => {
+    // 読み取り専用DBでmigrateDatabase を実行
+    // falseが返されることを確認
+  });
+});
+```
+
+**受入基準**:
+- [ ] 全テストケースが実装されている
+- [ ] 全テストがパスする
+- [ ] カバレッジが80%以上
+
+## 4. 実装順序
+
+```
+タスク1: migrateDatabase関数の実装
+    ↓
+タスク2: 既存initializeDatabaseの統合
+    ↓
+タスク3: ユニットテストの作成
+    ↓
+コミット & プッシュ
+```
+
+## 5. 完了条件
+
+- [x] 全タスクが完了
+- [x] 全テストがパス
+- [ ] npx経由でマイグレーションが正常動作
+- [ ] 既存DBのマイグレーションが成功
+- [x] PRがマージ可能な状態 (PR #97)
