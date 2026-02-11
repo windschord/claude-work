@@ -2,8 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db, schema } from '@/lib/db';
 import { eq } from 'drizzle-orm';
 import { ProcessManager } from '@/services/process-manager';
-import { AdapterFactory } from '@/services/adapter-factory';
 import { logger } from '@/lib/logger';
+import type { AdapterFactory as AdapterFactoryType } from '@/services/adapter-factory';
+
+// 動的インポートでAdapterFactoryを取得（node-ptyがビルド時に読み込まれるのを防ぐ）
+async function getAdapterFactory(): Promise<typeof AdapterFactoryType> {
+  const { AdapterFactory } = await import('@/services/adapter-factory');
+  return AdapterFactory;
+}
 
 const processManager = ProcessManager.getInstance();
 
@@ -59,6 +65,7 @@ export async function GET(
       });
       if (environment) {
         try {
+          const AdapterFactory = await getAdapterFactory();
           const adapter = AdapterFactory.getAdapter(environment);
           running = adapter.hasSession(targetSession.id);
         } catch (adapterError) {
@@ -147,6 +154,7 @@ export async function POST(
       });
       if (environment) {
         try {
+          const AdapterFactory = await getAdapterFactory();
           const adapter = AdapterFactory.getAdapter(environment);
           isRunning = adapter.hasSession(targetSession.id);
         } catch {
@@ -174,6 +182,7 @@ export async function POST(
         where: eq(schema.executionEnvironments.id, targetSession.environment_id),
       });
       if (environment) {
+        const AdapterFactory = await getAdapterFactory();
         const adapter = AdapterFactory.getAdapter(environment);
         await adapter.createSession(
           targetSession.id,
@@ -214,6 +223,7 @@ export async function POST(
         });
         if (environment) {
           try {
+            const AdapterFactory = await getAdapterFactory();
             const adapter = AdapterFactory.getAdapter(environment);
             adapter.destroySession(targetSession.id);
           } catch (err) {
