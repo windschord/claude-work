@@ -98,8 +98,12 @@ export async function PUT(
     if (body.claude_code_options !== undefined) {
       const validatedOptions = ClaudeOptionsService.validateClaudeCodeOptions(body.claude_code_options);
       if (validatedOptions === null) {
+        const unknownKeys = ClaudeOptionsService.getUnknownKeys(body.claude_code_options);
+        const errorMessage = unknownKeys.length > 0
+          ? `Invalid keys in claude_code_options: ${unknownKeys.join(', ')}. Allowed keys: model, allowedTools, permissionMode, additionalFlags`
+          : 'claude_code_options must be a plain object with string fields (model, allowedTools, permissionMode, additionalFlags)';
         return NextResponse.json(
-          { error: 'claude_code_options must be a plain object with string fields (model, allowedTools, permissionMode, additionalFlags)' },
+          { error: errorMessage },
           { status: 400 }
         );
       }

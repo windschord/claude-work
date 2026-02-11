@@ -133,6 +133,7 @@ export class ClaudeOptionsService {
   /**
    * ClaudeCodeOptionsのバリデーション（API層用）
    * 各フィールドが文字列であることを検証
+   * 未知のキーが含まれている場合はnullを返す（タイポ検知）
    * @returns バリデーション成功時はClaudeCodeOptions、失敗時はnull
    */
   static validateClaudeCodeOptions(value: unknown): ClaudeCodeOptions | null {
@@ -141,6 +142,15 @@ export class ClaudeOptionsService {
     }
 
     const obj = value as Record<string, unknown>;
+    const allowedKeys = new Set(['model', 'allowedTools', 'permissionMode', 'additionalFlags']);
+
+    // 未知のキーをチェック
+    for (const key of Object.keys(obj)) {
+      if (!allowedKeys.has(key)) {
+        return null; // 未知のキーがある場合は失敗
+      }
+    }
+
     const result: ClaudeCodeOptions = {};
 
     for (const key of ['model', 'allowedTools', 'permissionMode', 'additionalFlags'] as const) {
@@ -156,6 +166,21 @@ export class ClaudeOptionsService {
     }
 
     return result;
+  }
+
+  /**
+   * 未知のキーを検出する（エラーメッセージ用）
+   * @returns 未知のキーの配列、なければ空配列
+   */
+  static getUnknownKeys(value: unknown): string[] {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return [];
+    }
+
+    const obj = value as Record<string, unknown>;
+    const allowedKeys = new Set(['model', 'allowedTools', 'permissionMode', 'additionalFlags']);
+
+    return Object.keys(obj).filter(key => !allowedKeys.has(key));
   }
 
   /**

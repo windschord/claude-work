@@ -211,4 +211,63 @@ describe('ClaudeOptionsService', () => {
       expect(ClaudeOptionsService.validateEnvVarKey('_LEADING')).toBe(true);
     });
   });
+
+  describe('validateClaudeCodeOptions', () => {
+    it('should accept valid options', () => {
+      const result = ClaudeOptionsService.validateClaudeCodeOptions({
+        model: 'claude-sonnet-4-5-20250929',
+        allowedTools: 'Bash,Read',
+      });
+      expect(result).toEqual({
+        model: 'claude-sonnet-4-5-20250929',
+        allowedTools: 'Bash,Read',
+      });
+    });
+
+    it('should reject options with unknown keys', () => {
+      const result = ClaudeOptionsService.validateClaudeCodeOptions({
+        model: 'test',
+        unknownKey: 'value',
+      });
+      expect(result).toBeNull();
+    });
+
+    it('should reject options with non-string values', () => {
+      const result = ClaudeOptionsService.validateClaudeCodeOptions({
+        model: 123,
+      });
+      expect(result).toBeNull();
+    });
+
+    it('should reject non-object values', () => {
+      expect(ClaudeOptionsService.validateClaudeCodeOptions(null)).toBeNull();
+      expect(ClaudeOptionsService.validateClaudeCodeOptions([])).toBeNull();
+      expect(ClaudeOptionsService.validateClaudeCodeOptions('string')).toBeNull();
+    });
+  });
+
+  describe('getUnknownKeys', () => {
+    it('should return unknown keys', () => {
+      const unknownKeys = ClaudeOptionsService.getUnknownKeys({
+        model: 'test',
+        unknownKey: 'value',
+        anotherBad: 'value2',
+      });
+      expect(unknownKeys).toEqual(['unknownKey', 'anotherBad']);
+    });
+
+    it('should return empty array for valid options', () => {
+      const unknownKeys = ClaudeOptionsService.getUnknownKeys({
+        model: 'test',
+        allowedTools: 'Bash',
+      });
+      expect(unknownKeys).toEqual([]);
+    });
+
+    it('should return empty array for non-object values', () => {
+      expect(ClaudeOptionsService.getUnknownKeys(null)).toEqual([]);
+      expect(ClaudeOptionsService.getUnknownKeys([])).toEqual([]);
+      expect(ClaudeOptionsService.getUnknownKeys('string')).toEqual([]);
+    });
+  });
 });
