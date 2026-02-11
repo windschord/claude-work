@@ -13,9 +13,9 @@
 
 | ID | タスク | ステータス | 依存 |
 |----|--------|------------|------|
-| 1 | migrateDatabase関数の実装 | pending | - |
-| 2 | 既存initializeDatabaseの統合 | pending | 1 |
-| 3 | ユニットテストの作成 | pending | 2 |
+| 1 | migrateDatabase関数の実装 | completed | - |
+| 2 | 既存initializeDatabaseの統合 | completed | 1 |
+| 3 | ユニットテストの作成 | completed | 2 |
 
 ## 3. タスク詳細
 
@@ -353,8 +353,8 @@ describe('migrateDatabase', () => {
 
 ## 5. 完了条件
 
-- [ ] 全タスクが完了
-- [ ] 全テストがパス
+- [x] 全タスクが完了
+- [x] 全テストがパス
 - [ ] npx経由でマイグレーションが正常動作
 - [ ] 既存DBのマイグレーションが成功
-- [ ] PRがマージ可能な状態
+- [x] PRがマージ可能な状態 (PR #97)
