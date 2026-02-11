@@ -145,13 +145,32 @@ vi.mock('@/services/scrollback-buffer', () => ({
   scrollbackBuffer: mockScrollbackBuffer,
 }));
 
-vi.mock('../connection-manager', () => ({
-  ConnectionManager: class {
-    constructor() {
-      return mockConnectionManager;
-    }
-  },
-}));
+vi.mock('../connection-manager', () => {
+  const MockConnectionManager = vi.fn().mockImplementation(function(this: any) {
+    // モックオブジェクトのメソッドをthisにコピー
+    this.addConnection = mockConnectionManager.addConnection;
+    this.removeConnection = mockConnectionManager.removeConnection;
+    this.getConnectionCount = mockConnectionManager.getConnectionCount;
+    this.hasConnections = mockConnectionManager.hasConnections;
+    this.getConnections = mockConnectionManager.getConnections;
+    this.broadcast = mockConnectionManager.broadcast;
+    this.sendToConnection = mockConnectionManager.sendToConnection;
+    this.setScrollbackBuffer = mockConnectionManager.setScrollbackBuffer;
+    this.sendScrollbackToConnection = mockConnectionManager.sendScrollbackToConnection;
+    this.registerHandler = mockConnectionManager.registerHandler;
+    this.unregisterHandler = mockConnectionManager.unregisterHandler;
+    this.hasHandler = mockConnectionManager.hasHandler;
+    this.cleanup = mockConnectionManager.cleanup;
+    this.getMetrics = mockConnectionManager.getMetrics;
+    this.on = mockConnectionManager.on;
+    this.off = mockConnectionManager.off;
+    this.emit = mockConnectionManager.emit;
+  });
+
+  return {
+    ConnectionManager: MockConnectionManager,
+  };
+});
 
 // テスト対象をインポート
 import { setupClaudeWebSocket } from '../claude-ws';
