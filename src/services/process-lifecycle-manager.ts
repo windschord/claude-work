@@ -253,27 +253,29 @@ export class ProcessLifecycleManager extends EventEmitter {
         const environment = await db.query.executionEnvironments.findFirst({
           where: eq(schema.executionEnvironments.id, session.environment_id),
         });
-        if (environment) {
-          try {
-            const AdapterFactory = await getAdapterFactory();
-            const adapter = AdapterFactory.getAdapter(environment);
-            adapter.destroySession(sessionId);
-          } catch (adapterError) {
-            logger.warn('Failed to get adapter, falling back to ProcessManager', {
-              error: adapterError,
-              sessionId,
-              environmentId: session.environment_id,
-            });
-            const processManager = ProcessManager.getInstance();
-            await processManager.stopProcess(sessionId);
-          }
-        } else {
-          logger.warn('Environment not found, falling back to ProcessManager', {
+        if (!environment) {
+          // environment_id付きセッションに対応する環境が存在しない場合は
+          // ProcessManagerへはフォールバックせずエラーとする
+          logger.error('Environment not found for environment-managed session', {
             sessionId,
             environmentId: session.environment_id,
           });
-          const processManager = ProcessManager.getInstance();
-          await processManager.stopProcess(sessionId);
+          throw new Error(`Execution environment not found for session ${sessionId}`);
+        }
+
+        try {
+          const AdapterFactory = await getAdapterFactory();
+          const adapter = AdapterFactory.getAdapter(environment);
+          adapter.destroySession(sessionId);
+        } catch (adapterError) {
+          // environment_id付きセッションはProcessManagerでは管理されないため、
+          // フォールバックせずエラーとして扱う
+          logger.error('Failed to stop session via environment adapter', {
+            error: adapterError,
+            sessionId,
+            environmentId: session.environment_id,
+          });
+          throw adapterError;
         }
       } else {
         // レガシー: ProcessManager

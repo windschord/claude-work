@@ -89,7 +89,7 @@ if (targetSession.environment_id) {
       targetSession.id,
       targetSession.worktree_path,
       undefined,
-      { resumeSessionId: targetSession.claude_session_id ?? undefined }
+      { resumeSessionId: targetSession.resume_session_id ?? undefined }
     );
   }
 } else {
@@ -192,12 +192,14 @@ import { AdapterFactory } from './adapter-factory';
 ### 5.1 環境取得失敗時
 
 - environment_idはあるがExecutionEnvironmentが見つからない場合
-- ログにwarningを出力し、ProcessManagerにフォールバックする
+- ログにerrorを出力し、404エラーを返す（フォールバックしない）
+- 理由: environment_id付きセッション（DOCKER等）はProcessManagerで管理されないため、フォールバックすると誤った状態になる
 
 ### 5.2 アダプター取得失敗時
 
 - AdapterFactory.getAdapter()がエラーをスローした場合
-- ログにerrorを出力し、500エラーを返す
+- ログにerrorを出力し、500エラーを返す（フォールバックしない）
+- 理由: 同上
 
 ## 6. テスト方針
 
@@ -224,10 +226,11 @@ import { AdapterFactory } from './adapter-factory';
 
 ## 7. 技術的決定事項
 
-### 7.1 フォールバック戦略
+### 7.1 エラーハンドリング戦略
 
-environment_idがあるがExecutionEnvironmentが見つからない場合、ProcessManagerにフォールバックする。
-これは、データ不整合時でもシステムが動作し続けることを優先するため。
+environment_idがある場合（環境管理型セッション）は、環境やアダプターの取得に失敗してもProcessManagerにフォールバックしない。
+理由: environment_id付きセッション（特にDOCKER）はProcessManager側で管理されないため、フォールバックしても正しく動作せず、状態の不整合を引き起こす。
+代わりに、明確なエラー（404/500）を返してクライアントに問題を伝える。
 
 ### 7.2 同期/非同期
 

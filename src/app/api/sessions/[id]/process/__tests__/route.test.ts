@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { GET, POST } from '../route';
 import { db, schema } from '@/lib/db';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { NextRequest } from 'next/server';
 import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
@@ -436,11 +436,10 @@ describe('GET /api/sessions/[id]/process with environment_id', () => {
     expect(data).toEqual({ running: false });
   });
 
-  it('should fall back to ProcessManager when adapter throws error', async () => {
+  it('should return 500 when adapter throws error (no fallback for environment-backed sessions)', async () => {
     mockGetAdapter.mockImplementation(() => {
       throw new Error('Adapter error');
     });
-    mockHasProcess.mockReturnValue(true);
 
     const request = new NextRequest(
       `http://localhost:3000/api/sessions/${session.id}/process`,
@@ -448,11 +447,32 @@ describe('GET /api/sessions/[id]/process with environment_id', () => {
     );
 
     const response = await GET(request, { params: Promise.resolve({ id: session.id }) });
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(500);
 
     const data = await response.json();
-    expect(data).toEqual({ running: true });
-    expect(mockHasProcess).toHaveBeenCalledWith(session.id);
+    expect(data).toEqual({ error: 'Failed to get environment adapter' });
+    expect(mockHasProcess).not.toHaveBeenCalled();
+  });
+
+  it('should return 404 when environment not found', async () => {
+    // 環境を削除（セッションはそのまま環境IDを保持）
+    // 外部キー制約を一時的に無効化
+    db.run(sql`PRAGMA foreign_keys = OFF`);
+    db.delete(schema.executionEnvironments)
+      .where(eq(schema.executionEnvironments.id, environment.id))
+      .run();
+    db.run(sql`PRAGMA foreign_keys = ON`);
+
+    const request = new NextRequest(
+      `http://localhost:3000/api/sessions/${session.id}/process`,
+      { method: 'GET' }
+    );
+
+    const response = await GET(request, { params: Promise.resolve({ id: session.id }) });
+    expect(response.status).toBe(404);
+
+    const data = await response.json();
+    expect(data).toEqual({ error: 'Environment not found' });
   });
 });
 

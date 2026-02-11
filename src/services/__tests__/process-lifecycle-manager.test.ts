@@ -372,19 +372,21 @@ describe('ProcessLifecycleManager', () => {
       expect(processManager.stopProcess).toHaveBeenCalledWith('test-session');
     });
 
-    it('環境が見つからない場合、ProcessManagerにフォールバックするべき', async () => {
+    it('環境が見つからない場合、エラーをスローするべき（フォールバックしない）', async () => {
       const manager = ProcessLifecycleManager.getInstance();
 
       vi.mocked(db.query.sessions.findFirst).mockResolvedValue(mockSession);
       vi.mocked(db.query.executionEnvironments.findFirst).mockResolvedValue(undefined);
 
-      await manager.pauseSession('test-session', 'idle_timeout');
+      await expect(manager.pauseSession('test-session', 'idle_timeout')).rejects.toThrow(
+        'Execution environment not found for session test-session'
+      );
 
       const processManager = ProcessManager.getInstance();
-      expect(processManager.stopProcess).toHaveBeenCalledWith('test-session');
+      expect(processManager.stopProcess).not.toHaveBeenCalled();
     });
 
-    it('adapter取得エラー時、ProcessManagerにフォールバックするべき', async () => {
+    it('adapter取得エラー時、エラーをスローするべき（フォールバックしない）', async () => {
       const manager = ProcessLifecycleManager.getInstance();
 
       vi.mocked(db.query.sessions.findFirst).mockResolvedValue(mockSession);
@@ -393,10 +395,12 @@ describe('ProcessLifecycleManager', () => {
         throw new Error('Adapter error');
       });
 
-      await manager.pauseSession('test-session', 'idle_timeout');
+      await expect(manager.pauseSession('test-session', 'idle_timeout')).rejects.toThrow(
+        'Adapter error'
+      );
 
       const processManager = ProcessManager.getInstance();
-      expect(processManager.stopProcess).toHaveBeenCalledWith('test-session');
+      expect(processManager.stopProcess).not.toHaveBeenCalled();
     });
 
     it('pauseSession後にprocessPausedイベントが発火されるべき', async () => {

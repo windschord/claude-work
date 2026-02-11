@@ -148,7 +148,7 @@ if (targetSession.environment_id) {
       targetSession.id,
       targetSession.worktree_path,
       undefined,
-      { resumeSessionId: targetSession.claude_session_id ?? undefined }
+      { resumeSessionId: targetSession.resume_session_id ?? undefined }
     );
   } else {
     throw new Error(`Environment not found: ${targetSession.environment_id}`);
