@@ -9,10 +9,10 @@
 | フェーズ | タスク数 | 完了 | 進行中 | 未着手 | 推定工数 |
 |---------|---------|------|--------|--------|---------|
 | Phase 1 | 5 | 5 | 0 | 0 | 4時間 |
-| Phase 2 | 6 | 1 | 0 | 5 | 6時間 |
+| Phase 2 | 6 | 3 | 0 | 3 | 6時間 |
 | Phase 3 | 4 | 4 | 0 | 0 | 3.5時間 |
 | Phase 4 | 4 | 0 | 0 | 4 | 3時間 |
-| **合計** | **19** | **10** | **0** | **9** | **16.5時間** |
+| **合計** | **19** | **12** | **0** | **7** | **16.5時間** |
 
 ## フェーズ構成
 
@@ -43,8 +43,8 @@
 | ID | タスク | ステータス | 依存 | 工数 | リンク |
 |----|-------|----------|------|------|--------|
 | TASK-006 | PTYSessionManagerの基本構造作成 | DONE | TASK-005 | 60分 | [詳細](phase-2/TASK-006.md) @phase-2/TASK-006.md |
-| TASK-007 | セッション作成・取得・破棄メソッド実装 | TODO | TASK-006 | 60分 | [詳細](phase-2/TASK-007.md) @phase-2/TASK-007.md |
-| TASK-008 | PTYイベントハンドラー登録の実装 | TODO | TASK-007 | 50分 | [詳細](phase-2/TASK-008.md) @phase-2/TASK-008.md |
+| TASK-007 | セッション作成・取得・破棄メソッド実装 | DONE | TASK-006 | 60分 | [詳細](phase-2/TASK-007.md) @phase-2/TASK-007.md |
+| TASK-008 | PTYイベントハンドラー登録の実装 | DONE | TASK-007 | 50分 | [詳細](phase-2/TASK-008.md) @phase-2/TASK-008.md |
 | TASK-009 | ClaudePTYManagerのリファクタリング | TODO | TASK-008 | 50分 | [詳細](phase-2/TASK-009.md) @phase-2/TASK-009.md |
 | TASK-010 | WebSocketハンドラーのPTYSessionManager統合 | TODO | TASK-009 | 50分 | [詳細](phase-2/TASK-010.md) @phase-2/TASK-010.md |
 | TASK-011 | PTYSessionManagerの統合テスト | TODO | TASK-010 | 50分 | [詳細](phase-2/TASK-011.md) @phase-2/TASK-011.md |
@@ -60,7 +60,7 @@
 | ID | タスク | ステータス | 依存 | 工数 | リンク |
 |----|-------|----------|------|------|--------|
 | TASK-012 | DockerAdapterのコンテナ起動待機実装 | DONE | TASK-005 | 60分 | [詳細](phase-3/TASK-012.md) @phase-3/TASK-012.md |
-| TASK-013 | docker stopのPromise化とエラーハンドリング | IN_PROGRESS | TASK-012 | 40分 | [詳細](phase-3/TASK-013.md) @phase-3/TASK-013.md |
+| TASK-013 | docker stopのPromise化とエラーハンドリング | DONE | TASK-012 | 40分 | [詳細](phase-3/TASK-013.md) @phase-3/TASK-013.md |
 | TASK-014 | 親コンテナIDの永続化と孤立コンテナクリーンアップ | DONE | TASK-013 | 60分 | [詳細](phase-3/TASK-014.md) @phase-3/TASK-014.md |
 | TASK-015 | DockerAdapterの統合テスト | DONE | TASK-014 | 50分 | [詳細](phase-3/TASK-015.md) @phase-3/TASK-015.md |
 
