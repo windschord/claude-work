@@ -255,19 +255,44 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
   }
 
   /**
-   * Dockerコンテナを停止する（バックグラウンド実行）
+   * Dockerコンテナを停止する（Promise化、エラーハンドリング強化）
    */
-  private stopContainer(containerName: string): void {
-    childProcess.execFile('docker', ['stop', '-t', '3', containerName], { timeout: 5000 }, (error) => {
-      if (error) {
-        // stop失敗時はkillを試みる
-        childProcess.execFile('docker', ['kill', containerName], { timeout: 5000 }, () => {
-          // 既に停止済み等のエラーは無視
-        });
-      } else {
-        logger.info('DockerAdapter: Container stopped', { containerName });
+  private async stopContainer(containerName: string): Promise<void> {
+    const execFileAsync = promisify(childProcess.execFile);
+    logger.info(`Stopping container ${containerName}`);
+
+    try {
+      // 10秒のタイムアウトで停止を試行
+      await execFileAsync('docker', ['stop', '-t', '10', containerName], {
+        timeout: 15000, // 15秒（猶予を含む）
+      });
+
+      logger.info(`Container ${containerName} stopped successfully`);
+    } catch (error: any) {
+      // コンテナが既に停止している場合はエラーを無視
+      if (
+        error.message &&
+        (error.message.includes('No such container') ||
+          error.message.includes('is not running'))
+      ) {
+        logger.debug(`Container ${containerName} already stopped`);
+        return;
       }
-    });
+
+      logger.error(`Failed to stop container ${containerName}:`, error);
+
+      // 強制停止を試行
+      try {
+        await execFileAsync('docker', ['kill', containerName], {
+          timeout: 5000,
+        });
+        logger.warn(`Container ${containerName} force-killed`);
+      } catch (killError) {
+        logger.error(`Failed to force-kill container ${containerName}:`, killError);
+      }
+
+      // エラーをログに記録するが、スローはしない（後続処理を継続）
+    }
   }
 
   /**
@@ -543,7 +568,9 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
 
         // PTY終了時にコンテナがまだ実行中なら停止
         if (containerName && !shellMode) {
-          this.stopContainer(containerName);
+          this.stopContainer(containerName).catch((error) => {
+            logger.error(`Error stopping container in onExit:`, error);
+          });
         }
       });
 
@@ -596,7 +623,10 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
 
       // Dockerコンテナを明示的に停止（shellModeではコンテナを止めない）
       if (!shellMode) {
-        this.stopContainer(containerId);
+        // 非同期で実行（awaitしないが、エラーはログに記録される）
+        this.stopContainer(containerId).catch((error) => {
+          logger.error(`Error stopping container in destroySession:`, error);
+        });
       }
 
       // container_idをクリア（同期実行）
