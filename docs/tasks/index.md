@@ -59,7 +59,7 @@
 
 | ID | タスク | ステータス | 依存 | 工数 | リンク |
 |----|-------|----------|------|------|--------|
-| TASK-012 | DockerAdapterのコンテナ起動待機実装 | IN_PROGRESS | TASK-005 | 60分 | [詳細](phase-3/TASK-012.md) @phase-3/TASK-012.md |
+| TASK-012 | DockerAdapterのコンテナ起動待機実装 | DONE | TASK-005 | 60分 | [詳細](phase-3/TASK-012.md) @phase-3/TASK-012.md |
 | TASK-013 | docker stopのPromise化とエラーハンドリング | TODO | TASK-012 | 40分 | [詳細](phase-3/TASK-013.md) @phase-3/TASK-013.md |
 | TASK-014 | 親コンテナIDの永続化と孤立コンテナクリーンアップ | TODO | TASK-013 | 60分 | [詳細](phase-3/TASK-014.md) @phase-3/TASK-014.md |
 | TASK-015 | DockerAdapterの統合テスト | TODO | TASK-014 | 50分 | [詳細](phase-3/TASK-015.md) @phase-3/TASK-015.md |

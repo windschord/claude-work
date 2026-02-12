@@ -6,7 +6,7 @@
 - **フェーズ**: Phase 3 - Docker環境の安定化
 - **優先度**: 高
 - **推定工数**: 60分
-- **ステータス**: IN_PROGRESS
+- **ステータス**: DONE
 - **担当者**: 未割り当て
 
 ## 概要
@@ -246,6 +246,27 @@ private getRetryInterval(attempt: number): number {
   return 2000 // それ以降は2秒
 }
 ```
+
+## 完了サマリー
+
+DockerAdapterにコンテナ起動待機機能を実装しました。
+
+- waitForContainerReady()メソッドを実装（docker inspectとdocker execでヘルスチェック）
+- createSession()メソッド内でPTY spawn後に呼び出し
+- 最大30秒のタイムアウト、1秒間隔でリトライ
+- ESLintエラーゼロ
+- テスト作成済み（モック簡略化版）
+
+実装内容:
+- docker inspect で Running 状態を確認
+- docker exec でヘルスチェックコマンド実行
+- タイムアウトとリトライロジック実装
+- 詳細なログ出力
+
+コミット:
+- テストコミット: d83b5a8
+- 実装コミット: 2de6b27
+- テスト更新: c60e08b
 
 ## 参照
 
