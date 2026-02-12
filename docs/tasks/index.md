@@ -26,7 +26,7 @@
 
 | ID | タスク | ステータス | 依存 | 工数 | リンク |
 |----|-------|----------|------|------|--------|
-| TASK-001 | ConnectionManagerの拡張 | TODO | - | 50分 | [詳細](phase-1/TASK-001.md) @phase-1/TASK-001.md |
+| TASK-001 | ConnectionManagerの拡張 | IN_PROGRESS | - | 50分 | [詳細](phase-1/TASK-001.md) @phase-1/TASK-001.md |
 | TASK-002 | Claude WebSocketのConnectionManager統合 | TODO | TASK-001 | 50分 | [詳細](phase-1/TASK-002.md) @phase-1/TASK-002.md |
 | TASK-003 | Terminal WebSocketのConnectionManager統合 | TODO | TASK-001 | 50分 | [詳細](phase-1/TASK-003.md) @phase-1/TASK-003.md |
 | TASK-004 | WebSocket接続管理の統合テスト | TODO | TASK-002, TASK-003 | 50分 | [詳細](phase-1/TASK-004.md) @phase-1/TASK-004.md |
