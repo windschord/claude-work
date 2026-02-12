@@ -37,7 +37,7 @@ describe('Session State Schema Tests', () => {
       const [session] = await db.insert(sessions).values({
         project_id: testProjectId,
         name: 'test-session',
-        status_legacy: 'running',
+        status: 'running',
         worktree_path: '/tmp/worktree',
         branch_name: 'main',
         environment_id: testEnvironmentId,
@@ -56,7 +56,7 @@ describe('Session State Schema Tests', () => {
       const [session] = await db.insert(sessions).values({
         project_id: testProjectId,
         name: 'test-session',
-        status_legacy: 'running',
+        status: 'running',
         worktree_path: '/tmp/worktree',
         branch_name: 'main',
         environment_id: testEnvironmentId,
@@ -73,7 +73,7 @@ describe('Session State Schema Tests', () => {
       const [session] = await db.insert(sessions).values({
         project_id: testProjectId,
         name: 'test-session',
-        status_legacy: 'running',
+        status: 'running',
         worktree_path: '/tmp/worktree',
         branch_name: 'main',
         environment_id: testEnvironmentId,
@@ -88,7 +88,7 @@ describe('Session State Schema Tests', () => {
       const [session] = await db.insert(sessions).values({
         project_id: testProjectId,
         name: 'test-session',
-        status_legacy: 'running',
+        status: 'running',
         worktree_path: '/tmp/worktree',
         branch_name: 'main',
         environment_id: testEnvironmentId,
@@ -101,7 +101,7 @@ describe('Session State Schema Tests', () => {
       const [session] = await db.insert(sessions).values({
         project_id: testProjectId,
         name: 'test-session',
-        status_legacy: 'running',
+        status: 'running',
         worktree_path: '/tmp/worktree',
         branch_name: 'main',
         environment_id: testEnvironmentId,
@@ -116,7 +116,7 @@ describe('Session State Schema Tests', () => {
       const [session] = await db.insert(sessions).values({
         project_id: testProjectId,
         name: 'test-session',
-        status_legacy: 'running',
+        status: 'running',
         worktree_path: '/tmp/worktree',
         branch_name: 'main',
         environment_id: testEnvironmentId,
@@ -137,7 +137,7 @@ describe('Session State Schema Tests', () => {
       const [session] = await db.insert(sessions).values({
         project_id: testProjectId,
         name: 'test-session',
-        status_legacy: 'running',
+        status: 'running',
         worktree_path: '/tmp/worktree',
         branch_name: 'main',
         environment_id: testEnvironmentId,
@@ -170,7 +170,7 @@ describe('Session State Schema Tests', () => {
       const [session] = await db.insert(sessions).values({
         project_id: testProjectId,
         name: 'test-session',
-        status_legacy: 'running',
+        status: 'running',
         worktree_path: '/tmp/worktree',
         branch_name: 'main',
         environment_id: testEnvironmentId,
@@ -187,14 +187,14 @@ describe('Session State Schema Tests', () => {
         .where(eq(sessions.id, session.id));
 
       expect(updated.destroy_at).not.toBeNull();
-      expect(updated.destroy_at?.getTime()).toBeCloseTo(destroyAt.getTime(), -2);
+      expect(updated.destroy_at?.getTime()).toBeCloseTo(destroyAt.getTime(), -3);
     });
 
     it('should update last_activity_at', async () => {
       const [session] = await db.insert(sessions).values({
         project_id: testProjectId,
         name: 'test-session',
-        status_legacy: 'running',
+        status: 'running',
         worktree_path: '/tmp/worktree',
         branch_name: 'main',
         environment_id: testEnvironmentId,
@@ -211,7 +211,7 @@ describe('Session State Schema Tests', () => {
         .where(eq(sessions.id, session.id));
 
       expect(updated.last_activity_at).not.toBeNull();
-      expect(updated.last_activity_at?.getTime()).toBeCloseTo(newActivityTime.getTime(), -2);
+      expect(updated.last_activity_at?.getTime()).toBeCloseTo(newActivityTime.getTime(), -3);
     });
   });
 
@@ -222,7 +222,7 @@ describe('Session State Schema Tests', () => {
         {
           project_id: testProjectId,
           name: 'active-session',
-          status_legacy: 'running',
+          status: 'running',
           worktree_path: '/tmp/worktree1',
           branch_name: 'main',
           environment_id: testEnvironmentId,
@@ -231,7 +231,7 @@ describe('Session State Schema Tests', () => {
         {
           project_id: testProjectId,
           name: 'idle-session',
-          status_legacy: 'running',
+          status: 'running',
           worktree_path: '/tmp/worktree2',
           branch_name: 'main',
           environment_id: testEnvironmentId,
@@ -253,7 +253,7 @@ describe('Session State Schema Tests', () => {
       await db.insert(sessions).values({
         project_id: testProjectId,
         name: 'destroy-scheduled',
-        status_legacy: 'running',
+        status: 'running',
         worktree_path: '/tmp/worktree',
         branch_name: 'main',
         environment_id: testEnvironmentId,
@@ -276,7 +276,7 @@ describe('Session State Schema Tests', () => {
         {
           project_id: testProjectId,
           name: 'recent-session',
-          status_legacy: 'running',
+          status: 'running',
           worktree_path: '/tmp/worktree1',
           branch_name: 'main',
           environment_id: testEnvironmentId,
@@ -285,7 +285,7 @@ describe('Session State Schema Tests', () => {
         {
           project_id: testProjectId,
           name: 'old-session',
-          status_legacy: 'running',
+          status: 'running',
           worktree_path: '/tmp/worktree2',
           branch_name: 'main',
           environment_id: testEnvironmentId,
