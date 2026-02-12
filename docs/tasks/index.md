@@ -8,11 +8,11 @@
 
 | フェーズ | タスク数 | 完了 | 進行中 | 未着手 | 推定工数 |
 |---------|---------|------|--------|--------|---------|
-| Phase 1 | 5 | 1 | 0 | 4 | 4時間 |
+| Phase 1 | 5 | 5 | 0 | 0 | 4時間 |
 | Phase 2 | 6 | 0 | 0 | 6 | 6時間 |
 | Phase 3 | 4 | 0 | 0 | 4 | 3.5時間 |
 | Phase 4 | 4 | 0 | 0 | 4 | 3時間 |
-| **合計** | **19** | **1** | **0** | **18** | **16.5時間** |
+| **合計** | **19** | **5** | **0** | **14** | **16.5時間** |
 
 ## フェーズ構成
 
@@ -27,10 +27,10 @@
 | ID | タスク | ステータス | 依存 | 工数 | リンク |
 |----|-------|----------|------|------|--------|
 | TASK-001 | ConnectionManagerの拡張 | DONE | - | 50分 | [詳細](phase-1/TASK-001.md) @phase-1/TASK-001.md |
-| TASK-002 | Claude WebSocketのConnectionManager統合 | TODO | TASK-001 | 50分 | [詳細](phase-1/TASK-002.md) @phase-1/TASK-002.md |
-| TASK-003 | Terminal WebSocketのConnectionManager統合 | TODO | TASK-001 | 50分 | [詳細](phase-1/TASK-003.md) @phase-1/TASK-003.md |
-| TASK-004 | WebSocket接続管理の統合テスト | TODO | TASK-002, TASK-003 | 50分 | [詳細](phase-1/TASK-004.md) @phase-1/TASK-004.md |
-| TASK-005 | 複数ブラウザE2Eテスト | TODO | TASK-004 | 40分 | [詳細](phase-1/TASK-005.md) @phase-1/TASK-005.md |
+| TASK-002 | Claude WebSocketのConnectionManager統合 | DONE | TASK-001 | 50分 | [詳細](phase-1/TASK-002.md) @phase-1/TASK-002.md |
+| TASK-003 | Terminal WebSocketのConnectionManager統合 | DONE | TASK-001 | 50分 | [詳細](phase-1/TASK-003.md) @phase-1/TASK-003.md |
+| TASK-004 | WebSocket接続管理の統合テスト | DONE | TASK-002, TASK-003 | 50分 | [詳細](phase-1/TASK-004.md) @phase-1/TASK-004.md |
+| TASK-005 | 複数ブラウザE2Eテスト | DONE | TASK-004 | 40分 | [詳細](phase-1/TASK-005.md) @phase-1/TASK-005.md |
 
 ### Phase 2: PTYSessionManagerの導入
 
