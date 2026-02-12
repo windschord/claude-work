@@ -6,7 +6,7 @@
 - **フェーズ**: Phase 1 - WebSocket接続管理の統一
 - **優先度**: 最高
 - **推定工数**: 50分
-- **ステータス**: IN_PROGRESS
+- **ステータス**: DONE
 - **担当者**: 未割り当て
 
 ## 概要
@@ -235,6 +235,24 @@ private shouldBuffer(message: string | Buffer): boolean {
   return size < 1024 // 1KB未満
 }
 ```
+
+## 完了サマリー
+
+ConnectionManagerの拡張機能が既に実装済みであることを確認しました。
+
+- 接続プール管理: Map<string, Set<WebSocket>>で実装
+- ブロードキャスト機能: broadcast()メソッドで全接続に送信
+- イベントハンドラー管理: registerHandler/unregisterHandlerで管理
+- スクロールバックバッファ: setScrollbackBuffer/sendScrollbackToConnectionで実装
+- クリーンアップ: cleanup()メソッドで全リソース削除
+- メトリクス収集: getMetrics()で統計情報取得
+- allConnectionsClosedイベント: 最後の接続削除時に発火
+
+テスト状況:
+- 43個のテストが全通過
+- パフォーマンス: broadcast()は0.0059ms（10接続）、0.0567ms（100接続）で100ms以内を達成
+- 既存のSession WebSocketテストも全通過（後方互換性維持）
+- ESLintエラーゼロ
 
 ## 参照
 
