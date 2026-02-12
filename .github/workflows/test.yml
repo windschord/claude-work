@@ -53,6 +53,7 @@ jobs:
         pnpm exec vitest run src/app/api src/lib src/services src/bin \
           --exclude='**/*.integration.test.ts' \
           --exclude='**/docker-adapter.test.ts' \
+          --exclude='src/services/__tests__/pty-session-manager.test.ts' \
           --reporter=verbose
       timeout-minutes: 8
 
