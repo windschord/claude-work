@@ -10,9 +10,9 @@
 |---------|---------|------|--------|--------|---------|
 | Phase 1 | 5 | 5 | 0 | 0 | 4時間 |
 | Phase 2 | 6 | 1 | 0 | 5 | 6時間 |
-| Phase 3 | 4 | 3 | 0 | 1 | 3.5時間 |
+| Phase 3 | 4 | 4 | 0 | 0 | 3.5時間 |
 | Phase 4 | 4 | 0 | 0 | 4 | 3時間 |
-| **合計** | **19** | **9** | **0** | **10** | **16.5時間** |
+| **合計** | **19** | **10** | **0** | **9** | **16.5時間** |
 
 ## フェーズ構成
 
@@ -62,7 +62,7 @@
 | TASK-012 | DockerAdapterのコンテナ起動待機実装 | DONE | TASK-005 | 60分 | [詳細](phase-3/TASK-012.md) @phase-3/TASK-012.md |
 | TASK-013 | docker stopのPromise化とエラーハンドリング | IN_PROGRESS | TASK-012 | 40分 | [詳細](phase-3/TASK-013.md) @phase-3/TASK-013.md |
 | TASK-014 | 親コンテナIDの永続化と孤立コンテナクリーンアップ | DONE | TASK-013 | 60分 | [詳細](phase-3/TASK-014.md) @phase-3/TASK-014.md |
-| TASK-015 | DockerAdapterの統合テスト | IN_PROGRESS | TASK-014 | 50分 | [詳細](phase-3/TASK-015.md) @phase-3/TASK-015.md |
+| TASK-015 | DockerAdapterの統合テスト | DONE | TASK-014 | 50分 | [詳細](phase-3/TASK-015.md) @phase-3/TASK-015.md |
 
 ### Phase 4: 状態管理の統一
 
