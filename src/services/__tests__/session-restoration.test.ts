@@ -144,7 +144,7 @@ describe('Session Restoration', () => {
 
     it('should skip timer setup if destroy_at is null', async () => {
       // destroy_atがnullの場合はタイマーを設定しない
-      const testSession = await db.insert(sessions).values({
+      const _testSession = await db.insert(sessions).values({
         id: 'no-timer-session',
         project_id: 'test-project-1',
         name: 'test-restoration-session',
@@ -278,7 +278,7 @@ describe('Session Restoration', () => {
   describe('エラーハンドリングのテスト', () => {
     it('should mark session as ERROR on restoration failure', async () => {
       // 復元失敗時にERROR状態にマークされる
-      const testSession = await db.insert(sessions).values({
+      const _testSession = await db.insert(sessions).values({
         id: 'error-session-1',
         project_id: 'test-project-1',
         name: 'test-restoration-session',

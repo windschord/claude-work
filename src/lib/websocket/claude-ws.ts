@@ -252,7 +252,7 @@ export function setupClaudeWebSocket(
 
         // スクロールバックバッファを送信
         // Note: connectionManagerはprivateのため、一時的にany経由でアクセス
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         const connectionManager = (ptySessionManager as any).connectionManager;
         const buffer = connectionManager.getScrollbackBuffer(sessionId);
         if (buffer) {

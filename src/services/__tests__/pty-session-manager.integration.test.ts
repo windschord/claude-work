@@ -21,7 +21,7 @@ describe('PTYSessionManager Integration (Minimal)', () => {
     for (const sessionId of sessions) {
       try {
         await manager.destroySession(sessionId)
-      } catch (error) {
+      } catch {
         // エラーは無視（既に破棄済みの可能性）
       }
     }

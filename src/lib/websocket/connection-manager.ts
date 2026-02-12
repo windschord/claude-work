@@ -146,6 +146,9 @@ export class ConnectionManager extends EventEmitter {
         ? JSON.stringify(message)
         : message;
 
+    // 閉じた接続を収集
+    const closedConnections: WebSocket[] = [];
+
     // 全接続に送信
     for (const ws of sessionConnections) {
       try {
@@ -158,13 +161,18 @@ export class ConnectionManager extends EventEmitter {
             state: ws.readyState,
           });
           failureCount++;
+          closedConnections.push(ws);
         }
       } catch (error) {
         logger.error('Failed to send message to connection', { error });
         failureCount++;
         this.metrics.messagesDropped++;
+        closedConnections.push(ws);
       }
     }
+
+    // 閉じた接続を削除
+    closedConnections.forEach(ws => this.removeConnection(sessionId, ws));
 
     const duration = performance.now() - startTime;
     this.metrics.messagesSent += successCount;

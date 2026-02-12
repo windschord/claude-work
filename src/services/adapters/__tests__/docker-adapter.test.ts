@@ -1149,7 +1149,7 @@ describe('DockerAdapter', () => {
 
     it('cleanupOrphanedContainers should detect stopped containers', async () => {
       const { db } = await import('@/lib/db');
-      const { schema } = await import('@/lib/db');
+      const { schema: _schema } = await import('@/lib/db');
 
       // モックDBからアクティブなセッションを返す
       const mockSelect = vi.fn(() => ({
