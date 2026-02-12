@@ -76,7 +76,7 @@
 |----|-------|----------|------|------|--------|
 | TASK-016 | データベーススキーマの拡張 | DONE | TASK-011 | 30分 | [詳細](phase-4/TASK-016.md) @phase-4/TASK-016.md |
 | TASK-017 | セッション状態の永続化ロジック実装 | TODO | TASK-016 | 60分 | [詳細](phase-4/TASK-017.md) @phase-4/TASK-017.md |
-| TASK-018 | サーバー起動時の状態復元処理 | TODO | TASK-017 | 60分 | [詳細](phase-4/TASK-018.md) @phase-4/TASK-018.md |
+| TASK-018 | サーバー起動時の状態復元処理 | IN_PROGRESS | TASK-017 | 60分 | [詳細](phase-4/TASK-018.md) @phase-4/TASK-018.md |
 | TASK-019 | 状態管理の統合テスト | TODO | TASK-018 | 50分 | [詳細](phase-4/TASK-019.md) @phase-4/TASK-019.md |
 
 ## タスク実行の原則
