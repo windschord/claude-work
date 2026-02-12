@@ -37,6 +37,9 @@ const {
       getConnectionCount: vi.fn().mockReturnValue(1),
       on: vi.fn(),
       off: vi.fn(),
+      connectionManager: {
+        getScrollbackBuffer: vi.fn().mockReturnValue(null),
+      },
     },
     mockDb: {
       query: {
