@@ -76,6 +76,45 @@ vi.mock('@/lib/logger', () => ({
   }
 }))
 
+// fsモジュールをモック（checkPTYExists用）
+// /test/worktreeで始まるパスは存在する、/nonexistent/pathは存在しないものとする
+const { mockFsAccess, mockExistsSync, mockMkdirSync } = vi.hoisted(() => {
+  return {
+    mockFsAccess: vi.fn((path: string) => {
+      if (path.includes('/nonexistent/') || !path.includes('/test/worktree')) {
+        return Promise.reject(new Error('ENOENT: no such file or directory'))
+      }
+      return Promise.resolve()
+    }),
+    mockExistsSync: vi.fn(() => true),
+    mockMkdirSync: vi.fn()
+  }
+})
+
+// pty-session-manager.tsは `import { promises as fs } from 'fs'` を使用
+// db.tsは `import fs from 'fs'` を使用（default import）
+vi.mock('fs', async () => {
+  const actual = await vi.importActual<typeof import('fs')>('fs')
+  return {
+    ...actual,
+    default: {
+      ...actual,
+      existsSync: mockExistsSync,
+      mkdirSync: mockMkdirSync
+    },
+    existsSync: mockExistsSync,
+    mkdirSync: mockMkdirSync,
+    promises: {
+      access: mockFsAccess,
+      readdir: vi.fn(),
+      unlink: vi.fn(),
+      rmdir: vi.fn(),
+      readFile: vi.fn(),
+      writeFile: vi.fn()
+    }
+  }
+})
+
 describe('TASK-019: State Management Integration Tests', () => {
   let manager: PTYSessionManager
   let testProjectId: string
