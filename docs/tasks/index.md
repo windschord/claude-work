@@ -36,13 +36,13 @@
 
 **目的**: PTYセッションとWebSocket接続を統合管理
 
-**依存**: Phase 1完了
+**依存**: TASK-001完了
 
 **期間**: 6時間
 
 | ID | タスク | ステータス | 依存 | 工数 | リンク |
 |----|-------|----------|------|------|--------|
-| TASK-006 | PTYSessionManagerの基本構造作成 | DONE | TASK-005 | 60分 | [詳細](phase-2/TASK-006.md) @phase-2/TASK-006.md |
+| TASK-006 | PTYSessionManagerの基本構造作成 | DONE | TASK-001 | 60分 | [詳細](phase-2/TASK-006.md) @phase-2/TASK-006.md |
 | TASK-007 | セッション作成・取得・破棄メソッド実装 | DONE | TASK-006 | 60分 | [詳細](phase-2/TASK-007.md) @phase-2/TASK-007.md |
 | TASK-008 | PTYイベントハンドラー登録の実装 | DONE | TASK-007 | 50分 | [詳細](phase-2/TASK-008.md) @phase-2/TASK-008.md |
 | TASK-009 | ClaudePTYManagerのリファクタリング | DONE | TASK-008 | 50分 | [詳細](phase-2/TASK-009.md) @phase-2/TASK-009.md |
@@ -53,13 +53,13 @@
 
 **目的**: Dockerコンテナライフサイクル管理の改善
 
-**依存**: Phase 1完了（Phase 2と並行可能）
+**依存**: TASK-001完了（Phase 2と並行可能）
 
 **期間**: 3.5時間
 
 | ID | タスク | ステータス | 依存 | 工数 | リンク |
 |----|-------|----------|------|------|--------|
-| TASK-012 | DockerAdapterのコンテナ起動待機実装 | DONE | TASK-005 | 60分 | [詳細](phase-3/TASK-012.md) @phase-3/TASK-012.md |
+| TASK-012 | DockerAdapterのコンテナ起動待機実装 | DONE | TASK-001 | 60分 | [詳細](phase-3/TASK-012.md) @phase-3/TASK-012.md |
 | TASK-013 | docker stopのPromise化とエラーハンドリング | DONE | TASK-012 | 40分 | [詳細](phase-3/TASK-013.md) @phase-3/TASK-013.md |
 | TASK-014 | 親コンテナIDの永続化と孤立コンテナクリーンアップ | DONE | TASK-013 | 60分 | [詳細](phase-3/TASK-014.md) @phase-3/TASK-014.md |
 | TASK-015 | DockerAdapterの統合テスト | DONE | TASK-014 | 50分 | [詳細](phase-3/TASK-015.md) @phase-3/TASK-015.md |
