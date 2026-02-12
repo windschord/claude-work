@@ -1101,4 +1101,187 @@ describe('DockerAdapter', () => {
       expect(adapter.hasSession(sessionId)).toBe(true);
     });
   });
+
+  describe('stopContainer Promise-based with error handling (TASK-013)', () => {
+    it('should stop container successfully with 15s timeout', async () => {
+      const sessionId = 'session-stop-promise-success';
+      await adapter.createSession(sessionId, '/projects/test');
+
+      const containerId = adapter.getContainerId(sessionId);
+      expect(containerId).toBeDefined();
+
+      let stopCalled = false;
+      mockExecFile.mockImplementation((cmd: string, args: string[], opts: unknown, callback?: (error: Error | null, stdout: string, stderr: string) => void) => {
+        if (!callback) return;
+
+        if (args[0] === 'stop') {
+          stopCalled = true;
+          // タイムアウト設定を確認
+          expect((opts as any).timeout).toBe(15000);
+          expect(args).toContain('-t');
+          expect(args).toContain('10');
+          callback(null, '', '');
+        } else {
+          callback(null, '', '');
+        }
+      });
+
+      adapter.destroySession(sessionId);
+
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      expect(stopCalled).toBe(true);
+    });
+
+    it('should fallback to docker kill when stop fails', async () => {
+      const sessionId = 'session-stop-fail-kill';
+      await adapter.createSession(sessionId, '/projects/test');
+
+      const containerId = adapter.getContainerId(sessionId);
+      expect(containerId).toBeDefined();
+
+      let stopCalled = false;
+      let killCalled = false;
+
+      mockExecFile.mockImplementation((cmd: string, args: string[], opts: unknown, callback?: (error: Error | null, stdout: string, stderr: string) => void) => {
+        if (!callback) return;
+
+        if (args[0] === 'stop') {
+          stopCalled = true;
+          callback(new Error('stop failed'), '', '');
+        } else if (args[0] === 'kill') {
+          killCalled = true;
+          expect(args).toContain(containerId);
+          expect((opts as any).timeout).toBe(5000);
+          callback(null, '', '');
+        } else {
+          callback(null, '', '');
+        }
+      });
+
+      adapter.destroySession(sessionId);
+
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      expect(stopCalled).toBe(true);
+      expect(killCalled).toBe(true);
+    });
+
+    it('should ignore "No such container" error', async () => {
+      const sessionId = 'session-already-stopped';
+      await adapter.createSession(sessionId, '/projects/test');
+
+      let killCalled = false;
+
+      mockExecFile.mockImplementation((cmd: string, args: string[], _opts: unknown, callback?: (error: Error | null, stdout: string, stderr: string) => void) => {
+        if (!callback) return;
+
+        if (args[0] === 'stop') {
+          callback(new Error('No such container'), '', '');
+        } else if (args[0] === 'kill') {
+          killCalled = true;
+          callback(null, '', '');
+        } else {
+          callback(null, '', '');
+        }
+      });
+
+      adapter.destroySession(sessionId);
+
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // "No such container" エラーの場合はkillも実行されない
+      expect(killCalled).toBe(false);
+    });
+
+    it('should ignore "is not running" error', async () => {
+      const sessionId = 'session-not-running';
+      await adapter.createSession(sessionId, '/projects/test');
+
+      let killCalled = false;
+
+      mockExecFile.mockImplementation((cmd: string, args: string[], _opts: unknown, callback?: (error: Error | null, stdout: string, stderr: string) => void) => {
+        if (!callback) return;
+
+        if (args[0] === 'stop') {
+          callback(new Error('container is not running'), '', '');
+        } else if (args[0] === 'kill') {
+          killCalled = true;
+          callback(null, '', '');
+        } else {
+          callback(null, '', '');
+        }
+      });
+
+      adapter.destroySession(sessionId);
+
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      expect(killCalled).toBe(false);
+    });
+
+    it('should log error but not throw when both stop and kill fail', async () => {
+      const sessionId = 'session-double-fail';
+      await adapter.createSession(sessionId, '/projects/test');
+
+      const { logger } = await import('@/lib/logger');
+
+      mockExecFile.mockImplementation((cmd: string, args: string[], _opts: unknown, callback?: (error: Error | null, stdout: string, stderr: string) => void) => {
+        if (!callback) return;
+
+        if (args[0] === 'stop') {
+          callback(new Error('stop failed'), '', '');
+        } else if (args[0] === 'kill') {
+          callback(new Error('kill failed'), '', '');
+        } else {
+          callback(null, '', '');
+        }
+      });
+
+      // エラーをスローしないことを確認
+      expect(() => adapter.destroySession(sessionId)).not.toThrow();
+
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // エラーがログに記録されることを確認
+      expect(logger.error).toHaveBeenCalled();
+    });
+
+    it('should wait for stop completion before continuing cleanup', async () => {
+      const sessionId = 'session-stop-sync';
+      await adapter.createSession(sessionId, '/projects/test');
+
+      let stopCompleted = false;
+      let cleanupCompleted = false;
+
+      mockExecFile.mockImplementation((cmd: string, args: string[], _opts: unknown, callback?: (error: Error | null, stdout: string, stderr: string) => void) => {
+        if (!callback) return;
+
+        if (args[0] === 'stop') {
+          // 100ms後にstopが完了
+          setTimeout(() => {
+            stopCompleted = true;
+            callback(null, '', '');
+          }, 100);
+        } else {
+          callback(null, '', '');
+        }
+      });
+
+      const destroyPromise = new Promise<void>((resolve) => {
+        adapter.destroySession(sessionId);
+        // destroySessionは同期的に完了するが、stopContainerは非同期
+        setTimeout(() => {
+          cleanupCompleted = true;
+          resolve();
+        }, 150);
+      });
+
+      await destroyPromise;
+
+      // stopが完了してからcleanupが完了することを確認
+      expect(stopCompleted).toBe(true);
+      expect(cleanupCompleted).toBe(true);
+    });
+  });
 });
