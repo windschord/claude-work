@@ -45,7 +45,7 @@
 | TASK-006 | PTYSessionManagerの基本構造作成 | DONE | TASK-005 | 60分 | [詳細](phase-2/TASK-006.md) @phase-2/TASK-006.md |
 | TASK-007 | セッション作成・取得・破棄メソッド実装 | DONE | TASK-006 | 60分 | [詳細](phase-2/TASK-007.md) @phase-2/TASK-007.md |
 | TASK-008 | PTYイベントハンドラー登録の実装 | DONE | TASK-007 | 50分 | [詳細](phase-2/TASK-008.md) @phase-2/TASK-008.md |
-| TASK-009 | ClaudePTYManagerのリファクタリング | TODO | TASK-008 | 50分 | [詳細](phase-2/TASK-009.md) @phase-2/TASK-009.md |
+| TASK-009 | ClaudePTYManagerのリファクタリング | IN_PROGRESS | TASK-008 | 50分 | [詳細](phase-2/TASK-009.md) @phase-2/TASK-009.md |
 | TASK-010 | WebSocketハンドラーのPTYSessionManager統合 | TODO | TASK-009 | 50分 | [詳細](phase-2/TASK-010.md) @phase-2/TASK-010.md |
 | TASK-011 | PTYSessionManagerの統合テスト | TODO | TASK-010 | 50分 | [詳細](phase-2/TASK-011.md) @phase-2/TASK-011.md |
 
