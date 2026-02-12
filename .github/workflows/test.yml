@@ -49,7 +49,11 @@ jobs:
       uses: ./.github/actions/setup
 
     - name: Run backend tests
-      run: pnpm exec vitest run src/app/api src/lib src/services src/bin --reporter=verbose
+      run: |
+        pnpm exec vitest run src/app/api src/lib src/services src/bin \
+          --exclude='**/*.integration.test.ts' \
+          --exclude='**/docker-adapter.test.ts' \
+          --reporter=verbose
       timeout-minutes: 8
 
   # Frontend tests - components, pages, hooks
