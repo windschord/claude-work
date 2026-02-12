@@ -1,11 +1,10 @@
 import { EventEmitter } from 'events'
-import { IPty } from 'node-pty'
 import { ConnectionManager } from '@/lib/websocket/connection-manager'
 import { AdapterFactory } from './adapter-factory'
-import { EnvironmentAdapter } from './environment-adapter'
+import { EnvironmentAdapter, PTYExitInfo } from './environment-adapter'
 import { db } from '@/lib/db'
 import { logger } from '@/lib/logger'
-import type { PrismaClient } from '@prisma/client'
+import { ScrollbackBuffer } from './scrollback-buffer'
 import type WebSocket from 'ws'
 
 /**
@@ -13,7 +12,6 @@ import type WebSocket from 'ws'
  */
 export interface PTYSession {
   id: string
-  pty: IPty
   adapter: EnvironmentAdapter
   environmentType: 'HOST' | 'DOCKER' | 'SSH'
   metadata: SessionMetadata
@@ -28,7 +26,6 @@ export interface SessionMetadata {
   projectId: string
   branchName: string
   worktreePath: string
-  containerID?: string
   environmentId: string
 }
 
@@ -41,6 +38,8 @@ export interface SessionOptions {
   branchName: string
   worktreePath: string
   environmentId: string
+  initialPrompt?: string
+  resumeSessionId?: string
   cols?: number
   rows?: number
 }
@@ -69,27 +68,26 @@ export interface IPTYSessionManager extends EventEmitter {
   on(event: 'sessionCreated', listener: (sessionId: string) => void): this
   on(event: 'sessionDestroyed', listener: (sessionId: string) => void): this
   on(event: 'sessionError', listener: (sessionId: string, error: Error) => void): this
+  on(event: 'data', listener: (sessionId: string, data: string) => void): this
+  on(event: 'exit', listener: (sessionId: string, exitCode: number) => void): this
 }
 
 /**
  * PTYSessionManager
  *
  * PTYセッションのライフサイクル全体を統合管理するコンポーネント。
- * セッション作成、破棄、接続管理、イベント処理を一元化する。
+ * EnvironmentAdapterのラッパーとして動作し、セッション作成、破棄、
+ * 接続管理、イベント処理を一元化する。
  */
 export class PTYSessionManager extends EventEmitter implements IPTYSessionManager {
   private static instance: PTYSessionManager
 
   private sessions: Map<string, PTYSession> = new Map()
   private connectionManager: ConnectionManager
-  private adapterFactory: AdapterFactory
-  private prisma: PrismaClient
 
   private constructor() {
     super()
     this.connectionManager = ConnectionManager.getInstance()
-    this.adapterFactory = AdapterFactory.getInstance()
-    this.prisma = db
     logger.info('PTYSessionManager initialized')
   }
 
@@ -131,7 +129,7 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
    * @throws 環境が見つからない場合
    */
   async createSession(options: SessionOptions): Promise<PTYSession> {
-    const { sessionId, projectId, environmentId, worktreePath, branchName, cols, rows } = options
+    const { sessionId, projectId, environmentId, worktreePath, branchName, initialPrompt, resumeSessionId } = options
 
     // 既存セッションのチェック
     if (this.sessions.has(sessionId)) {
@@ -142,7 +140,7 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
 
     try {
       // 環境情報を取得
-      const environment = await this.prisma.executionEnvironment.findUnique({
+      const environment = await db.executionEnvironment.findUnique({
         where: { id: environmentId }
       })
 
@@ -150,22 +148,22 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
         throw new Error(`Environment ${environmentId} not found`)
       }
 
-      // アダプターを取得
-      const adapter = await this.adapterFactory.getAdapter(environment.type)
+      // アダプターを取得（環境全体を渡す）
+      const adapter = AdapterFactory.getAdapter(environment)
 
-      // PTYを作成
-      const pty = await adapter.spawn({
+      // アダプター経由でセッション作成
+      await adapter.createSession(
         sessionId,
-        cwd: worktreePath,
-        cols: cols || 80,
-        rows: rows || 24,
-        environmentId
-      })
+        worktreePath,
+        initialPrompt,
+        {
+          resumeSessionId
+        }
+      )
 
       // セッション情報を作成
       const session: PTYSession = {
         id: sessionId,
-        pty,
         adapter,
         environmentType: environment.type as 'HOST' | 'DOCKER' | 'SSH',
         metadata: {
@@ -182,18 +180,17 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
       this.sessions.set(sessionId, session)
 
       // スクロールバックバッファを設定
-      const ScrollbackBuffer = (await import('./scrollback-buffer')).ScrollbackBuffer
       const buffer = new ScrollbackBuffer()
       this.connectionManager.setScrollbackBuffer(sessionId, buffer)
 
-      // PTYイベントハンドラーを登録（セッションごとに1つ）
-      this.registerPTYHandlers(sessionId, pty)
+      // アダプターのイベントハンドラーを登録（セッションごとに1つ）
+      this.registerAdapterHandlers(sessionId, adapter)
 
       // データベースに記録
-      await this.prisma.session.update({
+      await db.session.update({
         where: { id: sessionId },
         data: {
-          status: 'ACTIVE',
+          status: 'running',
           last_active_at: new Date()
         }
       })
@@ -226,6 +223,9 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
     logger.info(`Destroying session ${sessionId}`)
 
     try {
+      // イベントハンドラーを解除
+      this.unregisterAdapterHandlers(sessionId, session.adapter)
+
       // 全接続を切断
       const connections = this.connectionManager.getConnections(sessionId)
       for (const ws of connections) {
@@ -239,28 +239,17 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
       // ConnectionManagerのクリーンアップ
       this.connectionManager.cleanup(sessionId)
 
-      // PTYを終了
-      try {
-        session.pty.kill()
-      } catch (error) {
-        logger.error(`Failed to kill PTY for ${sessionId}:`, error)
-      }
-
-      // アダプターのクリーンアップ
-      try {
-        await session.adapter.cleanup(sessionId)
-      } catch (error) {
-        logger.error(`Failed to cleanup adapter for ${sessionId}:`, error)
-      }
+      // アダプター経由でセッション破棄
+      session.adapter.destroySession(sessionId)
 
       // セッションをマップから削除
       this.sessions.delete(sessionId)
 
       // データベースを更新
-      await this.prisma.session.update({
+      await db.session.update({
         where: { id: sessionId },
         data: {
-          status: 'TERMINATED',
+          status: 'terminated',
           active_connections: 0
         }
       })
@@ -307,58 +296,6 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
   }
 
   /**
-   * 失敗したセッションのクリーンアップ
-   */
-  private async cleanupFailedSession(sessionId: string): Promise<void> {
-    try {
-      const session = this.sessions.get(sessionId)
-      if (session) {
-        // PTYが存在すれば終了
-        if (session.pty) {
-          try {
-            session.pty.kill()
-          } catch (error) {
-            logger.error(`Failed to kill PTY during cleanup:`, error)
-          }
-        }
-
-        // アダプターのクリーンアップ
-        if (session.adapter) {
-          try {
-            await session.adapter.cleanup(sessionId)
-          } catch (error) {
-            logger.error(`Failed to cleanup adapter during cleanup:`, error)
-          }
-        }
-
-        this.sessions.delete(sessionId)
-      }
-
-      // ConnectionManagerのクリーンアップ
-      this.connectionManager.cleanup(sessionId)
-
-      // データベースの状態を更新
-      await this.prisma.session.update({
-        where: { id: sessionId },
-        data: { status: 'ERROR' }
-      })
-    } catch (error) {
-      logger.error(`Error during failed session cleanup:`, error)
-    }
-  }
-
-  /**
-   * データベースの接続数を更新
-   */
-  private async updateConnectionCount(sessionId: string): Promise<void> {
-    const count = this.connectionManager.getConnectionCount(sessionId)
-    await this.prisma.session.update({
-      where: { id: sessionId },
-      data: { active_connections: count }
-    })
-  }
-
-  /**
    * セッションの接続数を取得
    */
   getConnectionCount(sessionId: string): number {
@@ -374,7 +311,7 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
       throw new Error(`Session ${sessionId} not found`)
     }
 
-    session.pty.write(data)
+    session.adapter.write(sessionId, data)
     session.lastActiveAt = new Date()
   }
 
@@ -387,35 +324,78 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
       throw new Error(`Session ${sessionId} not found`)
     }
 
-    session.pty.resize(cols, rows)
+    session.adapter.resize(sessionId, cols, rows)
     logger.debug(`Resized session ${sessionId} to ${cols}x${rows}`)
   }
 
   /**
-   * PTYイベントハンドラーを登録
+   * アダプターのイベントハンドラーを登録
    */
-  private registerPTYHandlers(sessionId: string, pty: IPty): void {
+  private registerAdapterHandlers(sessionId: string, adapter: EnvironmentAdapter): void {
     // データハンドラー（出力）
-    const dataHandler = (data: string) => {
-      this.handlePTYData(sessionId, data)
+    const dataHandler = (sid: string, data: string) => {
+      if (sid === sessionId) {
+        this.handleData(sessionId, data)
+      }
     }
 
     // 終了ハンドラー
-    const exitHandler = (exitCode: { exitCode: number; signal?: number }) => {
-      this.handlePTYExit(sessionId, exitCode.exitCode)
+    const exitHandler = (sid: string, info: PTYExitInfo) => {
+      if (sid === sessionId) {
+        this.handleExit(sessionId, info.exitCode)
+      }
+    }
+
+    // エラーハンドラー
+    const errorHandler = (sid: string, error: Error) => {
+      if (sid === sessionId) {
+        this.handleError(sessionId, error)
+      }
     }
 
     // ハンドラーを登録
-    pty.onData(dataHandler)
-    pty.onExit(exitHandler)
+    adapter.on('data', dataHandler)
+    adapter.on('exit', exitHandler)
+    adapter.on('error', errorHandler)
 
-    logger.debug(`Registered PTY handlers for session ${sessionId}`)
+    // ハンドラーを記録（解除時に使用）
+    this.connectionManager.registerHandler(sessionId, 'data', dataHandler)
+    this.connectionManager.registerHandler(sessionId, 'exit', exitHandler)
+    this.connectionManager.registerHandler(sessionId, 'error', errorHandler)
+
+    logger.debug(`Registered adapter handlers for session ${sessionId}`)
   }
 
   /**
-   * PTYデータハンドラー
+   * アダプターのイベントハンドラーを解除
    */
-  private handlePTYData(sessionId: string, data: string): void {
+  private unregisterAdapterHandlers(sessionId: string, adapter: EnvironmentAdapter): void {
+    const dataHandler = this.connectionManager.hasHandler(sessionId, 'data')
+    const exitHandler = this.connectionManager.hasHandler(sessionId, 'exit')
+    const errorHandler = this.connectionManager.hasHandler(sessionId, 'error')
+
+    if (dataHandler) {
+      adapter.off('data', dataHandler)
+      this.connectionManager.unregisterHandler(sessionId, 'data')
+    }
+
+    if (exitHandler) {
+      adapter.off('exit', exitHandler)
+      this.connectionManager.unregisterHandler(sessionId, 'exit')
+    }
+
+    if (errorHandler) {
+      adapter.off('error', errorHandler)
+      this.connectionManager.unregisterHandler(sessionId, 'error')
+    }
+
+    logger.debug(`Unregistered adapter handlers for session ${sessionId}`)
+  }
+
+  /**
+   * データハンドラー
+   */
+  private handleData(sessionId: string, data: string): void {
     const session = this.sessions.get(sessionId)
     if (!session) {
       logger.warn(`Received data for unknown session ${sessionId}`)
@@ -434,7 +414,7 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
     // 全接続にブロードキャスト
     this.connectionManager.broadcast(sessionId, data)
 
-    // dataイベントを発火（ClaudePTYManager等の中継用）
+    // dataイベントを発火
     this.emit('data', sessionId, data)
 
     // データベースの最終アクティブ時刻を更新（非同期、待機しない）
@@ -444,9 +424,9 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
   }
 
   /**
-   * PTY終了ハンドラー
+   * 終了ハンドラー
    */
-  private handlePTYExit(sessionId: string, exitCode: number): void {
+  private handleExit(sessionId: string, exitCode: number): void {
     logger.info(`PTY exited for session ${sessionId} with code ${exitCode}`)
 
     const session = this.sessions.get(sessionId)
@@ -461,7 +441,7 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
       exitCode
     }))
 
-    // exitイベントを発火（ClaudePTYManager等の中継用）
+    // exitイベントを発火
     this.emit('exit', sessionId, exitCode)
 
     // セッションを破棄（非同期）
@@ -471,10 +451,70 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
   }
 
   /**
+   * エラーハンドラー
+   */
+  private handleError(sessionId: string, error: Error): void {
+    logger.error(`Error for session ${sessionId}:`, error)
+
+    // 接続中のクライアントに通知
+    this.connectionManager.broadcast(sessionId, JSON.stringify({
+      type: 'error',
+      message: error.message
+    }))
+
+    // sessionErrorイベントを発火
+    this.emit('sessionError', sessionId, error)
+  }
+
+  /**
+   * 失敗したセッションのクリーンアップ
+   */
+  private async cleanupFailedSession(sessionId: string): Promise<void> {
+    try {
+      const session = this.sessions.get(sessionId)
+      if (session) {
+        // イベントハンドラーを解除
+        this.unregisterAdapterHandlers(sessionId, session.adapter)
+
+        // アダプター経由で破棄を試行
+        try {
+          session.adapter.destroySession(sessionId)
+        } catch (error) {
+          logger.error(`Failed to destroy session during cleanup:`, error)
+        }
+
+        this.sessions.delete(sessionId)
+      }
+
+      // ConnectionManagerのクリーンアップ
+      this.connectionManager.cleanup(sessionId)
+
+      // データベースの状態を更新
+      await db.session.update({
+        where: { id: sessionId },
+        data: { status: 'error' }
+      })
+    } catch (error) {
+      logger.error(`Error during failed session cleanup:`, error)
+    }
+  }
+
+  /**
+   * データベースの接続数を更新
+   */
+  private async updateConnectionCount(sessionId: string): Promise<void> {
+    const count = this.connectionManager.getConnectionCount(sessionId)
+    await db.session.update({
+      where: { id: sessionId },
+      data: { active_connections: count }
+    })
+  }
+
+  /**
    * データベースの最終アクティブ時刻を更新
    */
   private async updateLastActiveTime(sessionId: string): Promise<void> {
-    await this.prisma.session.update({
+    await db.session.update({
       where: { id: sessionId },
       data: { last_active_at: new Date() }
     })
