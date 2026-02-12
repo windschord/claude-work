@@ -6,8 +6,35 @@
 - **フェーズ**: Phase 4 - 状態管理の統一
 - **優先度**: 高
 - **推定工数**: 60分
-- **ステータス**: IN_PROGRESS
+- **ステータス**: DONE
 - **担当者**: Claude Code Agent
+- **完了日**: 2026-02-12
+
+## 完了サマリー
+
+PTYSessionManagerにセッション状態の永続化ロジックを実装しました。Prisma APIからDrizzle ORMへの移行も完了し、すべてのテストが通過しています。
+
+### 実装内容
+
+1. **データベースAPI修正**: `db.session.update()`をDrizzle ORMの`db.update(sessions).set({...}).where(eq(...))`形式に変更
+2. **接続数の更新**: `updateConnectionCount()`で`active_connections`を更新
+3. **最終アクティブ時刻の更新**: `updateLastActivityTime()`で`last_activity_at`を非同期更新（エラーは無視）
+4. **セッション作成時の状態更新**: `createSession()`でステータスを'running'に設定
+5. **セッション破棄時の状態更新**: `destroySession()`でステータスを'terminated'、`active_connections`を0に設定
+6. **失敗時の状態更新**: `cleanupFailedSession()`でステータスを'error'に設定
+7. **テストモックの修正**: Drizzle ORMのチェーン形式に対応
+
+### テスト結果
+
+- 21件のテストが通過
+- 16件のテストはスキップ（未実装機能用）
+- カバレッジ: 主要メソッドをカバー
+
+### 注意事項
+
+- `last_active_at`ではなく`last_activity_at`がスキーマの正しいフィールド名
+- Drizzle ORMではチェーン形式（`.set().where()`）を使用
+- 非同期更新はエラーが発生してもアプリケーション動作に影響しない
 
 ## 概要
 

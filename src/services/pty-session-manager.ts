@@ -312,8 +312,8 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
     this.connectionManager.removeConnection(sessionId, ws)
 
     // データベースの接続数を更新
-    this.updateConnectionCount(sessionId).catch(_error => {
-      logger.error(`Failed to update connection count:`, _error)
+    this.updateConnectionCount(sessionId).catch(error => {
+      logger.error(`Failed to update connection count:`, error)
     })
   }
 
@@ -620,7 +620,7 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
       const { stdout } = await execAsync(`docker inspect ${containerId}`)
       const containers = JSON.parse(stdout)
       return containers.length > 0 && containers[0].State.Running
-    } catch (_error) {
+    } catch {
       return false
     }
   }

@@ -1067,15 +1067,11 @@ describe('PTYSessionManager', () => {
         vi.clearAllMocks()
 
         // 遅い更新をシミュレート（2回目の呼び出し）
-        let updateStartTime: number
-        let updateEndTime: number
         mockDbUpdate.mockReturnValueOnce({
           set: vi.fn().mockReturnValue({
             where: vi.fn().mockImplementation(() => {
-              updateStartTime = Date.now()
               return new Promise(resolve => {
                 setTimeout(() => {
-                  updateEndTime = Date.now()
                   resolve({})
                 }, 100) // 100ms遅延
               })
