@@ -301,8 +301,8 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
     this.connectionManager.removeConnection(sessionId, ws)
 
     // データベースの接続数を更新
-    this.updateConnectionCount(sessionId).catch(error => {
-      logger.error(`Failed to update connection count:`, error)
+    this.updateConnectionCount(sessionId).catch(_error => {
+      logger.error(`Failed to update connection count:`, _error)
     })
   }
 
@@ -434,6 +434,9 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
     // 全接続にブロードキャスト
     this.connectionManager.broadcast(sessionId, data)
 
+    // dataイベントを発火（ClaudePTYManager等の中継用）
+    this.emit('data', sessionId, data)
+
     // データベースの最終アクティブ時刻を更新（非同期、待機しない）
     this.updateLastActiveTime(sessionId).catch(error => {
       logger.error(`Failed to update last_active_at for ${sessionId}:`, error)
@@ -457,6 +460,9 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
       type: 'exit',
       exitCode
     }))
+
+    // exitイベントを発火（ClaudePTYManager等の中継用）
+    this.emit('exit', sessionId, exitCode)
 
     // セッションを破棄（非同期）
     this.destroySession(sessionId).catch(error => {
