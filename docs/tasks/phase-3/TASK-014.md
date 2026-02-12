@@ -6,7 +6,7 @@
 - **フェーズ**: Phase 3 - Docker環境の安定化
 - **優先度**: 高
 - **推定工数**: 60分
-- **ステータス**: IN_PROGRESS
+- **ステータス**: DONE
 - **担当者**: 未割り当て
 
 ## 概要
@@ -330,6 +330,15 @@ docker ps -a | grep claude-work
 const promises = sessions.map(session => this.checkAndCleanupContainer(session))
 await Promise.allSettled(promises)
 ```
+
+## 完了サマリ
+
+- `cleanupOrphanedContainers()`静的メソッドを実装し、サーバー起動時に孤立コンテナを検出・クリーンアップ
+- データベースから全セッションのコンテナIDを取得し、実行状態を確認
+- 停止中または存在しないコンテナを検出し、セッション状態をERRORに更新
+- `docker rm -f`で孤立コンテナを削除
+- `server.ts`のサーバー起動時に`cleanupOrphanedContainers()`を呼び出す実装を追加
+- 包括的なログ出力により、孤立コンテナの検出とクリーンアップ状況を可視化
 
 ## 参照
 
