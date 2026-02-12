@@ -209,13 +209,13 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
       this.registerAdapterHandlers(sessionId, adapter)
 
       // データベースに記録
-      await db.session.update({
-        where: { id: sessionId },
-        data: {
+      await db.update(sessions)
+        .set({
           status: 'running',
-          last_active_at: new Date()
-        }
-      })
+          last_activity_at: new Date(),
+          updated_at: new Date()
+        })
+        .where(eq(sessions.id, sessionId))
 
       // イベントを発火
       this.emit('sessionCreated', sessionId)
@@ -268,13 +268,13 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
       this.sessions.delete(sessionId)
 
       // データベースを更新
-      await db.session.update({
-        where: { id: sessionId },
-        data: {
+      await db.update(sessions)
+        .set({
           status: 'terminated',
-          active_connections: 0
-        }
-      })
+          active_connections: 0,
+          updated_at: new Date()
+        })
+        .where(eq(sessions.id, sessionId))
 
       // イベントを発火
       this.emit('sessionDestroyed', sessionId)
@@ -455,8 +455,8 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
     this.emit('data', sessionId, data)
 
     // データベースの最終アクティブ時刻を更新（非同期、待機しない）
-    this.updateLastActiveTime(sessionId).catch(error => {
-      logger.error(`Failed to update last_active_at for ${sessionId}:`, error)
+    this.updateLastActivityTime(sessionId).catch(error => {
+      logger.error(`Failed to update last_activity_at for ${sessionId}:`, error)
     })
   }
 
@@ -510,12 +510,15 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
     logger.info(`Claude session ID detected for ${sessionId}: ${claudeSessionId}`)
 
     // データベースにClaude session IDを保存
-    db.session.update({
-      where: { id: sessionId },
-      data: { resume_session_id: claudeSessionId }
-    }).catch(error => {
-      logger.error(`Failed to save Claude session ID for ${sessionId}:`, error)
-    })
+    db.update(sessions)
+      .set({
+        resume_session_id: claudeSessionId,
+        updated_at: new Date()
+      })
+      .where(eq(sessions.id, sessionId))
+      .catch(error => {
+        logger.error(`Failed to save Claude session ID for ${sessionId}:`, error)
+      })
   }
 
   /**
@@ -542,10 +545,12 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
       this.connectionManager.cleanup(sessionId)
 
       // データベースの状態を更新
-      await db.session.update({
-        where: { id: sessionId },
-        data: { status: 'error' }
-      })
+      await db.update(sessions)
+        .set({
+          status: 'error',
+          updated_at: new Date()
+        })
+        .where(eq(sessions.id, sessionId))
     } catch (error) {
       logger.error(`Error during failed session cleanup:`, error)
     }
@@ -556,20 +561,24 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
    */
   private async updateConnectionCount(sessionId: string): Promise<void> {
     const count = this.connectionManager.getConnectionCount(sessionId)
-    await db.session.update({
-      where: { id: sessionId },
-      data: { active_connections: count }
-    })
+    await db.update(sessions)
+      .set({
+        active_connections: count,
+        updated_at: new Date()
+      })
+      .where(eq(sessions.id, sessionId))
   }
 
   /**
    * データベースの最終アクティブ時刻を更新
    */
-  private async updateLastActiveTime(sessionId: string): Promise<void> {
-    await db.session.update({
-      where: { id: sessionId },
-      data: { last_active_at: new Date() }
-    })
+  private async updateLastActivityTime(sessionId: string): Promise<void> {
+    await db.update(sessions)
+      .set({
+        last_activity_at: new Date(),
+        updated_at: new Date()
+      })
+      .where(eq(sessions.id, sessionId))
   }
 
   /**
