@@ -727,4 +727,88 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
     }
     return undefined;
   }
+
+  /**
+   * 孤立したDockerコンテナをクリーンアップする（サーバー起動時に実行）
+   */
+  static async cleanupOrphanedContainers(prismaClient: typeof db): Promise<void> {
+    logger.info('Checking for orphaned Docker containers');
+    const execFileAsync = promisify(childProcess.execFile);
+
+    try {
+      // データベースから全セッションのコンテナIDを取得
+      const sessions = prismaClient
+        .select({
+          id: schema.sessions.id,
+          container_id: schema.sessions.container_id,
+        })
+        .from(schema.sessions)
+        .where(
+          eq(schema.sessions.container_id, schema.sessions.container_id)
+        )
+        .all()
+        .filter((s) => s.container_id !== null);
+
+      for (const session of sessions) {
+        if (!session.container_id) continue;
+
+        try {
+          // コンテナが実行中か確認
+          const { stdout } = await execFileAsync('docker', [
+            'inspect',
+            '--format',
+            '{{.State.Running}}',
+            session.container_id,
+          ]);
+
+          const isRunning = stdout.trim() === 'true';
+
+          if (!isRunning) {
+            logger.warn(
+              `Orphaned container detected: ${session.container_id} for session ${session.id}`
+            );
+
+            // セッション状態をERRORに更新
+            prismaClient
+              .update(schema.sessions)
+              .set({
+                status: 'ERROR',
+                container_id: null,
+                updated_at: new Date(),
+              })
+              .where(eq(schema.sessions.id, session.id))
+              .run();
+
+            // コンテナが存在すれば削除
+            try {
+              await execFileAsync('docker', ['rm', '-f', session.container_id]);
+              logger.info(`Removed orphaned container ${session.container_id}`);
+            } catch (rmError) {
+              logger.error(`Failed to remove orphaned container:`, rmError);
+            }
+          }
+        } catch (error) {
+          logger.error(
+            `Failed to check container ${session.container_id}:`,
+            error
+          );
+
+          // コンテナが存在しない場合も孤立とみなす
+          prismaClient
+            .update(schema.sessions)
+            .set({
+              status: 'ERROR',
+              container_id: null,
+              updated_at: new Date(),
+            })
+            .where(eq(schema.sessions.id, session.id))
+            .run();
+        }
+      }
+
+      logger.info('Orphaned container cleanup completed');
+    } catch (error) {
+      logger.error('Failed to cleanup orphaned containers:', error);
+    }
+  }
 }
