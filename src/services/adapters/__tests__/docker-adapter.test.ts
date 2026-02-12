@@ -1013,6 +1013,10 @@ describe('DockerAdapter', () => {
       const sessionId = 'session-fail-start';
       const workingDir = '/projects/test';
 
+      // エラーイベントリスナーを追加（Unhandled errorを防ぐ）
+      const errorHandler = vi.fn();
+      adapter.on('error', errorHandler);
+
       // execFileをモック（常にエラーを返す）
       mockExecFile.mockImplementation((cmd: string, args: string[], _opts: unknown, callback?: (error: Error | null, stdout: string, stderr: string) => void) => {
         if (!callback) return;
@@ -1034,7 +1038,13 @@ describe('DockerAdapter', () => {
 
       await expect(promise).rejects.toThrow();
 
+      // エラーイベントが発火されたことを確認
+      expect(errorHandler).toHaveBeenCalled();
+
       vi.useRealTimers();
+
+      // リスナーをクリーンアップ
+      adapter.off('error', errorHandler);
     });
 
     it('should retry health check if docker exec fails initially', async () => {
