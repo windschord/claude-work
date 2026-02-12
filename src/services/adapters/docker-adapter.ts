@@ -200,6 +200,61 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
   }
 
   /**
+   * Dockerコンテナが完全に起動するまで待機
+   */
+  private async waitForContainerReady(containerId: string): Promise<void> {
+    const execFileAsync = promisify(childProcess.execFile);
+    const maxRetries = 30;
+    const retryInterval = 1000; // 1秒
+    const timeout = 30000; // 30秒
+
+    logger.info(`Waiting for container ${containerId} to be ready`);
+
+    const startTime = Date.now();
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      // タイムアウトチェック
+      if (Date.now() - startTime > timeout) {
+        throw new Error(`Container ${containerId} failed to start within ${timeout}ms`);
+      }
+
+      try {
+        // コンテナの状態を確認
+        const { stdout } = await execFileAsync(
+          'docker',
+          ['inspect', '--format', '{{.State.Running}}', containerId],
+          { timeout: 5000 }
+        );
+
+        const isRunning = stdout.trim() === 'true';
+
+        if (isRunning) {
+          // 追加のヘルスチェック（コンテナ内でコマンドを実行）
+          try {
+            await execFileAsync(
+              'docker',
+              ['exec', containerId, 'echo', 'health-check'],
+              { timeout: 2000 }
+            );
+
+            logger.info(`Container ${containerId} is ready after ${attempt} attempts`);
+            return;
+          } catch {
+            logger.debug(`Container ${containerId} not fully ready, exec failed`);
+          }
+        }
+      } catch {
+        logger.debug(`Container ${containerId} inspection failed, retry ${attempt}/${maxRetries}`);
+      }
+
+      // 次の試行まで待機
+      await new Promise(resolve => setTimeout(resolve, retryInterval));
+    }
+
+    throw new Error(`Container ${containerId} health check failed after ${maxRetries} attempts`);
+  }
+
+  /**
    * Dockerコンテナを停止する（バックグラウンド実行）
    */
   private stopContainer(containerName: string): void {
@@ -399,6 +454,9 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
         hasReceivedOutput: false,
         shellMode: false,
       });
+
+      // コンテナ起動完了を待機（TASK-012）
+      await this.waitForContainerReady(containerName);
 
       // Session.container_idを更新
       db.update(schema.sessions)
