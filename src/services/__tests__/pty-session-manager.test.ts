@@ -141,16 +141,6 @@ describe('PTYSessionManager', () => {
     })
   })
 
-  describe('Stub Methods (TASK-008 pending)', () => {
-    it('should throw "Not implemented yet" for sendInput', () => {
-      expect(() => manager.sendInput('test-session', 'input data')).toThrow('Not implemented yet')
-    })
-
-    it('should throw "Not implemented yet" for resize', () => {
-      expect(() => manager.resize('test-session', 80, 24)).toThrow('Not implemented yet')
-    })
-  })
-
   describe('getConnectionCount', () => {
     it('should delegate to ConnectionManager', () => {
       const mockConnectionManager = {
@@ -732,8 +722,6 @@ describe('PTYSessionManager', () => {
 
         expect(mockPty.onData).toHaveBeenCalled()
         expect(mockPty.onExit).toHaveBeenCalled()
-        expect(mockConnectionManager.registerHandler).toHaveBeenCalledWith('handler-test', 'data', expect.any(Function))
-        expect(mockConnectionManager.registerHandler).toHaveBeenCalledWith('handler-test', 'exit', expect.any(Function))
       })
     })
 

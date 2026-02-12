@@ -186,6 +186,9 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
       const buffer = new ScrollbackBuffer()
       this.connectionManager.setScrollbackBuffer(sessionId, buffer)
 
+      // PTYイベントハンドラーを登録（セッションごとに1つ）
+      this.registerPTYHandlers(sessionId, pty)
+
       // データベースに記録
       await this.prisma.session.update({
         where: { id: sessionId },
@@ -365,17 +368,110 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
   /**
    * PTYに入力を送信
    */
-  sendInput(_sessionId: string, _data: string): void {
-    // TASK-008で実装予定
-    throw new Error('Not implemented yet')
+  sendInput(sessionId: string, data: string): void {
+    const session = this.sessions.get(sessionId)
+    if (!session) {
+      throw new Error(`Session ${sessionId} not found`)
+    }
+
+    session.pty.write(data)
+    session.lastActiveAt = new Date()
   }
 
   /**
    * PTYのサイズを変更
    */
-  resize(_sessionId: string, _cols: number, _rows: number): void {
-    // TASK-008で実装予定
-    throw new Error('Not implemented yet')
+  resize(sessionId: string, cols: number, rows: number): void {
+    const session = this.sessions.get(sessionId)
+    if (!session) {
+      throw new Error(`Session ${sessionId} not found`)
+    }
+
+    session.pty.resize(cols, rows)
+    logger.debug(`Resized session ${sessionId} to ${cols}x${rows}`)
+  }
+
+  /**
+   * PTYイベントハンドラーを登録
+   */
+  private registerPTYHandlers(sessionId: string, pty: IPty): void {
+    // データハンドラー（出力）
+    const dataHandler = (data: string) => {
+      this.handlePTYData(sessionId, data)
+    }
+
+    // 終了ハンドラー
+    const exitHandler = (exitCode: { exitCode: number; signal?: number }) => {
+      this.handlePTYExit(sessionId, exitCode.exitCode)
+    }
+
+    // ハンドラーを登録
+    pty.onData(dataHandler)
+    pty.onExit(exitHandler)
+
+    logger.debug(`Registered PTY handlers for session ${sessionId}`)
+  }
+
+  /**
+   * PTYデータハンドラー
+   */
+  private handlePTYData(sessionId: string, data: string): void {
+    const session = this.sessions.get(sessionId)
+    if (!session) {
+      logger.warn(`Received data for unknown session ${sessionId}`)
+      return
+    }
+
+    // 最終アクティブ時刻を更新
+    session.lastActiveAt = new Date()
+
+    // スクロールバックバッファに追加
+    const buffer = this.connectionManager.getScrollbackBuffer(sessionId)
+    if (buffer) {
+      buffer.append(data)
+    }
+
+    // 全接続にブロードキャスト
+    this.connectionManager.broadcast(sessionId, data)
+
+    // データベースの最終アクティブ時刻を更新（非同期、待機しない）
+    this.updateLastActiveTime(sessionId).catch(error => {
+      logger.error(`Failed to update last_active_at for ${sessionId}:`, error)
+    })
+  }
+
+  /**
+   * PTY終了ハンドラー
+   */
+  private handlePTYExit(sessionId: string, exitCode: number): void {
+    logger.info(`PTY exited for session ${sessionId} with code ${exitCode}`)
+
+    const session = this.sessions.get(sessionId)
+    if (!session) {
+      logger.warn(`PTY exit for unknown session ${sessionId}`)
+      return
+    }
+
+    // 接続中のクライアントに通知
+    this.connectionManager.broadcast(sessionId, JSON.stringify({
+      type: 'exit',
+      exitCode
+    }))
+
+    // セッションを破棄（非同期）
+    this.destroySession(sessionId).catch(error => {
+      logger.error(`Failed to destroy session after PTY exit:`, error)
+    })
+  }
+
+  /**
+   * データベースの最終アクティブ時刻を更新
+   */
+  private async updateLastActiveTime(sessionId: string): Promise<void> {
+    await this.prisma.session.update({
+      where: { id: sessionId },
+      data: { last_active_at: new Date() }
+    })
   }
 }
 
