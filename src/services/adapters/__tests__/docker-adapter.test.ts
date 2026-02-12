@@ -1102,6 +1102,125 @@ describe('DockerAdapter', () => {
     });
   });
 
+  describe('container ID persistence and orphan cleanup (TASK-014)', () => {
+    it('should persist container ID to database after spawn', async () => {
+      const sessionId = 'session-persist-id';
+      await adapter.createSession(sessionId, '/projects/test');
+
+      // container_idがDBに保存されることはすでに既存テストで確認済み
+      // ここでは、DockerAdapterが明示的にsaveContainerId()を呼ぶことを確認
+      expect(mockDbUpdate).toHaveBeenCalled();
+      expect(mockDbSet).toHaveBeenCalledWith(expect.objectContaining({
+        container_id: expect.stringMatching(/^claude-env-env-123-/),
+      }));
+    });
+
+    it('should clear container_id on cleanup', async () => {
+      const sessionId = 'session-clear-id';
+      await adapter.createSession(sessionId, '/projects/test');
+
+      mockDbUpdate.mockClear();
+      mockDbSet.mockClear();
+
+      adapter.destroySession(sessionId);
+
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      expect(mockDbUpdate).toHaveBeenCalled();
+      expect(mockDbSet).toHaveBeenCalledWith(expect.objectContaining({
+        container_id: null,
+      }));
+    });
+
+    it('should implement cleanupOrphanedContainers static method', async () => {
+      // cleanupOrphanedContainersは静的メソッドとして実装される
+      expect(typeof (adapter.constructor as any).cleanupOrphanedContainers).toBe('function');
+    });
+
+    it('cleanupOrphanedContainers should detect stopped containers', async () => {
+      const { db } = await import('@/lib/db');
+      const { schema } = await import('@/lib/db');
+
+      // モックDBからアクティブなセッションを返す
+      const mockSelect = vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            get: vi.fn().mockReturnValue([
+              { id: 'session-orphan-1', container_id: 'container-stopped-123' },
+            ]),
+          })),
+        })),
+      }));
+      (db.select as any) = mockSelect;
+
+      // docker inspectでコンテナが停止していることをシミュレート
+      mockExecFile.mockImplementation((cmd: string, args: string[], _opts: unknown, callback?: (error: Error | null, stdout: string, stderr: string) => void) => {
+        if (!callback) return;
+
+        if (args[0] === 'inspect' && args.includes('{{.State.Running}}')) {
+          // コンテナは停止中
+          callback(null, 'false\n', '');
+        } else if (args[0] === 'rm') {
+          // コンテナ削除
+          callback(null, '', '');
+        } else {
+          callback(null, '', '');
+        }
+      });
+
+      await (adapter.constructor as any).cleanupOrphanedContainers(db);
+
+      // セッション状態がERRORに更新されることを確認
+      expect(mockDbUpdate).toHaveBeenCalled();
+      expect(mockDbSet).toHaveBeenCalledWith(expect.objectContaining({
+        status: 'ERROR',
+        container_id: null,
+      }));
+
+      // docker rm が呼ばれることを確認
+      const rmCalls = mockExecFile.mock.calls.filter(
+        (call: unknown[]) => (call[1] as string[])[0] === 'rm'
+      );
+      expect(rmCalls.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('cleanupOrphanedContainers should handle missing containers', async () => {
+      const { db } = await import('@/lib/db');
+
+      const mockSelect = vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            get: vi.fn().mockReturnValue([
+              { id: 'session-missing-1', container_id: 'container-missing-456' },
+            ]),
+          })),
+        })),
+      }));
+      (db.select as any) = mockSelect;
+
+      // docker inspectがエラーを返す（コンテナが存在しない）
+      mockExecFile.mockImplementation((cmd: string, args: string[], _opts: unknown, callback?: (error: Error | null, stdout: string, stderr: string) => void) => {
+        if (!callback) return;
+
+        if (args[0] === 'inspect') {
+          callback(new Error('No such container'), '', '');
+        } else {
+          callback(null, '', '');
+        }
+      });
+
+      // エラーをスローしないことを確認
+      await expect((adapter.constructor as any).cleanupOrphanedContainers(db)).resolves.not.toThrow();
+
+      // セッション状態がERRORに更新されることを確認
+      expect(mockDbUpdate).toHaveBeenCalled();
+      expect(mockDbSet).toHaveBeenCalledWith(expect.objectContaining({
+        status: 'ERROR',
+        container_id: null,
+      }));
+    });
+  });
+
   describe('stopContainer Promise-based with error handling (TASK-013)', () => {
     it('should stop container successfully with 15s timeout', async () => {
       const sessionId = 'session-stop-promise-success';
