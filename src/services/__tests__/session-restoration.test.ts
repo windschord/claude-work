@@ -69,7 +69,7 @@ describe('Session Restoration', () => {
 
     it('should restore ACTIVE sessions from database', async () => {
       // データベースにACTIVEセッションを作成
-      const testSession = await db.insert(sessions).values({
+      const _testSession = await db.insert(sessions).values({
         id: 'active-session-1',
         project_id: 'test-project-1',
         name: 'test-restoration-session',
@@ -93,7 +93,7 @@ describe('Session Restoration', () => {
     it('should restore IDLE sessions from database', async () => {
       // データベースにIDLEセッションを作成
       const destroyAt = new Date(Date.now() + 30 * 60 * 1000) // 30分後
-      const testSession = await db.insert(sessions).values({
+      const _testSession = await db.insert(sessions).values({
         id: 'idle-session-1',
         project_id: 'test-project-1',
         name: 'test-restoration-session',

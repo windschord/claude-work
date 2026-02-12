@@ -7,6 +7,13 @@ import { logger } from '@/lib/logger'
 import { ScrollbackBuffer } from './scrollback-buffer'
 import type { ClaudeCodeOptions, CustomEnvVars } from './claude-options-service'
 import type WebSocket from 'ws'
+import { sessions } from '@/db/schema'
+import { eq, inArray } from 'drizzle-orm'
+import { promises as fs } from 'fs'
+import { exec } from 'child_process'
+import { promisify } from 'util'
+
+const execAsync = promisify(exec)
 
 /**
  * PTYセッション情報
@@ -563,6 +570,168 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
       where: { id: sessionId },
       data: { last_active_at: new Date() }
     })
+  }
+
+  /**
+   * PTYが存在するか確認
+   */
+  private async checkPTYExists(session: any): Promise<boolean> {
+    try {
+      // Worktreeが存在するか確認
+      const worktreeExists = await fs.access(session.worktree_path)
+        .then(() => true)
+        .catch(() => false)
+
+      if (!worktreeExists) {
+        logger.warn(`Worktree not found for session ${session.id}: ${session.worktree_path}`)
+        return false
+      }
+
+      // Docker環境の場合、コンテナが存在するか確認
+      if (session.container_id) {
+        const containerExists = await this.checkDockerContainerExists(session.container_id)
+        if (!containerExists) {
+          logger.warn(`Docker container not found for session ${session.id}: ${session.container_id}`)
+          return false
+        }
+      }
+
+      return true
+    } catch (error) {
+      logger.error(`Failed to check PTY existence for session ${session.id}:`, error)
+      return false
+    }
+  }
+
+  /**
+   * Dockerコンテナが存在するか確認
+   */
+  private async checkDockerContainerExists(containerId: string): Promise<boolean> {
+    try {
+      const { stdout } = await execAsync(`docker inspect ${containerId}`)
+      const containers = JSON.parse(stdout)
+      return containers.length > 0 && containers[0].State.Running
+    } catch (_error) {
+      return false
+    }
+  }
+
+  /**
+   * 孤立セッションをクリーンアップ
+   */
+  private async cleanupOrphanedSession(session: any): Promise<void> {
+    try {
+      logger.info(`Cleaning up orphaned session ${session.id}`)
+
+      // Dockerコンテナを削除（該当する場合）
+      if (session.container_id) {
+        try {
+          await execAsync(`docker rm -f ${session.container_id}`)
+          logger.info(`Removed Docker container for orphaned session ${session.id}`)
+        } catch (error) {
+          logger.error(`Failed to remove container ${session.container_id}:`, error)
+        }
+      }
+
+      // セッションをTERMINATED状態に更新
+      await db.update(sessions)
+        .set({
+          session_state: 'TERMINATED',
+          active_connections: 0,
+          destroy_at: null,
+          container_id: null,
+          updated_at: new Date()
+        })
+        .where(eq(sessions.id, session.id))
+
+      logger.info(`Cleaned up orphaned session ${session.id}`)
+    } catch (error) {
+      logger.error(`Failed to cleanup orphaned session ${session.id}:`, error)
+
+      // 最低限ERRORマークは付ける
+      await db.update(sessions)
+        .set({ session_state: 'ERROR', updated_at: new Date() })
+        .where(eq(sessions.id, session.id))
+        .catch(() => {})
+    }
+  }
+
+  /**
+   * タイマーを再設定
+   */
+  private async restoreDestroyTimer(sessionId: string, destroyAt: Date): Promise<void> {
+    const now = new Date()
+    const remainingMs = destroyAt.getTime() - now.getTime()
+
+    if (remainingMs <= 0) {
+      // 期限切れ、即座に破棄
+      logger.info(`Destroy timer expired for session ${sessionId}, destroying immediately`)
+      await this.destroySession(sessionId)
+    } else {
+      // タイマーを再設定
+      logger.info(`Restoring destroy timer for session ${sessionId}, remaining: ${remainingMs}ms`)
+      // タイマー設定はsetDestroyTimerメソッドが実装されている前提
+      // 現在は実装されていないため、ログのみ
+      logger.warn(`setDestroyTimer method not implemented yet for session ${sessionId}`)
+    }
+  }
+
+  /**
+   * サーバー起動時にセッションを復元
+   */
+  async restoreSessionsOnStartup(): Promise<void> {
+    const startTime = Date.now()
+    logger.info('Restoring sessions from database')
+
+    try {
+      // ACTIVE/IDLEセッションを取得
+      const sessionRecords = await db.select()
+        .from(sessions)
+        .where(inArray(sessions.session_state, ['ACTIVE', 'IDLE']))
+
+      logger.info(`Found ${sessionRecords.length} sessions to restore`)
+
+      for (const session of sessionRecords) {
+        try {
+          // PTYが存在するか確認
+          const ptyExists = await this.checkPTYExists(session)
+
+          if (ptyExists) {
+            // セッションを復元（現在は内部状態のみ復元）
+            logger.info(`Session ${session.id} PTY exists, skipping full restoration`)
+
+            // タイマーを再設定
+            if (session.destroy_at) {
+              await this.restoreDestroyTimer(session.id, session.destroy_at)
+            }
+
+            logger.info(`Restored session ${session.id}`)
+          } else {
+            // 孤立セッション
+            logger.warn(`Orphaned session detected: ${session.id}`)
+            await this.cleanupOrphanedSession(session)
+          }
+        } catch (error) {
+          logger.error(`Failed to restore session ${session.id}:`, error)
+
+          // セッションをERROR状態に更新
+          await db.update(sessions)
+            .set({ session_state: 'ERROR', updated_at: new Date() })
+            .where(eq(sessions.id, session.id))
+            .catch(() => {})
+        }
+      }
+
+      const duration = Date.now() - startTime
+      logger.info(`Session restoration completed in ${duration}ms`)
+
+      // パフォーマンス警告
+      if (duration > 10000) {
+        logger.warn(`Session restoration took longer than 10 seconds: ${duration}ms`)
+      }
+    } catch (error) {
+      logger.error('Failed to restore sessions on startup:', error)
+    }
   }
 }
 
