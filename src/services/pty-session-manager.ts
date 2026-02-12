@@ -130,33 +130,229 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
    * @throws セッションが既に存在する場合
    * @throws 環境が見つからない場合
    */
-  async createSession(_options: SessionOptions): Promise<PTYSession> {
-    // TASK-007で実装予定
-    throw new Error('Not implemented yet')
+  async createSession(options: SessionOptions): Promise<PTYSession> {
+    const { sessionId, projectId, environmentId, worktreePath, branchName, cols, rows } = options
+
+    // 既存セッションのチェック
+    if (this.sessions.has(sessionId)) {
+      throw new Error(`Session ${sessionId} already exists`)
+    }
+
+    logger.info(`Creating session ${sessionId} for environment ${environmentId}`)
+
+    try {
+      // 環境情報を取得
+      const environment = await this.prisma.executionEnvironment.findUnique({
+        where: { id: environmentId }
+      })
+
+      if (!environment) {
+        throw new Error(`Environment ${environmentId} not found`)
+      }
+
+      // アダプターを取得
+      const adapter = await this.adapterFactory.getAdapter(environment.type)
+
+      // PTYを作成
+      const pty = await adapter.spawn({
+        sessionId,
+        cwd: worktreePath,
+        cols: cols || 80,
+        rows: rows || 24,
+        environmentId
+      })
+
+      // セッション情報を作成
+      const session: PTYSession = {
+        id: sessionId,
+        pty,
+        adapter,
+        environmentType: environment.type as 'HOST' | 'DOCKER' | 'SSH',
+        metadata: {
+          projectId,
+          branchName,
+          worktreePath,
+          environmentId
+        },
+        createdAt: new Date(),
+        lastActiveAt: new Date()
+      }
+
+      // セッションを登録
+      this.sessions.set(sessionId, session)
+
+      // スクロールバックバッファを設定
+      const ScrollbackBuffer = (await import('./scrollback-buffer')).ScrollbackBuffer
+      const buffer = new ScrollbackBuffer()
+      this.connectionManager.setScrollbackBuffer(sessionId, buffer)
+
+      // データベースに記録
+      await this.prisma.session.update({
+        where: { id: sessionId },
+        data: {
+          status: 'ACTIVE',
+          last_active_at: new Date()
+        }
+      })
+
+      // イベントを発火
+      this.emit('sessionCreated', sessionId)
+
+      logger.info(`Session ${sessionId} created successfully`)
+      return session
+    } catch (error) {
+      logger.error(`Failed to create session ${sessionId}:`, error)
+
+      // 部分的に作成されたリソースをクリーンアップ
+      await this.cleanupFailedSession(sessionId)
+
+      throw error
+    }
   }
 
   /**
    * セッションを破棄
    */
-  async destroySession(_sessionId: string): Promise<void> {
-    // TASK-007で実装予定
-    throw new Error('Not implemented yet')
+  async destroySession(sessionId: string): Promise<void> {
+    const session = this.sessions.get(sessionId)
+    if (!session) {
+      logger.warn(`Session ${sessionId} not found for destruction`)
+      return
+    }
+
+    logger.info(`Destroying session ${sessionId}`)
+
+    try {
+      // 全接続を切断
+      const connections = this.connectionManager.getConnections(sessionId)
+      for (const ws of connections) {
+        try {
+          ws.close(1000, 'Session destroyed')
+        } catch (error) {
+          logger.error(`Failed to close connection:`, error)
+        }
+      }
+
+      // ConnectionManagerのクリーンアップ
+      this.connectionManager.cleanup(sessionId)
+
+      // PTYを終了
+      try {
+        session.pty.kill()
+      } catch (error) {
+        logger.error(`Failed to kill PTY for ${sessionId}:`, error)
+      }
+
+      // アダプターのクリーンアップ
+      try {
+        await session.adapter.cleanup(sessionId)
+      } catch (error) {
+        logger.error(`Failed to cleanup adapter for ${sessionId}:`, error)
+      }
+
+      // セッションをマップから削除
+      this.sessions.delete(sessionId)
+
+      // データベースを更新
+      await this.prisma.session.update({
+        where: { id: sessionId },
+        data: {
+          status: 'TERMINATED',
+          active_connections: 0
+        }
+      })
+
+      // イベントを発火
+      this.emit('sessionDestroyed', sessionId)
+
+      logger.info(`Session ${sessionId} destroyed successfully`)
+    } catch (error) {
+      logger.error(`Error during session ${sessionId} destruction:`, error)
+      this.emit('sessionError', sessionId, error as Error)
+      throw error
+    }
   }
 
   /**
    * WebSocket接続を追加
    */
-  addConnection(_sessionId: string, _ws: WebSocket): void {
-    // TASK-007で実装予定
-    throw new Error('Not implemented yet')
+  addConnection(sessionId: string, ws: WebSocket): void {
+    const session = this.sessions.get(sessionId)
+    if (!session) {
+      throw new Error(`Session ${sessionId} not found`)
+    }
+
+    // ConnectionManagerに委譲
+    this.connectionManager.addConnection(sessionId, ws)
+
+    // データベースの接続数を更新
+    this.updateConnectionCount(sessionId).catch(error => {
+      logger.error(`Failed to update connection count:`, error)
+    })
   }
 
   /**
    * WebSocket接続を削除
    */
-  removeConnection(_sessionId: string, _ws: WebSocket): void {
-    // TASK-007で実装予定
-    throw new Error('Not implemented yet')
+  removeConnection(sessionId: string, ws: WebSocket): void {
+    this.connectionManager.removeConnection(sessionId, ws)
+
+    // データベースの接続数を更新
+    this.updateConnectionCount(sessionId).catch(error => {
+      logger.error(`Failed to update connection count:`, error)
+    })
+  }
+
+  /**
+   * 失敗したセッションのクリーンアップ
+   */
+  private async cleanupFailedSession(sessionId: string): Promise<void> {
+    try {
+      const session = this.sessions.get(sessionId)
+      if (session) {
+        // PTYが存在すれば終了
+        if (session.pty) {
+          try {
+            session.pty.kill()
+          } catch (error) {
+            logger.error(`Failed to kill PTY during cleanup:`, error)
+          }
+        }
+
+        // アダプターのクリーンアップ
+        if (session.adapter) {
+          try {
+            await session.adapter.cleanup(sessionId)
+          } catch (error) {
+            logger.error(`Failed to cleanup adapter during cleanup:`, error)
+          }
+        }
+
+        this.sessions.delete(sessionId)
+      }
+
+      // ConnectionManagerのクリーンアップ
+      this.connectionManager.cleanup(sessionId)
+
+      // データベースの状態を更新
+      await this.prisma.session.update({
+        where: { id: sessionId },
+        data: { status: 'ERROR' }
+      })
+    } catch (error) {
+      logger.error(`Error during failed session cleanup:`, error)
+    }
+  }
+
+  /**
+   * データベースの接続数を更新
+   */
+  private async updateConnectionCount(sessionId: string): Promise<void> {
+    const count = this.connectionManager.getConnectionCount(sessionId)
+    await this.prisma.session.update({
+      where: { id: sessionId },
+      data: { active_connections: count }
+    })
   }
 
   /**

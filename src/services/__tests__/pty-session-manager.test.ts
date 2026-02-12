@@ -141,33 +141,7 @@ describe('PTYSessionManager', () => {
     })
   })
 
-  describe('Stub Methods', () => {
-    it('should throw "Not implemented yet" for createSession', async () => {
-      await expect(manager.createSession({
-        sessionId: 'test-session',
-        projectId: 'project1',
-        branchName: 'main',
-        worktreePath: '/path/to/worktree',
-        environmentId: 'env1'
-      })).rejects.toThrow('Not implemented yet')
-    })
-
-    it('should throw "Not implemented yet" for destroySession', async () => {
-      await expect(manager.destroySession('test-session')).rejects.toThrow('Not implemented yet')
-    })
-
-    it('should throw "Not implemented yet" for addConnection', () => {
-      const mockWs = {} as any
-
-      expect(() => manager.addConnection('test-session', mockWs)).toThrow('Not implemented yet')
-    })
-
-    it('should throw "Not implemented yet" for removeConnection', () => {
-      const mockWs = {} as any
-
-      expect(() => manager.removeConnection('test-session', mockWs)).toThrow('Not implemented yet')
-    })
-
+  describe('Stub Methods (TASK-008 pending)', () => {
     it('should throw "Not implemented yet" for sendInput', () => {
       expect(() => manager.sendInput('test-session', 'input data')).toThrow('Not implemented yet')
     })
