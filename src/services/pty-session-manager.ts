@@ -5,6 +5,7 @@ import { EnvironmentAdapter, PTYExitInfo } from './environment-adapter'
 import { db } from '@/lib/db'
 import { logger } from '@/lib/logger'
 import { ScrollbackBuffer } from './scrollback-buffer'
+import type { ClaudeCodeOptions, CustomEnvVars } from './claude-options-service'
 import type WebSocket from 'ws'
 
 /**
@@ -40,6 +41,8 @@ export interface SessionOptions {
   environmentId: string
   initialPrompt?: string
   resumeSessionId?: string
+  claudeCodeOptions?: ClaudeCodeOptions
+  customEnvVars?: CustomEnvVars
   cols?: number
   rows?: number
 }
@@ -129,7 +132,17 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
    * @throws 環境が見つからない場合
    */
   async createSession(options: SessionOptions): Promise<PTYSession> {
-    const { sessionId, projectId, environmentId, worktreePath, branchName, initialPrompt, resumeSessionId } = options
+    const {
+      sessionId,
+      projectId,
+      environmentId,
+      worktreePath,
+      branchName,
+      initialPrompt,
+      resumeSessionId,
+      claudeCodeOptions,
+      customEnvVars
+    } = options
 
     // 既存セッションのチェック
     if (this.sessions.has(sessionId)) {
@@ -157,7 +170,9 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
         worktreePath,
         initialPrompt,
         {
-          resumeSessionId
+          resumeSessionId,
+          claudeCodeOptions,
+          customEnvVars
         }
       )
 
@@ -353,15 +368,24 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
       }
     }
 
+    // ClaudeセッションIDハンドラー
+    const claudeSessionIdHandler = (sid: string, claudeSessionId: string) => {
+      if (sid === sessionId) {
+        this.handleClaudeSessionId(sessionId, claudeSessionId)
+      }
+    }
+
     // ハンドラーを登録
     adapter.on('data', dataHandler)
     adapter.on('exit', exitHandler)
     adapter.on('error', errorHandler)
+    adapter.on('claudeSessionId', claudeSessionIdHandler)
 
     // ハンドラーを記録（解除時に使用）
     this.connectionManager.registerHandler(sessionId, 'data', dataHandler)
     this.connectionManager.registerHandler(sessionId, 'exit', exitHandler)
     this.connectionManager.registerHandler(sessionId, 'error', errorHandler)
+    this.connectionManager.registerHandler(sessionId, 'claudeSessionId', claudeSessionIdHandler)
 
     logger.debug(`Registered adapter handlers for session ${sessionId}`)
   }
@@ -373,6 +397,7 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
     const dataHandler = this.connectionManager.hasHandler(sessionId, 'data')
     const exitHandler = this.connectionManager.hasHandler(sessionId, 'exit')
     const errorHandler = this.connectionManager.hasHandler(sessionId, 'error')
+    const claudeSessionIdHandler = this.connectionManager.hasHandler(sessionId, 'claudeSessionId')
 
     if (dataHandler) {
       adapter.off('data', dataHandler)
@@ -387,6 +412,11 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
     if (errorHandler) {
       adapter.off('error', errorHandler)
       this.connectionManager.unregisterHandler(sessionId, 'error')
+    }
+
+    if (claudeSessionIdHandler) {
+      adapter.off('claudeSessionId', claudeSessionIdHandler)
+      this.connectionManager.unregisterHandler(sessionId, 'claudeSessionId')
     }
 
     logger.debug(`Unregistered adapter handlers for session ${sessionId}`)
@@ -464,6 +494,21 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
 
     // sessionErrorイベントを発火
     this.emit('sessionError', sessionId, error)
+  }
+
+  /**
+   * ClaudeセッションIDハンドラー
+   */
+  private handleClaudeSessionId(sessionId: string, claudeSessionId: string): void {
+    logger.info(`Claude session ID detected for ${sessionId}: ${claudeSessionId}`)
+
+    // データベースにClaude session IDを保存
+    db.session.update({
+      where: { id: sessionId },
+      data: { resume_session_id: claudeSessionId }
+    }).catch(error => {
+      logger.error(`Failed to save Claude session ID for ${sessionId}:`, error)
+    })
   }
 
   /**
