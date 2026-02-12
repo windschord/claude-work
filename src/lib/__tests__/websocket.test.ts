@@ -12,7 +12,8 @@ describe('WebSocket Server', () => {
     let mockWs2: any;
 
     beforeEach(() => {
-      manager = new ConnectionManager();
+      ConnectionManager.resetInstance();
+      manager = ConnectionManager.getInstance();
       mockWs1 = {
         readyState: 1, // WebSocket.OPEN
         send: vi.fn(),
@@ -107,7 +108,8 @@ describe('WebSocket Server', () => {
     let mockWs: any;
 
     beforeEach(() => {
-      manager = new ConnectionManager();
+      ConnectionManager.resetInstance();
+      manager = ConnectionManager.getInstance();
       handler = new SessionWebSocketHandler(manager);
       mockWs = {
         readyState: 1,

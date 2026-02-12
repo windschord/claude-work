@@ -39,6 +39,24 @@ export class ConnectionManager extends EventEmitter {
   }
 
   /**
+   * シングルトンインスタンスをリセット（テスト用）
+   *
+   * @internal テスト以外での使用は推奨されません
+   */
+  static resetInstance(): void {
+    if (ConnectionManager.instance) {
+      // すべての接続をクリーンアップ
+      ConnectionManager.instance.connections.forEach((_, sessionId) => {
+        ConnectionManager.instance.closeAllConnections(sessionId);
+      });
+      ConnectionManager.instance.connections.clear();
+      ConnectionManager.instance.scrollbackBuffers.clear();
+      ConnectionManager.instance.eventHandlers.clear();
+    }
+    ConnectionManager.instance = null as any;
+  }
+
+  /**
    * 接続を追加
    *
    * 指定されたセッションIDに新しいWebSocket接続を追加します。

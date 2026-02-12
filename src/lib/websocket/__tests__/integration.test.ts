@@ -41,7 +41,8 @@ describe('WebSocket Connection Management Integration', () => {
   let connectionManager: ConnectionManager;
 
   beforeEach(() => {
-    connectionManager = new ConnectionManager();
+    ConnectionManager.resetInstance();
+    connectionManager = ConnectionManager.getInstance();
     vi.clearAllMocks();
   });
 

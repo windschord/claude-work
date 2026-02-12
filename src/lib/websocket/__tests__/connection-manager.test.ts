@@ -20,7 +20,8 @@ describe('ConnectionManager - 接続プール管理', () => {
   let manager: ConnectionManager;
 
   beforeEach(() => {
-    manager = new ConnectionManager();
+    ConnectionManager.resetInstance();
+    manager = ConnectionManager.getInstance();
   });
 
   describe('addConnection', () => {
