@@ -74,8 +74,8 @@
 | ConnectionManager | src/lib/websocket/connection-manager.ts | WebSocket接続プール管理（拡張） | [詳細](components/connection-manager.md) @components/connection-manager.md |
 | PTYSessionManager | src/services/pty-session-manager.ts | PTYセッション統合管理（新規） | [詳細](components/pty-session-manager.md) @components/pty-session-manager.md |
 | DockerAdapter | src/services/adapters/docker-adapter.ts | Docker環境アダプター（改善） | [詳細](components/docker-adapter.md) @components/docker-adapter.md |
-| ClaudeWebSocket | src/lib/websocket/claude-ws.ts | Claude WebSocketハンドラー（修正） | [詳細](components/claude-websocket.md) @components/claude-websocket.md |
-| TerminalWebSocket | src/lib/websocket/terminal-ws.ts | Terminal WebSocketハンドラー（修正） | [詳細](components/terminal-websocket.md) @components/terminal-websocket.md |
+| ClaudeWebSocket | src/lib/websocket/claude-ws.ts | Claude WebSocketハンドラー（修正） | [ソース](../../src/lib/websocket/claude-ws.ts) |
+| TerminalWebSocket | src/lib/websocket/terminal-ws.ts | Terminal WebSocketハンドラー（修正） | [ソース](../../src/lib/websocket/terminal-ws.ts) |
 | SessionDatabase | prisma/schema.prisma | セッション状態永続化（拡張） | [詳細](database/schema.md) @database/schema.md |
 
 ## データフロー

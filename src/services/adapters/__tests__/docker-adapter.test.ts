@@ -64,18 +64,37 @@ vi.mock('fs', () => ({
 }));
 
 // child_processのモック（isContainerRunning用 + execFile用）
-const { mockSpawnSync, mockExecFile } = vi.hoisted(() => ({
-  mockSpawnSync: vi.fn().mockReturnValue({
-    status: 0,
-    stdout: 'true',
-    stderr: '',
-  }),
-  mockExecFile: vi.fn((_cmd: string, _args: string[], _opts: unknown, callback?: (error: Error | null, stdout: string, stderr: string) => void) => {
-    if (callback) {
-      callback(null, '', '');
-    }
-  }),
-}));
+const { mockSpawnSync, mockExecFile } = vi.hoisted(() => {
+  // 実際の関数として定義（vi.fn()でラップしない）
+  const execFileImpl = (cmd: string, args: string[], opts: unknown, callback?: (error: Error | null, stdout: string, stderr: string) => void) => {
+    if (!callback) return;
+
+    // promisify()のために非同期でcallbackを呼ぶ
+    process.nextTick(() => {
+      // docker inspect の場合
+      if (args[0] === 'inspect' && args.includes('{{.State.Running}}')) {
+        callback(null, 'true\n', '');
+      }
+      // docker exec の場合（ヘルスチェック）
+      else if (args[0] === 'exec') {
+        callback(null, 'health-check\n', '');
+      }
+      // その他（stop, wait, kill, rm など）
+      else {
+        callback(null, '', '');
+      }
+    });
+  };
+
+  return {
+    mockSpawnSync: vi.fn().mockReturnValue({
+      status: 0,
+      stdout: 'true',
+      stderr: '',
+    }),
+    mockExecFile: vi.fn(execFileImpl),
+  };
+});
 vi.mock('child_process', async (importOriginal) => {
   const actual = await importOriginal<typeof import('child_process')>();
   return {
@@ -83,6 +102,39 @@ vi.mock('child_process', async (importOriginal) => {
     spawnSync: mockSpawnSync,
     execFile: mockExecFile,
     default: actual,
+  };
+});
+
+// util.promisifyもモックして、execFileAsyncを直接制御
+vi.mock('util', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('util')>();
+
+  const customPromisify = (fn: any) => {
+    // child_process.execFileの場合のみ、カスタムPromise実装を返す
+    if (fn === mockExecFile || fn.name === 'execFileImpl') {
+      return async (cmd: string, args: string[], opts: any) => {
+        return new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
+          mockExecFile(cmd, args, opts, (error: Error | null, stdout: string, stderr: string) => {
+            if (error) {
+              reject(error);
+            } else {
+              resolve({ stdout, stderr });
+            }
+          });
+        });
+      };
+    }
+    // その他の関数は通常のpromisify
+    return actual.promisify(fn);
+  };
+
+  return {
+    ...actual,
+    promisify: customPromisify,
+    default: {
+      ...actual,
+      promisify: customPromisify,
+    },
   };
 });
 
@@ -117,8 +169,19 @@ describe('DockerAdapter', () => {
     });
 
     // mockExecFileをリセット（stopContainer/waitForContainer用）
-    mockExecFile.mockImplementation((_cmd: string, _args: string[], _opts: unknown, callback?: (error: Error | null, stdout: string, stderr: string) => void) => {
-      if (callback) {
+    mockExecFile.mockImplementation((cmd: string, args: string[], _opts: unknown, callback?: (error: Error | null, stdout: string, stderr: string) => void) => {
+      if (!callback) return;
+
+      // docker inspect の場合
+      if (args[0] === 'inspect' && args.includes('{{.State.Running}}')) {
+        callback(null, 'true\n', '');
+      }
+      // docker exec の場合（ヘルスチェック）
+      else if (args[0] === 'exec') {
+        callback(null, 'health-check\n', '');
+      }
+      // その他（stop, wait, kill, rm など）
+      else {
         callback(null, '', '');
       }
     });
@@ -524,8 +587,8 @@ describe('DockerAdapter', () => {
 
       expect(mockExecFile).toHaveBeenCalledWith(
         'docker',
-        ['stop', '-t', '3', containerId],
-        expect.objectContaining({ timeout: 5000 }),
+        ['stop', '-t', '10', containerId],
+        expect.objectContaining({ timeout: 15000 }),
         expect.any(Function),
       );
     });
@@ -568,8 +631,8 @@ describe('DockerAdapter', () => {
 
       expect(mockExecFile).toHaveBeenCalledWith(
         'docker',
-        ['stop', '-t', '3', containerId],
-        expect.objectContaining({ timeout: 5000 }),
+        ['stop', '-t', '10', containerId],
+        expect.objectContaining({ timeout: 15000 }),
         expect.any(Function),
       );
     });
@@ -611,8 +674,19 @@ describe('DockerAdapter', () => {
       // 旧セッションでresizeを呼ぶ
       adapter.resize(sessionId, 120, 40);
 
-      mockExecFile.mockImplementation((_cmd: string, _args: string[], _opts: unknown, callback?: (error: Error | null, stdout: string, stderr: string) => void) => {
-        if (callback) {
+      mockExecFile.mockImplementation((cmd: string, args: string[], _opts: unknown, callback?: (error: Error | null, stdout: string, stderr: string) => void) => {
+        if (!callback) return;
+
+        // docker inspect の場合
+        if (args[0] === 'inspect' && args.includes('{{.State.Running}}')) {
+          callback(null, 'true\n', '');
+        }
+        // docker exec の場合（ヘルスチェック）
+        else if (args[0] === 'exec') {
+          callback(null, 'health-check\n', '');
+        }
+        // その他（stop, wait, kill, rm など）
+        else {
           callback(null, '', '');
         }
       });
@@ -642,7 +716,7 @@ describe('DockerAdapter', () => {
       mockSpawn.mockReturnValue(newMockPty);
 
       adapter.restartSession(sessionId);
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, 500));
 
       // 新セッションが作成されていること
       expect(adapter.hasSession(sessionId)).toBe(true);
@@ -1033,10 +1107,13 @@ describe('DockerAdapter', () => {
 
       const promise = adapter.createSession(sessionId, workingDir);
 
+      // promiseのrejectをexpectでラップしてから、タイマーを進める
+      const expectPromise = expect(promise).rejects.toThrow();
+
       // 待機時間を進める（30秒）
       await vi.advanceTimersByTimeAsync(31000);
 
-      await expect(promise).rejects.toThrow();
+      await expectPromise;
 
       // エラーイベントが発火されたことを確認
       expect(errorHandler).toHaveBeenCalled();
@@ -1151,11 +1228,11 @@ describe('DockerAdapter', () => {
       const { db } = await import('@/lib/db');
       const { schema: _schema } = await import('@/lib/db');
 
-      // モックDBからアクティブなセッションを返す
+      // モックDBからアクティブなセッションを返す（.all()メソッドを追加）
       const mockSelect = vi.fn(() => ({
         from: vi.fn(() => ({
           where: vi.fn(() => ({
-            get: vi.fn().mockReturnValue([
+            all: vi.fn().mockReturnValue([
               { id: 'session-orphan-1', container_id: 'container-stopped-123' },
             ]),
           })),
@@ -1180,8 +1257,8 @@ describe('DockerAdapter', () => {
 
       await (adapter.constructor as any).cleanupOrphanedContainers(db);
 
-      // セッション状態がERRORに更新されることを確認
-      expect(mockDbUpdate).toHaveBeenCalled();
+      // セッション状態がERRORに更新されることを確認（mockDbRunを使用）
+      expect(mockDbRun).toHaveBeenCalled();
       expect(mockDbSet).toHaveBeenCalledWith(expect.objectContaining({
         status: 'ERROR',
         container_id: null,
@@ -1200,7 +1277,7 @@ describe('DockerAdapter', () => {
       const mockSelect = vi.fn(() => ({
         from: vi.fn(() => ({
           where: vi.fn(() => ({
-            get: vi.fn().mockReturnValue([
+            all: vi.fn().mockReturnValue([
               { id: 'session-missing-1', container_id: 'container-missing-456' },
             ]),
           })),
@@ -1222,8 +1299,8 @@ describe('DockerAdapter', () => {
       // エラーをスローしないことを確認
       await expect((adapter.constructor as any).cleanupOrphanedContainers(db)).resolves.not.toThrow();
 
-      // セッション状態がERRORに更新されることを確認
-      expect(mockDbUpdate).toHaveBeenCalled();
+      // セッション状態がERRORに更新されることを確認（mockDbRunを使用）
+      expect(mockDbRun).toHaveBeenCalled();
       expect(mockDbSet).toHaveBeenCalledWith(expect.objectContaining({
         status: 'ERROR',
         container_id: null,

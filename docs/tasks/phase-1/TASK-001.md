@@ -147,19 +147,16 @@ npm test -- src/lib/websocket/__tests__/connection-manager.test.ts
 
 ```bash
 git add src/lib/websocket/connection-manager.ts
-git commit -m "feat(TASK-001): extend ConnectionManager for unified WebSocket management
-
-- Add connection pool management (Map<sessionId, Set<WebSocket>>)
-- Add broadcast() method for sending to all connections
-- Add event handler management (registerHandler/unregisterHandler)
-- Add scrollback buffer management
-- Add cleanup() method for resource cleanup
-- Add metrics collection
-- Emit 'allConnectionsClosed' event when last connection closes
-
-Implements: REQ-001-001, REQ-001-003, REQ-001-005, REQ-001-007
-
-Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
+git commit -m "feat(TASK-001): extend ConnectionManager for unified WebSocket management" \
+  -m "Add connection pool management (Map<sessionId, Set<WebSocket>>)" \
+  -m "Add broadcast() method for sending to all connections" \
+  -m "Add event handler management (registerHandler/unregisterHandler)" \
+  -m "Add scrollback buffer management" \
+  -m "Add cleanup() method for resource cleanup" \
+  -m "Add metrics collection" \
+  -m "Emit 'allConnectionsClosed' event when last connection closes" \
+  -m "Implements: REQ-001-001, REQ-001-003, REQ-001-005, REQ-001-007" \
+  -m "Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
 ```
 
 ## 受入基準
