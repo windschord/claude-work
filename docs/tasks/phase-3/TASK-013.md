@@ -6,7 +6,7 @@
 - **フェーズ**: Phase 3 - Docker環境の安定化
 - **優先度**: 高
 - **推定工数**: 40分
-- **ステータス**: IN_PROGRESS
+- **ステータス**: DONE
 - **担当者**: 未割り当て
 
 ## 概要
@@ -262,6 +262,15 @@ private getStopTimeout(sessionId: string): number {
   return 10 // デフォルト
 }
 ```
+
+## 完了サマリ
+
+- `stopContainer()`メソッドをPromise化し、同期的なコンテナ停止を実装
+- `docker stop -t 10`を使用し、15秒のタイムアウトを設定
+- 停止失敗時に`docker kill`で強制終了するフォールバック処理を実装
+- "No such container"および"is not running"エラーを適切に処理
+- エラーをログに記録するがスローしない実装により、後続処理の継続を保証
+- `destroySession()`および`onExit`ハンドラーで`stopContainer()`を呼び出す実装を改善
 
 ## 参照
 
