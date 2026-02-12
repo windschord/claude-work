@@ -81,10 +81,15 @@ vi.mock('@/lib/logger', () => ({
 const { mockFsAccess, mockExistsSync, mockMkdirSync } = vi.hoisted(() => {
   return {
     mockFsAccess: vi.fn((path: string) => {
-      if (path.includes('/nonexistent/') || !path.includes('/test/worktree')) {
+      if (path.includes('/nonexistent/')) {
         return Promise.reject(new Error('ENOENT: no such file or directory'))
       }
-      return Promise.resolve()
+      // /test/worktree を含むパスは存在するものとする
+      if (path.includes('/test/worktree')) {
+        return Promise.resolve()
+      }
+      // その他のパスは存在しない
+      return Promise.reject(new Error('ENOENT: no such file or directory'))
     }),
     mockExistsSync: vi.fn(() => true),
     mockMkdirSync: vi.fn()
@@ -115,6 +120,26 @@ vi.mock('fs', async () => {
   }
 })
 
+// child_processモジュールをモック（execAsyncで使用）
+// Docker container検証をスキップするため、execは常に失敗するようにする
+vi.mock('child_process', async () => {
+  const actual = await vi.importActual<typeof import('child_process')>('child_process')
+  const mockExec = vi.fn((cmd, callback) => {
+    // Docker container検証は常に失敗
+    if (callback) {
+      callback(new Error('Command failed'), '', 'Error')
+    }
+  })
+  return {
+    default: {
+      ...actual,
+      exec: mockExec
+    },
+    ...actual,
+    exec: mockExec
+  }
+})
+
 describe('TASK-019: State Management Integration Tests', () => {
   let manager: PTYSessionManager
   let testProjectId: string
@@ -126,9 +151,41 @@ describe('TASK-019: State Management Integration Tests', () => {
     vi.clearAllMocks()
     manager = PTYSessionManager.getInstance()
 
+    // checkPTYExistsメソッドをモック
+    // worktree_pathに基づいて存在するかどうかを判定
+    vi.spyOn(manager as any, 'checkPTYExists').mockImplementation(async (session: any) => {
+      // /nonexistent/ を含むパスは存在しない
+      if (session.worktree_path.includes('/nonexistent/')) {
+        return false
+      }
+      // /test/worktree を含むパスは存在する
+      if (session.worktree_path.includes('/test/worktree')) {
+        return true
+      }
+      // その他のパスは存在しない
+      return false
+    })
+
+    // checkDockerContainerExistsも条件付きでモック
+    vi.spyOn(manager as any, 'checkDockerContainerExists').mockImplementation(async (containerId: string) => {
+      // test-container-id は存在する
+      if (containerId === 'test-container-id') {
+        return true
+      }
+      // その他は存在しない
+      return false
+    })
+
     // AdapterFactoryからモックアダプターを取得
     const { AdapterFactory } = await import('../adapter-factory')
     mockAdapter = AdapterFactory.getAdapter({} as any)
+
+    // モックアダプターの状態をリセット
+    mockAdapter.hasSession.mockReturnValue(true)
+    mockAdapter.createSession.mockResolvedValue(undefined)
+    mockAdapter.destroySession.mockClear()
+    mockAdapter.write.mockClear()
+    mockAdapter.resize.mockClear()
 
     // テスト用プロジェクトを作成
     const [project] = await db.insert(projects).values({
