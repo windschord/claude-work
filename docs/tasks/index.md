@@ -8,11 +8,11 @@
 
 | フェーズ | タスク数 | 完了 | 進行中 | 未着手 | 推定工数 |
 |---------|---------|------|--------|--------|---------|
-| Phase 1 | 5 | 5 | 0 | 0 | 4時間 |
-| Phase 2 | 6 | 6 | 0 | 0 | 6時間 |
-| Phase 3 | 4 | 4 | 0 | 0 | 3.5時間 |
-| Phase 4 | 4 | 4 | 0 | 0 | 3時間 |
-| **合計** | **19** | **19** | **0** | **0** | **16.5時間** |
+| Phase 1 | 5 | 1 | 0 | 4 | 4時間 |
+| Phase 2 | 6 | 0 | 0 | 6 | 6時間 |
+| Phase 3 | 4 | 0 | 0 | 4 | 3.5時間 |
+| Phase 4 | 4 | 0 | 0 | 4 | 3時間 |
+| **合計** | **19** | **1** | **0** | **18** | **16.5時間** |
 
 ## フェーズ構成
 
@@ -101,9 +101,8 @@ git commit -m "test(TASK-XXX): [テストの説明]"
 
 # 実装コミット
 git add <impl-file>
-git commit -m "feat(TASK-XXX): [機能の説明]
-
-Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
+git commit -m "feat(TASK-XXX): [機能の説明]" \
+  -m "Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
 ```
 
 ### 並行実行の可能性
