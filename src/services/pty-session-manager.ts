@@ -165,8 +165,8 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
 
     try {
       // 環境情報を取得
-      const environment = await db.executionEnvironment.findUnique({
-        where: { id: environmentId }
+      const environment = await db.query.executionEnvironments.findFirst({
+        where: (environments, { eq }) => eq(environments.id, environmentId)
       })
 
       if (!environment) {
@@ -411,10 +411,10 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
    * アダプターのイベントハンドラーを解除
    */
   private unregisterAdapterHandlers(sessionId: string, adapter: EnvironmentAdapter): void {
-    const dataHandler = this.connectionManager.hasHandler(sessionId, 'data')
-    const exitHandler = this.connectionManager.hasHandler(sessionId, 'exit')
-    const errorHandler = this.connectionManager.hasHandler(sessionId, 'error')
-    const claudeSessionIdHandler = this.connectionManager.hasHandler(sessionId, 'claudeSessionId')
+    const dataHandler = this.connectionManager.getHandler(sessionId, 'data')
+    const exitHandler = this.connectionManager.getHandler(sessionId, 'exit')
+    const errorHandler = this.connectionManager.getHandler(sessionId, 'error')
+    const claudeSessionIdHandler = this.connectionManager.getHandler(sessionId, 'claudeSessionId')
 
     if (dataHandler) {
       adapter.off('data', dataHandler)
@@ -455,7 +455,7 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
     // スクロールバックバッファに追加
     const buffer = this.connectionManager.getScrollbackBuffer(sessionId)
     if (buffer) {
-      buffer.append(data)
+      buffer.append(sessionId, data)
     }
 
     // 全接続にブロードキャスト

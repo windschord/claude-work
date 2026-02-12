@@ -63,7 +63,7 @@ const TERMINAL_SESSION_SUFFIX = '-terminal';
  * ConnectionManagerインスタンス（接続プール管理）
  * Claude WebSocketと同じインスタンスを共有して統一的な接続管理を行う
  */
-const connectionManager = new ConnectionManager();
+const connectionManager = ConnectionManager.getInstance();
 
 /**
  * PTY破棄タイマー管理

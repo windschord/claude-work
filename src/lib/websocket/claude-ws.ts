@@ -333,6 +333,9 @@ export function setupClaudeWebSocket(
             });
           }
 
+          // ターミナルサイズを取得
+          const terminalSize: { cols: number; rows: number } = pendingResize ?? { cols: 80, rows: 24 };
+
           // PTYSessionManager経由でセッション作成
           await ptySessionManager.createSession({
             sessionId,
@@ -344,8 +347,8 @@ export function setupClaudeWebSocket(
             resumeSessionId: session.resume_session_id || undefined,
             claudeCodeOptions: hasCustomOptions ? mergedOptions : undefined,
             customEnvVars: hasCustomEnvVars ? mergedEnvVars : undefined,
-            cols: pendingResize?.cols || 80,
-            rows: pendingResize?.rows || 24,
+            cols: terminalSize.cols,
+            rows: terminalSize.rows,
           });
 
           logger.info('Claude PTY created for session', {
@@ -385,9 +388,10 @@ export function setupClaudeWebSocket(
 
       // バッファされたリサイズを適用
       if (pendingResize && hasSession) {
-        ptySessionManager.resize(sessionId, pendingResize.cols, pendingResize.rows);
+        const { cols, rows } = pendingResize;
+        ptySessionManager.resize(sessionId, cols, rows);
         logger.info('Claude WebSocket: Applied pending resize from early buffer', {
-          sessionId, cols: pendingResize.cols, rows: pendingResize.rows,
+          sessionId, cols, rows,
         });
       }
 

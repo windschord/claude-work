@@ -15,6 +15,7 @@ import { performance } from 'node:perf_hooks';
  * - allConnectionsClosed(sessionId): 最後の接続が切断された時
  */
 export class ConnectionManager extends EventEmitter {
+  private static instance: ConnectionManager;
   private connections: Map<string, Set<WebSocket>>;
   private scrollbackBuffers: Map<string, ScrollbackBuffer> = new Map();
   private eventHandlers: Map<string, Map<string, Function>> = new Map();
@@ -25,9 +26,16 @@ export class ConnectionManager extends EventEmitter {
     messagesDropped: 0,
   };
 
-  constructor() {
+  private constructor() {
     super();
     this.connections = new Map();
+  }
+
+  static getInstance(): ConnectionManager {
+    if (!ConnectionManager.instance) {
+      ConnectionManager.instance = new ConnectionManager();
+    }
+    return ConnectionManager.instance;
   }
 
   /**
@@ -339,6 +347,18 @@ export class ConnectionManager extends EventEmitter {
   }
 
   /**
+   * スクロールバックバッファを取得
+   *
+   * 指定されたセッションIDのスクロールバックバッファを取得します。
+   *
+   * @param sessionId - セッションID
+   * @returns ScrollbackBufferインスタンス（存在しない場合はundefined）
+   */
+  getScrollbackBuffer(sessionId: string): ScrollbackBuffer | undefined {
+    return this.scrollbackBuffers.get(sessionId);
+  }
+
+  /**
    * スクロールバックバッファを接続に送信
    *
    * 新規接続に対してスクロールバックバッファを送信します。
@@ -433,6 +453,20 @@ export class ConnectionManager extends EventEmitter {
   hasHandler(sessionId: string, eventName: string): boolean {
     const handlers = this.eventHandlers.get(sessionId);
     return handlers?.has(eventName) ?? false;
+  }
+
+  /**
+   * イベントハンドラーを取得
+   *
+   * 指定されたセッションIDとイベント名のハンドラーを取得します。
+   *
+   * @param sessionId - セッションID
+   * @param eventName - イベント名
+   * @returns ハンドラー関数（存在しない場合はundefined）
+   */
+  getHandler(sessionId: string, eventName: string): ((...args: any[]) => void) | undefined {
+    const handlers = this.eventHandlers.get(sessionId);
+    return handlers?.get(eventName) as ((...args: any[]) => void) | undefined;
   }
 
   /**

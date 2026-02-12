@@ -82,7 +82,7 @@ const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
 
 // WebSocket関連のインスタンス
-const connectionManager = new ConnectionManager();
+const connectionManager = ConnectionManager.getInstance();
 const wsHandler = new SessionWebSocketHandler(connectionManager);
 
 /**
