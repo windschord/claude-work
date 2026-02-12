@@ -15,6 +15,9 @@ import {
   ProcessLifecycleManager,
 } from './src/services/process-lifecycle-manager';
 import { environmentService } from './src/services/environment-service';
+import { DockerAdapter } from './src/services/adapters/docker-adapter';
+import { db } from './src/lib/db';
+import { ptySessionManager } from './src/services/pty-session-manager';
 
 // 環境変数を.envファイルから明示的にロード（PM2で設定されている場合はそちらを優先）
 const dotenvResult = dotenv.config();
@@ -79,7 +82,7 @@ const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
 
 // WebSocket関連のインスタンス
-const connectionManager = new ConnectionManager();
+const connectionManager = ConnectionManager.getInstance();
 const wsHandler = new SessionWebSocketHandler(connectionManager);
 
 /**
@@ -242,6 +245,24 @@ app.prepare().then(() => {
     } catch (error) {
       logger.error('Failed to initialize default environment', { error });
       // デフォルト環境の初期化失敗はクリティカルではないため、サーバーは継続
+    }
+
+    // セッション復元（TASK-018）
+    try {
+      await ptySessionManager.restoreSessionsOnStartup();
+      logger.info('Session restoration completed');
+    } catch (error) {
+      logger.error('Failed to restore sessions on startup', { error });
+      // セッション復元の失敗はクリティカルではないため、サーバーは継続
+    }
+
+    // 孤立したDockerコンテナのクリーンアップ（TASK-014）
+    try {
+      await DockerAdapter.cleanupOrphanedContainers(db);
+      logger.info('Orphaned Docker containers cleanup completed');
+    } catch (error) {
+      logger.error('Failed to cleanup orphaned Docker containers', { error });
+      // クリーンアップ失敗はクリティカルではないため、サーバーは継続
     }
 
     // アイドルタイムアウトチェッカーを開始

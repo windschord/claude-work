@@ -200,19 +200,99 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
   }
 
   /**
-   * Dockerコンテナを停止する（バックグラウンド実行）
+   * Dockerコンテナが完全に起動するまで待機
    */
-  private stopContainer(containerName: string): void {
-    childProcess.execFile('docker', ['stop', '-t', '3', containerName], { timeout: 5000 }, (error) => {
-      if (error) {
-        // stop失敗時はkillを試みる
-        childProcess.execFile('docker', ['kill', containerName], { timeout: 5000 }, () => {
-          // 既に停止済み等のエラーは無視
-        });
-      } else {
-        logger.info('DockerAdapter: Container stopped', { containerName });
+  private async waitForContainerReady(containerId: string): Promise<void> {
+    const execFileAsync = promisify(childProcess.execFile);
+    const maxRetries = 30;
+    const retryInterval = 1000; // 1秒
+    const timeout = 30000; // 30秒
+
+    logger.info(`Waiting for container ${containerId} to be ready`);
+
+    const startTime = Date.now();
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      // タイムアウトチェック
+      if (Date.now() - startTime > timeout) {
+        throw new Error(`Container ${containerId} failed to start within ${timeout}ms`);
       }
-    });
+
+      try {
+        // コンテナの状態を確認
+        const { stdout } = await execFileAsync(
+          'docker',
+          ['inspect', '--format', '{{.State.Running}}', containerId],
+          { timeout: 5000 }
+        );
+
+        const isRunning = stdout.trim() === 'true';
+
+        if (isRunning) {
+          // 追加のヘルスチェック（コンテナ内でコマンドを実行）
+          try {
+            await execFileAsync(
+              'docker',
+              ['exec', containerId, 'echo', 'health-check'],
+              { timeout: 2000 }
+            );
+
+            logger.info(`Container ${containerId} is ready after ${attempt} attempts`);
+            return;
+          } catch {
+            logger.debug(`Container ${containerId} not fully ready, exec failed`);
+          }
+        }
+      } catch {
+        logger.debug(`Container ${containerId} inspection failed, retry ${attempt}/${maxRetries}`);
+      }
+
+      // 次の試行まで待機
+      await new Promise(resolve => setTimeout(resolve, retryInterval));
+    }
+
+    throw new Error(`Container ${containerId} health check failed after ${maxRetries} attempts`);
+  }
+
+  /**
+   * Dockerコンテナを停止する（Promise化、エラーハンドリング強化）
+   */
+  private async stopContainer(containerName: string): Promise<void> {
+    const execFileAsync = promisify(childProcess.execFile);
+    logger.info(`Stopping container ${containerName}`);
+
+    try {
+      // 10秒のタイムアウトで停止を試行
+      await execFileAsync('docker', ['stop', '-t', '10', containerName], {
+        timeout: 15000, // 15秒（猶予を含む）
+      });
+
+      logger.info(`Container ${containerName} stopped successfully`);
+    } catch (error: any) {
+      // コンテナが既に停止している場合はエラーを無視
+      if (
+        error.message &&
+        (error.message.includes('No such container') ||
+          error.message.includes('is not running'))
+      ) {
+        logger.debug(`Container ${containerName} already stopped`);
+        return;
+      }
+
+      logger.error(`Failed to stop container ${containerName}:`, error);
+
+      // 強制停止を試行
+      try {
+        await execFileAsync('docker', ['kill', containerName], {
+          timeout: 5000,
+        });
+        logger.warn(`Container ${containerName} force-killed`);
+      } catch (killError) {
+        logger.error(`Failed to force-kill container ${containerName}:`, killError);
+      }
+
+      // エラーをログに記録するが、スローはしない（後続処理を継続）
+    }
   }
 
   /**
@@ -400,6 +480,9 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
         shellMode: false,
       });
 
+      // コンテナ起動完了を待機（TASK-012）
+      await this.waitForContainerReady(containerName);
+
       // Session.container_idを更新
       db.update(schema.sessions)
         .set({ container_id: containerName, updated_at: new Date() })
@@ -485,7 +568,9 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
 
         // PTY終了時にコンテナがまだ実行中なら停止
         if (containerName && !shellMode) {
-          this.stopContainer(containerName);
+          this.stopContainer(containerName).catch((error) => {
+            logger.error(`Error stopping container in onExit:`, error);
+          });
         }
       });
 
@@ -538,7 +623,10 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
 
       // Dockerコンテナを明示的に停止（shellModeではコンテナを止めない）
       if (!shellMode) {
-        this.stopContainer(containerId);
+        // 非同期で実行（awaitしないが、エラーはログに記録される）
+        this.stopContainer(containerId).catch((error) => {
+          logger.error(`Error stopping container in destroySession:`, error);
+        });
       }
 
       // container_idをクリア（同期実行）
@@ -638,5 +726,89 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
       }
     }
     return undefined;
+  }
+
+  /**
+   * 孤立したDockerコンテナをクリーンアップする（サーバー起動時に実行）
+   */
+  static async cleanupOrphanedContainers(prismaClient: typeof db): Promise<void> {
+    logger.info('Checking for orphaned Docker containers');
+    const execFileAsync = promisify(childProcess.execFile);
+
+    try {
+      // データベースから全セッションのコンテナIDを取得
+      const sessions = prismaClient
+        .select({
+          id: schema.sessions.id,
+          container_id: schema.sessions.container_id,
+        })
+        .from(schema.sessions)
+        .where(
+          eq(schema.sessions.container_id, schema.sessions.container_id)
+        )
+        .all()
+        .filter((s) => s.container_id !== null);
+
+      for (const session of sessions) {
+        if (!session.container_id) continue;
+
+        try {
+          // コンテナが実行中か確認
+          const { stdout } = await execFileAsync('docker', [
+            'inspect',
+            '--format',
+            '{{.State.Running}}',
+            session.container_id,
+          ]);
+
+          const isRunning = stdout.trim() === 'true';
+
+          if (!isRunning) {
+            logger.warn(
+              `Orphaned container detected: ${session.container_id} for session ${session.id}`
+            );
+
+            // セッション状態をERRORに更新
+            prismaClient
+              .update(schema.sessions)
+              .set({
+                status: 'ERROR',
+                container_id: null,
+                updated_at: new Date(),
+              })
+              .where(eq(schema.sessions.id, session.id))
+              .run();
+
+            // コンテナが存在すれば削除
+            try {
+              await execFileAsync('docker', ['rm', '-f', session.container_id]);
+              logger.info(`Removed orphaned container ${session.container_id}`);
+            } catch (rmError) {
+              logger.error(`Failed to remove orphaned container:`, rmError);
+            }
+          }
+        } catch (error) {
+          logger.error(
+            `Failed to check container ${session.container_id}:`,
+            error
+          );
+
+          // コンテナが存在しない場合も孤立とみなす
+          prismaClient
+            .update(schema.sessions)
+            .set({
+              status: 'ERROR',
+              container_id: null,
+              updated_at: new Date(),
+            })
+            .where(eq(schema.sessions.id, session.id))
+            .run();
+        }
+      }
+
+      logger.info('Orphaned container cleanup completed');
+    } catch (error) {
+      logger.error('Failed to cleanup orphaned containers:', error);
+    }
   }
 }

@@ -152,7 +152,7 @@ describe('cli-utils', () => {
       const result = initializeDatabase(dbPath);
       expect(result).toBe(true);
 
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
+       
       const Database = require('better-sqlite3');
       const db = new Database(dbPath);
       const tables = db.prepare(
@@ -173,7 +173,7 @@ describe('cli-utils', () => {
       const dbPath = join(testDir, 'test.db');
       initializeDatabase(dbPath);
 
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
+       
       const Database = require('better-sqlite3');
       const db = new Database(dbPath);
       const columns = db.prepare("PRAGMA table_info('Project')").all() as {
@@ -220,7 +220,7 @@ describe('cli-utils', () => {
       const dbPath = join(testDir, 'test.db');
       initializeDatabase(dbPath);
 
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
+       
       const Database = require('better-sqlite3');
       const db = new Database(dbPath);
       const indexes = db.prepare(
@@ -235,7 +235,7 @@ describe('cli-utils', () => {
       const dbPath = join(testDir, 'test.db');
       initializeDatabase(dbPath);
 
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
+       
       const Database = require('better-sqlite3');
       const db = new Database(dbPath);
       const columns = db.prepare("PRAGMA table_info('ExecutionEnvironment')").all() as {
@@ -257,7 +257,7 @@ describe('cli-utils', () => {
       const dbPath = join(testDir, 'test.db');
       initializeDatabase(dbPath);
 
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
+       
       const Database = require('better-sqlite3');
       const db = new Database(dbPath);
       const columns = db.prepare("PRAGMA table_info('Session')").all() as {
@@ -303,7 +303,7 @@ describe('cli-utils', () => {
       const dbPath = join(testDir, 'test.db');
       initializeDatabase(dbPath);
 
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
+       
       const Database = require('better-sqlite3');
       const db = new Database(dbPath);
       const columns = db.prepare("PRAGMA table_info('Message')").all() as {
@@ -326,7 +326,7 @@ describe('cli-utils', () => {
       const dbPath = join(testDir, 'test.db');
       initializeDatabase(dbPath);
 
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
+       
       const Database = require('better-sqlite3');
       const db = new Database(dbPath);
       const columns = db.prepare("PRAGMA table_info('Prompt')").all() as {
@@ -353,7 +353,7 @@ describe('cli-utils', () => {
       const dbPath = join(testDir, 'test.db');
       initializeDatabase(dbPath);
 
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
+       
       const Database = require('better-sqlite3');
       const db = new Database(dbPath);
       const columns = db.prepare("PRAGMA table_info('RunScript')").all() as {
@@ -394,7 +394,7 @@ describe('cli-utils', () => {
       const dbPath = join(testDir, 'test.db');
       initializeDatabase(dbPath);
 
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
+       
       const Database = require('better-sqlite3');
       const db = new Database(dbPath);
       db.prepare(
@@ -424,7 +424,7 @@ describe('cli-utils', () => {
       const result = migrateDatabase(dbPath);
       expect(result).toBe(true);
 
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
+       
       const Database = require('better-sqlite3');
       const db = new Database(dbPath, { readonly: true });
 
@@ -453,7 +453,7 @@ describe('cli-utils', () => {
       const dbPath = join(testDir, 'v1-db.db');
 
       // v1のDBを手動で作成（user_version = 1、新カラムなし）
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
+       
       const Database = require('better-sqlite3');
       const db = new Database(dbPath);
       db.pragma('journal_mode = WAL');
@@ -517,7 +517,7 @@ describe('cli-utils', () => {
       // 最新バージョンのDBを作成
       migrateDatabase(dbPath);
 
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
+       
       const Database = require('better-sqlite3');
       const db = new Database(dbPath, { readonly: true });
       const rowBefore = db.prepare('PRAGMA user_version').get() as { user_version: number };
@@ -547,7 +547,7 @@ describe('cli-utils', () => {
       expect(result2).toBe(true);
       expect(result3).toBe(true);
 
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
+       
       const Database = require('better-sqlite3');
       const db = new Database(dbPath, { readonly: true });
       const row = db.prepare('PRAGMA user_version').get() as { user_version: number };
@@ -559,7 +559,7 @@ describe('cli-utils', () => {
       const dbPath = join(testDir, 'data-preserve-db.db');
 
       // v1のDBを作成してデータを挿入（v1は全テーブルが存在する状態）
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
+       
       const Database = require('better-sqlite3');
       const db = new Database(dbPath);
       db.pragma('journal_mode = WAL');

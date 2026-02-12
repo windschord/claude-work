@@ -14,7 +14,7 @@
       "no-exclamation-question-mark": false,
       "no-doubled-joshi": {
         "strict": false,
-        "allow": ["か", "も", "に", "を", "は"]
+        "allow": ["か", "も", "に", "を", "は", "が"]
       },
       "no-mix-dearu-desumasu": false,
       "ja-no-weak-phrase": false,

@@ -42,7 +42,7 @@ export const sessions = sqliteTable('Session', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   project_id: text('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
-  status: text('status').notNull(), // initializing, running, waiting_input, completed, error, stopped
+  status: text('status').notNull(), // initializing, running, waiting_input, completed, error, stopped (legacy field)
   worktree_path: text('worktree_path').notNull(),
   branch_name: text('branch_name').notNull(),
   resume_session_id: text('resume_session_id'),
@@ -56,9 +56,19 @@ export const sessions = sqliteTable('Session', {
   environment_id: text('environment_id').references(() => executionEnvironments.id, { onDelete: 'set null' }),
   claude_code_options: text('claude_code_options'),
   custom_env_vars: text('custom_env_vars'),
+
+  // Phase 4で追加: 状態管理フィールド
+  active_connections: integer('active_connections').notNull().default(0),
+  destroy_at: integer('destroy_at', { mode: 'timestamp' }),
+  session_state: text('session_state').notNull().default('ACTIVE'), // ACTIVE, IDLE, ERROR, TERMINATED
+
   created_at: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
   updated_at: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
-});
+}, (table) => [
+  index('sessions_session_state_idx').on(table.session_state),
+  index('sessions_destroy_at_idx').on(table.destroy_at),
+  index('sessions_last_activity_at_idx').on(table.last_activity_at),
+]);
 
 /**
  * messages テーブル

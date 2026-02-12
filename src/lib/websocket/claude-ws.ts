@@ -1,21 +1,13 @@
 import { WebSocket, WebSocketServer } from 'ws';
 import path from 'path';
 import fs from 'fs/promises';
-import {
-  claudePtyManager,
-  type ClaudePTYExitInfo,
-} from '@/services/claude-pty-manager';
+import { ptySessionManager } from '@/services/pty-session-manager';
 import { db, schema } from '@/lib/db';
 import { eq, asc } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
 import { environmentService } from '@/services/environment-service';
-import { AdapterFactory } from '@/services/adapter-factory';
-import type { EnvironmentAdapter, PTYExitInfo } from '@/services/environment-adapter';
 import { ClaudeOptionsService } from '@/services/claude-options-service';
-import { scrollbackBuffer } from '@/services/scrollback-buffer';
 import type {
-  ClaudeDataMessage,
-  ClaudeExitMessage,
   ClaudeErrorMessage,
   ClaudeImageSavedMessage,
   ClaudeImageErrorMessage,
@@ -36,10 +28,6 @@ const PTY_DESTROY_GRACE_PERIOD = (() => {
 
 // セッションごとの破棄タイマーを管理
 const destroyTimers = new Map<string, ReturnType<typeof setTimeout>>();
-// セッションごとのアクティブな接続数を管理
-const activeConnections = new Map<string, number>();
-// セッション作成中のPromiseを管理（同一セッションの同時作成を防止）
-const creatingSessionPromises = new Map<string, Promise<void>>();
 
 // 画像の最大サイズ（10MB）
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
@@ -114,8 +102,6 @@ async function handlePasteImage(
   sessionId: string,
   worktreePath: string,
   ws: WebSocket,
-  isLegacy: boolean,
-  adapter: EnvironmentAdapter | null,
 ): Promise<void> {
   try {
     // MIMEタイプ検証
@@ -160,16 +146,7 @@ async function handlePasteImage(
     await fs.writeFile(filePath, buffer);
 
     // ファイルパスをPTY入力として送信
-    // NOTE: ホスト上の絶対パスをPTYに送信する。
-    // Docker/SSH環境では、このパスがコンテナ/リモート上で無効になる可能性がある。
-    // 環境ごとのパス変換は将来の課題として残す。
-    if (isLegacy) {
-      claudePtyManager.write(sessionId, filePath);
-    } else if (adapter) {
-      adapter.write(sessionId, filePath);
-    } else {
-      throw new Error('Adapter not available');
-    }
+    ptySessionManager.sendInput(sessionId, filePath);
 
     // 成功メッセージを送信
     if (ws.readyState === WebSocket.OPEN) {
@@ -207,6 +184,7 @@ async function handlePasteImage(
  * Claude Code WebSocketサーバーをセットアップ
  *
  * WebSocket経由でClaude Code PTY入出力を中継する。
+ * PTYSessionManager経由でセッション管理を行う。
  *
  * @param wss - WebSocketサーバーインスタンス
  * @param _path - WebSocketパス（使用しない、互換性のため）
@@ -265,301 +243,19 @@ export function setupClaudeWebSocket(
         logger.info('Claude WebSocket: Cancelled PTY destroy timer (client reconnected)', { sessionId });
       }
 
-      // 接続数を増やす
-      const currentConnections = activeConnections.get(sessionId) || 0;
-      activeConnections.set(sessionId, currentConnections + 1);
+      // PTYセッションが既に存在する場合はスクロールバックバッファを送信
+      const hasSession = ptySessionManager.hasSession(sessionId);
 
-      // アダプター選択とセットアップ
-      // 戻り値: { adapter: EnvironmentAdapter, isLegacy: boolean }
-      // isLegacy = true の場合は claudePtyManager を直接使用（後方互換性）
-      let adapter: EnvironmentAdapter | null = null;
-      let isLegacy = false;
-
-      // 環境選択ロジック:
-      // 1. environment_id が指定されている → 新方式（AdapterFactory経由）
-      // 2. docker_mode=true かつ environment_id未指定 → レガシー方式（claudePtyManager直接）
-      // 3. 両方未指定 → デフォルト環境（新方式）
-      if (session.environment_id) {
-        // 新方式: environment_id で環境を取得
-        const environment = await environmentService.findById(session.environment_id);
-        if (!environment) {
-          logger.error('Claude WebSocket: Environment not found', {
-            sessionId,
-            environmentId: session.environment_id,
-          });
-          const errorMsg: ClaudeErrorMessage = {
-            type: 'error',
-            message: `Environment not found: ${session.environment_id}`,
-          };
-          ws.send(JSON.stringify(errorMsg));
-          ws.off('message', earlyMessageHandler);
-          ws.close(1008, 'Environment not found');
-          return;
-        }
-        adapter = AdapterFactory.getAdapter(environment);
-        logger.info('Claude WebSocket: Using adapter for environment', {
-          sessionId,
-          environmentId: environment.id,
-          environmentType: environment.type,
-        });
-      } else if (session.docker_mode && !session.environment_id) {
-        // レガシー方式: dockerMode=true で environment_id 未指定
-        isLegacy = true;
-        logger.info('Claude WebSocket: Using legacy claudePtyManager (dockerMode)', {
-          sessionId,
-        });
-      } else {
-        // デフォルト環境を使用
-        try {
-          const defaultEnv = await environmentService.getDefault();
-          adapter = AdapterFactory.getAdapter(defaultEnv);
-          logger.info('Claude WebSocket: Using default environment', {
-            sessionId,
-            environmentId: defaultEnv.id,
-            environmentType: defaultEnv.type,
-          });
-        } catch (defaultEnvError) {
-          logger.error('Claude WebSocket: Failed to get default environment', {
-            sessionId,
-            error: defaultEnvError,
-          });
-          const errorMsg: ClaudeErrorMessage = {
-            type: 'error',
-            message: 'Failed to get default environment',
-          };
-          ws.send(JSON.stringify(errorMsg));
-          ws.off('message', earlyMessageHandler);
-          ws.close(1011, 'Default environment not found');
-          return;
-        }
-      }
-
-      // 選択したマネージャー/アダプターでセッションの有無を確認
-      const hasSession = isLegacy
-        ? claudePtyManager.hasSession(sessionId)
-        : adapter!.hasSession(sessionId);
-
-      // Claude PTY作成（既に存在する場合はスキップ）
-      if (!hasSession) {
-        // 別の接続が同一セッションのPTYを作成中の場合はそれを待つ
-        const inflightPromise = creatingSessionPromises.get(sessionId);
-        if (inflightPromise) {
-          logger.info('Claude WebSocket: Waiting for inflight createSession', { sessionId });
-          try {
-            await inflightPromise;
-          } catch {
-            // 作成中のセッションが失敗した場合はこの接続もエラー扱い
-            const errorMsg: ClaudeErrorMessage = {
-              type: 'error',
-              message: 'PTY creation failed (concurrent request)',
-            };
-            ws.send(JSON.stringify(errorMsg));
-            ws.off('message', earlyMessageHandler);
-            ws.close(1000, 'PTY creation failed');
-            return;
-          }
-        } else {
-          // このコネクションがセッション作成を担当
-          const createPromise = (async () => {
-            // 初回プロンプトの取得判定：
-            // - initializingの場合は常に初回プロンプトを取得
-            // - resume_session_idがない場合もフォールバックで初回プロンプトを取得
-            //   （サーバー再起動後などにresume_session_idが未保存の場合に対応）
-            let initialPrompt: string | undefined;
-            const canResume = !!session.resume_session_id;
-            if (session.status === 'initializing' || !canResume) {
-              const firstMessage = await db.query.messages.findFirst({
-                where: eq(schema.messages.session_id, sessionId),
-                orderBy: [asc(schema.messages.created_at)],
-              });
-              initialPrompt = firstMessage?.content;
-              logger.info('Claude WebSocket: Fetched initial prompt from database', {
-                sessionId,
-                hasInitialPrompt: !!initialPrompt,
-                promptLength: initialPrompt?.length,
-                worktreePath: session.worktree_path,
-                reason: session.status === 'initializing' ? 'initializing' : 'no-resume-session-id',
-              });
-            } else {
-              logger.info('Claude WebSocket: Skipping initial prompt (session already started)', {
-                sessionId,
-                status: session.status,
-                resumeSessionId: session.resume_session_id,
-              });
-            }
-
-            // プロジェクトの設定を取得してマージ
-            const project = await db.query.projects.findFirst({
-              where: eq(schema.projects.id, session.project_id),
-            });
-
-            const projectOptions = ClaudeOptionsService.parseOptions(project?.claude_code_options);
-            const projectEnvVars = ClaudeOptionsService.parseEnvVars(project?.custom_env_vars);
-            const sessionOptions = ClaudeOptionsService.parseOptions(session.claude_code_options);
-            const sessionEnvVars = ClaudeOptionsService.parseEnvVars(session.custom_env_vars);
-
-            const mergedOptions = ClaudeOptionsService.mergeOptions(projectOptions, sessionOptions);
-            const mergedEnvVars = ClaudeOptionsService.mergeEnvVars(projectEnvVars, sessionEnvVars);
-
-            const hasCustomOptions = Object.keys(mergedOptions).length > 0;
-            const hasCustomEnvVars = Object.keys(mergedEnvVars).length > 0;
-
-            if (hasCustomOptions || hasCustomEnvVars) {
-              logger.info('Claude WebSocket: Applying custom options', {
-                sessionId,
-                hasCustomOptions,
-                hasCustomEnvVars,
-                optionKeys: Object.keys(mergedOptions),
-                envVarKeys: Object.keys(mergedEnvVars),
-              });
-            }
-
-            if (isLegacy) {
-              claudePtyManager.createSession(
-                sessionId,
-                session.worktree_path,
-                initialPrompt,
-                {
-                  dockerMode: session.docker_mode,
-                  resumeSessionId: session.resume_session_id || undefined,
-                  claudeCodeOptions: hasCustomOptions ? mergedOptions : undefined,
-                  customEnvVars: hasCustomEnvVars ? mergedEnvVars : undefined,
-                }
-              );
-            } else {
-              await Promise.resolve(adapter!.createSession(
-                sessionId,
-                session.worktree_path,
-                initialPrompt,
-                {
-                  resumeSessionId: session.resume_session_id || undefined,
-                  claudeCodeOptions: hasCustomOptions ? mergedOptions : undefined,
-                  customEnvVars: hasCustomEnvVars ? mergedEnvVars : undefined,
-                }
-              ));
-            }
-
-            logger.info('Claude PTY created for session', {
-              sessionId,
-              hasInitialPrompt: !!initialPrompt,
-              isLegacy,
-              dockerMode: session.docker_mode,
-            });
-
-            // スクロールバックの append/clear は各PTY実装側で管理：
-            // - claudePtyManager: onDataでappend, destroySession/onExitでclear
-            // - DockerAdapter: onDataでappend, destroySession/onExitでclear
-            // WebSocket層では再送のみ行う
-
-            // セッションステータスを'running'に更新
-            await db.update(schema.sessions)
-              .set({ status: 'running' })
-              .where(eq(schema.sessions.id, sessionId))
-              .run();
-          })();
-
-          creatingSessionPromises.set(sessionId, createPromise);
-          try {
-            await createPromise;
-          } catch (ptyError) {
-            // PTY作成エラーをクライアントに通知
-            const errorMessage = ptyError instanceof Error ? ptyError.message : 'Failed to create PTY';
-            logger.error('Claude WebSocket: Failed to create PTY', {
-              sessionId,
-              error: errorMessage,
-              worktreePath: session.worktree_path,
-            });
-
-            const errorMsg: ClaudeErrorMessage = {
-              type: 'error',
-              message: `PTY creation failed: ${errorMessage}`,
-            };
-            ws.send(JSON.stringify(errorMsg));
-            ws.off('message', earlyMessageHandler);
-            ws.close(1000, 'PTY creation failed');
-
-            await db.update(schema.sessions)
-              .set({ status: 'error' })
-              .where(eq(schema.sessions.id, sessionId))
-              .run();
-            return;
-          } finally {
-            creatingSessionPromises.delete(sessionId);
-          }
-        }
-      }
-
-      // イベントハンドラーの定義
-      // アダプター用のイベントハンドラー
-      const adapterDataHandler = (sid: string, data: string) => {
-        if (sid === sessionId && ws.readyState === WebSocket.OPEN) {
-          const message: ClaudeDataMessage = {
-            type: 'data',
-            content: data,
-          };
-          ws.send(JSON.stringify(message));
-        }
-      };
-
-      const adapterExitHandler = (sid: string, info: PTYExitInfo) => {
-        if (sid === sessionId && ws.readyState === WebSocket.OPEN) {
-          const message: ClaudeExitMessage = {
-            type: 'exit',
-            exitCode: info.exitCode,
-            signal: info.signal ?? null,
-          };
-          ws.send(JSON.stringify(message));
-        }
-      };
-
-      const adapterErrorHandler = (sid: string, error: Error) => {
-        if (sid === sessionId && ws.readyState === WebSocket.OPEN) {
-          const message: ClaudeErrorMessage = {
-            type: 'error',
-            message: error.message,
-          };
-          ws.send(JSON.stringify(message));
-        }
-      };
-
-      const claudeSessionIdHandler = async (sid: string, claudeSessionId: string) => {
-        if (sid === sessionId) {
-          try {
-            await db.update(schema.sessions)
-              .set({ resume_session_id: claudeSessionId })
-              .where(eq(schema.sessions.id, sessionId))
-              .run();
-            logger.info('Claude session ID saved to database', {
-              sessionId,
-              claudeSessionId,
-            });
-          } catch (error) {
-            logger.error('Failed to save Claude session ID to database', {
-              sessionId,
-              claudeSessionId,
-              error,
-            });
-          }
-        }
-      };
-
-      // レガシー用のイベントハンドラー（ClaudePTYExitInfo型用）
-      const legacyExitHandler = (sid: string, { exitCode, signal }: ClaudePTYExitInfo) => {
-        if (sid === sessionId && ws.readyState === WebSocket.OPEN) {
-          const message: ClaudeExitMessage = {
-            type: 'exit',
-            exitCode,
-            signal: signal ?? null,
-          };
-          ws.send(JSON.stringify(message));
-        }
-      };
-
-      // 既存PTYセッションの場合、イベントハンドラー登録前にスクロールバックバッファを再送
-      // （ハンドラー登録後だとdataイベントとscrollbackの順序が逆転するレースを防止）
       if (hasSession) {
-        const buffer = scrollbackBuffer.getBuffer(sessionId);
-        if (buffer && ws.readyState === WebSocket.OPEN) {
+        // 既存セッションに接続を追加
+        ptySessionManager.addConnection(sessionId, ws);
+
+        // スクロールバックバッファを送信
+        // Note: connectionManagerはprivateのため、一時的にany経由でアクセス
+         
+        const connectionManager = (ptySessionManager as any).connectionManager;
+        const buffer = connectionManager.getScrollbackBuffer(sessionId);
+        if (buffer) {
           const scrollbackMsg: ClaudeScrollbackMessage = {
             type: 'scrollback',
             content: buffer,
@@ -570,37 +266,133 @@ export function setupClaudeWebSocket(
             bufferLength: buffer.length,
           });
         }
-      }
-
-      // イベントハンドラーを登録（scrollback送信後に登録してレースを防止）
-      if (isLegacy) {
-        claudePtyManager.on('data', adapterDataHandler);
-        claudePtyManager.on('exit', legacyExitHandler);
-        claudePtyManager.on('error', adapterErrorHandler);
-        claudePtyManager.on('claudeSessionId', claudeSessionIdHandler);
       } else {
-        adapter!.on('data', adapterDataHandler);
-        adapter!.on('exit', adapterExitHandler);
-        adapter!.on('error', adapterErrorHandler);
-        adapter!.on('claudeSessionId', claudeSessionIdHandler);
+        // 新規セッション作成
+        try {
+          // 初期プロンプトの取得判定：
+          // - initializingの場合は常に初回プロンプトを取得
+          // - resume_session_idがない場合もフォールバックで初回プロンプトを取得
+          //   （サーバー再起動後などにresume_session_idが未保存の場合に対応）
+          let initialPrompt: string | undefined;
+          const canResume = !!session.resume_session_id;
+          if (session.status === 'initializing' || !canResume) {
+            const firstMessage = await db.query.messages.findFirst({
+              where: eq(schema.messages.session_id, sessionId),
+              orderBy: [asc(schema.messages.created_at)],
+            });
+            initialPrompt = firstMessage?.content;
+            logger.info('Claude WebSocket: Fetched initial prompt from database', {
+              sessionId,
+              hasInitialPrompt: !!initialPrompt,
+              promptLength: initialPrompt?.length,
+              worktreePath: session.worktree_path,
+              reason: session.status === 'initializing' ? 'initializing' : 'no-resume-session-id',
+            });
+          } else {
+            logger.info('Claude WebSocket: Skipping initial prompt (session already started)', {
+              sessionId,
+              status: session.status,
+              resumeSessionId: session.resume_session_id,
+            });
+          }
+
+          // プロジェクトの設定を取得してマージ
+          const project = await db.query.projects.findFirst({
+            where: eq(schema.projects.id, session.project_id),
+          });
+
+          const projectOptions = ClaudeOptionsService.parseOptions(project?.claude_code_options);
+          const projectEnvVars = ClaudeOptionsService.parseEnvVars(project?.custom_env_vars);
+          const sessionOptions = ClaudeOptionsService.parseOptions(session.claude_code_options);
+          const sessionEnvVars = ClaudeOptionsService.parseEnvVars(session.custom_env_vars);
+
+          const mergedOptions = ClaudeOptionsService.mergeOptions(projectOptions, sessionOptions);
+          const mergedEnvVars = ClaudeOptionsService.mergeEnvVars(projectEnvVars, sessionEnvVars);
+
+          const hasCustomOptions = Object.keys(mergedOptions).length > 0;
+          const hasCustomEnvVars = Object.keys(mergedEnvVars).length > 0;
+
+          if (hasCustomOptions || hasCustomEnvVars) {
+            logger.info('Claude WebSocket: Applying custom options', {
+              sessionId,
+              hasCustomOptions,
+              hasCustomEnvVars,
+              optionKeys: Object.keys(mergedOptions),
+              envVarKeys: Object.keys(mergedEnvVars),
+            });
+          }
+
+          // 環境IDを取得（未指定の場合はデフォルト環境）
+          let environmentId = session.environment_id;
+          if (!environmentId) {
+            const defaultEnv = await environmentService.getDefault();
+            environmentId = defaultEnv.id;
+            logger.info('Claude WebSocket: Using default environment', {
+              sessionId,
+              environmentId,
+            });
+          }
+
+          // ターミナルサイズを取得
+          const terminalSize: { cols: number; rows: number } = pendingResize ?? { cols: 80, rows: 24 };
+
+          // PTYSessionManager経由でセッション作成
+          await ptySessionManager.createSession({
+            sessionId,
+            projectId: session.project_id,
+            branchName: session.branch_name,
+            worktreePath: session.worktree_path,
+            environmentId,
+            initialPrompt,
+            resumeSessionId: session.resume_session_id || undefined,
+            claudeCodeOptions: hasCustomOptions ? mergedOptions : undefined,
+            customEnvVars: hasCustomEnvVars ? mergedEnvVars : undefined,
+            cols: terminalSize.cols,
+            rows: terminalSize.rows,
+          });
+
+          logger.info('Claude PTY created for session', {
+            sessionId,
+            hasInitialPrompt: !!initialPrompt,
+          });
+
+          // 接続を追加
+          ptySessionManager.addConnection(sessionId, ws);
+        } catch (ptyError) {
+          // PTY作成エラーをクライアントに通知
+          const errorMessage = ptyError instanceof Error ? ptyError.message : 'Failed to create PTY';
+          logger.error('Claude WebSocket: Failed to create PTY', {
+            sessionId,
+            error: errorMessage,
+            worktreePath: session.worktree_path,
+          });
+
+          const errorMsg: ClaudeErrorMessage = {
+            type: 'error',
+            message: `PTY creation failed: ${errorMessage}`,
+          };
+          ws.send(JSON.stringify(errorMsg));
+          ws.off('message', earlyMessageHandler);
+          ws.close(1000, 'PTY creation failed');
+
+          await db.update(schema.sessions)
+            .set({ status: 'error' })
+            .where(eq(schema.sessions.id, sessionId))
+            .run();
+          return;
+        }
       }
 
       // 早期リサイズハンドラーを解除（完全ハンドラーに切り替え）
       ws.off('message', earlyMessageHandler);
 
       // バッファされたリサイズを適用
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- クロージャ越しの変更をTSが追跡できないため必要
-      const bufferedResize = pendingResize as { cols: number; rows: number } | null;
-      if (bufferedResize) {
-        if (isLegacy) {
-          claudePtyManager.resize(sessionId, bufferedResize.cols, bufferedResize.rows);
-        } else {
-          adapter!.resize(sessionId, bufferedResize.cols, bufferedResize.rows);
-        }
+      if (pendingResize && hasSession) {
+        const { cols, rows } = pendingResize;
+        ptySessionManager.resize(sessionId, cols, rows);
         logger.info('Claude WebSocket: Applied pending resize from early buffer', {
-          sessionId, cols: bufferedResize.cols, rows: bufferedResize.rows,
+          sessionId, cols, rows,
         });
-        pendingResize = null;
       }
 
       // WebSocket入力 → PTY
@@ -623,11 +415,7 @@ export function setupClaudeWebSocket(
               });
               return;
             }
-            if (isLegacy) {
-              claudePtyManager.write(sessionId, data.data);
-            } else {
-              adapter!.write(sessionId, data.data);
-            }
+            ptySessionManager.sendInput(sessionId, data.data);
           } else if (data.type === 'resize') {
             // resize データの検証（共通バリデーション関数を使用）
             const resizeDims = validateResizeDimensions(data.data);
@@ -639,33 +427,24 @@ export function setupClaudeWebSocket(
               });
               return;
             }
-            if (isLegacy) {
-              claudePtyManager.resize(sessionId, resizeDims.cols, resizeDims.rows);
-            } else {
-              adapter!.resize(sessionId, resizeDims.cols, resizeDims.rows);
-            }
+            ptySessionManager.resize(sessionId, resizeDims.cols, resizeDims.rows);
           } else if (data.type === 'restart') {
             // Claude Codeプロセスを再起動
             logger.info('Claude WebSocket: Restarting Claude Code', {
               sessionId,
             });
-            if (isLegacy) {
-              claudePtyManager.restartSession(
-                sessionId,
-                session.worktree_path,
-                undefined,
-                { dockerMode: session.docker_mode }
-              );
-            } else {
-              adapter!.restartSession(sessionId, session.worktree_path);
-            }
+            // TODO: PTYSessionManagerにrestartSessionメソッドを追加
+            // 現時点では未実装
+            logger.warn('Claude WebSocket: Restart not yet implemented via PTYSessionManager', {
+              sessionId,
+            });
           } else if (data.type === 'paste-image') {
             // 画像ペースト処理
             if (typeof data.data !== 'string' || typeof data.mimeType !== 'string') {
               logger.warn('Claude WebSocket: Invalid paste-image data', { sessionId });
               return;
             }
-            await handlePasteImage(data, sessionId, session.worktree_path, ws, isLegacy, adapter);
+            await handlePasteImage(data, sessionId, session.worktree_path, ws);
           } else {
             logger.warn('Claude WebSocket: Unknown message type', {
               sessionId,
@@ -682,28 +461,14 @@ export function setupClaudeWebSocket(
 
       // クリーンアップ
       ws.on('close', () => {
-        // イベントハンドラーを解除
-        if (isLegacy) {
-          claudePtyManager.off('data', adapterDataHandler);
-          claudePtyManager.off('exit', legacyExitHandler);
-          claudePtyManager.off('error', adapterErrorHandler);
-          claudePtyManager.off('claudeSessionId', claudeSessionIdHandler);
-        } else {
-          adapter!.off('data', adapterDataHandler);
-          adapter!.off('exit', adapterExitHandler);
-          adapter!.off('error', adapterErrorHandler);
-          adapter!.off('claudeSessionId', claudeSessionIdHandler);
-        }
+        // PTYSessionManagerから接続を削除
+        ptySessionManager.removeConnection(sessionId, ws);
 
-        // 接続数を減らす
-        const connections = activeConnections.get(sessionId) || 0;
-        const newConnections = Math.max(0, connections - 1);
-        activeConnections.set(sessionId, newConnections);
+        // 接続数を取得
+        const newConnections = ptySessionManager.getConnectionCount(sessionId);
 
         // 接続数が0になった場合のみ、猶予期間後にPTYを破棄
-        const hasActiveSession = isLegacy
-          ? claudePtyManager.hasSession(sessionId)
-          : adapter!.hasSession(sessionId);
+        const hasActiveSession = ptySessionManager.hasSession(sessionId);
 
         if (newConnections === 0 && hasActiveSession) {
           if (PTY_DESTROY_GRACE_PERIOD === -1) {
@@ -720,16 +485,15 @@ export function setupClaudeWebSocket(
             const timer = setTimeout(() => {
               destroyTimers.delete(sessionId);
               // 猶予期間後も接続がなければPTYを破棄
-              const stillHasSession = isLegacy
-                ? claudePtyManager.hasSession(sessionId)
-                : adapter!.hasSession(sessionId);
+              const stillHasSession = ptySessionManager.hasSession(sessionId);
 
-              if ((activeConnections.get(sessionId) || 0) === 0 && stillHasSession) {
-                if (isLegacy) {
-                  claudePtyManager.destroySession(sessionId);
-                } else {
-                  adapter!.destroySession(sessionId);
-                }
+              if (ptySessionManager.getConnectionCount(sessionId) === 0 && stillHasSession) {
+                ptySessionManager.destroySession(sessionId).catch(error => {
+                  logger.error('Claude WebSocket: Failed to destroy session after grace period', {
+                    sessionId,
+                    error,
+                  });
+                });
                 logger.info('Claude WebSocket: PTY destroyed after grace period', { sessionId });
               }
             }, PTY_DESTROY_GRACE_PERIOD);
