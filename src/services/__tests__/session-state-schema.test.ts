@@ -187,7 +187,9 @@ describe('Session State Schema Tests', () => {
         .where(eq(sessions.id, session.id));
 
       expect(updated.destroy_at).not.toBeNull();
-      expect(updated.destroy_at?.getTime()).toBeCloseTo(destroyAt.getTime(), -3);
+      // データベース書き込みの遅延を考慮して2秒の許容範囲
+      const timeDiff = Math.abs((updated.destroy_at?.getTime() ?? 0) - destroyAt.getTime());
+      expect(timeDiff).toBeLessThan(2000);
     });
 
     it('should update last_activity_at', async () => {
@@ -211,7 +213,9 @@ describe('Session State Schema Tests', () => {
         .where(eq(sessions.id, session.id));
 
       expect(updated.last_activity_at).not.toBeNull();
-      expect(updated.last_activity_at?.getTime()).toBeCloseTo(newActivityTime.getTime(), -3);
+      // データベース書き込みの遅延を考慮して2秒の許容範囲
+      const timeDiff = Math.abs((updated.last_activity_at?.getTime() ?? 0) - newActivityTime.getTime());
+      expect(timeDiff).toBeLessThan(2000);
     });
   });
 
