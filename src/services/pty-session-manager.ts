@@ -95,6 +95,11 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
   private sessions: Map<string, PTYSession> = new Map()
   private connectionManager: ConnectionManager
 
+  /**
+   * セッション破棄タイマーを管理
+   */
+  private destroyTimers: Map<string, NodeJS.Timeout> = new Map()
+
   private constructor() {
     super()
     this.connectionManager = ConnectionManager.getInstance()
@@ -245,6 +250,9 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
     logger.info(`Destroying session ${sessionId}`)
 
     try {
+      // タイマーをクリア
+      this.clearDestroyTimer(sessionId)
+
       // イベントハンドラーを解除
       this.unregisterAdapterHandlers(sessionId, session.adapter)
 
@@ -272,6 +280,8 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
         .set({
           status: 'terminated',
           active_connections: 0,
+          destroy_at: null,
+          session_state: 'TERMINATED',
           updated_at: new Date()
         })
         .where(eq(sessions.id, sessionId))
@@ -579,6 +589,52 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
         updated_at: new Date()
       })
       .where(eq(sessions.id, sessionId))
+  }
+
+  /**
+   * セッション破棄タイマーを設定
+   * 指定時間後にセッションを自動的に破棄する
+   */
+  async setDestroyTimer(sessionId: string, delayMs: number): Promise<void> {
+    try {
+      // 既存のタイマーをクリア
+      this.clearDestroyTimer(sessionId)
+
+      // destroy_atを設定
+      const destroyAt = new Date(Date.now() + delayMs)
+      await db.update(sessions)
+        .set({
+          destroy_at: destroyAt,
+          session_state: 'IDLE',
+          updated_at: new Date()
+        })
+        .where(eq(sessions.id, sessionId))
+
+      // 新しいタイマーを設定
+      const timer = setTimeout(async () => {
+        logger.info(`Destroy timer expired for session ${sessionId}`)
+        this.destroyTimers.delete(sessionId)
+        await this.destroySession(sessionId)
+      }, delayMs)
+
+      this.destroyTimers.set(sessionId, timer)
+      logger.info(`Destroy timer set for session ${sessionId}, delay: ${delayMs}ms`)
+    } catch (error) {
+      logger.error(`Failed to set destroy timer for session ${sessionId}:`, error)
+      throw error
+    }
+  }
+
+  /**
+   * セッション破棄タイマーをクリア
+   */
+  private clearDestroyTimer(sessionId: string): void {
+    const timer = this.destroyTimers.get(sessionId)
+    if (timer) {
+      clearTimeout(timer)
+      this.destroyTimers.delete(sessionId)
+      logger.debug(`Destroy timer cleared for session ${sessionId}`)
+    }
   }
 
   /**
