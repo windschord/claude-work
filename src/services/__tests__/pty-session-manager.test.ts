@@ -57,6 +57,9 @@ const { mockDbExecutionEnvironment, mockDbUpdate, mockDbSelect } = vi.hoisted(()
 
 vi.mock('@/lib/db', () => ({
   db: {
+    query: {
+      executionEnvironments: { findFirst: mockDbExecutionEnvironment.findUnique }
+    },
     executionEnvironment: mockDbExecutionEnvironment,
     update: mockDbUpdate,
     select: mockDbSelect
