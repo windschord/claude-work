@@ -971,4 +971,134 @@ describe('DockerAdapter', () => {
       isContainerRunningSpy.mockRestore();
     });
   });
+
+  describe('waitForContainerReady (TASK-012)', () => {
+    it('should wait until container is ready', async () => {
+      // waitForContainerReadyはprivateメソッドなので、createSession経由でテスト
+      const sessionId = 'session-wait-ready';
+      const workingDir = '/projects/test';
+
+      // execFileをモック（docker inspect と docker exec）
+      let inspectCallCount = 0;
+      mockExecFile.mockImplementation((cmd: string, args: string[], _opts: unknown, callback?: (error: Error | null, stdout: string, stderr: string) => void) => {
+        if (!callback) return;
+
+        // docker inspect の場合
+        if (args[0] === 'inspect' && args.includes('{{.State.Running}}')) {
+          inspectCallCount++;
+          // 最初の2回は false を返し、3回目から true を返す
+          if (inspectCallCount < 3) {
+            callback(null, 'false\n', '');
+          } else {
+            callback(null, 'true\n', '');
+          }
+        }
+        // docker exec の場合（ヘルスチェック）
+        else if (args[0] === 'exec') {
+          callback(null, 'health-check\n', '');
+        }
+        // その他（stop, wait など）
+        else {
+          callback(null, '', '');
+        }
+      });
+
+      await adapter.createSession(sessionId, workingDir);
+
+      // createSessionが完了したら、waitForContainerReadyが呼ばれたはず
+      expect(inspectCallCount).toBeGreaterThanOrEqual(3);
+      expect(adapter.hasSession(sessionId)).toBe(true);
+    });
+
+    it('should timeout if container does not start within 30 seconds', async () => {
+      const sessionId = 'session-timeout';
+      const workingDir = '/projects/test';
+
+      // execFileをモック（常にfalseを返す）
+      mockExecFile.mockImplementation((cmd: string, args: string[], _opts: unknown, callback?: (error: Error | null, stdout: string, stderr: string) => void) => {
+        if (!callback) return;
+
+        if (args[0] === 'inspect' && args.includes('{{.State.Running}}')) {
+          callback(null, 'false\n', '');
+        } else {
+          callback(null, '', '');
+        }
+      });
+
+      vi.useFakeTimers();
+
+      const promise = adapter.createSession(sessionId, workingDir);
+
+      // 30秒以上進める
+      vi.advanceTimersByTime(31000);
+
+      await expect(promise).rejects.toThrow('failed to start');
+
+      vi.useRealTimers();
+    });
+
+    it('should retry health check if docker exec fails initially', async () => {
+      const sessionId = 'session-retry-healthcheck';
+      const workingDir = '/projects/test';
+
+      let execCallCount = 0;
+      mockExecFile.mockImplementation((cmd: string, args: string[], _opts: unknown, callback?: (error: Error | null, stdout: string, stderr: string) => void) => {
+        if (!callback) return;
+
+        // docker inspect はすぐに true を返す
+        if (args[0] === 'inspect' && args.includes('{{.State.Running}}')) {
+          callback(null, 'true\n', '');
+        }
+        // docker exec（ヘルスチェック）は最初の2回失敗し、3回目で成功
+        else if (args[0] === 'exec') {
+          execCallCount++;
+          if (execCallCount < 3) {
+            callback(new Error('exec failed'), '', '');
+          } else {
+            callback(null, 'health-check\n', '');
+          }
+        }
+        // その他
+        else {
+          callback(null, '', '');
+        }
+      });
+
+      await adapter.createSession(sessionId, workingDir);
+
+      // 3回のexec呼び出しがあったことを確認
+      expect(execCallCount).toBeGreaterThanOrEqual(3);
+      expect(adapter.hasSession(sessionId)).toBe(true);
+    });
+
+    it('should not block other operations during wait', async () => {
+      const sessionId1 = 'session-wait-1';
+      const sessionId2 = 'session-wait-2';
+      const workingDir = '/projects/test';
+
+      let inspectCount = 0;
+      mockExecFile.mockImplementation((cmd: string, args: string[], _opts: unknown, callback?: (error: Error | null, stdout: string, stderr: string) => void) => {
+        if (!callback) return;
+
+        if (args[0] === 'inspect' && args.includes('{{.State.Running}}')) {
+          inspectCount++;
+          // 2回目のinspectから true を返す（即座に成功）
+          callback(null, inspectCount > 1 ? 'true\n' : 'false\n', '');
+        } else if (args[0] === 'exec') {
+          callback(null, 'health-check\n', '');
+        } else {
+          callback(null, '', '');
+        }
+      });
+
+      // 2つのセッションを並列で作成
+      const promise1 = adapter.createSession(sessionId1, workingDir);
+      const promise2 = adapter.createSession(sessionId2, workingDir);
+
+      await Promise.all([promise1, promise2]);
+
+      expect(adapter.hasSession(sessionId1)).toBe(true);
+      expect(adapter.hasSession(sessionId2)).toBe(true);
+    });
+  });
 });
