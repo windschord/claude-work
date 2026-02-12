@@ -571,12 +571,33 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
    */
   private async updateConnectionCount(sessionId: string): Promise<void> {
     const count = this.connectionManager.getConnectionCount(sessionId)
-    await db.update(sessions)
-      .set({
-        active_connections: count,
-        updated_at: new Date()
-      })
-      .where(eq(sessions.id, sessionId))
+
+    if (count === 0) {
+      // 最後の接続が切断された場合、IDLE状態にしてタイマーを設定
+      await db.update(sessions)
+        .set({
+          active_connections: 0,
+          session_state: 'IDLE',
+          updated_at: new Date()
+        })
+        .where(eq(sessions.id, sessionId))
+
+      // 30分後に自動破棄するタイマーを設定
+      const delayMs = 30 * 60 * 1000 // 30分
+      await this.setDestroyTimer(sessionId, delayMs)
+      logger.info(`Session ${sessionId} switched to IDLE, destroy timer set`)
+    } else {
+      // 接続がある場合、ACTIVE状態にしてタイマーをクリア
+      this.clearDestroyTimer(sessionId)
+      await db.update(sessions)
+        .set({
+          active_connections: count,
+          session_state: 'ACTIVE',
+          destroy_at: null,
+          updated_at: new Date()
+        })
+        .where(eq(sessions.id, sessionId))
+    }
   }
 
   /**
