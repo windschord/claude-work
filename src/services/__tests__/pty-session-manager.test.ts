@@ -4,8 +4,27 @@ import { ConnectionManager } from '@/lib/websocket/connection-manager'
 import { AdapterFactory } from '../adapter-factory'
 
 // モック設定
-vi.mock('@/lib/websocket/connection-manager')
-vi.mock('../adapter-factory')
+vi.mock('@/lib/websocket/connection-manager', () => ({
+  ConnectionManager: {
+    getInstance: vi.fn().mockReturnValue({
+      getConnectionCount: vi.fn().mockReturnValue(0),
+      addConnection: vi.fn(),
+      removeConnection: vi.fn(),
+      getConnections: vi.fn().mockReturnValue(new Set()),
+      cleanup: vi.fn(),
+      broadcast: vi.fn(),
+      setScrollbackBuffer: vi.fn(),
+      getScrollbackBuffer: vi.fn()
+    })
+  }
+}))
+vi.mock('../adapter-factory', () => ({
+  AdapterFactory: {
+    getInstance: vi.fn().mockReturnValue({
+      getAdapter: vi.fn()
+    })
+  }
+}))
 vi.mock('@/lib/db', () => ({
   db: {
     executionEnvironment: {
