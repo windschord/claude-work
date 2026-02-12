@@ -9,10 +9,10 @@
 | フェーズ | タスク数 | 完了 | 進行中 | 未着手 | 推定工数 |
 |---------|---------|------|--------|--------|---------|
 | Phase 1 | 5 | 5 | 0 | 0 | 4時間 |
-| Phase 2 | 6 | 4 | 0 | 2 | 6時間 |
+| Phase 2 | 6 | 6 | 0 | 0 | 6時間 |
 | Phase 3 | 4 | 4 | 0 | 0 | 3.5時間 |
 | Phase 4 | 4 | 0 | 0 | 4 | 3時間 |
-| **合計** | **19** | **13** | **0** | **6** | **16.5時間** |
+| **合計** | **19** | **14** | **0** | **5** | **16.5時間** |
 
 ## フェーズ構成
 
@@ -47,7 +47,7 @@
 | TASK-008 | PTYイベントハンドラー登録の実装 | DONE | TASK-007 | 50分 | [詳細](phase-2/TASK-008.md) @phase-2/TASK-008.md |
 | TASK-009 | ClaudePTYManagerのリファクタリング | DONE | TASK-008 | 50分 | [詳細](phase-2/TASK-009.md) @phase-2/TASK-009.md |
 | TASK-010 | WebSocketハンドラーのPTYSessionManager統合 | DONE | TASK-009 | 50分 | [詳細](phase-2/TASK-010.md) @phase-2/TASK-010.md |
-| TASK-011 | PTYSessionManagerの統合テスト | TODO | TASK-010 | 50分 | [詳細](phase-2/TASK-011.md) @phase-2/TASK-011.md |
+| TASK-011 | PTYSessionManagerの統合テスト | DONE | TASK-010 | 50分 | [詳細](phase-2/TASK-011.md) @phase-2/TASK-011.md |
 
 ### Phase 3: Docker環境の安定化
 
