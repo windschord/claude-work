@@ -7,6 +7,7 @@ const {
   mockEnvironmentService,
   mockAdapterFactory,
   createMockAdapter,
+  mockLogger,
 } = vi.hoisted(() => {
   const createMockAdapterFn = () => ({
     createSession: vi.fn(),
@@ -25,11 +26,15 @@ const {
     mockClaudePtyManager: {
       createSession: vi.fn(),
       write: vi.fn(),
+      sendInput: vi.fn(),
       resize: vi.fn(),
       destroySession: vi.fn(),
       restartSession: vi.fn(),
       hasSession: vi.fn().mockReturnValue(true),
       getScrollbackBuffer: vi.fn().mockReturnValue(null),
+      addConnection: vi.fn(),
+      removeConnection: vi.fn(),
+      getConnectionCount: vi.fn().mockReturnValue(1),
       on: vi.fn(),
       off: vi.fn(),
     },
@@ -37,6 +42,7 @@ const {
       query: {
         sessions: { findFirst: vi.fn() },
         messages: { findFirst: vi.fn() },
+        projects: { findFirst: vi.fn() },
       },
       update: vi.fn().mockReturnValue({
         set: vi.fn().mockReturnValue({
@@ -55,12 +61,18 @@ const {
       reset: vi.fn(),
     },
     createMockAdapter: createMockAdapterFn,
+    mockLogger: {
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+    },
   };
 });
 
-vi.mock('@/services/claude-pty-manager', () => ({ claudePtyManager: mockClaudePtyManager }));
-vi.mock('@/lib/db', () => ({ db: mockDb, schema: { sessions: {}, messages: {} } }));
-vi.mock('@/lib/logger', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } }));
+vi.mock('@/services/pty-session-manager', () => ({ ptySessionManager: mockClaudePtyManager }));
+vi.mock('@/lib/db', () => ({ db: mockDb, schema: { sessions: {}, messages: {}, projects: {} } }));
+vi.mock('@/lib/logger', () => ({ logger: mockLogger }));
 vi.mock('@/services/environment-service', () => ({ environmentService: mockEnvironmentService }));
 vi.mock('@/services/adapter-factory', () => ({ AdapterFactory: mockAdapterFactory }));
 vi.mock('@/services/scrollback-buffer', () => ({
@@ -73,17 +85,18 @@ vi.mock('@/services/scrollback-buffer', () => ({
 }));
 
 // fsモック
-const mockFs = vi.hoisted(() => ({
-  promises: {
-    mkdir: vi.fn().mockResolvedValue(undefined),
-    writeFile: vi.fn().mockResolvedValue(undefined),
-  },
-}));
+const { mockMkdir, mockWriteFile } = vi.hoisted(() => {
+  return {
+    mockMkdir: vi.fn().mockResolvedValue(undefined),
+    mockWriteFile: vi.fn().mockResolvedValue(undefined),
+  };
+});
 
 vi.mock('fs/promises', () => ({
-  default: mockFs.promises,
-  mkdir: mockFs.promises.mkdir,
-  writeFile: mockFs.promises.writeFile,
+  default: {
+    mkdir: mockMkdir,
+    writeFile: mockWriteFile,
+  },
 }));
 
 import { setupClaudeWebSocket } from '../claude-ws';
@@ -122,8 +135,25 @@ describe('Claude WebSocket - Image Paste', () => {
       worktree_path: worktreePath,
       docker_mode: false,
       environment_id: 'env-test',
+      project_id: 'project-test',
+      branch_name: 'main',
+      status: 'running',
+      resume_session_id: null,
+      claude_code_options: null,
+      custom_env_vars: null,
+      created_at: new Date(),
+      updated_at: new Date(),
     });
     mockDb.query.messages.findFirst.mockResolvedValue(null);
+    mockDb.query.projects.findFirst.mockResolvedValue({
+      id: 'project-test',
+      name: 'Test Project',
+      repository_path: '/test/repo',
+      claude_code_options: null,
+      custom_env_vars: null,
+      created_at: new Date(),
+      updated_at: new Date(),
+    });
     mockDb.update.mockReturnValue({
       set: vi.fn().mockReturnValue({
         where: vi.fn().mockReturnValue({ run: vi.fn() }),
@@ -159,7 +189,7 @@ describe('Claude WebSocket - Image Paste', () => {
   }
 
   it('正常なPNG画像が保存される', async () => {
-    const adapter = await connectAndGetAdapter();
+    await connectAndGetAdapter();
 
     const imageData = Buffer.from('fake-png-data').toString('base64');
     const pasteMsg = JSON.stringify({
@@ -168,17 +198,42 @@ describe('Claude WebSocket - Image Paste', () => {
       mimeType: 'image/png',
     });
 
+    if (!messageHandler) {
+      throw new Error('messageHandler is not set');
+    }
+
+    // デバッグ: モックの呼び出し状況を確認
+    console.log('hasSession called:', mockClaudePtyManager.hasSession.mock.calls.length);
+    console.log('addConnection called:', mockClaudePtyManager.addConnection.mock.calls.length);
+    console.log('mockWs.send called:', mockWs.send.mock.calls.length);
+
     messageHandler(Buffer.from(pasteMsg));
 
-    await vi.waitFor(() => {
-      expect(mockFs.promises.writeFile).toHaveBeenCalled();
-    });
+    // メッセージハンドラー実行後、少し待機
+    await new Promise(resolve => setTimeout(resolve, 100));
 
-    const writeCall = mockFs.promises.writeFile.mock.calls[0];
+    // デバッグ: logger呼び出しを確認
+    console.log('logger.warn calls:', mockLogger.warn.mock.calls.length);
+    console.log('logger.error calls:', mockLogger.error.mock.calls.length);
+    if (mockLogger.warn.mock.calls.length > 0) {
+      console.log('logger.warn:', mockLogger.warn.mock.calls);
+    }
+    if (mockLogger.error.mock.calls.length > 0) {
+      console.log('logger.error:', mockLogger.error.mock.calls);
+    }
+
+    await vi.waitFor(() => {
+      console.log('mockWriteFile calls:', mockWriteFile.mock.calls.length);
+      console.log('mockMkdir calls:', mockMkdir.mock.calls.length);
+      console.log('sendInput calls:', mockClaudePtyManager.sendInput.mock.calls.length);
+      expect(mockWriteFile).toHaveBeenCalled();
+    }, { timeout: 2000 });
+
+    const writeCall = mockWriteFile.mock.calls[0];
     expect(writeCall[0]).toContain('.claude-images');
     expect(writeCall[0]).toMatch(/clipboard-\d+-[a-z0-9]+\.png$/);
 
-    expect(adapter.write).toHaveBeenCalledWith(sessionId, expect.stringContaining('.claude-images'));
+    expect(mockClaudePtyManager.sendInput).toHaveBeenCalledWith(sessionId, expect.stringContaining('.claude-images'));
 
     expect(mockWs.send).toHaveBeenCalledWith(
       expect.stringContaining('"type":"image-saved"')
@@ -243,10 +298,10 @@ describe('Claude WebSocket - Image Paste', () => {
     messageHandler(Buffer.from(pasteMsg));
 
     await vi.waitFor(() => {
-      expect(mockFs.promises.writeFile).toHaveBeenCalled();
+      expect(mockWriteFile).toHaveBeenCalled();
     });
 
-    const writeCall = mockFs.promises.writeFile.mock.calls[0];
+    const writeCall = mockWriteFile.mock.calls[0];
     expect(writeCall[0]).toMatch(/\.jpg$/);
   });
 
@@ -263,7 +318,7 @@ describe('Claude WebSocket - Image Paste', () => {
     messageHandler(Buffer.from(pasteMsg));
 
     await vi.waitFor(() => {
-      expect(mockFs.promises.mkdir).toHaveBeenCalledWith(
+      expect(mockMkdir).toHaveBeenCalledWith(
         expect.stringContaining('.claude-images'),
         { recursive: true }
       );
@@ -271,7 +326,7 @@ describe('Claude WebSocket - Image Paste', () => {
   });
 
   it('保存後にファイルパスがPTY入力として送信される', async () => {
-    const adapter = await connectAndGetAdapter();
+    await connectAndGetAdapter();
 
     const imageData = Buffer.from('test-image-data').toString('base64');
     const pasteMsg = JSON.stringify({
@@ -283,10 +338,10 @@ describe('Claude WebSocket - Image Paste', () => {
     messageHandler(Buffer.from(pasteMsg));
 
     await vi.waitFor(() => {
-      expect(adapter.write).toHaveBeenCalled();
+      expect(mockClaudePtyManager.sendInput).toHaveBeenCalled();
     });
 
-    const writtenPath = mockFs.promises.writeFile.mock.calls[0][0];
-    expect(adapter.write).toHaveBeenCalledWith(sessionId, writtenPath);
+    const writtenPath = mockWriteFile.mock.calls[0][0];
+    expect(mockClaudePtyManager.sendInput).toHaveBeenCalledWith(sessionId, writtenPath);
   });
 });
