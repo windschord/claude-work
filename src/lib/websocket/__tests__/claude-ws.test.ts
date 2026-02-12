@@ -39,6 +39,9 @@ const {
       getConnectionCount: vi.fn().mockReturnValue(0),
       on: vi.fn(),
       off: vi.fn(),
+      connectionManager: {
+        getScrollbackBuffer: vi.fn().mockReturnValue(null),
+      },
     },
     mockDb: {
       query: {
@@ -153,7 +156,7 @@ describe('Claude WebSocket Handler - Environment Support', () => {
     // WebSocketServer のモック
     // 注: setupClaudeWebSocketが呼ばれる度にhandlerを更新する
     mockWss = {
-      on: vi.fn((event: string, handler: any) => {
+      on: vi.fn((event: string, handler: (ws: WebSocket, req: { url: string; headers: { host: string } }) => void) => {
         if (event === 'connection') {
           connectionHandler = handler;
         }
@@ -745,9 +748,7 @@ describe('Claude WebSocket Handler - Environment Support', () => {
 
       // 既存セッションとして報告
       mockClaudePtyManager.hasSession.mockReturnValue(true);
-      mockClaudePtyManager.connectionManager = {
-        getScrollbackBuffer: vi.fn().mockReturnValue(scrollbackContent),
-      };
+      mockClaudePtyManager.connectionManager.getScrollbackBuffer.mockReturnValue(scrollbackContent);
 
       setupClaudeWebSocket(mockWss, '/ws/claude');
       await connectionHandler(mockWs, {
@@ -822,9 +823,7 @@ describe('Claude WebSocket Handler - Environment Support', () => {
       });
 
       mockClaudePtyManager.hasSession.mockReturnValue(true);
-      mockClaudePtyManager.connectionManager = {
-        getScrollbackBuffer: vi.fn().mockReturnValue(scrollbackContent),
-      };
+      mockClaudePtyManager.connectionManager.getScrollbackBuffer.mockReturnValue(scrollbackContent);
 
       setupClaudeWebSocket(mockWss, '/ws/claude');
       await connectionHandler(mockWs, {
@@ -890,7 +889,7 @@ describe('Claude WebSocket Handler - Environment Support', () => {
       closeHandler!();
 
       // デフォルトではdestroySessionはまだ呼ばれない（タイマー待ち）
-      expect(mockAdapter.destroySession).not.toHaveBeenCalled();
+      expect(mockClaudePtyManager.destroySession).not.toHaveBeenCalled();
     });
   });
 
