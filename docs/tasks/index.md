@@ -1,164 +1,179 @@
-# 実装タスク一覧: セッション管理の包括的改善
+# タスク計画: ハイブリッド設計（ホスト環境/Docker環境でのプロジェクトclone）
 
 ## 概要
 
-本ドキュメントは、要件定義書（[docs/requirements/index.md](../requirements/index.md) @../requirements/index.md）と技術設計書（[docs/design/index.md](../design/index.md) @../design/index.md）に基づいて分解された実装タスクの一覧です。
+このドキュメントは、ハイブリッド設計の実装タスクを定義します。AIエージェント（Claude Code等）が実行可能な具体的なタスクに分解し、TDD（テスト駆動開発）に基づいて実装します。
+
+## プロジェクトサマリ
+
+- **目的**: プロジェクト登録時にリポジトリの保存場所（ホスト環境/Docker環境）を選択可能にする
+- **対象ユーザー**: SSH Agent問題を抱える開発者、既存ユーザー
+- **主要機能**: 保存場所選択UI、Docker環境でのclone、worktree作成
+- **非機能要件**: 性能、セキュリティ、保守性
 
 ## 進捗サマリ
 
-| フェーズ | タスク数 | 完了 | 進行中 | 未着手 | 推定工数 |
-|---------|---------|------|--------|--------|---------|
-| Phase 1 | 5 | 1 | 0 | 4 | 4時間 |
-| Phase 2 | 6 | 6 | 0 | 0 | 6時間 |
-| Phase 3 | 4 | 4 | 0 | 0 | 3.5時間 |
-| Phase 4 | 4 | 4 | 0 | 0 | 3時間 |
-| **合計** | **19** | **15** | **0** | **4** | **16.5時間** |
+| フェーズ | タスク数 | 完了 | 進行中 | 未着手 | 進捗率 |
+|---------|---------|------|--------|--------|--------|
+| Phase 1 | 4 | 0 | 0 | 4 | 0% |
+| Phase 2 | 5 | 0 | 0 | 5 | 0% |
+| Phase 3 | 3 | 0 | 0 | 3 | 0% |
+| Phase 4 | 4 | 0 | 0 | 4 | 0% |
+| Phase 5 | 3 | 0 | 0 | 3 | 0% |
+| **合計** | **19** | **0** | **0** | **19** | **0%** |
 
-## フェーズ構成
+## フェーズ概要
 
-### Phase 1: WebSocket接続管理の統一
+### Phase 1: 基盤整備（推定: 1日）
+データベーススキーマ変更、ConfigService実装、バリデーション機能の実装。
 
-**目的**: ConnectionManagerを拡張し、すべてのWebSocketタイプで使用
+### Phase 2: Docker環境実装（推定: 2日）
+DockerGitService実装、Dockerボリューム管理、認証情報マウント。
 
-**依存**: なし
+### Phase 3: worktree実装（推定: 1.5日）
+HostGitServiceの確認、DockerGitServiceのworktree作成実装。
 
-**期間**: 4時間
+### Phase 4: UI実装（推定: 1日）
+プロジェクト登録フォームの保存場所選択UI、設定画面の実装。
 
-| ID | タスク | ステータス | 依存 | 工数 | リンク |
-|----|-------|----------|------|------|--------|
-| TASK-001 | ConnectionManagerの拡張 | DONE | - | 50分 | [詳細](phase-1/TASK-001.md) @phase-1/TASK-001.md |
-| TASK-002 | Claude WebSocketのConnectionManager統合 | TODO | TASK-001 | 50分 | 未作成（後日追加予定） |
-| TASK-003 | Terminal WebSocketのConnectionManager統合 | TODO | TASK-001 | 50分 | 未作成（後日追加予定） |
-| TASK-004 | WebSocket接続管理の統合テスト | TODO | TASK-002, TASK-003 | 50分 | 未作成（後日追加予定） |
-| TASK-005 | 複数ブラウザE2Eテスト | TODO | TASK-004 | 40分 | 未作成（後日追加予定） |
+### Phase 5: テスト・統合（推定: 1.5日）
+ユニットテスト、E2Eテスト、既存プロジェクトの互換性確認。
 
-### Phase 2: PTYSessionManagerの導入
+## タスク一覧
 
-**目的**: PTYセッションとWebSocket接続を統合管理
+### Phase 1: 基盤整備
 
-**依存**: TASK-001完了
+| ID | タスク名 | ステータス | 担当 | 推定工数 | 詳細 |
+|----|---------|----------|------|----------|------|
+| TASK-001 | データベーススキーマ変更 | TODO | - | 30分 | [詳細](phase-1/TASK-001.md) @phase-1/TASK-001.md |
+| TASK-002 | ConfigService実装 | TODO | - | 40分 | [詳細](phase-1/TASK-002.md) @phase-1/TASK-002.md |
+| TASK-003 | バリデーション関数実装 | TODO | - | 30分 | [詳細](phase-1/TASK-003.md) @phase-1/TASK-003.md |
+| TASK-004 | GitOperationsインターフェース定義 | TODO | - | 20分 | [詳細](phase-1/TASK-004.md) @phase-1/TASK-004.md |
 
-**期間**: 6時間
+### Phase 2: Docker環境実装
 
-| ID | タスク | ステータス | 依存 | 工数 | リンク |
-|----|-------|----------|------|------|--------|
-| TASK-006 | PTYSessionManagerの基本構造作成 | DONE | TASK-001 | 60分 | [詳細](phase-2/TASK-006.md) @phase-2/TASK-006.md |
-| TASK-007 | セッション作成・取得・破棄メソッド実装 | DONE | TASK-006 | 60分 | [詳細](phase-2/TASK-007.md) @phase-2/TASK-007.md |
-| TASK-008 | PTYイベントハンドラー登録の実装 | DONE | TASK-007 | 50分 | [詳細](phase-2/TASK-008.md) @phase-2/TASK-008.md |
-| TASK-009 | ClaudePTYManagerのリファクタリング | DONE | TASK-008 | 50分 | [詳細](phase-2/TASK-009.md) @phase-2/TASK-009.md |
-| TASK-010 | WebSocketハンドラーのPTYSessionManager統合 | DONE | TASK-009 | 50分 | [詳細](phase-2/TASK-010.md) @phase-2/TASK-010.md |
-| TASK-011 | PTYSessionManagerの統合テスト | DONE | TASK-010 | 50分 | [詳細](phase-2/TASK-011.md) @phase-2/TASK-011.md |
+| ID | タスク名 | ステータス | 担当 | 推定工数 | 詳細 |
+|----|---------|----------|------|----------|------|
+| TASK-005 | DockerGitService基本実装 | TODO | - | 60分 | [詳細](phase-2/TASK-005.md) @phase-2/TASK-005.md |
+| TASK-006 | Dockerボリューム管理実装 | TODO | - | 40分 | [詳細](phase-2/TASK-006.md) @phase-2/TASK-006.md |
+| TASK-007 | Docker環境でのgit clone実装 | TODO | - | 60分 | [詳細](phase-2/TASK-007.md) @phase-2/TASK-007.md |
+| TASK-008 | 認証情報マウント実装（gh認証含む） | TODO | - | 40分 | [詳細](phase-2/TASK-008.md) @phase-2/TASK-008.md |
+| TASK-009 | エラーハンドリングとクリーンアップ | TODO | - | 40分 | [詳細](phase-2/TASK-009.md) @phase-2/TASK-009.md |
 
-### Phase 3: Docker環境の安定化
+### Phase 3: worktree実装
 
-**目的**: Dockerコンテナライフサイクル管理の改善
+| ID | タスク名 | ステータス | 担当 | 推定工数 | 詳細 |
+|----|---------|----------|------|----------|------|
+| TASK-010 | HostGitServiceの確認と統合 | TODO | - | 30分 | [詳細](phase-3/TASK-010.md) @phase-3/TASK-010.md |
+| TASK-011 | Docker環境でのworktree作成実装 | TODO | - | 60分 | [詳細](phase-3/TASK-011.md) @phase-3/TASK-011.md |
+| TASK-012 | セッション起動時のマウント処理 | TODO | - | 40分 | [詳細](phase-3/TASK-012.md) @phase-3/TASK-012.md |
 
-**依存**: TASK-001完了（Phase 2と並行可能）
+### Phase 4: UI実装
 
-**期間**: 3.5時間
+| ID | タスク名 | ステータス | 担当 | 推定工数 | 詳細 |
+|----|---------|----------|------|----------|------|
+| TASK-013 | プロジェクト登録API変更 | TODO | - | 40分 | [詳細](phase-4/TASK-013.md) @phase-4/TASK-013.md |
+| TASK-014 | プロジェクト登録フォームUI実装 | TODO | - | 60分 | [詳細](phase-4/TASK-014.md) @phase-4/TASK-014.md |
+| TASK-015 | 設定画面実装（タイムアウト・デバッグモード） | TODO | - | 40分 | [詳細](phase-4/TASK-015.md) @phase-4/TASK-015.md |
+| TASK-016 | プロジェクト一覧の環境バッジ表示 | TODO | - | 30分 | [詳細](phase-4/TASK-016.md) @phase-4/TASK-016.md |
 
-| ID | タスク | ステータス | 依存 | 工数 | リンク |
-|----|-------|----------|------|------|--------|
-| TASK-012 | DockerAdapterのコンテナ起動待機実装 | DONE | TASK-001 | 60分 | [詳細](phase-3/TASK-012.md) @phase-3/TASK-012.md |
-| TASK-013 | docker stopのPromise化とエラーハンドリング | DONE | TASK-012 | 40分 | [詳細](phase-3/TASK-013.md) @phase-3/TASK-013.md |
-| TASK-014 | 親コンテナIDの永続化と孤立コンテナクリーンアップ | DONE | TASK-013 | 60分 | [詳細](phase-3/TASK-014.md) @phase-3/TASK-014.md |
-| TASK-015 | DockerAdapterの統合テスト | DONE | TASK-014 | 50分 | [詳細](phase-3/TASK-015.md) @phase-3/TASK-015.md |
+### Phase 5: テスト・統合
 
-### Phase 4: 状態管理の統一
+| ID | タスク名 | ステータス | 担当 | 推定工数 | 詳細 |
+|----|---------|----------|------|----------|------|
+| TASK-017 | ユニットテスト作成 | TODO | - | 60分 | [詳細](phase-5/TASK-017.md) @phase-5/TASK-017.md |
+| TASK-018 | E2Eテスト作成 | TODO | - | 60分 | [詳細](phase-5/TASK-018.md) @phase-5/TASK-018.md |
+| TASK-019 | 既存プロジェクトの互換性確認 | TODO | - | 30分 | [詳細](phase-5/TASK-019.md) @phase-5/TASK-019.md |
 
-**目的**: セッション状態のデータベース永続化と復元
+## 並列実行可能なタスクグループ
 
-**依存**: Phase 2完了
+エージェントチームで並列実行する場合、以下のグループを参考にしてください：
 
-**期間**: 3時間
+### グループ1（Phase 1並列実行可能）
+- TASK-002（ConfigService）
+- TASK-003（バリデーション）
+- TASK-004（GitOperations interface）
 
-| ID | タスク | ステータス | 依存 | 工数 | リンク |
-|----|-------|----------|------|------|--------|
-| TASK-016 | データベーススキーマの拡張 | DONE | TASK-011 | 30分 | [詳細](phase-4/TASK-016.md) @phase-4/TASK-016.md |
-| TASK-017 | セッション状態の永続化ロジック実装 | DONE | TASK-016 | 60分 | [詳細](phase-4/TASK-017.md) @phase-4/TASK-017.md |
-| TASK-018 | サーバー起動時の状態復元処理 | DONE | TASK-017 | 60分 | [詳細](phase-4/TASK-018.md) @phase-4/TASK-018.md |
-| TASK-019 | 状態管理の統合テスト | DONE | TASK-018 | 50分 | [詳細](phase-4/TASK-019.md) @phase-4/TASK-019.md |
+※ TASK-001（スキーマ変更）は先に実行する必要がある
 
-## タスク実行の原則
+### グループ2（Phase 2並列実行可能）
+- TASK-006（Dockerボリューム管理）
+- TASK-008（認証情報マウント）
 
-### TDD（テスト駆動開発）
+※ TASK-005（DockerGitService基本）は先に実行する必要がある
 
-すべてのタスクはTDDで実装します：
+### グループ3（Phase 4並列実行可能）
+- TASK-014（UI実装）
+- TASK-015（設定画面）
+- TASK-016（環境バッジ）
 
-1. **テスト作成**: 期待される動作のテストを先に作成
-2. **テスト実行**: 失敗を確認（Red）
+※ TASK-013（API変更）は先に実行する必要がある
+
+## 依存関係マトリクス
+
+| タスク | 依存するタスク |
+|-------|---------------|
+| TASK-002 | TASK-001 |
+| TASK-003 | なし |
+| TASK-004 | なし |
+| TASK-005 | TASK-001, TASK-004 |
+| TASK-006 | TASK-005 |
+| TASK-007 | TASK-005, TASK-006 |
+| TASK-008 | TASK-005 |
+| TASK-009 | TASK-006, TASK-007 |
+| TASK-010 | TASK-001, TASK-004 |
+| TASK-011 | TASK-005, TASK-010 |
+| TASK-012 | TASK-011 |
+| TASK-013 | TASK-001, TASK-005, TASK-010 |
+| TASK-014 | TASK-013 |
+| TASK-015 | TASK-002 |
+| TASK-016 | TASK-001 |
+| TASK-017 | すべての実装タスク |
+| TASK-018 | すべての実装タスク |
+| TASK-019 | すべての実装タスク |
+
+## TDD原則
+
+すべてのタスクは以下のTDDサイクルに従います：
+
+1. **テスト作成**: テストファイルを作成し、テストケースを記述
+2. **テスト実行**: すべてのテストが失敗することを確認
 3. **テストコミット**: テストのみをコミット
-4. **実装**: テストを通過させる最小限の実装（Green）
+4. **実装**: テストを通過させる最小限の実装
 5. **実装コミット**: すべてのテストが通過したらコミット
-6. **リファクタリング**: 必要に応じてコードを改善（Refactor）
+6. **リファクタリング**: 必要に応じてコードを改善
 
-### コミット規則
+## 受入基準（全体）
 
-```bash
-# テストコミット
-git add <test-file>
-git commit -m "test(TASK-XXX): [テストの説明]"
+すべてのタスクが完了し、以下の基準を満たした場合にプロジェクトは完了とみなされます：
 
-# 実装コミット
-git add <impl-file>
-git commit -m "feat(TASK-XXX): [機能の説明]" \
-  -m "Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
-```
-
-### 並行実行の可能性
-
-- **Phase 1完了後**: Phase 2とPhase 3は並行実行可能
-- **Phase 2完了後**: Phase 4を実行
-
-## 成果物の検証
-
-各フェーズ完了時に以下を確認：
-
-### Phase 1完了時
-
-- [ ] すべてのWebSocketタイプでConnectionManagerを使用
-- [ ] イベントハンドラーがセッション単位で1つのみ
-- [ ] 複数ブラウザで同一のターミナル内容が表示
-- [ ] テストカバレッジ > 80%
-
-### Phase 2完了時
-
-- [ ] PTYSessionManagerでセッション管理が一元化
-- [ ] WebSocketハンドラーがPTYSessionManager経由でアクセス
-- [ ] 既存のセッション管理機能が正常動作
-- [ ] テストカバレッジ > 80%
-
-### Phase 3完了時
-
-- [ ] Dockerコンテナが安定して起動・停止
-- [ ] リサイズ操作が正しく動作
-- [ ] 孤立コンテナが適切にクリーンアップ
-- [ ] テストカバレッジ > 80%
-
-### Phase 4完了時
-
-- [ ] セッション状態がデータベースに永続化
-- [ ] サーバー再起動後に状態が復元
-- [ ] タイマーが正しく再設定
-- [ ] テストカバレッジ > 80%
+- [ ] プロジェクト登録時に保存場所（ホスト/Docker）を選択できる
+- [ ] Docker環境でのプロジェクトcloneが正常に動作する
+- [ ] 両方の環境でセッション作成時にworktreeが正常に作成される
+- [ ] gh CLI認証が正しくマウントされ、GitHub操作が可能
+- [ ] タイムアウト設定が正しく動作し、設定で変更可能
+- [ ] エラー時のDockerボリュームクリーンアップ設定が正しく動作する
+- [ ] 既存プロジェクトが引き続き正常に動作する
+- [ ] ユニットテストカバレッジが80%以上
+- [ ] 全てのE2Eテストが通過する
+- [ ] GitHub Actionsのテストが通過する
 
 ## リスク管理
 
-| リスク | 影響度 | 対策 | 担当タスク |
-|-------|--------|------|-----------|
-| 既存機能の破壊 | 高 | TDDで既存機能のテストを先に作成 | 全タスク |
-| パフォーマンス低下 | 中 | ベンチマークテストの実施 | TASK-004, TASK-011 |
-| Docker環境での予期しない挙動 | 中 | 手動テストの強化、ログ充実 | TASK-015 |
-| 実装期間の長期化 | 低 | 各タスクの工数を厳守 | 全タスク |
-
-## 参照ドキュメント
-
-- [要件定義書](../requirements/index.md) @../requirements/index.md
-- [技術設計書](../design/index.md) @../design/index.md
-- [既存CLAUDE.md](../../CLAUDE.md) @../../CLAUDE.md
+| リスク | 対策タスク |
+|-------|-----------|
+| Docker環境でのパフォーマンス低下 | TASK-002（タイムアウト設定） |
+| 既存プロジェクトの破壊 | TASK-019（互換性確認） |
+| Dockerボリュームの孤立 | TASK-009（クリーンアップ） |
+| SSH Agent問題の未解決 | TASK-008（認証マウント） |
 
 ## 変更履歴
 
-| 日付 | バージョン | 変更内容 | 作成者 |
-|-----|----------|---------|--------|
-| 2026-02-11 | 1.0 | 初版作成 | Claude |
+| 日付 | バージョン | 変更内容 |
+|-----|----------|---------|
+| 2026-02-13 | 0.1 | 初版作成 |
+
+## 関連ドキュメント
+
+- [要件定義](../requirements/index.md) @../requirements/index.md
+- [技術設計](../design/index.md) @../design/index.md
