@@ -304,27 +304,31 @@ describe('POST /api/projects/clone', () => {
         name: 'test-pat',
         isActive: true,
       });
-      vi.mocked(GitHubPATService).mockImplementation(() => ({
-        decryptToken: mockDecryptToken,
-        getById: mockGetById,
-        create: vi.fn(),
-        list: vi.fn(),
-        update: vi.fn(),
-        delete: vi.fn(),
-        toggleActive: vi.fn(),
-      } as unknown as InstanceType<typeof GitHubPATService>));
+      vi.mocked(GitHubPATService).mockImplementation(function (this: unknown) {
+        Object.assign(this as Record<string, unknown>, {
+          decryptToken: mockDecryptToken,
+          getById: mockGetById,
+          create: vi.fn(),
+          list: vi.fn(),
+          update: vi.fn(),
+          delete: vi.fn(),
+          toggleActive: vi.fn(),
+        });
+      } as unknown as () => InstanceType<typeof GitHubPATService>);
 
       // DockerGitServiceのモックを設定
       const { DockerGitService } = await import('@/services/docker-git-service');
       const mockCloneRepository = vi.fn().mockResolvedValue({ success: true, message: 'cloned with PAT' });
-      vi.mocked(DockerGitService).mockImplementation(() => ({
-        cloneRepository: mockCloneRepository,
-        deleteVolume: vi.fn().mockResolvedValue(undefined),
-        createVolume: vi.fn(),
-        createWorktree: vi.fn(),
-        deleteWorktree: vi.fn(),
-        deleteRepository: vi.fn(),
-      } as unknown as InstanceType<typeof DockerGitService>));
+      vi.mocked(DockerGitService).mockImplementation(function (this: unknown) {
+        Object.assign(this as Record<string, unknown>, {
+          cloneRepository: mockCloneRepository,
+          deleteVolume: vi.fn().mockResolvedValue(undefined),
+          createVolume: vi.fn(),
+          createWorktree: vi.fn(),
+          deleteWorktree: vi.fn(),
+          deleteRepository: vi.fn(),
+        });
+      } as unknown as () => InstanceType<typeof DockerGitService>);
 
       const request = new NextRequest('http://localhost:3000/api/projects/clone', {
         method: 'POST',
@@ -354,15 +358,17 @@ describe('POST /api/projects/clone', () => {
       // GitHubPATServiceのモックでPATNotFoundErrorをスロー
       const { GitHubPATService, PATNotFoundError } = await import('@/services/github-pat-service');
       const mockDecryptToken = vi.fn().mockRejectedValue(new PATNotFoundError('non-existent-pat'));
-      vi.mocked(GitHubPATService).mockImplementation(() => ({
-        decryptToken: mockDecryptToken,
-        getById: vi.fn(),
-        create: vi.fn(),
-        list: vi.fn(),
-        update: vi.fn(),
-        delete: vi.fn(),
-        toggleActive: vi.fn(),
-      } as unknown as InstanceType<typeof GitHubPATService>));
+      vi.mocked(GitHubPATService).mockImplementation(function (this: unknown) {
+        Object.assign(this as Record<string, unknown>, {
+          decryptToken: mockDecryptToken,
+          getById: vi.fn(),
+          create: vi.fn(),
+          list: vi.fn(),
+          update: vi.fn(),
+          delete: vi.fn(),
+          toggleActive: vi.fn(),
+        });
+      } as unknown as () => InstanceType<typeof GitHubPATService>);
 
       const request = new NextRequest('http://localhost:3000/api/projects/clone', {
         method: 'POST',
@@ -387,15 +393,17 @@ describe('POST /api/projects/clone', () => {
       const mockDecryptToken = vi.fn().mockRejectedValue(
         new (PATEncryptionError as unknown as new (msg: string) => Error)('Failed to decrypt PAT')
       );
-      vi.mocked(GitHubPATService).mockImplementation(() => ({
-        decryptToken: mockDecryptToken,
-        getById: vi.fn(),
-        create: vi.fn(),
-        list: vi.fn(),
-        update: vi.fn(),
-        delete: vi.fn(),
-        toggleActive: vi.fn(),
-      } as unknown as InstanceType<typeof GitHubPATService>));
+      vi.mocked(GitHubPATService).mockImplementation(function (this: unknown) {
+        Object.assign(this as Record<string, unknown>, {
+          decryptToken: mockDecryptToken,
+          getById: vi.fn(),
+          create: vi.fn(),
+          list: vi.fn(),
+          update: vi.fn(),
+          delete: vi.fn(),
+          toggleActive: vi.fn(),
+        });
+      } as unknown as () => InstanceType<typeof GitHubPATService>);
 
       const request = new NextRequest('http://localhost:3000/api/projects/clone', {
         method: 'POST',
@@ -442,14 +450,16 @@ describe('POST /api/projects/clone', () => {
       // DockerGitServiceのモックを設定（PATなし）
       const { DockerGitService } = await import('@/services/docker-git-service');
       const mockCloneRepository = vi.fn().mockResolvedValue({ success: true, message: 'cloned without PAT' });
-      vi.mocked(DockerGitService).mockImplementation(() => ({
-        cloneRepository: mockCloneRepository,
-        deleteVolume: vi.fn().mockResolvedValue(undefined),
-        createVolume: vi.fn(),
-        createWorktree: vi.fn(),
-        deleteWorktree: vi.fn(),
-        deleteRepository: vi.fn(),
-      } as unknown as InstanceType<typeof DockerGitService>));
+      vi.mocked(DockerGitService).mockImplementation(function (this: unknown) {
+        Object.assign(this as Record<string, unknown>, {
+          cloneRepository: mockCloneRepository,
+          deleteVolume: vi.fn().mockResolvedValue(undefined),
+          createVolume: vi.fn(),
+          createWorktree: vi.fn(),
+          deleteWorktree: vi.fn(),
+          deleteRepository: vi.fn(),
+        });
+      } as unknown as () => InstanceType<typeof DockerGitService>);
 
       const request = new NextRequest('http://localhost:3000/api/projects/clone', {
         method: 'POST',
