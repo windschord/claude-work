@@ -206,9 +206,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: cloneResult.error }, { status: 400 });
     }
 
-    // プロジェクト名を決定
-    const projectName = name || remoteRepoService.extractRepoName(url);
-
     // プロジェクトをDBに登録
     try {
       const project = db.insert(schema.projects).values({
