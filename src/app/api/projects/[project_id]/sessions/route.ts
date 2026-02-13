@@ -182,6 +182,13 @@ export async function POST(
       custom_env_vars = validatedEnvVars;
     }
 
+    // プロジェクト情報を早期に取得（clone_location確認のため）
+    const project = db.select().from(schema.projects).where(eq(schema.projects.id, project_id)).get();
+
+    if (!project) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    }
+
     // 実効環境とdockerModeを決定
     let effectiveEnvironmentId: string | null = null;
     let effectiveDockerMode = false;
@@ -189,7 +196,7 @@ export async function POST(
     // パラメータ優先順位:
     // 1. environment_id が指定されていればそれを使用
     // 2. dockerMode=true かつ environment_id未指定 → レガシー動作（警告ログ出力）
-    // 3. 両方未指定 → デフォルト環境（environment_id=null, docker_mode=false）
+    // 3. 両方未指定 → プロジェクトのclone_locationに基づいて自動設定
 
     if (environment_id) {
       // 新方式: environment_idを検証
@@ -210,6 +217,33 @@ export async function POST(
         project_id,
       });
       effectiveDockerMode = true;
+    } else {
+      // プロジェクトのclone_locationに基づいて自動設定
+      if (project.clone_location === 'docker') {
+        // Docker環境でcloneされたプロジェクト → デフォルトのDocker環境を使用
+        const defaultEnv = await environmentService.getDefault();
+        if (defaultEnv && defaultEnv.type === 'DOCKER') {
+          effectiveEnvironmentId = defaultEnv.id;
+          logger.info('Auto-selected Docker environment based on clone_location', {
+            project_id,
+            clone_location: project.clone_location,
+            environment_id: defaultEnv.id,
+          });
+        } else {
+          // デフォルトのDocker環境がない場合は警告（後方互換性のためレガシーdockerModeを使用）
+          logger.warn('No default Docker environment found, falling back to legacy dockerMode', {
+            project_id,
+            clone_location: project.clone_location,
+          });
+          effectiveDockerMode = true;
+        }
+      } else {
+        // Host環境でcloneされたプロジェクト → environment_id=null（Host環境）
+        logger.info('Using Host environment based on clone_location', {
+          project_id,
+          clone_location: project.clone_location,
+        });
+      }
     }
 
     // Dockerモードの場合（レガシー方式）、Docker可用性と認証情報をチェック
@@ -297,27 +331,54 @@ export async function POST(
       sessionDisplayName = generateUniqueSessionName(existingNames);
     }
 
-    const project = db.select().from(schema.projects).where(eq(schema.projects.id, project_id)).get();
-
-    if (!project) {
-      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-    }
-
     const timestamp = Date.now();
     const sessionName = `session-${timestamp}`;
     const branchName = `session/${sessionName}`;
 
-    const gitService = new GitService(project.path, logger);
     let worktreePath: string;
 
     try {
-      worktreePath = gitService.createWorktree(sessionName, source_branch || undefined);
+      if (project.clone_location === 'docker') {
+        // Docker環境でcloneされたプロジェクト → DockerGitServiceを使用
+        const { DockerGitService } = await import('@/services/docker-git-service');
+        const dockerGitService = new DockerGitService();
+
+        const result = await dockerGitService.createWorktree({
+          projectId: project.id,
+          sessionName: sessionName,
+          branchName: branchName,
+        });
+
+        if (!result.success) {
+          throw result.error || new Error('Failed to create worktree in Docker environment');
+        }
+
+        // Docker環境の場合、worktreeパスはDockerボリューム内のパス
+        worktreePath = `/repo/.worktrees/${sessionName}`;
+
+        logger.info('Created worktree in Docker volume', {
+          project_id,
+          sessionName,
+          volumeName: `claude-repo-${project.id}`,
+        });
+      } else {
+        // Host環境でcloneされたプロジェクト → GitServiceを使用
+        const gitService = new GitService(project.path, logger);
+        worktreePath = gitService.createWorktree(sessionName, source_branch || undefined);
+
+        logger.info('Created worktree on host filesystem', {
+          project_id,
+          sessionName,
+          worktreePath,
+        });
+      }
     } catch (worktreeError) {
       logger.error('Failed to create worktree', {
         errorMessage: worktreeError instanceof Error ? worktreeError.message : String(worktreeError),
         errorStack: worktreeError instanceof Error ? worktreeError.stack : undefined,
         project_id,
         sessionName,
+        clone_location: project.clone_location,
       });
       throw worktreeError;
     }
