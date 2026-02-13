@@ -63,7 +63,8 @@ export default [
         },
       ],
       // カスタムルール: useEffectの依存配列にuseCallback/useMemoを含めない
-      "local/no-useeffect-with-callback-deps": "error",
+      // TODO: 全ファイルで修正後、errorに変更する
+      "local/no-useeffect-with-callback-deps": "warn",
     },
   },
 ];

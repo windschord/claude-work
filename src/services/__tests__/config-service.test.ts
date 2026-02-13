@@ -29,8 +29,9 @@ describe('ConfigService', () => {
     try {
       const testDir = path.dirname(testConfigPath);
       await fs.rm(testDir, { recursive: true, force: true });
-    } catch (error) {
+    } catch (_error) {
       // エラーは無視
+      void _error;
     }
   });
 

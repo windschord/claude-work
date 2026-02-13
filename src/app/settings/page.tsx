@@ -17,7 +17,7 @@ interface AppConfig {
  * - デバッグモードでのDockerボリューム保持設定
  */
 export default function SettingsPage() {
-  const [config, setConfig] = useState<AppConfig | null>(null);
+  const [_config, setConfig] = useState<AppConfig | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [timeoutMinutes, setTimeoutMinutes] = useState(5);
