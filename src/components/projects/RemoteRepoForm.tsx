@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, Loader2, HelpCircle } from 'lucide-react';
+import { ChevronDown, ChevronUp, Loader2, HelpCircle, ExternalLink } from 'lucide-react';
+import { useGitHubPATs } from '@/hooks/useGitHubPATs';
 
 interface RemoteRepoFormProps {
-  onSubmit: (url: string, targetDir?: string, cloneLocation?: 'host' | 'docker') => Promise<void>;
+  onSubmit: (url: string, targetDir?: string, cloneLocation?: 'host' | 'docker', githubPatId?: string) => Promise<void>;
   onCancel: () => void;
   isLoading: boolean;
   error?: string;
@@ -25,8 +26,16 @@ export function RemoteRepoForm({
   const [url, setUrl] = useState('');
   const [targetDir, setTargetDir] = useState('');
   const [cloneLocation, setCloneLocation] = useState<'host' | 'docker'>('docker');
+  const [githubPatId, setGithubPatId] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
+
+  const { pats, isLoading: isPATsLoading } = useGitHubPATs();
+  const activePATs = pats.filter((pat) => pat.isActive);
+
+  const isHttpsUrl = url.trim().startsWith('https://');
+  const isDocker = cloneLocation === 'docker';
+  const showPATSelector = isDocker && isHttpsUrl;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,7 +44,8 @@ export function RemoteRepoForm({
       return;
     }
 
-    await onSubmit(url.trim(), targetDir.trim() || undefined, cloneLocation);
+    const patId = showPATSelector && githubPatId ? githubPatId : undefined;
+    await onSubmit(url.trim(), targetDir.trim() || undefined, cloneLocation, patId);
   };
 
   return (
@@ -115,6 +125,55 @@ export function RemoteRepoForm({
           </label>
         </div>
       </div>
+
+      {/* PAT選択（Docker + HTTPS時のみ表示） */}
+      {showPATSelector && (
+        <div className="mb-4">
+          <label
+            htmlFor="github-pat"
+            className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+          >
+            GitHub Personal Access Token
+          </label>
+          {isPATsLoading ? (
+            <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              PAT一覧を読み込み中...
+            </div>
+          ) : (
+            <>
+              <select
+                id="github-pat"
+                value={githubPatId}
+                onChange={(e) => setGithubPatId(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-100"
+                disabled={isLoading}
+              >
+                <option value="">PATを使用しない（SSH Agent認証を使用）</option>
+                {activePATs.map((pat) => (
+                  <option key={pat.id} value={pat.id}>
+                    {pat.name}{pat.description ? ` - ${pat.description}` : ''}
+                  </option>
+                ))}
+              </select>
+              <div className="mt-1 flex items-center gap-1">
+                <a
+                  href="/settings/github-pat"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                >
+                  新しいPATを追加
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            </>
+          )}
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            HTTPSでprivateリポジトリをcloneする場合にPATが必要です
+          </p>
+        </div>
+      )}
 
       {/* 詳細設定の折りたたみ */}
       <div className="mb-4">
