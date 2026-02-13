@@ -9,7 +9,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "prepare": "DATABASE_URL=file:./data/build.db npm run build",
+    "prepare": "husky",
     "dev": "ts-node -r tsconfig-paths/register --project tsconfig.server.json server.ts",
     "dev:pm2": "pm2 start ecosystem.config.js --only claude-work-dev",
     "dev:stop": "pm2 stop claude-work-dev",
@@ -90,7 +90,9 @@
     "eslint-config-next": "^16.1.5",
     "eslint-plugin-react": "^7.37.5",
     "globals": "^17.2.0",
+    "husky": "^9.1.7",
     "jsdom": "^27.3.0",
+    "lint-staged": "^16.2.7",
     "mock-spawn": "^0.2.6",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
@@ -110,5 +112,14 @@
       "diff": "^8.0.3",
       "lodash": "^4.17.23"
     }
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "vitest related --run --reporter=verbose"
+    ],
+    "*.{js,jsx,mjs}": [
+      "eslint --fix"
+    ]
   }
 }

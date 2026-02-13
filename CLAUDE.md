@@ -354,3 +354,102 @@ Phase 19 tasks (docs/tasks/phase19.md) implement fixes for issues 1-2.
 - **Task Planning**: docs/tasks/phase*.md
 - **Test Reports**: docs/verification-report-*.md
 - **Integration Testing**: docs/integration-test-report.md
+
+## React Hooks Usage Guidelines
+
+### useEffect Dependency Array Best Practices
+
+**Principle**: Include only primitive values in useEffect dependency arrays. Avoid including functions or objects created by useCallback/useMemo.
+
+**Reason**: Indirect dependencies through useCallback/useMemo can cause unnecessary re-executions, leading to subtle bugs like duplicate WebSocket connections or race conditions.
+
+#### ❌ Bad Example
+
+```typescript
+const createWebSocket = useCallback(() => {
+  const ws = new WebSocket(url);
+  // ... setup logic
+  return ws;
+}, [sessionId, sessionName]);
+
+useEffect(() => {
+  // ... initialization logic
+  createWebSocket();
+}, [sessionId, createWebSocket]); // ← BAD: Including createWebSocket
+// When sessionName changes, createWebSocket gets a new reference,
+// causing useEffect to re-run unnecessarily
+```
+
+#### ✅ Good Example
+
+```typescript
+const createWebSocket = useCallback(() => {
+  const ws = new WebSocket(url);
+  // ... setup logic
+  return ws;
+}, [sessionId, sessionName]);
+
+useEffect(() => {
+  // ... initialization logic
+  createWebSocket();
+}, [sessionId]); // ← GOOD: Only primitive values
+// useEffect only re-runs when sessionId changes
+```
+
+### Alternative Patterns
+
+If you need the function to be stable across renders:
+
+```typescript
+// Option 1: Use useRef for the function
+const createWebSocketRef = useRef<() => WebSocket>();
+createWebSocketRef.current = () => {
+  const ws = new WebSocket(url);
+  return ws;
+};
+
+useEffect(() => {
+  createWebSocketRef.current!();
+}, [sessionId]);
+
+// Option 2: Inline the function
+useEffect(() => {
+  const ws = new WebSocket(url);
+  // ... setup logic
+}, [sessionId, sessionName]); // All dependencies are primitive
+```
+
+### Comment and Implementation Consistency
+
+**Rule**: When a code comment describes best practices or warns against anti-patterns, the implementation MUST follow that guidance.
+
+**Example from Real Bug**:
+```typescript
+// NOTE: createWebSocketは内部でsessionIdを参照するため、sessionIdのみを依存配列に含める
+// createWebSocketを依存配列に含めると、sessionName変更時に不要な再接続が発生する可能性がある
+}, [sessionId, createWebSocket]); // ← BUG: Comment says not to include it, but implementation does!
+```
+
+**Prevention**:
+- During code review, verify that comments and implementation are aligned
+- If implementation contradicts a comment, either fix the code or update the comment
+- Use ESLint custom rules to detect such inconsistencies
+
+### Testing Requirements
+
+When writing hooks that manage connections or side effects:
+
+1. **Test connection count**: Verify that connections are created exactly once per mount
+2. **Test re-render behavior**: Ensure re-renders with same props don't recreate connections
+3. **Test cleanup**: Verify connections are properly closed on unmount
+
+Example test structure:
+```typescript
+describe('Connection management', () => {
+  it('creates connection only once on mount', async () => {
+    const spy = vi.spyOn(global, 'WebSocket');
+    renderHook(() => useMyHook(sessionId));
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1));
+  });
+});
+```

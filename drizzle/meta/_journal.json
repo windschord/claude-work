@@ -15,6 +15,13 @@
       "when": 1770864261934,
       "tag": "0001_wide_purple_man",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1770965531366,
+      "tag": "0002_messy_karen_page",
+      "breakpoints": true
     }
   ]
 }

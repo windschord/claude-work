@@ -483,7 +483,8 @@ export function useClaudeTerminal(
     };
     // NOTE: createWebSocketは内部でsessionIdを参照するため、sessionIdのみを依存配列に含める
     // createWebSocketを依存配列に含めると、sessionName変更時に不要な再接続が発生する可能性がある
-  }, [sessionId, createWebSocket]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId]);
 
   // リサイズ関数（useCallbackでメモ化して不要な再レンダリングを防止）
   const fit = useCallback(() => {
@@ -533,6 +534,7 @@ export function useClaudeTerminal(
         resizeTimerRef.current = null;
       }
     };
+    // eslint-disable-next-line local/no-useeffect-with-callback-deps
   }, [fit]);
 
   // isVisibleがtrueに変更されたときにfit()を実行
@@ -542,6 +544,7 @@ export function useClaudeTerminal(
       fit();
     }
     prevIsVisibleRef.current = isVisible;
+    // eslint-disable-next-line local/no-useeffect-with-callback-deps
   }, [isVisible, fit]);
 
   // 手動再接続関数
