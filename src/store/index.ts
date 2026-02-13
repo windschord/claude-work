@@ -13,6 +13,10 @@ export interface Project {
   path: string;
   /** リモートリポジトリURL（nullの場合はローカル登録） */
   remote_url?: string | null;
+  /** clone場所 */
+  clone_location?: 'host' | 'docker' | null;
+  /** Dockerボリューム ID（Docker環境の場合のみ） */
+  docker_volume_id?: string | null;
   /** 実行スクリプトの配列 */
   run_scripts: Array<{ name: string; command: string }>;
   /** セッション数 */
