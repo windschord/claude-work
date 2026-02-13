@@ -44,6 +44,12 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
 
+    // bodyがnullまたはobjectでない場合はエラー
+    if (body === null || typeof body !== 'object') {
+      logger.warn('Request body must be an object', { body });
+      return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
+    }
+
     const { git_clone_timeout_minutes, debug_mode_keep_volumes } = body;
 
     // バリデーション

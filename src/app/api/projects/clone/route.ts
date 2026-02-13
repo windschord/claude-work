@@ -7,7 +7,7 @@ import { relative, resolve, join } from 'path';
 import { realpathSync, existsSync, mkdirSync } from 'fs';
 import { logger } from '@/lib/logger';
 import { DockerGitService } from '@/services/docker-git-service';
-import { validateCloneLocation } from '@/lib/validation';
+import { validateCloneLocation, validateProjectName } from '@/lib/validation';
 
 /**
  * POST /api/projects/clone - リモートリポジトリをcloneしてプロジェクト登録
@@ -54,13 +54,24 @@ export async function POST(request: NextRequest) {
     // プロジェクト名を決定
     const projectName = name || remoteRepoService.extractRepoName(url);
 
+    // プロジェクト名を検証
+    try {
+      validateProjectName(projectName);
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : 'Invalid project name' },
+        { status: 400 }
+      );
+    }
+
     // Docker環境の場合
     if (validatedCloneLocation === 'docker') {
+      let volumeName: string | undefined;
       try {
         // 先にプロジェクトをDB登録してIDを取得
         const project = db.insert(schema.projects).values({
           name: projectName,
-          path: '', // 一時的に空文字（後で更新）
+          path: `temp-${Date.now()}`, // 一時的なユニーク値（UNIQUE制約対策）
           remote_url: url,
           clone_location: 'docker',
         }).returning().get();
@@ -68,6 +79,9 @@ export async function POST(request: NextRequest) {
         if (!project) {
           throw new Error('Failed to create project');
         }
+
+        // ボリューム名を先に決定（クリーンアップ用）
+        volumeName = `claude-repo-${project.id}`;
 
         logger.info('Project created (pre-clone)', {
           id: project.id,
@@ -83,14 +97,11 @@ export async function POST(request: NextRequest) {
           });
 
           if (!cloneResult.success) {
-            // clone失敗時はDB削除
+            // clone失敗時はDB削除（Dockerボリュームは自動削除される）
             db.delete(schema.projects).where(eq(schema.projects.id, project.id)).run();
             logger.error('Docker clone failed, project deleted', { projectId: project.id, error: cloneResult.error });
             return NextResponse.json({ error: cloneResult.error || 'Docker clone failed' }, { status: 400 });
           }
-
-          // ボリューム名を決定
-          const volumeName = `claude-repo-${project.id}`;
 
           // pathとdocker_volume_idを更新
           const updatedProject = db.update(schema.projects)
@@ -110,9 +121,18 @@ export async function POST(request: NextRequest) {
 
           return NextResponse.json({ project: updatedProject }, { status: 201 });
         } catch (error) {
-          // clone失敗時はDB削除
+          // clone/update失敗時はDockerボリュームとDB削除
+          if (volumeName) {
+            try {
+              const dockerGitService = new DockerGitService();
+              await dockerGitService.deleteVolume(volumeName);
+              logger.info('Docker volume cleaned up after error', { volumeName });
+            } catch (cleanupError) {
+              logger.error('Failed to cleanup Docker volume', { volumeName, error: cleanupError });
+            }
+          }
           db.delete(schema.projects).where(eq(schema.projects.id, project.id)).run();
-          logger.error('Docker clone error, project deleted', { projectId: project.id, error });
+          logger.error('Docker clone error, project and volume deleted', { projectId: project.id, error });
           throw error;
         }
       } catch (error) {
@@ -198,7 +218,7 @@ export async function POST(request: NextRequest) {
       url,
       targetDir: cloneTargetDir,
       baseDir,
-      name,
+      name: projectName,
     });
 
     if (!cloneResult.success) {
