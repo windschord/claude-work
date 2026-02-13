@@ -4,7 +4,7 @@ import { useState, type MouseEvent } from 'react';
 import { Project, useAppStore } from '@/store';
 import { CreateSessionModal } from '@/components/sessions/CreateSessionModal';
 import { useRouter } from 'next/navigation';
-import { RefreshCw, Globe } from 'lucide-react';
+import { RefreshCw, Globe, HardDrive, Container } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface ProjectCardProps {
@@ -32,6 +32,7 @@ export function ProjectCard({ project, onDelete, onSettings }: ProjectCardProps)
   const [isPulling, setIsPulling] = useState(false);
 
   const isRemote = !!project.remote_url;
+  const cloneLocation = project.clone_location || 'host'; // 既存プロジェクトはhost扱い
 
   const handleNewSession = (e: MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
@@ -83,6 +84,18 @@ export function ProjectCard({ project, onDelete, onSettings }: ProjectCardProps)
               <span className="inline-flex items-center gap-1 bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200 rounded-full px-2 py-0.5 text-xs font-medium">
                 <Globe className="w-3 h-3" />
                 Remote
+              </span>
+            )}
+            {cloneLocation === 'docker' && (
+              <span className="inline-flex items-center gap-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded-full px-2 py-0.5 text-xs font-medium">
+                <Container className="w-3 h-3" />
+                Docker
+              </span>
+            )}
+            {cloneLocation === 'host' && (
+              <span className="inline-flex items-center gap-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 rounded-full px-2 py-0.5 text-xs font-medium">
+                <HardDrive className="w-3 h-3" />
+                Host
               </span>
             )}
           </div>

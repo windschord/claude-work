@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, schema } from '@/lib/db';
+import { eq } from 'drizzle-orm';
 import { remoteRepoService } from '@/services/remote-repo-service';
 import { getReposDir } from '@/lib/data-dir';
 import { relative, resolve, join } from 'path';
 import { realpathSync, existsSync, mkdirSync } from 'fs';
 import { logger } from '@/lib/logger';
+import { DockerGitService } from '@/services/docker-git-service';
+import { validateCloneLocation, validateProjectName } from '@/lib/validation';
 
 /**
  * POST /api/projects/clone - リモートリポジトリをcloneしてプロジェクト登録
@@ -33,7 +36,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
 
-    const { url, targetDir, name } = body;
+    const { url, targetDir, name, cloneLocation } = body;
 
     if (!url) {
       return NextResponse.json({ error: 'URLは必須です' }, { status: 400 });
@@ -45,6 +48,110 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: validation.error }, { status: 400 });
     }
 
+    // cloneLocation検証
+    const validatedCloneLocation = validateCloneLocation(cloneLocation);
+
+    // プロジェクト名を決定
+    const projectName = name || remoteRepoService.extractRepoName(url);
+
+    // プロジェクト名を検証
+    try {
+      validateProjectName(projectName);
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : 'Invalid project name' },
+        { status: 400 }
+      );
+    }
+
+    // Docker環境の場合
+    if (validatedCloneLocation === 'docker') {
+      let volumeName: string | undefined;
+      try {
+        // 先にプロジェクトをDB登録してIDを取得
+        const project = db.insert(schema.projects).values({
+          name: projectName,
+          path: `temp-${Date.now()}`, // 一時的なユニーク値（UNIQUE制約対策）
+          remote_url: url,
+          clone_location: 'docker',
+        }).returning().get();
+
+        if (!project) {
+          throw new Error('Failed to create project');
+        }
+
+        // ボリューム名を先に決定（クリーンアップ用）
+        volumeName = `claude-repo-${project.id}`;
+
+        logger.info('Project created (pre-clone)', {
+          id: project.id,
+          name: projectName,
+        });
+
+        try {
+          // DockerGitServiceでclone
+          const dockerGitService = new DockerGitService();
+          const cloneResult = await dockerGitService.cloneRepository({
+            url,
+            projectId: project.id.toString(),
+          });
+
+          if (!cloneResult.success) {
+            // clone失敗時はDB削除（Dockerボリュームは自動削除される）
+            db.delete(schema.projects).where(eq(schema.projects.id, project.id)).run();
+            logger.error('Docker clone failed, project deleted', { projectId: project.id, error: cloneResult.error });
+            return NextResponse.json({ error: cloneResult.error || 'Docker clone failed' }, { status: 400 });
+          }
+
+          // pathとdocker_volume_idを更新
+          const updatedProject = db.update(schema.projects)
+            .set({
+              path: `/docker-volumes/${volumeName}`, // Dockerボリュームの仮想パス
+              docker_volume_id: volumeName,
+            })
+            .where(eq(schema.projects.id, project.id))
+            .returning()
+            .get();
+
+          logger.info('Project updated with Docker volume', {
+            id: project.id,
+            name: projectName,
+            docker_volume_id: volumeName,
+          });
+
+          return NextResponse.json({ project: updatedProject }, { status: 201 });
+        } catch (error) {
+          // clone/update失敗時はDockerボリュームとDB削除
+          if (volumeName) {
+            try {
+              const dockerGitService = new DockerGitService();
+              await dockerGitService.deleteVolume(volumeName);
+              logger.info('Docker volume cleaned up after error', { volumeName });
+            } catch (cleanupError) {
+              logger.error('Failed to cleanup Docker volume', { volumeName, error: cleanupError });
+            }
+          }
+          db.delete(schema.projects).where(eq(schema.projects.id, project.id)).run();
+          logger.error('Docker clone error, project and volume deleted', { projectId: project.id, error });
+          throw error;
+        }
+      } catch (error) {
+        // SQLite UNIQUE constraint violationのハンドリング
+        const sqliteError = error as { code?: string };
+        const isUniqueViolation = sqliteError.code === 'SQLITE_CONSTRAINT_UNIQUE' ||
+          (error instanceof Error && error.message.includes('UNIQUE constraint failed'));
+        if (isUniqueViolation) {
+          logger.warn('Duplicate project in Docker environment', { code: sqliteError.code, error });
+          return NextResponse.json(
+            { error: 'このリポジトリは既に登録されています' },
+            { status: 409 }
+          );
+        }
+        throw error;
+      }
+    }
+
+    // ホスト環境の場合（既存のロジック）
     // clone先ディレクトリの決定
     let cloneTargetDir: string | undefined;
     let baseDir: string | undefined;
@@ -111,7 +218,7 @@ export async function POST(request: NextRequest) {
       url,
       targetDir: cloneTargetDir,
       baseDir,
-      name,
+      name: projectName,
     });
 
     if (!cloneResult.success) {
@@ -119,15 +226,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: cloneResult.error }, { status: 400 });
     }
 
-    // プロジェクト名を決定
-    const projectName = name || remoteRepoService.extractRepoName(url);
-
     // プロジェクトをDBに登録
     try {
       const project = db.insert(schema.projects).values({
         name: projectName,
         path: cloneResult.path,
         remote_url: url,
+        clone_location: 'host',
       }).returning().get();
 
       if (!project) {

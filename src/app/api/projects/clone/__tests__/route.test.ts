@@ -60,6 +60,7 @@ describe('POST /api/projects/clone', () => {
       body: JSON.stringify({
         url: testRepoPath,
         targetDir,
+        cloneLocation: 'host', // ローカルリポジトリなのでhost環境を使用
       }),
     });
 
@@ -128,6 +129,7 @@ describe('POST /api/projects/clone', () => {
       body: JSON.stringify({
         url: testRepoPath,
         targetDir,
+        cloneLocation: 'host',
       }),
     });
 
@@ -154,6 +156,7 @@ describe('POST /api/projects/clone', () => {
       body: JSON.stringify({
         url: anotherRepoPath,
         targetDir,
+        cloneLocation: 'host',
       }),
     });
 
@@ -174,6 +177,7 @@ describe('POST /api/projects/clone', () => {
         url: testRepoPath,
         targetDir,
         name: 'custom-project-name',
+        cloneLocation: 'host',
       }),
     });
 
@@ -195,6 +199,7 @@ describe('POST /api/projects/clone', () => {
       body: JSON.stringify({
         url: testRepoPath,
         targetDir,
+        cloneLocation: 'host',
       }),
     });
 
@@ -204,4 +209,56 @@ describe('POST /api/projects/clone', () => {
     const data = await response.json();
     expect(data.project.name).toBe('source-repo');
   });
+
+  it('should use host environment when cloneLocation explicitly specified', async () => {
+    const targetDir = join(testDir, 'explicit-host');
+
+    const request = new NextRequest('http://localhost:3000/api/projects/clone', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        url: testRepoPath,
+        targetDir,
+        cloneLocation: 'host',
+      }),
+    });
+
+    const response = await POST(request);
+    expect(response.status).toBe(201);
+
+    const data = await response.json();
+    const project = db.select().from(schema.projects).where(eq(schema.projects.id, data.project.id)).get();
+
+    // cloneLocation='host'を明示的に指定したのでhost環境で動作
+    expect(project?.clone_location).toBe('host');
+  });
+
+  it('should clone to host environment when cloneLocation=host', async () => {
+    const targetDir = join(testDir, 'host-clone');
+
+    const request = new NextRequest('http://localhost:3000/api/projects/clone', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        url: testRepoPath,
+        targetDir,
+        cloneLocation: 'host',
+      }),
+    });
+
+    const response = await POST(request);
+    expect(response.status).toBe(201);
+
+    const data = await response.json();
+    expect(data.project.clone_location).toBe('host');
+    expect(data.project.docker_volume_id).toBeNull();
+    expect(existsSync(join(targetDir, '.git'))).toBe(true);
+  });
+
+  // Note: Docker環境のテストはDockerが必要なため、統合テストで実施
+  // ここではモックを使った基本的なテストのみ
 });

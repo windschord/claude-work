@@ -181,6 +181,7 @@ export async function POST(request: NextRequest) {
       const project = db.insert(schema.projects).values({
         name,
         path: absolutePath,
+        clone_location: 'host', // ローカルプロジェクトはHost環境
       }).returning().get();
 
       if (!project) {

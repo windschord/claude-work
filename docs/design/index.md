@@ -1,320 +1,307 @@
-# 技術設計書: セッション管理の包括的改善
+# 技術設計: ハイブリッド設計（ホスト環境/Docker環境でのプロジェクトclone）
 
 ## 設計概要
 
-本設計書は、ClaudeWorkプロジェクトにおけるセッション管理の包括的改善の技術設計を定義します。要件定義書（[docs/requirements/index.md](../requirements/index.md) @../requirements/index.md）に基づき、以下の4つの主要な改善を実現します：
+### 目的
+プロジェクト登録時にリポジトリの保存場所（ホスト環境/Docker環境）を選択可能にし、SSH認証問題を回避しつつ、Git Worktreeの利点を両方の環境で維持する。
 
-1. **WebSocket接続管理の統一**: ConnectionManagerを全WebSocketタイプで使用し、接続プールを一元管理
-2. **PTYSessionManagerの導入**: PTYセッションとWebSocket接続を統合管理する新しい抽象化層
-3. **Docker環境の安定化**: コンテナライフサイクル管理の改善とエラーハンドリングの強化
-4. **状態管理の統一**: セッション状態のデータベース永続化とサーバー再起動時の復元
+### アーキテクチャ原則
+1. **環境の抽象化**: ホスト環境とDocker環境の実装パスを明確に分離
+2. **共通ロジックの再利用**: Git操作の基本ロジックは共通化
+3. **既存実装との互換性**: 既存のGitServiceとDockerAdapterを最大限活用
+4. **設定の外部化**: タイムアウト値やデバッグモード設定を外部化
+5. **エラーハンドリングの統一**: 両方の環境で一貫したエラー処理
 
 ## アーキテクチャ概要
 
-### 現在のアーキテクチャ
+### システムコンテキスト図
 
 ```text
-[ブラウザ] --WebSocket--> [WebSocketハンドラー] --> [PTYManager/ClaudePTYManager]
-                                                              |
-                                                              v
-                                                         [node-pty]
-
-問題:
-- WebSocket接続管理が分散（Session/Claude/Terminal）
-- PTYセッション管理も分散（ClaudePTYManager/PTYManager）
-- 状態がメモリに分散（activeConnections, destroyTimers等）
-- イベントハンドラーが接続ごとに重複登録
+┌─────────────────────────────────────────────────────────────┐
+│                        ClaudeWork                           │
+│                                                             │
+│  ┌────────────────────────────────────────────────────┐   │
+│  │                  Browser UI                        │   │
+│  │  ┌──────────────────────────────────────────────┐  │   │
+│  │  │  プロジェクト登録フォーム                     │  │   │
+│  │  │  ┌────────────┐  ┌────────────┐             │  │   │
+│  │  │  │ ホスト環境 │  │ Docker環境 │ <選択>      │  │   │
+│  │  │  └────────────┘  └────────────┘             │  │   │
+│  │  └──────────────────────────────────────────────┘  │   │
+│  └────────────────────────────────────────────────────┘   │
+│                          │                                 │
+│                          ▼                                 │
+│  ┌────────────────────────────────────────────────────┐   │
+│  │            Project Registration API                │   │
+│  │            /api/projects/clone                     │   │
+│  └────────────────────────────────────────────────────┘   │
+│                          │                                 │
+│              ┌───────────┴───────────┐                    │
+│              ▼                       ▼                    │
+│  ┌───────────────────┐   ┌───────────────────┐           │
+│  │  HostGitService   │   │ DockerGitService  │           │
+│  │  (既存実装)       │   │  (新規実装)       │           │
+│  └───────────────────┘   └───────────────────┘           │
+│              │                       │                    │
+│              ▼                       ▼                    │
+│  ┌───────────────────┐   ┌───────────────────┐           │
+│  │ data/repos/       │   │ Docker Volume     │           │
+│  │ .worktrees/       │   │  /repo/           │           │
+│  │                   │   │  /repo/.worktrees/│           │
+│  └───────────────────┘   └───────────────────┘           │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### 改善後のアーキテクチャ
+### コンポーネント構成
 
-```text
-[ブラウザ] --WebSocket--> [WebSocketハンドラー]
-                                  |
-                                  v
-                          [ConnectionManager]
-                                  |
-                                  v
-                        [PTYSessionManager]
-                         /      |      \
-                        /       |       \
-                       /        |        \
-         [HostAdapter] [DockerAdapter] [SSHAdapter]
-                       \        |        /
-                        \       |       /
-                         \      |      /
-                          [node-pty]
-                              |
-                              v
-                        [データベース]
-                  (セッション状態の永続化)
+| コンポーネント | 役割 | 環境 | 詳細 |
+|--------------|------|------|------|
+| GitOperations (interface) | Git操作の抽象化 | 共通 | [詳細](components/git-operations.md) @components/git-operations.md |
+| HostGitService | ホスト環境でのGit操作 | ホスト | [詳細](components/host-git-service.md) @components/host-git-service.md |
+| DockerGitService | Docker環境でのGit操作 | Docker | [詳細](components/docker-git-service.md) @components/docker-git-service.md |
+| DockerAdapter (拡張) | Docker環境管理 | Docker | [詳細](components/docker-adapter.md) @components/docker-adapter.md |
+| ConfigService | 設定管理 | 共通 | [詳細](components/config-service.md) @components/config-service.md |
+| ProjectCloneUI | プロジェクト登録UI | Frontend | [詳細](components/project-clone-ui.md) @components/project-clone-ui.md |
 
-改善点:
-- ConnectionManagerで全WebSocket接続を一元管理
-- PTYSessionManagerで全PTYセッションを統合管理
-- 状態をデータベースに永続化
-- イベントハンドラーはPTYセッション単位で1つのみ
-```
+## API設計
 
-### レイヤー構造
+### API変更一覧
 
-| レイヤー | 責務 | 主要コンポーネント |
-|---------|------|------------------|
-| **プレゼンテーション層** | WebSocket通信、クライアント接続管理 | WebSocketハンドラー (claude-ws, terminal-ws, session-ws) |
-| **接続管理層** | 接続プール管理、ブロードキャスト | ConnectionManager |
-| **セッション管理層** | PTYセッションライフサイクル管理 | PTYSessionManager |
-| **アダプター層** | 環境固有の処理（HOST/DOCKER/SSH） | HostAdapter, DockerAdapter, SSHAdapter |
-| **PTY層** | ターミナルセッション実行 | node-pty (IPty) |
-| **永続化層** | セッション状態の保存・復元 | Prisma, SQLite |
+| エンドポイント | メソッド | 変更内容 | 詳細 |
+|--------------|---------|---------|------|
+| /api/projects/clone | POST | cloneLocationパラメータ追加 | [詳細](api/project-clone.md) @api/project-clone.md |
+| /api/settings | GET/PUT | タイムアウト・デバッグモード設定 | [詳細](api/settings.md) @api/settings.md |
 
-## 主要コンポーネント
+## データベーススキーマ
 
-| コンポーネント | ファイルパス | 説明 | リンク |
-|--------------|-------------|------|--------|
-| ConnectionManager | src/lib/websocket/connection-manager.ts | WebSocket接続プール管理（拡張） | [詳細](components/connection-manager.md) @components/connection-manager.md |
-| PTYSessionManager | src/services/pty-session-manager.ts | PTYセッション統合管理（新規） | [詳細](components/pty-session-manager.md) @components/pty-session-manager.md |
-| DockerAdapter | src/services/adapters/docker-adapter.ts | Docker環境アダプター（改善） | [詳細](components/docker-adapter.md) @components/docker-adapter.md |
-| ClaudeWebSocket | src/lib/websocket/claude-ws.ts | Claude WebSocketハンドラー（修正） | [ソース](../../src/lib/websocket/claude-ws.ts) |
-| TerminalWebSocket | src/lib/websocket/terminal-ws.ts | Terminal WebSocketハンドラー（修正） | [ソース](../../src/lib/websocket/terminal-ws.ts) |
-| SessionDatabase | prisma/schema.prisma | セッション状態永続化（拡張） | [詳細](database/schema.md) @database/schema.md |
+### スキーマ変更
 
-## データフロー
+詳細: [schema.md](database/schema.md) @database/schema.md
 
-### セッション作成フロー
+### 変更サマリ
 
-```text
-1. [ユーザー] --POST /api/sessions--> [APIハンドラー]
-2. [APIハンドラー] --createSession()--> [PTYSessionManager]
-3. [PTYSessionManager] --getAdapter()--> [AdapterFactory]
-4. [AdapterFactory] --return--> [HostAdapter or DockerAdapter]
-5. [Adapter] --spawn()--> [node-pty]
-6. [PTYSessionManager] --create--> [ConnectionManager: 接続プール]
-7. [PTYSessionManager] --registerHandler()--> [node-pty: データイベント]
-8. [PTYSessionManager] --saveState()--> [データベース]
-9. [PTYSessionManager] --return SessionID--> [APIハンドラー]
-```
-
-### WebSocket接続フロー
-
-```text
-1. [ブラウザ] --WebSocket接続--> [WebSocketハンドラー]
-2. [WebSocketハンドラー] --getSession()--> [PTYSessionManager]
-3. [PTYSessionManager] --addConnection()--> [ConnectionManager]
-4. [ConnectionManager] --sendScrollback()--> [ブラウザ]
-5. [node-pty] --data event--> [PTYSessionManager: ハンドラー]
-6. [PTYSessionManager] --broadcast()--> [ConnectionManager]
-7. [ConnectionManager] --send to all--> [すべてのブラウザ]
-```
-
-### セッション破棄フロー
-
-```text
-1. [ユーザー] --DELETE /api/sessions/:id--> [APIハンドラー]
-2. [APIハンドラー] --destroySession()--> [PTYSessionManager]
-3. [PTYSessionManager] --removeAllConnections()--> [ConnectionManager]
-4. [PTYSessionManager] --kill()--> [node-pty]
-5. [PTYSessionManager] --cleanup()--> [Adapter]
-6. [PTYSessionManager] --updateState()--> [データベース]
-7. [PTYSessionManager] --deleteWorktree()--> [GitService]
-```
+| テーブル | 変更内容 | マイグレーション |
+|---------|---------|----------------|
+| Project | cloneLocationフィールド追加 | 既存レコードは'host'として扱う |
+| Project | dockerVolumeIdフィールド追加 | 既存レコードはnull |
 
 ## 技術的決定事項
 
-| ID | タイトル | 優先度 | 状態 | リンク |
-|----|---------|--------|-----|--------|
-| DEC-001 | ConnectionManagerの拡張設計 | 最高 | 承認済 | [詳細](decisions/DEC-001.md) @decisions/DEC-001.md |
-| DEC-002 | PTYSessionManagerのシングルトンパターン | 高 | 承認済 | [詳細](decisions/DEC-002.md) @decisions/DEC-002.md |
-| DEC-003 | イベントハンドラーの登録戦略 | 最高 | 承認済 | [詳細](decisions/DEC-003.md) @decisions/DEC-003.md |
-| DEC-004 | 状態永続化の戦略 | 高 | 承認済 | [詳細](decisions/DEC-004.md) @decisions/DEC-004.md |
-| DEC-005 | Docker起動待機メカニズム | 中 | 承認済 | [詳細](decisions/DEC-005.md) @decisions/DEC-005.md |
+| ID | タイトル | 詳細 |
+|----|---------|------|
+| DEC-001 | Docker環境をデフォルトにする理由 | [詳細](decisions/DEC-001.md) @decisions/DEC-001.md |
+| DEC-002 | gh CLI認証を含める理由 | [詳細](decisions/DEC-002.md) @decisions/DEC-002.md |
+| DEC-003 | タイムアウトを5分にする理由 | [詳細](decisions/DEC-003.md) @decisions/DEC-003.md |
+| DEC-004 | alpine/gitイメージを使用する理由 | [詳細](decisions/DEC-004.md) @decisions/DEC-004.md |
+| DEC-005 | Dockerボリューム内にworktreeを作成する理由 | [詳細](decisions/DEC-005.md) @decisions/DEC-005.md |
 
-## データベース設計
+## 実装パス
 
-データベーススキーマの変更については、[database/schema.md](database/schema.md) @database/schema.md を参照してください。
+### ホスト環境フロー
 
-### 主要な変更
-- `Session`モデルへの状態フィールド追加：
-  - `active_connections`: アクティブな接続数
-  - `destroy_at`: 自動破棄予定時刻
-  - `last_active_at`: 最終アクティブ時刻
-  - `status`: セッション状態（ACTIVE, IDLE, ERROR, TERMINATED）
+```text
+1. ユーザーがホスト環境を選択
+   ↓
+2. /api/projects/clone API呼び出し
+   cloneLocation: 'host'
+   ↓
+3. HostGitService.cloneRepository()
+   - data/repos/<project-name>/ にgit clone
+   - ホスト環境のSSH設定を使用
+   ↓
+4. データベースに保存
+   cloneLocation: 'host'
+   dockerVolumeId: null
+   ↓
+5. セッション作成時
+   HostGitService.createWorktree()
+   - .worktrees/<session-name>/ にworktree作成
+```
 
-## 非機能要件への対応
+### Docker環境フロー
 
-### パフォーマンス（NFR-PERF）
-- **メッセージ配信遅延 < 100ms**: ブロードキャスト実装の最適化
-- **セッション作成時間 < 3秒（HOST）**: 非同期処理、並列化
-- **メモリ使用量 < 100MB/セッション**: イベントリスナーの確実なクリーンアップ
+```text
+1. ユーザーがDocker環境を選択（デフォルト）
+   ↓
+2. /api/projects/clone API呼び出し
+   cloneLocation: 'docker'
+   ↓
+3. DockerGitService.cloneRepository()
+   a. Dockerボリューム作成
+      docker volume create claude-repo-<project-id>
+   b. 一時コンテナでgit clone
+      docker run --rm \
+        -v claude-repo-<project-id>:/repo \
+        -v ~/.ssh:/root/.ssh:ro \
+        -v $SSH_AUTH_SOCK:/ssh-agent \
+        -v ~/.gitconfig:/root/.gitconfig:ro \
+        -v ~/.config/gh:/root/.config/gh:ro \
+        alpine/git clone <url> /repo
+   ↓
+4. データベースに保存
+   cloneLocation: 'docker'
+   dockerVolumeId: 'claude-repo-<project-id>'
+   ↓
+5. セッション作成時
+   DockerGitService.createWorktree()
+   - 一時コンテナでgit worktree add
+     docker run --rm \
+       -v claude-repo-<project-id>:/repo \
+       alpine/git -C /repo worktree add \
+       /repo/.worktrees/<session-name> -b session/<session-name>
+   - セッション起動時にworktreeディレクトリをマウント
+```
 
-### 信頼性（NFR-REL）
-- **システム稼働率 > 99%**: エラーハンドリング強化、自動復旧
-- **データ損失率 < 1%**: 状態の永続化、トランザクション使用
-- **復旧時間 < 10秒**: サーバー起動時の状態復元
+## エラーハンドリング設計
 
-### 保守性（NFR-MAINT）
-- **テストカバレッジ > 80%**: 単体テスト、統合テスト、E2Eテスト
-- **複雑度 < 15**: 関数の分割、責務の明確化
-- **コメント密度 10-30%**: 複雑なロジックへのコメント
+### エラー型の統一
 
-## 実装フェーズ
+```typescript
+class GitOperationError extends Error {
+  constructor(
+    message: string,
+    public environment: 'host' | 'docker',
+    public operation: 'clone' | 'worktree' | 'volume',
+    public recoverable: boolean,
+    public cause?: Error
+  ) {
+    super(message);
+    this.name = 'GitOperationError';
+  }
+}
+```
 
-実装は以下の順序で段階的に行います（依存関係に基づく）：
+### クリーンアップ戦略
 
-### Phase 1: WebSocket接続管理の統一（US-001）
-**期間**: 3日
-**依存**: なし
+| 失敗ケース | クリーンアップ処理 |
+|----------|------------------|
+| ホスト環境でのclone失敗 | 部分的にcloneされたディレクトリを削除 |
+| Docker環境でのボリューム作成失敗 | なし（ボリュームが作成されていない） |
+| Docker環境でのclone失敗 | Dockerボリュームを削除（デバッグモード無効時） |
+| worktree作成失敗（ホスト） | 部分的に作成されたworktreeディレクトリを削除 |
+| worktree作成失敗（Docker） | worktreeディレクトリを削除（ボリューム内） |
 
-1. ConnectionManagerの拡張
-2. claude-ws.tsの修正
-3. terminal-ws.tsの修正
-4. テスト作成
+## セキュリティ設計
 
-**成果物**:
-- 接続プールの一元管理
-- イベントハンドラーの単一登録
-- ブロードキャスト機能
+### 認証情報のマウント
 
-### Phase 2: PTYセッションマネージャーの導入（US-002）
-**期間**: 5日
-**依存**: US-001完了
+| 認証情報 | マウント先 | モード | 理由 |
+|---------|----------|-------|------|
+| ~/.ssh | /root/.ssh | ro（読み取り専用） | SSH鍵の改変防止 |
+| $SSH_AUTH_SOCK | /ssh-agent | - | SSH Agent通信 |
+| ~/.gitconfig | /root/.gitconfig | ro（読み取り専用） | Git設定の改変防止 |
+| ~/.config/gh | /root/.config/gh | ro（読み取り専用） | gh認証トークンの改変防止 |
 
-1. PTYSessionManagerの作成
-2. ClaudePTYManagerのリファクタリング
-3. PTYManagerのリファクタリング
-4. WebSocketハンドラーの変更
-5. テスト作成
+### パストラバーサル対策
 
-**成果物**:
-- PTYセッションの統合管理
-- ライフサイクル管理の明確化
-- モック可能なインターフェース
+```typescript
+const VALID_PROJECT_NAME = /^[a-zA-Z0-9_-]+$/;
+const MAX_PROJECT_NAME_LENGTH = 255;
 
-### Phase 3: Docker環境の安定化（US-003）
-**期間**: 3日
-**依存**: US-001完了（US-002と並行可能）
+function validateProjectName(name: string): boolean {
+  if (!name || name.length > MAX_PROJECT_NAME_LENGTH) {
+    return false;
+  }
+  if (name.includes('..') || name.startsWith('/')) {
+    return false;
+  }
+  return VALID_PROJECT_NAME.test(name);
+}
+```
 
-1. コンテナ起動待機の実装
-2. `docker stop`のPromise化
-3. 親コンテナID永続化
-4. リサイズ処理改善
-5. テスト作成
+## パフォーマンス設計
 
-**成果物**:
-- コンテナライフサイクルの改善
-- エラーハンドリングの強化
-- 孤立コンテナのクリーンアップ
+### タイムアウト設定
 
-### Phase 4: 状態管理の統一（US-004）
-**期間**: 3-4日
-**依存**: US-002完了
+| 環境 | デフォルトタイムアウト | 最小値 | 最大値 |
+|------|---------------------|-------|-------|
+| ホスト環境 | 5分 | 1分 | 30分 |
+| Docker環境 | 5分 | 1分 | 30分 |
 
-1. データベーススキーマ拡張
-2. 状態永続化ロジック実装
-3. サーバー起動時の復元処理
-4. 孤立セッションクリーンアップ
-5. テスト作成
+### パフォーマンス目標
 
-**成果物**:
-- セッション状態の永続化
-- サーバー再起動時の復元
-- 状態整合性の保証
+| 操作 | ホスト環境 | Docker環境 |
+|-----|-----------|-----------|
+| git clone（100MB） | 2分以内 | 3分以内 |
+| worktree作成 | 5秒以内 | 10秒以内 |
 
 ## テスト戦略
 
-### 単体テスト（Vitest）
-- **対象**: 各コンポーネントの個別機能
-- **カバレッジ目標**: 85%以上
-- **実行時間**: 30秒以内
+### テストカバレッジ目標
+- ユニットテスト: 80%以上
+- E2Eテスト: 主要フロー100%
 
-### 統合テスト（Vitest）
-- **対象**: コンポーネント間の連携
-- **重点**: WebSocket接続管理、PTYセッション管理
-- **実行時間**: 2分以内
+### テスト対象
+- [ ] プロジェクト登録（ホスト環境）
+- [ ] プロジェクト登録（Docker環境）
+- [ ] セッション作成（ホスト環境）
+- [ ] セッション作成（Docker環境）
+- [ ] タイムアウト処理
+- [ ] エラーハンドリング
+- [ ] Dockerボリュームクリーンアップ
+- [ ] 既存プロジェクトの互換性
 
-### E2Eテスト（Playwright）
-- **対象**: ユーザーシナリオの再現
-- **重点**: 複数ブラウザでの動作、サーバー再起動
-- **実行時間**: 5分以内
+## 非機能要件との対応
 
-### パフォーマンステスト
-- **負荷テスト**: 50セッション同時実行
-- **長時間稼働テスト**: 24時間稼働
-- **メモリリークテスト**: 接続/切断繰り返し
+| NFR ID | 要件 | 設計での対応 |
+|--------|------|-------------|
+| NFR-PERF-001~010 | 性能要件 | タイムアウト設定、パフォーマンス目標の定義 |
+| NFR-SEC-001~012 | セキュリティ要件 | 認証情報の読み取り専用マウント、パストラバーサル対策 |
+| NFR-MAINT-001~010 | 保守性要件 | 環境の抽象化、共通ロジックの再利用、テストカバレッジ |
 
-## セキュリティ考慮事項
+## 実装順序
 
-### WebSocket接続
-- **認証**: 既存の認証メカニズムを維持
-- **セッション検証**: セッションIDの所有権確認
-- **入力検証**: PTYへの入力をサニタイズ
+### Phase 1: 基盤整備（1日）
+1. データベーススキーマ変更
+2. ConfigService実装
+3. GitOperationsインターフェース定義
 
-### Docker環境
-- **コンテナ隔離**: 各セッションは独立したコンテナで実行
-- **リソース制限**: CPU/メモリ制限の設定
-- **ネットワーク隔離**: 必要最小限のネットワークアクセス
+### Phase 2: Docker環境実装（2日）
+1. DockerGitService実装（clone）
+2. DockerAdapter拡張（gh認証マウント）
+3. Dockerボリューム管理
 
-### データベース
-- **SQLインジェクション対策**: Prismaのパラメータ化クエリ使用
-- **アクセス制御**: セッション所有者のみがアクセス可能
-- **機密情報の保護**: 環境変数、トークンの暗号化
+### Phase 3: worktree実装（1.5日）
+1. HostGitService.createWorktree()（既存実装の確認）
+2. DockerGitService.createWorktree()
 
-## 運用考慮事項
+### Phase 4: UI実装（1日）
+1. プロジェクト登録フォームの保存場所選択UI
+2. 設定画面（タイムアウト、デバッグモード）
 
-### モニタリング
-- **メトリクス収集**: CPU、メモリ、接続数、エラー率
-- **ログ出力**: 構造化ログ（JSON形式）、トレース情報
-- **アラート**: エラー率、リソース使用量の閾値監視
+### Phase 5: テスト・統合（1.5日）
+1. ユニットテスト
+2. E2Eテスト
+3. 既存プロジェクトの互換性確認
 
-### デプロイメント
-- **ダウンタイム**: ゼロダウンタイムデプロイ（可能な限り）
-- **ロールバック**: 問題発生時の即座のロールバック
-- **データベースマイグレーション**: `prisma db push`でスキーマ適用
+## 依存関係
 
-### バックアップとリカバリ
-- **データベースバックアップ**: 日次バックアップ
-- **セッションデータ**: Worktreeの定期スナップショット（オプション）
-- **復旧手順**: サーバー再起動後の自動復元
+### 外部依存
+- Docker（ボリューム管理、コンテナ実行）
+- alpine/gitイメージ（Docker環境でのGit操作）
+- Prisma（データベーススキーマ変更）
 
-## 制約と前提
+### 内部依存
+- PR#96の完了（完了済み）
+- 既存のGitService
+- 既存のDockerAdapter
 
-### 技術的制約
-- **Node.js**: 既存のNode.js環境を継続使用
-- **node-pty**: 既存のnode-ptyライブラリを継続使用
-- **Prisma**: 既存のPrismaスキーマとの互換性維持
+## リスクと緩和策
 
-### 前提条件
-- **開発環境**: Docker Desktopがインストール済み
-- **データベース**: SQLiteが利用可能
-- **ブラウザ**: モダンブラウザ（Chrome, Firefox, Safari）
+| リスク | 影響 | 緩和策 |
+|-------|------|-------|
+| Docker環境でのパフォーマンス低下 | 中 | タイムアウト設定、ユーザーへの事前通知 |
+| 既存プロジェクトの破壊 | 高 | TDD、既存機能テスト、マイグレーション方針 |
+| Dockerボリュームの孤立 | 低 | 自動削除、手動クリーンアップコマンド |
 
-## リスクと対策
+## 承認記録
 
-| リスク | 影響度 | 発生確率 | 対策 | 責任者 |
-|-------|--------|---------|------|-------|
-| 既存機能の破壊 | 高 | 中 | TDD、段階的リファクタリング | 開発チーム |
-| パフォーマンス低下 | 中 | 低 | ベンチマークテスト、最適化 | 開発チーム |
-| Docker環境での予期しない挙動 | 中 | 中 | 手動テスト強化、ログ充実 | 開発チーム |
-| 実装期間の長期化 | 低 | 中 | 各フェーズを独立したPRで管理 | プロジェクトマネージャー |
-
-## 用語集
-
-| 用語 | 説明 |
-|------|------|
-| **PTYセッション** | node-ptyによって管理される疑似端末セッション |
-| **接続プール** | 1つのPTYセッションに接続された複数のWebSocket接続の集合 |
-| **ブロードキャスト** | PTYからの出力を接続プール内の全WebSocket接続に送信すること |
-| **スクロールバックバッファ** | 過去の出力を保持し、新規接続時に送信するバッファ |
-| **孤立セッション/コンテナ** | PTYプロセスが終了しているが、データベースに記録が残っているセッション/コンテナ |
-| **アダプター** | 環境タイプ（HOST/DOCKER/SSH）ごとのPTY管理を抽象化するインターフェース |
+| 日付 | 承認者 | コメント |
+|-----|-------|---------|
+| 2026-02-13 | - | 初版作成 |
 
 ## 変更履歴
 
-| 日付 | バージョン | 変更内容 | 作成者 |
-|-----|----------|---------|--------|
-| 2026-02-11 | 1.0 | 初版作成 | Claude |
-
-## 参照
-
-- [要件定義書](../requirements/index.md) @../requirements/index.md
-- [既存アーキテクチャ](../../CLAUDE.md) @../../CLAUDE.md
-- [Prismaスキーマ](../../prisma/schema.prisma) @../../prisma/schema.prisma
+| バージョン | 日付 | 変更内容 |
+|----------|------|---------|
+| 0.1 | 2026-02-13 | 初版作成 |

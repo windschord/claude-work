@@ -1,259 +1,193 @@
-# TASK-001: ConnectionManagerの拡張
-
-## 基本情報
-
-- **タスクID**: TASK-001
-- **フェーズ**: Phase 1 - WebSocket接続管理の統一
-- **優先度**: 最高
-- **推定工数**: 50分
-- **ステータス**: DONE
-- **担当者**: 未割り当て
+# TASK-001: データベーススキーマ変更
 
 ## 概要
 
-ConnectionManagerに新しいメソッドを追加し、セッションIDをキーとした接続プール管理、ブロードキャスト機能、イベントハンドラー管理機能を実装します。既存のSession WebSocket実装を参考に、すべてのWebSocketタイプで使用できるように拡張します。
+**目的**: Projectテーブルに、cloneLocationとdockerVolumeIdフィールドを追加し、ハイブリッド設計を実現する基盤を整備する。
 
-## 要件マッピング
+**対象ファイル**:
+- `prisma/schema.prisma`
+- `src/db/schema.ts` (Drizzle ORMの場合)
 
-| 要件ID | 内容 |
-|-------|------|
-| REQ-001-001 | 接続プールの管理 |
-| REQ-001-003 | ブロードキャスト配信 |
-| REQ-001-005 | 接続の削除 |
-| REQ-001-007 | ConnectionManagerの統一使用 |
+**推定工数**: 30分
 
 ## 技術的文脈
 
-- **ファイルパス**: `src/lib/websocket/connection-manager.ts`
-- **フレームワーク**: Node.js, TypeScript
-- **ライブラリ**: ws (WebSocket), EventEmitter
-- **参照すべき既存コード**:
-  - `src/lib/websocket/session-ws.ts` (既存のConnectionManager使用例)
-  - `src/lib/websocket/scrollback-buffer.ts` (スクロールバックバッファ)
-- **設計書**: [docs/design/components/connection-manager.md](../../design/components/connection-manager.md) @../../design/components/connection-manager.md
+- **データベース**: SQLite (Prisma ORM使用)
+- **既存スキーマ**: `prisma/schema.prisma`に定義
+- **マイグレーション方針**: `npx prisma db push` を使用（開発環境向け）
+- **既存プロジェクトの扱い**: cloneLocationが未定義の場合、'host'として扱う（アプリケーションレイヤーでフォールバック）
 
 ## 情報の明確性
 
 | 分類 | 内容 |
 |------|------|
-| **明示された情報** | - ConnectionManagerに接続プール管理機能を追加<br>- セッションIDをキーとしたMap<string, Set<WebSocket>>で管理<br>- broadcast()メソッドで全接続に送信<br>- registerHandler()でイベントハンドラー管理<br>- 既存のSession WebSocket実装は変更しない（後方互換性） |
-| **不明/要確認の情報** | - なし（設計書で詳細に定義済み） |
+| 明示された情報 | - Projectテーブルに2つのフィールドを追加<br>- cloneLocation: 'host' or 'docker'（デフォルト: 'docker'）<br>- dockerVolumeId: string or null<br>- 既存プロジェクトは'host'として扱う |
+| 不明/要確認の情報 | なし（すべて要件・設計で明確化済み） |
 
 ## 実装手順（TDD）
 
-### ステップ1: テスト作成
+### 1. スキーマ変更
 
-```bash
-# テストファイルを作成
-touch src/lib/websocket/__tests__/connection-manager.test.ts
+**ファイル**: `prisma/schema.prisma`
+
+```prisma
+model Project {
+  id             String   @id @default(uuid())
+  name           String
+  repository_url String
+  environment_id String?
+
+  // ハイブリッド設計: リポジトリの保存場所
+  // 'host': ホスト環境（data/repos/）
+  // 'docker': Docker環境（Dockerボリューム）
+  // 既存プロジェクトはnullの場合、'host'として扱う
+  cloneLocation  String?  @default("docker")
+
+  // Docker環境の場合のボリューム名
+  // 形式: claude-repo-<project-id>
+  // ホスト環境の場合はnull
+  dockerVolumeId String?
+
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  sessions       Session[]
+  environment    ExecutionEnvironment? @relation(fields: [environment_id], references: [id])
+
+  @@map("projects")
+}
 ```
 
-以下のテストケースを作成：
-
-1. **接続プール管理のテスト**
-   - addConnection()で接続が追加される
-   - removeConnection()で接続が削除される
-   - getConnectionCount()が正しい接続数を返す
-   - hasConnections()が正しく動作する
-
-2. **ブロードキャストのテスト**
-   - broadcast()が全接続にメッセージを送信する
-   - 接続がOPEN状態でない場合はスキップする
-   - 送信エラーが発生しても他の接続に影響しない
-
-3. **イベントハンドラー管理のテスト**
-   - registerHandler()でハンドラーが登録される
-   - 同じイベントに複数回登録すると警告が出る
-   - unregisterHandler()でハンドラーが削除される
-   - hasHandler()が正しく動作する
-
-4. **スクロールバックバッファのテスト**
-   - setScrollbackBuffer()でバッファが設定される
-   - sendScrollbackToConnection()が新規接続にバッファを送信する
-
-5. **クリーンアップのテスト**
-   - cleanup()で接続プール、ハンドラー、バッファが削除される
-
-6. **パフォーマンステスト**
-   - broadcast()が100ms以内に完了する（NFR-PERF-001）
-
-### ステップ2: テスト実行（失敗確認）
+### 2. Prisma Client生成とデータベース変更適用
 
 ```bash
-npm test -- src/lib/websocket/__tests__/connection-manager.test.ts
+# Prisma Client生成
+npx prisma generate
+
+# データベース変更適用
+npx prisma db push
 ```
 
-すべてのテストが失敗することを確認します。
+### 3. 型定義の確認
 
-### ステップ3: テストコミット
+Prisma Clientが自動生成する型を確認：
 
-```bash
-git add src/lib/websocket/__tests__/connection-manager.test.ts
-git commit -m "test(TASK-001): add ConnectionManager extension tests
-
-- Add connection pool management tests
-- Add broadcast functionality tests
-- Add event handler management tests
-- Add scrollback buffer tests
-- Add cleanup tests
-- Add performance tests (< 100ms)"
+```typescript
+// 自動生成される型（例）
+type Project = {
+  id: string;
+  name: string;
+  repository_url: string;
+  environment_id: string | null;
+  cloneLocation: string | null;
+  dockerVolumeId: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
 ```
 
-### ステップ4: 実装
-
-`src/lib/websocket/connection-manager.ts`に以下を追加：
-
-1. **内部データ構造の拡張**
-   ```typescript
-   private connectionPools: Map<string, Set<WebSocket>> = new Map()
-   private scrollbackBuffers: Map<string, ScrollbackBuffer> = new Map()
-   private eventHandlers: Map<string, Map<string, Function>> = new Map()
-   private metrics: ConnectionMetrics = {
-     totalConnections: 0,
-     activeConnections: 0,
-     messagesSent: 0,
-     messagesDropped: 0
-   }
-   ```
-
-2. **新しいメソッドの実装**
-   - `addConnection(sessionId: string, ws: WebSocket): void`
-   - `removeConnection(sessionId: string, ws: WebSocket): void`
-   - `getConnections(sessionId: string): Set<WebSocket>`
-   - `hasConnections(sessionId: string): boolean`
-   - `getConnectionCount(sessionId: string): number`
-   - `broadcast(sessionId: string, message: string | Buffer): void`
-   - `sendToConnection(ws: WebSocket, message: string | Buffer): void`
-   - `setScrollbackBuffer(sessionId: string, buffer: ScrollbackBuffer): void`
-   - `sendScrollbackToConnection(sessionId: string, ws: WebSocket): void`
-   - `registerHandler(sessionId: string, eventName: string, handler: Function): void`
-   - `unregisterHandler(sessionId: string, eventName: string): void`
-   - `hasHandler(sessionId: string, eventName: string): boolean`
-   - `cleanup(sessionId: string): void`
-   - `getMetrics(): ConnectionMetrics`
-
-3. **イベント発火**
-   - `allConnectionsClosed`イベント: 最後の接続が切断された時
-
-### ステップ5: テスト実行（通過確認）
+### 4. バックアップ作成（推奨）
 
 ```bash
-npm test -- src/lib/websocket/__tests__/connection-manager.test.ts
+# データベースのバックアップ
+cp data/claudework.db data/claudework.db.backup-before-hybrid-design
 ```
 
-すべてのテストが通過することを確認します。
-
-### ステップ6: 実装コミット
+### 5. コミット
 
 ```bash
-git add src/lib/websocket/connection-manager.ts
-git commit -m "feat(TASK-001): extend ConnectionManager for unified WebSocket management" \
-  -m "Add connection pool management (Map<sessionId, Set<WebSocket>>)" \
-  -m "Add broadcast() method for sending to all connections" \
-  -m "Add event handler management (registerHandler/unregisterHandler)" \
-  -m "Add scrollback buffer management" \
-  -m "Add cleanup() method for resource cleanup" \
-  -m "Add metrics collection" \
-  -m "Emit 'allConnectionsClosed' event when last connection closes" \
-  -m "Implements: REQ-001-001, REQ-001-003, REQ-001-005, REQ-001-007" \
-  -m "Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
+git add prisma/schema.prisma
+git commit -m "feat: Projectテーブルにclone Location/dockerVolumeIdを追加
+
+ハイブリッド設計のためのデータベーススキーマ変更
+
+- cloneLocation: リポジトリの保存場所('host' or 'docker')
+- dockerVolumeId: Dockerボリューム名（Docker環境の場合のみ）
+
+既存プロジェクトはcloneLocation='host'として扱う
+
+Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
 ```
 
 ## 受入基準
 
-- [ ] `src/lib/websocket/connection-manager.ts`に新しいメソッドが実装されている
-- [ ] TypeScriptの型定義が含まれている
-- [ ] `src/lib/websocket/__tests__/connection-manager.test.ts`にテストが6カテゴリ以上ある
-- [ ] `npm test`で全テストが通過する
-- [ ] ESLintエラーがゼロ
-- [ ] broadcast()が100ms以内に完了する（10接続の場合）
-- [ ] 既存のSession WebSocket実装が破壊されていない
-- [ ] 後方互換性が維持されている
+- [ ] `prisma/schema.prisma`にcloneLocationフィールドが追加されている
+- [ ] `prisma/schema.prisma`にdockerVolumeIdフィールドが追加されている
+- [ ] `cloneLocation`のデフォルト値が"docker"である
+- [ ] `npx prisma generate`が成功する
+- [ ] `npx prisma db push`が成功する
+- [ ] データベースに新しいフィールドが追加されている
+- [ ] 既存のプロジェクトデータが破壊されていない
+- [ ] スキーマ変更がコミットされている
 
-## 検証方法
+## テストケース
 
-### 単体テスト実行
-
-```bash
-npm test -- src/lib/websocket/__tests__/connection-manager.test.ts --coverage
-```
-
-カバレッジが85%以上であることを確認。
-
-### Lint実行
+### データベース確認
 
 ```bash
-npm run lint -- src/lib/websocket/connection-manager.ts
+# SQLiteデータベースの確認
+sqlite3 data/claudework.db
+
+# テーブル構造の確認
+.schema projects
+
+# 既存データの確認
+SELECT id, name, cloneLocation, dockerVolumeId FROM projects;
 ```
 
-エラーがゼロであることを確認。
+**期待結果**:
+- `cloneLocation`と`dockerVolumeId`フィールドが存在する
+- 既存プロジェクトの`cloneLocation`はnull（アプリケーションレイヤーで'host'として扱う）
+- 既存プロジェクトの`dockerVolumeId`はnull
 
-### 既存テストの実行
+### Prisma Studioでの確認
 
 ```bash
-npm test -- src/lib/websocket/__tests__/session-ws.test.ts
+npx prisma studio
 ```
 
-既存のSession WebSocketテストが通過することを確認（後方互換性）。
+**期待結果**:
+- ブラウザでProjectテーブルを開ける
+- `cloneLocation`と`dockerVolumeId`フィールドが表示される
 
 ## 依存関係
 
-### 前提条件
-- なし（最初のタスク）
-
-### 後続タスク
-- TASK-002: Claude WebSocketのConnectionManager統合
-- TASK-003: Terminal WebSocketのConnectionManager統合
+- **依存するタスク**: なし（最初のタスク）
+- **このタスクに依存するタスク**: TASK-002, TASK-005, TASK-010, TASK-013, TASK-016
 
 ## トラブルシューティング
 
-### よくある問題
+### Prisma Client生成失敗
 
-1. **WebSocket状態エラー**
-   - 問題: ws.readyState !== WebSocket.OPEN
-   - 解決: broadcast()内で状態をチェックし、OPEN以外はスキップ
+**症状**: `npx prisma generate`がエラーで失敗
 
-2. **メモリリーク**
-   - 問題: 接続が削除されてもSetに残る
-   - 解決: removeConnection()で確実にSet.delete()を呼ぶ
+**対策**:
+1. `node_modules`を削除して再インストール
+   ```bash
+   rm -rf node_modules
+   npm install
+   ```
+2. Prismaバージョンを確認
+   ```bash
+   npx prisma --version
+   ```
 
-3. **イベントハンドラー重複**
-   - 問題: registerHandler()が複数回呼ばれる
-   - 解決: 既存のハンドラーを上書きし、警告ログを出力
+### データベース変更適用失敗
 
-## パフォーマンス最適化
+**症状**: `npx prisma db push`がエラーで失敗
 
-### ブロードキャストの最適化
+**対策**:
+1. データベースファイルのパーミッションを確認
+   ```bash
+   ls -la data/claudework.db
+   ```
+2. データベースがロックされていないか確認
+   ```bash
+   # 実行中のプロセスを確認
+   lsof data/claudework.db
+   ```
 
-```typescript
-// 将来の最適化: 小さいメッセージはバッファリング
-private shouldBuffer(message: string | Buffer): boolean {
-  const size = Buffer.byteLength(message)
-  return size < 1024 // 1KB未満
-}
-```
+## 関連ドキュメント
 
-## 完了サマリー
-
-ConnectionManagerの拡張機能が既に実装済みであることを確認しました。
-
-- 接続プール管理: Map<string, Set<WebSocket>>で実装
-- ブロードキャスト機能: broadcast()メソッドで全接続に送信
-- イベントハンドラー管理: registerHandler/unregisterHandlerで管理
-- スクロールバックバッファ: setScrollbackBuffer/sendScrollbackToConnectionで実装
-- クリーンアップ: cleanup()メソッドで全リソース削除
-- メトリクス収集: getMetrics()で統計情報取得
-- allConnectionsClosedイベント: 最後の接続削除時に発火
-
-テスト状況:
-- 43個のテストが全通過
-- パフォーマンス: broadcast()は0.0059ms（10接続）、0.0567ms（100接続）で100ms以内を達成
-- 既存のSession WebSocketテストも全通過（後方互換性維持）
-- ESLintエラーゼロ
-
-## 参照
-
-- [要件定義: US-001](../../requirements/stories/US-001.md) @../../requirements/stories/US-001.md
-- [設計: ConnectionManager](../../design/components/connection-manager.md) @../../design/components/connection-manager.md
-- [設計決定: DEC-001](../../design/decisions/DEC-001.md) @../../design/decisions/DEC-001.md
-- [設計決定: DEC-003](../../design/decisions/DEC-003.md) @../../design/decisions/DEC-003.md
+- [データベーススキーマ設計](../../design/database/schema.md) @../../design/database/schema.md
+- [要件定義: データベーススキーマ変更](../../requirements/index.md#データベーススキーマ変更) @../../requirements/index.md

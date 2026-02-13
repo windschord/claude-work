@@ -4,6 +4,7 @@ import hooksPlugin from "eslint-plugin-react-hooks";
 import tsPlugin from "@typescript-eslint/eslint-plugin";
 import tsParser from "@typescript-eslint/parser";
 import globals from "globals";
+import localRules from "./eslint-local-rules.js";
 
 export default [
   {
@@ -22,6 +23,7 @@ export default [
       react: reactPlugin,
       "react-hooks": hooksPlugin,
       "@typescript-eslint": tsPlugin,
+      "local": localRules,
     },
     languageOptions: {
       parser: tsParser,
@@ -60,6 +62,9 @@ export default [
           varsIgnorePattern: "^_",
         },
       ],
+      // カスタムルール: useEffectの依存配列にuseCallback/useMemoを含めない
+      // TODO: 全ファイルで修正後、errorに変更する
+      "local/no-useeffect-with-callback-deps": "warn",
     },
   },
 ];
