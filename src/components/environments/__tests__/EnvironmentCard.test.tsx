@@ -48,19 +48,19 @@ describe('EnvironmentCard', () => {
       expect(screen.queryByText(/Dockerfile:/)).not.toBeInTheDocument();
     });
 
-    it('should display Dockerfile path when imageSource is "dockerfile"', () => {
+    it('should display Dockerfile upload status when imageSource is "dockerfile"', () => {
       const environment = createEnvironment({
         type: 'DOCKER',
         config: JSON.stringify({
           imageSource: 'dockerfile',
-          dockerfilePath: '/path/to/Dockerfile',
+          dockerfileUploaded: true,
         }),
       });
 
       render(<EnvironmentCard {...defaultProps} environment={environment} />);
 
       expect(screen.getByText('Dockerfile:')).toBeInTheDocument();
-      expect(screen.getByText('/path/to/Dockerfile')).toBeInTheDocument();
+      expect(screen.getByText('アップロード済み')).toBeInTheDocument();
     });
 
     it('should display image name and tag when imageSource is "existing"', () => {

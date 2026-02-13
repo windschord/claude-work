@@ -1,15 +1,47 @@
-import { describe, it, expect, afterEach } from 'vitest';
-import { ptyManager } from '../pty-manager';
+import { describe, it, expect, afterEach, beforeAll, afterAll, vi } from 'vitest';
+import { mkdtempSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+
+// node-ptyをモック化（テスト環境ではネイティブモジュールが不安定なため）
+const mockOnData = vi.fn();
+const mockOnExit = vi.fn();
+const mockWrite = vi.fn();
+const mockResize = vi.fn();
+const mockKill = vi.fn();
+
+vi.mock('node-pty', () => ({
+  spawn: vi.fn(() => ({
+    onData: mockOnData,
+    onExit: mockOnExit,
+    write: mockWrite,
+    resize: mockResize,
+    kill: mockKill,
+    pid: 12345,
+  })),
+}));
+
+// モック後にインポート
+const { ptyManager } = await import('../pty-manager');
 
 describe('PTYManager', () => {
   const testSessionId = 'test-session-123';
-  const testWorkingDir = '/tmp/test-worktree';
+  let testWorkingDir: string;
+
+  beforeAll(() => {
+    testWorkingDir = mkdtempSync(join(tmpdir(), 'pty-manager-test-'));
+  });
+
+  afterAll(() => {
+    rmSync(testWorkingDir, { recursive: true, force: true });
+  });
 
   afterEach(() => {
     // クリーンアップ
     if (ptyManager.hasSession(testSessionId)) {
       ptyManager.kill(testSessionId);
     }
+    vi.clearAllMocks();
   });
 
   describe('createPTY', () => {
@@ -62,22 +94,27 @@ describe('PTYManager', () => {
 
   describe('kill', () => {
     it('should terminate PTY process successfully', () => {
-      return new Promise<void>((resolve) => {
-        ptyManager.createPTY(testSessionId, testWorkingDir);
+      ptyManager.createPTY(testSessionId, testWorkingDir);
+      expect(ptyManager.hasSession(testSessionId)).toBe(true);
 
-        expect(ptyManager.hasSession(testSessionId)).toBe(true);
+      // onExitコールバックをキャプチャしてシミュレーション
+      const onExitCallback = mockOnExit.mock.calls[0][0];
 
-        // exitイベントを待つ
+      // exitイベントを待つ
+      const exitPromise = new Promise<void>((resolve) => {
         ptyManager.once('exit', (sessionId: string, result: { exitCode: number; signal?: number }) => {
           expect(sessionId).toBe(testSessionId);
           expect(result).toHaveProperty('exitCode');
           expect(ptyManager.hasSession(testSessionId)).toBe(false);
           resolve();
         });
-
-        // プロセスを終了
-        ptyManager.kill(testSessionId);
       });
+
+      // killを呼び出し、onExitコールバックをシミュレーション
+      ptyManager.kill(testSessionId);
+      onExitCallback({ exitCode: 0, signal: 15 });
+
+      return exitPromise;
     }, 10000);
 
     it('should handle kill of non-existent session gracefully', () => {
@@ -99,11 +136,12 @@ describe('PTYManager', () => {
   });
 
   describe('shell selection', () => {
-    it('should use correct shell based on platform', () => {
-      // プラットフォームに応じたシェルが選択されることを確認
-      // この確認は間接的（プロセスが正常に起動すればOK）
+    it('should use correct shell based on platform', async () => {
+      const pty = await import('node-pty');
       ptyManager.createPTY(testSessionId, testWorkingDir);
       expect(ptyManager.hasSession(testSessionId)).toBe(true);
+      // node-pty.spawnが呼ばれたことを確認
+      expect(vi.mocked(pty.spawn)).toHaveBeenCalled();
     });
   });
 });
