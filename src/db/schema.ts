@@ -14,6 +14,18 @@ export const projects = sqliteTable('Project', {
   remote_url: text('remote_url'),
   claude_code_options: text('claude_code_options').notNull().default('{}'),
   custom_env_vars: text('custom_env_vars').notNull().default('{}'),
+
+  // ハイブリッド設計: リポジトリの保存場所
+  // 'host': ホスト環境（data/repos/）
+  // 'docker': Docker環境（Dockerボリューム）
+  // 既存プロジェクトはnullの場合、'host'として扱う
+  clone_location: text('clone_location').default('docker'), // 'host' | 'docker'
+
+  // Docker環境の場合のボリューム名
+  // 形式: claude-repo-<project-id>
+  // ホスト環境の場合はnull
+  docker_volume_id: text('docker_volume_id'),
+
   created_at: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
   updated_at: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
 });
