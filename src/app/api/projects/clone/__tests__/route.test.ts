@@ -60,6 +60,7 @@ describe('POST /api/projects/clone', () => {
       body: JSON.stringify({
         url: testRepoPath,
         targetDir,
+        cloneLocation: 'host', // ローカルリポジトリなのでhost環境を使用
       }),
     });
 
@@ -128,6 +129,7 @@ describe('POST /api/projects/clone', () => {
       body: JSON.stringify({
         url: testRepoPath,
         targetDir,
+        cloneLocation: 'host',
       }),
     });
 
@@ -154,6 +156,7 @@ describe('POST /api/projects/clone', () => {
       body: JSON.stringify({
         url: anotherRepoPath,
         targetDir,
+        cloneLocation: 'host',
       }),
     });
 
@@ -174,6 +177,7 @@ describe('POST /api/projects/clone', () => {
         url: testRepoPath,
         targetDir,
         name: 'custom-project-name',
+        cloneLocation: 'host',
       }),
     });
 
@@ -195,6 +199,7 @@ describe('POST /api/projects/clone', () => {
       body: JSON.stringify({
         url: testRepoPath,
         targetDir,
+        cloneLocation: 'host',
       }),
     });
 
@@ -205,8 +210,8 @@ describe('POST /api/projects/clone', () => {
     expect(data.project.name).toBe('source-repo');
   });
 
-  it('should default to host environment when cloneLocation not specified', async () => {
-    const targetDir = join(testDir, 'default-location');
+  it('should use host environment when cloneLocation explicitly specified', async () => {
+    const targetDir = join(testDir, 'explicit-host');
 
     const request = new NextRequest('http://localhost:3000/api/projects/clone', {
       method: 'POST',
@@ -216,6 +221,7 @@ describe('POST /api/projects/clone', () => {
       body: JSON.stringify({
         url: testRepoPath,
         targetDir,
+        cloneLocation: 'host',
       }),
     });
 
@@ -225,9 +231,7 @@ describe('POST /api/projects/clone', () => {
     const data = await response.json();
     const project = db.select().from(schema.projects).where(eq(schema.projects.id, data.project.id)).get();
 
-    // cloneLocationのデフォルトはdockerだが、hostを明示的に指定しない場合は既存のロジック（host環境）が動作
-    // 実際にはvalidateCloneLocationがundefinedをdockerに変換するため、このテストは失敗する可能性がある
-    // しかし、targetDirが指定されている場合はhost環境として動作する実装になっている
+    // cloneLocation='host'を明示的に指定したのでhost環境で動作
     expect(project?.clone_location).toBe('host');
   });
 
