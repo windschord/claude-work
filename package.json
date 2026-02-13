@@ -9,7 +9,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "prepare": "node -e \"if (process.env.CI !== 'true' && process.env.npm_config_ignore_scripts !== 'true') try { require('husky')() } catch (e) {}\"",
+    "prepare": "DATABASE_URL=file:./data/build.db npm run build && node -e \"try { require('husky')() } catch (e) {}\"",
     "dev": "ts-node -r tsconfig-paths/register --project tsconfig.server.json server.ts",
     "dev:pm2": "pm2 start ecosystem.config.js --only claude-work-dev",
     "dev:stop": "pm2 stop claude-work-dev",
