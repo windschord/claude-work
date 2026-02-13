@@ -7,6 +7,7 @@ import { relative, resolve, join } from 'path';
 import { realpathSync, existsSync, mkdirSync } from 'fs';
 import { logger } from '@/lib/logger';
 import { DockerGitService } from '@/services/docker-git-service';
+import { GitHubPATService } from '@/services/github-pat-service';
 import { validateCloneLocation, validateProjectName } from '@/lib/validation';
 
 /**
@@ -18,10 +19,12 @@ import { validateCloneLocation, validateProjectName } from '@/lib/validation';
  *   - url: リモートリポジトリURL（必須）
  *   - targetDir: clone先ディレクトリ（任意、デフォルト: data/repos/）
  *   - name: プロジェクト名（任意、デフォルト: URLから自動抽出）
+ *   - githubPatId: GitHub PAT ID（任意、Docker + HTTPS時のみ使用）
  *
  * @returns
  * - 201: プロジェクト作成成功
  * - 400: URLが無効、または clone失敗
+ * - 401: PAT認証失敗
  * - 403: 許可されていないディレクトリ
  * - 409: 既に同じパスのプロジェクトが存在
  * - 500: サーバーエラー
@@ -36,7 +39,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
 
-    const { url, targetDir, name, cloneLocation } = body;
+    const { url, targetDir, name, cloneLocation, githubPatId } = body;
 
     if (!url) {
       return NextResponse.json({ error: 'URLは必須です' }, { status: 400 });
@@ -89,10 +92,32 @@ export async function POST(request: NextRequest) {
         });
 
         try {
+          // PAT認証: Docker + HTTPS + githubPatId指定時のみ適用
+          let cloneUrl = url;
+          if (githubPatId && url.startsWith('https://')) {
+            try {
+              const patService = new GitHubPATService();
+              const token = await patService.decryptToken(githubPatId);
+              // URLにPATを埋め込む: https://TOKEN@github.com/user/repo.git
+              const urlObj = new URL(url);
+              urlObj.username = token;
+              cloneUrl = urlObj.toString();
+              logger.info('PAT authentication applied for Docker clone', { githubPatId });
+            } catch (error) {
+              logger.error('PAT authentication failed', { githubPatId, error });
+              // clone前なのでDBからプロジェクトを削除
+              db.delete(schema.projects).where(eq(schema.projects.id, project.id)).run();
+              return NextResponse.json(
+                { error: error instanceof Error ? error.message : 'PAT認証に失敗しました' },
+                { status: 401 }
+              );
+            }
+          }
+
           // DockerGitServiceでclone
           const dockerGitService = new DockerGitService();
           const cloneResult = await dockerGitService.cloneRepository({
-            url,
+            url: cloneUrl,
             projectId: project.id.toString(),
           });
 
