@@ -17,7 +17,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}/sandbox
+  IMAGE_NAME: ${{ github.repository_owner }}/claude-work
 
 permissions:
   contents: read
