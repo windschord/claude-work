@@ -439,11 +439,7 @@ describe('POST /api/projects/clone', () => {
       const response = await POST(request);
       expect(response.status).toBe(201);
 
-      // host環境なのでPATは使われない
-      const { GitHubPATService } = await import('@/services/github-pat-service');
-      const mockInstance = vi.mocked(GitHubPATService).mock.results;
-      // GitHubPATServiceがインスタンス化されていないことを確認
-      // （host環境ではPATロジックに入らない）
+      // host環境なのでPATは使われない（PATロジックに入らない）
     });
 
     it('should not use PAT for docker clone when githubPatId is not provided', async () => {

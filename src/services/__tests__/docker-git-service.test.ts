@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // ホイストされたモックを作成
 const { mockExecFile } = vi.hoisted(() => ({
