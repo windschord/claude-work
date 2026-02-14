@@ -124,6 +124,20 @@ export const runScripts = sqliteTable('RunScript', {
   index('run_scripts_project_id_idx').on(table.project_id),
 ]);
 
+/**
+ * github_pats テーブル
+ * GitHub Personal Access Tokenを管理
+ */
+export const githubPats = sqliteTable('GitHubPAT', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  name: text('name').notNull(),
+  description: text('description'),
+  encrypted_token: text('encrypted_token').notNull(),
+  is_active: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+  created_at: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+  updated_at: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+});
+
 // ==================== リレーション定義 ====================
 
 export const projectsRelations = relations(projects, ({ many }) => ({
@@ -156,6 +170,8 @@ export const messagesRelations = relations(messages, ({ one }) => ({
 
 export const promptsRelations = relations(prompts, () => ({}));
 
+export const githubPatsRelations = relations(githubPats, () => ({}));
+
 export const runScriptsRelations = relations(runScripts, ({ one }) => ({
   project: one(projects, {
     fields: [runScripts.project_id],
@@ -182,3 +198,6 @@ export type NewPrompt = typeof prompts.$inferInsert;
 
 export type RunScript = typeof runScripts.$inferSelect;
 export type NewRunScript = typeof runScripts.$inferInsert;
+
+export type GitHubPAT = typeof githubPats.$inferSelect;
+export type NewGitHubPAT = typeof githubPats.$inferInsert;

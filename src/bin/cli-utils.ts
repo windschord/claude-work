@@ -16,7 +16,7 @@ import Database from 'better-sqlite3';
  * - v1: 初期テーブル作成
  * - v2: claude_code_options, custom_env_vars カラム追加
  */
-const CURRENT_DB_VERSION = 2;
+const CURRENT_DB_VERSION = 3;
 
 /**
  * Next.jsビルドが存在し、完全かどうかを確認
@@ -212,6 +212,13 @@ export function migrateDatabase(dbPath: string): boolean {
         version = 2;
       }
 
+      // バージョン 2 → 3: GitHubPATテーブル作成
+      if (version < 3) {
+        console.log('Migrating to v3: Creating GitHubPAT table...');
+        createGitHubPATTable(db!);
+        version = 3;
+      }
+
       // バージョン番号を更新
       db!.exec(`PRAGMA user_version = ${version}`);
     });
@@ -375,6 +382,23 @@ function safeAddColumn(
       throw e;
     }
   }
+}
+
+/**
+ * GitHubPATテーブルを作成（v2 → v3）
+ */
+function createGitHubPATTable(db: InstanceType<typeof Database>): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS "GitHubPAT" (
+      "id" text PRIMARY KEY NOT NULL,
+      "name" text NOT NULL,
+      "description" text,
+      "encrypted_token" text NOT NULL,
+      "is_active" integer NOT NULL DEFAULT 1,
+      "created_at" integer NOT NULL,
+      "updated_at" integer NOT NULL
+    );
+  `);
 }
 
 /**

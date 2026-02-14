@@ -40,6 +40,9 @@ export default defineConfig({
           SESSION_SECRET:
             process.env.SESSION_SECRET ||
             'test-session-secret-key-for-e2e-testing-purposes-only',
+          ENCRYPTION_KEY:
+            process.env.ENCRYPTION_KEY ||
+            'dGVzdC1lbmNyeXB0aW9uLWtleS1mb3ItZTJlLXRlc3Q=',
           PORT: '3001',
         },
       },
