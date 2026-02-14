@@ -57,7 +57,7 @@ Docker環境とHost環境のworktree管理を適切に分離し、EnvironmentAda
 ## 主要な変更箇所
 
 1. **src/services/adapters/docker-adapter.ts**
-   - `spawnPTY()` メソッドでDockerコンテナ内でPTYを起動
+   - `spawnPTY()` メソッドがDockerコンテナ内でPTYを起動
    - working directoryを `/repo/.worktrees/${sessionName}` に設定
 
 2. **src/services/docker-git-service.ts**

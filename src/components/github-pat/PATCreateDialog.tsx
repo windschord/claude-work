@@ -2,6 +2,7 @@
 
 import { useState, Fragment, useEffect } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
+import { Lightbulb } from 'lucide-react';
 import { CreatePATInput, GitHubPAT } from '@/hooks/useGitHubPATs';
 import { validatePATName, validatePATFormat } from '@/lib/validation';
 
@@ -153,8 +154,9 @@ export function PATCreateDialog({ isOpen, onClose, onSubmit }: PATCreateDialogPr
                       disabled={isLoading}
                     />
                     <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
-                      <p className="text-xs text-blue-800 dark:text-blue-200 font-medium mb-1">
-                        💡 必要な権限（Fine-grained PAT）
+                      <p className="text-xs text-blue-800 dark:text-blue-200 font-medium mb-1 flex items-center gap-1">
+                        <Lightbulb className="w-3 h-3" aria-hidden="true" />
+                        必要な権限（Fine-grained PAT）
                       </p>
                       <ul className="text-xs text-blue-700 dark:text-blue-300 space-y-1">
                         <li>• <strong>Contents</strong>: Read and write</li>
