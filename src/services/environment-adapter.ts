@@ -12,6 +12,10 @@ export interface CreateSessionOptions {
   claudeCodeOptions?: ClaudeCodeOptions;
   /** カスタム環境変数 */
   customEnvVars?: CustomEnvVars;
+  /** ターミナル列数（初期サイズ） */
+  cols?: number;
+  /** ターミナル行数（初期サイズ） */
+  rows?: number;
 }
 
 /**

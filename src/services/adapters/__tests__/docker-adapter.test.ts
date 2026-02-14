@@ -435,7 +435,7 @@ describe('DockerAdapter', () => {
       vi.useRealTimers();
     });
 
-    it('should not execute deferred resize when lastKnownCols/Rows are not set', async () => {
+    it('should execute deferred resize with default size when no explicit resize was called', async () => {
       vi.useFakeTimers();
 
       await adapter.createSession(sessionId, workingDir);
@@ -443,9 +443,14 @@ describe('DockerAdapter', () => {
       (mockPty.resize as Mock).mockClear();
       dataHandler('Welcome to Claude Code');
 
-      vi.advanceTimersByTime(2000);
-
+      vi.advanceTimersByTime(999);
       expect(mockPty.resize).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(1);
+      // createSession時にデフォルトサイズ(80x24)でlastKnownCols/Rowsが初期化されるため、
+      // 明示的にresize()を呼ばなくてもdeferred resizeが実行される
+      expect(mockPty.resize).toHaveBeenCalledWith(80, 24);
+      expect(mockPty.resize).toHaveBeenCalledTimes(1);
 
       vi.useRealTimers();
     });

@@ -227,6 +227,127 @@ export function setupTerminalWebSocket(
         logger.info('Terminal WebSocket: Using legacy ptyManager', { sessionId });
       }
 
+      // イベントハンドラー定義
+      // アダプター用
+      const adapterDataHandler = (sid: string, data: string) => {
+        if (sid === terminalSessionId) {
+          try {
+            const message: TerminalDataMessage = {
+              type: 'data',
+              content: data,
+            };
+            connectionManager.broadcast(terminalSessionId, JSON.stringify(message));
+          } catch (err) {
+            logger.error('Terminal WebSocket: Failed to broadcast data', {
+              sessionId, terminalSessionId,
+              error: err instanceof Error ? err.message : 'Unknown error',
+            });
+          }
+        }
+      };
+
+      const adapterExitHandler = (sid: string, info: AdapterPTYExitInfo) => {
+        if (sid === terminalSessionId) {
+          try {
+            const message: TerminalExitMessage = {
+              type: 'exit',
+              exitCode: info.exitCode,
+              signal: info.signal ?? null,
+            };
+            connectionManager.broadcast(terminalSessionId, JSON.stringify(message));
+            connectionManager.closeAllConnections(terminalSessionId);
+          } catch (err) {
+            logger.error('Terminal WebSocket: Failed to broadcast exit', {
+              sessionId, terminalSessionId,
+              error: err instanceof Error ? err.message : 'Unknown error',
+            });
+          }
+        }
+      };
+
+      const adapterErrorHandler = (sid: string, error: Error) => {
+        if (sid === terminalSessionId) {
+          logger.error('Terminal WebSocket: Adapter error', {
+            sessionId,
+            terminalSessionId,
+            error: error.message,
+          });
+          try {
+            const message: TerminalErrorMessage = {
+              type: 'error',
+              message: `Terminal error: ${error.message}`,
+            };
+            connectionManager.broadcast(terminalSessionId, JSON.stringify(message));
+          } catch (err) {
+            logger.error('Terminal WebSocket: Failed to broadcast error message', {
+              sessionId, terminalSessionId,
+              error: err instanceof Error ? err.message : 'Unknown error',
+            });
+          }
+        }
+      };
+
+      // レガシー用（ptyManager）
+      const legacyDataHandler = (sid: string, data: string) => {
+        if (sid === terminalSessionId) {
+          try {
+            const message: TerminalDataMessage = {
+              type: 'data',
+              content: data,
+            };
+            connectionManager.broadcast(terminalSessionId, JSON.stringify(message));
+          } catch (err) {
+            logger.error('Terminal WebSocket: Failed to broadcast legacy data', {
+              sessionId, terminalSessionId,
+              error: err instanceof Error ? err.message : 'Unknown error',
+            });
+          }
+        }
+      };
+
+      const legacyExitHandler = (
+        sid: string,
+        { exitCode, signal }: PTYExitInfo
+      ) => {
+        if (sid === terminalSessionId) {
+          try {
+            const message: TerminalExitMessage = {
+              type: 'exit',
+              exitCode,
+              signal: signal ?? null,
+            };
+            connectionManager.broadcast(terminalSessionId, JSON.stringify(message));
+            connectionManager.closeAllConnections(terminalSessionId);
+          } catch (err) {
+            logger.error('Terminal WebSocket: Failed to broadcast legacy exit', {
+              sessionId, terminalSessionId,
+              error: err instanceof Error ? err.message : 'Unknown error',
+            });
+          }
+        }
+      };
+
+      // イベントハンドラー登録（初回接続時のみ）
+      // createSession前にerrorハンドラーを登録することで、セッション作成中の
+      // EventEmitter 'error'イベント（リスナーなしでプロセスクラッシュ）を防止する
+      let handlersRegistered = false;
+      if (!connectionManager.hasHandler(terminalSessionId, 'data')) {
+        if (useLegacyPtyManager) {
+          ptyManager.on('data', legacyDataHandler);
+          ptyManager.on('exit', legacyExitHandler);
+          connectionManager.registerHandler(terminalSessionId, 'data', legacyDataHandler);
+          connectionManager.registerHandler(terminalSessionId, 'exit', legacyExitHandler);
+        } else {
+          adapter!.on('data', adapterDataHandler);
+          adapter!.on('exit', adapterExitHandler);
+          adapter!.on('error', adapterErrorHandler);
+          connectionManager.registerHandler(terminalSessionId, 'data', adapterDataHandler);
+          connectionManager.registerHandler(terminalSessionId, 'exit', adapterExitHandler);
+          connectionManager.registerHandler(terminalSessionId, 'error', adapterErrorHandler);
+        }
+        handlersRegistered = true;
+      }
+
       // PTY作成（既に存在する場合はスキップ）
       const hasSession = useLegacyPtyManager
         ? ptyManager.hasSession(terminalSessionId)
@@ -257,6 +378,23 @@ export function setupTerminalWebSocket(
             worktreePath: session.worktree_path,
           });
 
+          // createSession前に登録したハンドラーをクリーンアップ
+          if (handlersRegistered) {
+            if (useLegacyPtyManager) {
+              ptyManager.off('data', legacyDataHandler);
+              ptyManager.off('exit', legacyExitHandler);
+            } else {
+              adapter!.off('data', adapterDataHandler);
+              adapter!.off('exit', adapterExitHandler);
+              adapter!.off('error', adapterErrorHandler);
+            }
+            connectionManager.unregisterHandler(terminalSessionId, 'data');
+            connectionManager.unregisterHandler(terminalSessionId, 'exit');
+            if (!useLegacyPtyManager) {
+              connectionManager.unregisterHandler(terminalSessionId, 'error');
+            }
+          }
+
           // クライアントにエラーメッセージを送信
           const errorMsg: TerminalErrorMessage = {
             type: 'error',
@@ -281,88 +419,6 @@ export function setupTerminalWebSocket(
           sessionId,
           terminalSessionId,
         });
-      }
-
-      // イベントハンドラー定義
-      // アダプター用
-      const adapterDataHandler = (sid: string, data: string) => {
-        if (sid === terminalSessionId) {
-          const message: TerminalDataMessage = {
-            type: 'data',
-            content: data,
-          };
-          connectionManager.broadcast(terminalSessionId, JSON.stringify(message));
-        }
-      };
-
-      const adapterExitHandler = (sid: string, info: AdapterPTYExitInfo) => {
-        if (sid === terminalSessionId) {
-          const message: TerminalExitMessage = {
-            type: 'exit',
-            exitCode: info.exitCode,
-            signal: info.signal ?? null,
-          };
-          connectionManager.broadcast(terminalSessionId, JSON.stringify(message));
-          connectionManager.closeAllConnections(terminalSessionId);
-        }
-      };
-
-      const adapterErrorHandler = (sid: string, error: Error) => {
-        if (sid === terminalSessionId) {
-          logger.error('Terminal WebSocket: Adapter error', {
-            sessionId,
-            terminalSessionId,
-            error: error.message,
-          });
-          const message: TerminalErrorMessage = {
-            type: 'error',
-            message: `Terminal error: ${error.message}`,
-          };
-          connectionManager.broadcast(terminalSessionId, JSON.stringify(message));
-        }
-      };
-
-      // レガシー用（ptyManager）
-      const legacyDataHandler = (sid: string, data: string) => {
-        if (sid === terminalSessionId) {
-          const message: TerminalDataMessage = {
-            type: 'data',
-            content: data,
-          };
-          connectionManager.broadcast(terminalSessionId, JSON.stringify(message));
-        }
-      };
-
-      const legacyExitHandler = (
-        sid: string,
-        { exitCode, signal }: PTYExitInfo
-      ) => {
-        if (sid === terminalSessionId) {
-          const message: TerminalExitMessage = {
-            type: 'exit',
-            exitCode,
-            signal: signal ?? null,
-          };
-          connectionManager.broadcast(terminalSessionId, JSON.stringify(message));
-          connectionManager.closeAllConnections(terminalSessionId);
-        }
-      };
-
-      // イベントハンドラー登録（初回接続時のみ）
-      if (!connectionManager.hasHandler(terminalSessionId, 'data')) {
-        if (useLegacyPtyManager) {
-          ptyManager.on('data', legacyDataHandler);
-          ptyManager.on('exit', legacyExitHandler);
-          connectionManager.registerHandler(terminalSessionId, 'data', legacyDataHandler);
-          connectionManager.registerHandler(terminalSessionId, 'exit', legacyExitHandler);
-        } else {
-          adapter!.on('data', adapterDataHandler);
-          adapter!.on('exit', adapterExitHandler);
-          adapter!.on('error', adapterErrorHandler);
-          connectionManager.registerHandler(terminalSessionId, 'data', adapterDataHandler);
-          connectionManager.registerHandler(terminalSessionId, 'exit', adapterExitHandler);
-          connectionManager.registerHandler(terminalSessionId, 'error', adapterErrorHandler);
-        }
       }
 
       // WebSocket入力 → PTY

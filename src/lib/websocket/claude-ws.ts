@@ -356,6 +356,20 @@ export function setupClaudeWebSocket(
             hasInitialPrompt: !!initialPrompt,
           });
 
+          // セッション作成後に明示的にリサイズを適用
+          // Docker環境ではコンテナ起動のオーバーヘッドにより、PTY spawn時の
+          // サイズが内部プロセスに反映されない場合がある
+          // pendingResizeはearlyMessageHandlerで非同期に更新される可能性があるため再取得
+          const currentResize = pendingResize as { cols: number; rows: number } | null;
+          if (currentResize) {
+            ptySessionManager.resize(sessionId, currentResize.cols, currentResize.rows);
+            logger.info('Claude WebSocket: Applied initial resize after session creation', {
+              sessionId,
+              cols: currentResize.cols,
+              rows: currentResize.rows,
+            });
+          }
+
           // 接続を追加
           ptySessionManager.addConnection(sessionId, ws);
         } catch (ptyError) {

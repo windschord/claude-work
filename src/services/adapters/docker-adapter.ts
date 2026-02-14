@@ -372,8 +372,11 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
         sessionId,
         containerName,
         error: error instanceof Error ? error.message : 'Unknown error',
+        activeSessions: Array.from(this.sessions.keys()),
       });
-      this.emit('error', sessionId, error instanceof Error ? error : new Error('Unknown error'));
+      if (this.listenerCount('error') > 0) {
+        this.emit('error', sessionId, error instanceof Error ? error : new Error('Unknown error'));
+      }
       throw error;
     }
   }
@@ -435,8 +438,12 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
             sessionId,
             parentContainerName,
             parentSessionId: this.getParentSessionId(sessionId),
+            activeSessions: Array.from(this.sessions.keys()),
           });
-          this.emit('error', sessionId, error);
+          // errorリスナーがある場合のみemit（リスナー未登録時のプロセスクラッシュを防止）
+          if (this.listenerCount('error') > 0) {
+            this.emit('error', sessionId, error);
+          }
           throw error;
         }
         await this.createExecSession(sessionId, parentContainerName, workingDir);
@@ -449,25 +456,35 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
       logger.warn('DockerAdapter: Shell mode requested but no parent container found', {
         sessionId,
         parentSessionId: this.getParentSessionId(sessionId),
+        activeSessions: Array.from(this.sessions.keys()),
       });
-      this.emit('error', sessionId, error);
+      // errorリスナーがある場合のみemit（リスナー未登録時のプロセスクラッシュを防止）
+      if (this.listenerCount('error') > 0) {
+        this.emit('error', sessionId, error);
+      }
       throw error;
     }
 
     const { args, containerName, envFilePath } = this.buildDockerArgs(workingDir, options);
+
+    // クライアントから渡されたターミナルサイズを使用（未指定時はデフォルト80x24）
+    const initialCols = options?.cols ?? 80;
+    const initialRows = options?.rows ?? 24;
 
     logger.info('DockerAdapter: Creating session', {
       sessionId,
       workingDir,
       containerName,
       image: `${this.config.imageName}:${this.config.imageTag}`,
+      cols: initialCols,
+      rows: initialRows,
     });
 
     try {
       const ptyProcess = pty.spawn('docker', args, {
         name: 'xterm-256color',
-        cols: 80,
-        rows: 24,
+        cols: initialCols,
+        rows: initialRows,
         env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' },
       });
 
@@ -478,6 +495,8 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
         errorBuffer: '',
         hasReceivedOutput: false,
         shellMode: false,
+        lastKnownCols: initialCols,
+        lastKnownRows: initialRows,
       });
 
       // コンテナ起動完了を待機（TASK-012）
@@ -587,8 +606,11 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
       logger.error('DockerAdapter: Failed to create session', {
         sessionId,
         error: error instanceof Error ? error.message : 'Unknown error',
+        activeSessions: Array.from(this.sessions.keys()),
       });
-      this.emit('error', sessionId, error instanceof Error ? error : new Error('Unknown error'));
+      if (this.listenerCount('error') > 0) {
+        this.emit('error', sessionId, error instanceof Error ? error : new Error('Unknown error'));
+      }
       throw error;
     }
   }
