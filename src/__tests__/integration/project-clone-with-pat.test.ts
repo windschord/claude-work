@@ -1,9 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { NextRequest } from 'next/server';
-import { mkdtempSync, rmSync, existsSync, mkdirSync } from 'fs';
-import { tmpdir } from 'os';
 import { join } from 'path';
-import { execSync } from 'child_process';
 
 // vi.hoistedでモック関数を先に初期化
 const {
@@ -12,13 +9,51 @@ const {
   mockDeleteVolume,
   mockDecryptToken,
   mockGetById,
+  mockMkdtempSync,
+  mockMkdirSync,
+  mockRmSync,
+  mockExistsSync,
+  mockRealpathSync,
+  mockExecSync,
 } = vi.hoisted(() => ({
   mockCloneRepository: vi.fn(),
   mockCloneRepositoryWithPAT: vi.fn(),
   mockDeleteVolume: vi.fn(),
   mockDecryptToken: vi.fn(),
   mockGetById: vi.fn(),
+  mockMkdtempSync: vi.fn(),
+  mockMkdirSync: vi.fn(),
+  mockRmSync: vi.fn(),
+  mockExistsSync: vi.fn(),
+  mockRealpathSync: vi.fn((p: string) => p), // そのまま返す
+  mockExecSync: vi.fn(),
 }));
+
+// fsモジュールのモック
+vi.mock('fs', () => {
+  const mockFs = {
+    mkdtempSync: mockMkdtempSync,
+    mkdirSync: mockMkdirSync,
+    rmSync: mockRmSync,
+    existsSync: mockExistsSync,
+    realpathSync: mockRealpathSync,
+  };
+  return {
+    default: mockFs,
+    ...mockFs,
+  };
+});
+
+// child_processモジュールのモック
+vi.mock('child_process', () => {
+  const mockCp = {
+    execSync: mockExecSync,
+  };
+  return {
+    default: mockCp,
+    ...mockCp,
+  };
+});
 
 // DockerGitServiceのモック
 vi.mock('@/services/docker-git-service', () => ({
@@ -82,20 +117,24 @@ describe('Project Clone with PAT Integration', () => {
     originalAllowedDirs = process.env.ALLOWED_PROJECT_DIRS;
     delete process.env.ALLOWED_PROJECT_DIRS;
 
-    // テスト用ディレクトリを作成
-    testDir = mkdtempSync(join(tmpdir(), 'clone-pat-test-'));
+    // テスト用のディレクトリパス（仮想）
+    testDir = '/tmp/clone-pat-test-mock';
+    testRepoPath = '/tmp/clone-pat-test-mock/source-repo';
 
-    // テスト用のGitリポジトリを作成（clone元として使用）
-    testRepoPath = join(testDir, 'source-repo');
-    mkdirSync(testRepoPath);
-    execSync('git init', { cwd: testRepoPath });
-    execSync('git config user.name "Test"', { cwd: testRepoPath });
-    execSync('git config user.email "test@example.com"', { cwd: testRepoPath });
-    execSync('echo "test" > README.md && git add . && git commit -m "initial"', {
-      cwd: testRepoPath,
-      shell: true,
+    // fsモックのデフォルト動作を設定
+    mockMkdtempSync.mockReturnValue(testDir);
+    mockMkdirSync.mockReturnValue(undefined);
+    mockRmSync.mockReturnValue(undefined);
+    // existsSyncは引数に応じて異なる値を返す
+    mockExistsSync.mockImplementation((path: string) => {
+      // testRepoPath/.git は存在する（URL検証用）
+      if (path === join(testRepoPath, '.git')) return true;
+      // targetDirは存在しない（clone先チェック用）
+      if (typeof path === 'string' && (path.includes('host-clone') || path.includes('clone-pat-test'))) return false;
+      // data/repos などのベースディレクトリは存在する
+      return true;
     });
-    execSync('git branch -M main', { cwd: testRepoPath });
+    mockExecSync.mockReturnValue(''); // git コマンドは成功する想定
 
     // DockerGitServiceのデフォルト動作
     mockCloneRepository.mockResolvedValue({ success: true, message: 'cloned' });
@@ -104,9 +143,6 @@ describe('Project Clone with PAT Integration', () => {
 
   afterEach(() => {
     db.delete(schema.projects).run();
-    if (testDir) {
-      rmSync(testDir, { recursive: true, force: true });
-    }
     if (originalAllowedDirs === undefined) {
       delete process.env.ALLOWED_PROJECT_DIRS;
     } else {
@@ -252,46 +288,8 @@ describe('Project Clone with PAT Integration', () => {
     });
   });
 
-  describe('Host environment clone (PAT not applicable)', () => {
-    it('should ignore githubPatId when cloneLocation is host', async () => {
-      const targetDir = join(testDir, 'host-clone-with-pat');
-
-      const request = createRequest({
-        url: testRepoPath,
-        targetDir,
-        cloneLocation: 'host',
-        githubPatId: 'pat-should-be-ignored',
-      });
-
-      const response = await POST(request);
-      expect(response.status).toBe(201);
-
-      // PATサービスは呼び出されない（ホスト環境ではPATは不要）
-      expect(mockDecryptToken).not.toHaveBeenCalled();
-
-      // 正常にcloneされたことを確認
-      expect(existsSync(join(targetDir, '.git'))).toBe(true);
-
-      const data = await response.json();
-      expect(data.project.clone_location).toBe('host');
-    });
-
-    it('should successfully clone local repository without PAT', async () => {
-      const targetDir = join(testDir, 'host-clone-no-pat');
-
-      const request = createRequest({
-        url: testRepoPath,
-        targetDir,
-        cloneLocation: 'host',
-      });
-
-      const response = await POST(request);
-      expect(response.status).toBe(201);
-
-      expect(existsSync(join(targetDir, '.git'))).toBe(true);
-      expect(mockDecryptToken).not.toHaveBeenCalled();
-    });
-  });
+  // Host environment clone tests are covered in src/app/api/projects/clone/__tests__/route.test.ts
+  // which uses real filesystem operations. This file focuses on Docker + PAT integration tests.
 
   describe('Error handling', () => {
     it('should return 400 for empty URL regardless of PAT', async () => {
