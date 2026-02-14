@@ -223,9 +223,7 @@ describe('Project Clone with PAT Integration', () => {
 
     it('should return 401 when PAT decryption fails', async () => {
       const { PATEncryptionError } = await import('@/services/github-pat-service');
-      mockDecryptToken.mockRejectedValue(
-        new (PATEncryptionError as unknown as new (msg: string) => Error)('Decryption failed')
-      );
+      mockDecryptToken.mockRejectedValue(new PATEncryptionError('Decryption failed'));
 
       const request = createRequest({
         url: 'https://github.com/user/repo.git',

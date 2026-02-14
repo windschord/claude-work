@@ -12,6 +12,7 @@ async function deletePATViaAPI(page: Page, patId: string): Promise<void> {
       if (attempt < 2) await page.waitForTimeout(1000);
     }
   }
+  console.warn(`Failed to delete PAT ${patId} after 3 attempts`);
 }
 
 /**
@@ -21,7 +22,7 @@ async function createTestPATViaAPI(page: Page, name: string): Promise<string> {
   const response = await page.request.post('/api/github-pat', {
     data: {
       name,
-      token: 'ghp_testCloneToken1234567890abcdef12345678',
+      token: 'ghp_FAKE_testCloneToken1234567890abcdef12345678',
       description: 'E2Eクローンテスト用',
     },
   });

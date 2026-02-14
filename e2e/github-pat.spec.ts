@@ -78,7 +78,7 @@ test.describe('GitHub PAT管理機能', () => {
   });
 
   test('PATを作成できる', async ({ page }) => {
-    await createPAT(page, 'E2E Test PAT', 'ghp_e2eTestToken1234567890abcdef12345678', 'E2Eテスト用');
+    await createPAT(page, 'E2E Test PAT', 'ghp_FAKE_e2eTestToken1234567890abcdef12345678', 'E2Eテスト用');
 
     // 一覧に表示されることを確認
     await expect(page.locator('td:has-text("E2E Test PAT")')).toBeVisible();
@@ -104,7 +104,7 @@ test.describe('GitHub PAT管理機能', () => {
 
   test('PATを編集できる', async ({ page }) => {
     // PATを作成
-    await createPAT(page, 'Edit Test PAT', 'ghp_editTestToken1234567890abcdef12345678', '編集前');
+    await createPAT(page, 'Edit Test PAT', 'ghp_FAKE_editTestToken1234567890abcdef12345678', '編集前');
 
     // 編集ボタンをクリック
     const editRow = page.locator('tr', { has: page.locator('td:has-text("Edit Test PAT")') });
@@ -130,7 +130,7 @@ test.describe('GitHub PAT管理機能', () => {
 
   test('PATの編集をキャンセルできる', async ({ page }) => {
     // PATを作成
-    await createPAT(page, 'Cancel Edit PAT', 'ghp_cancelEditToken1234567890abcdef12345', '説明');
+    await createPAT(page, 'Cancel Edit PAT', 'ghp_FAKE_cancelEditToken1234567890abcdef12345', '説明');
 
     const row = page.locator('tr', { has: page.locator('td:has-text("Cancel Edit PAT")') });
 
@@ -152,7 +152,7 @@ test.describe('GitHub PAT管理機能', () => {
 
   test('PATを削除できる', async ({ page }) => {
     // PATを作成
-    await createPAT(page, 'Delete Test PAT', 'ghp_deleteTestToken1234567890abcdef12345', '削除テスト');
+    await createPAT(page, 'Delete Test PAT', 'ghp_FAKE_deleteTestToken1234567890abcdef12345', '削除テスト');
 
     // 一覧に表示されることを確認
     await expect(page.locator('td:has-text("Delete Test PAT")')).toBeVisible();
@@ -167,7 +167,7 @@ test.describe('GitHub PAT管理機能', () => {
 
   test('PATの有効/無効を切り替えできる', async ({ page }) => {
     // PATを作成
-    await createPAT(page, 'Toggle Test PAT', 'ghp_toggleTestToken1234567890abcdef12345', 'トグルテスト');
+    await createPAT(page, 'Toggle Test PAT', 'ghp_FAKE_toggleTestToken1234567890abcdef12345', 'トグルテスト');
 
     const row = page.locator('tr', { has: page.locator('td:has-text("Toggle Test PAT")') });
 
@@ -186,7 +186,7 @@ test.describe('GitHub PAT管理機能', () => {
 
   test('PAT作成、編集、削除のフルフローが正しく動作する', async ({ page }) => {
     // 1. PATを作成
-    await createPAT(page, 'Full Flow PAT', 'ghp_fullFlowToken1234567890abcdef1234567', 'フルフローテスト');
+    await createPAT(page, 'Full Flow PAT', 'ghp_FAKE_fullFlowToken1234567890abcdef1234567', 'フルフローテスト');
     await expect(page.locator('td:has-text("Full Flow PAT")')).toBeVisible();
 
     // 2. 編集

@@ -81,6 +81,9 @@ export function PATList({
   };
 
   const handleDelete = async (id: string) => {
+    if (!window.confirm('このPATを削除してもよろしいですか？この操作は元に戻せません。')) {
+      return;
+    }
     setDeletingId(id);
     try {
       await onDeletePAT(id);
@@ -97,6 +100,7 @@ export function PATList({
     setTogglingId(id);
     try {
       await onTogglePAT(id);
+      toast.success('PATのステータスを変更しました');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'PATの切り替えに失敗しました';
       toast.error(errorMessage);
