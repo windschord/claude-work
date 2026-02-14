@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { GitHubPAT, CreatePATInput, UpdatePATInput } from '@/hooks/useGitHubPATs';
+import { PATEditDialog } from './PATEditDialog';
 import toast from 'react-hot-toast';
 
 interface PATListProps {
@@ -26,7 +27,8 @@ export function PATList({
   onRefresh,
 }: PATListProps) {
   const [isAddFormOpen, setIsAddFormOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingPAT, setEditingPAT] = useState<GitHubPAT | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
@@ -35,11 +37,6 @@ export function PATList({
   const [newToken, setNewToken] = useState('');
   const [newDescription, setNewDescription] = useState('');
   const [isCreating, setIsCreating] = useState(false);
-
-  // Edit form state
-  const [editName, setEditName] = useState('');
-  const [editDescription, setEditDescription] = useState('');
-  const [isUpdating, setIsUpdating] = useState(false);
 
   const resetAddForm = () => {
     setNewName('');
@@ -68,32 +65,19 @@ export function PATList({
   };
 
   const handleEditStart = (pat: GitHubPAT) => {
-    setEditingId(pat.id);
-    setEditName(pat.name);
-    setEditDescription(pat.description || '');
+    setEditingPAT(pat);
+    setIsEditDialogOpen(true);
   };
 
-  const handleEditCancel = () => {
-    setEditingId(null);
-    setEditName('');
-    setEditDescription('');
+  const handleEditDialogClose = () => {
+    setIsEditDialogOpen(false);
+    setEditingPAT(null);
   };
 
-  const handleUpdate = async (id: string) => {
-    setIsUpdating(true);
-    try {
-      await onUpdatePAT(id, {
-        name: editName.trim(),
-        description: editDescription.trim(),
-      });
-      toast.success('PATを更新しました');
-      handleEditCancel();
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'PATの更新に失敗しました';
-      toast.error(errorMessage);
-    } finally {
-      setIsUpdating(false);
-    }
+  const handleEditSubmit = async (id: string, input: UpdatePATInput): Promise<GitHubPAT> => {
+    const result = await onUpdatePAT(id, input);
+    toast.success('PATを更新しました');
+    return result;
   };
 
   const handleDelete = async (id: string) => {
@@ -317,55 +301,6 @@ export function PATList({
             <tbody>
               {pats.map((pat) => (
                 <tr key={pat.id} className="border-b border-gray-200 dark:border-gray-700 last:border-b-0">
-                  {editingId === pat.id ? (
-                    <>
-                      <td className="px-4 py-3">
-                        <input
-                          type="text"
-                          value={editName}
-                          onChange={(e) => setEditName(e.target.value)}
-                          maxLength={50}
-                          className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-100"
-                          disabled={isUpdating}
-                        />
-                      </td>
-                      <td className="px-4 py-3">
-                        <input
-                          type="text"
-                          value={editDescription}
-                          onChange={(e) => setEditDescription(e.target.value)}
-                          maxLength={200}
-                          className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-100"
-                          disabled={isUpdating}
-                        />
-                      </td>
-                      <td className="px-4 py-3">
-                        <StatusBadge isActive={pat.isActive} />
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
-                        {formatDate(pat.createdAt)}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex justify-end gap-2">
-                          <button
-                            onClick={() => handleUpdate(pat.id)}
-                            className="px-3 py-1 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors disabled:opacity-50"
-                            disabled={isUpdating || !editName.trim()}
-                          >
-                            {isUpdating ? '保存中...' : '保存'}
-                          </button>
-                          <button
-                            onClick={handleEditCancel}
-                            className="px-3 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                            disabled={isUpdating}
-                          >
-                            キャンセル
-                          </button>
-                        </div>
-                      </td>
-                    </>
-                  ) : (
-                    <>
                       <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">
                         {pat.name}
                       </td>
@@ -406,14 +341,19 @@ export function PATList({
                           </button>
                         </div>
                       </td>
-                    </>
-                  )}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
+
+      <PATEditDialog
+        isOpen={isEditDialogOpen}
+        onClose={handleEditDialogClose}
+        onSubmit={handleEditSubmit}
+        pat={editingPAT}
+      />
     </div>
   );
 }
