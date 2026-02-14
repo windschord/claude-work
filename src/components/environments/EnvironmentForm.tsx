@@ -128,8 +128,8 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
       setType('HOST');
       setDescription('');
       setImageSource('existing');
-      setSelectedImage('');
-      setCustomImageName('');
+      setSelectedImage(CUSTOM_IMAGE_VALUE);
+      setCustomImageName('ghcr.io/windschord/claude-work:latest');
       setDockerfileFile(null);
       setDockerfileUploaded(false);
     }
