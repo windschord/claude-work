@@ -430,7 +430,7 @@ describe('cli-utils', () => {
 
       // user_versionが2になっていることを確認
       const row = db.prepare('PRAGMA user_version').get() as { user_version: number };
-      expect(row.user_version).toBe(2);
+      expect(row.user_version).toBe(3);
 
       // 全テーブルが存在することを確認
       const tables = db.prepare(
@@ -495,7 +495,7 @@ describe('cli-utils', () => {
 
       // user_versionが2になっていることを確認
       const row = db2.prepare('PRAGMA user_version').get() as { user_version: number };
-      expect(row.user_version).toBe(2);
+      expect(row.user_version).toBe(3);
 
       // 新カラムが追加されていることを確認
       const projectColumns = db2.prepare("PRAGMA table_info('Project')").all() as { name: string }[];
@@ -521,7 +521,7 @@ describe('cli-utils', () => {
       const Database = require('better-sqlite3');
       const db = new Database(dbPath, { readonly: true });
       const rowBefore = db.prepare('PRAGMA user_version').get() as { user_version: number };
-      expect(rowBefore.user_version).toBe(2);
+      expect(rowBefore.user_version).toBe(3);
       db.close();
 
       // 再度マイグレーション実行（スキップされるはず）
@@ -531,7 +531,7 @@ describe('cli-utils', () => {
       // バージョンが変わっていないことを確認
       const db2 = new Database(dbPath, { readonly: true });
       const rowAfter = db2.prepare('PRAGMA user_version').get() as { user_version: number };
-      expect(rowAfter.user_version).toBe(2);
+      expect(rowAfter.user_version).toBe(3);
       db2.close();
     });
 
@@ -551,7 +551,7 @@ describe('cli-utils', () => {
       const Database = require('better-sqlite3');
       const db = new Database(dbPath, { readonly: true });
       const row = db.prepare('PRAGMA user_version').get() as { user_version: number };
-      expect(row.user_version).toBe(2);
+      expect(row.user_version).toBe(3);
       db.close();
     });
 
