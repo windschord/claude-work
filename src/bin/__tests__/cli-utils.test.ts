@@ -428,7 +428,7 @@ describe('cli-utils', () => {
       const Database = require('better-sqlite3');
       const db = new Database(dbPath, { readonly: true });
 
-      // user_versionが2になっていることを確認
+      // user_versionが3になっていることを確認
       const row = db.prepare('PRAGMA user_version').get() as { user_version: number };
       expect(row.user_version).toBe(3);
 

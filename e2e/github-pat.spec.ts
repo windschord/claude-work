@@ -4,14 +4,13 @@ import { test, expect, Page } from '@playwright/test';
  * API経由で全テスト用PATを削除するクリーンアップヘルパー
  */
 async function cleanupAllTestPATs(page: Page) {
-  const baseURL = 'http://localhost:3001';
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const response = await page.request.get(`${baseURL}/api/github-pat`);
+      const response = await page.request.get('/api/github-pat');
       if (response.ok()) {
         const data = await response.json();
         for (const pat of data.pats || []) {
-          await page.request.delete(`${baseURL}/api/github-pat/${pat.id}`);
+          await page.request.delete(`/api/github-pat/${pat.id}`);
         }
       }
       return;

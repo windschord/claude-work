@@ -426,6 +426,7 @@ describe('POST /api/projects/clone', () => {
     });
 
     it('should not use PAT when cloneLocation is host even if githubPatId is provided', async () => {
+      const { GitHubPATService } = await import('@/services/github-pat-service');
       const targetDir = join(testDir, 'host-with-pat');
 
       const request = new NextRequest('http://localhost:3000/api/projects/clone', {
@@ -442,7 +443,8 @@ describe('POST /api/projects/clone', () => {
       const response = await POST(request);
       expect(response.status).toBe(201);
 
-      // host環境なのでPATは使われない（PATロジックに入らない）
+      // host環境なのでPATは使われない（GitHubPATServiceがインスタンス化されない）
+      expect(GitHubPATService).not.toHaveBeenCalled();
     });
 
     it('should not use PAT for docker clone when githubPatId is not provided', async () => {

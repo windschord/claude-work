@@ -12,6 +12,15 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
+
+    // idバリデーション
+    if (!id || typeof id !== 'string' || id.trim() === '') {
+      return NextResponse.json(
+        { error: '無効なPAT IDが指定されました' },
+        { status: 400 }
+      );
+    }
+
     const body = await request.json();
     const { name, token, description } = body;
 
@@ -63,6 +72,15 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+
+    // idバリデーション
+    if (!id || typeof id !== 'string' || id.trim() === '') {
+      return NextResponse.json(
+        { error: '無効なPAT IDが指定されました' },
+        { status: 400 }
+      );
+    }
+
     const patService = new GitHubPATService();
     await patService.delete(id);
 

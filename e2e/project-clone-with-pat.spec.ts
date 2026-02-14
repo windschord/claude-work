@@ -1,14 +1,12 @@
 import { test, expect, Page } from '@playwright/test';
 
-const baseURL = 'http://localhost:3001';
-
 /**
  * API経由で特定のPATを削除するヘルパー
  */
 async function deletePATViaAPI(page: Page, patId: string): Promise<void> {
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      await page.request.delete(`${baseURL}/api/github-pat/${patId}`);
+      await page.request.delete(`/api/github-pat/${patId}`);
       return;
     } catch {
       if (attempt < 2) await page.waitForTimeout(1000);
@@ -20,7 +18,7 @@ async function deletePATViaAPI(page: Page, patId: string): Promise<void> {
  * API経由でテスト用PATを作成するヘルパー
  */
 async function createTestPATViaAPI(page: Page, name: string): Promise<string> {
-  const response = await page.request.post(`${baseURL}/api/github-pat`, {
+  const response = await page.request.post('/api/github-pat', {
     data: {
       name,
       token: 'ghp_testCloneToken1234567890abcdef12345678',
@@ -35,7 +33,7 @@ async function createTestPATViaAPI(page: Page, name: string): Promise<string> {
  * API経由でPATを無効化するヘルパー
  */
 async function togglePATViaAPI(page: Page, patId: string): Promise<void> {
-  await page.request.post(`${baseURL}/api/github-pat/${patId}/toggle`);
+  await page.request.post(`/api/github-pat/${patId}/toggle`);
 }
 
 test.describe('プロジェクト登録フォームでのPAT選択', () => {
