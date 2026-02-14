@@ -18,6 +18,7 @@ ClaudeWork は、Claude Code セッションをブラウザから管理するた
 - **リアルタイム通信**: WebSocket によるリアルタイム出力表示
 - **Diff 表示**: Git diff をビジュアルに表示
 - **Git 操作**: rebase、squash merge などの Git 操作をブラウザから実行
+- **GitHub PAT認証**: Docker環境でのHTTPSプライベートリポジトリクローンをサポート（[詳細](docs/GITHUB_PAT.md)）
 - **実行スクリプト**: テスト実行、ビルドなどの定型作業を簡単に実行
 - **ターミナル統合**: ブラウザ内でターミナル操作
 - **ライト/ダークモード**: テーマ切り替え対応
@@ -242,6 +243,13 @@ Apache License 2.0 - 詳細は [LICENSE](LICENSE) を参照してください。
 - **フロントエンド**: Next.js 15.1, React 19, TypeScript, Tailwind CSS, Zustand
 - **バックエンド**: Next.js API Routes, Prisma, SQLite, WebSocket (ws)
 - **その他**: XTerm.js, react-diff-viewer-continued, Headless UI, next-themes
+
+## ドキュメント
+
+- **[GitHub PAT設定ガイド](docs/GITHUB_PAT.md)** - Docker環境でのHTTPS認証設定
+- **[セットアップガイド](docs/SETUP.md)** - 詳細なインストール手順
+- **[環境変数リファレンス](docs/ENV_VARS.md)** - 設定可能な環境変数一覧
+- **[API仕様](docs/API.md)** - REST API / WebSocket API仕様
 
 ## 貢献
 

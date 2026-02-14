@@ -170,7 +170,7 @@ export function PATList({
 
   return (
     <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">GitHub PAT管理</h1>
         <button
           onClick={() => setIsAddFormOpen(true)}
@@ -179,6 +179,40 @@ export function PATList({
         >
           PATを追加
         </button>
+      </div>
+
+      {/* Help Section */}
+      <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+        <div className="flex items-start gap-3">
+          <div className="flex-shrink-0 text-2xl">📘</div>
+          <div className="flex-1">
+            <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
+              GitHub PATの作成方法と必要な権限
+            </h3>
+            <div className="text-xs text-blue-800 dark:text-blue-200 space-y-1 mb-3">
+              <p><strong>Classic PAT:</strong> <code className="px-1 bg-blue-100 dark:bg-blue-900/40 rounded">repo</code> + <code className="px-1 bg-blue-100 dark:bg-blue-900/40 rounded">workflow</code> スコープ</p>
+              <p><strong>Fine-grained PAT:</strong> Contents, Pull requests, Workflows（各Read and write）</p>
+            </div>
+            <div className="flex gap-3 text-xs">
+              <a
+                href="https://github.com/settings/tokens"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
+              >
+                GitHubでPATを作成 →
+              </a>
+              <a
+                href="https://github.com/windschord/claude-work/blob/main/docs/GITHUB_PAT.md"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                詳細なガイドを見る →
+              </a>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Add PAT Form */}
