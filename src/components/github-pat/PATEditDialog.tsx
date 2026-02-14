@@ -3,7 +3,7 @@
 import { useState, Fragment, useEffect } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { GitHubPAT, UpdatePATInput } from '@/hooks/useGitHubPATs';
-import { validatePATName } from '@/lib/validation';
+import { validatePATName, validatePATFormat } from '@/lib/validation';
 
 interface PATEditDialogProps {
   isOpen: boolean;
@@ -16,6 +16,7 @@ const MAX_DESCRIPTION_LENGTH = 200;
 
 export function PATEditDialog({ isOpen, onClose, onSubmit, pat }: PATEditDialogProps) {
   const [name, setName] = useState('');
+  const [token, setToken] = useState('');
   const [description, setDescription] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -23,6 +24,7 @@ export function PATEditDialog({ isOpen, onClose, onSubmit, pat }: PATEditDialogP
   useEffect(() => {
     if (isOpen && pat) {
       setName(pat.name);
+      setToken('');
       setDescription(pat.description || '');
       setError('');
     }
@@ -31,6 +33,7 @@ export function PATEditDialog({ isOpen, onClose, onSubmit, pat }: PATEditDialogP
   const handleClose = () => {
     if (isLoading) return;
     setName('');
+    setToken('');
     setDescription('');
     setError('');
     onClose();
@@ -49,6 +52,15 @@ export function PATEditDialog({ isOpen, onClose, onSubmit, pat }: PATEditDialogP
       return;
     }
 
+    // token バリデーション（入力されている場合のみ）
+    if (token.trim()) {
+      const tokenValidation = validatePATFormat(token.trim());
+      if (!tokenValidation.valid) {
+        setError(tokenValidation.errors.join(', '));
+        return;
+      }
+    }
+
     // description バリデーション
     if (description.length > MAX_DESCRIPTION_LENGTH) {
       setError(`説明は${MAX_DESCRIPTION_LENGTH}文字以内で入力してください`);
@@ -60,6 +72,7 @@ export function PATEditDialog({ isOpen, onClose, onSubmit, pat }: PATEditDialogP
     try {
       await onSubmit(pat.id, {
         name: name.trim(),
+        ...(token.trim() && { token: token.trim() }),
         description: description.trim(),
       });
       handleClose();
@@ -125,6 +138,27 @@ export function PATEditDialog({ isOpen, onClose, onSubmit, pat }: PATEditDialogP
                     />
                     <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                       1-50文字
+                    </p>
+                  </div>
+
+                  <div className="mb-4">
+                    <label
+                      htmlFor="pat-edit-token"
+                      className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+                    >
+                      新しいトークン（変更する場合のみ入力）
+                    </label>
+                    <input
+                      id="pat-edit-token"
+                      type="password"
+                      value={token}
+                      onChange={(e) => setToken(e.target.value)}
+                      placeholder="ghp_... または github_pat_..."
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                      disabled={isLoading}
+                    />
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      空欄の場合は既存のトークンが維持されます
                     </p>
                   </div>
 

@@ -19,6 +19,7 @@ export interface CreatePATInput {
 
 export interface UpdatePATInput {
   name?: string;
+  token?: string;
   description?: string;
 }
 

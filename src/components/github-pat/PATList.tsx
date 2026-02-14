@@ -187,20 +187,24 @@ export function PATList({
           <div className="flex-shrink-0 text-2xl">📘</div>
           <div className="flex-1">
             <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
-              GitHub PATの作成方法と必要な権限
+              Fine-grained PATの作成方法と必要な権限
             </h3>
             <div className="text-xs text-blue-800 dark:text-blue-200 space-y-1 mb-3">
-              <p><strong>Classic PAT:</strong> <code className="px-1 bg-blue-100 dark:bg-blue-900/40 rounded">repo</code> + <code className="px-1 bg-blue-100 dark:bg-blue-900/40 rounded">workflow</code> スコープ</p>
-              <p><strong>Fine-grained PAT:</strong> Contents, Pull requests, Workflows（各Read and write）</p>
+              <p><strong>Repository permissions:</strong></p>
+              <ul className="ml-4 space-y-0.5">
+                <li>• Contents: Read and write</li>
+                <li>• Pull requests: Read and write</li>
+                <li>• Workflows: Read and write</li>
+              </ul>
             </div>
             <div className="flex gap-3 text-xs">
               <a
-                href="https://github.com/settings/tokens"
+                href="https://github.com/settings/personal-access-tokens/new"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
               >
-                GitHubでPATを作成 →
+                GitHubでFine-grained PATを作成 →
               </a>
               <a
                 href="https://github.com/windschord/claude-work/blob/main/docs/GITHUB_PAT.md"

@@ -154,19 +154,20 @@ export function PATCreateDialog({ isOpen, onClose, onSubmit }: PATCreateDialogPr
                     />
                     <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
                       <p className="text-xs text-blue-800 dark:text-blue-200 font-medium mb-1">
-                        💡 必要な権限
+                        💡 必要な権限（Fine-grained PAT）
                       </p>
                       <ul className="text-xs text-blue-700 dark:text-blue-300 space-y-1">
-                        <li>• Classic PAT: <code className="px-1 bg-blue-100 dark:bg-blue-900/40 rounded">repo</code> + <code className="px-1 bg-blue-100 dark:bg-blue-900/40 rounded">workflow</code></li>
-                        <li>• Fine-grained PAT: Contents, Pull requests, Workflows（各Read and write）</li>
+                        <li>• <strong>Contents</strong>: Read and write</li>
+                        <li>• <strong>Pull requests</strong>: Read and write</li>
+                        <li>• <strong>Workflows</strong>: Read and write</li>
                       </ul>
                       <a
-                        href="https://github.com/settings/tokens"
+                        href="https://github.com/settings/personal-access-tokens/new"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-xs text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1 mt-2"
                       >
-                        GitHubでPATを作成 →
+                        GitHubでFine-grained PATを作成 →
                       </a>
                     </div>
                     <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">

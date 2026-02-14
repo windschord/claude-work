@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GitHubPATService, PATNotFoundError } from '@/services/github-pat-service';
 import { logger } from '@/lib/logger';
-import { validatePATName } from '@/lib/validation';
+import { validatePATName, validatePATFormat } from '@/lib/validation';
 
 /**
  * PATCH /api/github-pat/:id - GitHub PAT更新
@@ -13,7 +13,7 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { name, description } = body;
+    const { name, token, description } = body;
 
     if (name !== undefined) {
       const nameValidation = validatePATName(name);
@@ -25,8 +25,18 @@ export async function PATCH(
       }
     }
 
+    if (token !== undefined) {
+      const tokenValidation = validatePATFormat(token);
+      if (!tokenValidation.valid) {
+        return NextResponse.json(
+          { error: tokenValidation.errors.join(', ') },
+          { status: 400 }
+        );
+      }
+    }
+
     const patService = new GitHubPATService();
-    const pat = await patService.update(id, { name, description });
+    const pat = await patService.update(id, { name, token, description });
 
     return NextResponse.json({ pat });
   } catch (error) {

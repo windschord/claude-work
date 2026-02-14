@@ -28,6 +28,7 @@ export interface CreatePATInput {
 
 export interface UpdatePATInput {
   name?: string;
+  token?: string;
   description?: string;
 }
 
@@ -120,7 +121,7 @@ export class GitHubPATService {
   }
 
   /**
-   * PAT更新（名前、説明のみ）
+   * PAT更新（名前、トークン、説明）
    */
   async update(id: string, data: UpdatePATInput): Promise<GitHubPATSummary> {
     const existing = db
@@ -133,10 +134,23 @@ export class GitHubPATService {
       throw new PATNotFoundError(id);
     }
 
+    // トークンが提供されている場合は暗号化
+    let encryptedToken: string | undefined;
+    if (data.token !== undefined) {
+      try {
+        encryptedToken = await this.encryptionService.encrypt(data.token);
+      } catch (error) {
+        throw new PATEncryptionError(
+          `Failed to encrypt PAT: ${error instanceof Error ? error.message : 'Unknown error'}`
+        );
+      }
+    }
+
     const record = db
       .update(schema.githubPats)
       .set({
         ...(data.name !== undefined && { name: data.name }),
+        ...(encryptedToken !== undefined && { encrypted_token: encryptedToken }),
         ...(data.description !== undefined && { description: data.description }),
         updated_at: new Date(),
       })
