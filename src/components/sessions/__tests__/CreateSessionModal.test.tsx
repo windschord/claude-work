@@ -507,7 +507,17 @@ describe('CreateSessionModal', () => {
   describe('環境読み込み中', () => {
     it('環境読み込み中はローディング表示される', async () => {
       const { useEnvironments } = await import('@/hooks/useEnvironments');
-      vi.mocked(useEnvironments).mockReturnValueOnce({
+      const defaultEnvMock = {
+        environments: mockEnvironments,
+        isLoading: false,
+        error: null,
+        fetchEnvironments: vi.fn(),
+        createEnvironment: vi.fn(),
+        updateEnvironment: vi.fn(),
+        deleteEnvironment: vi.fn(),
+        refreshEnvironment: vi.fn(),
+      };
+      vi.mocked(useEnvironments).mockReturnValue({
         environments: [],
         isLoading: true,
         error: null,
@@ -518,16 +528,21 @@ describe('CreateSessionModal', () => {
         refreshEnvironment: vi.fn(),
       });
 
-      render(
-        <CreateSessionModal
-          isOpen={true}
-          onClose={mockOnClose}
-          projectId="project-1"
-          onSuccess={mockOnSuccess}
-        />
-      );
+      try {
+        render(
+          <CreateSessionModal
+            isOpen={true}
+            onClose={mockOnClose}
+            projectId="project-1"
+            onSuccess={mockOnSuccess}
+          />
+        );
 
-      expect(screen.getByText('環境を読み込み中...')).toBeInTheDocument();
+        expect(screen.getByText('環境を読み込み中...')).toBeInTheDocument();
+      } finally {
+        // 元のモックに戻す
+        vi.mocked(useEnvironments).mockReturnValue(defaultEnvMock);
+      }
     });
   });
 

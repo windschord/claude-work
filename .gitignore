@@ -263,3 +263,8 @@ logs/
 # Database files
 *.db
 *.db-journal
+*.db-shm
+*.db-wal
+
+# Test data
+data/repos/

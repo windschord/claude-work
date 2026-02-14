@@ -280,6 +280,86 @@ export class DockerGitService implements GitOperations {
   }
 
   /**
+   * PAT認証でリポジトリをcloneする
+   * HTTPS URLのみサポート。credential helperを使ってPATで認証する。
+   */
+  async cloneRepositoryWithPAT(
+    repoUrl: string,
+    projectId: string,
+    pat: string
+  ): Promise<GitOperationResult> {
+    // HTTPS URLのみ許可
+    if (!repoUrl.startsWith('https://')) {
+      throw new GitOperationError(
+        'PAT authentication requires HTTPS URL',
+        'docker',
+        'clone',
+        false
+      );
+    }
+
+    const timeout = this.configService.getGitCloneTimeoutMs();
+    let volumeName: string | null = null;
+
+    try {
+      // 1. Dockerボリューム作成
+      volumeName = await this.createVolume(projectId);
+
+      // 2. credential helper設定 + git cloneを実行するシェルコマンド
+      // repoUrlをシェル変数として安全に渡す（コマンドインジェクション対策）
+      const shellCommand = [
+        'git config --global credential.helper \'!f() { echo "username=x-access-token"; echo "password=$GIT_PAT"; }; f\'',
+        'git clone "$REPO_URL" /repo',
+      ].join(' && ');
+
+      // 3. Dockerコマンド構築
+      const dockerArgs = [
+        'run',
+        '--rm',
+        '-v', `${volumeName}:/repo`,
+        '-e', `GIT_PAT=${pat}`,
+        '-e', `REPO_URL=${repoUrl}`,
+        '--entrypoint', 'sh',
+        'alpine/git',
+        '-c', shellCommand,
+      ];
+
+      logger.info('[docker] Starting git clone with PAT', { repoUrl, volumeName, timeout });
+
+      // 4. git clone実行
+      const startTime = Date.now();
+      await execFileAsync('docker', dockerArgs, { timeout });
+      const duration = Date.now() - startTime;
+
+      logger.info('[docker] git clone with PAT completed', { repoUrl, volumeName, duration });
+
+      return {
+        success: true,
+        message: `Repository cloned successfully with PAT to Docker volume: ${volumeName}`,
+      };
+    } catch (error) {
+      logger.error('[docker] git clone with PAT failed', { error, repoUrl, volumeName });
+
+      // エラー時はボリュームを削除
+      if (volumeName) {
+        try {
+          await this.deleteVolume(volumeName);
+        } catch (cleanupError) {
+          logger.error('[docker] Failed to cleanup volume after PAT clone failure', { cleanupError, volumeName });
+        }
+      }
+
+      throw new GitOperationError(
+        'Failed to clone repository with PAT in Docker environment',
+        'docker',
+        'clone',
+        true,
+        error as Error
+      );
+    }
+  }
+
+  /**
    * リポジトリを削除する（Dockerボリュームを削除）
    */
   async deleteRepository(projectId: string): Promise<GitOperationResult> {

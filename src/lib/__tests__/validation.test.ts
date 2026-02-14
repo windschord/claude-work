@@ -4,7 +4,10 @@ import {
   validateRepositoryUrl,
   validateCloneLocation,
   validateTimeoutMinutes,
+  validatePATFormat,
+  validatePATName,
 } from '../validation';
+import type { ValidationResult } from '../validation';
 
 describe('validation', () => {
   describe('validateProjectName', () => {
@@ -94,6 +97,91 @@ describe('validation', () => {
       expect(() => validateTimeoutMinutes(0)).toThrow('Timeout must be between 1 and 30 minutes');
       expect(() => validateTimeoutMinutes(31)).toThrow('Timeout must be between 1 and 30 minutes');
       expect(() => validateTimeoutMinutes(-5)).toThrow('Timeout must be between 1 and 30 minutes');
+    });
+  });
+
+  describe('validatePATFormat', () => {
+    it('Classic PAT (ghp_) を有効と判定する', () => {
+      const token = 'ghp_' + 'a'.repeat(36);
+      const result: ValidationResult = validatePATFormat(token);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('Fine-grained PAT (github_pat_) を有効と判定する', () => {
+      const token = 'github_pat_' + 'A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6';
+      const result: ValidationResult = validatePATFormat(token);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('空文字列を無効と判定する', () => {
+      const result = validatePATFormat('');
+      expect(result.valid).toBe(false);
+      expect(result.errors.length).toBeGreaterThan(0);
+    });
+
+    it('不正なプレフィックスを無効と判定する', () => {
+      const result = validatePATFormat('gho_' + 'a'.repeat(36));
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain('PAT must start with "ghp_" (Classic) or "github_pat_" (Fine-grained)');
+    });
+
+    it('40文字未満のトークンを無効と判定する', () => {
+      const result = validatePATFormat('ghp_short');
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain('PAT must be at least 40 characters');
+    });
+
+    it('英数字とアンダースコア以外の文字を含むトークンを無効と判定する', () => {
+      const token = 'ghp_' + 'a'.repeat(30) + '!@#$%^';
+      const result = validatePATFormat(token);
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain('PAT must contain only alphanumeric characters and underscores');
+    });
+
+    it('複数のエラーを同時に返す', () => {
+      const result = validatePATFormat('bad!');
+      expect(result.valid).toBe(false);
+      expect(result.errors.length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  describe('validatePATName', () => {
+    it('有効なPAT名を受け入れる', () => {
+      const result: ValidationResult = validatePATName('My GitHub PAT');
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('1文字のPAT名を受け入れる', () => {
+      const result = validatePATName('a');
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('50文字のPAT名を受け入れる', () => {
+      const result = validatePATName('a'.repeat(50));
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('空文字列を無効と判定する', () => {
+      const result = validatePATName('');
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain('PAT name is required');
+    });
+
+    it('51文字以上のPAT名を無効と判定する', () => {
+      const result = validatePATName('a'.repeat(51));
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain('PAT name must be 50 characters or less');
+    });
+
+    it('空白のみのPAT名を無効と判定する', () => {
+      const result = validatePATName('   ');
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain('PAT name is required');
     });
   });
 });

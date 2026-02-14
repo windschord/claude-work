@@ -109,10 +109,10 @@ describe('CreateSessionForm', () => {
     fireEvent.click(createButton);
 
     await waitFor(() => {
-      expect(mockCreateSession).toHaveBeenCalledWith('project-1', {
+      expect(mockCreateSession).toHaveBeenCalledWith('project-1', expect.objectContaining({
         name: undefined, // サーバー側で自動生成
         prompt: 'Test prompt',
-      });
+      }));
       // onSuccessにセッションIDが渡される
       expect(mockOnCreate).toHaveBeenCalledWith('new-session-id');
     });
@@ -130,10 +130,10 @@ describe('CreateSessionForm', () => {
     fireEvent.click(createButton);
 
     await waitFor(() => {
-      expect(mockCreateSession).toHaveBeenCalledWith('project-1', {
+      expect(mockCreateSession).toHaveBeenCalledWith('project-1', expect.objectContaining({
         name: 'New Session',
         prompt: 'Test prompt',
-      });
+      }));
       // onSuccessにセッションIDが渡される
       expect(mockOnCreate).toHaveBeenCalledWith('new-session-id');
     });

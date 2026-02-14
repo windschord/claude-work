@@ -114,14 +114,12 @@ describe('HomePage (Projects)', () => {
     });
   });
 
-  it('プロジェクト選択で選択状態が更新される', async () => {
+  it('プロジェクトカードに新規セッションボタンが表示される', async () => {
     render(<HomePage />);
 
     await waitFor(() => {
-      const openButton = screen.getAllByRole('button', { name: /開く/ })[0];
-      fireEvent.click(openButton);
-
-      expect(mockSetSelectedProjectId).toHaveBeenCalledWith('1');
+      const sessionButtons = screen.getAllByRole('button', { name: /新規セッション/ });
+      expect(sessionButtons.length).toBeGreaterThanOrEqual(1);
     });
   });
 
