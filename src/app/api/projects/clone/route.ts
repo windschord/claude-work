@@ -92,17 +92,23 @@ export async function POST(request: NextRequest) {
         });
 
         try {
+          // DockerGitServiceでclone
+          const dockerGitService = new DockerGitService();
+          let cloneResult;
+
           // PAT認証: Docker + HTTPS + githubPatId指定時のみ適用
-          let cloneUrl = url;
           if (githubPatId && url.startsWith('https://')) {
             try {
               const patService = new GitHubPATService();
               const token = await patService.decryptToken(githubPatId);
-              // URLにPATを埋め込む: https://TOKEN@github.com/user/repo.git
-              const urlObj = new URL(url);
-              urlObj.username = token;
-              cloneUrl = urlObj.toString();
-              logger.info('PAT authentication applied for Docker clone', { githubPatId });
+              logger.info('Using PAT authentication for Docker clone', { githubPatId });
+
+              // PATを使った安全なclone（credential helper経由）
+              cloneResult = await dockerGitService.cloneRepositoryWithPAT(
+                url,
+                project.id.toString(),
+                token
+              );
             } catch (error) {
               logger.error('PAT authentication failed', { githubPatId, error });
               // clone前なのでDBからプロジェクトを削除
@@ -112,14 +118,13 @@ export async function POST(request: NextRequest) {
                 { status: 401 }
               );
             }
+          } else {
+            // 通常のclone（SSH鍵等を使用）
+            cloneResult = await dockerGitService.cloneRepository({
+              url: url,
+              projectId: project.id.toString(),
+            });
           }
-
-          // DockerGitServiceでclone
-          const dockerGitService = new DockerGitService();
-          const cloneResult = await dockerGitService.cloneRepository({
-            url: cloneUrl,
-            projectId: project.id.toString(),
-          });
 
           if (!cloneResult.success) {
             // clone失敗時はDB削除（Dockerボリュームは自動削除される）

@@ -8,11 +8,13 @@ import { execSync } from 'child_process';
 // vi.hoistedでモック関数を先に初期化
 const {
   mockCloneRepository,
+  mockCloneRepositoryWithPAT,
   mockDeleteVolume,
   mockDecryptToken,
   mockGetById,
 } = vi.hoisted(() => ({
   mockCloneRepository: vi.fn(),
+  mockCloneRepositoryWithPAT: vi.fn(),
   mockDeleteVolume: vi.fn(),
   mockDecryptToken: vi.fn(),
   mockGetById: vi.fn(),
@@ -22,6 +24,7 @@ const {
 vi.mock('@/services/docker-git-service', () => ({
   DockerGitService: class MockDockerGitService {
     cloneRepository = mockCloneRepository;
+    cloneRepositoryWithPAT = mockCloneRepositoryWithPAT;
     deleteVolume = mockDeleteVolume;
     createVolume = vi.fn();
     createWorktree = vi.fn();
@@ -114,6 +117,7 @@ describe('Project Clone with PAT Integration', () => {
   describe('Docker + HTTPS + PAT clone flow', () => {
     it('should clone HTTPS repository with PAT authentication', async () => {
       mockDecryptToken.mockResolvedValue('ghp_test_token_1234567890abcdef');
+      mockCloneRepositoryWithPAT.mockResolvedValue({ success: true, message: 'cloned with PAT' });
 
       const request = createRequest({
         url: 'https://github.com/user/private-repo.git',
@@ -132,18 +136,12 @@ describe('Project Clone with PAT Integration', () => {
       // PATが復号化されたことを確認
       expect(mockDecryptToken).toHaveBeenCalledWith('pat-123');
 
-      // clone URLにPATが含まれていることを確認
-      expect(mockCloneRepository).toHaveBeenCalledWith(
-        expect.objectContaining({
-          url: expect.stringContaining('ghp_test_token_1234567890abcdef'),
-        })
+      // cloneRepositoryWithPATが正しいパラメータで呼ばれたことを確認
+      expect(mockCloneRepositoryWithPAT).toHaveBeenCalledWith(
+        'https://github.com/user/private-repo.git',
+        expect.any(String), // projectId
+        'ghp_test_token_1234567890abcdef'
       );
-
-      // URLにPATがユーザー名として埋め込まれたことを確認
-      const callArgs = mockCloneRepository.mock.calls[0][0];
-      const cloneUrl = new URL(callArgs.url);
-      expect(cloneUrl.username).toBe('ghp_test_token_1234567890abcdef');
-      expect(cloneUrl.hostname).toBe('github.com');
     });
 
     it('should clone Docker repository without PAT when githubPatId is not provided', async () => {
@@ -228,7 +226,7 @@ describe('Project Clone with PAT Integration', () => {
 
     it('should cleanup project and volume when Docker clone fails after PAT auth', async () => {
       mockDecryptToken.mockResolvedValue('ghp_valid_token_xxxxxx');
-      mockCloneRepository.mockResolvedValue({
+      mockCloneRepositoryWithPAT.mockResolvedValue({
         success: false,
         error: 'Repository not found',
       });

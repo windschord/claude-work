@@ -30,7 +30,17 @@ export class EncryptionService {
     if (!keyBase64) {
       throw new EncryptionKeyNotFoundError();
     }
-    return Buffer.from(keyBase64, 'base64');
+    const key = Buffer.from(keyBase64, 'base64');
+
+    // AES-256-GCMは32バイト(256bit)鍵が必須
+    if (key.length !== 32) {
+      throw new EncryptionError(
+        `Invalid ENCRYPTION_KEY length: expected 32 bytes (256 bits), got ${key.length} bytes. ` +
+        `Please generate a valid key with: openssl rand -base64 32`
+      );
+    }
+
+    return key;
   }
 
   isKeyConfigured(): boolean {

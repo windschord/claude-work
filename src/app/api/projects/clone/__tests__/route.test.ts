@@ -12,6 +12,7 @@ import { execSync } from 'child_process';
 vi.mock('@/services/docker-git-service', () => ({
   DockerGitService: vi.fn().mockImplementation(() => ({
     cloneRepository: vi.fn().mockResolvedValue({ success: true, message: 'cloned' }),
+    cloneRepositoryWithPAT: vi.fn().mockResolvedValue({ success: true, message: 'cloned with PAT' }),
     deleteVolume: vi.fn().mockResolvedValue(undefined),
   })),
 }));
@@ -318,10 +319,12 @@ describe('POST /api/projects/clone', () => {
 
       // DockerGitServiceのモックを設定
       const { DockerGitService } = await import('@/services/docker-git-service');
-      const mockCloneRepository = vi.fn().mockResolvedValue({ success: true, message: 'cloned with PAT' });
+      const mockCloneRepository = vi.fn().mockResolvedValue({ success: true, message: 'cloned' });
+      const mockCloneRepositoryWithPAT = vi.fn().mockResolvedValue({ success: true, message: 'cloned with PAT' });
       vi.mocked(DockerGitService).mockImplementation(function (this: unknown) {
         Object.assign(this as Record<string, unknown>, {
           cloneRepository: mockCloneRepository,
+          cloneRepositoryWithPAT: mockCloneRepositoryWithPAT,
           deleteVolume: vi.fn().mockResolvedValue(undefined),
           createVolume: vi.fn(),
           createWorktree: vi.fn(),
@@ -346,11 +349,11 @@ describe('POST /api/projects/clone', () => {
       // PATが復号化されたことを確認
       expect(mockDecryptToken).toHaveBeenCalledWith('pat-123');
 
-      // DockerGitServiceにPATを含むURLが渡されたことを確認
-      expect(mockCloneRepository).toHaveBeenCalledWith(
-        expect.objectContaining({
-          url: expect.stringContaining('ghp_test_token_1234567890'),
-        })
+      // DockerGitService.cloneRepositoryWithPATが呼ばれたことを確認
+      expect(mockCloneRepositoryWithPAT).toHaveBeenCalledWith(
+        'https://github.com/user/repo.git',
+        expect.any(String), // projectId
+        'ghp_test_token_1234567890' // decrypted PAT
       );
     });
 

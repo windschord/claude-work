@@ -306,9 +306,10 @@ export class DockerGitService implements GitOperations {
       volumeName = await this.createVolume(projectId);
 
       // 2. credential helper設定 + git cloneを実行するシェルコマンド
+      // repoUrlをシェル変数として安全に渡す（コマンドインジェクション対策）
       const shellCommand = [
         'git config --global credential.helper \'!f() { echo "username=x-access-token"; echo "password=$GIT_PAT"; }; f\'',
-        `git clone ${repoUrl} /repo`,
+        'git clone "$REPO_URL" /repo',
       ].join(' && ');
 
       // 3. Dockerコマンド構築
@@ -317,6 +318,7 @@ export class DockerGitService implements GitOperations {
         '--rm',
         '-v', `${volumeName}:/repo`,
         '-e', `GIT_PAT=${pat}`,
+        '-e', `REPO_URL=${repoUrl}`,
         '--entrypoint', 'sh',
         'alpine/git',
         '-c', shellCommand,
