@@ -21,13 +21,6 @@ vi.mock('@/lib/websocket/connection-manager', () => ({
   }
 }))
 
-// ClaudePTYManagerをモック（循環依存を防ぐ）
-vi.mock('../claude-pty-manager', () => ({
-  ClaudePTYManager: {
-    getInstance: vi.fn().mockReturnValue({})
-  }
-}))
-
 // AdapterFactoryは実装をそのまま使い、必要に応じてspyOnする
 // dbモックをvi.hoisted()で先に定義
 const { mockDbExecutionEnvironment, mockDbUpdate, mockDbSelect } = vi.hoisted(() => {

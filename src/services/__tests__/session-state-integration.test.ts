@@ -39,13 +39,6 @@ vi.mock('@/lib/websocket/connection-manager', () => ({
   }
 }))
 
-// ClaudePTYManagerをモック
-vi.mock('../claude-pty-manager', () => ({
-  ClaudePTYManager: {
-    getInstance: vi.fn().mockReturnValue({})
-  }
-}))
-
 // AdapterFactoryをモック
 vi.mock('../adapter-factory', () => {
   const mockAdapter = {
