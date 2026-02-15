@@ -3,7 +3,7 @@
 import { Loader2, Play, MessageCircle, CheckCircle, XCircle, Square } from 'lucide-react';
 
 interface SessionStatusIconProps {
-  status: 'initializing' | 'running' | 'waiting_input' | 'completed' | 'error' | 'stopped';
+  status: 'initializing' | 'running' | 'waiting_input' | 'completed' | 'error' | 'stopped' | 'terminated';
 }
 
 /**
@@ -47,6 +47,11 @@ export function SessionStatusIcon({ status }: SessionStatusIconProps) {
       Icon: Square,
       className: 'w-5 h-5 text-gray-500',
       testId: 'status-icon-stopped',
+    },
+    terminated: {
+      Icon: Square,
+      className: 'w-5 h-5 text-gray-500',
+      testId: 'status-icon-terminated',
     },
   };
 
