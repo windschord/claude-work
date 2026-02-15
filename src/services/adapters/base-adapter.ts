@@ -45,9 +45,29 @@ export abstract class BasePTYAdapter
   ): IPty {
     const { cols = 80, rows = 24, cwd, env = {} } = options;
 
+    // argsをサニタイズ（機密情報を含む可能性があるため）
+    const sanitizedArgs = args.map((arg) => {
+      if (arg.startsWith('--')) {
+        const [flag, value] = arg.split('=', 2);
+        if (value !== undefined && value.length > 0) {
+          return `${flag}=REDACTED`;
+        }
+        return flag;
+      }
+      // 位置引数やフラグ以外の引数は機密情報を含む可能性がある
+      return 'REDACTED';
+    });
+
     logger.info('Spawning PTY process', {
       command,
-      args,
+      cols,
+      rows,
+      cwd,
+    });
+
+    logger.debug('Spawning PTY process with args', {
+      command,
+      args: sanitizedArgs,
       cols,
       rows,
       cwd,

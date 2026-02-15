@@ -157,12 +157,27 @@ export function setupTerminalWebSocket(
           });
         } else {
           // 従来方式: ptyManager直接使用
-          // イベントハンドラー解除
+          // イベントハンドラー解除（ptyManager側のリスナーも削除）
           if (dataHandler) {
+            const handler = connectionManager.getHandler(terminalSessionId, 'data');
+            if (handler) {
+              ptyManager.off('data', handler);
+            }
             connectionManager.unregisterHandler(terminalSessionId, 'data');
           }
           if (exitHandler) {
+            const handler = connectionManager.getHandler(terminalSessionId, 'exit');
+            if (handler) {
+              ptyManager.off('exit', handler);
+            }
             connectionManager.unregisterHandler(terminalSessionId, 'exit');
+          }
+          if (errorHandler) {
+            const handler = connectionManager.getHandler(terminalSessionId, 'error');
+            if (handler) {
+              ptyManager.off('error', handler);
+            }
+            connectionManager.unregisterHandler(terminalSessionId, 'error');
           }
 
           // PTY破棄
@@ -344,6 +359,28 @@ export function setupTerminalWebSocket(
         }
       };
 
+      const legacyErrorHandler = (sid: string, error: Error) => {
+        if (sid === terminalSessionId) {
+          logger.error('Terminal WebSocket: Legacy PTY error', {
+            sessionId,
+            terminalSessionId,
+            error: error.message,
+          });
+          try {
+            const message: TerminalErrorMessage = {
+              type: 'error',
+              message: error.message,
+            };
+            connectionManager.broadcast(terminalSessionId, JSON.stringify(message));
+          } catch (err) {
+            logger.error('Terminal WebSocket: Failed to broadcast legacy error', {
+              sessionId, terminalSessionId,
+              error: err instanceof Error ? err.message : 'Unknown error',
+            });
+          }
+        }
+      };
+
       // イベントハンドラー登録（初回接続時のみ）
       // createSession前にerrorハンドラーを登録することで、セッション作成中の
       // EventEmitter 'error'イベント（リスナーなしでプロセスクラッシュ）を防止する
@@ -352,8 +389,10 @@ export function setupTerminalWebSocket(
         if (useLegacyPtyManager) {
           ptyManager.on('data', legacyDataHandler);
           ptyManager.on('exit', legacyExitHandler);
+          ptyManager.on('error', legacyErrorHandler);
           connectionManager.registerHandler(terminalSessionId, 'data', legacyDataHandler);
           connectionManager.registerHandler(terminalSessionId, 'exit', legacyExitHandler);
+          connectionManager.registerHandler(terminalSessionId, 'error', legacyErrorHandler);
         } else {
           adapter!.on('data', adapterDataHandler);
           adapter!.on('exit', adapterExitHandler);
@@ -400,6 +439,7 @@ export function setupTerminalWebSocket(
             if (useLegacyPtyManager) {
               ptyManager.off('data', legacyDataHandler);
               ptyManager.off('exit', legacyExitHandler);
+              ptyManager.off('error', legacyErrorHandler);
             } else {
               adapter!.off('data', adapterDataHandler);
               adapter!.off('exit', adapterExitHandler);
