@@ -167,7 +167,7 @@ export abstract class BasePTYAdapter
    *
    * @param sessionId - セッションID
    */
-  abstract destroySession(sessionId: string): void;
+  abstract destroySession(sessionId: string): void | Promise<void>;
 
   // ===============================
   // EnvironmentAdapterインターフェース実装
@@ -203,7 +203,7 @@ export abstract class BasePTYAdapter
    * @param workingDir - フォールバック用作業ディレクトリ
    * @throws Error - 基底クラスでは実装されていない
    */
-  restartSession(_sessionId: string, _workingDir?: string): void {
+  restartSession(_sessionId: string, _workingDir?: string): void | Promise<void> {
     throw new Error('restartSession() must be implemented in subclass');
   }
 

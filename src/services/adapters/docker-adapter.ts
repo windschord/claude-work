@@ -639,7 +639,7 @@ export class DockerAdapter extends BasePTYAdapter {
     session.ptyProcess.resize(cols, rows);
   }
 
-  destroySession(sessionId: string): void {
+  async destroySession(sessionId: string): Promise<void> {
     const session = this.sessions.get(sessionId);
     if (session) {
       const { containerId, shellMode } = session;
@@ -650,10 +650,11 @@ export class DockerAdapter extends BasePTYAdapter {
 
       // Dockerコンテナを明示的に停止（shellModeではコンテナを止めない）
       if (!shellMode) {
-        // 非同期で実行（awaitしないが、エラーはログに記録される）
-        this.stopContainer(containerId).catch((error) => {
+        try {
+          await this.stopContainer(containerId);
+        } catch (error) {
           logger.error(`Error stopping container in destroySession:`, error);
-        });
+        }
       }
 
       // container_idをクリア（同期実行）
@@ -685,39 +686,37 @@ export class DockerAdapter extends BasePTYAdapter {
     }
   }
 
-  restartSession(sessionId: string, workingDir?: string): void {
+  async restartSession(sessionId: string, workingDir?: string): Promise<void> {
     const session = this.sessions.get(sessionId);
     if (session) {
       const { workingDir: wd, containerId, shellMode,
               lastKnownCols, lastKnownRows } = session;
       logger.info('DockerAdapter: Restarting session', { sessionId, shellMode });
-      this.destroySession(sessionId);
+      await this.destroySession(sessionId);
 
       // shellModeセッションはコンテナ停止を待たずに再接続
       if (shellMode) {
-        this.createSession(sessionId, wd, undefined, { shellMode: true })
-          .then(() => this.restoreResizeInfo(sessionId, lastKnownCols, lastKnownRows))
-          .catch((error) => {
-            logger.error('DockerAdapter: Failed to restart shell session', {
-              sessionId, error: error instanceof Error ? error.message : error,
-            });
+        try {
+          await this.createSession(sessionId, wd, undefined, { shellMode: true });
+          this.restoreResizeInfo(sessionId, lastKnownCols, lastKnownRows);
+        } catch (error) {
+          logger.error('DockerAdapter: Failed to restart shell session', {
+            sessionId, error: error instanceof Error ? error.message : error,
           });
+        }
         return;
       }
 
       // コンテナ停止を待ってから新コンテナ作成
-      this.waitForContainer(containerId)
-        .then(() => {
-          return this.createSession(sessionId, wd);
-        })
-        .then(() => {
-          this.restoreResizeInfo(sessionId, lastKnownCols, lastKnownRows);
-        })
-        .catch((error) => {
-          logger.error('DockerAdapter: Failed to restart session', {
-            sessionId, error: error instanceof Error ? error.message : error,
-          });
+      try {
+        await this.waitForContainer(containerId);
+        await this.createSession(sessionId, wd);
+        this.restoreResizeInfo(sessionId, lastKnownCols, lastKnownRows);
+      } catch (error) {
+        logger.error('DockerAdapter: Failed to restart session', {
+          sessionId, error: error instanceof Error ? error.message : error,
         });
+      }
     } else if (workingDir) {
       logger.info('DockerAdapter: Restarting session (from fallback params)', { sessionId });
       setTimeout(() => {

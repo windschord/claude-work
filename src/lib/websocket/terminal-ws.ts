@@ -117,7 +117,7 @@ export function setupTerminalWebSocket(
 
         if (session.environment_id) {
           // 新方式: AdapterFactory経由
-          environmentService.findById(session.environment_id).then((environment) => {
+          environmentService.findById(session.environment_id).then(async (environment) => {
             if (environment) {
               const adapter = AdapterFactory.getAdapter(environment);
 
@@ -134,7 +134,7 @@ export function setupTerminalWebSocket(
 
               // PTY破棄
               if (adapter.hasSession(terminalSessionId)) {
-                adapter.destroySession(terminalSessionId);
+                await adapter.destroySession(terminalSessionId);
               }
             }
           });

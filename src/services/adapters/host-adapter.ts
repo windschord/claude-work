@@ -127,7 +127,7 @@ export class HostAdapter extends BasePTYAdapter {
     }
   }
 
-  restartSession(_sessionId: string, _workingDir?: string): void {
+  restartSession(_sessionId: string, _workingDir?: string): void | Promise<void> {
     logger.warn('HostAdapter: restartSession not implemented');
     throw new Error('restartSession not implemented in HostAdapter');
   }

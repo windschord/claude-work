@@ -263,7 +263,7 @@ export class ProcessLifecycleManager extends EventEmitter {
         try {
           const AdapterFactory = await getAdapterFactory();
           const adapter = AdapterFactory.getAdapter(environment);
-          adapter.destroySession(sessionId);
+          await adapter.destroySession(sessionId);
         } catch (adapterError) {
           // environment_id付きセッションはProcessManagerでは管理されないため、
           // フォールバックせずエラーとして扱う

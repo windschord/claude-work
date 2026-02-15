@@ -72,15 +72,17 @@ export interface EnvironmentAdapter extends EventEmitter {
   /**
    * セッションを終了
    * @param sessionId - セッションID
+   * @returns void または Promise<void>（非同期実装の場合）
    */
-  destroySession(sessionId: string): void;
+  destroySession(sessionId: string): void | Promise<void>;
 
   /**
    * セッションを再起動
    * @param sessionId - セッションID
    * @param workingDir - フォールバック用作業ディレクトリ（セッションがメモリにない場合に使用）
+   * @returns void または Promise<void>（非同期実装の場合）
    */
-  restartSession(sessionId: string, workingDir?: string): void;
+  restartSession(sessionId: string, workingDir?: string): void | Promise<void>;
 
   /**
    * セッションが存在するか確認
