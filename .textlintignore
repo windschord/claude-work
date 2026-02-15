@@ -7,6 +7,9 @@ docs/archive/**
 # Generated or external files
 LICENSE
 
+# Environment data (auto-generated)
+data/environments/**
+
 # Build output
 dist/**
 .next/**
