@@ -107,6 +107,13 @@ export function setupTerminalWebSocket(
       // セッション情報を取得してアダプター選択
       db.query.sessions.findFirst({
         where: eq(schema.sessions.id, originalSessionId),
+        with: {
+          project: {
+            columns: {
+              environment_id: true,
+            },
+          },
+        },
       }).then((session) => {
         if (!session) {
           logger.warn('Terminal WebSocket: Session not found for cleanup', {
@@ -120,9 +127,9 @@ export function setupTerminalWebSocket(
         const exitHandler = connectionManager.hasHandler(terminalSessionId, 'exit');
         const errorHandler = connectionManager.hasHandler(terminalSessionId, 'error');
 
-        if (session.environment_id) {
+        if (session.project?.environment_id) {
           // 新方式: AdapterFactory経由
-          environmentService.findById(session.environment_id).then(async (environment) => {
+          environmentService.findById(session.project.environment_id).then(async (environment) => {
             if (environment) {
               const adapter = AdapterFactory.getAdapter(environment);
 
@@ -218,6 +225,13 @@ export function setupTerminalWebSocket(
     try {
       const session = await db.query.sessions.findFirst({
         where: eq(schema.sessions.id, sessionId),
+        with: {
+          project: {
+            columns: {
+              environment_id: true,
+            },
+          },
+        },
       });
 
       if (!session) {
@@ -236,17 +250,17 @@ export function setupTerminalWebSocket(
       let adapter: EnvironmentAdapter | null = null;
       let useLegacyPtyManager = true;
 
-      if (session.environment_id) {
-        // 新方式: environment_id で環境を取得
-        const environment = await environmentService.findById(session.environment_id);
+      if (session.project?.environment_id) {
+        // 新方式: プロジェクトのenvironment_id で環境を取得
+        const environment = await environmentService.findById(session.project.environment_id);
         if (!environment) {
           logger.error('Terminal WebSocket: Environment not found', {
             sessionId,
-            environmentId: session.environment_id,
+            environmentId: session.project.environment_id,
           });
           const errorMsg: TerminalErrorMessage = {
             type: 'error',
-            message: `Environment not found: ${session.environment_id}`,
+            message: `Environment not found: ${session.project.environment_id}`,
           };
           ws.send(JSON.stringify(errorMsg));
           ws.close(1008, 'Environment not found');

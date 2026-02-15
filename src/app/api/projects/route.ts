@@ -38,11 +38,9 @@ export async function GET(_request: NextRequest) {
     const rawProjects = await db.query.projects.findMany({
       orderBy: [desc(schema.projects.created_at)],
       with: {
+        environment: true,
         sessions: {
           orderBy: [desc(schema.sessions.created_at)],
-          with: {
-            environment: true,
-          },
         },
         scripts: true,
       },
@@ -55,13 +53,12 @@ export async function GET(_request: NextRequest) {
       scripts: undefined,
     }));
 
-    // セッションをフラット化し、環境情報を追加
+    // セッションをフラット化し、環境情報を追加（プロジェクトから取得）
     const allSessions = rawProjects.flatMap((project) =>
       project.sessions.map((session) => ({
         ...session,
-        environment_name: session.environment?.name || null,
-        environment_type: session.environment?.type || null,
-        environment: undefined,
+        environment_name: project.environment?.name || null,
+        environment_type: project.environment?.type || null,
       }))
     );
 

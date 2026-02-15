@@ -49,7 +49,11 @@ export async function GET(
     const targetSession = await db.query.sessions.findFirst({
       where: eq(schema.sessions.id, id),
       with: {
-        environment: true,
+        project: {
+          with: {
+            environment: true,
+          },
+        },
       },
     });
 
@@ -60,8 +64,8 @@ export async function GET(
     // フロントエンド用にフラット化した形式に変換
     const sessionWithEnvironment = {
       ...targetSession,
-      environment_name: targetSession.environment?.name || null,
-      environment_type: targetSession.environment?.type as 'HOST' | 'DOCKER' | 'SSH' | null,
+      environment_name: targetSession.project?.environment?.name || null,
+      environment_type: targetSession.project?.environment?.type as 'HOST' | 'DOCKER' | 'SSH' | null,
       environment: undefined, // ネストされたオブジェクトは削除
     };
 
@@ -224,7 +228,11 @@ export async function PATCH(
     const updatedSession = await db.query.sessions.findFirst({
       where: eq(schema.sessions.id, id),
       with: {
-        environment: true,
+        project: {
+          with: {
+            environment: true,
+          },
+        },
       },
     });
 
@@ -235,8 +243,8 @@ export async function PATCH(
     // フロントエンド用にフラット化した形式に変換
     const sessionWithEnvironment = {
       ...updatedSession,
-      environment_name: updatedSession.environment?.name || null,
-      environment_type: updatedSession.environment?.type as 'HOST' | 'DOCKER' | 'SSH' | null,
+      environment_name: updatedSession.project?.environment?.name || null,
+      environment_type: updatedSession.project?.environment?.type as 'HOST' | 'DOCKER' | 'SSH' | null,
       environment: undefined, // ネストされたオブジェクトは削除
     };
 

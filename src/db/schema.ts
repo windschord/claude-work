@@ -26,6 +26,10 @@ export const projects = sqliteTable('Project', {
   // ホスト環境の場合はnull
   docker_volume_id: text('docker_volume_id'),
 
+  // プロジェクト単位の実行環境設定
+  // セッション作成時はこの環境が自動的に使用される
+  environment_id: text('environment_id').references(() => executionEnvironments.id, { onDelete: 'set null' }),
+
   created_at: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
   updated_at: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
 });
@@ -65,7 +69,6 @@ export const sessions = sqliteTable('Session', {
   pr_updated_at: integer('pr_updated_at', { mode: 'timestamp' }),
   docker_mode: integer('docker_mode', { mode: 'boolean' }).notNull().default(false),
   container_id: text('container_id'),
-  environment_id: text('environment_id').references(() => executionEnvironments.id, { onDelete: 'set null' }),
   claude_code_options: text('claude_code_options'),
   custom_env_vars: text('custom_env_vars'),
 
@@ -140,23 +143,23 @@ export const githubPats = sqliteTable('GitHubPAT', {
 
 // ==================== リレーション定義 ====================
 
-export const projectsRelations = relations(projects, ({ many }) => ({
+export const projectsRelations = relations(projects, ({ one, many }) => ({
+  environment: one(executionEnvironments, {
+    fields: [projects.environment_id],
+    references: [executionEnvironments.id],
+  }),
   sessions: many(sessions),
   scripts: many(runScripts),
 }));
 
 export const executionEnvironmentsRelations = relations(executionEnvironments, ({ many }) => ({
-  sessions: many(sessions),
+  projects: many(projects),
 }));
 
 export const sessionsRelations = relations(sessions, ({ one, many }) => ({
   project: one(projects, {
     fields: [sessions.project_id],
     references: [projects.id],
-  }),
-  environment: one(executionEnvironments, {
-    fields: [sessions.environment_id],
-    references: [executionEnvironments.id],
   }),
   messages: many(messages),
 }));

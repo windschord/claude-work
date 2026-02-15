@@ -226,6 +226,13 @@ export function setupClaudeWebSocket(
     try {
       const session = await db.query.sessions.findFirst({
         where: eq(schema.sessions.id, sessionId),
+        with: {
+          project: {
+            columns: {
+              environment_id: true,
+            },
+          },
+        },
       });
 
       if (!session) {
@@ -322,8 +329,8 @@ export function setupClaudeWebSocket(
             });
           }
 
-          // 環境IDを取得（未指定の場合はデフォルト環境）
-          let environmentId = session.environment_id;
+          // 環境IDを取得（プロジェクトから、未指定の場合はデフォルト環境）
+          let environmentId = session.project?.environment_id;
           if (!environmentId) {
             const defaultEnv = await environmentService.getDefault();
             environmentId = defaultEnv.id;

@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { useAppStore } from '@/store';
 import { PromptHistoryDropdown } from './PromptHistoryDropdown';
-import { useEnvironments } from '@/hooks/useEnvironments';
 
 interface CreateSessionFormProps {
   projectId: string;
@@ -29,14 +28,12 @@ interface CreateSessionFormProps {
 export function CreateSessionForm({ projectId, onSuccess, onError }: CreateSessionFormProps) {
   const [name, setName] = useState('');
   const [prompt, setPrompt] = useState('');
-  const [environmentId, setEnvironmentId] = useState('');
   const [dockerMode, setDockerMode] = useState(false);
   const [dockerEnabled, setDockerEnabled] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const createSession = useAppStore((state) => state.createSession);
-  const { environments, isLoading: isEnvironmentsLoading } = useEnvironments();
 
   // Docker機能の有効/無効を取得
   useEffect(() => {
@@ -54,16 +51,6 @@ export function CreateSessionForm({ projectId, onSuccess, onError }: CreateSessi
     };
     fetchFeatures();
   }, []);
-
-  // デフォルト環境を初期選択
-  useEffect(() => {
-    if (!isEnvironmentsLoading && environments.length > 0 && !environmentId) {
-      const defaultEnv = environments.find((env) => env.is_default);
-      if (defaultEnv) {
-        setEnvironmentId(defaultEnv.id);
-      }
-    }
-  }, [environments, isEnvironmentsLoading, environmentId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,14 +78,12 @@ export function CreateSessionForm({ projectId, onSuccess, onError }: CreateSessi
         name: sessionName,
         prompt: prompt.trim(),
         dockerMode,
-        environment_id: environmentId || undefined,
       });
 
       // 成功時: フォームをクリア
       setName('');
       setPrompt('');
       setDockerMode(false);
-      // environment_idはリセットしない（デフォルト環境を維持）
 
       if (onSuccess) {
         onSuccess(sessionId);
@@ -158,34 +143,8 @@ export function CreateSessionForm({ projectId, onSuccess, onError }: CreateSessi
         />
       </div>
 
-      <div>
-        <label htmlFor="environment-select" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-          実行環境
-        </label>
-        <select
-          id="environment-select"
-          value={environmentId}
-          onChange={(e) => setEnvironmentId(e.target.value)}
-          disabled={isLoading || isEnvironmentsLoading}
-          className="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
-        >
-          <option value="">環境を選択しない</option>
-          {environments.map((env) => (
-            <option key={env.id} value={env.id}>
-              {env.name} ({env.type})
-              {env.is_default ? ' [デフォルト]' : ''}
-            </option>
-          ))}
-        </select>
-        {isEnvironmentsLoading && (
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            環境一覧を読み込み中...
-          </p>
-        )}
-      </div>
-
-      {/* environment_id未選択時のみレガシーdockerModeチェックボックスを表示 */}
-      {dockerEnabled && !environmentId && (
+      {/* レガシーdockerModeチェックボックス */}
+      {dockerEnabled && (
         <div className="flex items-center">
           <input
             id="docker-mode"

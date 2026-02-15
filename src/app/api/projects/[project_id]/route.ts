@@ -2,9 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db, schema } from '@/lib/db';
 import { eq } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
-import { existsSync } from 'fs';
-import { execSync } from 'child_process';
-import { ClaudeOptionsService } from '@/services/claude-options-service';
 
 /**
  * GET /api/projects/[project_id] - プロジェクト詳細取得
@@ -13,80 +10,44 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ project_id: string }> }
 ) {
-  const { project_id } = await params;
   try {
-    const project = db.select().from(schema.projects).where(eq(schema.projects.id, project_id)).get();
+    const { project_id } = await params;
+
+    const project = await db.query.projects.findFirst({
+      where: eq(schema.projects.id, project_id),
+      with: {
+        environment: {
+          columns: {
+            id: true,
+            name: true,
+            type: true,
+          },
+        },
+      },
+    });
+
     if (!project) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
-    return NextResponse.json({ project });
+
+    return NextResponse.json(project);
   } catch (error) {
-    logger.error('Failed to get project', { error, id: project_id });
+    logger.error('Failed to get project', { error });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
 /**
- * Gitリポジトリが存在するか確認
+ * PATCH /api/projects/[project_id] - プロジェクト更新
  */
-function isGitRepository(path: string): boolean {
-  try {
-    execSync('git rev-parse --git-dir', { cwd: path, stdio: 'pipe' });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-interface RunScriptInput {
-  name: string;
-  command: string;
-  description?: string;
-}
-
-/**
- * PUT /api/projects/[project_id] - プロジェクト更新
- *
- * 指定されたプロジェクトの設定を更新します。
- *
- * @param request - リクエストボディに更新フィールドを含むJSON
- * @param params - project_idを含むパスパラメータ
- *
- * @returns
- * - 200: プロジェクト更新成功
- * - 400: 無効なリクエスト（pathがGitリポジトリでない等）
- * - 404: プロジェクトが見つからない
- * - 409: pathが既に別のプロジェクトで使用されている
- * - 500: サーバーエラー
- *
- * @example
- * ```typescript
- * // リクエスト
- * PUT /api/projects/uuid-123
- * Content-Type: application/json
- * {
- *   "name": "Updated Project",
- *   "path": "/path/to/repo",
- *   "run_scripts": [
- *     { "name": "build", "command": "npm run build", "description": "Build" }
- *   ]
- * }
- * ```
- */
-export async function PUT(
+export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ project_id: string }> }
 ) {
   try {
     const { project_id } = await params;
 
-    let body: {
-      name?: string;
-      path?: string;
-      run_scripts?: RunScriptInput[];
-      claude_code_options?: unknown;
-      custom_env_vars?: unknown;
-    };
+    let body;
     try {
       body = await request.json();
     } catch (error) {
@@ -94,190 +55,33 @@ export async function PUT(
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
 
-    // claude_code_options のバリデーション（各フィールドが文字列であることを検証）
-    if (body.claude_code_options !== undefined) {
-      const validatedOptions = ClaudeOptionsService.validateClaudeCodeOptions(body.claude_code_options);
-      if (validatedOptions === null) {
-        const unknownKeys = ClaudeOptionsService.getUnknownKeys(body.claude_code_options);
-        const errorMessage = unknownKeys.length > 0
-          ? `Invalid keys in claude_code_options: ${unknownKeys.join(', ')}. Allowed keys: model, allowedTools, permissionMode, additionalFlags`
-          : 'claude_code_options must be a plain object with string fields (model, allowedTools, permissionMode, additionalFlags)';
-        return NextResponse.json(
-          { error: errorMessage },
-          { status: 400 }
-        );
-      }
-      // バリデーション済みの値で上書き
-      body.claude_code_options = validatedOptions;
-    }
+    const { environment_id } = body;
 
-    // custom_env_vars のバリデーション（キーが^[A-Z_][A-Z0-9_]*$にマッチし、値が文字列であることを検証）
-    if (body.custom_env_vars !== undefined) {
-      const validatedEnvVars = ClaudeOptionsService.validateCustomEnvVars(body.custom_env_vars);
-      if (validatedEnvVars === null) {
-        return NextResponse.json(
-          { error: 'custom_env_vars must be a plain object with keys matching ^[A-Z_][A-Z0-9_]*$ and string values' },
-          { status: 400 }
-        );
-      }
-      // バリデーション済みの値で上書き
-      body.custom_env_vars = validatedEnvVars;
-    }
-
-    const existing = db.select().from(schema.projects).where(eq(schema.projects.id, project_id)).get();
-
-    if (!existing) {
+    // プロジェクトの存在確認
+    const project = db.select().from(schema.projects).where(eq(schema.projects.id, project_id)).get();
+    if (!project) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    // pathの検証（変更される場合のみ）
-    if (body.path !== undefined && body.path !== existing.path) {
-      // パスの存在確認
-      if (!existsSync(body.path)) {
-        logger.warn('Path does not exist', { path: body.path, project_id });
-        return NextResponse.json(
-          { error: 'Path does not exist' },
-          { status: 400 }
-        );
-      }
+    // 更新
+    const updated = db
+      .update(schema.projects)
+      .set({
+        environment_id: environment_id === null ? null : environment_id,
+        updated_at: new Date(),
+      })
+      .where(eq(schema.projects.id, project_id))
+      .returning()
+      .get();
 
-      // Gitリポジトリ確認
-      if (!isGitRepository(body.path)) {
-        logger.warn('Path is not a Git repository', { path: body.path, project_id });
-        return NextResponse.json(
-          { error: 'Path is not a Git repository' },
-          { status: 400 }
-        );
-      }
-
-      // ユニーク制約の事前チェック
-      const existingWithPath = db.select().from(schema.projects).where(eq(schema.projects.path, body.path)).get();
-      if (existingWithPath && existingWithPath.id !== project_id) {
-        logger.warn('Path already exists for another project', {
-          path: body.path,
-          project_id,
-          existing_project_id: existingWithPath.id,
-        });
-        return NextResponse.json(
-          { error: 'A project with this path already exists' },
-          { status: 409 }
-        );
-      }
-    }
-
-    // トランザクションでプロジェクトとrun_scriptsを更新
-    const project = db.transaction((tx) => {
-      // run_scriptsが指定されている場合は一括更新（既存削除→新規作成）
-      if (body.run_scripts !== undefined) {
-        // 既存のRunScriptを削除
-        tx.delete(schema.runScripts).where(eq(schema.runScripts.project_id, project_id)).run();
-
-        // 新しいRunScriptを作成
-        if (body.run_scripts.length > 0) {
-          for (const script of body.run_scripts) {
-            tx.insert(schema.runScripts).values({
-              project_id,
-              name: script.name,
-              command: script.command,
-              description: script.description ?? null,
-            }).run();
-          }
-        }
-      }
-
-      // プロジェクトを更新
-      const updatedProject = tx.update(schema.projects)
-        .set({
-          name: body.name ?? existing.name,
-          path: body.path ?? existing.path,
-          claude_code_options: body.claude_code_options !== undefined
-            ? JSON.stringify(body.claude_code_options)
-            : existing.claude_code_options,
-          custom_env_vars: body.custom_env_vars !== undefined
-            ? JSON.stringify(body.custom_env_vars)
-            : existing.custom_env_vars,
-          updated_at: new Date(),
-        })
-        .where(eq(schema.projects.id, project_id))
-        .returning()
-        .get();
-
-      // scriptsを取得
-      const scripts = tx.select().from(schema.runScripts).where(eq(schema.runScripts.project_id, project_id)).all();
-
-      return {
-        ...updatedProject,
-        scripts,
-      };
+    logger.info('Project environment updated', {
+      projectId: project_id,
+      environment_id,
     });
 
-    logger.info('Project updated', {
-      id: project_id,
-      name: project.name,
-      path: project.path,
-      scripts_count: project.scripts.length,
-    });
-    return NextResponse.json({ project });
+    return NextResponse.json(updated);
   } catch (error) {
-    const { project_id: errorProjectId } = await params;
-    // SQLiteのユニーク制約違反をハンドリング（pathカラムのみ）
-    const sqliteError = error as { code?: string };
-    const isPathUniqueViolation = (sqliteError.code === 'SQLITE_CONSTRAINT_UNIQUE' ||
-      (error instanceof Error && error.message.includes('UNIQUE constraint failed'))) &&
-      (error instanceof Error && error.message.includes('path'));
-    if (isPathUniqueViolation) {
-      logger.warn('Unique constraint violation on path', { code: sqliteError.code, error, id: errorProjectId });
-      return NextResponse.json(
-        { error: 'A project with this path already exists' },
-        { status: 409 }
-      );
-    }
-    logger.error('Failed to update project', { error, id: errorProjectId });
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
-}
-
-/**
- * DELETE /api/projects/[project_id] - プロジェクト削除
- *
- * 指定されたプロジェクトを削除します。
- *
- * @param params - project_idを含むパスパラメータ
- *
- * @returns
- * - 204: プロジェクト削除成功（レスポンスボディなし）
- * - 404: プロジェクトが見つからない
- * - 500: サーバーエラー
- *
- * @example
- * ```typescript
- * // リクエスト
- * DELETE /api/projects/uuid-123
- *
- * // レスポンス
- * 204 No Content
- * ```
- */
-export async function DELETE(
-  _request: NextRequest,
-  { params }: { params: Promise<{ project_id: string }> }
-) {
-  try {
-    const { project_id } = await params;
-
-    const existing = db.select().from(schema.projects).where(eq(schema.projects.id, project_id)).get();
-
-    if (!existing) {
-      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-    }
-
-    db.delete(schema.projects).where(eq(schema.projects.id, project_id)).run();
-
-    logger.info('Project deleted', { id: project_id });
-    return new NextResponse(null, { status: 204 });
-  } catch (error) {
-    const { project_id: errorProjectId } = await params;
-    logger.error('Failed to delete project', { error, id: errorProjectId });
+    logger.error('Failed to update project', { error });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

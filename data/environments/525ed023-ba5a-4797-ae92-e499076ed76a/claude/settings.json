@@ -1,0 +1,75 @@
+{
+  "cleanupPeriodDays": 60,
+  "env": {
+    "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
+    "ENABLE_TOOL_SEARCH": "true",
+    "OTEL_EXPORTER_OTLP_ENDPOINT": "http://192.168.11.15:4317",
+    "OTEL_EXPORTER_OTLP_PROTOCOL": "grpc",
+    "OTEL_LOGS_EXPORTER": "otlp",
+    "OTEL_METRICS_EXPORTER": "otlp"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(npm:*)",
+      "Bash(git:*)",
+      "Bash(cargo:*)",
+      "Read(**)",
+      "WebFetch(domain:*)",
+      "Skill(sdd-documentation:*)",
+      "Skill(auto-executor:task-executor)",
+      "Bash(npx prisma:*)",
+      "Bash(gh pr create:*)",
+      "Bash(gh run view:*)",
+      "mcp__pencil"
+    ],
+    "deny": [
+      "Bash(echo:*)",
+      "Bash(cat:*)",
+      "Bash(touch:*)",
+      "Bash(sudo:*)",
+      "Read(id_rsa)",
+      "Read(id_ed25519)",
+      "Read(**/*token*)",
+      "Read(**/*key*)"
+    ],
+    "ask": [
+      "Read(.env)",
+      "Write(.env*)",
+      "Bash(gh merge:*)"
+    ]
+  },
+  "hooks": {
+    "Notification": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "terminal-notifier -title 'Claude Code' -message '確認してください' -activate com.microsoft.VSCode -sound Glass"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "terminal-notifier -title 'Claude Code' -message '確認してください' -activate com.microsoft.VSCode -sound Glass"
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "/bin/bash ~/dotfiles/claude/scripts/statusline-command.sh"
+  },
+  "enabledPlugins": {
+    "sdd-documentation@claude-development-skills": true
+  },
+  "language": "Japanese",
+  "alwaysThinkingEnabled": true
+}

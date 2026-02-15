@@ -51,6 +51,13 @@ export async function GET(
 
     const targetSession = await db.query.sessions.findFirst({
       where: eq(schema.sessions.id, id),
+      with: {
+        project: {
+          columns: {
+            environment_id: true,
+          },
+        },
+      },
     });
 
     if (!targetSession) {
@@ -59,13 +66,13 @@ export async function GET(
 
     let running = false;
 
-    if (targetSession.environment_id) {
+    if (targetSession.project?.environment_id) {
       // 新しい環境システム: AdapterFactory経由で状態確認
-      const environment = await environmentService.findById(targetSession.environment_id);
+      const environment = await environmentService.findById(targetSession.project.environment_id);
       if (!environment) {
-        logger.warn('Environment not found for session', {
+        logger.warn('Environment not found for session project', {
           session_id: id,
-          environment_id: targetSession.environment_id,
+          environment_id: targetSession.project.environment_id,
         });
         return NextResponse.json({ error: 'Environment not found' }, { status: 404 });
       }
@@ -80,7 +87,7 @@ export async function GET(
         logger.error('Failed to get adapter for environment-backed session', {
           error: adapterError,
           session_id: id,
-          environment_id: targetSession.environment_id,
+          environment_id: targetSession.project?.environment_id,
         });
         return NextResponse.json(
           { error: 'Failed to get environment adapter' },
@@ -152,12 +159,12 @@ export async function POST(
     // 環境情報を一度だけ取得（環境付きセッションの場合）
     let adapter: EnvironmentAdapter | undefined;
 
-    if (targetSession.environment_id) {
-      const environment = await environmentService.findById(targetSession.environment_id);
+    if (targetSession.project?.environment_id) {
+      const environment = await environmentService.findById(targetSession.project.environment_id);
       if (!environment) {
-        logger.warn('Environment not found for session', {
+        logger.warn('Environment not found for session project', {
           session_id: id,
-          environment_id: targetSession.environment_id,
+          environment_id: targetSession.project.environment_id,
         });
         return NextResponse.json({ error: 'Environment not found' }, { status: 404 });
       }
@@ -169,7 +176,7 @@ export async function POST(
         logger.error('Failed to get adapter for environment-backed session', {
           error: adapterError,
           session_id: id,
-          environment_id: targetSession.environment_id,
+          environment_id: targetSession.project?.environment_id,
         });
         return NextResponse.json(
           { error: 'Failed to get environment adapter' },

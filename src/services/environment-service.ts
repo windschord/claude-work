@@ -1,6 +1,6 @@
 import { db, schema } from '@/lib/db';
 import type { ExecutionEnvironment } from '@/lib/db';
-import { eq, asc, count } from 'drizzle-orm';
+import { eq, asc, count, sql } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
 import { getEnvironmentsDir } from '@/lib/data-dir';
 import * as path from 'path';
@@ -215,11 +215,25 @@ export class EnvironmentService {
       throw new Error('デフォルト環境は削除できません');
     }
 
-    // 使用中のセッション数を確認
-    const result = db.select({ count: count() }).from(schema.sessions)
-      .where(eq(schema.sessions.environment_id, id))
-      .get();
-    const sessionCount = result?.count ?? 0;
+    // 使用中のセッション数を確認（この環境を使用しているプロジェクトのセッション数）
+    const projectsWithEnv = db.select({ id: schema.projects.id })
+      .from(schema.projects)
+      .where(eq(schema.projects.environment_id, id))
+      .all();
+    const projectIds = projectsWithEnv.map((p) => p.id);
+    let sessionCount = 0;
+    if (projectIds.length > 0) {
+      const result = db.select({ count: count() })
+        .from(schema.sessions)
+        .where(
+          // プロジェクトIDがprojectIdsのいずれかに一致するセッション
+          projectIds.length === 1
+            ? eq(schema.sessions.project_id, projectIds[0])
+            : sql`${schema.sessions.project_id} IN (${sql.join(projectIds.map((id) => sql`${id}`), sql`, `)})`
+        )
+        .get();
+      sessionCount = result?.count ?? 0;
+    }
 
     if (sessionCount > 0) {
       logger.warn('使用中のセッションがある環境を削除します', {
