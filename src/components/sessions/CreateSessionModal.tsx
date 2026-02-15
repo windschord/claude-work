@@ -56,6 +56,7 @@ export function CreateSessionModal({
 }: CreateSessionModalProps) {
   const { environments, isLoading: isEnvironmentsLoading } = useEnvironments();
   const [selectedEnvironmentId, setSelectedEnvironmentId] = useState<string>('');
+  const [projectEnvironmentId, setProjectEnvironmentId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string>('');
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -64,18 +65,44 @@ export function CreateSessionModal({
   const [claudeOptions, setClaudeOptions] = useState<ClaudeCodeOptions>({});
   const [customEnvVars, setCustomEnvVars] = useState<CustomEnvVars>({});
 
-  // デフォルト環境または最初の環境を初期選択
+  // プロジェクトのenvironment_idを取得
+  useEffect(() => {
+    if (!isOpen || !projectId) {
+      return;
+    }
+
+    const fetchProject = async () => {
+      try {
+        const response = await fetch(`/api/projects/${projectId}`);
+        if (response.ok) {
+          const data = await response.json();
+          setProjectEnvironmentId(data.project?.environment_id || null);
+        }
+      } catch {
+        setProjectEnvironmentId(null);
+      }
+    };
+
+    fetchProject();
+  }, [isOpen, projectId]);
+
+  // プロジェクトの環境設定またはデフォルト環境を初期選択
   useEffect(() => {
     if (!isEnvironmentsLoading && environments.length > 0 && !selectedEnvironmentId) {
-      const defaultEnv = environments.find((env) => env.is_default);
-      if (defaultEnv) {
-        setSelectedEnvironmentId(defaultEnv.id);
+      // プロジェクトに環境が設定されている場合はそれを使用
+      if (projectEnvironmentId) {
+        setSelectedEnvironmentId(projectEnvironmentId);
       } else {
-        // デフォルト環境がない場合は最初の環境を選択
-        setSelectedEnvironmentId(environments[0].id);
+        // 設定されていない場合はデフォルト環境または最初の環境を選択
+        const defaultEnv = environments.find((env) => env.is_default);
+        if (defaultEnv) {
+          setSelectedEnvironmentId(defaultEnv.id);
+        } else {
+          setSelectedEnvironmentId(environments[0].id);
+        }
       }
     }
-  }, [environments, isEnvironmentsLoading, selectedEnvironmentId]);
+  }, [environments, isEnvironmentsLoading, selectedEnvironmentId, projectEnvironmentId]);
 
   // モーダルが閉じられた時に状態をリセット
   useEffect(() => {
@@ -134,7 +161,8 @@ export function CreateSessionModal({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          environment_id: selectedEnvironmentId,
+          // プロジェクトに環境が設定されている場合はenvironment_idを送信しない（サーバー側でproject.environment_idを使用）
+          ...(projectEnvironmentId ? {} : { environment_id: selectedEnvironmentId }),
           source_branch: selectedBranch || undefined,
           claude_code_options: Object.keys(claudeOptions).some(k => claudeOptions[k as keyof ClaudeCodeOptions] !== undefined) ? claudeOptions : undefined,
           custom_env_vars: Object.keys(customEnvVars).length > 0 ? customEnvVars : undefined,
@@ -210,7 +238,47 @@ export function CreateSessionModal({
                     <div className="text-gray-500 dark:text-gray-400 py-4">
                       利用可能な環境がありません
                     </div>
+                  ) : projectEnvironmentId ? (
+                    // プロジェクトに環境が設定されている場合は表示のみ（変更不可）
+                    <div className="bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg px-4 py-3">
+                      {(() => {
+                        const env = environments.find((e) => e.id === projectEnvironmentId);
+                        return env ? (
+                          <div className="flex w-full items-center justify-between">
+                            <div className="flex items-center">
+                              <div className="text-sm">
+                                <p className="font-medium text-gray-900 dark:text-gray-100">
+                                  {env.name}
+                                </p>
+                                {env.description && (
+                                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                                    {env.description}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`px-2 py-0.5 text-xs font-medium rounded ${getTypeBadgeColor(
+                                  env.type
+                                )}`}
+                              >
+                                {env.type}
+                              </span>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            プロジェクトに設定された環境が見つかりません
+                          </p>
+                        );
+                      })()}
+                      <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                        この環境はプロジェクト設定で変更できます
+                      </p>
+                    </div>
                   ) : (
+                    // プロジェクトに環境が設定されていない場合は選択可能
                     <RadioGroup
                       value={selectedEnvironmentId}
                       onChange={setSelectedEnvironmentId}
