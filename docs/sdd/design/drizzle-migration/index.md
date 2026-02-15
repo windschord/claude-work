@@ -386,3 +386,38 @@ try {
   throw error;
 }
 ```
+
+## 拡張性
+
+### 新規テーブルの追加
+
+**手順**:
+1. `src/db/schema.ts` にテーブル定義を追加
+2. リレーションが必要な場合は `relations()` を定義
+3. `src/lib/db.ts` に型エクスポートを追加
+4. `npx drizzle-kit push` でスキーマを同期
+
+**例**（GitHubPATテーブルを追加する場合）:
+```typescript
+export const githubPATs = sqliteTable('GitHubPAT', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  name: text('name').notNull(),
+  token: text('token').notNull(),
+  is_active: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+  created_at: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+});
+```
+
+### クエリの最適化
+
+- 頻繁に使用するクエリには適切なインデックスを追加
+- Drizzleの `prepare()` メソッドでプリペアドステートメントを活用
+- 必要に応じてRaw SQLクエリも使用可能（`db.run(sql)`）
+
+## 今後の改善案
+
+1. **マイグレーション履歴の管理**: drizzle-kitのマイグレーション機能を本番環境で活用
+2. **クエリビルダーの活用**: 複雑なクエリには、Drizzleのクエリビルダーを積極的に活用
+3. **パフォーマンスモニタリング**: クエリ実行時間のロギングとモニタリング
+4. **型生成の自動化**: スキーマ変更時の型生成を自動化（CI/CD統合）
+5. **Drizzle Studio統合**: 開発時のデータベース確認ツールとして常時活用
