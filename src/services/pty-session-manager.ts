@@ -460,9 +460,12 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
       buffer.append(sessionId, data)
     }
 
-    // 全接続にブロードキャスト
+    // 全接続にブロードキャスト（JSON形式でラップ）
     try {
-      this.connectionManager.broadcast(sessionId, data)
+      this.connectionManager.broadcast(sessionId, JSON.stringify({
+        type: 'data',
+        content: data
+      }))
     } catch (err) {
       logger.error(`Failed to broadcast data for session ${sessionId}:`, err)
     }

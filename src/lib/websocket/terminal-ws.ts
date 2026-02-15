@@ -88,6 +88,11 @@ export function setupTerminalWebSocket(
 ): void {
   // 接続が全て切断された時のイベントハンドラー
   connectionManager.on('allConnectionsClosed', (terminalSessionId: string) => {
+    // Terminal用セッションIDのみを処理（Claude WebSocket側のイベントを無視）
+    if (!terminalSessionId.endsWith(TERMINAL_SESSION_SUFFIX)) {
+      return;
+    }
+
     // 破棄タイマーを開始（30秒後にPTYを破棄）
     const timer = setTimeout(() => {
       // セッションIDからサフィックスを除去して元のセッションIDを取得
