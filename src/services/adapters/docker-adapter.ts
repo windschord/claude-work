@@ -607,7 +607,25 @@ export class DockerAdapter extends BasePTYAdapter {
         }, 3000);
       }
 
+      // 一時envファイルのクリーンアップ（成功時）
+      if (envFilePath) {
+        try {
+          fs.unlinkSync(envFilePath);
+        } catch {
+          // 削除失敗は無視
+        }
+      }
+
     } catch (error) {
+      // 一時envファイルのクリーンアップ
+      if (envFilePath) {
+        try {
+          fs.unlinkSync(envFilePath);
+        } catch {
+          // 削除失敗は無視
+        }
+      }
+
       logger.error('DockerAdapter: Failed to create session', {
         sessionId,
         error: error instanceof Error ? error.message : 'Unknown error',
