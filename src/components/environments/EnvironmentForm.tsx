@@ -35,6 +35,7 @@ const IMAGE_SOURCE_OPTIONS: { value: ImageSourceType; label: string }[] = [
 ];
 
 const CUSTOM_IMAGE_VALUE = '__custom__';
+const DEFAULT_DOCKER_IMAGE = process.env.NEXT_PUBLIC_DEFAULT_DOCKER_IMAGE || 'ghcr.io/windschord/claude-work:latest';
 
 /**
  * 環境作成・編集フォームモーダルコンポーネント
@@ -129,7 +130,7 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
       setDescription('');
       setImageSource('existing');
       setSelectedImage(CUSTOM_IMAGE_VALUE);
-      setCustomImageName('ghcr.io/windschord/claude-work:latest');
+      setCustomImageName(DEFAULT_DOCKER_IMAGE);
       setDockerfileFile(null);
       setDockerfileUploaded(false);
     }
