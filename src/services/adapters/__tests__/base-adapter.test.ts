@@ -23,14 +23,14 @@ vi.mock('@/lib/logger', () => ({
 class TestPTYAdapter extends BasePTYAdapter {
   createSession(
     _sessionId: string,
-    _projectPath: string,
-    _branch: string,
-    _options: CreateSessionOptions
-  ): Promise<void> {
+    _workingDir: string,
+    _initialPrompt?: string,
+    _options?: CreateSessionOptions
+  ): void | Promise<void> {
     throw new Error('Not implemented');
   }
 
-  destroySession(_sessionId: string): Promise<void> {
+  destroySession(_sessionId: string): void | Promise<void> {
     throw new Error('Not implemented');
   }
 

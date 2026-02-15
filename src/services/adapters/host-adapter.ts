@@ -47,9 +47,13 @@ export class HostAdapter extends BasePTYAdapter {
   ): void {
     if (options?.shellMode) {
       // シェルモード: ptyManagerを使用
-      logger.info('HostAdapter: Creating shell session', { sessionId, workingDir });
+      const cols = options?.cols ?? 80;
+      const rows = options?.rows ?? 24;
+      logger.info('HostAdapter: Creating shell session', { sessionId, workingDir, cols, rows });
       this.shellSessions.add(sessionId);
       ptyManager.createPTY(sessionId, workingDir);
+      // ptyManagerがcols/rowsパラメータを受け付けないため、作成後にresizeで反映
+      ptyManager.resize(sessionId, cols, rows);
     } else {
       // 通常モード: BasePTYAdapterを使用してClaude Codeを起動
       logger.info('HostAdapter: Creating Claude session', { sessionId, workingDir });

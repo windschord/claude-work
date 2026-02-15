@@ -75,7 +75,10 @@ describe('統合テスト: Issue #101 PTY Architecture Refactor', () => {
     it('REQ-001-007: "Session already exists"エラーが発生しないこと', () => {
       const hostAdapter = new HostAdapter();
 
-      // 同じセッションIDで2回作成を試みてもエラーにならないことを確認
+      // 最初のセッション作成
+      hostAdapter.createSession('session-1', '/path/to/work');
+
+      // 同じセッションIDで2回目の作成を試みてもエラーにならないことを確認
       expect(() => {
         hostAdapter.createSession('session-1', '/path/to/work');
       }).not.toThrow('Session already exists');
