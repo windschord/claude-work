@@ -1,3 +1,4 @@
+import type { IPty } from 'node-pty';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -19,7 +20,7 @@ export interface DockerAdapterConfig {
 }
 
 interface DockerSession {
-  ptyProcess: pty.IPty;
+  ptyProcess: IPty;
   workingDir: string;
   containerId: string;
   claudeSessionId?: string;
@@ -739,7 +740,7 @@ export class DockerAdapter extends BasePTYAdapter {
     return this.sessions.get(sessionId)?.containerId;
   }
 
-  private extractClaudeSessionId(data: string): string | undefined {
+  protected extractClaudeSessionId(data: string): string | null {
     const patterns = [
       /session[:\s]+([a-zA-Z0-9-]{4,36})/i,
       /\[session:([a-zA-Z0-9-]{4,36})\]/i,
@@ -751,7 +752,7 @@ export class DockerAdapter extends BasePTYAdapter {
         return match[1];
       }
     }
-    return undefined;
+    return null;
   }
 
   /**

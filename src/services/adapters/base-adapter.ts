@@ -123,7 +123,8 @@ export abstract class BasePTYAdapter
   protected async cleanupPTY(ptyInstance: IPty): Promise<void> {
     logger.info('Cleaning up PTY process');
     ptyInstance.kill();
-    ptyInstance.removeAllListeners?.();
+    // Note: IPty does not have removeAllListeners method
+    // Listeners are automatically cleaned up when the process is killed
   }
 
   /**

@@ -71,7 +71,6 @@ describe('BasePTYAdapter', () => {
       kill: vi.fn(),
       write: vi.fn(),
       resize: vi.fn(),
-      removeAllListeners: vi.fn(),
       pid: 12345,
       cols: 80,
       rows: 24,
@@ -215,12 +214,6 @@ describe('BasePTYAdapter', () => {
       await adapter.testCleanupPTY(mockPty);
 
       expect(mockPty.kill).toHaveBeenCalled();
-    });
-
-    it('should remove event listeners', async () => {
-      await adapter.testCleanupPTY(mockPty);
-
-      expect(mockPty.removeAllListeners).toHaveBeenCalled();
     });
   });
 

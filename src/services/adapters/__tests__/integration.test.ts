@@ -47,7 +47,6 @@ describe('統合テスト: Issue #101 PTY Architecture Refactor', () => {
       kill: vi.fn(),
       write: vi.fn(),
       resize: vi.fn(),
-      removeAllListeners: vi.fn(),
       pid: 12345,
       cols: 80,
       rows: 24,
