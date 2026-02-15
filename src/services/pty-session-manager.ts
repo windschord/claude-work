@@ -512,6 +512,7 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
    */
   private handleError(sessionId: string, error: Error): void {
     logger.error(`Error for session ${sessionId}:`, {
+      error,
       message: error.message,
       hasSession: this.sessions.has(sessionId),
       connectionCount: this.connectionManager.getConnectionCount(sessionId),

@@ -45,6 +45,19 @@ export class HostAdapter extends BasePTYAdapter {
     initialPrompt?: string,
     options?: CreateSessionOptions
   ): void {
+    // 既存セッションがある場合は先に破棄
+    if (this.hasSession(sessionId)) {
+      logger.warn('HostAdapter: Session already exists, destroying before recreating', { sessionId });
+      // 同期的に呼び出し（destroySessionは void | Promise<void> を返すが、ここでは非同期を待たない）
+      const result = this.destroySession(sessionId);
+      // Promiseの場合はエラーをログ
+      if (result instanceof Promise) {
+        result.catch((error) => {
+          logger.error('HostAdapter: Error destroying existing session', { sessionId, error });
+        });
+      }
+    }
+
     if (options?.shellMode) {
       // シェルモード: ptyManagerを使用
       const cols = options?.cols ?? 80;

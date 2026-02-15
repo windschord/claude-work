@@ -130,15 +130,30 @@ export abstract class BasePTYAdapter
   /**
    * Claude Code出力からセッションIDを抽出
    *
-   * 形式: "Session ID: <uuid>"
+   * 対応形式の例:
+   * - "Session ID: <uuid>"
+   * - "session: <id>"
+   * - "[session:<id>]"
    *
    * @param data - PTY出力データ
    * @returns 抽出されたセッションID、見つからない場合はnull
    */
   protected extractClaudeSessionId(data: string): string | null {
-    const match = data.match(/Session ID: ([a-f0-9-]{36})/);
-    if (match) {
-      return match[1];
+    // 既存形式と、他アダプターで利用されている形式の両方をサポートする
+    const patterns: RegExp[] = [
+      // 既存形式: "Session ID: <uuid>"
+      /Session ID:\s*([a-f0-9-]{36})/i,
+      // 一般的な形式: "session: <id>"
+      /\bsession:\s*([^\s\]]+)/i,
+      // ブラケット形式: "[session:<id>]"
+      /\[session:([^\]\s]+)\]/i,
+    ];
+
+    for (const pattern of patterns) {
+      const match = data.match(pattern);
+      if (match && match[1]) {
+        return match[1];
+      }
     }
     return null;
   }

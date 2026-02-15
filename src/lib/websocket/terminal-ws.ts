@@ -121,14 +121,26 @@ export function setupTerminalWebSocket(
             if (environment) {
               const adapter = AdapterFactory.getAdapter(environment);
 
-              // イベントハンドラー解除
+              // イベントハンドラー解除（adapter側のリスナーも削除）
               if (dataHandler) {
+                const handler = connectionManager.getHandler(terminalSessionId, 'data');
+                if (handler) {
+                  adapter.off('data', handler);
+                }
                 connectionManager.unregisterHandler(terminalSessionId, 'data');
               }
               if (exitHandler) {
+                const handler = connectionManager.getHandler(terminalSessionId, 'exit');
+                if (handler) {
+                  adapter.off('exit', handler);
+                }
                 connectionManager.unregisterHandler(terminalSessionId, 'exit');
               }
               if (errorHandler) {
+                const handler = connectionManager.getHandler(terminalSessionId, 'error');
+                if (handler) {
+                  adapter.off('error', handler);
+                }
                 connectionManager.unregisterHandler(terminalSessionId, 'error');
               }
 
@@ -137,6 +149,11 @@ export function setupTerminalWebSocket(
                 await adapter.destroySession(terminalSessionId);
               }
             }
+          }).catch((error) => {
+            logger.error('Failed to cleanup terminal session via environment adapter', {
+              sessionId: terminalSessionId,
+              error,
+            });
           });
         } else {
           // 従来方式: ptyManager直接使用
