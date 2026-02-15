@@ -245,17 +245,24 @@ export class ProcessLifecycleManager extends EventEmitter {
       // DBからセッション情報を取得
       const session = await db.query.sessions.findFirst({
         where: eq(schema.sessions.id, sessionId),
+        with: {
+          project: {
+            columns: {
+              environment_id: true,
+            },
+          },
+        },
       });
 
-      if (session?.environment_id) {
+      if (session?.project?.environment_id) {
         // 新しい環境システム: AdapterFactory経由で停止
-        const environment = await environmentService.findById(session.environment_id);
+        const environment = await environmentService.findById(session.project.environment_id);
         if (!environment) {
-          // environment_id付きセッションに対応する環境が存在しない場合は
+          // environment_id付きプロジェクトに対応する環境が存在しない場合は
           // ProcessManagerへはフォールバックせずエラーとする
-          logger.error('Environment not found for environment-managed session', {
+          logger.error('Environment not found for project environment', {
             sessionId,
-            environmentId: session.environment_id,
+            environmentId: session.project.environment_id,
           });
           throw new Error(`Execution environment not found for session ${sessionId}`);
         }
@@ -263,14 +270,14 @@ export class ProcessLifecycleManager extends EventEmitter {
         try {
           const AdapterFactory = await getAdapterFactory();
           const adapter = AdapterFactory.getAdapter(environment);
-          adapter.destroySession(sessionId);
+          await adapter.destroySession(sessionId);
         } catch (adapterError) {
-          // environment_id付きセッションはProcessManagerでは管理されないため、
+          // environment_id付きプロジェクトはProcessManagerでは管理されないため、
           // フォールバックせずエラーとして扱う
           logger.error('Failed to stop session via environment adapter', {
             error: adapterError,
             sessionId,
-            environmentId: session.environment_id,
+            environmentId: session.project.environment_id,
           });
           throw adapterError;
         }

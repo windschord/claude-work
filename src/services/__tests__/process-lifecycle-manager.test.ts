@@ -29,6 +29,7 @@ vi.mock('@/lib/db', () => ({
   schema: {
     sessions: { id: 'id' },
     executionEnvironments: { id: 'id' },
+    projects: { id: 'id', environment_id: 'environment_id' },
   },
 }));
 
@@ -342,8 +343,10 @@ describe('ProcessLifecycleManager', () => {
   describe('pauseSession with environment_id', () => {
     const mockSession = {
       id: 'test-session',
-      environment_id: 'env-123',
       worktree_path: '/path/to/worktree',
+      project: {
+        environment_id: 'env-123',
+      },
     };
 
     const mockEnvironment = {
@@ -369,7 +372,7 @@ describe('ProcessLifecycleManager', () => {
 
     it('environment_idがない場合、processManager.stopProcess()が呼ばれるべき', async () => {
       const manager = ProcessLifecycleManager.getInstance();
-      const mockSessionWithoutEnv = { ...mockSession, environment_id: null };
+      const mockSessionWithoutEnv = { ...mockSession, project: { environment_id: null } };
 
       vi.mocked(db.query.sessions.findFirst).mockResolvedValue(mockSessionWithoutEnv);
 

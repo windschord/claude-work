@@ -1,39 +1,26 @@
-import { EventEmitter } from 'events';
-import { claudePtyManager } from '../claude-pty-manager';
+import type { IPty } from 'node-pty';
 import { ptyManager, type PTYExitInfo as ShellPTYExitInfo } from '../pty-manager';
-import { EnvironmentAdapter, CreateSessionOptions, PTYExitInfo } from '../environment-adapter';
+import type { CreateSessionOptions } from '../environment-adapter';
 import { logger } from '@/lib/logger';
+import { BasePTYAdapter } from './base-adapter';
 
 /**
  * HostAdapter
  *
  * HOST環境（ローカル実行）用のアダプター。
- * - shellMode=false: ClaudePTYManagerでClaude Codeを起動
+ * - shellMode=false: BasePTYAdapterでClaude Codeを直接起動
  * - shellMode=true: ptyManagerでシェルを起動
  */
-export class HostAdapter extends EventEmitter implements EnvironmentAdapter {
+export class HostAdapter extends BasePTYAdapter {
+  // PTYインスタンスを管理（Claude Codeモード）
+  private ptyInstances: Map<string, IPty> = new Map();
   // shellModeで作成されたセッションのIDを管理
   private shellSessions: Set<string> = new Set();
+  // 作業ディレクトリを管理
+  private workingDirs: Map<string, string> = new Map();
 
   constructor() {
     super();
-
-    // ClaudePTYManagerからのイベントを転送
-    claudePtyManager.on('data', (sessionId: string, data: string) => {
-      this.emit('data', sessionId, data);
-    });
-
-    claudePtyManager.on('exit', (sessionId: string, info: PTYExitInfo) => {
-      this.emit('exit', sessionId, info);
-    });
-
-    claudePtyManager.on('error', (sessionId: string, error: Error) => {
-      this.emit('error', sessionId, error);
-    });
-
-    claudePtyManager.on('claudeSessionId', (sessionId: string, claudeSessionId: string) => {
-      this.emit('claudeSessionId', sessionId, claudeSessionId);
-    });
 
     // ptyManagerからのイベントを転送（shellMode用）
     ptyManager.on('data', (sessionId: string, data: string) => {
@@ -44,7 +31,7 @@ export class HostAdapter extends EventEmitter implements EnvironmentAdapter {
 
     ptyManager.on('exit', (sessionId: string, info: ShellPTYExitInfo) => {
       if (this.shellSessions.has(sessionId)) {
-        this.emit('exit', sessionId, info as PTYExitInfo);
+        this.emit('exit', sessionId, info);
         this.shellSessions.delete(sessionId);
       }
     });
@@ -58,20 +45,61 @@ export class HostAdapter extends EventEmitter implements EnvironmentAdapter {
     initialPrompt?: string,
     options?: CreateSessionOptions
   ): void {
+    // 既存セッションがある場合は先に破棄
+    if (this.hasSession(sessionId)) {
+      logger.warn('HostAdapter: Session already exists, destroying before recreating', { sessionId });
+      // 同期的に呼び出し（destroySessionは void | Promise<void> を返すが、ここでは非同期を待たない）
+      const result = this.destroySession(sessionId);
+      // Promiseの場合はエラーをログ
+      if (result instanceof Promise) {
+        result.catch((error) => {
+          logger.error('HostAdapter: Error destroying existing session', { sessionId, error });
+        });
+      }
+    }
+
     if (options?.shellMode) {
       // シェルモード: ptyManagerを使用
-      logger.info('HostAdapter: Creating shell session', { sessionId, workingDir });
+      const cols = options?.cols ?? 80;
+      const rows = options?.rows ?? 24;
+      logger.info('HostAdapter: Creating shell session', { sessionId, workingDir, cols, rows });
       this.shellSessions.add(sessionId);
       ptyManager.createPTY(sessionId, workingDir);
+      // ptyManagerがcols/rowsパラメータを受け付けないため、作成後にresizeで反映
+      ptyManager.resize(sessionId, cols, rows);
     } else {
-      // 通常モード: ClaudePTYManagerを使用
+      // 通常モード: BasePTYAdapterを使用してClaude Codeを起動
       logger.info('HostAdapter: Creating Claude session', { sessionId, workingDir });
-      claudePtyManager.createSession(sessionId, workingDir, initialPrompt, {
-        resumeSessionId: options?.resumeSessionId,
-        dockerMode: false, // 固定
-        claudeCodeOptions: options?.claudeCodeOptions,
-        customEnvVars: options?.customEnvVars,
+
+      const cols = options?.cols ?? 80;
+      const rows = options?.rows ?? 24;
+
+      // Claude Code起動コマンド構築
+      const args: string[] = [];
+      if (initialPrompt) {
+        args.push('--print', initialPrompt);
+      }
+      if (options?.resumeSessionId) {
+        args.push('--resume', options.resumeSessionId);
+      }
+
+      // 環境変数の構築
+      const env: Record<string, string> = {
+        ...options?.customEnvVars,
+      };
+
+      const ptyInstance = this.spawnPTY('claude', args, {
+        cols,
+        rows,
+        cwd: workingDir,
+        env,
       });
+
+      this.setupDataHandlers(ptyInstance, sessionId);
+      this.setupErrorHandlers(ptyInstance, sessionId);
+
+      this.ptyInstances.set(sessionId, ptyInstance);
+      this.workingDirs.set(sessionId, workingDir);
     }
   }
 
@@ -79,7 +107,10 @@ export class HostAdapter extends EventEmitter implements EnvironmentAdapter {
     if (this.shellSessions.has(sessionId)) {
       ptyManager.write(sessionId, data);
     } else {
-      claudePtyManager.write(sessionId, data);
+      const ptyInstance = this.ptyInstances.get(sessionId);
+      if (ptyInstance) {
+        ptyInstance.write(data);
+      }
     }
   }
 
@@ -87,40 +118,44 @@ export class HostAdapter extends EventEmitter implements EnvironmentAdapter {
     if (this.shellSessions.has(sessionId)) {
       ptyManager.resize(sessionId, cols, rows);
     } else {
-      claudePtyManager.resize(sessionId, cols, rows);
+      const ptyInstance = this.ptyInstances.get(sessionId);
+      if (ptyInstance) {
+        ptyInstance.resize(cols, rows);
+      }
     }
   }
 
-  destroySession(sessionId: string): void {
+  async destroySession(sessionId: string): Promise<void> {
     logger.info('HostAdapter: Destroying session', { sessionId });
     if (this.shellSessions.has(sessionId)) {
       ptyManager.kill(sessionId);
       this.shellSessions.delete(sessionId);
     } else {
-      claudePtyManager.destroySession(sessionId);
+      const ptyInstance = this.ptyInstances.get(sessionId);
+      if (ptyInstance) {
+        await this.cleanupPTY(ptyInstance);
+        this.ptyInstances.delete(sessionId);
+        this.workingDirs.delete(sessionId);
+      }
     }
   }
 
-  restartSession(sessionId: string, workingDir?: string): void {
-    logger.info('HostAdapter: Restarting session', { sessionId });
-    // シェルセッションの再起動は現在サポートしていない
-    if (!this.shellSessions.has(sessionId)) {
-      claudePtyManager.restartSession(sessionId, workingDir);
-    }
+  restartSession(_sessionId: string, _workingDir?: string): void | Promise<void> {
+    logger.warn('HostAdapter: restartSession not implemented');
+    throw new Error('restartSession not implemented in HostAdapter');
   }
 
   hasSession(sessionId: string): boolean {
     if (this.shellSessions.has(sessionId)) {
       return ptyManager.hasSession(sessionId);
     }
-    return claudePtyManager.hasSession(sessionId);
+    return this.ptyInstances.has(sessionId);
   }
 
   getWorkingDir(sessionId: string): string | undefined {
-    // ptyManagerにはgetWorkingDirがないため、claudePtyManagerのみ
     if (this.shellSessions.has(sessionId)) {
-      return undefined; // TODO: ptyManagerにgetWorkingDirを追加する場合はここを修正
+      return undefined;
     }
-    return claudePtyManager.getWorkingDir(sessionId);
+    return this.workingDirs.get(sessionId);
   }
 }

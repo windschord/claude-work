@@ -96,9 +96,9 @@ vi.mock('@/services/pty-session-manager', () => ({
 vi.mock('@/lib/db', () => ({
   db: mockDb,
   schema: {
-    sessions: {},
-    messages: {},
-    projects: {},
+    sessions: { id: 'id' },
+    messages: { id: 'id' },
+    projects: { id: 'id', environment_id: 'environment_id' },
   },
 }));
 
@@ -176,6 +176,7 @@ describe('Claude WebSocket Handler - Environment Support', () => {
     mockDb.query.messages.findFirst.mockResolvedValue(null);
     mockDb.query.projects.findFirst.mockResolvedValue({
       id: 'project-id',
+      environment_id: 'env-test',
       claude_code_options: '{}',
       custom_env_vars: '{}',
     });
@@ -188,6 +189,9 @@ describe('Claude WebSocket Handler - Environment Support', () => {
       environment_id: null,
       status: 'ready',
       resume_session_id: null,
+      project: {
+        environment_id: 'env-test',
+      },
     });
 
     // ClaudeOptionsServiceのモックを再設定（resetAllMocksで壊れるため）
@@ -428,12 +432,16 @@ describe('Claude WebSocket Handler - Environment Support', () => {
         custom_env_vars: null,
         created_at: new Date(),
         updated_at: new Date(),
+        project: {
+          environment_id: environmentId,
+        },
       });
 
       mockDb.query.projects.findFirst.mockResolvedValue({
         id: projectId,
         name: 'Test Project',
         path: '/test/path',
+        environment_id: 'env-test',
         claude_code_options: null,
         custom_env_vars: null,
         created_at: new Date(),
@@ -490,12 +498,16 @@ describe('Claude WebSocket Handler - Environment Support', () => {
         custom_env_vars: null,
         created_at: new Date(),
         updated_at: new Date(),
+        project: {
+          environment_id: environmentId,
+        },
       });
 
       mockDb.query.projects.findFirst.mockResolvedValue({
         id: projectId,
         name: 'Test Project',
         path: '/test/path',
+        environment_id: 'env-test',
         claude_code_options: null,
         custom_env_vars: null,
         created_at: new Date(),
@@ -855,6 +867,9 @@ describe('Claude WebSocket Handler - Environment Support', () => {
         environment_id: environmentId,
         status: 'running',
         resume_session_id: 'resume-123',
+        project: {
+          environment_id: environmentId,
+        },
       });
 
       mockEnvironmentService.findById.mockResolvedValue({
@@ -912,6 +927,9 @@ describe('Claude WebSocket Handler - Environment Support', () => {
         custom_env_vars: null,
         created_at: new Date(),
         updated_at: new Date(),
+        project: {
+          environment_id: environmentId,
+        },
       });
 
       mockDb.query.messages.findFirst.mockResolvedValue({
@@ -922,6 +940,7 @@ describe('Claude WebSocket Handler - Environment Support', () => {
         id: projectId,
         name: 'Test Project',
         path: '/test/path',
+        environment_id: 'env-test',
         claude_code_options: null,
         custom_env_vars: null,
         created_at: new Date(),
@@ -979,12 +998,16 @@ describe('Claude WebSocket Handler - Environment Support', () => {
         custom_env_vars: null,
         created_at: new Date(),
         updated_at: new Date(),
+        project: {
+          environment_id: environmentId,
+        },
       });
 
       mockDb.query.projects.findFirst.mockResolvedValue({
         id: projectId,
         name: 'Test Project',
         path: '/test/path',
+        environment_id: 'env-test',
         claude_code_options: null,
         custom_env_vars: null,
         created_at: new Date(),

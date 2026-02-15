@@ -184,7 +184,9 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
         {
           resumeSessionId,
           claudeCodeOptions,
-          customEnvVars
+          customEnvVars,
+          cols: options.cols,
+          rows: options.rows,
         }
       )
 
@@ -458,8 +460,15 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
       buffer.append(sessionId, data)
     }
 
-    // 全接続にブロードキャスト
-    this.connectionManager.broadcast(sessionId, data)
+    // 全接続にブロードキャスト（JSON形式でラップ）
+    try {
+      this.connectionManager.broadcast(sessionId, JSON.stringify({
+        type: 'data',
+        content: data
+      }))
+    } catch (err) {
+      logger.error(`Failed to broadcast data for session ${sessionId}:`, err)
+    }
 
     // dataイベントを発火
     this.emit('data', sessionId, data)
@@ -483,10 +492,14 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
     }
 
     // 接続中のクライアントに通知
-    this.connectionManager.broadcast(sessionId, JSON.stringify({
-      type: 'exit',
-      exitCode
-    }))
+    try {
+      this.connectionManager.broadcast(sessionId, JSON.stringify({
+        type: 'exit',
+        exitCode
+      }))
+    } catch (err) {
+      logger.error(`Failed to broadcast exit for session ${sessionId}:`, err)
+    }
 
     // exitイベントを発火
     this.emit('exit', sessionId, exitCode)
@@ -501,13 +514,22 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
    * エラーハンドラー
    */
   private handleError(sessionId: string, error: Error): void {
-    logger.error(`Error for session ${sessionId}:`, error)
+    logger.error(`Error for session ${sessionId}:`, {
+      error,
+      message: error.message,
+      hasSession: this.sessions.has(sessionId),
+      connectionCount: this.connectionManager.getConnectionCount(sessionId),
+    })
 
     // 接続中のクライアントに通知
-    this.connectionManager.broadcast(sessionId, JSON.stringify({
-      type: 'error',
-      message: error.message
-    }))
+    try {
+      this.connectionManager.broadcast(sessionId, JSON.stringify({
+        type: 'error',
+        message: error.message
+      }))
+    } catch (err) {
+      logger.error(`Failed to broadcast error for session ${sessionId}:`, err)
+    }
 
     // sessionErrorイベントを発火
     this.emit('sessionError', sessionId, error)

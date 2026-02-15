@@ -6,6 +6,7 @@ import { Project, useAppStore } from '@/store';
 import toast from 'react-hot-toast';
 import { ClaudeOptionsForm } from '@/components/claude-options/ClaudeOptionsForm';
 import type { ClaudeCodeOptions, CustomEnvVars } from '@/components/claude-options/ClaudeOptionsForm';
+import { useEnvironments } from '@/hooks/useEnvironments';
 
 /**
  * スクリプト編集用のローカル型定義
@@ -50,6 +51,8 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
   const [error, setError] = useState('');
   const [claudeOptions, setClaudeOptions] = useState<ClaudeCodeOptions>({});
   const [customEnvVars, setCustomEnvVars] = useState<CustomEnvVars>({});
+  const [environmentId, setEnvironmentId] = useState<string>('');
+  const { environments, isLoading: isEnvironmentsLoading } = useEnvironments();
 
   const fetchScripts = useCallback(async (projectId: string) => {
     try {
@@ -94,6 +97,7 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
           } catch {
             setCustomEnvVars({});
           }
+          setEnvironmentId(proj.environment_id || '');
         }
       }
     } catch {
@@ -170,13 +174,14 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
         }
       }
 
-      // Claude Codeオプションを保存
+      // Claude Codeオプションと環境IDを保存
       const optionsResponse = await fetch(`/api/projects/${project.id}`, {
-        method: 'PUT',
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           claude_code_options: claudeOptions,
           custom_env_vars: customEnvVars,
+          environment_id: environmentId || null,
         }),
       });
 
@@ -248,6 +253,7 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
     setError('');
     setClaudeOptions({});
     setCustomEnvVars({});
+    setEnvironmentId('');
     onClose();
   };
 
@@ -288,6 +294,35 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
                 </Dialog.Title>
 
                 <form onSubmit={handleSaveAll}>
+                  {/* デフォルト実行環境 */}
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      デフォルト実行環境
+                    </label>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                      新規セッション作成時に使用される実行環境を設定します
+                    </p>
+                    <select
+                      value={environmentId}
+                      onChange={(e) => setEnvironmentId(e.target.value)}
+                      disabled={isLoading || isEnvironmentsLoading}
+                      className="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+                    >
+                      <option value="">環境を設定しない（自動選択）</option>
+                      {environments.map((env) => (
+                        <option key={env.id} value={env.id}>
+                          {env.name} ({env.type})
+                          {env.is_default ? ' [デフォルト]' : ''}
+                        </option>
+                      ))}
+                    </select>
+                    {isEnvironmentsLoading && (
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        環境一覧を読み込み中...
+                      </p>
+                    )}
+                  </div>
+
                   <div className="mb-6">
                     <div className="flex justify-between items-center mb-2">
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">

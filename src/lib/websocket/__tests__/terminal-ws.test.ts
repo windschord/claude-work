@@ -37,7 +37,8 @@ vi.mock('@/lib/db', () => ({
     },
   },
   schema: {
-    sessions: { id: 'id', environment_id: 'environment_id' },
+    sessions: { id: 'id' },
+    projects: { id: 'id', environment_id: 'environment_id' },
   },
 }));
 

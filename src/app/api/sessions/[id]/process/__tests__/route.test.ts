@@ -370,6 +370,7 @@ describe('GET /api/sessions/[id]/process with environment_id', () => {
       .values({
         name: 'Test Project',
         path: testRepoPath,
+        environment_id: environment.id,
       })
       .returning()
       .get();
@@ -382,7 +383,6 @@ describe('GET /api/sessions/[id]/process with environment_id', () => {
         status: 'running',
         worktree_path: join(testRepoPath, '.worktrees', 'test-session'),
         branch_name: 'test-branch',
-        environment_id: environment.id,
       })
       .returning()
       .get();
@@ -517,6 +517,7 @@ describe('POST /api/sessions/[id]/process with environment_id', () => {
       .values({
         name: 'Test Project',
         path: testRepoPath,
+        environment_id: environment.id,
       })
       .returning()
       .get();
@@ -529,7 +530,6 @@ describe('POST /api/sessions/[id]/process with environment_id', () => {
         status: 'running',
         worktree_path: join(testRepoPath, '.worktrees', 'test-session'),
         branch_name: 'test-branch',
-        environment_id: environment.id,
         resume_session_id: 'resume-session-123',
       })
       .returning()

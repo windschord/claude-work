@@ -74,7 +74,14 @@ const {
 });
 
 vi.mock('@/services/pty-session-manager', () => ({ ptySessionManager: mockClaudePtyManager }));
-vi.mock('@/lib/db', () => ({ db: mockDb, schema: { sessions: {}, messages: {}, projects: {} } }));
+vi.mock('@/lib/db', () => ({
+  db: mockDb,
+  schema: {
+    sessions: { id: 'id' },
+    messages: { id: 'id' },
+    projects: { id: 'id', environment_id: 'environment_id' },
+  },
+}));
 vi.mock('@/lib/logger', () => ({ logger: mockLogger }));
 vi.mock('@/services/environment-service', () => ({ environmentService: mockEnvironmentService }));
 vi.mock('@/services/adapter-factory', () => ({ AdapterFactory: mockAdapterFactory }));
@@ -137,7 +144,6 @@ describe('Claude WebSocket - Image Paste', () => {
       id: sessionId,
       worktree_path: worktreePath,
       docker_mode: false,
-      environment_id: 'env-test',
       project_id: 'project-test',
       branch_name: 'main',
       status: 'running',
@@ -146,12 +152,16 @@ describe('Claude WebSocket - Image Paste', () => {
       custom_env_vars: null,
       created_at: new Date(),
       updated_at: new Date(),
+      project: {
+        environment_id: 'env-test',
+      },
     });
     mockDb.query.messages.findFirst.mockResolvedValue(null);
     mockDb.query.projects.findFirst.mockResolvedValue({
       id: 'project-test',
       name: 'Test Project',
       repository_path: '/test/repo',
+      environment_id: 'env-test',
       claude_code_options: null,
       custom_env_vars: null,
       created_at: new Date(),

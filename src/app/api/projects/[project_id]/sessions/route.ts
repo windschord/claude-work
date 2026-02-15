@@ -51,10 +51,17 @@ export async function GET(
       where: eq(schema.sessions.project_id, project_id),
       orderBy: desc(schema.sessions.created_at),
       with: {
-        environment: {
+        project: {
           columns: {
-            name: true,
-            type: true,
+            environment_id: true,
+          },
+          with: {
+            environment: {
+              columns: {
+                name: true,
+                type: true,
+              },
+            },
           },
         },
       },
@@ -63,9 +70,9 @@ export async function GET(
     // フロントエンド用にフラット化した形式に変換
     const sessionsWithEnvironment = sessions.map((session: typeof sessions[number]) => ({
       ...session,
-      environment_name: session.environment?.name || null,
-      environment_type: session.environment?.type as 'HOST' | 'DOCKER' | 'SSH' | null,
-      environment: undefined, // ネストされたオブジェクトは削除
+      environment_name: session.project?.environment?.name || null,
+      environment_type: session.project?.environment?.type as 'HOST' | 'DOCKER' | 'SSH' | null,
+      project: undefined, // ネストされたオブジェクトは削除
     }));
 
     logger.debug('Sessions retrieved', { project_id, count: sessions.length });
@@ -150,7 +157,7 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
 
-    let { name, prompt = '', dockerMode = false, environment_id, source_branch, claude_code_options, custom_env_vars } = body;
+    let { name, prompt = '', dockerMode = false, source_branch, claude_code_options, custom_env_vars } = body;
 
     // claude_code_options のバリデーション（各フィールドが文字列であることを検証）
     if (claude_code_options !== undefined) {
@@ -194,55 +201,63 @@ export async function POST(
     let effectiveDockerMode = false;
 
     // パラメータ優先順位:
-    // 1. environment_id が指定されていればそれを使用
-    // 2. dockerMode=true かつ environment_id未指定 → レガシー動作（警告ログ出力）
-    // 3. 両方未指定 → プロジェクトのclone_locationに基づいて自動設定
+    // 1. プロジェクトに environment_id が設定されていればそれを使用
+    // 2. dockerMode=true → レガシー動作（警告ログ出力）
+    // 3. 両方未設定 → プロジェクトのclone_locationに基づいて自動設定
 
-    if (environment_id) {
-      // 新方式: environment_idを検証
-      const env = await environmentService.findById(environment_id);
+    if (project.environment_id) {
+      // プロジェクト単位の環境設定を使用
+      const env = await environmentService.findById(project.environment_id);
       if (!env) {
-        return NextResponse.json({ error: 'Environment not found' }, { status: 400 });
-      }
-      effectiveEnvironmentId = environment_id;
-      // environment_idが指定されていればdockerModeは無視
-      logger.info('Creating session with environment', {
-        project_id,
-        environment_id,
-        environmentType: env.type,
-      });
-    } else if (dockerMode) {
-      // レガシー方式: 警告を出力しつつ従来動作を維持
-      logger.warn('dockerMode parameter is deprecated, use environment_id instead', {
-        project_id,
-      });
-      effectiveDockerMode = true;
-    } else {
-      // プロジェクトのclone_locationに基づいて自動設定
-      if (project.clone_location === 'docker') {
-        // Docker環境でcloneされたプロジェクト → デフォルトのDocker環境を使用
-        const defaultEnv = await environmentService.getDefault();
-        if (defaultEnv && defaultEnv.type === 'DOCKER') {
-          effectiveEnvironmentId = defaultEnv.id;
-          logger.info('Auto-selected Docker environment based on clone_location', {
-            project_id,
-            clone_location: project.clone_location,
-            environment_id: defaultEnv.id,
-          });
-        } else {
-          // デフォルトのDocker環境がない場合は警告（後方互換性のためレガシーdockerModeを使用）
-          logger.warn('No default Docker environment found, falling back to legacy dockerMode', {
-            project_id,
-            clone_location: project.clone_location,
-          });
-          effectiveDockerMode = true;
-        }
-      } else {
-        // Host環境でcloneされたプロジェクト → environment_id=null（Host環境）
-        logger.info('Using Host environment based on clone_location', {
+        logger.warn('Project environment not found, falling back to auto-selection', {
           project_id,
-          clone_location: project.clone_location,
+          environment_id: project.environment_id,
         });
+        // フォールバック処理は下のelse節で実施
+      } else {
+        effectiveEnvironmentId = project.environment_id;
+        logger.info('Using project environment', {
+          project_id,
+          environment_id: project.environment_id,
+          environmentType: env.type,
+        });
+      }
+    }
+
+    if (!effectiveEnvironmentId) {
+      if (dockerMode) {
+        // レガシー方式: 警告を出力しつつ従来動作を維持
+        logger.warn('dockerMode parameter is deprecated, use project environment_id instead', {
+          project_id,
+        });
+        effectiveDockerMode = true;
+      } else {
+        // プロジェクトのclone_locationに基づいて自動設定
+        if (project.clone_location === 'docker') {
+          // Docker環境でcloneされたプロジェクト → デフォルトのDocker環境を使用
+          const defaultEnv = await environmentService.getDefault();
+          if (defaultEnv && defaultEnv.type === 'DOCKER') {
+            effectiveEnvironmentId = defaultEnv.id;
+            logger.info('Auto-selected Docker environment based on clone_location', {
+              project_id,
+              clone_location: project.clone_location,
+              environment_id: defaultEnv.id,
+            });
+          } else {
+            // デフォルトのDocker環境がない場合は警告（後方互換性のためレガシーdockerModeを使用）
+            logger.warn('No default Docker environment found, falling back to legacy dockerMode', {
+              project_id,
+              clone_location: project.clone_location,
+            });
+            effectiveDockerMode = true;
+          }
+        } else {
+          // Host環境でcloneされたプロジェクト → environment_id=null（Host環境）
+          logger.info('Using Host environment based on clone_location', {
+            project_id,
+            clone_location: project.clone_location,
+          });
+        }
       }
     }
 
@@ -390,7 +405,6 @@ export async function POST(
       worktree_path: worktreePath,
       branch_name: branchName,
       docker_mode: effectiveDockerMode,
-      environment_id: effectiveEnvironmentId,
       claude_code_options: claude_code_options ? JSON.stringify(claude_code_options) : null,
       custom_env_vars: custom_env_vars ? JSON.stringify(custom_env_vars) : null,
     }).returning().get();
