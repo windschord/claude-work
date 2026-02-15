@@ -76,15 +76,26 @@ vi.mock('@/lib/db', () => ({
   },
   schema: {
     executionEnvironments: { id: 'id', is_default: 'is_default' },
-    sessions: { environment_id: 'environment_id' },
+    sessions: { project_id: 'project_id' },
+    projects: { id: 'id', environment_id: 'environment_id' },
   },
 }));
 
-vi.mock('drizzle-orm', () => ({
-  eq: vi.fn((col, val) => ({ column: col, value: val })),
-  asc: vi.fn((col) => ({ column: col, direction: 'asc' })),
-  count: vi.fn(() => 'count'),
-}));
+vi.mock('drizzle-orm', () => {
+  const mockSql = Object.assign(
+    vi.fn((strings, ...values) => ({ strings, values })),
+    {
+      join: vi.fn(() => ({})),
+    }
+  );
+
+  return {
+    eq: vi.fn((col, val) => ({ column: col, value: val })),
+    asc: vi.fn((col) => ({ column: col, direction: 'asc' })),
+    count: vi.fn(() => 'count'),
+    sql: mockSql,
+  };
+});
 
 // loggerのモック
 vi.mock('@/lib/logger', () => ({
@@ -324,8 +335,8 @@ describe('EnvironmentService', () => {
 
       // findById用のモック（最初の呼び出し）
       mockDbSelectGet.mockReturnValueOnce(env);
-      // count用のモック
-      mockDbSelectGet.mockReturnValueOnce({ count: 0 });
+      // projects取得用のモック（この環境を使うプロジェクトはなし）
+      mockDbSelectAll.mockReturnValueOnce([]);
 
       await service.delete('env-123');
 
@@ -365,7 +376,9 @@ describe('EnvironmentService', () => {
         created_at: new Date(),
         updated_at: new Date(),
       });
-      // count用のモック
+      // projects取得用のモック（この環境を使うプロジェクトが2つ）
+      mockDbSelectAll.mockReturnValueOnce([{ id: 'proj-1' }, { id: 'proj-2' }]);
+      // count用のモック（セッション数3）
       mockDbSelectGet.mockReturnValueOnce({ count: 3 });
 
       await service.delete('env-123');
