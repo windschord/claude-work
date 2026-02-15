@@ -73,13 +73,15 @@ export abstract class BasePTYAdapter
       cwd,
     });
 
+    // CLAUDECODEを除外してネストされたセッションを防ぐ
+    const { CLAUDECODE: _CLAUDECODE, ...inheritedEnv } = process.env;
     return pty.spawn(command, args, {
       name: 'xterm-256color',
       cols,
       rows,
       cwd,
       env: {
-        ...process.env,
+        ...inheritedEnv,
         ...env,
         TERM: 'xterm-256color',
         COLORTERM: 'truecolor',
