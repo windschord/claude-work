@@ -144,7 +144,6 @@ describe('Claude WebSocket - Image Paste', () => {
       id: sessionId,
       worktree_path: worktreePath,
       docker_mode: false,
-      environment_id: 'env-test',
       project_id: 'project-test',
       branch_name: 'main',
       status: 'running',
@@ -153,6 +152,9 @@ describe('Claude WebSocket - Image Paste', () => {
       custom_env_vars: null,
       created_at: new Date(),
       updated_at: new Date(),
+      project: {
+        environment_id: 'env-test',
+      },
     });
     mockDb.query.messages.findFirst.mockResolvedValue(null);
     mockDb.query.projects.findFirst.mockResolvedValue({

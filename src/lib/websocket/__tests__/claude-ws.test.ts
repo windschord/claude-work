@@ -189,6 +189,9 @@ describe('Claude WebSocket Handler - Environment Support', () => {
       environment_id: null,
       status: 'ready',
       resume_session_id: null,
+      project: {
+        environment_id: 'env-test',
+      },
     });
 
     // ClaudeOptionsServiceのモックを再設定（resetAllMocksで壊れるため）
@@ -429,6 +432,9 @@ describe('Claude WebSocket Handler - Environment Support', () => {
         custom_env_vars: null,
         created_at: new Date(),
         updated_at: new Date(),
+        project: {
+          environment_id: environmentId,
+        },
       });
 
       mockDb.query.projects.findFirst.mockResolvedValue({
@@ -492,6 +498,9 @@ describe('Claude WebSocket Handler - Environment Support', () => {
         custom_env_vars: null,
         created_at: new Date(),
         updated_at: new Date(),
+        project: {
+          environment_id: environmentId,
+        },
       });
 
       mockDb.query.projects.findFirst.mockResolvedValue({
@@ -858,6 +867,9 @@ describe('Claude WebSocket Handler - Environment Support', () => {
         environment_id: environmentId,
         status: 'running',
         resume_session_id: 'resume-123',
+        project: {
+          environment_id: environmentId,
+        },
       });
 
       mockEnvironmentService.findById.mockResolvedValue({
@@ -915,6 +927,9 @@ describe('Claude WebSocket Handler - Environment Support', () => {
         custom_env_vars: null,
         created_at: new Date(),
         updated_at: new Date(),
+        project: {
+          environment_id: environmentId,
+        },
       });
 
       mockDb.query.messages.findFirst.mockResolvedValue({
@@ -983,6 +998,9 @@ describe('Claude WebSocket Handler - Environment Support', () => {
         custom_env_vars: null,
         created_at: new Date(),
         updated_at: new Date(),
+        project: {
+          environment_id: environmentId,
+        },
       });
 
       mockDb.query.projects.findFirst.mockResolvedValue({
