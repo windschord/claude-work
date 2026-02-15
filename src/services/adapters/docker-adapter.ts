@@ -1,16 +1,15 @@
-import { EventEmitter } from 'events';
-import * as pty from 'node-pty';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as childProcess from 'child_process';
 import { promisify } from 'util';
-import { EnvironmentAdapter, CreateSessionOptions, PTYExitInfo } from '../environment-adapter';
+import type { CreateSessionOptions, PTYExitInfo } from '../environment-adapter';
 import { ClaudeOptionsService } from '../claude-options-service';
 import { scrollbackBuffer } from '../scrollback-buffer';
 import { db, schema } from '@/lib/db';
 import { eq } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
+import { BasePTYAdapter } from './base-adapter';
 
 export interface DockerAdapterConfig {
   environmentId: string;
@@ -46,7 +45,7 @@ interface DockerSession {
  * - 'error': エラー発生 (sessionId: string, error: Error)
  * - 'claudeSessionId': Claude CodeセッションID抽出 (sessionId: string, claudeSessionId: string)
  */
-export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
+export class DockerAdapter extends BasePTYAdapter {
   private config: DockerAdapterConfig;
   private sessions: Map<string, DockerSession> = new Map();
 
@@ -313,7 +312,9 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
   private async createExecSession(
     sessionId: string,
     containerName: string,
-    workingDir: string
+    workingDir: string,
+    cols: number,
+    rows: number
   ): Promise<void> {
     // -it オプションでインタラクティブモードとTTYを有効化
     // -w オプションで作業ディレクトリを /workspace に設定
@@ -323,14 +324,15 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
       sessionId,
       containerName,
       workingDir,
+      cols,
+      rows,
     });
 
     try {
-      const ptyProcess = pty.spawn('docker', args, {
-        name: 'xterm-256color',
-        cols: 80,
-        rows: 24,
-        env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' },
+      const ptyProcess = this.spawnPTY('docker', args, {
+        cols,
+        rows,
+        env: {},
       });
 
       this.sessions.set(sessionId, {
@@ -394,6 +396,8 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
     }
 
     const shellMode = options?.shellMode ?? false;
+    const cols = options?.cols ?? 80;
+    const rows = options?.rows ?? 24;
 
     // シェルモードの場合、親コンテナ（Claude）に接続を試みる
     if (shellMode) {
@@ -446,7 +450,7 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
           }
           throw error;
         }
-        await this.createExecSession(sessionId, parentContainerName, workingDir);
+        await this.createExecSession(sessionId, parentContainerName, workingDir, cols, rows);
         return;
       }
       // 親コンテナがない場合はエラー
@@ -481,11 +485,11 @@ export class DockerAdapter extends EventEmitter implements EnvironmentAdapter {
     });
 
     try {
-      const ptyProcess = pty.spawn('docker', args, {
-        name: 'xterm-256color',
+      const ptyProcess = this.spawnPTY('docker', args, {
         cols: initialCols,
         rows: initialRows,
-        env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' },
+        cwd: undefined,
+        env: {},
       });
 
       this.sessions.set(sessionId, {
