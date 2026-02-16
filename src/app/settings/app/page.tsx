@@ -1,8 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { BackButton } from '@/components/settings/BackButton';
+import { UnsavedChangesDialog } from '@/components/settings/UnsavedChangesDialog';
 
 interface AppConfig {
   git_clone_timeout_minutes: number;
@@ -17,11 +20,16 @@ interface AppConfig {
  * - デバッグモードでのDockerボリューム保持設定
  */
 export default function AppSettingsPage() {
+  const router = useRouter();
   const [_config, setConfig] = useState<AppConfig | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [timeoutMinutes, setTimeoutMinutes] = useState(5);
   const [keepVolumes, setKeepVolumes] = useState(false);
+
+  // 未保存変更の管理
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
 
   useEffect(() => {
     const fetchConfig = async () => {
@@ -88,6 +96,7 @@ export default function AppSettingsPage() {
 
       const data = await response.json();
       setConfig(data.config);
+      setHasUnsavedChanges(false); // 保存後にフラグをリセット
       toast.success('設定を保存しました');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '設定の保存に失敗しました';
@@ -95,6 +104,27 @@ export default function AppSettingsPage() {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  // タイムアウト値変更時の処理
+  const handleTimeoutChange = (value: number) => {
+    setTimeoutMinutes(value);
+    setHasUnsavedChanges(true);
+  };
+
+  // デバッグモード変更時の処理
+  const handleKeepVolumesChange = (checked: boolean) => {
+    setKeepVolumes(checked);
+    setHasUnsavedChanges(true);
+  };
+
+  // 戻るボタンの前処理
+  const handleBeforeNavigate = () => {
+    if (hasUnsavedChanges) {
+      setShowUnsavedDialog(true);
+      return false; // ナビゲーション中断
+    }
+    return true; // ナビゲーション許可
   };
 
   if (isLoading) {
@@ -107,6 +137,11 @@ export default function AppSettingsPage() {
 
   return (
     <div className="p-6">
+      {/* 戻るボタン */}
+      <div className="mb-4">
+        <BackButton onBeforeNavigate={handleBeforeNavigate} />
+      </div>
+
       <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">アプリケーション設定</h1>
 
       <form onSubmit={handleSave} className="max-w-2xl">
@@ -128,7 +163,7 @@ export default function AppSettingsPage() {
               min="1"
               max="30"
               value={timeoutMinutes}
-              onChange={(e) => setTimeoutMinutes(Number(e.target.value))}
+              onChange={(e) => handleTimeoutChange(Number(e.target.value))}
               className="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-100"
               disabled={isSaving}
             />
@@ -148,7 +183,7 @@ export default function AppSettingsPage() {
               <input
                 type="checkbox"
                 checked={keepVolumes}
-                onChange={(e) => setKeepVolumes(e.target.checked)}
+                onChange={(e) => handleKeepVolumesChange(e.target.checked)}
                 className="w-4 h-4 text-blue-600 focus:ring-blue-500 rounded"
                 disabled={isSaving}
               />
@@ -176,6 +211,16 @@ export default function AppSettingsPage() {
           </button>
         </div>
       </form>
+
+      {/* 未保存変更警告ダイアログ */}
+      <UnsavedChangesDialog
+        isOpen={showUnsavedDialog}
+        onDiscard={() => {
+          setShowUnsavedDialog(false);
+          router.push('/settings');
+        }}
+        onCancel={() => setShowUnsavedDialog(false)}
+      />
     </div>
   );
 }

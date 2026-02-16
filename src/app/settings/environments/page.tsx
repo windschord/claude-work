@@ -2,6 +2,7 @@
 
 import { useEnvironments } from '@/hooks/useEnvironments';
 import { EnvironmentList } from '@/components/environments/EnvironmentList';
+import { BackButton } from '@/components/settings/BackButton';
 
 /**
  * 実行環境設定ページ
@@ -23,14 +24,21 @@ export default function EnvironmentsSettingsPage() {
   } = useEnvironments();
 
   return (
-    <EnvironmentList
-      environments={environments}
-      isLoading={isLoading}
-      error={error}
-      onCreateEnvironment={createEnvironment}
-      onUpdateEnvironment={updateEnvironment}
-      onDeleteEnvironment={deleteEnvironment}
-      onRefresh={fetchEnvironments}
-    />
+    <div>
+      {/* 戻るボタン */}
+      <div className="p-6 pb-0">
+        <BackButton />
+      </div>
+
+      <EnvironmentList
+        environments={environments}
+        isLoading={isLoading}
+        error={error}
+        onCreateEnvironment={createEnvironment}
+        onUpdateEnvironment={updateEnvironment}
+        onDeleteEnvironment={deleteEnvironment}
+        onRefresh={fetchEnvironments}
+      />
+    </div>
   );
 }
