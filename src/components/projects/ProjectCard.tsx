@@ -4,7 +4,7 @@ import { useState, type MouseEvent } from 'react';
 import { Project, useAppStore } from '@/store';
 import { CreateSessionModal } from '@/components/sessions/CreateSessionModal';
 import { useRouter } from 'next/navigation';
-import { RefreshCw, Globe, HardDrive, Container } from 'lucide-react';
+import { RefreshCw, GitBranch, HardDrive, Container } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface ProjectCardProps {
@@ -81,9 +81,9 @@ export function ProjectCard({ project, onDelete, onSettings }: ProjectCardProps)
               {project.name}
             </h3>
             {isRemote && (
-              <span className="inline-flex items-center gap-1 bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200 rounded-full px-2 py-0.5 text-xs font-medium">
-                <Globe className="w-3 h-3" />
-                Remote
+              <span className="inline-flex items-center gap-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded-full px-2 py-0.5 text-xs font-medium">
+                <GitBranch className="w-3 h-3" />
+                リモート
               </span>
             )}
             {cloneLocation === 'docker' && (
