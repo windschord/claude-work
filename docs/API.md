@@ -27,6 +27,102 @@ Content-Type: application/json
 DELETE /api/projects/{id}
 ```
 
+### リモートリポジトリクローン
+
+リモートGitリポジトリをクローンしてプロジェクトとして登録します。
+
+```http
+POST /api/projects/clone
+Content-Type: application/json
+
+{
+  "url": "git@github.com:user/repo.git",
+  "name": "optional-name",
+  "cloneLocation": "docker",
+  "githubPatId": "pat-uuid"
+}
+```
+
+**パラメータ**:
+- `url` (required): リモートリポジトリURL（SSH または HTTPS）
+- `name` (optional): プロジェクト名。未指定時はURLから自動抽出
+- `cloneLocation` (optional): `docker` | `host`（デフォルト: `docker`）
+- `githubPatId` (optional): GitHub PAT ID（HTTPS プライベートリポジトリ用）
+
+**レスポンス** (201):
+```json
+{
+  "project": {
+    "id": "uuid",
+    "name": "repo",
+    "path": "/docker-volumes/claude-repo-{id}",
+    "remote_url": "git@github.com:user/repo.git",
+    "clone_location": "docker"
+  }
+}
+```
+
+**エラー**:
+- 400: 無効なURL形式
+- 409: 同じURLのプロジェクトが既に存在
+- 500: クローン失敗
+
+### リモートリポジトリ更新（Pull）
+
+リモートリポジトリから最新の変更を取得します。
+
+```http
+POST /api/projects/{id}/pull
+```
+
+**レスポンス** (200):
+```json
+{
+  "success": true,
+  "updated": true,
+  "message": "Successfully pulled from remote"
+}
+```
+
+**エラー**:
+- 404: プロジェクトが存在しない、またはリモートURLが未設定
+- 500: Pull失敗
+
+### ブランチ一覧取得
+
+プロジェクトのブランチ一覧を取得します。
+
+```http
+GET /api/projects/{id}/branches
+```
+
+**レスポンス** (200):
+```json
+{
+  "branches": [
+    {
+      "name": "main",
+      "isDefault": true,
+      "isRemote": false
+    },
+    {
+      "name": "feature-branch",
+      "isDefault": false,
+      "isRemote": false
+    },
+    {
+      "name": "origin/main",
+      "isDefault": false,
+      "isRemote": true
+    }
+  ]
+}
+```
+
+**エラー**:
+- 404: プロジェクトが存在しない
+- 500: ブランチ取得失敗
+
 ## セッション API
 
 ### セッション一覧取得
@@ -44,7 +140,8 @@ Content-Type: application/json
 {
   "name": "session-name",
   "prompt": "initial prompt",
-  "environment_id": "host-default"
+  "environment_id": "docker-default",
+  "branch_name": "main"
 }
 ```
 
@@ -52,6 +149,7 @@ Content-Type: application/json
 - `name` (optional): セッション名。未指定時は自動生成
 - `prompt` (required): 初期プロンプト
 - `environment_id` (optional): 実行環境ID。未指定時はデフォルト環境を使用
+- `branch_name` (optional): 作業ブランチ名。未指定時はデフォルトブランチ
 - `dockerMode` (deprecated): Docker モードで実行。`environment_id` を優先使用してください
 
 ### セッション削除
