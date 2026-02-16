@@ -50,6 +50,19 @@ export default function AppSettingsPage() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // 設定読み込み中のガード
+    if (isLoading || _config === null) {
+      toast.error('設定の読み込みが完了していません');
+      return;
+    }
+
+    // タイムアウト値のバリデーション
+    if (!Number.isInteger(timeoutMinutes) || timeoutMinutes < 1 || timeoutMinutes > 30) {
+      toast.error('タイムアウト時間は1から30の整数で指定してください');
+      return;
+    }
+
     setIsSaving(true);
 
     try {
@@ -152,7 +165,7 @@ export default function AppSettingsPage() {
           <button
             type="submit"
             className="px-6 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            disabled={isSaving}
+            disabled={isSaving || isLoading || _config === null}
           >
             {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
             {isSaving ? '保存中...' : '保存'}

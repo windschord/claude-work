@@ -232,7 +232,7 @@ interface SettingCardProps {
 - 詳細なコミットメッセージを作成
 
 **コミット内容**:
-```
+```text
 commit 1fd3d3b
 feat: 設定ページをカード形式のナビゲーションハブに変更
 
