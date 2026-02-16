@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { RemoteRepoService } from '../remote-repo-service';
 import { mkdtempSync, rmSync, existsSync, mkdirSync } from 'fs';
 import { tmpdir } from 'os';
@@ -303,6 +303,137 @@ describe('RemoteRepoService', () => {
       const defaultBranch = await service.getDefaultBranch(localOnly);
 
       expect(defaultBranch).toBe('main');
+    });
+  });
+
+  // DockerAdapter統合テスト
+  describe('DockerAdapter Integration', () => {
+    let mockAdapterFactory: any;
+    let mockAdapter: any;
+
+    beforeEach(() => {
+      mockAdapter = {
+        gitClone: vi.fn(),
+        gitPull: vi.fn(),
+        gitGetBranches: vi.fn(),
+      };
+      mockAdapterFactory = {
+        getAdapter: vi.fn().mockResolvedValue(mockAdapter),
+      };
+    });
+
+    describe('clone with environmentId', () => {
+      it('should use DockerAdapter when environmentId is provided', async () => {
+        const serviceWithAdapter = new RemoteRepoService(mockAdapterFactory);
+
+        mockAdapter.gitClone.mockResolvedValue({
+          success: true,
+          path: '/path/to/repo',
+        });
+
+        const result = await serviceWithAdapter.clone({
+          url: 'git@github.com:user/repo.git',
+          targetDir: '/tmp/test-clone',
+          environmentId: 'docker-env-1',
+        });
+
+        expect(result.success).toBe(true);
+        expect(mockAdapterFactory.getAdapter).toHaveBeenCalledWith('docker-env-1');
+        expect(mockAdapter.gitClone).toHaveBeenCalled();
+      });
+
+      it('should use host execution when environmentId is not provided', async () => {
+        const serviceWithAdapter = new RemoteRepoService(mockAdapterFactory);
+
+        const result = await serviceWithAdapter.clone({
+          url: testRepoPath,
+          targetDir: join(testDir, 'host-clone'),
+        });
+
+        expect(result.success).toBe(true);
+        expect(mockAdapterFactory.getAdapter).not.toHaveBeenCalled();
+        expect(mockAdapter.gitClone).not.toHaveBeenCalled();
+      });
+
+      it('should handle DockerAdapter clone failure', async () => {
+        const serviceWithAdapter = new RemoteRepoService(mockAdapterFactory);
+
+        mockAdapter.gitClone.mockResolvedValue({
+          success: false,
+          error: 'Clone failed',
+        });
+
+        const result = await serviceWithAdapter.clone({
+          url: 'git@github.com:user/repo.git',
+          targetDir: '/tmp/test-clone-fail',
+          environmentId: 'docker-env-1',
+        });
+
+        expect(result.success).toBe(false);
+        expect(result.error).toBe('Clone failed');
+      });
+    });
+
+    describe('pull with environmentId', () => {
+      it('should use DockerAdapter when environmentId is provided', async () => {
+        const serviceWithAdapter = new RemoteRepoService(mockAdapterFactory);
+
+        mockAdapter.gitPull.mockResolvedValue({
+          success: true,
+          updated: true,
+          message: 'Updated',
+        });
+
+        const result = await serviceWithAdapter.pull('/path/to/repo', 'docker-env-1');
+
+        expect(result.success).toBe(true);
+        expect(result.updated).toBe(true);
+        expect(mockAdapterFactory.getAdapter).toHaveBeenCalledWith('docker-env-1');
+        expect(mockAdapter.gitPull).toHaveBeenCalledWith('/path/to/repo');
+      });
+
+      it('should use host execution when environmentId is not provided', async () => {
+        const serviceWithAdapter = new RemoteRepoService(mockAdapterFactory);
+        const clonedPath = join(testDir, 'pull-test-adapter');
+        await serviceWithAdapter.clone({ url: testRepoPath, targetDir: clonedPath });
+
+        const result = await serviceWithAdapter.pull(clonedPath);
+
+        expect(result.success).toBe(true);
+        expect(mockAdapterFactory.getAdapter).not.toHaveBeenCalled();
+        expect(mockAdapter.gitPull).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('getBranches with environmentId', () => {
+      it('should use DockerAdapter when environmentId is provided', async () => {
+        const serviceWithAdapter = new RemoteRepoService(mockAdapterFactory);
+
+        const mockBranches = [
+          { name: 'main', isDefault: true, isRemote: false },
+          { name: 'develop', isDefault: false, isRemote: false },
+        ];
+        mockAdapter.gitGetBranches.mockResolvedValue(mockBranches);
+
+        const result = await serviceWithAdapter.getBranches('/path/to/repo', 'docker-env-1');
+
+        expect(result).toHaveLength(2);
+        expect(result[0].name).toBe('main');
+        expect(mockAdapterFactory.getAdapter).toHaveBeenCalledWith('docker-env-1');
+        expect(mockAdapter.gitGetBranches).toHaveBeenCalledWith('/path/to/repo');
+      });
+
+      it('should use host execution when environmentId is not provided', async () => {
+        const serviceWithAdapter = new RemoteRepoService(mockAdapterFactory);
+        const clonedPath = join(testDir, 'branches-test-adapter');
+        await serviceWithAdapter.clone({ url: testRepoPath, targetDir: clonedPath });
+
+        const result = await serviceWithAdapter.getBranches(clonedPath);
+
+        expect(result.length).toBeGreaterThan(0);
+        expect(mockAdapterFactory.getAdapter).not.toHaveBeenCalled();
+        expect(mockAdapter.gitGetBranches).not.toHaveBeenCalled();
+      });
     });
   });
 });
