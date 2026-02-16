@@ -259,6 +259,154 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 **ステータス**: `DONE`
 **完了サマリー**: コミット `1fd3d3b` 作成完了。
 
+### フェーズ4: 戻るボタンと未保存変更警告の実装
+
+#### タスク4.1: BackButtonコンポーネントの実装
+
+**説明**:
+- 全設定詳細ページで使用される共通の戻るボタンコンポーネントを実装
+- TDD（テスト駆動開発）で実装
+
+**対象ファイル**:
+- 作成: `src/components/settings/BackButton.tsx`
+- 作成: `src/components/settings/__tests__/BackButton.test.tsx`
+
+**受入基準**:
+- [x] BackButtonコンポーネントが作成されている
+- [x] テストが6つ以上ある
+- [x] 全テスト通過
+- [x] ArrowLeftアイコン + 「設定に戻る」テキスト
+- [x] onBeforeNavigateコールバック対応
+
+**詳細**: [TASK-4.1.md](phase-4/TASK-4.1.md) @phase-4/TASK-4.1.md
+
+**依存関係**: なし
+**推定工数**: 30分
+**ステータス**: `DONE`
+
+#### タスク4.2: UnsavedChangesDialogコンポーネントの実装
+
+**説明**:
+- 未保存の変更がある場合に警告ダイアログを表示するコンポーネントを実装
+- TDD（テスト駆動開発）で実装
+
+**対象ファイル**:
+- 作成: `src/components/settings/UnsavedChangesDialog.tsx`
+- 作成: `src/components/settings/__tests__/UnsavedChangesDialog.test.tsx`
+
+**受入基準**:
+- [x] UnsavedChangesDialogコンポーネントが作成されている
+- [x] テストが9つ以上ある
+- [x] 全テスト通過
+- [x] キーボード操作対応（ESC/Enter）
+- [x] 破棄ボタンは赤色
+
+**詳細**: [TASK-4.2.md](phase-4/TASK-4.2.md) @phase-4/TASK-4.2.md
+
+**依存関係**: なし
+**推定工数**: 40分
+**ステータス**: `DONE`
+
+#### タスク4.3: /settings/appページでの統合
+
+**説明**:
+- `/settings/app` ページに BackButton と UnsavedChangesDialog を統合
+- フォーム変更検知機能を実装
+
+**対象ファイル**:
+- 修正: `src/app/settings/app/page.tsx`
+- 修正: `src/app/settings/app/__tests__/page.test.tsx`
+
+**受入基準**:
+- [x] BackButtonがページ上部に表示される
+- [x] フォーム変更時に未保存フラグが立つ
+- [x] 未保存変更時にダイアログが表示される
+- [x] 保存後にフラグがリセットされる
+
+**詳細**: [TASK-4.3.md](phase-4/TASK-4.3.md) @phase-4/TASK-4.3.md
+
+**依存関係**: タスク4.1, タスク4.2
+**推定工数**: 40分
+**ステータス**: `DONE`
+
+#### タスク4.4: /settings/environmentsページへのBackButton追加
+
+**説明**:
+- `/settings/environments` ページに BackButton を追加
+
+**対象ファイル**:
+- 修正: `src/app/settings/environments/page.tsx`
+
+**受入基準**:
+- [x] BackButtonがページ上部に表示される
+- [x] クリック時に `/settings` に遷移する
+
+**詳細**: [TASK-4.4.md](phase-4/TASK-4.4.md) @phase-4/TASK-4.4.md
+
+**依存関係**: タスク4.1
+**推定工数**: 15分
+**ステータス**: `DONE`
+
+#### タスク4.5: /settings/github-patページへのBackButton追加
+
+**説明**:
+- `/settings/github-pat` ページに BackButton を追加
+
+**対象ファイル**:
+- 修正: `src/app/settings/github-pat/page.tsx`
+
+**受入基準**:
+- [x] BackButtonがページ上部に表示される
+- [x] クリック時に `/settings` に遷移する
+
+**詳細**: [TASK-4.5.md](phase-4/TASK-4.5.md) @phase-4/TASK-4.5.md
+
+**依存関係**: タスク4.1
+**推定工数**: 15分
+**ステータス**: `DONE`
+
+#### タスク4.6: 動作確認とコミット
+
+**説明**:
+- Story 7（戻るボタン）とStory 8（未保存変更警告）の全機能を確認
+- 最終コミットを作成
+
+**受入基準**:
+- [x] 全設定ページで戻るボタンが動作する
+- [x] 未保存変更警告が正しく動作する
+- [x] 全テスト通過
+- [x] ESLintエラーゼロ
+- [x] ビルド成功
+
+**詳細**: [TASK-4.6.md](phase-4/TASK-4.6.md) @phase-4/TASK-4.6.md
+
+**依存関係**: タスク4.1, タスク4.2, タスク4.3, タスク4.4, タスク4.5
+**推定工数**: 30分
+**ステータス**: `DONE`
+
+## 並列実行グループ
+
+### グループA（並列実行可能）
+
+| タスク | 対象ファイル | 依存 |
+|--------|-------------|------|
+| TASK-4.1 | src/components/settings/BackButton.tsx | なし |
+| TASK-4.2 | src/components/settings/UnsavedChangesDialog.tsx | なし |
+
+### グループB（グループA完了後に並列実行可能）
+
+| タスク | 対象ファイル | 依存 |
+|--------|-------------|------|
+| TASK-4.3 | src/app/settings/app/page.tsx | TASK-4.1, TASK-4.2 |
+| TASK-4.4 | src/app/settings/environments/page.tsx | TASK-4.1 |
+| TASK-4.5 | src/app/settings/github-pat/page.tsx | TASK-4.1 |
+
+### グループC（グループB完了後）
+
+| タスク | 対象ファイル | 依存 |
+|--------|-------------|------|
+| TASK-4.6 | - | TASK-4.1〜4.5 |
+
 ## タスクステータスの凡例
 
 - `TODO` - 未着手
@@ -269,15 +417,18 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 
 ## 進捗サマリー
 
-**全体進捗**: 8/8 タスク完了（100%）
+**全体進捗**: 14/14 タスク完了（100%）
 
 | フェーズ | 完了/全体 | 進捗率 |
 |---------|----------|--------|
 | フェーズ1: 要件分析と設計 | 2/2 | 100% |
 | フェーズ2: 実装 | 4/4 | 100% |
 | フェーズ3: 検証とコミット | 2/2 | 100% |
+| フェーズ4: 戻るボタンと未保存変更警告 | 6/6 | 100% |
 
 ## 実装サマリー
+
+### フェーズ1-3（完了）
 
 - **作成ファイル**: 1ファイル（`src/app/settings/app/page.tsx`）
 - **修正ファイル**: 1ファイル（`src/app/settings/page.tsx`）
@@ -285,6 +436,21 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 - **削除行数**: 149行
 - **コミット**: `1fd3d3b`
 - **実装期間**: 約3時間（要件確認→実装→検証）
+
+### フェーズ4（完了）
+
+- **作成ファイル**: 4ファイル
+  - `src/components/settings/BackButton.tsx` - 28行
+  - `src/components/settings/__tests__/BackButton.test.tsx` - 122行（6テスト）
+  - `src/components/settings/UnsavedChangesDialog.tsx` - 60行
+  - `src/components/settings/__tests__/UnsavedChangesDialog.test.tsx` - 123行（9テスト）
+- **修正ファイル**: 3ファイル
+  - `src/app/settings/app/page.tsx` - BackButton/UnsavedChangesDialog統合
+  - `src/app/settings/environments/page.tsx` - BackButton追加
+  - `src/app/settings/github-pat/page.tsx` - BackButton追加
+- **テスト結果**: 15個全てのテスト通過
+- **ブラウザ検証**: 全機能正常動作確認
+- **実装期間**: 約2.5時間（TDD実装→ブラウザ検証）
 
 ## リスクと軽減策
 

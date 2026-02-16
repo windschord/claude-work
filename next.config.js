@@ -9,10 +9,6 @@ const nextConfig = {
     // Ignore build errors in excluded directories
     ignoreBuildErrors: false,
   },
-  eslint: {
-    // Ignore eslint errors in excluded directories
-    ignoreDuringBuilds: false,
-  },
   // Exclude specific directories from being processed
   pageExtensions: ['tsx', 'ts', 'jsx', 'js'],
   // Transpile packages that have Turbopack compatibility issues

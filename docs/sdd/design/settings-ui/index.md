@@ -13,6 +13,8 @@
 - [x] テーマ要件: ダークモード対応必須
 - [x] 技術スタック: Next.js 15 App Router, Tailwind CSS, lucide-react
 - [x] カード構成: アプリケーション設定、実行環境、GitHub PAT
+- [x] 戻るボタン: 全設定詳細ページにページ上部に配置
+- [x] 未保存変更警告: アプリ設定ページで実装、破棄/キャンセルの選択肢
 
 ### 不明/要確認の情報
 
@@ -236,6 +238,197 @@ export default function AppSettingsPage() {
 - `GET /api/settings/config`: 設定の取得
 - `PUT /api/settings/config`: 設定の保存
 
+### コンポーネント4: BackButton
+
+**目的**: 設定詳細ページから設定ページに戻るボタン
+
+**責務**:
+- /settingsへのナビゲーション提供
+- 未保存変更がある場合の警告（AppSettingsPageのみ）
+- 視覚的に識別しやすい配置
+
+**Props定義**:
+```typescript
+interface BackButtonProps {
+  onBeforeNavigate?: () => boolean; // 戻る前のチェック関数（false返却で中断）
+}
+```
+
+**実装詳細**:
+```tsx
+function BackButton({ onBeforeNavigate }: BackButtonProps) {
+  const router = useRouter();
+
+  const handleClick = () => {
+    // 戻る前のチェック（未保存変更の確認など）
+    if (onBeforeNavigate && !onBeforeNavigate()) {
+      return; // ナビゲーション中断
+    }
+    router.push('/settings');
+  };
+
+  return (
+    <button
+      onClick={handleClick}
+      className="inline-flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+    >
+      <ArrowLeft className="w-4 h-4" />
+      設定に戻る
+    </button>
+  );
+}
+```
+
+**スタイリング戦略**:
+- **基本スタイル**: インラインフレックス、アイコン+テキストの配置
+- **ホバーエフェクト**: テキストカラーを青色に変更
+- **トランジション**: `transition-colors`（スムーズなカラー変化）
+- **ダークモード**: `dark:` プレフィックスで全カラーを対応
+- **アイコン**: lucide-reactの `ArrowLeft`（16px × 16px）
+
+**配置**:
+- ページ上部（タイトルの上または横）
+- 全ての設定詳細ページで統一的な位置に配置
+
+### コンポーネント5: UnsavedChangesDialog
+
+**目的**: 未保存の変更がある場合に警告ダイアログを表示
+
+**責務**:
+- 未保存変更の警告メッセージ表示
+- ユーザー選択（破棄/キャンセル）の受付
+- キーボード操作対応（ESC/Enter）
+
+**Props定義**:
+```typescript
+interface UnsavedChangesDialogProps {
+  isOpen: boolean;                // ダイアログ表示状態
+  onDiscard: () => void;          // 「破棄して戻る」アクション
+  onCancel: () => void;           // 「キャンセル」アクション
+}
+```
+
+**実装詳細**:
+```tsx
+function UnsavedChangesDialog({ isOpen, onDiscard, onCancel }: UnsavedChangesDialogProps) {
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onCancel();
+      } else if (e.key === 'Enter') {
+        onDiscard();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onDiscard, onCancel]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+        {/* タイトル */}
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+          未保存の変更があります
+        </h2>
+
+        {/* メッセージ */}
+        <p className="text-gray-600 dark:text-gray-400 mb-6">
+          変更が保存されていません。破棄しますか？
+        </p>
+
+        {/* アクションボタン */}
+        <div className="flex gap-3 justify-end">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+          >
+            キャンセル
+          </button>
+          <button
+            onClick={onDiscard}
+            className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors"
+          >
+            破棄して戻る
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+```
+
+**スタイリング戦略**:
+- **モーダルオーバーレイ**: `fixed inset-0 bg-black bg-opacity-50`（半透明背景）
+- **ダイアログボックス**: 中央配置、白/ダーク背景、角丸、シャドウ
+- **ボタン配置**: フレックスボックスで右寄せ、3単位の間隔
+- **破棄ボタン**: 赤色（警告色）を使用
+- **キャンセルボタン**: グレー（中立色）を使用
+- **ダークモード**: `dark:` プレフィックスで全カラーを対応
+
+**キーボード操作**:
+- **ESCキー**: キャンセル
+- **Enterキー**: 破棄して戻る
+
+### コンポーネント6: AppSettingsPage（拡張）
+
+**変更点**: 未保存変更の検知と警告ダイアログの統合
+
+**追加する状態管理**:
+```typescript
+const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false); // 未保存変更フラグ
+const [showUnsavedDialog, setShowUnsavedDialog] = useState(false); // ダイアログ表示状態
+```
+
+**フォーム変更検知**:
+```typescript
+// タイムアウト値が変更された時
+const handleTimeoutChange = (value: number) => {
+  setTimeoutMinutes(value);
+  setHasUnsavedChanges(true);
+};
+
+// デバッグモードが変更された時
+const handleKeepVolumesChange = (checked: boolean) => {
+  setKeepVolumes(checked);
+  setHasUnsavedChanges(true);
+};
+```
+
+**保存時の変更フラグリセット**:
+```typescript
+const handleSave = async (e: React.FormEvent) => {
+  // ... 保存処理
+  setHasUnsavedChanges(false); // 保存後にフラグをリセット
+};
+```
+
+**戻るボタンの統合**:
+```typescript
+const handleBeforeNavigate = () => {
+  if (hasUnsavedChanges) {
+    setShowUnsavedDialog(true);
+    return false; // ナビゲーション中断
+  }
+  return true; // ナビゲーション許可
+};
+
+// JSX
+<BackButton onBeforeNavigate={handleBeforeNavigate} />
+<UnsavedChangesDialog
+  isOpen={showUnsavedDialog}
+  onDiscard={() => {
+    setShowUnsavedDialog(false);
+    router.push('/settings');
+  }}
+  onCancel={() => setShowUnsavedDialog(false)}
+/>
+```
+
 ## データフロー
 
 ### ナビゲーションフロー
@@ -288,6 +481,62 @@ sequenceDiagram
     DB-->>API: 更新結果
     API-->>Page: 成功レスポンス
     Page->>User: 成功トースト表示
+```
+
+### 未保存変更警告のデータフロー
+
+```mermaid
+sequenceDiagram
+    participant User as ユーザー
+    participant Page as AppSettingsPage
+    participant BackBtn as BackButton
+    participant Dialog as UnsavedChangesDialog
+    participant Router as Next.js Router
+
+    User->>Page: フォーム値を変更
+    Page->>Page: hasUnsavedChanges = true
+
+    User->>BackBtn: 戻るボタンクリック
+    BackBtn->>Page: onBeforeNavigate()
+
+    alt 未保存変更あり
+        Page->>Page: hasUnsavedChanges === true
+        Page->>Dialog: showUnsavedDialog = true
+        Dialog->>User: 警告ダイアログ表示
+
+        alt ユーザーが「破棄して戻る」を選択
+            User->>Dialog: onDiscard()
+            Dialog->>Page: showUnsavedDialog = false
+            Page->>Router: push('/settings')
+            Router->>User: 設定ページに遷移
+        else ユーザーが「キャンセル」を選択
+            User->>Dialog: onCancel()
+            Dialog->>Page: showUnsavedDialog = false
+            Page->>User: 現在のページに留まる
+        end
+    else 未保存変更なし
+        Page->>Router: push('/settings')
+        Router->>User: 設定ページに遷移
+    end
+```
+
+### 戻るボタンのナビゲーションフロー
+
+```mermaid
+sequenceDiagram
+    participant User as ユーザー
+    participant DetailPage as 設定詳細ページ<br/>(/settings/app, etc.)
+    participant BackBtn as BackButton
+    participant Hub as /settings
+
+    User->>DetailPage: ページアクセス
+    DetailPage->>User: 戻るボタン + 設定フォーム表示
+
+    User->>BackBtn: 戻るボタンクリック
+    BackBtn->>DetailPage: onBeforeNavigate()
+    DetailPage-->>BackBtn: true（ナビゲーション許可）
+    BackBtn->>Hub: 遷移
+    Hub->>User: カード形式ナビゲーションハブ表示
 ```
 
 ## UI/UX設計
@@ -433,18 +682,86 @@ sequenceDiagram
 - 既存コンポーネントとの一貫性
 - ユーザー体験として適切な速度（速すぎず遅すぎず）
 
+### 決定6: 戻るボタンの実装方法
+
+**検討した選択肢**:
+1. コールバック関数による制御（onBeforeNavigate）
+2. React Router のブロックAPI
+3. ブラウザのbeforeunloadイベント
+
+**決定**: 選択肢1（コールバック関数による制御）
+
+**根拠**:
+- Next.js App Routerに適した実装
+- 柔軟な制御が可能（ページごとに異なる動作を実装可能）
+- コンポーネントの再利用性が高い
+
+### 決定7: 未保存変更の検知方法
+
+**検討した選択肢**:
+1. useState による変更フラグ管理
+2. フォームライブラリ（react-hook-form）の dirtyフィールド
+3. 初期値との比較による検知
+
+**決定**: 選択肢1（useState による変更フラグ管理）
+
+**根拠**:
+- シンプルで理解しやすい
+- 既存コードに新規依存を追加しない
+- フォームが単純なため、ライブラリ導入の必要性が低い
+
+### 決定8: 警告ダイアログのUI実装
+
+**検討した選択肢**:
+1. カスタムモーダルコンポーネント
+2. Headless UI Dialogコンポーネント
+3. ブラウザネイティブのconfirm
+
+**決定**: 選択肢1（カスタムモーダルコンポーネント）
+
+**根拠**:
+- デザインの完全な制御が可能
+- ダークモード対応が容易
+- キーボード操作のカスタマイズが可能
+- ブラウザネイティブのconfirmはデザインが固定され、ダークモード非対応
+
+### 決定9: 破棄ボタンの色
+
+**検討した選択肢**:
+1. 赤色（bg-red-600）- 警告色
+2. 青色（bg-blue-600）- プライマリ色
+3. グレー（bg-gray-600）- 中立色
+
+**決定**: 選択肢1（赤色 - 警告色）
+
+**根拠**:
+- 破棄は破壊的なアクションであることを視覚的に示す
+- ユーザーが慎重に判断するよう促す
+- UIデザインの一般的なベストプラクティス
+
 ## ファイル構成
 
 ```text
 src/app/settings/
-├── page.tsx                 # 修正: カード形式ナビゲーションハブ（90行）
-│   ├── SettingCard          # 新規: カードコンポーネント
-│   └── SettingsPage         # 修正: ページコンポーネント
-├── layout.tsx              # 既存: 共通レイアウト（変更なし）
-└── app/
-    └── page.tsx            # 新規: アプリケーション設定（164行）
-        └── AppSettingsPage  # 新規: ページコンポーネント
+├── page.tsx                        # 修正: カード形式ナビゲーションハブ（90行）
+│   ├── SettingCard                 # 新規: カードコンポーネント
+│   └── SettingsPage                # 修正: ページコンポーネント
+├── layout.tsx                     # 既存: 共通レイアウト（変更なし）
+├── app/
+│   └── page.tsx                   # 修正: アプリケーション設定（220行）
+│       ├── BackButton             # 新規: 戻るボタンコンポーネント
+│       ├── UnsavedChangesDialog   # 新規: 未保存変更警告ダイアログ
+│       └── AppSettingsPage        # 修正: ページコンポーネント（変更検知追加）
+├── environments/
+│   └── page.tsx                   # 修正: 実行環境管理（BackButton追加）
+└── github-pat/
+    └── page.tsx                   # 修正: GitHub PAT管理（BackButton追加）
 ```
+
+**追加/修正ファイル**:
+1. `src/app/settings/app/page.tsx` - BackButton、UnsavedChangesDialog、変更検知ロジック追加
+2. `src/app/settings/environments/page.tsx` - BackButton追加
+3. `src/app/settings/github-pat/page.tsx` - BackButton追加
 
 ## セキュリティ考慮事項
 
@@ -487,6 +804,22 @@ src/app/settings/
 - WCAG AA基準準拠のカラーコントラスト比
 - ダークモード時も適切なコントラストを維持
 
+### 戻るボタンのアクセシビリティ
+
+- `<button>` 要素による適切なフォーカス対応
+- Tabキーでフォーカス可能
+- Enterキーまたはスペースキーでクリック可能
+- アイコン+テキストで視覚的に理解しやすい
+
+### 警告ダイアログのアクセシビリティ
+
+- キーボード操作対応:
+  - ESCキー: キャンセル
+  - Enterキー: 破棄して戻る
+- モーダルオーバーレイによるフォーカストラップ（ダイアログ外のクリックは無効）
+- 明確なメッセージとアクションボタン
+- カラーコントラストWCAG AA基準準拠
+
 ## エラー処理
 
 ### ナビゲーションエラー
@@ -499,6 +832,16 @@ src/app/settings/
 - API通信エラー: react-hot-toastでエラーメッセージ表示
 - ローディング状態: Loader2アイコンで視覚的フィードバック
 - 保存エラー: エラーメッセージをトースト表示
+
+### 戻るボタンのエラー
+
+- ナビゲーションエラー: Next.js Routerによる標準的なエラーハンドリング
+- onBeforeNavigate関数のエラー: tryキャッチでキャッチし、ナビゲーションを継続
+
+### 警告ダイアログのエラー
+
+- キーボードイベントリスナーのクリーンアップ: useEffectのreturnでリスナー削除
+- ダイアログが閉じられない場合: ESCキーで強制クローズ可能
 
 ## 拡張性
 
@@ -530,3 +873,7 @@ src/app/settings/
 2. **検索機能**: 設定項目の検索機能
 3. **お気に入り機能**: よく使う設定へのクイックアクセス
 4. **アニメーション強化**: カード表示時のフェードインアニメーション
+5. **未保存変更の自動保存**: 一定時間ごとに自動保存する機能
+6. **変更履歴の表示**: 設定変更の履歴を表示する機能
+7. **戻るボタンのパンくずリスト化**: 設定 > アプリケーション設定 のような階層表示
+8. **警告ダイアログのアニメーション**: フェードイン/アウトアニメーション追加
