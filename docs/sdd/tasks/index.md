@@ -8,6 +8,7 @@
 |-------------|------|-----|-----------|
 | [Drizzle ORM移行](drizzle-migration/index.md) | Prisma → Drizzle ORM への完全移行 | 28/31 タスク完了 | 進行中 |
 | [設定UI改善](settings-ui/index.md) | 設定ページのナビゲーション改善 | 8/8 タスク完了 | 完了 |
+| [ハイブリッド設計](hybrid-clone/index.md) | ホスト環境/Docker環境でのプロジェクトclone | 0/19 タスク未着手 | 計画中 |
 
 ## タスク管理
 

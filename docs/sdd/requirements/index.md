@@ -8,6 +8,7 @@
 |-------------|------|-----------|
 | [Drizzle ORM移行](drizzle-migration/index.md) | Prisma → Drizzle ORM への完全移行 | 進行中 |
 | [設定UI改善](settings-ui/index.md) | 設定ページのナビゲーション改善 | 完了 |
+| [ハイブリッド設計](hybrid-clone/index.md) | ホスト環境/Docker環境でのプロジェクトclone | 計画中 |
 
 ## ドキュメント構造
 
