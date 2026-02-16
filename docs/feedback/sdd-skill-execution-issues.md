@@ -164,17 +164,17 @@ if (skillTimeout) {
 
 以下のドキュメントを手動作成し、正常に完了：
 
-- `docs/sdd-docker-worktree-fix/requirements/index.md`
-- `docs/sdd-docker-worktree-fix/requirements/stories/US-001.md`
-- `docs/sdd-docker-worktree-fix/requirements/stories/US-002.md`
-- `docs/sdd-docker-worktree-fix/requirements/nfr/reliability.md`
-- `docs/sdd-docker-worktree-fix/requirements/nfr/compatibility.md`
-- `docs/sdd-docker-worktree-fix/design/index.md`
-- `docs/sdd-docker-worktree-fix/design/components/docker-adapter.md`
-- `docs/sdd-docker-worktree-fix/tasks/index.md`
-- `docs/sdd-docker-worktree-fix/tasks/phase-1/TASK-001.md`
-- `docs/sdd-docker-worktree-fix/tasks/phase-1/TASK-002.md`
-- `docs/sdd-docker-worktree-fix/tasks/phase-1/TASK-003.md`
+- `docs/sdd/requirements/docker-worktree-fix/index.md`
+- `docs/sdd/requirements/docker-worktree-fix/stories/US-001.md`
+- `docs/sdd/requirements/docker-worktree-fix/stories/US-002.md`
+- `docs/sdd/requirements/docker-worktree-fix/nfr/reliability.md`
+- `docs/sdd/requirements/docker-worktree-fix/nfr/compatibility.md`
+- `docs/sdd/design/docker-worktree-fix/index.md`
+- `docs/sdd/design/docker-worktree-fix/components/docker-adapter.md`
+- `docs/sdd/tasks/docker-worktree-fix/index.md`
+- `docs/sdd/tasks/docker-worktree-fix/phase-1/TASK-001.md`
+- `docs/sdd/tasks/docker-worktree-fix/phase-1/TASK-002.md`
+- `docs/sdd/tasks/docker-worktree-fix/phase-1/TASK-003.md`
 
 すべてEARS記法に準拠し、要件・設計・タスクの整合性も確保されています。
 
