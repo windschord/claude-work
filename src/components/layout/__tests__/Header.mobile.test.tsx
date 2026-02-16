@@ -34,9 +34,9 @@ describe('Header - Mobile Optimization', () => {
     expect(hamburgerButton).toHaveClass('p-2');
   });
 
-  it('実行環境ボタンのタップ領域が確保されている', () => {
+  it('設定ボタンのタップ領域が確保されている', () => {
     render(<Header />);
-    const environmentButton = screen.getByLabelText('実行環境');
+    const environmentButton = screen.getByLabelText('設定');
     expect(environmentButton).toHaveClass('p-2');
   });
 
@@ -47,9 +47,9 @@ describe('Header - Mobile Optimization', () => {
     expect(hamburgerButton).toHaveClass('dark:hover:bg-gray-800');
   });
 
-  it('実行環境ボタンにホバー効果が設定されている', () => {
+  it('設定ボタンにホバー効果が設定されている', () => {
     render(<Header />);
-    const environmentButton = screen.getByLabelText('実行環境');
+    const environmentButton = screen.getByLabelText('設定');
     expect(environmentButton).toHaveClass('hover:bg-gray-100');
     expect(environmentButton).toHaveClass('dark:hover:bg-gray-800');
   });
@@ -57,7 +57,7 @@ describe('Header - Mobile Optimization', () => {
   it('ボタンに角丸が設定されている', () => {
     render(<Header />);
     const hamburgerButton = screen.getByLabelText('メニュー');
-    const environmentButton = screen.getByLabelText('実行環境');
+    const environmentButton = screen.getByLabelText('設定');
 
     expect(hamburgerButton).toHaveClass('rounded-lg');
     expect(environmentButton).toHaveClass('rounded-lg');
@@ -66,7 +66,7 @@ describe('Header - Mobile Optimization', () => {
   it('トランジション効果が設定されている', () => {
     render(<Header />);
     const hamburgerButton = screen.getByLabelText('メニュー');
-    const environmentButton = screen.getByLabelText('実行環境');
+    const environmentButton = screen.getByLabelText('設定');
 
     expect(hamburgerButton).toHaveClass('transition-colors');
     expect(environmentButton).toHaveClass('transition-colors');

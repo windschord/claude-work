@@ -1,5 +1,24 @@
 # 要件定義: Prisma から Drizzle ORM への移行
 
+## 情報の明確性チェック
+
+### ユーザーから明示された情報
+
+- [x] 技術スタック: Drizzle ORM + better-sqlite3
+- [x] アーキテクチャパターン: 既存パターンを維持（シングルトン）
+- [x] フレームワーク: Next.js 15 App Router（既存）
+- [x] データベース: SQLite（継続使用）
+- [x] 移行方式: 完全置換（Prismaを完全削除）
+- [x] データ移行: 不要（リセット可の確認済み）
+- [x] クエリスタイル: Relational queries（Prismaに近い宣言的API）
+- [x] 既存スキーマ: 6つのモデル（Project, Session, Message, Prompt, RunScript, ExecutionEnvironment）
+
+### 不明/要確認の情報
+
+なし（すべて確認済み）
+
+---
+
 ## 概要
 
 ClaudeWorkプロジェクトにおいて、現在使用しているPrisma ORMをDrizzle ORMに完全置換する。
@@ -67,9 +86,73 @@ SQLiteデータベースは継続使用し、既存のスキーマ構造を維�
 - better-sqlite3: SQLiteドライバー（既存）
 - @types/better-sqlite3: 型定義（既存）
 
+## 技術的制約
+
+- **SQLite**: データベースエンジンはSQLiteを継続使用
+- **Next.js 15 App Router**: 既存のフレームワーク構成を維持
+- **better-sqlite3**: SQLiteドライバーは既存のものを使用
+- **TypeScript**: 型安全性を維持
+
 ## スコープ外
 
 - データベースエンジンの変更（SQLiteを継続使用）
 - 既存データの移行（リセット可の確認済み）
 - APIレスポンス形式の変更
 - 新規機能の追加
+
+## 成功指標
+
+1. **完全移行**: Prisma関連のコードとファイルが完全に削除されている
+2. **テスト通過**: 全ての既存テストがDrizzle移行後もパスする
+3. **性能維持**: クエリパフォーマンスがPrisma使用時と同等以上
+4. **型安全性**: TypeScriptの型推論が正しく機能し、コンパイルエラーがない
+5. **開発体験向上**: Drizzle Studioで視覚的なデータベース確認が可能
+
+## リスク管理
+
+### リスク1: クエリ変換の漏れ
+
+**影響度**: 高
+**発生確率**: 中
+**軽減策**:
+- `grep -r "prisma" src/` で残存箇所を確認
+- TypeScriptコンパイルエラーで検出
+- 全テストの実行で動作確認
+
+### リスク2: リレーションクエリの動作差異
+
+**影響度**: 中
+**発生確率**: 中
+**軽減策**:
+- 既存テストでカバー
+- 手動での動作確認
+- Drizzle Relational queriesの十分な理解
+
+### リスク3: エラーハンドリングの変更
+
+**影響度**: 中
+**発生確率**: 低
+**軽減策**:
+- Prismaエラーコード（P2002等）をDrizzleエラーメッセージに変換
+- エラーハンドリングのテストを追加
+- 既存のバリデーションロジックを維持
+
+### リスク4: パフォーマンスの劣化
+
+**影響度**: 中
+**発生確率**: 低
+**軽減策**:
+- better-sqlite3のWALモード有効化
+- インデックスの維持
+- 必要に応じてクエリの最適化
+
+## 用語集
+
+- **ORM (Object-Relational Mapping)**: オブジェクト指向プログラミング言語とリレーショナルデータベース間のデータ変換を行うプログラミング技法
+- **Prisma**: Node.js/TypeScript用の次世代ORM
+- **Drizzle ORM**: 軽量でタイプセーフなTypeScript ORM
+- **Relational queries**: リレーションを含むクエリを宣言的に記述できるDrizzleのクエリAPI
+- **drizzle-kit**: Drizzle ORMのマイグレーション・スキーマ管理ツール
+- **better-sqlite3**: Node.js用の高速なSQLite3バインディング
+- **WALモード (Write-Ahead Logging)**: SQLiteのパフォーマンスを向上させる機能
+- **スキーマ同期**: データベーススキーマを定義ファイルと同期する操作
