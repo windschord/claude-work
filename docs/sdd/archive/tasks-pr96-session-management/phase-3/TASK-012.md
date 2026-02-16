@@ -270,6 +270,6 @@ DockerAdapterにコンテナ起動待機機能を実装しました。
 
 ## 参照
 
-- [要件定義: US-003](../../requirements/stories/US-003.md)
-- [設計: DockerAdapter](../../design/components/docker-adapter.md)
-- [設計決定: DEC-005](../../design/decisions/DEC-005.md)
+- [要件定義: US-003](../../requirements-pr96-session-management/stories/US-003.md)
+- [設計: DockerAdapter](../../design-pr96-session-management/components/docker-adapter.md)
+- [設計決定: DEC-005](../../design-pr96-session-management/decisions/DEC-005.md)

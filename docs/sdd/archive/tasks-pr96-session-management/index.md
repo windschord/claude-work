@@ -4,8 +4,8 @@
 
 本ドキュメントは、以下の文書に基づいて分解された実装タスクの一覧です。
 
-- 要件定義書: [docs/sdd/requirements/pr96-session-management/index.md](../requirements/pr96-session-management/index.md) @../requirements/pr96-session-management/index.md
-- 技術設計書: [docs/sdd/design/pr96-session-management/index.md](../design-pr96-session-management/index.md) @../design-pr96-session-management/index.md
+- 要件定義書: [docs/sdd/archive/requirements-pr96-session-management/index.md](../requirements-pr96-session-management/index.md) @../requirements-pr96-session-management/index.md
+- 技術設計書: [docs/sdd/archive/design-pr96-session-management/index.md](../design-pr96-session-management/index.md) @../design-pr96-session-management/index.md
 
 ## 進捗サマリ
 

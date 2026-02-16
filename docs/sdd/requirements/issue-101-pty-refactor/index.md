@@ -17,7 +17,7 @@ ClaudeWorkのPTY/セッション管理における構造的な問題を根本解
 #40 #41 #44 #49 #77 #85 #87 #91 #92 #93 #101
 
 **参照ドキュメント:**
-- 設計原則: [docs/design-principles-pty-session-management.md](../../design-principles-pty-session-management.md)
+- 設計原則: [docs/design-principles-pty-session-management.md](../../../design-principles-pty-session-management.md)
 
 ## ユーザーストーリー一覧
 

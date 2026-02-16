@@ -2,7 +2,7 @@
 
 ## 実施日時
 
-2026-02-17
+2026-02-16
 
 ## 検証概要
 
@@ -23,7 +23,7 @@ docs/配下のSDD関連ドキュメントをdocs/sdd/配下に統合移行した
 
 #### docs直下のディレクトリ（最終状態）
 
-```
+```text
 docs/
 ├── docker-process-api/   # Docker process API設計文書
 ├── feedback/             # フィードバック・課題
@@ -33,7 +33,7 @@ docs/
 
 #### sdd配下の構造
 
-```
+```text
 docs/sdd/
 ├── design/               # 技術設計ドキュメント（35ファイル）
 │   ├── index.md
