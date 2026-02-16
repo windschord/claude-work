@@ -95,7 +95,11 @@ export default function AppSettingsPage() {
       }
 
       const data = await response.json();
-      setConfig(data.config);
+      const config = data.config;
+      setConfig(config);
+      // サーバーから返却された値で状態を同期
+      setTimeoutMinutes(config?.git_clone_timeout_minutes ?? timeoutMinutes);
+      setKeepVolumes(config?.debug_mode_keep_volumes ?? keepVolumes);
       setHasUnsavedChanges(false); // 保存後にフラグをリセット
       toast.success('設定を保存しました');
     } catch (error) {
@@ -163,9 +167,14 @@ export default function AppSettingsPage() {
               min="1"
               max="30"
               value={timeoutMinutes}
-              onChange={(e) => handleTimeoutChange(Number(e.target.value))}
+              onChange={(e) => {
+                const value = e.currentTarget.valueAsNumber;
+                if (!Number.isNaN(value)) {
+                  handleTimeoutChange(value);
+                }
+              }}
               className="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-100"
-              disabled={isSaving}
+              disabled={isSaving || isLoading || _config === null}
             />
             <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
               リモートリポジトリのclone時のタイムアウト時間を設定します（1-30分）。
@@ -185,7 +194,7 @@ export default function AppSettingsPage() {
                 checked={keepVolumes}
                 onChange={(e) => handleKeepVolumesChange(e.target.checked)}
                 className="w-4 h-4 text-blue-600 focus:ring-blue-500 rounded"
-                disabled={isSaving}
+                disabled={isSaving || isLoading || _config === null}
               />
               <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">
                 Dockerボリュームを保持する

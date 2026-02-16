@@ -743,12 +743,12 @@ sequenceDiagram
 
 ```text
 src/app/settings/
-├── page.tsx                        # 修正: カード形式ナビゲーションハブ（90行）
+├── page.tsx                        # 修正: カード形式ナビゲーションハブ（89行）
 │   ├── SettingCard                 # 新規: カードコンポーネント
 │   └── SettingsPage                # 修正: ページコンポーネント
 ├── layout.tsx                     # 既存: 共通レイアウト（変更なし）
 ├── app/
-│   └── page.tsx                   # 修正: アプリケーション設定（220行）
+│   └── page.tsx                   # 修正: アプリケーション設定（235行）
 │       ├── BackButton             # 新規: 戻るボタンコンポーネント
 │       ├── UnsavedChangesDialog   # 新規: 未保存変更警告ダイアログ
 │       └── AppSettingsPage        # 修正: ページコンポーネント（変更検知追加）
