@@ -99,6 +99,21 @@ const DEFAULT_HOST_ENVIRONMENT = {
 } as const;
 
 /**
+ * デフォルトDocker環境の定数
+ */
+const DEFAULT_DOCKER_ENVIRONMENT = {
+  id: 'docker-default',
+  name: 'Default Docker',
+  type: 'DOCKER',
+  description: 'デフォルトのDocker環境',
+  config: JSON.stringify({
+    imageName: 'claude-code-sandboxed',
+    imageTag: 'latest',
+  }),
+  is_default: true,
+} as const;
+
+/**
  * EnvironmentService
  * 実行環境のCRUD操作と状態管理
  */
@@ -316,6 +331,40 @@ export class EnvironmentService {
     }).run();
 
     logger.info('デフォルト環境を作成しました', { id: DEFAULT_HOST_ENVIRONMENT.id });
+  }
+
+  /**
+   * デフォルトDocker環境を取得または作成する
+   * @returns デフォルトDocker環境
+   */
+  async ensureDefaultEnvironment(): Promise<ExecutionEnvironment> {
+    // Docker環境の検索
+    const existing = db.select().from(schema.executionEnvironments)
+      .where(eq(schema.executionEnvironments.type, 'DOCKER'))
+      .get();
+
+    if (existing) {
+      logger.debug('デフォルトDocker環境は既に存在します', { id: existing.id });
+      return existing;
+    }
+
+    // Docker環境を作成
+    const environment = db.insert(schema.executionEnvironments).values({
+      id: DEFAULT_DOCKER_ENVIRONMENT.id,
+      name: DEFAULT_DOCKER_ENVIRONMENT.name,
+      type: DEFAULT_DOCKER_ENVIRONMENT.type,
+      description: DEFAULT_DOCKER_ENVIRONMENT.description,
+      config: DEFAULT_DOCKER_ENVIRONMENT.config,
+      is_default: DEFAULT_DOCKER_ENVIRONMENT.is_default,
+    }).returning().get();
+
+    if (!environment) {
+      throw new Error('Failed to create default Docker environment');
+    }
+
+    logger.info('デフォルトDocker環境を作成しました', { id: environment.id, name: environment.name });
+
+    return environment;
   }
 
   /**
