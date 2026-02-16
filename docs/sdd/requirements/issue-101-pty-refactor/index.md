@@ -86,7 +86,7 @@ ClaudeWorkのPTY/セッション管理における構造的な問題を根本解
 ## ドキュメント構成
 
 ```
-docs/sdd-issue-101-pty-refactor/requirements/
+docs/sdd/requirements/issue-101-pty-refactor/
 ├── index.md                     # このファイル（目次）
 ├── stories/
 │   ├── US-001.md               # Circular delegation解消

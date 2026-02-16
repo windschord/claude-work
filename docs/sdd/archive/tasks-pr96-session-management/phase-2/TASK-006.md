@@ -31,7 +31,7 @@ PTYSessionManagerのシングルトンクラスを作成し、基本的なデー
   - `src/services/claude-pty-manager.ts` (既存のPTY管理)
   - `src/services/adapter-factory.ts` (環境アダプター)
   - `src/lib/websocket/connection-manager.ts` (Phase 1で拡張済み)
-- **設計書**: [docs/design/components/pty-session-manager.md](../../design/components/pty-session-manager.md)
+- **設計書**: [docs/sdd/archive/design-pr96-session-management/components/pty-session-manager.md](../../design-pr96-session-management/components/pty-session-manager.md)
 
 ## 情報の明確性
 

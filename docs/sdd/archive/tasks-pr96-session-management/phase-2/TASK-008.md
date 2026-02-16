@@ -30,7 +30,7 @@ PTYセッションのイベントハンドラー（data, exit）を登録し、�
   - `src/services/claude-pty-manager.ts` (onData, onExit)
   - `src/lib/websocket/connection-manager.ts` (broadcast, registerHandler)
   - `src/services/scrollback-buffer.ts` (append)
-- **設計書**: [docs/design/components/pty-session-manager.md](../../design/components/pty-session-manager.md)
+- **設計書**: [docs/sdd/archive/design-pr96-session-management/components/pty-session-manager.md](../../design-pr96-session-management/components/pty-session-manager.md)
 
 ## 情報の明確性
 

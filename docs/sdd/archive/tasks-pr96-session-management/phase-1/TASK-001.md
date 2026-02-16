@@ -30,7 +30,7 @@ ConnectionManagerに新しいメソッドを追加し、セッションIDをキ�
 - **参照すべき既存コード**:
   - `src/lib/websocket/session-ws.ts` (既存のConnectionManager使用例)
   - `src/lib/websocket/scrollback-buffer.ts` (スクロールバックバッファ)
-- **設計書**: [docs/design/components/connection-manager.md](../../design/components/connection-manager.md) @../../design/components/connection-manager.md
+- **設計書**: [docs/sdd/archive/design-pr96-session-management/components/connection-manager.md](../../design-pr96-session-management/components/connection-manager.md) @../../design-pr96-session-management/components/connection-manager.md
 
 ## 情報の明確性
 

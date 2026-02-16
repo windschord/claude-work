@@ -33,7 +33,7 @@
   - `src/services/adapters/docker-adapter.ts` (既存実装)
   - `prisma/schema.prisma` (既存のcontainer_idフィールド)
   - `src/lib/db.ts` (Prismaクライアント)
-- **設計書**: [docs/design/components/docker-adapter.md](../../design/components/docker-adapter.md)
+- **設計書**: [docs/sdd/archive/design-pr96-session-management/components/docker-adapter.md](../../design-pr96-session-management/components/docker-adapter.md)
 
 ## 情報の明確性
 

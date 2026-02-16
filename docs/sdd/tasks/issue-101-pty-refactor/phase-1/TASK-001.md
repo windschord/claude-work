@@ -37,11 +37,11 @@ BasePTYAdapter抽象基底クラスの共通ロジック(spawnPTY, setupDataHand
 - `@src/services/environment-adapter.ts` - EnvironmentAdapterインターフェース定義
 
 ### 関連する設計書
-- `@docs/sdd-issue-101-pty-refactor/design/components/base-adapter.md` - BasePTYAdapter設計
+- `@docs/sdd/design/components/base-adapter.md` - BasePTYAdapter設計
 
 ### 関連する要件
-- `@docs/sdd-issue-101-pty-refactor/requirements/stories/US-004.md` - 共通PTYロジック抽出
-- `@docs/sdd-issue-101-pty-refactor/requirements/nfr/maintainability.md` - NFR-MNT-002: テストカバレッジ80%以上
+- `@docs/sdd/requirements/stories/US-004.md` - 共通PTYロジック抽出
+- `@docs/sdd/requirements/nfr/maintainability.md` - NFR-MNT-002: テストカバレッジ80%以上
 
 ---
 

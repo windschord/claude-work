@@ -48,7 +48,7 @@
   - `src/services/pty-session-manager.ts`（TASK-017で実装）
   - `src/services/git-service.ts`（worktree操作）
   - `src/services/adapters/docker-adapter.ts`（Docker環境確認）
-- **設計書**: [docs/design/database/schema.md](../../design/database/schema.md) @../../design/database/schema.md
+- **設計書**: [docs/sdd/archive/design-pr96-session-management/database/schema.md](../../design-pr96-session-management/database/schema.md) @../../design-pr96-session-management/database/schema.md
 
 ## 情報の明確性
 

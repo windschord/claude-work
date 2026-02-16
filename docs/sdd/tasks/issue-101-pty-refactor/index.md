@@ -175,7 +175,7 @@
 ## ドキュメント構成
 
 ```
-docs/sdd-issue-101-pty-refactor/tasks/
+docs/sdd/tasks/issue-101-pty-refactor/
 ├── index.md                     # このファイル（目次）
 ├── phase-1/
 │   ├── TASK-001.md             # BasePTYAdapterテスト

@@ -29,8 +29,8 @@ DockerAdapterにコンテナ起動完了を待機する`waitForContainerReady()`
 - **参照すべき既存コード**:
   - `src/services/adapters/docker-adapter.ts` (既存のDockerAdapter実装)
   - `src/lib/logger.ts` (ログ出力)
-- **設計書**: [docs/design/components/docker-adapter.md](../../design/components/docker-adapter.md)
-- **設計決定**: [docs/design/decisions/DEC-005.md](../../design/decisions/DEC-005.md)
+- **設計書**: [docs/sdd/archive/design-pr96-session-management/components/docker-adapter.md](../../design-pr96-session-management/components/docker-adapter.md)
+- **設計決定**: [docs/sdd/archive/design-pr96-session-management/decisions/DEC-005.md](../../design-pr96-session-management/decisions/DEC-005.md)
 
 ## 情報の明確性
 

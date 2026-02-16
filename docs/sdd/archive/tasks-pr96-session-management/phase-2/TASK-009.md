@@ -32,7 +32,7 @@ ClaudePTYManagerをPTYSessionManagerへの薄いラッパーに書き換え、�
 - **参照すべき既存コード**:
   - `src/services/pty-session-manager.ts` (新しく作成したマネージャー)
   - `src/services/claude-pty-manager.ts` (リファクタリング対象)
-- **設計書**: [docs/design/components/pty-session-manager.md](../../design/components/pty-session-manager.md)
+- **設計書**: [docs/sdd/archive/design-pr96-session-management/components/pty-session-manager.md](../../design-pr96-session-management/components/pty-session-manager.md)
 
 ## 情報の明確性
 

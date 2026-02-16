@@ -66,7 +66,7 @@ WebSocketハンドラー（claude-ws.ts, terminal-ws.ts）をPTYSessionManager�
 - **参照すべき既存コード**:
   - `src/services/pty-session-manager.ts` (統合先)
   - `src/lib/websocket/session-ws.ts` (既存のConnectionManager使用例)
-- **設計書**: [docs/design/components/pty-session-manager.md](../../design/components/pty-session-manager.md)
+- **設計書**: [docs/sdd/archive/design-pr96-session-management/components/pty-session-manager.md](../../design-pr96-session-management/components/pty-session-manager.md)
 
 ## 情報の明確性
 

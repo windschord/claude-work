@@ -300,7 +300,7 @@ See `docs/verification-report-browser-ui-phase18.md` for the Phase 18 baseline s
 3. **Low**: Next.js HMR WebSocket 404 in custom server mode
 4. **Low**: Multiple lockfile warning (remove package-lock.json)
 
-Phase 19 tasks (docs/tasks/phase19.md) implement fixes for issues 1-2.
+Phase 19 tasks implement fixes for issues 1-2.
 
 ## Project Structure
 
@@ -342,7 +342,12 @@ Phase 19 tasks (docs/tasks/phase19.md) implement fixes for issues 1-2.
 │   ├── SETUP.md
 │   ├── ENV_VARS.md
 │   ├── API.md
-│   └── tasks/              # Phase-based task tracking
+│   └── sdd/                # Software Design Documents
+│       ├── design/         # Technical design documents
+│       ├── requirements/   # Requirements specifications
+│       ├── tasks/          # Implementation tasks
+│       ├── troubleshooting/ # Problem analysis
+│       └── archive/        # Archived documents
 └── logs/                   # PM2 logs (gitignored)
 ```
 
@@ -351,7 +356,7 @@ Phase 19 tasks (docs/tasks/phase19.md) implement fixes for issues 1-2.
 - **Setup**: docs/SETUP.md
 - **Environment Variables**: docs/ENV_VARS.md
 - **API Reference**: docs/API.md
-- **Task Planning**: docs/tasks/phase*.md
+- **Task Planning**: docs/sdd/tasks/
 - **Test Reports**: docs/verification-report-*.md
 - **Integration Testing**: docs/integration-test-report.md
 

@@ -235,7 +235,7 @@ BasePTYAdapterで以下のエラーハンドリングを実装:
 ## ドキュメント構成
 
 ```
-docs/sdd-issue-101-pty-refactor/design/
+docs/sdd/design/issue-101-pty-refactor/
 ├── index.md                     # このファイル（目次）
 ├── components/
 │   ├── base-adapter.md          # BasePTYAdapter設計

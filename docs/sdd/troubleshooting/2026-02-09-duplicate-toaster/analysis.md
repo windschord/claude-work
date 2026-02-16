@@ -33,7 +33,7 @@
 ## 関連要件
 
 - REQ-088: タブがアクティブな場合はアプリ内toast通知を表示
-- 既存のSDD: `docs/sdd-notifications/`
+- 既存のSDD: `docs/sdd/design/notifications/`
 
 ## ステータス
 

@@ -58,7 +58,7 @@ Phase 4で実装した状態管理機能の統合テストを作成し、サー�
 - **参照すべき既存コード**:
   - `src/services/__tests__/pty-session-manager.test.ts`（Phase 2で作成）
   - `src/lib/websocket/__tests__/connection-manager.test.ts`（Phase 1で作成）
-- **設計書**: [docs/design/database/schema.md](../../design/database/schema.md) @../../design/database/schema.md
+- **設計書**: [docs/sdd/archive/design-pr96-session-management/database/schema.md](../../design-pr96-session-management/database/schema.md) @../../design-pr96-session-management/database/schema.md
 
 ## 情報の明確性
 

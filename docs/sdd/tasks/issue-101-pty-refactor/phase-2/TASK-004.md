@@ -24,8 +24,8 @@ HostAdapterのリファクタリング(ClaudePTYManager依存削除、BasePTYAda
 
 ### 参照すべきファイル
 - `@src/services/adapters/host-adapter.ts` - 既存実装
-- `@docs/sdd-issue-101-pty-refactor/design/components/host-adapter.md` - 設計書
-- `@docs/sdd-issue-101-pty-refactor/requirements/stories/US-001.md` - Circular delegation解消
+- `@docs/sdd/design/components/host-adapter.md` - 設計書
+- `@docs/sdd/requirements/stories/US-001.md` - Circular delegation解消
 
 ---
 

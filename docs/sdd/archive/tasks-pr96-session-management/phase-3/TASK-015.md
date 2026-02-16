@@ -33,7 +33,7 @@ TASK-012～TASK-014で実装したDockerAdapterの改善機能に対して、統
 - **参照すべき既存コード**:
   - `src/services/adapters/__tests__/docker-adapter.test.ts` (単体テスト)
   - `src/services/adapters/docker-adapter.ts` (実装)
-- **設計書**: [docs/design/components/docker-adapter.md](../../design/components/docker-adapter.md)
+- **設計書**: [docs/sdd/archive/design-pr96-session-management/components/docker-adapter.md](../../design-pr96-session-management/components/docker-adapter.md)
 
 ## 情報の明確性
 

@@ -60,7 +60,7 @@ PTYSessionManagerに状態更新ロジックを追加し、セッション状態
 - **参照すべき既存コード**:
   - `src/services/pty-session-manager.ts`（TASK-006～TASK-011で実装）
   - `src/lib/websocket/connection-manager.ts`（接続管理）
-- **設計書**: [docs/design/database/schema.md](../../design/database/schema.md) @../../design/database/schema.md
+- **設計書**: [docs/sdd/archive/design-pr96-session-management/database/schema.md](../../design-pr96-session-management/database/schema.md) @../../design-pr96-session-management/database/schema.md
 
 ## 情報の明確性
 

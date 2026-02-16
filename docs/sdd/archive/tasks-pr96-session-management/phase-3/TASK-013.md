@@ -29,7 +29,7 @@ DockerAdapterの`cleanup()`メソッドを改善し、`docker stop`コマンド�
 - **参照すべき既存コード**:
   - `src/services/adapters/docker-adapter.ts` (既存のcleanup実装)
   - `src/lib/logger.ts` (ログ出力)
-- **設計書**: [docs/design/components/docker-adapter.md](../../design/components/docker-adapter.md)
+- **設計書**: [docs/sdd/archive/design-pr96-session-management/components/docker-adapter.md](../../design-pr96-session-management/components/docker-adapter.md)
 
 ## 情報の明確性
 

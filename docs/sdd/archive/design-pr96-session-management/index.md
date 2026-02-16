@@ -2,7 +2,7 @@
 
 ## 設計概要
 
-本設計書は、ClaudeWorkプロジェクトにおけるセッション管理の包括的改善の技術設計を定義します。要件定義書（[docs/requirements/index.md](../requirements/index.md) @../requirements/index.md）に基づき、以下の4つの主要な改善を実現します：
+本設計書は、ClaudeWorkプロジェクトにおけるセッション管理の包括的改善の技術設計を定義します。要件定義書（[docs/sdd/requirements/pr96-session-management/index.md](../requirements/pr96-session-management/index.md) @../requirements/pr96-session-management/index.md）に基づき、以下の4つの主要な改善を実現します：
 
 1. **WebSocket接続管理の統一**: ConnectionManagerを全WebSocketタイプで使用し、接続プールを一元管理
 2. **PTYSessionManagerの導入**: PTYセッションとWebSocket接続を統合管理する新しい抽象化層

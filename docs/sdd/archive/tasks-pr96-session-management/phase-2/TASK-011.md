@@ -49,7 +49,7 @@ PTYSessionManager、ConnectionManager、WebSocketハンドラーの統合テス�
 - **参照すべき既存コード**:
   - `src/lib/websocket/__tests__/session-ws.test.ts` (統合テストの参考例)
   - `src/services/__tests__/pty-session-manager.test.ts` (単体テスト)
-- **設計書**: [docs/design/components/pty-session-manager.md](../../design/components/pty-session-manager.md)
+- **設計書**: [docs/sdd/archive/design-pr96-session-management/components/pty-session-manager.md](../../design-pr96-session-management/components/pty-session-manager.md)
 
 ## 情報の明確性
 

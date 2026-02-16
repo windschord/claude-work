@@ -317,9 +317,9 @@ model Project {
 ## ドキュメンテーション要件
 
 ### 必須ドキュメント
-- [x] 要件定義（docs/requirements/）
-- [ ] 技術設計（docs/design/）
-- [ ] タスク分解（docs/tasks/）
+- [x] 要件定義（docs/sdd/requirements/）
+- [ ] 技術設計（docs/sdd/design/）
+- [ ] タスク分解（docs/sdd/tasks/）
 - [ ] API仕様更新（docs/API.md）
 - [ ] 環境変数文書化（docs/ENV_VARS.md）
 - [ ] CLAUDE.md更新（アーキテクチャ概要）

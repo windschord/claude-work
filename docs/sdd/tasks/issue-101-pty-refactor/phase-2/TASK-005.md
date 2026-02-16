@@ -24,7 +24,7 @@ HostAdapterをBasePTYAdapterを継承するように変更し、ClaudePTYManager
 
 ### 参照すべきファイル
 - `@src/services/adapters/base-adapter.ts` - BasePTYAdapter実装
-- `@docs/sdd-issue-101-pty-refactor/design/components/host-adapter.md` - 設計書
+- `@docs/sdd/design/components/host-adapter.md` - 設計書
 
 ---
 

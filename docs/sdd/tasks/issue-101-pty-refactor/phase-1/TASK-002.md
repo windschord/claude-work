@@ -37,10 +37,10 @@ HOST/DOCKER環境で共通のPTYロジックを提供する抽象基底クラス
 - `@src/services/adapters/__tests__/base-adapter.test.ts` - TASK-001で作成したテスト
 
 ### 関連する設計書
-- `@docs/sdd-issue-101-pty-refactor/design/components/base-adapter.md` - BasePTYAdapter設計
+- `@docs/sdd/design/components/base-adapter.md` - BasePTYAdapter設計
 
 ### 関連する要件
-- `@docs/sdd-issue-101-pty-refactor/requirements/stories/US-004.md` - 共通PTYロジック抽出
+- `@docs/sdd/requirements/stories/US-004.md` - 共通PTYロジック抽出
 
 ---
 

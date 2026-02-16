@@ -53,7 +53,7 @@
 
 ## 完了済みフェーズ一覧
 
-詳細は `docs/archive/completed-phases.md` を参照してください。
+詳細は `docs/sdd/archive/completed-phases.md` を参照してください。
 
 | フェーズ | 内容 | ステータス |
 |---------|------|-----------|
@@ -1641,7 +1641,7 @@ Claude Code自体がモデル選択機能を持つため、本アプリケーシ
 
 ## 備考
 
-- 完了済みフェーズの詳細は `docs/archive/completed-phases.md` を参照
+- 完了済みフェーズの詳細は `docs/sdd/archive/completed-phases.md` を参照
 - 検証レポートは `docs/verification-*.md` を参照
 
 ---

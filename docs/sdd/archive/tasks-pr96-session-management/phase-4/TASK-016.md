@@ -29,7 +29,7 @@ Sessionテーブルに新しいフィールドを追加し、セッション状�
 - **参照すべき既存コード**:
   - 現在のsessionsテーブル定義
   - 既存のcontainer_idフィールド
-- **設計書**: [docs/design/database/schema.md](../../design/database/schema.md) @../../design/database/schema.md
+- **設計書**: [docs/sdd/archive/design-pr96-session-management/database/schema.md](../../design-pr96-session-management/database/schema.md) @../../design-pr96-session-management/database/schema.md
 
 ## 情報の明確性
 
