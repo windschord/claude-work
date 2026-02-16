@@ -291,16 +291,15 @@ Manual testing script: `npm run integration-test`
 4. Create service layer in `src/lib/` or `src/services/`
 5. Add tests for database operations
 
-## Known Issues (Phase 18 baseline and Phase 19 status)
+## Known Issues
 
-See `docs/verification-report-browser-ui-phase18.md` for the Phase 18 baseline status.
+See `docs/sdd/archive/completed-phases.md` for historical phase information.
 
-1. **Critical** (resolved in Phase 19): Claude Code `--cwd` option not supported (process-manager.ts:98)
-2. **Critical** (partially resolved in Phase 19): WebSocket remains disconnected
-3. **Low**: Next.js HMR WebSocket 404 in custom server mode
-4. **Low**: Multiple lockfile warning (remove package-lock.json)
+1. **Low**: Next.js HMR WebSocket 404 in custom server mode (expected behavior with custom server)
+2. **Low**: Multiple lockfile warning (remove package-lock.json)
 
-Phase 19 tasks implement fixes for issues 1-2.
+Previous critical issues with Claude Code --cwd option and WebSocket connections have been resolved.
+For detailed troubleshooting information, see `docs/sdd/troubleshooting/`.
 
 ## Project Structure
 
@@ -342,12 +341,44 @@ Phase 19 tasks implement fixes for issues 1-2.
 │   ├── SETUP.md
 │   ├── ENV_VARS.md
 │   ├── API.md
-│   └── sdd/                # Software Design Documents
-│       ├── design/         # Technical design documents
-│       ├── requirements/   # Requirements specifications
-│       ├── tasks/          # Implementation tasks
+│   ├── SYSTEMD_SETUP.md
+│   ├── GITHUB_PAT.md
+│   ├── design.md
+│   ├── requirements.md
+│   ├── tasks.md
+│   ├── migration-guide.md
+│   ├── docker-process-api/  # Docker process API design docs
+│   ├── remote-repo/         # Remote repository feature docs
+│   ├── feedback/            # Feedback and issues
+│   └── sdd/                 # Software Design Documents (統合)
+│       ├── design/          # Technical design documents
+│       │   ├── index.md     # Design overview
+│       │   ├── core/        # Core architecture
+│       │   ├── claude-interaction/
+│       │   ├── claude-options/
+│       │   ├── docker-terminal/
+│       │   ├── docker-worktree-fix/
+│       │   ├── drizzle-migration/
+│       │   ├── git-operations/
+│       │   ├── hybrid-clone/
+│       │   ├── issue-101-pty-refactor/
+│       │   ├── notifications/
+│       │   ├── responsive/
+│       │   ├── settings-ui/
+│       │   ├── terminal/
+│       │   └── ... (other design docs)
+│       ├── requirements/    # Requirements specifications
+│       │   ├── index.md     # Requirements overview
+│       │   └── ... (organized by feature)
+│       ├── tasks/           # Implementation tasks
+│       │   ├── index.md     # Task overview
+│       │   └── ... (organized by feature)
 │       ├── troubleshooting/ # Problem analysis
-│       └── archive/        # Archived documents
+│       ├── reports/         # Verification and consistency reports
+│       └── archive/         # Archived documents
+│           ├── completed-phases.md
+│           ├── sdd-* (legacy feature docs)
+│           └── ... (archived design/requirements/tasks)
 └── logs/                   # PM2 logs (gitignored)
 ```
 
@@ -356,9 +387,13 @@ Phase 19 tasks implement fixes for issues 1-2.
 - **Setup**: docs/SETUP.md
 - **Environment Variables**: docs/ENV_VARS.md
 - **API Reference**: docs/API.md
-- **Task Planning**: docs/sdd/tasks/
-- **Test Reports**: docs/verification-report-*.md
-- **Integration Testing**: docs/integration-test-report.md
+- **Software Design Documents**: docs/sdd/
+  - **Design**: docs/sdd/design/ - Technical design documents
+  - **Requirements**: docs/sdd/requirements/ - Requirements specifications
+  - **Tasks**: docs/sdd/tasks/ - Implementation task tracking
+  - **Troubleshooting**: docs/sdd/troubleshooting/ - Problem analysis
+  - **Reports**: docs/sdd/reports/ - Verification and consistency reports
+  - **Archive**: docs/sdd/archive/ - Historical documentation
 
 ## React Hooks Usage Guidelines
 

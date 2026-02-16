@@ -246,10 +246,20 @@ Apache License 2.0 - 詳細は [LICENSE](LICENSE) を参照してください。
 
 ## ドキュメント
 
-- **[GitHub PAT設定ガイド](docs/GITHUB_PAT.md)** - Docker環境でのHTTPS認証設定
+### ユーザーガイド
 - **[セットアップガイド](docs/SETUP.md)** - 詳細なインストール手順
 - **[環境変数リファレンス](docs/ENV_VARS.md)** - 設定可能な環境変数一覧
 - **[API仕様](docs/API.md)** - REST API / WebSocket API仕様
+- **[GitHub PAT設定ガイド](docs/GITHUB_PAT.md)** - Docker環境でのHTTPS認証設定
+- **[Systemdセットアップ](docs/SYSTEMD_SETUP.md)** - systemdによるサービス化
+
+### 開発者向けドキュメント
+- **[Software Design Documents](docs/sdd/)** - ソフトウェア設計ドキュメント
+  - [設計書](docs/sdd/design/) - 技術設計ドキュメント
+  - [要件定義](docs/sdd/requirements/) - 要件仕様書
+  - [タスク管理](docs/sdd/tasks/) - 実装タスク追跡
+  - [トラブルシューティング](docs/sdd/troubleshooting/) - 問題分析
+  - [アーカイブ](docs/sdd/archive/) - 過去のドキュメント
 
 ## 貢献
 
