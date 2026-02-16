@@ -7,7 +7,7 @@
 | プロジェクト | 説明 | 進捗 | ステータス |
 |-------------|------|-----|-----------|
 | [Drizzle ORM移行](drizzle-migration/index.md) | Prisma → Drizzle ORM への完全移行 | 28/31 タスク完了 | 進行中 |
-| [設定UI改善](settings-ui/index.md) | 設定ページのナビゲーション改善 | 10/10 タスク完了 | 完了 |
+| [設定UI改善](settings-ui/index.md) | 設定ページのナビゲーション改善 | 8/8 タスク完了 | 完了 |
 
 ## タスク管理
 
