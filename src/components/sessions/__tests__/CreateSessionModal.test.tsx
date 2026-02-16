@@ -600,4 +600,193 @@ describe('CreateSessionModal', () => {
       });
     });
   });
+
+  describe('環境の表示順（TASK-010）', () => {
+    it('環境がDocker→Host→SSHの順で表示される', async () => {
+      // 逆順で定義された環境
+      const unsortedEnvironments = [
+        {
+          id: 'env-ssh',
+          name: 'SSH Remote',
+          type: 'SSH' as const,
+          description: 'SSH環境',
+          config: '{}',
+          is_default: false,
+          created_at: '2024-01-01T00:00:00Z',
+          updated_at: '2024-01-01T00:00:00Z',
+        },
+        {
+          id: 'env-host',
+          name: 'Host Local',
+          type: 'HOST' as const,
+          description: 'ホスト環境',
+          config: '{}',
+          is_default: false,
+          created_at: '2024-01-01T00:00:00Z',
+          updated_at: '2024-01-01T00:00:00Z',
+        },
+        {
+          id: 'env-docker',
+          name: 'Docker Container',
+          type: 'DOCKER' as const,
+          description: 'Docker環境',
+          config: '{}',
+          is_default: false,
+          created_at: '2024-01-01T00:00:00Z',
+          updated_at: '2024-01-01T00:00:00Z',
+        },
+      ];
+
+      const { useEnvironments } = await import('@/hooks/useEnvironments');
+      vi.mocked(useEnvironments).mockReturnValueOnce({
+        environments: unsortedEnvironments,
+        isLoading: false,
+        error: null,
+        fetchEnvironments: vi.fn(),
+        createEnvironment: vi.fn(),
+        updateEnvironment: vi.fn(),
+        deleteEnvironment: vi.fn(),
+        refreshEnvironment: vi.fn(),
+      });
+
+      render(
+        <CreateSessionModal
+          isOpen={true}
+          onClose={mockOnClose}
+          projectId="project-1"
+          onSuccess={mockOnSuccess}
+        />
+      );
+
+      // ラジオボタンの順序を確認
+      const labels = screen.getAllByRole('radio').map((radio) => {
+        const label = radio.closest('[role="radio"]')?.querySelector('[class*="font-medium"]');
+        return label?.textContent || '';
+      });
+
+      // Docker→Host→SSHの順で表示されることを確認
+      expect(labels[0]).toBe('Docker Container');
+      expect(labels[1]).toBe('Host Local');
+      expect(labels[2]).toBe('SSH Remote');
+    });
+
+    it('同じタイプ内ではis_default=trueが最初に表示される', async () => {
+      const environmentsWithDefaults = [
+        {
+          id: 'env-docker-2',
+          name: 'Docker 2',
+          type: 'DOCKER' as const,
+          description: 'Docker環境2',
+          config: '{}',
+          is_default: false,
+          created_at: '2024-01-01T00:00:00Z',
+          updated_at: '2024-01-01T00:00:00Z',
+        },
+        {
+          id: 'env-docker-1',
+          name: 'Docker Default',
+          type: 'DOCKER' as const,
+          description: 'デフォルトDocker',
+          config: '{}',
+          is_default: true,
+          created_at: '2024-01-01T00:00:00Z',
+          updated_at: '2024-01-01T00:00:00Z',
+        },
+        {
+          id: 'env-host',
+          name: 'Host',
+          type: 'HOST' as const,
+          description: 'ホスト環境',
+          config: '{}',
+          is_default: false,
+          created_at: '2024-01-01T00:00:00Z',
+          updated_at: '2024-01-01T00:00:00Z',
+        },
+      ];
+
+      const { useEnvironments } = await import('@/hooks/useEnvironments');
+      vi.mocked(useEnvironments).mockReturnValueOnce({
+        environments: environmentsWithDefaults,
+        isLoading: false,
+        error: null,
+        fetchEnvironments: vi.fn(),
+        createEnvironment: vi.fn(),
+        updateEnvironment: vi.fn(),
+        deleteEnvironment: vi.fn(),
+        refreshEnvironment: vi.fn(),
+      });
+
+      render(
+        <CreateSessionModal
+          isOpen={true}
+          onClose={mockOnClose}
+          projectId="project-1"
+          onSuccess={mockOnSuccess}
+        />
+      );
+
+      const labels = screen.getAllByRole('radio').map((radio) => {
+        const label = radio.closest('[role="radio"]')?.querySelector('[class*="font-medium"]');
+        return label?.textContent || '';
+      });
+
+      // Docker Defaultが最初、次にDocker 2、最後にHost
+      expect(labels[0]).toBe('Docker Default');
+      expect(labels[1]).toBe('Docker 2');
+      expect(labels[2]).toBe('Host');
+    });
+
+    it('デフォルト環境がない場合は最初のDocker環境が選択される', async () => {
+      const noDefaultEnvironments = [
+        {
+          id: 'env-host',
+          name: 'Host',
+          type: 'HOST' as const,
+          description: 'ホスト環境',
+          config: '{}',
+          is_default: false,
+          created_at: '2024-01-01T00:00:00Z',
+          updated_at: '2024-01-01T00:00:00Z',
+        },
+        {
+          id: 'env-docker',
+          name: 'Docker',
+          type: 'DOCKER' as const,
+          description: 'Docker環境',
+          config: '{}',
+          is_default: false,
+          created_at: '2024-01-01T00:00:00Z',
+          updated_at: '2024-01-01T00:00:00Z',
+        },
+      ];
+
+      const { useEnvironments } = await import('@/hooks/useEnvironments');
+      vi.mocked(useEnvironments).mockReturnValueOnce({
+        environments: noDefaultEnvironments,
+        isLoading: false,
+        error: null,
+        fetchEnvironments: vi.fn(),
+        createEnvironment: vi.fn(),
+        updateEnvironment: vi.fn(),
+        deleteEnvironment: vi.fn(),
+        refreshEnvironment: vi.fn(),
+      });
+
+      render(
+        <CreateSessionModal
+          isOpen={true}
+          onClose={mockOnClose}
+          projectId="project-1"
+          onSuccess={mockOnSuccess}
+        />
+      );
+
+      // Docker環境が選択されていることを確認（ソート後は最初）
+      await waitFor(() => {
+        const radioButtons = screen.getAllByRole('radio');
+        // Docker環境（ソート後1番目）が選択されている
+        expect(radioButtons[0]).toHaveAttribute('aria-checked', 'true');
+      });
+    });
+  });
 });
