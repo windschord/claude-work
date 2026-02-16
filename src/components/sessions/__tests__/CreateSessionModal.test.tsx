@@ -840,4 +840,80 @@ describe('CreateSessionModal', () => {
       });
     });
   });
+
+  describe('ブランチ選択機能', () => {
+    it('プロジェクト選択時にブランチ一覧を取得する', async () => {
+      render(
+        <CreateSessionModal
+          isOpen={true}
+          onClose={mockOnClose}
+          projectId="project-1"
+          onSuccess={mockOnSuccess}
+        />
+      );
+
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledWith('/api/projects/project-1/branches');
+      });
+    });
+
+    it('デフォルトブランチが自動選択される', async () => {
+      render(
+        <CreateSessionModal
+          isOpen={true}
+          onClose={mockOnClose}
+          projectId="project-1"
+          onSuccess={mockOnSuccess}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('main')).toBeInTheDocument();
+      });
+    });
+
+    it('ブランチListboxが表示される', async () => {
+      render(
+        <CreateSessionModal
+          isOpen={true}
+          onClose={mockOnClose}
+          projectId="project-1"
+          onSuccess={mockOnSuccess}
+        />
+      );
+
+      await waitFor(() => {
+        const branchLabel = screen.getByText('ベースブランチ');
+        expect(branchLabel).toBeInTheDocument();
+      });
+    });
+
+    it('セッション作成時に選択したブランチ名が送信される', async () => {
+      render(
+        <CreateSessionModal
+          isOpen={true}
+          onClose={mockOnClose}
+          projectId="project-1"
+          onSuccess={mockOnSuccess}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('main')).toBeInTheDocument();
+      });
+
+      const submitButton = screen.getByText('作成');
+      fireEvent.click(submitButton);
+
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledWith(
+          '/api/projects/project-1/sessions',
+          expect.objectContaining({
+            method: 'POST',
+            body: expect.stringContaining('"source_branch":"main"'),
+          })
+        );
+      });
+    });
+  });
 });
