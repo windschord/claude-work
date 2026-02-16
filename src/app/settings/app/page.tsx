@@ -37,9 +37,13 @@ export default function AppSettingsPage() {
       }
 
       const data = await response.json();
-      setConfig(data.config);
-      setTimeoutMinutes(data.config.git_clone_timeout_minutes);
-      setKeepVolumes(data.config.debug_mode_keep_volumes);
+      const config = data.config;
+      if (!config) {
+        throw new Error('設定の取得に失敗しました');
+      }
+      setConfig(config);
+      setTimeoutMinutes(config.git_clone_timeout_minutes ?? 5);
+      setKeepVolumes(config.debug_mode_keep_volumes ?? false);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '設定の取得に失敗しました';
       toast.error(errorMessage);
