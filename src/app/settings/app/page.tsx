@@ -24,33 +24,33 @@ export default function AppSettingsPage() {
   const [keepVolumes, setKeepVolumes] = useState(false);
 
   useEffect(() => {
-    fetchConfig();
+    const fetchConfig = async () => {
+      try {
+        setIsLoading(true);
+        const response = await fetch('/api/settings/config');
+
+        if (!response.ok) {
+          throw new Error('設定の取得に失敗しました');
+        }
+
+        const data = await response.json();
+        const config = data.config;
+        if (!config) {
+          throw new Error('設定の取得に失敗しました');
+        }
+        setConfig(config);
+        setTimeoutMinutes(config.git_clone_timeout_minutes ?? 5);
+        setKeepVolumes(config.debug_mode_keep_volumes ?? false);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : '設定の取得に失敗しました';
+        toast.error(errorMessage);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    void fetchConfig();
   }, []);
-
-  const fetchConfig = async () => {
-    try {
-      setIsLoading(true);
-      const response = await fetch('/api/settings/config');
-
-      if (!response.ok) {
-        throw new Error('設定の取得に失敗しました');
-      }
-
-      const data = await response.json();
-      const config = data.config;
-      if (!config) {
-        throw new Error('設定の取得に失敗しました');
-      }
-      setConfig(config);
-      setTimeoutMinutes(config.git_clone_timeout_minutes ?? 5);
-      setKeepVolumes(config.debug_mode_keep_volumes ?? false);
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : '設定の取得に失敗しました';
-      toast.error(errorMessage);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
