@@ -162,8 +162,9 @@ describe('CreateSessionModal', () => {
       // Headless UIのRadioGroupはaria-checkedを使用
       await waitFor(() => {
         const radioButtons = screen.getAllByRole('radio');
-        // デフォルト環境（env-1）が選択されている
-        expect(radioButtons[0]).toHaveAttribute('aria-checked', 'true');
+        // ソート後: Docker Env(0), Default Host(1), SSH Remote(2)
+        // デフォルト環境（Default Host, is_default=true）が選択されている
+        expect(radioButtons[1]).toHaveAttribute('aria-checked', 'true');
       });
     });
 
@@ -259,9 +260,10 @@ describe('CreateSessionModal', () => {
         />
       );
 
+      // ソート後: Docker Env(0), Default Host(1), SSH Remote(2)
       // Docker環境を選択
       const radioButtons = screen.getAllByRole('radio');
-      fireEvent.click(radioButtons[1]);
+      fireEvent.click(radioButtons[0]); // Docker Envはソート後0番目
 
       const createButton = screen.getByRole('button', { name: '作成' });
       fireEvent.click(createButton);
@@ -638,7 +640,7 @@ describe('CreateSessionModal', () => {
       ];
 
       const { useEnvironments } = await import('@/hooks/useEnvironments');
-      vi.mocked(useEnvironments).mockReturnValueOnce({
+      vi.mocked(useEnvironments).mockReturnValue({
         environments: unsortedEnvironments,
         isLoading: false,
         error: null,
@@ -658,16 +660,37 @@ describe('CreateSessionModal', () => {
         />
       );
 
-      // ラジオボタンの順序を確認
-      const labels = screen.getAllByRole('radio').map((radio) => {
-        const label = radio.closest('[role="radio"]')?.querySelector('[class*="font-medium"]');
-        return label?.textContent || '';
-      });
+      // 環境名がDocker→Host→SSHの順で表示されることを確認
+      expect(screen.getByText('Docker Container')).toBeInTheDocument();
+      expect(screen.getByText('Host Local')).toBeInTheDocument();
+      expect(screen.getByText('SSH Remote')).toBeInTheDocument();
 
-      // Docker→Host→SSHの順で表示されることを確認
-      expect(labels[0]).toBe('Docker Container');
-      expect(labels[1]).toBe('Host Local');
-      expect(labels[2]).toBe('SSH Remote');
+      // ラジオボタンの順序を確認（DOM構造に依存しないアプローチ）
+      const radioButtons = screen.getAllByRole('radio');
+      // 最初のラジオボタンがDocker環境であることを確認
+      const firstRadio = radioButtons[0];
+      const firstContainer = firstRadio.closest('[role="radio"]');
+      expect(firstContainer?.textContent).toContain('Docker Container');
+
+      // 2番目がHost環境
+      const secondContainer = radioButtons[1].closest('[role="radio"]');
+      expect(secondContainer?.textContent).toContain('Host Local');
+
+      // 3番目がSSH環境
+      const thirdContainer = radioButtons[2].closest('[role="radio"]');
+      expect(thirdContainer?.textContent).toContain('SSH Remote');
+
+      // 元のモックに戻す
+      vi.mocked(useEnvironments).mockReturnValue({
+        environments: mockEnvironments,
+        isLoading: false,
+        error: null,
+        fetchEnvironments: vi.fn(),
+        createEnvironment: vi.fn(),
+        updateEnvironment: vi.fn(),
+        deleteEnvironment: vi.fn(),
+        refreshEnvironment: vi.fn(),
+      });
     });
 
     it('同じタイプ内ではis_default=trueが最初に表示される', async () => {
@@ -705,7 +728,7 @@ describe('CreateSessionModal', () => {
       ];
 
       const { useEnvironments } = await import('@/hooks/useEnvironments');
-      vi.mocked(useEnvironments).mockReturnValueOnce({
+      vi.mocked(useEnvironments).mockReturnValue({
         environments: environmentsWithDefaults,
         isLoading: false,
         error: null,
@@ -725,15 +748,31 @@ describe('CreateSessionModal', () => {
         />
       );
 
-      const labels = screen.getAllByRole('radio').map((radio) => {
-        const label = radio.closest('[role="radio"]')?.querySelector('[class*="font-medium"]');
-        return label?.textContent || '';
-      });
+      const radioButtons = screen.getAllByRole('radio');
 
-      // Docker Defaultが最初、次にDocker 2、最後にHost
-      expect(labels[0]).toBe('Docker Default');
-      expect(labels[1]).toBe('Docker 2');
-      expect(labels[2]).toBe('Host');
+      // Docker Defaultが最初
+      const firstContainer = radioButtons[0].closest('[role="radio"]');
+      expect(firstContainer?.textContent).toContain('Docker Default');
+
+      // 次にDocker 2
+      const secondContainer = radioButtons[1].closest('[role="radio"]');
+      expect(secondContainer?.textContent).toContain('Docker 2');
+
+      // 最後にHost
+      const thirdContainer = radioButtons[2].closest('[role="radio"]');
+      expect(thirdContainer?.textContent).toContain('Host');
+
+      // 元のモックに戻す
+      vi.mocked(useEnvironments).mockReturnValue({
+        environments: mockEnvironments,
+        isLoading: false,
+        error: null,
+        fetchEnvironments: vi.fn(),
+        createEnvironment: vi.fn(),
+        updateEnvironment: vi.fn(),
+        deleteEnvironment: vi.fn(),
+        refreshEnvironment: vi.fn(),
+      });
     });
 
     it('デフォルト環境がない場合は最初のDocker環境が選択される', async () => {
@@ -761,7 +800,7 @@ describe('CreateSessionModal', () => {
       ];
 
       const { useEnvironments } = await import('@/hooks/useEnvironments');
-      vi.mocked(useEnvironments).mockReturnValueOnce({
+      vi.mocked(useEnvironments).mockReturnValue({
         environments: noDefaultEnvironments,
         isLoading: false,
         error: null,
@@ -786,6 +825,18 @@ describe('CreateSessionModal', () => {
         const radioButtons = screen.getAllByRole('radio');
         // Docker環境（ソート後1番目）が選択されている
         expect(radioButtons[0]).toHaveAttribute('aria-checked', 'true');
+      });
+
+      // 元のモックに戻す
+      vi.mocked(useEnvironments).mockReturnValue({
+        environments: mockEnvironments,
+        isLoading: false,
+        error: null,
+        fetchEnvironments: vi.fn(),
+        createEnvironment: vi.fn(),
+        updateEnvironment: vi.fn(),
+        deleteEnvironment: vi.fn(),
+        refreshEnvironment: vi.fn(),
       });
     });
   });
