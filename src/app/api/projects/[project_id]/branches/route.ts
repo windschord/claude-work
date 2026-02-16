@@ -30,7 +30,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     // ブランチ一覧を取得
-    const branches = await remoteRepoService.getBranches(project.path);
+    const branches = await remoteRepoService.getBranches(project.path, project.environment_id ?? undefined);
 
     logger.debug('Branches retrieved', {
       projectId: project_id,
