@@ -81,4 +81,22 @@ describe('Header', () => {
 
     expect(mockPush).toHaveBeenCalledWith('/');
   });
+
+  it('設定ボタンが表示される', () => {
+    render(<Header />);
+
+    const settingsButton = screen.getByLabelText('設定');
+    expect(settingsButton).toBeInTheDocument();
+  });
+
+  it('設定ボタンをクリックすると設定ページに遷移する', () => {
+    mockPush.mockClear();
+
+    render(<Header />);
+
+    const settingsButton = screen.getByLabelText('設定');
+    fireEvent.click(settingsButton);
+
+    expect(mockPush).toHaveBeenCalledWith('/settings');
+  });
 });
