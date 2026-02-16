@@ -3,6 +3,7 @@ import { join, basename, resolve } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { logger } from '../lib/logger';
 import { getReposDir } from '@/lib/data-dir';
+import type { AdapterFactory } from './adapter-factory';
 
 /**
  * Clone操作のオプション
@@ -16,6 +17,8 @@ export interface CloneOptions {
   baseDir?: string;
   /** プロジェクト名（省略時はURLから自動抽出） */
   name?: string;
+  /** 実行環境ID（指定時はDockerAdapter経由で実行） */
+  environmentId?: string;
 }
 
 /**
@@ -61,6 +64,7 @@ export interface Branch {
  * 操作を提供します。SSH認証はシステムの設定を利用します。
  */
 export class RemoteRepoService {
+  constructor(private adapterFactory?: AdapterFactory) {}
   // Git SSH URL パターン: git@host:path/to/repo.git
   private static readonly SSH_URL_PATTERN = /^git@[\w.-]+:[\w./-]+$/;
   // Git HTTPS URL パターン: https://host/path/to/repo.git
@@ -151,12 +155,56 @@ export class RemoteRepoService {
    * @returns clone結果
    */
   async clone(options: CloneOptions): Promise<CloneResult> {
-    const { url, targetDir, baseDir, name } = options;
+    const { url, targetDir, baseDir, name, environmentId } = options;
 
     // URL検証
     const validation = this.validateRemoteUrl(url);
     if (!validation.valid) {
       return { success: false, path: '', error: validation.error };
+    }
+
+    // environmentIdが指定されている場合はDockerAdapter経由で実行
+    if (environmentId && this.adapterFactory) {
+      try {
+        const adapter = await this.adapterFactory.getAdapter(environmentId);
+
+        // clone先パスを決定
+        let clonePath: string;
+        if (targetDir) {
+          clonePath = resolve(targetDir);
+        } else {
+          const repoName = name || this.extractRepoName(url);
+          const base = baseDir || getReposDir();
+          if (!existsSync(base)) {
+            mkdirSync(base, { recursive: true });
+          }
+          clonePath = this.getUniqueClonePath(base, repoName);
+        }
+
+        // 既にディレクトリが存在する場合はエラー（targetDir指定時のみ）
+        if (targetDir && existsSync(clonePath)) {
+          return { success: false, path: clonePath, error: `ディレクトリ ${clonePath} は既に存在します` };
+        }
+
+        const result = await adapter.gitClone({
+          url,
+          targetPath: clonePath,
+          environmentId,
+        });
+
+        if (result.success) {
+          logger.info('Repository cloned successfully via DockerAdapter', { url, clonePath });
+          return { success: true, path: clonePath };
+        } else {
+          return { success: false, path: clonePath, error: result.error };
+        }
+      } catch (error) {
+        return {
+          success: false,
+          path: '',
+          error: error instanceof Error ? error.message : 'Unknown error',
+        };
+      }
     }
 
     // clone先パスを決定
@@ -243,9 +291,24 @@ export class RemoteRepoService {
    * ローカルに競合する変更がある場合は失敗します。
    *
    * @param repoPath - リポジトリのローカルパス
+   * @param environmentId - 実行環境ID（指定時はDockerAdapter経由で実行）
    * @returns pull結果
    */
-  async pull(repoPath: string): Promise<PullResult> {
+  async pull(repoPath: string, environmentId?: string): Promise<PullResult> {
+    // environmentIdが指定されている場合はDockerAdapter経由で実行
+    if (environmentId && this.adapterFactory) {
+      try {
+        const adapter = await this.adapterFactory.getAdapter(environmentId);
+        return await adapter.gitPull(repoPath);
+      } catch (error) {
+        return {
+          success: false,
+          updated: false,
+          message: '',
+          error: error instanceof Error ? error.message : 'Unknown error',
+        };
+      }
+    }
     // Gitリポジトリかどうか確認
     const isGitRepo = this.isGitRepository(repoPath);
     if (!isGitRepo) {
@@ -345,9 +408,20 @@ export class RemoteRepoService {
    * ローカルブランチとリモート追跡ブランチの両方を返します。
    *
    * @param repoPath - リポジトリのローカルパス
+   * @param environmentId - 実行環境ID（指定時はDockerAdapter経由で実行）
    * @returns ブランチ一覧
    */
-  async getBranches(repoPath: string): Promise<Branch[]> {
+  async getBranches(repoPath: string, environmentId?: string): Promise<Branch[]> {
+    // environmentIdが指定されている場合はDockerAdapter経由で実行
+    if (environmentId && this.adapterFactory) {
+      try {
+        const adapter = await this.adapterFactory.getAdapter(environmentId);
+        return await adapter.gitGetBranches(repoPath);
+      } catch (error) {
+        logger.error('Failed to get branches via DockerAdapter', { repoPath, error });
+        return [];
+      }
+    }
     if (!this.isGitRepository(repoPath)) {
       return [];
     }
