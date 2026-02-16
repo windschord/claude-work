@@ -39,8 +39,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // pullを実行
-    const pullResult = await remoteRepoService.pull(project.path);
+    // pullを実行（environment_idがあれば渡す）
+    const pullResult = await remoteRepoService.pull(project.path, project.environment_id ?? undefined);
 
     if (!pullResult.success) {
       logger.error('Pull failed', { projectId: project_id, error: pullResult.error });
