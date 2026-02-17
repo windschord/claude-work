@@ -170,6 +170,6 @@ test('無効なURLでエラー表示', async ({ page }) => {
 
 ## 備考
 
-- テスト用の公開リポジトリを使用（例: https://github.com/octocat/Hello-World.git ）
+- テスト用の公開リポジトリを使用（例: https://github.com/octocat/Hello-World.git）
 - テストは独立して実行可能にする（テストデータのクリーンアップ）
 - Playwrightのベストプラクティスに従う

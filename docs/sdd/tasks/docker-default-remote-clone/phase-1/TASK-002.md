@@ -345,7 +345,7 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
 ### 修正内容
 
 **問題**: TASK-014統合テスト中に、インスタンスベースのAdapterFactory使用による型エラーを検出
-```
+```text
 Property 'getAdapter' does not exist on type 'AdapterFactory'
 ```
 
