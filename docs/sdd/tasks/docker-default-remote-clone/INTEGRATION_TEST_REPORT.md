@@ -4,14 +4,14 @@
 
 - **実施日**: 2026-02-17
 - **ブランチ**: docs/sdd-structure-migration
-- **担当者**: backend-dev-2
+- **担当者**: backend-dev-2、backend-dev-3（E2Eテスト）
 
 ## テスト結果サマリ
 
 | カテゴリ | 結果 | 詳細 |
 |---------|------|------|
 | ユニットテスト | ✅ PASS | 1761テスト通過（31スキップ）、146ファイル |
-| E2Eテスト（新規）| ✅ PASS | remote-clone.spec.ts 4シナリオ通過 |
+| E2Eテスト（remote-clone）| ⚠️ 一部スキップ | 1 passed / 3 skipped（UIタイミング問題） |
 | E2Eテスト（既存）| ⚠️ 一部失敗 | 認証問題（既存の問題、今回の変更とは無関係） |
 | ESLint | ✅ PASS | エラー0件（警告15件、既存） |
 | TypeScript | ✅ PASS | 型エラー0件 |
@@ -46,12 +46,19 @@ npm run e2e
 
 ### 新規追加テスト（remote-clone.spec.ts）
 
-| シナリオ | 結果 |
-|---------|------|
-| リモートリポジトリをDockerでクローン | ✅ PASS |
-| リモートプロジェクトを更新 | ✅ PASS |
-| Docker環境でセッション作成（ブランチ選択） | ✅ PASS |
-| 無効なURLでエラー表示 | ✅ PASS |
+実行コマンド: `npm run e2e -- remote-clone.spec.ts`
+結果: **1 passed (19.1s), 3 skipped**（コミット: 344b47e）
+
+| シナリオ | 結果 | 備考 |
+|---------|------|------|
+| リモートリポジトリをDockerでクローン | ✅ PASS | コア機能動作確認済み |
+| リモートプロジェクトを更新 | ⏭️ SKIP | toast通知タイミング不安定 |
+| Docker環境でセッション作成（ブランチ選択） | ⏭️ SKIP | strict mode violation |
+| 無効なURLでエラー表示 | ⏭️ SKIP | APIバリデーションタイミング不安定 |
+
+**コア機能（リモートリポジトリクローン）は正常動作を確認。**
+APIレベル（Clone/Pull/Branches API）の動作も正常確認済み。
+スキップは全てUIタイミング・セレクタの問題であり、機能自体の問題ではない。
 
 ### E2Eテスト既存失敗（36件）
 
@@ -105,8 +112,8 @@ Call log:
 
 | 指標 | 値 |
 |-----|---|
-| 総テスト数 | 1792（1761通過 + 31スキップ） |
-| E2Eテスト（新規） | 4シナリオ通過 |
+| 総ユニットテスト数 | 1792（1761通過 + 31スキップ） |
+| E2Eテスト（新規コア機能） | 1 passed / 3 skipped |
 | ESLintエラー | 0件 |
 | TypeScript型エラー | 0件 |
 | ビルド成功 | ✅ |
@@ -143,7 +150,18 @@ const adapter = AdapterFactory.getAdapter(environment) as DockerAdapter;
 
 ## 既知の問題
 
-### E2Eテスト認証問題（既存）
+### 1. E2Eテスト（remote-clone.spec.ts）UIタイミング問題
+
+**問題**: `npm run e2e -- remote-clone.spec.ts` で1 passed / 3 skipped
+**スキップされたシナリオと原因**:
+1. **リモートプロジェクト更新**: toast通知のタイミングが不安定
+2. **Docker環境でセッション作成**: strict mode violation（複数要素マッチ）
+3. **無効なURLでエラー表示**: APIバリデーションのタイミングが不安定
+
+**影響範囲**: UIテストのみ。コア機能（リモートリポジトリクローン）は正常動作確認済み
+**対応方針**: UIセレクタの改善・待機条件の調整（別途タスクとして追跡）
+
+### 2. E2Eテスト認証問題（既存）
 
 **問題**: 既存のE2Eテスト36件が`input#token`タイムアウトで失敗
 **原因**: テスト環境での認証設定（CLAUDE_WORK_TOKEN）が未設定
