@@ -5,6 +5,7 @@
  */
 
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { spawnSync } from 'child_process';
 import Database from 'better-sqlite3';
@@ -70,24 +71,43 @@ export function syncSchema(databaseUrl: string): void {
   // パッケージルートをpackage.jsonの位置で特定する
   // process.cwd() はsystemd実行時にパッケージ外のディレクトリになるため使用しない
   const packageRoot = findPackageRoot(__dirname);
-  const configPath = path.join(packageRoot, 'drizzle.config.ts');
 
-  const result = spawnSync('npx', ['drizzle-kit', 'push', `--config=${configPath}`], {
-    stdio: 'inherit',
-    cwd: packageRoot,
-    env: { ...process.env, DATABASE_URL: databaseUrl },
-  });
+  // drizzle-kit は node_modules 内の TypeScript ファイルを処理できないため、
+  // コンパイル済みの JS スキーマを参照する一時 JSON 設定ファイルを /tmp に生成する
+  const schemaPath = path.join(packageRoot, 'dist', 'src', 'db', 'schema.js');
+  const dbPath = databaseUrl.startsWith('file://')
+    ? databaseUrl.slice('file://'.length)
+    : databaseUrl.replace(/^file:/, '');
+  const tmpConfig = path.join(os.tmpdir(), `drizzle-config-${process.pid}.json`);
 
-  if (result.error) {
-    throw new Error(`Failed to execute drizzle-kit: ${result.error.message}`);
-  }
+  try {
+    fs.writeFileSync(
+      tmpConfig,
+      JSON.stringify({
+        schema: schemaPath,
+        dialect: 'sqlite',
+        dbCredentials: { url: dbPath },
+      })
+    );
 
-  if (result.signal) {
-    throw new Error(`drizzle-kit push was killed by signal ${result.signal}`);
-  }
+    const result = spawnSync('npx', ['drizzle-kit', 'push', `--config=${tmpConfig}`], {
+      stdio: 'inherit',
+      env: { ...process.env, DATABASE_URL: databaseUrl },
+    });
 
-  if (result.status !== 0) {
-    throw new Error(`drizzle-kit push failed with exit code ${result.status}`);
+    if (result.error) {
+      throw new Error(`Failed to execute drizzle-kit: ${result.error.message}`);
+    }
+
+    if (result.signal) {
+      throw new Error(`drizzle-kit push was killed by signal ${result.signal}`);
+    }
+
+    if (result.status !== 0) {
+      throw new Error(`drizzle-kit push failed with exit code ${result.status}`);
+    }
+  } finally {
+    try { fs.unlinkSync(tmpConfig); } catch { /* 一時ファイル削除失敗は無視 */ }
   }
 
   console.log('✅ スキーマ同期完了');
