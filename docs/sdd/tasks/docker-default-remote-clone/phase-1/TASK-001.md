@@ -287,7 +287,7 @@ private async executeGitCommand(
   const args = [
     'run', '--rm',
     '-v', `${repoPath}:/workspace/repo`,
-    '-v', `${os.homedir()}/.ssh:/root/.ssh:ro`,
+    '-v', `${os.homedir()}/.ssh:/home/node/.ssh:ro`,
   ];
 
   if (process.env.SSH_AUTH_SOCK) {

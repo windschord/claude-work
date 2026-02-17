@@ -44,6 +44,7 @@ export interface Branch {
 }
 
 export class RemoteRepoService {
+  // EnvironmentServiceを通じて環境情報を取得し、AdapterFactory.getAdapter()で静的にアダプターを取得する
   constructor(private environmentService = new EnvironmentService()) {}
 
   /**
@@ -106,8 +107,10 @@ export class RemoteRepoService {
     fs.mkdirSync(projectPath, { recursive: true });
 
     try {
-      // DockerAdapter取得
-      const adapter = await this.adapterFactory.getAdapter(environmentId);
+      // DockerAdapter取得（AdapterFactory.getAdapter()静的メソッドを使用）
+      const environment = await this.environmentService.findById(environmentId);
+      const { AdapterFactory } = await import('./adapter-factory');
+      const adapter = AdapterFactory.getAdapter(environment) as DockerAdapter;
 
       // クローン実行
       const result = await adapter.gitClone({
