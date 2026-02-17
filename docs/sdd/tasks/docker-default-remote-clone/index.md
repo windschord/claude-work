@@ -10,11 +10,11 @@ ClaudeWorkをHOST主体からDocker主体のアーキテクチャに移行し、
 
 | フェーズ | タスク数 | 完了 | 進行中 | 未着手 | 進捗率 |
 |---------|---------|------|-------|-------|-------|
-| Phase 1: 基盤整備 | 3 | 0 | 0 | 3 | 0% |
-| Phase 2: API実装 | 3 | 0 | 0 | 3 | 0% |
-| Phase 3: UI実装 | 5 | 0 | 0 | 5 | 0% |
-| Phase 4: テスト・ドキュメント | 3 | 0 | 0 | 3 | 0% |
-| **合計** | **14** | **0** | **0** | **14** | **0%** |
+| Phase 1: 基盤整備 | 3 | 3 | 0 | 0 | 100% |
+| Phase 2: API実装 | 3 | 3 | 0 | 0 | 100% |
+| Phase 3: UI実装 | 5 | 5 | 0 | 0 | 100% |
+| Phase 4: テスト・ドキュメント | 3 | 2 | 1 | 0 | 67% |
+| **合計** | **14** | **13** | **1** | **0** | **93%** |
 
 ## 並列実行グループ
 
@@ -58,35 +58,35 @@ ClaudeWorkをHOST主体からDocker主体のアーキテクチャに移行し、
 
 | ID | タイトル | ステータス | 担当 | 推定工数 | リンク |
 |----|----------|-----------|------|---------|--------|
-| TASK-001 | DockerAdapterにGit操作メソッドを追加 | TODO | - | 60分 | [詳細](phase-1/TASK-001.md) @phase-1/TASK-001.md |
-| TASK-002 | RemoteRepoServiceの実装 | TODO | - | 40分 | [詳細](phase-1/TASK-002.md) @phase-1/TASK-002.md |
-| TASK-003 | EnvironmentServiceにデフォルト環境初期化を追加 | TODO | - | 30分 | [詳細](phase-1/TASK-003.md) @phase-1/TASK-003.md |
+| TASK-001 | DockerAdapterにGit操作メソッドを追加 | DONE | backend-dev-1 | 60分 | [詳細](phase-1/TASK-001.md) @phase-1/TASK-001.md |
+| TASK-002 | RemoteRepoServiceの実装 | DONE | backend-dev-2 | 40分 | [詳細](phase-1/TASK-002.md) @phase-1/TASK-002.md |
+| TASK-003 | EnvironmentServiceにデフォルト環境初期化を追加 | DONE | backend-dev-3 | 30分 | [詳細](phase-1/TASK-003.md) @phase-1/TASK-003.md |
 
 ### Phase 2: API実装
 
 | ID | タイトル | ステータス | 担当 | 推定工数 | リンク |
 |----|----------|-----------|------|---------|--------|
-| TASK-004 | Clone APIエンドポイントの実装 | TODO | - | 40分 | [詳細](phase-2/TASK-004.md) @phase-2/TASK-004.md |
-| TASK-005 | Pull APIエンドポイントの実装 | TODO | - | 30分 | [詳細](phase-2/TASK-005.md) @phase-2/TASK-005.md |
-| TASK-006 | Branches APIエンドポイントの実装 | TODO | - | 30分 | [詳細](phase-2/TASK-006.md) @phase-2/TASK-006.md |
+| TASK-004 | Clone APIエンドポイントの実装 | DONE | backend-dev-1 | 40分 | [詳細](phase-2/TASK-004.md) @phase-2/TASK-004.md |
+| TASK-005 | Pull APIエンドポイントの実装 | DONE | backend-dev-2 | 30分 | [詳細](phase-2/TASK-005.md) @phase-2/TASK-005.md |
+| TASK-006 | Branches APIエンドポイントの実装 | DONE | backend-dev-3 | 30分 | [詳細](phase-2/TASK-006.md) @phase-2/TASK-006.md |
 
 ### Phase 3: UI実装
 
 | ID | タイトル | ステータス | 担当 | 推定工数 | リンク |
 |----|----------|-----------|------|---------|--------|
-| TASK-007 | RemoteRepoFormコンポーネントの実装 | TODO | - | 40分 | [詳細](phase-3/TASK-007.md) @phase-3/TASK-007.md |
-| TASK-008 | AddProjectModalにリモートタブを追加 | TODO | - | 30分 | [詳細](phase-3/TASK-008.md) @phase-3/TASK-008.md |
-| TASK-009 | ProjectCardにリモートバッジと更新ボタンを追加 | TODO | - | 30分 | [詳細](phase-3/TASK-009.md) @phase-3/TASK-009.md |
-| TASK-010 | CreateSessionModalの環境選択をDocker優先に変更 | TODO | - | 30分 | [詳細](phase-3/TASK-010.md) @phase-3/TASK-010.md |
-| TASK-011 | CreateSessionModalにブランチ選択を追加 | TODO | - | 30分 | [詳細](phase-3/TASK-011.md) @phase-3/TASK-011.md |
+| TASK-007 | RemoteRepoFormコンポーネントの実装 | DONE | backend-dev-1 | 40分 | [詳細](phase-3/TASK-007.md) @phase-3/TASK-007.md |
+| TASK-008 | AddProjectModalにリモートタブを追加 | DONE | backend-dev-1 | 30分 | [詳細](phase-3/TASK-008.md) @phase-3/TASK-008.md |
+| TASK-009 | ProjectCardにリモートバッジと更新ボタンを追加 | DONE | backend-dev-2 | 30分 | [詳細](phase-3/TASK-009.md) @phase-3/TASK-009.md |
+| TASK-010 | CreateSessionModalの環境選択をDocker優先に変更 | DONE | backend-dev-3 | 30分 | [詳細](phase-3/TASK-010.md) @phase-3/TASK-010.md |
+| TASK-011 | CreateSessionModalにブランチ選択を追加 | DONE | backend-dev-3 | 30分 | [詳細](phase-3/TASK-011.md) @phase-3/TASK-011.md |
 
 ### Phase 4: テスト・ドキュメント
 
 | ID | タイトル | ステータス | 担当 | 推定工数 | リンク |
 |----|----------|-----------|------|---------|--------|
-| TASK-012 | E2Eテストの作成 | TODO | - | 40分 | [詳細](phase-4/TASK-012.md) @phase-4/TASK-012.md |
-| TASK-013 | ドキュメントの更新 | TODO | - | 40分 | [詳細](phase-4/TASK-013.md) @phase-4/TASK-013.md |
-| TASK-014 | 統合テストと最終確認 | TODO | - | 30分 | [詳細](phase-4/TASK-014.md) @phase-4/TASK-014.md |
+| TASK-012 | E2Eテストの作成 | DONE | backend-dev-3 | 40分 | [詳細](phase-4/TASK-012.md) @phase-4/TASK-012.md |
+| TASK-013 | ドキュメントの更新 | DONE | backend-dev-1 | 40分 | [詳細](phase-4/TASK-013.md) @phase-4/TASK-013.md |
+| TASK-014 | 統合テストと最終確認 | IN_PROGRESS | backend-dev-2 | 30分 | [詳細](phase-4/TASK-014.md) @phase-4/TASK-014.md |
 
 ## 依存関係グラフ
 
