@@ -149,8 +149,8 @@ test.describe('プロジェクト削除と再クローン', () => {
 
     const urlInput2 = page.locator('input[placeholder*="git@github.com"]');
     await urlInput2.fill(TEST_REPO_URL);
-    const cloneBtn = page.locator('[role="dialog"] button:has-text("Clone")');
-    await cloneBtn.click();
+    const cloneBtn2 = page.locator('[role="dialog"] button:has-text("Clone")');
+    await cloneBtn2.click();
 
     // 成功を確認
     await expect(page.locator('text=clone')).toBeVisible({ timeout: 15000 });
@@ -195,8 +195,8 @@ test.describe('複数ブランチの切り替え', () => {
 
     const urlInput = page.locator('input[placeholder*="git@github.com"]');
     await urlInput.fill(TEST_REPO_URL);
-    const cloneBtn = page.locator('[role="dialog"] button:has-text("Clone")');
-    await cloneBtn.click();
+    const cloneBtn3 = page.locator('[role="dialog"] button:has-text("Clone")');
+    await cloneBtn3.click();
 
     // クローン完了を待機
     await page.waitForTimeout(15000);
