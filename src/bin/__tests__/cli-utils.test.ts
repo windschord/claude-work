@@ -171,8 +171,8 @@ describe('cli-utils', () => {
         expect.arrayContaining([
           'drizzle-kit',
           'push',
-          // 一時JSONコンフィグ（/tmpまたはos.tmpdir()）を指定していること
-          expect.stringMatching(/--config=.*drizzle-config-\d+\.json$/),
+          // 設定ファイルはpackageRoot内（drizzle-ormが解決できる場所）に生成すること
+          expect.stringMatching(/--config=.*drizzle-push-config-\d+\.json$/),
         ]),
         expect.objectContaining({
           stdio: 'inherit',
@@ -193,8 +193,8 @@ describe('cli-utils', () => {
 
         const [, args] = mockSpawnSync.mock.calls[0];
         const configArg = args.find((a: string) => a.startsWith('--config='));
-        // 一時ディレクトリの設定ファイルを使用しており、process.cwd()に依存しない
-        expect(configArg).toMatch(/--config=.*drizzle-config-\d+\.json$/);
+        // packageRoot内の設定ファイルを使用しており、process.cwd()に依存しない
+        expect(configArg).toMatch(/--config=.*drizzle-push-config-\d+\.json$/);
       } finally {
         process.chdir(originalCwd);
       }

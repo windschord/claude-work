@@ -5,7 +5,6 @@
  */
 
 import fs from 'fs';
-import os from 'os';
 import path from 'path';
 import { spawnSync } from 'child_process';
 import Database from 'better-sqlite3';
@@ -78,7 +77,10 @@ export function syncSchema(databaseUrl: string): void {
   const dbPath = databaseUrl.startsWith('file://')
     ? databaseUrl.slice('file://'.length)
     : databaseUrl.replace(/^file:/, '');
-  const tmpConfig = path.join(os.tmpdir(), `drizzle-config-${process.pid}.json`);
+  // 設定ファイルはpackageRoot内に生成する。
+  // drizzle-kitは設定ファイルの置き場所を起点にdrizzle-ormを探すため、
+  // /tmp/に置くとnode_modules/drizzle-ormが見つからずエラーになる。
+  const tmpConfig = path.join(packageRoot, `drizzle-push-config-${process.pid}.json`);
 
   try {
     fs.writeFileSync(
