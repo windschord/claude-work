@@ -45,6 +45,25 @@ Host: localhost:3000
 
 #### 異常時（HTTP 503）
 
+デフォルト（`HEALTH_DETAILS` 未設定）:
+
+```json
+{
+  "status": "unhealthy",
+  "timestamp": "2026-02-17T12:34:56.789Z",
+  "checks": {
+    "database": {
+      "status": "fail"
+    }
+  },
+  "features": {
+    "dockerEnabled": false
+  }
+}
+```
+
+`HEALTH_DETAILS=true` 設定時（詳細あり）:
+
 ```json
 {
   "status": "unhealthy",
@@ -57,14 +76,13 @@ Host: localhost:3000
           "table": "Session",
           "column": "active_connections",
           "expectedType": "integer"
-        },
-        {
-          "table": "Session",
-          "column": "destroy_at",
-          "expectedType": "integer"
         }
-      ]
+      ],
+      "checkedTables": ["Project", "Session", "ExecutionEnvironment", "Message", "Prompt", "RunScript", "GitHubPAT"]
     }
+  },
+  "features": {
+    "dockerEnabled": false
   }
 }
 ```

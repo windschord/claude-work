@@ -170,7 +170,7 @@ import { validateSchemaIntegrity, formatValidationError } from '@/lib/schema-che
 
 async function startServer() {
   console.log('🔍 スキーマ整合性チェック中...');
-  const validationResult = validateSchemaIntegrity(db);
+  const validationResult = validateSchemaIntegrity(db.$client);
 
   if (!validationResult.valid) {
     console.error(formatValidationError(validationResult));

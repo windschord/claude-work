@@ -211,12 +211,13 @@ function runSetup(): boolean {
     return false;
   }
 
-  // 2. データベースの確認・セットアップ
+  // 2. データベースの確認・スキーマ同期
+  // DB未存在時はセットアップログを表示し、既存DBでも常にスキーマを同期する
   if (!checkDatabase()) {
     console.log('Database not found. Setting up...');
-    if (!setupDatabase()) {
-      return false;
-    }
+  }
+  if (!setupDatabase()) {
+    return false;
   }
 
   // 3. Next.jsビルドの確認・実行

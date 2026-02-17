@@ -51,6 +51,10 @@ export function syncSchema(databaseUrl: string): void {
     throw new Error(`Failed to execute drizzle-kit: ${result.error.message}`);
   }
 
+  if (result.signal) {
+    throw new Error(`drizzle-kit push was killed by signal ${result.signal}`);
+  }
+
   if (result.status !== 0) {
     throw new Error(`drizzle-kit push failed with exit code ${result.status}`);
   }

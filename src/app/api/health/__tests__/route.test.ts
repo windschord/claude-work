@@ -97,4 +97,21 @@ describe('GET /api/health', () => {
 
     expect(body.timestamp).toBe('2026-02-17T12:00:00.000Z');
   });
+
+  it('HEALTH_DETAILS未設定時は詳細情報を返さない', async () => {
+    delete process.env.HEALTH_DETAILS;
+    mockValidateSchemaIntegrity.mockReturnValue({
+      valid: true,
+      missingColumns: [],
+      checkedTables: ['Project'],
+      timestamp: new Date('2026-02-17T12:00:00Z'),
+    });
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.checks.database.missingColumns).toBeUndefined();
+    expect(body.checks.database.checkedTables).toBeUndefined();
+  });
 });

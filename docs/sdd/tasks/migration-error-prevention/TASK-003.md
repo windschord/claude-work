@@ -72,48 +72,42 @@ npm test -- src/app/api/health/__tests__/route.test.ts
 ```typescript
 import { db } from '@/lib/db';
 import { validateSchemaIntegrity } from '@/lib/schema-check';
+import { DockerService } from '@/services/docker-service';
 import { NextResponse } from 'next/server';
 
 export async function GET() {
-  try {
-    const validationResult = validateSchemaIntegrity(db);
+  const dockerService = new DockerService();
+  const exposeDetails = process.env.HEALTH_DETAILS === 'true';
 
-    if (validationResult.valid) {
-      return NextResponse.json(
-        {
-          status: 'healthy',
-          timestamp: validationResult.timestamp.toISOString(),
-          checks: {
-            database: {
-              status: 'pass',
-              missingColumns: [],
-            },
+  try {
+    const result = validateSchemaIntegrity(db.$client);
+    const httpStatus = result.valid ? 200 : 503;
+    const status = result.valid ? 'healthy' : 'unhealthy';
+
+    return NextResponse.json(
+      {
+        status,
+        timestamp: result.timestamp.toISOString(),
+        checks: {
+          database: {
+            status: result.valid ? 'pass' : 'fail',
+            ...(exposeDetails
+              ? { missingColumns: result.missingColumns, checkedTables: result.checkedTables }
+              : {}),
           },
         },
-        { status: 200 }
-      );
-    } else {
-      return NextResponse.json(
-        {
-          status: 'unhealthy',
-          timestamp: validationResult.timestamp.toISOString(),
-          checks: {
-            database: {
-              status: 'fail',
-              missingColumns: validationResult.missingColumns,
-            },
-          },
-        },
-        { status: 503 }
-      );
-    }
+        features: { dockerEnabled: dockerService.isEnabled() },
+      },
+      { status: httpStatus }
+    );
   } catch (error) {
-    console.error('Health check failed:', error);
     return NextResponse.json(
       {
         status: 'unhealthy',
         timestamp: new Date().toISOString(),
-        error: 'Internal server error',
+        error: exposeDetails
+          ? error instanceof Error ? error.message : 'Unknown error'
+          : 'Internal error',
       },
       { status: 500 }
     );
