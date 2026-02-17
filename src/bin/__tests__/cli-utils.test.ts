@@ -161,16 +161,21 @@ describe('cli-utils', () => {
       mockSpawnSync.mockReset();
     });
 
-    it('drizzle-kit pushを実行する', () => {
+    it('drizzle-kit pushをパッケージルートのcwdと--configフラグで実行する', () => {
       mockSpawnSync.mockReturnValue({ status: 0 });
 
       syncSchema('file:test.db');
 
       expect(mockSpawnSync).toHaveBeenCalledWith(
         'npx',
-        ['drizzle-kit', 'push'],
+        expect.arrayContaining([
+          'drizzle-kit',
+          'push',
+          expect.stringMatching(/--config=.*drizzle\.config\.ts$/),
+        ]),
         expect.objectContaining({
           stdio: 'inherit',
+          cwd: expect.stringContaining('claude-work'),
           env: expect.objectContaining({ DATABASE_URL: 'file:test.db' }),
         })
       );

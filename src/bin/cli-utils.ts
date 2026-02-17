@@ -20,6 +20,32 @@ import Database from 'better-sqlite3';
 const CURRENT_DB_VERSION = 3;
 
 /**
+ * package.json の位置からパッケージルートを特定する
+ *
+ * startDir から親ディレクトリを辿り、package.json が存在する最初のディレクトリを返す。
+ * TypeScriptソース（src/bin/）でも、コンパイル済み（dist/src/bin/）でも正しく動作する。
+ *
+ * @param startDir - 探索を開始するディレクトリ
+ * @returns パッケージルートのパス
+ * @throws {Error} package.json が見つからない場合
+ */
+function findPackageRoot(startDir: string): string {
+  let dir = path.resolve(startDir);
+  const root = path.parse(dir).root;
+
+  while (dir !== root) {
+    if (fs.existsSync(path.join(dir, 'package.json'))) {
+      return dir;
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+
+  throw new Error(`Could not find package root (no package.json found from ${startDir})`);
+}
+
+/**
  * drizzle-kit pushを使用してデータベーススキーマを同期する
  *
  * src/db/schema.ts の定義に基づき drizzle-kit push を実行し、
@@ -41,9 +67,14 @@ export function syncSchema(databaseUrl: string): void {
 
   console.log('🔄 スキーマ同期中...');
 
-  const result = spawnSync('npx', ['drizzle-kit', 'push'], {
+  // パッケージルートをpackage.jsonの位置で特定する
+  // process.cwd() はsystemd実行時にパッケージ外のディレクトリになるため使用しない
+  const packageRoot = findPackageRoot(__dirname);
+  const configPath = path.join(packageRoot, 'drizzle.config.ts');
+
+  const result = spawnSync('npx', ['drizzle-kit', 'push', `--config=${configPath}`], {
     stdio: 'inherit',
-    cwd: process.cwd(),
+    cwd: packageRoot,
     env: { ...process.env, DATABASE_URL: databaseUrl },
   });
 
