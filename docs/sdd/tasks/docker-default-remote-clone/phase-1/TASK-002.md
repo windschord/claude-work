@@ -338,10 +338,93 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
 
 ## ステータス
 
-`TODO`
+`DONE`
+
+## 完了報告
+
+### 修正内容
+
+**問題**: TASK-014統合テスト中に、インスタンスベースのAdapterFactory使用による型エラーを検出
+```
+Property 'getAdapter' does not exist on type 'AdapterFactory'
+```
+
+**修正方針**: AdapterFactoryを静的メソッドとして使用するパターンに変更
+
+**実装変更**:
+1. コンストラクタ変更
+   - Before: `constructor(private adapterFactory?: AdapterFactory) {}`
+   - After: `constructor(private environmentService = new EnvironmentService()) {}`
+
+2. AdapterFactory呼び出しパターン変更
+   ```typescript
+   // environmentIdからExecutionEnvironmentオブジェクトを取得
+   const environment = await this.environmentService.findById(environmentId);
+   if (!environment) {
+     return { success: false, error: `環境ID ${environmentId} が見つかりません` };
+   }
+
+   // 静的メソッド呼び出し
+   const adapter = AdapterFactory.getAdapter(environment) as DockerAdapter;
+
+   // DockerAdapter固有メソッドの存在確認
+   if (!adapter.gitClone) {
+     return { success: false, error: 'Git操作はDocker環境でのみサポートされています' };
+   }
+   ```
+
+3. テスト修正
+   - `mockAdapterFactory` → `mockEnvironmentService` に変更
+   - `AdapterFactory.getAdapter()` を `vi.spyOn()` でモック
+   - `beforeEach` で `vi.clearAllMocks()` と `vi.restoreAllMocks()` を追加
+
+### テスト結果
+
+✅ **RemoteRepoServiceユニットテスト**: 36テスト全て通過
+```bash
+npm test -- src/services/__tests__/remote-repo-service.test.ts
+# 36 passed
+```
+
+✅ **全ユニットテスト**: 1761テスト通過
+```bash
+npm test
+# 146 files, 1761 passed, 31 skipped
+```
+
+✅ **ビルドチェック**: 成功
+```bash
+npm run build
+# Next.js + TypeScript: 成功
+```
+
+✅ **ESLint**: エラー0件
+```bash
+npm run lint
+# 0 errors, 15 warnings (既存)
+```
+
+### コミット
+
+- `e0cd18f`: "fix: RemoteRepoServiceのAdapterFactory使用を静的パターンに修正"
+
+### 受入基準チェック
+
+- ✅ `src/services/remote-repo-service.ts`が存在する
+- ✅ `validateRemoteUrl()`がSSH/HTTPS URLを検証する
+- ✅ `extractRepoName()`がURLからリポジトリ名を抽出する
+- ✅ `clone()`がDockerAdapter経由でクローンする
+- ✅ `pull()`がDockerAdapter経由でpullする
+- ✅ `getBranches()`がDockerAdapter経由でブランチを取得する
+- ✅ テストカバレッジが80%以上
+- ✅ `npm test`で全テスト通過
+- ✅ ESLintエラーがゼロ
+- ✅ TypeScriptの型エラーがゼロ
 
 ## 備考
 
-- AdapterFactoryを使用してDockerAdapterを取得
+- AdapterFactoryを静的メソッドとして使用
+- EnvironmentServiceでenvironmentIdからExecutionEnvironmentを取得
+- DockerAdapterにキャストしてGitメソッドを呼び出し
 - エラー時はディレクトリをクリーンアップ
 - ログは`logger`を使用
