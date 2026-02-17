@@ -31,11 +31,17 @@ Host: localhost:3000
   "checks": {
     "database": {
       "status": "pass",
-      "missingColumns": []
+      "missingColumns": [],
+      "checkedTables": ["Project", "Session", "ExecutionEnvironment", "Message", "Prompt", "RunScript", "GitHubPAT"]
     }
+  },
+  "features": {
+    "dockerEnabled": false
   }
 }
 ```
+
+> **注意**: `checks.database.missingColumns`、`checks.database.checkedTables` は環境変数 `HEALTH_DETAILS=true` の場合のみ返却されます。
 
 #### 異常時（HTTP 503）
 
@@ -85,6 +91,9 @@ interface HealthCheckResponse {
   checks: {
     database: DatabaseCheck;
   };
+  features: {
+    dockerEnabled: boolean;
+  };
 }
 
 /**
@@ -92,7 +101,10 @@ interface HealthCheckResponse {
  */
 interface DatabaseCheck {
   status: 'pass' | 'fail';
-  missingColumns: MissingColumn[];
+  /** HEALTH_DETAILS=true の場合のみ返却 */
+  missingColumns?: MissingColumn[];
+  /** HEALTH_DETAILS=true の場合のみ返却 */
+  checkedTables?: string[];
 }
 
 /**

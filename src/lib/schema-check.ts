@@ -1,6 +1,6 @@
 import { getTableName, getTableColumns } from 'drizzle-orm';
 import * as schema from '@/db/schema';
-import type Database from 'better-sqlite3';
+import Database from 'better-sqlite3';
 
 export interface MissingColumn {
   table: string;
@@ -35,7 +35,7 @@ export interface SchemaValidationResult {
  * ```
  */
 export function validateSchemaIntegrity(
-  db: InstanceType<typeof Database>
+  db: Database.Database
 ): SchemaValidationResult {
   const missingColumns: MissingColumn[] = [];
   const checkedTables: string[] = [];

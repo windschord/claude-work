@@ -1,4 +1,4 @@
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 const { mockValidateSchemaIntegrity } = vi.hoisted(() => ({
   mockValidateSchemaIntegrity: vi.fn(),
@@ -28,6 +28,12 @@ import { GET } from '../route';
 describe('GET /api/health', () => {
   beforeEach(() => {
     mockValidateSchemaIntegrity.mockReset();
+    // 詳細情報を有効化してテスト
+    process.env.HEALTH_DETAILS = 'true';
+  });
+
+  afterEach(() => {
+    delete process.env.HEALTH_DETAILS;
   });
 
   it('スキーマ整合性OKの場合はHTTP 200を返す', async () => {

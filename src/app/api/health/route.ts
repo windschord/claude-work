@@ -49,6 +49,7 @@ import { db } from '@/lib/db';
  */
 export async function GET() {
   const dockerService = new DockerService();
+  const exposeDetails = process.env.HEALTH_DETAILS === 'true';
 
   try {
     const result = validateSchemaIntegrity(db.$client);
@@ -65,8 +66,12 @@ export async function GET() {
         checks: {
           database: {
             status: result.valid ? 'pass' : 'fail',
-            missingColumns: result.missingColumns,
-            checkedTables: result.checkedTables,
+            ...(exposeDetails
+              ? {
+                  missingColumns: result.missingColumns,
+                  checkedTables: result.checkedTables,
+                }
+              : {}),
           },
         },
         features: {
@@ -84,7 +89,11 @@ export async function GET() {
       {
         status: 'unhealthy',
         timestamp: new Date().toISOString(),
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: exposeDetails
+          ? error instanceof Error
+            ? error.message
+            : 'Unknown error'
+          : 'Internal error',
       },
       { status: 500 }
     );

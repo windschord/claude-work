@@ -136,4 +136,4 @@ npm test -- src/bin/__tests__/cli-utils.test.ts
 
 ## ステータス
 
-**TODO**
+**DONE**
