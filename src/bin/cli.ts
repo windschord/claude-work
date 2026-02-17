@@ -25,7 +25,7 @@ import {
   checkNextBuild as checkNextBuildUtil,
   checkDrizzle as checkDrizzleUtil,
   checkDatabase as checkDatabaseUtil,
-  initializeDatabase,
+  syncSchema,
   findBinDir,
 } from './cli-utils';
 
@@ -136,34 +136,36 @@ function resolveDbPathFromEnv(): string | null {
 }
 
 /**
- * データベースディレクトリを作成し、テーブルを初期化
+ * データベースディレクトリを作成し、drizzle-kit push でスキーマを同期
  */
 function setupDatabase(): boolean {
   console.log('Setting up database...');
 
-  // プロジェクトルート内のデフォルトDBを初期化
+  // データディレクトリを作成
   const dataDir = path.join(projectRoot, 'data');
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
   }
-  const defaultDbPath = path.join(dataDir, 'claudework.db');
-  if (!initializeDatabase(defaultDbPath)) {
-    console.error('Failed to setup database');
-    return false;
-  }
 
-  // DATABASE_URLが外部パスを指している場合、そちらも初期化
+  // DATABASE_URLが未設定の場合はデフォルトパスを使用
+  const databaseUrl =
+    process.env.DATABASE_URL || `file:${path.join(dataDir, 'claudework.db')}`;
+
+  // DATABASE_URLが外部パスを指している場合、そのディレクトリを事前に作成
   const envDbPath = resolveDbPathFromEnv();
-  if (envDbPath && path.resolve(envDbPath) !== path.resolve(defaultDbPath)) {
+  if (envDbPath) {
     const envDbDir = path.dirname(envDbPath);
     if (!fs.existsSync(envDbDir)) {
       fs.mkdirSync(envDbDir, { recursive: true });
     }
-    console.log(`Initializing DATABASE_URL database: ${envDbPath}`);
-    if (!initializeDatabase(envDbPath)) {
-      console.error(`Failed to initialize database at ${envDbPath}`);
-      return false;
-    }
+  }
+
+  // drizzle-kit push でスキーマを同期（src/db/schema.ts が Single Source of Truth）
+  try {
+    syncSchema(databaseUrl);
+  } catch (error) {
+    console.error('Failed to sync database schema:', error);
+    return false;
   }
 
   console.log('Database setup completed.');

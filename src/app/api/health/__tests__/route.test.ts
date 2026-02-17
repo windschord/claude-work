@@ -1,49 +1,93 @@
-import { describe, it, expect } from 'vitest';
+import { vi, describe, it, expect, beforeEach } from 'vitest';
+
+const { mockValidateSchemaIntegrity } = vi.hoisted(() => ({
+  mockValidateSchemaIntegrity: vi.fn(),
+}));
+
+vi.mock('@/lib/schema-check', () => ({
+  validateSchemaIntegrity: mockValidateSchemaIntegrity,
+}));
+
+vi.mock('@/lib/db', () => ({
+  db: {},
+}));
+
+vi.mock('@/services/docker-service', () => ({
+  DockerService: vi.fn().mockImplementation(function () {
+    this.isEnabled = vi.fn().mockReturnValue(false);
+  }),
+}));
+
+vi.mock('@/lib/logger', () => ({
+  logger: { debug: vi.fn(), error: vi.fn() },
+}));
+
 import { GET } from '../route';
-import { NextRequest } from 'next/server';
 
 describe('GET /api/health', () => {
-  it('should return 200 status', async () => {
-    const request = new NextRequest('http://localhost:3000/api/health');
-    const response = await GET(request);
+  beforeEach(() => {
+    mockValidateSchemaIntegrity.mockReset();
+  });
+
+  it('スキーマ整合性OKの場合はHTTP 200を返す', async () => {
+    mockValidateSchemaIntegrity.mockReturnValue({
+      valid: true,
+      missingColumns: [],
+      checkedTables: ['Project', 'Session'],
+      timestamp: new Date('2026-02-17T12:00:00Z'),
+    });
+
+    const response = await GET();
+    const body = await response.json();
 
     expect(response.status).toBe(200);
+    expect(body.status).toBe('healthy');
+    expect(body.checks.database.status).toBe('pass');
+    expect(body.checks.database.missingColumns).toEqual([]);
   });
 
-  it('should return JSON response', async () => {
-    const request = new NextRequest('http://localhost:3000/api/health');
-    const response = await GET(request);
+  it('スキーマ不一致の場合はHTTP 503を返す', async () => {
+    mockValidateSchemaIntegrity.mockReturnValue({
+      valid: false,
+      missingColumns: [
+        { table: 'Session', column: 'active_connections', expectedType: 'integer' },
+      ],
+      checkedTables: ['Session'],
+      timestamp: new Date('2026-02-17T12:00:00Z'),
+    });
 
-    const contentType = response.headers.get('content-type');
-    expect(contentType).toContain('application/json');
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body.status).toBe('unhealthy');
+    expect(body.checks.database.status).toBe('fail');
+    expect(body.checks.database.missingColumns).toHaveLength(1);
   });
 
-  it('should return status and timestamp', async () => {
-    const request = new NextRequest('http://localhost:3000/api/health');
-    const response = await GET(request);
+  it('例外発生時はHTTP 500を返す', async () => {
+    mockValidateSchemaIntegrity.mockImplementation(() => {
+      throw new Error('Database connection failed');
+    });
 
-    const data = await response.json();
-    expect(data).toHaveProperty('status', 'ok');
-    expect(data).toHaveProperty('timestamp');
-    expect(typeof data.timestamp).toBe('string');
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(body.status).toBe('unhealthy');
   });
 
-  it('should return valid ISO timestamp', async () => {
-    const request = new NextRequest('http://localhost:3000/api/health');
-    const response = await GET(request);
+  it('レスポンスにtimestampを含む', async () => {
+    mockValidateSchemaIntegrity.mockReturnValue({
+      valid: true,
+      missingColumns: [],
+      checkedTables: ['Project'],
+      timestamp: new Date('2026-02-17T12:00:00Z'),
+    });
 
-    const data = await response.json();
-    const timestamp = new Date(data.timestamp);
-    expect(timestamp.toString()).not.toBe('Invalid Date');
-  });
+    const response = await GET();
+    const body = await response.json();
 
-  it('should return features object with dockerEnabled', async () => {
-    const request = new NextRequest('http://localhost:3000/api/health');
-    const response = await GET(request);
-
-    const data = await response.json();
-    expect(data).toHaveProperty('features');
-    expect(data.features).toHaveProperty('dockerEnabled');
-    expect(typeof data.features.dockerEnabled).toBe('boolean');
+    expect(body.timestamp).toBe('2026-02-17T12:00:00.000Z');
   });
 });
