@@ -3,7 +3,6 @@ import { join, basename, resolve } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { logger } from '../lib/logger';
 import { getReposDir } from '@/lib/data-dir';
-import { AdapterFactory } from './adapter-factory';
 import { EnvironmentService } from './environment-service';
 import type { DockerAdapter } from './adapters/docker-adapter';
 
@@ -172,6 +171,7 @@ export class RemoteRepoService {
         if (!environment) {
           return { success: false, path: '', error: `環境ID ${environmentId} が見つかりません` };
         }
+        const { AdapterFactory } = await import('./adapter-factory');
         const adapter = AdapterFactory.getAdapter(environment) as DockerAdapter;
 
         // DockerAdapterでない場合はエラー
@@ -318,6 +318,7 @@ export class RemoteRepoService {
             error: `環境ID ${environmentId} が見つかりません`,
           };
         }
+        const { AdapterFactory } = await import('./adapter-factory');
         const adapter = AdapterFactory.getAdapter(environment) as DockerAdapter;
 
         if (!adapter.gitPull) {
@@ -450,6 +451,7 @@ export class RemoteRepoService {
           logger.error('Environment not found', { environmentId });
           return [];
         }
+        const { AdapterFactory } = await import('./adapter-factory');
         const adapter = AdapterFactory.getAdapter(environment) as DockerAdapter;
 
         if (!adapter.gitGetBranches) {
