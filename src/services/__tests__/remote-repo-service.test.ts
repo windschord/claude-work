@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync, existsSync, mkdirSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { execSync } from 'child_process';
+import { AdapterFactory } from '../adapter-factory';
 
 describe('RemoteRepoService', () => {
   let service: RemoteRepoService;
@@ -308,23 +309,34 @@ describe('RemoteRepoService', () => {
 
   // DockerAdapter統合テスト
   describe('DockerAdapter Integration', () => {
-    let mockAdapterFactory: any;
+    let mockEnvironmentService: any;
     let mockAdapter: any;
+    let mockEnvironment: any;
 
     beforeEach(() => {
+      // 前のテストのスパイをクリア
+      vi.clearAllMocks();
+      vi.restoreAllMocks();
+
       mockAdapter = {
         gitClone: vi.fn(),
         gitPull: vi.fn(),
         gitGetBranches: vi.fn(),
       };
-      mockAdapterFactory = {
-        getAdapter: vi.fn().mockResolvedValue(mockAdapter),
+      mockEnvironment = {
+        id: 'docker-env-1',
+        name: 'Docker Environment',
+        type: 'DOCKER',
       };
+      mockEnvironmentService = {
+        findById: vi.fn().mockResolvedValue(mockEnvironment),
+      };
+      vi.spyOn(AdapterFactory, 'getAdapter').mockReturnValue(mockAdapter);
     });
 
     describe('clone with environmentId', () => {
       it('should use DockerAdapter when environmentId is provided', async () => {
-        const serviceWithAdapter = new RemoteRepoService(mockAdapterFactory);
+        const serviceWithAdapter = new RemoteRepoService(mockEnvironmentService);
 
         mockAdapter.gitClone.mockResolvedValue({
           success: true,
@@ -338,12 +350,13 @@ describe('RemoteRepoService', () => {
         });
 
         expect(result.success).toBe(true);
-        expect(mockAdapterFactory.getAdapter).toHaveBeenCalledWith('docker-env-1');
+        expect(mockEnvironmentService.findById).toHaveBeenCalledWith('docker-env-1');
+        expect(AdapterFactory.getAdapter).toHaveBeenCalledWith(mockEnvironment);
         expect(mockAdapter.gitClone).toHaveBeenCalled();
       });
 
       it('should use host execution when environmentId is not provided', async () => {
-        const serviceWithAdapter = new RemoteRepoService(mockAdapterFactory);
+        const serviceWithAdapter = new RemoteRepoService(mockEnvironmentService);
 
         const result = await serviceWithAdapter.clone({
           url: testRepoPath,
@@ -351,12 +364,13 @@ describe('RemoteRepoService', () => {
         });
 
         expect(result.success).toBe(true);
-        expect(mockAdapterFactory.getAdapter).not.toHaveBeenCalled();
+        expect(mockEnvironmentService.findById).not.toHaveBeenCalled();
+        expect(AdapterFactory.getAdapter).not.toHaveBeenCalled();
         expect(mockAdapter.gitClone).not.toHaveBeenCalled();
       });
 
       it('should handle DockerAdapter clone failure', async () => {
-        const serviceWithAdapter = new RemoteRepoService(mockAdapterFactory);
+        const serviceWithAdapter = new RemoteRepoService(mockEnvironmentService);
 
         mockAdapter.gitClone.mockResolvedValue({
           success: false,
@@ -376,7 +390,7 @@ describe('RemoteRepoService', () => {
 
     describe('pull with environmentId', () => {
       it('should use DockerAdapter when environmentId is provided', async () => {
-        const serviceWithAdapter = new RemoteRepoService(mockAdapterFactory);
+        const serviceWithAdapter = new RemoteRepoService(mockEnvironmentService);
 
         mockAdapter.gitPull.mockResolvedValue({
           success: true,
@@ -388,26 +402,28 @@ describe('RemoteRepoService', () => {
 
         expect(result.success).toBe(true);
         expect(result.updated).toBe(true);
-        expect(mockAdapterFactory.getAdapter).toHaveBeenCalledWith('docker-env-1');
+        expect(mockEnvironmentService.findById).toHaveBeenCalledWith('docker-env-1');
+        expect(AdapterFactory.getAdapter).toHaveBeenCalledWith(mockEnvironment);
         expect(mockAdapter.gitPull).toHaveBeenCalledWith('/path/to/repo');
       });
 
       it('should use host execution when environmentId is not provided', async () => {
-        const serviceWithAdapter = new RemoteRepoService(mockAdapterFactory);
+        const serviceWithAdapter = new RemoteRepoService(mockEnvironmentService);
         const clonedPath = join(testDir, 'pull-test-adapter');
         await serviceWithAdapter.clone({ url: testRepoPath, targetDir: clonedPath });
 
         const result = await serviceWithAdapter.pull(clonedPath);
 
         expect(result.success).toBe(true);
-        expect(mockAdapterFactory.getAdapter).not.toHaveBeenCalled();
+        expect(mockEnvironmentService.findById).not.toHaveBeenCalled();
+        expect(AdapterFactory.getAdapter).not.toHaveBeenCalled();
         expect(mockAdapter.gitPull).not.toHaveBeenCalled();
       });
     });
 
     describe('getBranches with environmentId', () => {
       it('should use DockerAdapter when environmentId is provided', async () => {
-        const serviceWithAdapter = new RemoteRepoService(mockAdapterFactory);
+        const serviceWithAdapter = new RemoteRepoService(mockEnvironmentService);
 
         const mockBranches = [
           { name: 'main', isDefault: true, isRemote: false },
@@ -419,19 +435,21 @@ describe('RemoteRepoService', () => {
 
         expect(result).toHaveLength(2);
         expect(result[0].name).toBe('main');
-        expect(mockAdapterFactory.getAdapter).toHaveBeenCalledWith('docker-env-1');
+        expect(mockEnvironmentService.findById).toHaveBeenCalledWith('docker-env-1');
+        expect(AdapterFactory.getAdapter).toHaveBeenCalledWith(mockEnvironment);
         expect(mockAdapter.gitGetBranches).toHaveBeenCalledWith('/path/to/repo');
       });
 
       it('should use host execution when environmentId is not provided', async () => {
-        const serviceWithAdapter = new RemoteRepoService(mockAdapterFactory);
+        const serviceWithAdapter = new RemoteRepoService(mockEnvironmentService);
         const clonedPath = join(testDir, 'branches-test-adapter');
         await serviceWithAdapter.clone({ url: testRepoPath, targetDir: clonedPath });
 
         const result = await serviceWithAdapter.getBranches(clonedPath);
 
         expect(result.length).toBeGreaterThan(0);
-        expect(mockAdapterFactory.getAdapter).not.toHaveBeenCalled();
+        expect(mockEnvironmentService.findById).not.toHaveBeenCalled();
+        expect(AdapterFactory.getAdapter).not.toHaveBeenCalled();
         expect(mockAdapter.gitGetBranches).not.toHaveBeenCalled();
       });
     });
