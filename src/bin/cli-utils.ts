@@ -6,6 +6,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import { spawnSync } from 'child_process';
 import Database from 'better-sqlite3';
 
 /**
@@ -17,6 +18,49 @@ import Database from 'better-sqlite3';
  * - v2: claude_code_options, custom_env_vars カラム追加
  */
 const CURRENT_DB_VERSION = 3;
+
+/**
+ * drizzle-kit pushを使用してデータベーススキーマを同期する
+ *
+ * src/db/schema.ts の定義に基づき drizzle-kit push を実行し、
+ * データベースのスキーマを最新状態に同期する。
+ * CLI起動時に自動的に呼び出される。
+ *
+ * @param databaseUrl - データベースファイルのURL（例: file:../data/claudework.db）
+ * @throws {Error} DATABASE_URLが未設定、またはdrizzle-kit pushが失敗した場合
+ *
+ * @example
+ * ```typescript
+ * syncSchema(process.env.DATABASE_URL!);
+ * ```
+ */
+export function syncSchema(databaseUrl: string): void {
+  if (!databaseUrl) {
+    throw new Error('DATABASE_URL is not set');
+  }
+
+  console.log('🔄 スキーマ同期中...');
+
+  const result = spawnSync('npx', ['drizzle-kit', 'push'], {
+    stdio: 'inherit',
+    cwd: process.cwd(),
+    env: { ...process.env, DATABASE_URL: databaseUrl },
+  });
+
+  if (result.error) {
+    throw new Error(`Failed to execute drizzle-kit: ${result.error.message}`);
+  }
+
+  if (result.signal) {
+    throw new Error(`drizzle-kit push was killed by signal ${result.signal}`);
+  }
+
+  if (result.status !== 0) {
+    throw new Error(`drizzle-kit push failed with exit code ${result.status}`);
+  }
+
+  console.log('✅ スキーマ同期完了');
+}
 
 /**
  * Next.jsビルドが存在し、完全かどうかを確認

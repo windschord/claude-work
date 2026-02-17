@@ -5,11 +5,21 @@
  * better-sqlite3 が内部で fs を使用するため、fs のモック化は現実的ではありません。
  * テスト用の一時ディレクトリを作成・削除することで分離を保証しています。
  */
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { checkNextBuild, checkDrizzle, checkDatabase, findBinDir, initializeDatabase, migrateDatabase } from '../cli-utils';
+
+const { mockSpawnSync } = vi.hoisted(() => ({
+  mockSpawnSync: vi.fn(),
+}));
+
+vi.mock('child_process', () => ({
+  default: { spawnSync: mockSpawnSync },
+  spawnSync: mockSpawnSync,
+}));
+
+import { checkNextBuild, checkDrizzle, checkDatabase, findBinDir, syncSchema, initializeDatabase, migrateDatabase } from '../cli-utils';
 
 describe('cli-utils', () => {
   let testDir: string;
@@ -143,6 +153,47 @@ describe('cli-utils', () => {
       mkdirSync(join(testDir, 'data'));
       const result = checkDatabase(testDir);
       expect(result).toBe(false);
+    });
+  });
+
+  describe('syncSchema', () => {
+    beforeEach(() => {
+      mockSpawnSync.mockReset();
+    });
+
+    it('drizzle-kit pushを実行する', () => {
+      mockSpawnSync.mockReturnValue({ status: 0 });
+
+      syncSchema('file:test.db');
+
+      expect(mockSpawnSync).toHaveBeenCalledWith(
+        'npx',
+        ['drizzle-kit', 'push'],
+        expect.objectContaining({
+          stdio: 'inherit',
+          env: expect.objectContaining({ DATABASE_URL: 'file:test.db' }),
+        })
+      );
+    });
+
+    it('DATABASE_URLが空の場合はエラーをthrowする', () => {
+      expect(() => syncSchema('')).toThrow('DATABASE_URL is not set');
+    });
+
+    it('drizzle-kit pushが失敗した場合はエラーをthrowする', () => {
+      mockSpawnSync.mockReturnValue({ status: 1 });
+
+      expect(() => syncSchema('file:test.db')).toThrow(
+        'drizzle-kit push failed with exit code 1'
+      );
+    });
+
+    it('spawnSyncがエラーを返した場合はエラーをthrowする', () => {
+      mockSpawnSync.mockReturnValue({ error: new Error('Command not found') });
+
+      expect(() => syncSchema('file:test.db')).toThrow(
+        'Failed to execute drizzle-kit'
+      );
     });
   });
 

@@ -18,6 +18,7 @@ import { environmentService } from './src/services/environment-service';
 import { DockerAdapter } from './src/services/adapters/docker-adapter';
 import { db } from './src/lib/db';
 import { ptySessionManager } from './src/services/pty-session-manager';
+import { validateSchemaIntegrity, formatValidationError } from './src/lib/schema-check';
 
 // 環境変数を.envファイルから明示的にロード（PM2で設定されている場合はそちらを優先）
 const dotenvResult = dotenv.config();
@@ -72,6 +73,18 @@ try {
   }
   process.exit(1);
 }
+
+// スキーマ整合性チェック（HTTPサーバー起動前）
+logger.info('Checking database schema integrity...');
+const schemaValidationResult = validateSchemaIntegrity(db.$client);
+if (!schemaValidationResult.valid) {
+  console.error(formatValidationError(schemaValidationResult));
+  logger.error('Database schema is out of sync. Exiting.');
+  process.exit(1);
+}
+logger.info('Schema integrity OK', {
+  checkedTables: schemaValidationResult.checkedTables.length,
+});
 
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = process.env.HOST || 'localhost';
