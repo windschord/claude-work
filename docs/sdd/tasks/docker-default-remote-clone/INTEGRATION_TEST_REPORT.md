@@ -64,7 +64,7 @@ APIレベル（Clone/Pull/Branches API）の動作も正常確認済み。
 
 **原因**: ログイン認証（`input#token`）タイムアウト
 
-```
+```text
 TimeoutError: page.fill: Timeout 10000ms exceeded.
 Call log:
   - waiting for locator('input#token')

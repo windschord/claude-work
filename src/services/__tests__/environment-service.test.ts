@@ -91,6 +91,7 @@ vi.mock('drizzle-orm', () => {
 
   return {
     eq: vi.fn((col, val) => ({ column: col, value: val })),
+    and: vi.fn((...conditions) => ({ type: 'and', conditions })),
     asc: vi.fn((col) => ({ column: col, direction: 'asc' })),
     count: vi.fn(() => 'count'),
     sql: mockSql,

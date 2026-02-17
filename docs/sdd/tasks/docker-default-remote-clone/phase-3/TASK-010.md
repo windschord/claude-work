@@ -132,7 +132,7 @@ const sortedEnvironments = useMemo(() => {
 
 ## ステータス
 
-`TODO`
+`DONE`
 
 ## 備考
 

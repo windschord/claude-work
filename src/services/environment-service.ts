@@ -1,6 +1,6 @@
 import { db, schema } from '@/lib/db';
 import type { ExecutionEnvironment } from '@/lib/db';
-import { eq, asc, count, sql } from 'drizzle-orm';
+import { eq, asc, count, sql, and } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
 import { getEnvironmentsDir } from '@/lib/data-dir';
 import * as path from 'path';
@@ -338,15 +338,24 @@ export class EnvironmentService {
    * @returns デフォルトDocker環境
    */
   async ensureDefaultEnvironment(): Promise<ExecutionEnvironment> {
-    // Docker環境の検索
+    // is_default=trueのDocker環境のみを検索
     const existing = db.select().from(schema.executionEnvironments)
-      .where(eq(schema.executionEnvironments.type, 'DOCKER'))
+      .where(and(
+        eq(schema.executionEnvironments.type, 'DOCKER'),
+        eq(schema.executionEnvironments.is_default, true)
+      ))
       .get();
 
     if (existing) {
       logger.debug('デフォルトDocker環境は既に存在します', { id: existing.id });
       return existing;
     }
+
+    // 既存のデフォルト環境をis_default=falseに更新してから新規作成
+    db.update(schema.executionEnvironments)
+      .set({ is_default: false })
+      .where(eq(schema.executionEnvironments.is_default, true))
+      .run();
 
     // Docker環境を作成
     const environment = db.insert(schema.executionEnvironments).values({

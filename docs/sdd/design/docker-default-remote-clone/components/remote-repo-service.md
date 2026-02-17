@@ -44,7 +44,7 @@ export interface Branch {
 }
 
 export class RemoteRepoService {
-  constructor(private adapterFactory: AdapterFactory) {}
+  constructor(private environmentService = new EnvironmentService()) {}
 
   /**
    * リモートURLの検証

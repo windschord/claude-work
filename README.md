@@ -10,6 +10,7 @@ ClaudeWork は、Claude Code セッションをブラウザから管理するた
   - Windows は現在サポートされていません
 - **Node.js**: 18.x 以上
 - **Claude Code CLI**: インストール済みであること
+- **Docker Engine**: インストール済みであること（デフォルト実行環境として必須）
 
 ## 主な機能
 

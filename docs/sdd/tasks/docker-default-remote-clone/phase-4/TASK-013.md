@@ -92,7 +92,7 @@ ClaudeWork uses Docker as the default execution environment for security and iso
 - Branches API (`GET /api/projects/[id]/branches`)
 
 **修正例:**
-```markdown
+````markdown
 ## POST /api/projects/clone
 
 Clone a remote Git repository and register as a project.
@@ -118,7 +118,7 @@ Clone a remote Git repository and register as a project.
   }
 }
 ```
-```
+````
 
 ### 5. docs/ENV_VARS.md
 

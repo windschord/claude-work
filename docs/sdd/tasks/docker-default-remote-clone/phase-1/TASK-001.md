@@ -391,7 +391,7 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
 
 ## ステータス
 
-`TODO`
+`DONE`
 
 ## 備考
 

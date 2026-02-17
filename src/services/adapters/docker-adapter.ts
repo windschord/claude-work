@@ -891,7 +891,7 @@ export class DockerAdapter extends BasePTYAdapter {
       const args = [
         'run', '--rm',
         '-v', `${targetPath}:/workspace/target`,
-        '-v', `${os.homedir()}/.ssh:/root/.ssh:ro`,
+        '-v', `${os.homedir()}/.ssh:/home/node/.ssh:ro`,
       ];
 
       if (process.env.SSH_AUTH_SOCK) {
@@ -926,7 +926,7 @@ export class DockerAdapter extends BasePTYAdapter {
       const args = [
         'run', '--rm',
         '-v', `${repoPath}:/workspace/repo`,
-        '-v', `${os.homedir()}/.ssh:/root/.ssh:ro`,
+        '-v', `${os.homedir()}/.ssh:/home/node/.ssh:ro`,
       ];
 
       if (process.env.SSH_AUTH_SOCK) {
