@@ -13,7 +13,8 @@ vi.mock('@/lib/db', () => ({
 }));
 
 vi.mock('@/services/docker-service', () => ({
-  DockerService: vi.fn().mockImplementation(function () {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  DockerService: vi.fn().mockImplementation(function (this: any) {
     this.isEnabled = vi.fn().mockReturnValue(false);
   }),
 }));

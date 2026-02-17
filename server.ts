@@ -76,7 +76,7 @@ try {
 
 // スキーマ整合性チェック（HTTPサーバー起動前）
 logger.info('Checking database schema integrity...');
-const schemaValidationResult = validateSchemaIntegrity(db);
+const schemaValidationResult = validateSchemaIntegrity(db.$client);
 if (!schemaValidationResult.valid) {
   console.error(formatValidationError(schemaValidationResult));
   logger.error('Database schema is out of sync. Exiting.');

@@ -51,7 +51,7 @@ export async function GET() {
   const dockerService = new DockerService();
 
   try {
-    const result = validateSchemaIntegrity(db);
+    const result = validateSchemaIntegrity(db.$client);
 
     logger.debug('Health check requested', { valid: result.valid });
 
