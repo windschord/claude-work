@@ -47,9 +47,8 @@ src/generated/
 *.tsbuildinfo
 .next/cache/
 
-# Drizzle開発ツール設定
+# Drizzle開発ツール設定（drizzle.config.tsはdrizzle-kit push実行時に必要なため除外しない）
 drizzle/
-drizzle.config.ts
 
 # PM2ログ
 logs/
