@@ -1,7 +1,7 @@
-import { db, schema } from '@/lib/db';
+import { db, schema } from '../../src/lib/db';
 import { eq } from 'drizzle-orm';
-import fs from 'fs';
-import path from 'path';
+import * as fs from 'fs';
+import * as path from 'path';
 
 /**
  * E2Eテスト用のデータベースリセット関数
@@ -50,18 +50,18 @@ export async function deleteProjectByName(projectName: string): Promise<void> {
     const projects = db
       .select()
       .from(schema.projects)
-      .where(schema.projects.name.eq(projectName))
+      .where(eq(schema.projects.name, projectName))
       .all();
 
     for (const project of projects) {
       // 関連するセッションを削除
-      await db
+      db
         .delete(schema.sessions)
-        .where(schema.sessions.project_id.eq(project.id))
+        .where(eq(schema.sessions.project_id, project.id))
         .run();
 
       // プロジェクトを削除
-      await db.delete(schema.projects).where(schema.projects.id.eq(project.id)).run();
+      db.delete(schema.projects).where(eq(schema.projects.id, project.id)).run();
     }
 
     console.log(`[E2E] Deleted ${projects.length} projects with name: ${projectName}`);
