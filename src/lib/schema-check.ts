@@ -65,7 +65,7 @@ export function validateSchemaIntegrity(
     const actualColumnNames = new Set(actualColumns.map((col) => col.name));
 
     // 不足しているカラムを検出
-    for (const columnDef of Object.values(expectedColumns)) {
+    for (const [, columnDef] of Object.entries(expectedColumns)) {
       const sqlColumnName = columnDef.name;
       if (!actualColumnNames.has(sqlColumnName)) {
         missingColumns.push({
