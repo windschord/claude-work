@@ -7,7 +7,7 @@
  */
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'fs';
-import { tmpdir } from 'os';
+import os, { tmpdir } from 'os';
 import { join } from 'path';
 
 const { mockSpawnSync } = vi.hoisted(() => ({
@@ -161,7 +161,7 @@ describe('cli-utils', () => {
       mockSpawnSync.mockReset();
     });
 
-    it('drizzle-kit pushをパッケージルートのcwdと--configフラグで実行する', () => {
+    it('drizzle-kit pushを一時JSONコンフィグと--configフラグで実行する', () => {
       mockSpawnSync.mockReturnValue({ status: 0 });
 
       syncSchema('file:test.db');
@@ -171,14 +171,31 @@ describe('cli-utils', () => {
         expect.arrayContaining([
           'drizzle-kit',
           'push',
-          expect.stringMatching(/--config=.*drizzle\.config\.ts$/),
+          // 一時JSONコンフィグ（/tmpまたはos.tmpdir()）を指定していること
+          expect.stringMatching(/--config=.*drizzle-config-\d+\.json$/),
         ]),
         expect.objectContaining({
           stdio: 'inherit',
-          cwd: expect.stringContaining('claude-work'),
           env: expect.objectContaining({ DATABASE_URL: 'file:test.db' }),
         })
       );
+    });
+
+    it('プロジェクトルート外のCWDでも正しく実行できる', () => {
+      mockSpawnSync.mockReturnValue({ status: 0 });
+      const originalCwd = process.cwd();
+      process.chdir(os.tmpdir());
+
+      try {
+        syncSchema('file:test.db');
+
+        const [, args] = mockSpawnSync.mock.calls[0];
+        const configArg = args.find((a: string) => a.startsWith('--config='));
+        // 一時ディレクトリの設定ファイルを使用しており、process.cwd()に依存しない
+        expect(configArg).toMatch(/--config=.*drizzle-config-\d+\.json$/);
+      } finally {
+        process.chdir(originalCwd);
+      }
     });
 
     it('DATABASE_URLが空の場合はエラーをthrowする', () => {
