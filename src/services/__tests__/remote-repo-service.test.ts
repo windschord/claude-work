@@ -1,4 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
+
+// node-pty ネイティブモジュールの依存チェーンを防ぐためにアダプターファクトリをモック化
+vi.mock('../adapter-factory', () => ({
+  AdapterFactory: {
+    getAdapter: vi.fn(),
+  },
+}));
+
 import { RemoteRepoService } from '../remote-repo-service';
 import { mkdtempSync, rmSync, existsSync, mkdirSync } from 'fs';
 import { tmpdir } from 'os';
