@@ -176,6 +176,8 @@ describe('cli-utils', () => {
         ]),
         expect.objectContaining({
           stdio: 'inherit',
+          // drizzle-orm解決のためにパッケージルートをcwdに設定していること
+          cwd: expect.stringContaining('claude-work'),
           env: expect.objectContaining({ DATABASE_URL: 'file:test.db' }),
         })
       );

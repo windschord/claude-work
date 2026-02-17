@@ -90,8 +90,11 @@ export function syncSchema(databaseUrl: string): void {
       })
     );
 
+    // cwd をパッケージルートに設定することで、drizzle-kit が drizzle-orm を
+    // パッケージの node_modules から解決できるようにする
     const result = spawnSync('npx', ['drizzle-kit', 'push', `--config=${tmpConfig}`], {
       stdio: 'inherit',
+      cwd: packageRoot,
       env: { ...process.env, DATABASE_URL: databaseUrl },
     });
 
