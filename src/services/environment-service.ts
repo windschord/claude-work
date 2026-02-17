@@ -351,21 +351,22 @@ export class EnvironmentService {
       return existing;
     }
 
-    // 既存のデフォルト環境をis_default=falseに更新してから新規作成
-    db.update(schema.executionEnvironments)
-      .set({ is_default: false })
-      .where(eq(schema.executionEnvironments.is_default, true))
-      .run();
+    // 既存のデフォルト環境をis_default=falseに更新してから新規作成（トランザクションで保護）
+    const environment = db.transaction((tx) => {
+      tx.update(schema.executionEnvironments)
+        .set({ is_default: false })
+        .where(eq(schema.executionEnvironments.is_default, true))
+        .run();
 
-    // Docker環境を作成
-    const environment = db.insert(schema.executionEnvironments).values({
-      id: DEFAULT_DOCKER_ENVIRONMENT.id,
-      name: DEFAULT_DOCKER_ENVIRONMENT.name,
-      type: DEFAULT_DOCKER_ENVIRONMENT.type,
-      description: DEFAULT_DOCKER_ENVIRONMENT.description,
-      config: DEFAULT_DOCKER_ENVIRONMENT.config,
-      is_default: DEFAULT_DOCKER_ENVIRONMENT.is_default,
-    }).returning().get();
+      return tx.insert(schema.executionEnvironments).values({
+        id: DEFAULT_DOCKER_ENVIRONMENT.id,
+        name: DEFAULT_DOCKER_ENVIRONMENT.name,
+        type: DEFAULT_DOCKER_ENVIRONMENT.type,
+        description: DEFAULT_DOCKER_ENVIRONMENT.description,
+        config: DEFAULT_DOCKER_ENVIRONMENT.config,
+        is_default: DEFAULT_DOCKER_ENVIRONMENT.is_default,
+      }).returning().get();
+    });
 
     if (!environment) {
       throw new Error('Failed to create default Docker environment');

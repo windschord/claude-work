@@ -891,8 +891,12 @@ export class DockerAdapter extends BasePTYAdapter {
       const args = [
         'run', '--rm',
         '-v', `${targetPath}:/workspace/target`,
-        '-v', `${os.homedir()}/.ssh:/home/node/.ssh:ro`,
       ];
+
+      const sshDir = `${os.homedir()}/.ssh`;
+      if (fs.existsSync(sshDir)) {
+        args.push('-v', `${sshDir}:/home/node/.ssh:ro`);
+      }
 
       if (process.env.SSH_AUTH_SOCK) {
         args.push('-v', `${process.env.SSH_AUTH_SOCK}:/ssh-agent`);
@@ -926,8 +930,12 @@ export class DockerAdapter extends BasePTYAdapter {
       const args = [
         'run', '--rm',
         '-v', `${repoPath}:/workspace/repo`,
-        '-v', `${os.homedir()}/.ssh:/home/node/.ssh:ro`,
       ];
+
+      const sshDir = `${os.homedir()}/.ssh`;
+      if (fs.existsSync(sshDir)) {
+        args.push('-v', `${sshDir}:/home/node/.ssh:ro`);
+      }
 
       if (process.env.SSH_AUTH_SOCK) {
         args.push('-v', `${process.env.SSH_AUTH_SOCK}:/ssh-agent`);
@@ -1027,8 +1035,12 @@ export class DockerAdapter extends BasePTYAdapter {
     const args = [
       'run', '--rm',
       '-v', `${repoPath}:/workspace/repo`,
-      '-v', `${os.homedir()}/.ssh:/root/.ssh:ro`,
     ];
+
+    const sshDir = `${os.homedir()}/.ssh`;
+    if (fs.existsSync(sshDir)) {
+      args.push('-v', `${sshDir}:/home/node/.ssh:ro`);
+    }
 
     if (process.env.SSH_AUTH_SOCK) {
       args.push('-v', `${process.env.SSH_AUTH_SOCK}:/ssh-agent`);

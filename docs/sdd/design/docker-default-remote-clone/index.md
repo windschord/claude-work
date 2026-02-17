@@ -186,7 +186,7 @@ sequenceDiagram
 |----|---------|------|--------|
 | DEC-001 | Docker内でGit操作を実行 | 完全な環境分離、SSH認証の一貫性 | [詳細](decisions/DEC-001-docker-git-execution.md) @decisions/DEC-001-docker-git-execution.md |
 | DEC-002 | デフォルト環境は初回プロジェクト作成時に作成 | 起動時間の短縮、遅延初期化 | [詳細](decisions/DEC-002-default-env-init.md) @decisions/DEC-002-default-env-init.md |
-| DEC-003 | SSH認証のみサポート | セキュリティ、既存実装との整合性 | [詳細](decisions/DEC-003-ssh-auth-only.md) @decisions/DEC-003-ssh-auth-only.md |
+| DEC-003 | SSH推奨・HTTPS+PATもサポート | セキュリティ、既存SETUP.mdとの整合性 | [詳細](decisions/DEC-003-ssh-auth-only.md) @decisions/DEC-003-ssh-auth-only.md |
 | DEC-004 | HOSTモードは削除せず継続サポート | 後方互換性、段階的移行 | [詳細](decisions/DEC-004-host-mode-retention.md) @decisions/DEC-004-host-mode-retention.md |
 | DEC-005 | 既存スキーマを活用 | 変更の最小化、実装コストの削減 | [詳細](decisions/DEC-005-reuse-existing-schema.md) @decisions/DEC-005-reuse-existing-schema.md |
 

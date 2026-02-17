@@ -151,7 +151,7 @@ async gitClone(options: GitCloneOptions): Promise<GitCloneResult> {
     const args = [
       'run', '--rm',
       '-v', `${targetPath}:/workspace/target`,
-      '-v', `${os.homedir()}/.ssh:/root/.ssh:ro`,
+      '-v', `${os.homedir()}/.ssh:/home/node/.ssh:ro`,
     ];
 
     if (process.env.SSH_AUTH_SOCK) {
@@ -186,7 +186,7 @@ async gitPull(repoPath: string): Promise<GitPullResult> {
     const args = [
       'run', '--rm',
       '-v', `${repoPath}:/workspace/repo`,
-      '-v', `${os.homedir()}/.ssh:/root/.ssh:ro`,
+      '-v', `${os.homedir()}/.ssh:/home/node/.ssh:ro`,
     ];
 
     if (process.env.SSH_AUTH_SOCK) {

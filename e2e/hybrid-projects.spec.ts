@@ -251,13 +251,17 @@ test.describe('複数ブランチの切り替え', () => {
       await projectCard.locator('button:has-text("新規セッション")').click();
       await page.waitForSelector('[role="dialog"]', { timeout: 5000 });
 
+      // モーダル再オープン後に再取得（古い参照を使わない）
+      const reopenedBranchSelect = page.locator('select[name="branch"]');
+      const reopenedOptions = await reopenedBranchSelect.locator('option').all();
+
       // 2番目のブランチを選択
-      const secondBranch = await options[1].getAttribute('value');
+      const secondBranch = reopenedOptions.length > 1 ? await reopenedOptions[1].getAttribute('value') : null;
       if (secondBranch) {
-        await branchSelect.selectOption(secondBranch);
+        await reopenedBranchSelect.selectOption(secondBranch);
 
         // 選択されたブランチを確認
-        const selectedBranch = await branchSelect.inputValue();
+        const selectedBranch = await reopenedBranchSelect.inputValue();
         expect(selectedBranch).toBe(secondBranch);
       }
 

@@ -20,6 +20,9 @@ describe('RemoteRepoService', () => {
   let testRepoPath: string;
 
   beforeAll(() => {
+    // NOTE: このテストはローカルgitリポジトリを直接使用する統合的なアプローチを採用しています。
+    // ネットワーク通信は不要で、ローカルファイルシステム上でのgit操作のみを検証します。
+    // Docker経由の操作（environmentId指定時）はAdapterFactoryをvi.mockでモック化しています。
     // テスト用の一時ディレクトリを作成
     testDir = mkdtempSync(join(tmpdir(), 'remote-repo-test-'));
 

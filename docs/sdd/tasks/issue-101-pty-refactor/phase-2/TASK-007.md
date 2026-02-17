@@ -24,7 +24,7 @@ DockerAdapterをBasePTYAdapterを継承するように変更し、共通ロジ�
 
 ### 参照すべきファイル
 - `@src/services/adapters/base-adapter.ts` - BasePTYAdapter実装
-- `@docs/sdd/design/components/docker-adapter.md` - 設計書
+- `@docs/sdd/design/issue-101-pty-refactor/components/docker-adapter.md` - 設計書
 
 ---
 

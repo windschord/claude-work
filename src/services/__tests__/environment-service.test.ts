@@ -73,6 +73,22 @@ vi.mock('@/lib/db', () => ({
         run: mockDbDeleteRun,
       })),
     })),
+    transaction: vi.fn((callback: (tx: unknown) => unknown) => callback({
+      update: vi.fn(() => ({
+        set: vi.fn(() => ({
+          where: vi.fn(() => ({
+            run: mockDbUpdateRun,
+          })),
+        })),
+      })),
+      insert: vi.fn(() => ({
+        values: vi.fn(() => ({
+          returning: vi.fn(() => ({
+            get: mockDbInsertGet,
+          })),
+        })),
+      })),
+    })),
   },
   schema: {
     executionEnvironments: { id: 'id', is_default: 'is_default' },
