@@ -70,7 +70,7 @@
 ```bash
 docker run --rm \
   -v /path/to/target:/workspace/target \
-  -v ~/.ssh:/root/.ssh:ro \
+  -v ~/.ssh:/home/node/.ssh:ro \
   -v $SSH_AUTH_SOCK:/ssh-agent \
   -e SSH_AUTH_SOCK=/ssh-agent \
   -e GIT_TERMINAL_PROMPT=0 \

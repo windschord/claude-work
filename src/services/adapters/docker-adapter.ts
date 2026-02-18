@@ -1076,6 +1076,7 @@ export class DockerAdapter extends BasePTYAdapter {
       });
 
       proc.on('error', (error) => {
+        logger.warn('Docker command execution error', { args: args.slice(0, 3), error: error.message });
         resolve({ code: 1, stdout, stderr: error.message });
       });
     });

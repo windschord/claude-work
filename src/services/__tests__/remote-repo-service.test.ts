@@ -181,8 +181,10 @@ describe('RemoteRepoService', () => {
     });
 
     it('should return error when clone fails (non-existent repo)', async () => {
+      // ネットワーク接続不要で即座に失敗するURL（localhostへの接続拒否）を使用
+      // git@github.com:... のSSH URLはローカルでSSHタイムアウトが発生するため使用しない
       const result = await service.clone({
-        url: 'git@github.com:nonexistent/nonexistent-repo-12345.git',
+        url: 'https://127.0.0.1/nonexistent/repo.git',
         targetDir: join(testDir, 'should-not-exist-2'),
       });
 
