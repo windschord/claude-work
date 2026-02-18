@@ -3,6 +3,8 @@ import { join, basename, resolve } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { logger } from '../lib/logger';
 import { getReposDir } from '@/lib/data-dir';
+import { EnvironmentService } from './environment-service';
+import type { DockerAdapter } from './adapters/docker-adapter';
 
 /**
  * Clone操作のオプション
@@ -16,6 +18,8 @@ export interface CloneOptions {
   baseDir?: string;
   /** プロジェクト名（省略時はURLから自動抽出） */
   name?: string;
+  /** 実行環境ID（指定時はDockerAdapter経由で実行） */
+  environmentId?: string;
 }
 
 /**
@@ -61,6 +65,7 @@ export interface Branch {
  * 操作を提供します。SSH認証はシステムの設定を利用します。
  */
 export class RemoteRepoService {
+  constructor(private environmentService = new EnvironmentService()) {}
   // Git SSH URL パターン: git@host:path/to/repo.git
   private static readonly SSH_URL_PATTERN = /^git@[\w.-]+:[\w./-]+$/;
   // Git HTTPS URL パターン: https://host/path/to/repo.git
@@ -151,12 +156,66 @@ export class RemoteRepoService {
    * @returns clone結果
    */
   async clone(options: CloneOptions): Promise<CloneResult> {
-    const { url, targetDir, baseDir, name } = options;
+    const { url, targetDir, baseDir, name, environmentId } = options;
 
     // URL検証
     const validation = this.validateRemoteUrl(url);
     if (!validation.valid) {
       return { success: false, path: '', error: validation.error };
+    }
+
+    // environmentIdが指定されている場合はDockerAdapter経由で実行
+    if (environmentId) {
+      try {
+        const environment = await this.environmentService.findById(environmentId);
+        if (!environment) {
+          return { success: false, path: '', error: `環境ID ${environmentId} が見つかりません` };
+        }
+        const { AdapterFactory } = await import('./adapter-factory');
+        const adapter = AdapterFactory.getAdapter(environment) as DockerAdapter;
+
+        // DockerAdapterでない場合はエラー
+        if (!adapter.gitClone) {
+          return { success: false, path: '', error: 'Git操作はDocker環境でのみサポートされています' };
+        }
+
+        // clone先パスを決定
+        let clonePath: string;
+        if (targetDir) {
+          clonePath = resolve(targetDir);
+        } else {
+          const repoName = name || this.extractRepoName(url);
+          const base = baseDir || getReposDir();
+          if (!existsSync(base)) {
+            mkdirSync(base, { recursive: true });
+          }
+          clonePath = this.getUniqueClonePath(base, repoName);
+        }
+
+        // 既にディレクトリが存在する場合はエラー（targetDir指定時のみ）
+        if (targetDir && existsSync(clonePath)) {
+          return { success: false, path: clonePath, error: `ディレクトリ ${clonePath} は既に存在します` };
+        }
+
+        const result = await adapter.gitClone({
+          url,
+          targetPath: clonePath,
+          environmentId,
+        });
+
+        if (result.success) {
+          logger.info('Repository cloned successfully via DockerAdapter', { url, clonePath });
+          return { success: true, path: clonePath };
+        } else {
+          return { success: false, path: clonePath, error: result.error };
+        }
+      } catch (error) {
+        return {
+          success: false,
+          path: '',
+          error: error instanceof Error ? error.message : 'Unknown error',
+        };
+      }
     }
 
     // clone先パスを決定
@@ -243,9 +302,44 @@ export class RemoteRepoService {
    * ローカルに競合する変更がある場合は失敗します。
    *
    * @param repoPath - リポジトリのローカルパス
+   * @param environmentId - 実行環境ID（指定時はDockerAdapter経由で実行）
    * @returns pull結果
    */
-  async pull(repoPath: string): Promise<PullResult> {
+  async pull(repoPath: string, environmentId?: string): Promise<PullResult> {
+    // environmentIdが指定されている場合はDockerAdapter経由で実行
+    if (environmentId) {
+      try {
+        const environment = await this.environmentService.findById(environmentId);
+        if (!environment) {
+          return {
+            success: false,
+            updated: false,
+            message: '',
+            error: `環境ID ${environmentId} が見つかりません`,
+          };
+        }
+        const { AdapterFactory } = await import('./adapter-factory');
+        const adapter = AdapterFactory.getAdapter(environment) as DockerAdapter;
+
+        if (!adapter.gitPull) {
+          return {
+            success: false,
+            updated: false,
+            message: '',
+            error: 'Git操作はDocker環境でのみサポートされています',
+          };
+        }
+
+        return await adapter.gitPull(repoPath);
+      } catch (error) {
+        return {
+          success: false,
+          updated: false,
+          message: '',
+          error: error instanceof Error ? error.message : 'Unknown error',
+        };
+      }
+    }
     // Gitリポジトリかどうか確認
     const isGitRepo = this.isGitRepository(repoPath);
     if (!isGitRepo) {
@@ -345,9 +439,32 @@ export class RemoteRepoService {
    * ローカルブランチとリモート追跡ブランチの両方を返します。
    *
    * @param repoPath - リポジトリのローカルパス
+   * @param environmentId - 実行環境ID（指定時はDockerAdapter経由で実行）
    * @returns ブランチ一覧
    */
-  async getBranches(repoPath: string): Promise<Branch[]> {
+  async getBranches(repoPath: string, environmentId?: string): Promise<Branch[]> {
+    // environmentIdが指定されている場合はDockerAdapter経由で実行
+    if (environmentId) {
+      try {
+        const environment = await this.environmentService.findById(environmentId);
+        if (!environment) {
+          logger.error('Environment not found', { environmentId });
+          return [];
+        }
+        const { AdapterFactory } = await import('./adapter-factory');
+        const adapter = AdapterFactory.getAdapter(environment) as DockerAdapter;
+
+        if (!adapter.gitGetBranches) {
+          logger.error('Git operations not supported for this adapter');
+          return [];
+        }
+
+        return await adapter.gitGetBranches(repoPath);
+      } catch (error) {
+        logger.error('Failed to get branches via DockerAdapter', { repoPath, error });
+        return [];
+      }
+    }
     if (!this.isGitRepository(repoPath)) {
       return [];
     }
@@ -457,5 +574,5 @@ export class RemoteRepoService {
   }
 }
 
-// シングルトンインスタンス
+// シングルトンインスタンス（デフォルトのEnvironmentServiceを使用）
 export const remoteRepoService = new RemoteRepoService();

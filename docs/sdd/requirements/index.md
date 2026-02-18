@@ -8,6 +8,7 @@
 
 | プロジェクト | 説明 | ステータス |
 |-------------|------|-----------|
+| [Docker主体＋リモートリポジトリ対応](docker-default-remote-clone/index.md) | Docker環境のデフォルト化とリモートリポジトリクローン機能 | 計画中 |
 | [Drizzle ORM移行](drizzle-migration/index.md) | Prisma → Drizzle ORM への完全移行 | 進行中 |
 | [ハイブリッド設計](hybrid-clone/index.md) | ホスト環境/Docker環境でのプロジェクトclone | 計画中 |
 

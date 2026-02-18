@@ -73,6 +73,22 @@ vi.mock('@/lib/db', () => ({
         run: mockDbDeleteRun,
       })),
     })),
+    transaction: vi.fn((callback: (tx: unknown) => unknown) => callback({
+      update: vi.fn(() => ({
+        set: vi.fn(() => ({
+          where: vi.fn(() => ({
+            run: mockDbUpdateRun,
+          })),
+        })),
+      })),
+      insert: vi.fn(() => ({
+        values: vi.fn(() => ({
+          returning: vi.fn(() => ({
+            get: mockDbInsertGet,
+          })),
+        })),
+      })),
+    })),
   },
   schema: {
     executionEnvironments: { id: 'id', is_default: 'is_default' },
@@ -91,6 +107,7 @@ vi.mock('drizzle-orm', () => {
 
   return {
     eq: vi.fn((col, val) => ({ column: col, value: val })),
+    and: vi.fn((...conditions) => ({ type: 'and', conditions })),
     asc: vi.fn((col) => ({ column: col, direction: 'asc' })),
     count: vi.fn(() => 'count'),
     sql: mockSql,
@@ -460,6 +477,83 @@ describe('EnvironmentService', () => {
       await service.ensureDefaultExists();
 
       expect(mockDbInsertRun).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('ensureDefaultEnvironment', () => {
+    it('Docker環境が存在しない場合は自動作成する', async () => {
+      // Docker環境が存在しない場合
+      mockDbSelectGet.mockReturnValue(undefined);
+
+      const createdEnv = {
+        id: 'docker-default',
+        name: 'Default Docker',
+        type: 'DOCKER',
+        description: 'デフォルトのDocker環境',
+        config: JSON.stringify({ imageName: 'claude-code-sandboxed', imageTag: 'latest' }),
+        auth_dir_path: null,
+        is_default: true,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      mockDbInsertGet.mockReturnValue(createdEnv);
+
+      const result = await service.ensureDefaultEnvironment();
+
+      expect(result).toEqual(createdEnv);
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.stringContaining('デフォルトDocker環境を作成'),
+        expect.any(Object)
+      );
+    });
+
+    it('Docker環境が既に存在する場合は既存環境を返す', async () => {
+      const existingEnv = {
+        id: 'docker-existing',
+        name: 'Existing Docker',
+        type: 'DOCKER',
+        description: 'Existing Docker environment',
+        config: '{"imageName":"test"}',
+        auth_dir_path: null,
+        is_default: true,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      mockDbSelectGet.mockReturnValue(existingEnv);
+
+      const result = await service.ensureDefaultEnvironment();
+
+      expect(result).toEqual(existingEnv);
+      expect(mockLogger.debug).toHaveBeenCalledWith(
+        expect.stringContaining('デフォルトDocker環境は既に存在'),
+        expect.objectContaining({ id: existingEnv.id })
+      );
+      expect(mockDbInsertGet).not.toHaveBeenCalled();
+    });
+
+    it('作成されたDocker環境はis_default=trueである', async () => {
+      mockDbSelectGet.mockReturnValue(undefined);
+
+      const createdEnv = {
+        id: 'docker-default',
+        name: 'Default Docker',
+        type: 'DOCKER',
+        description: 'デフォルトのDocker環境',
+        config: JSON.stringify({ imageName: 'claude-code-sandboxed', imageTag: 'latest' }),
+        auth_dir_path: null,
+        is_default: true,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      mockDbInsertGet.mockReturnValue(createdEnv);
+
+      const result = await service.ensureDefaultEnvironment();
+
+      expect(result.is_default).toBe(true);
+      expect(result.type).toBe('DOCKER');
     });
   });
 
