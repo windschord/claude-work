@@ -284,6 +284,13 @@ export class EnvironmentService {
       }
     }
 
+    // 既存DBではmigrateV3ToV4でenvironment_idをFK制約なしで追加しているため、
+    // ON DELETE SET NULLが効かない。削除前に明示的にNULLに更新して参照整合性を保つ。
+    db.update(schema.projects)
+      .set({ environment_id: null })
+      .where(eq(schema.projects.environment_id, id))
+      .run();
+
     db.delete(schema.executionEnvironments)
       .where(eq(schema.executionEnvironments.id, id))
       .run();
