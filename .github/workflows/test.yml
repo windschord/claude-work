@@ -101,10 +101,7 @@ jobs:
   # E2E tests - CLI installation tests (browser tests require Claude CLI)
   test-e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    env:
-      DATABASE_URL: file:./data/test.db
+    timeout-minutes: 10
 
     steps:
     - uses: actions/checkout@v4
@@ -112,11 +109,42 @@ jobs:
     - name: Setup project
       uses: ./.github/actions/setup
       with:
-        install-playwright: 'true'
+        skip-db-setup: 'true'
+
+    - name: Cache CLI E2E package
+      uses: actions/cache@v4
+      id: cli-package-cache
+      with:
+        path: /tmp/cli-e2e-package
+        key: cli-e2e-pkg-${{ runner.os }}-${{ hashFiles('package.json', 'pnpm-lock.yaml', 'src/bin/**', 'tsconfig*.json', 'next.config.js', '.npmignore') }}
+
+    - name: Build CLI E2E package
+      if: steps.cli-package-cache.outputs.cache-hit != 'true'
+      run: |
+        set -e
+        echo "=== npm pack ==="
+        TARBALL_NAME=$(npm pack --ignore-scripts | tail -1)
+        echo "Created tarball: $TARBALL_NAME"
+
+        echo "=== Extract tarball ==="
+        mkdir -p /tmp/cli-e2e-package
+        tar -xzf "$TARBALL_NAME" -C /tmp/cli-e2e-package
+        rm -f "$TARBALL_NAME"
+
+        echo "=== npm install (triggers prepare/build) ==="
+        cd /tmp/cli-e2e-package/package
+        npm install
+        echo "=== Build complete ==="
+      timeout-minutes: 8
+
+    - name: Verify CLI package
+      run: |
+        test -f /tmp/cli-e2e-package/package/dist/src/bin/cli.js
+        test -d /tmp/cli-e2e-package/package/.next
 
     - name: Run CLI E2E tests
-      run: SKIP_WEBSERVER=true pnpm exec playwright test --project=cli
-      timeout-minutes: 10
+      run: SKIP_WEBSERVER=true CLI_PACKAGE_DIR=/tmp/cli-e2e-package/package pnpm exec playwright test --project=cli
+      timeout-minutes: 3
 
   # Build job - runs in parallel with tests
   build:
