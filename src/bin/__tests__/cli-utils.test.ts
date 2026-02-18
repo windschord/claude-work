@@ -710,24 +710,15 @@ describe('cli-utils', () => {
         );
       `);
 
-      // Session テーブル（v1 スキーマ、claude_code_options/custom_env_varsなし）
+      // Session テーブル（v1 スキーマ: 最小限のカラム構成）
       db.exec(`
         CREATE TABLE "Session" (
           "id" text PRIMARY KEY NOT NULL,
-          "project_id" text NOT NULL REFERENCES "Project"("id") ON DELETE CASCADE,
+          "project_id" text NOT NULL,
           "name" text NOT NULL,
           "status" text NOT NULL,
           "worktree_path" text NOT NULL,
           "branch_name" text NOT NULL,
-          "resume_session_id" text,
-          "last_activity_at" integer,
-          "pr_url" text,
-          "pr_number" integer,
-          "pr_status" text,
-          "pr_updated_at" integer,
-          "docker_mode" integer NOT NULL DEFAULT 0,
-          "container_id" text,
-          "environment_id" text REFERENCES "ExecutionEnvironment"("id") ON DELETE SET NULL,
           "created_at" integer NOT NULL,
           "updated_at" integer NOT NULL
         );
