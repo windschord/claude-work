@@ -7,19 +7,10 @@
  */
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'fs';
-import os, { tmpdir } from 'os';
+import { tmpdir } from 'os';
 import { join } from 'path';
 
-const { mockSpawnSync } = vi.hoisted(() => ({
-  mockSpawnSync: vi.fn(),
-}));
-
-vi.mock('child_process', () => ({
-  default: { spawnSync: mockSpawnSync },
-  spawnSync: mockSpawnSync,
-}));
-
-import { checkNextBuild, checkDrizzle, checkDatabase, findBinDir, syncSchema, initializeDatabase, migrateDatabase } from '../cli-utils';
+import { checkNextBuild, checkDatabase, initializeDatabase, migrateDatabase } from '../cli-utils';
 
 describe('cli-utils', () => {
   let testDir: string;
@@ -74,67 +65,6 @@ describe('cli-utils', () => {
     });
   });
 
-  describe('checkDrizzle', () => {
-    it('should return false when drizzle-orm does not exist', () => {
-      const result = checkDrizzle(testDir);
-      expect(result).toBe(false);
-    });
-
-    it('should return true when drizzle-orm directory exists', () => {
-      const drizzleDir = join(testDir, 'node_modules', 'drizzle-orm');
-      mkdirSync(drizzleDir, { recursive: true });
-      const result = checkDrizzle(testDir);
-      expect(result).toBe(true);
-    });
-
-    it('should return false when only node_modules exists', () => {
-      mkdirSync(join(testDir, 'node_modules'));
-      const result = checkDrizzle(testDir);
-      expect(result).toBe(false);
-    });
-
-    it('should return true when drizzle-orm exists in parent node_modules (npx flat structure)', () => {
-      const parentNodeModules = join(testDir, 'node_modules');
-      mkdirSync(join(parentNodeModules, 'drizzle-orm'), { recursive: true });
-      const projectRoot = join(parentNodeModules, 'claude-work');
-      mkdirSync(projectRoot, { recursive: true });
-      const result = checkDrizzle(projectRoot);
-      expect(result).toBe(true);
-    });
-
-    it('should return false when drizzle-orm does not exist in any ancestor node_modules', () => {
-      const parentNodeModules = join(testDir, 'node_modules');
-      const projectRoot = join(parentNodeModules, 'claude-work');
-      mkdirSync(projectRoot, { recursive: true });
-      const result = checkDrizzle(projectRoot);
-      expect(result).toBe(false);
-    });
-  });
-
-  describe('findBinDir', () => {
-    it('should return local .bin when it exists in projectRoot', () => {
-      const binDir = join(testDir, 'node_modules', '.bin');
-      mkdirSync(binDir, { recursive: true });
-      const result = findBinDir(testDir);
-      expect(result).toBe(binDir);
-    });
-
-    it('should return parent .bin when projectRoot has no .bin (npx flat structure)', () => {
-      const parentNodeModules = join(testDir, 'node_modules');
-      const parentBinDir = join(parentNodeModules, '.bin');
-      mkdirSync(parentBinDir, { recursive: true });
-      const projectRoot = join(parentNodeModules, 'claude-work');
-      mkdirSync(projectRoot, { recursive: true });
-      const result = findBinDir(projectRoot);
-      expect(result).toBe(parentBinDir);
-    });
-
-    it('should return local .bin as fallback when not found anywhere', () => {
-      const result = findBinDir(testDir);
-      expect(result).toBe(join(testDir, 'node_modules', '.bin'));
-    });
-  });
-
   describe('checkDatabase', () => {
     it('should return false when database file does not exist', () => {
       const result = checkDatabase(testDir);
@@ -156,78 +86,13 @@ describe('cli-utils', () => {
     });
   });
 
-  describe('syncSchema', () => {
-    beforeEach(() => {
-      mockSpawnSync.mockReset();
-    });
-
-    it('drizzle-kit pushを一時JSONコンフィグと--configフラグで実行する', () => {
-      mockSpawnSync.mockReturnValue({ status: 0 });
-
-      syncSchema('file:test.db');
-
-      expect(mockSpawnSync).toHaveBeenCalledWith(
-        'npx',
-        expect.arrayContaining([
-          'drizzle-kit',
-          'push',
-          // 設定ファイルはpackageRoot内（drizzle-ormが解決できる場所）に生成すること
-          expect.stringMatching(/--config=.*drizzle-push-config-\d+\.json$/),
-        ]),
-        expect.objectContaining({
-          stdio: 'inherit',
-          // drizzle-orm解決のためにパッケージルートをcwdに設定していること
-          cwd: expect.stringContaining('claude-work'),
-          env: expect.objectContaining({ DATABASE_URL: 'file:test.db' }),
-        })
-      );
-    });
-
-    it('プロジェクトルート外のCWDでも正しく実行できる', () => {
-      mockSpawnSync.mockReturnValue({ status: 0 });
-      const originalCwd = process.cwd();
-      process.chdir(os.tmpdir());
-
-      try {
-        syncSchema('file:test.db');
-
-        const [, args] = mockSpawnSync.mock.calls[0];
-        const configArg = args.find((a: string) => a.startsWith('--config='));
-        // packageRoot内の設定ファイルを使用しており、process.cwd()に依存しない
-        expect(configArg).toMatch(/--config=.*drizzle-push-config-\d+\.json$/);
-      } finally {
-        process.chdir(originalCwd);
-      }
-    });
-
-    it('DATABASE_URLが空の場合はエラーをthrowする', () => {
-      expect(() => syncSchema('')).toThrow('DATABASE_URL is not set');
-    });
-
-    it('drizzle-kit pushが失敗した場合はエラーをthrowする', () => {
-      mockSpawnSync.mockReturnValue({ status: 1 });
-
-      expect(() => syncSchema('file:test.db')).toThrow(
-        'drizzle-kit push failed with exit code 1'
-      );
-    });
-
-    it('spawnSyncがエラーを返した場合はエラーをthrowする', () => {
-      mockSpawnSync.mockReturnValue({ error: new Error('Command not found') });
-
-      expect(() => syncSchema('file:test.db')).toThrow(
-        'Failed to execute drizzle-kit'
-      );
-    });
-  });
-
   describe('initializeDatabase', () => {
     it('should create all required tables and return true', () => {
       const dbPath = join(testDir, 'test.db');
       const result = initializeDatabase(dbPath);
       expect(result).toBe(true);
 
-       
+
       const Database = require('better-sqlite3');
       const db = new Database(dbPath);
       const tables = db.prepare(
@@ -244,21 +109,23 @@ describe('cli-utils', () => {
       db.close();
     });
 
-    it('should create Project table with correct columns including new migration columns', () => {
+    it('should create Project table with correct columns including all v4 columns', () => {
       const dbPath = join(testDir, 'test.db');
       initializeDatabase(dbPath);
 
-       
+
       const Database = require('better-sqlite3');
       const db = new Database(dbPath);
       const columns = db.prepare("PRAGMA table_info('Project')").all() as {
         name: string; type: string; notnull: number; pk: number;
       }[];
       const columnNames = columns.map((c) => c.name);
-      // v2マイグレーションで追加されるカラムを含む
+      // 最新スキーマの全カラムを含む
       expect(columnNames).toEqual([
-        'id', 'name', 'path', 'remote_url', 'created_at', 'updated_at',
+        'id', 'name', 'path', 'remote_url',
         'claude_code_options', 'custom_env_vars',
+        'clone_location', 'docker_volume_id', 'environment_id',
+        'created_at', 'updated_at',
       ]);
 
       const idCol = columns.find((c) => c.name === 'id');
@@ -282,12 +149,21 @@ describe('cli-utils', () => {
       const updatedAtCol = columns.find((c) => c.name === 'updated_at');
       expect(updatedAtCol?.notnull).toBe(1);
 
-      // v2で追加されたカラム
       const claudeOptionsCol = columns.find((c) => c.name === 'claude_code_options');
       expect(claudeOptionsCol?.notnull).toBe(1);
 
       const customEnvCol = columns.find((c) => c.name === 'custom_env_vars');
       expect(customEnvCol?.notnull).toBe(1);
+
+      const cloneLocationCol = columns.find((c) => c.name === 'clone_location');
+      expect(cloneLocationCol?.notnull).toBe(0);
+
+      const dockerVolumeIdCol = columns.find((c) => c.name === 'docker_volume_id');
+      expect(dockerVolumeIdCol?.notnull).toBe(0);
+
+      const environmentIdCol = columns.find((c) => c.name === 'environment_id');
+      expect(environmentIdCol?.notnull).toBe(0);
+
       db.close();
     });
 
@@ -295,7 +171,7 @@ describe('cli-utils', () => {
       const dbPath = join(testDir, 'test.db');
       initializeDatabase(dbPath);
 
-       
+
       const Database = require('better-sqlite3');
       const db = new Database(dbPath);
       const indexes = db.prepare(
@@ -310,7 +186,7 @@ describe('cli-utils', () => {
       const dbPath = join(testDir, 'test.db');
       initializeDatabase(dbPath);
 
-       
+
       const Database = require('better-sqlite3');
       const db = new Database(dbPath);
       const columns = db.prepare("PRAGMA table_info('ExecutionEnvironment')").all() as {
@@ -328,36 +204,48 @@ describe('cli-utils', () => {
       db.close();
     });
 
-    it('should create Session table with correct columns and foreign keys', () => {
+    it('should create Session table with correct columns including all v4 columns', () => {
       const dbPath = join(testDir, 'test.db');
       initializeDatabase(dbPath);
 
-       
+
       const Database = require('better-sqlite3');
       const db = new Database(dbPath);
       const columns = db.prepare("PRAGMA table_info('Session')").all() as {
         name: string; type: string; notnull: number; dflt_value: string | null;
       }[];
       const columnNames = columns.map((c) => c.name);
-      // v2マイグレーションで追加されるカラムを含む
+      // 最新スキーマ（v4）の全カラムを含む
       expect(columnNames).toEqual([
         'id', 'project_id', 'name', 'status', 'worktree_path', 'branch_name',
         'resume_session_id', 'last_activity_at', 'pr_url', 'pr_number',
         'pr_status', 'pr_updated_at', 'docker_mode', 'container_id',
-        'environment_id', 'created_at', 'updated_at',
         'claude_code_options', 'custom_env_vars',
+        'environment_id',
+        'active_connections', 'destroy_at', 'session_state',
+        'created_at', 'updated_at',
       ]);
 
       const dockerModeCol = columns.find((c) => c.name === 'docker_mode');
       expect(dockerModeCol?.notnull).toBe(1);
       expect(dockerModeCol?.dflt_value).toBe('0');
 
-      // v2で追加されたカラム（nullable）
       const claudeOptionsCol = columns.find((c) => c.name === 'claude_code_options');
       expect(claudeOptionsCol?.notnull).toBe(0);
 
       const customEnvCol = columns.find((c) => c.name === 'custom_env_vars');
       expect(customEnvCol?.notnull).toBe(0);
+
+      const activeConnectionsCol = columns.find((c) => c.name === 'active_connections');
+      expect(activeConnectionsCol?.notnull).toBe(1);
+      expect(activeConnectionsCol?.dflt_value).toBe('0');
+
+      const destroyAtCol = columns.find((c) => c.name === 'destroy_at');
+      expect(destroyAtCol?.notnull).toBe(0);
+
+      const sessionStateCol = columns.find((c) => c.name === 'session_state');
+      expect(sessionStateCol?.notnull).toBe(1);
+      expect(sessionStateCol?.dflt_value).toBe("'ACTIVE'");
 
       const fks = db.prepare("PRAGMA foreign_key_list('Session')").all() as {
         table: string; from: string; to: string; on_delete: string;
@@ -374,11 +262,29 @@ describe('cli-utils', () => {
       db.close();
     });
 
+    it('should create Session table with correct indexes', () => {
+      const dbPath = join(testDir, 'test.db');
+      initializeDatabase(dbPath);
+
+
+      const Database = require('better-sqlite3');
+      const db = new Database(dbPath);
+      const indexes = db.prepare(
+        "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='Session'"
+      ).all() as { name: string }[];
+      const indexNames = indexes.map((i) => i.name);
+
+      expect(indexNames).toContain('sessions_session_state_idx');
+      expect(indexNames).toContain('sessions_destroy_at_idx');
+      expect(indexNames).toContain('sessions_last_activity_at_idx');
+      db.close();
+    });
+
     it('should create Message table with correct columns and foreign key', () => {
       const dbPath = join(testDir, 'test.db');
       initializeDatabase(dbPath);
 
-       
+
       const Database = require('better-sqlite3');
       const db = new Database(dbPath);
       const columns = db.prepare("PRAGMA table_info('Message')").all() as {
@@ -401,7 +307,7 @@ describe('cli-utils', () => {
       const dbPath = join(testDir, 'test.db');
       initializeDatabase(dbPath);
 
-       
+
       const Database = require('better-sqlite3');
       const db = new Database(dbPath);
       const columns = db.prepare("PRAGMA table_info('Prompt')").all() as {
@@ -428,7 +334,7 @@ describe('cli-utils', () => {
       const dbPath = join(testDir, 'test.db');
       initializeDatabase(dbPath);
 
-       
+
       const Database = require('better-sqlite3');
       const db = new Database(dbPath);
       const columns = db.prepare("PRAGMA table_info('RunScript')").all() as {
@@ -469,7 +375,7 @@ describe('cli-utils', () => {
       const dbPath = join(testDir, 'test.db');
       initializeDatabase(dbPath);
 
-       
+
       const Database = require('better-sqlite3');
       const db = new Database(dbPath);
       db.prepare(
@@ -494,18 +400,18 @@ describe('cli-utils', () => {
   });
 
   describe('migrateDatabase', () => {
-    it('should migrate new DB to CURRENT_DB_VERSION', () => {
+    it('should migrate new DB to CURRENT_DB_VERSION (4)', () => {
       const dbPath = join(testDir, 'migrate-test.db');
       const result = migrateDatabase(dbPath);
       expect(result).toBe(true);
 
-       
+
       const Database = require('better-sqlite3');
       const db = new Database(dbPath, { readonly: true });
 
-      // user_versionが3になっていることを確認
+      // user_versionが4になっていることを確認
       const row = db.prepare('PRAGMA user_version').get() as { user_version: number };
-      expect(row.user_version).toBe(3);
+      expect(row.user_version).toBe(4);
 
       // 全テーブルが存在することを確認
       const tables = db.prepare(
@@ -515,20 +421,38 @@ describe('cli-utils', () => {
       expect(tableNames).toContain('Project');
       expect(tableNames).toContain('Session');
 
-      // v2で追加されたカラムが存在することを確認
+      // v4で追加されたカラムが存在することを確認
       const projectColumns = db.prepare("PRAGMA table_info('Project')").all() as { name: string }[];
       const projectColumnNames = projectColumns.map((c) => c.name);
       expect(projectColumnNames).toContain('claude_code_options');
       expect(projectColumnNames).toContain('custom_env_vars');
+      expect(projectColumnNames).toContain('clone_location');
+      expect(projectColumnNames).toContain('docker_volume_id');
+      expect(projectColumnNames).toContain('environment_id');
+
+      const sessionColumns = db.prepare("PRAGMA table_info('Session')").all() as { name: string }[];
+      const sessionColumnNames = sessionColumns.map((c) => c.name);
+      expect(sessionColumnNames).toContain('active_connections');
+      expect(sessionColumnNames).toContain('destroy_at');
+      expect(sessionColumnNames).toContain('session_state');
+
+      // インデックスが存在することを確認
+      const indexes = db.prepare(
+        "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='Session'"
+      ).all() as { name: string }[];
+      const indexNames = indexes.map((i) => i.name);
+      expect(indexNames).toContain('sessions_session_state_idx');
+      expect(indexNames).toContain('sessions_destroy_at_idx');
+      expect(indexNames).toContain('sessions_last_activity_at_idx');
 
       db.close();
     });
 
-    it('should migrate v1 DB to v2', () => {
+    it('should migrate v1 DB to v4', () => {
       const dbPath = join(testDir, 'v1-db.db');
 
       // v1のDBを手動で作成（user_version = 1、新カラムなし）
-       
+
       const Database = require('better-sqlite3');
       const db = new Database(dbPath);
       db.pragma('journal_mode = WAL');
@@ -568,11 +492,11 @@ describe('cli-utils', () => {
       // 確認
       const db2 = new Database(dbPath, { readonly: true });
 
-      // user_versionが2になっていることを確認
+      // user_versionが4になっていることを確認
       const row = db2.prepare('PRAGMA user_version').get() as { user_version: number };
-      expect(row.user_version).toBe(3);
+      expect(row.user_version).toBe(4);
 
-      // 新カラムが追加されていることを確認
+      // v2で追加されたカラムが存在することを確認
       const projectColumns = db2.prepare("PRAGMA table_info('Project')").all() as { name: string }[];
       const projectColumnNames = projectColumns.map((c) => c.name);
       expect(projectColumnNames).toContain('claude_code_options');
@@ -583,20 +507,140 @@ describe('cli-utils', () => {
       expect(sessionColumnNames).toContain('claude_code_options');
       expect(sessionColumnNames).toContain('custom_env_vars');
 
+      // v4で追加されたカラムが存在することを確認
+      expect(projectColumnNames).toContain('clone_location');
+      expect(projectColumnNames).toContain('docker_volume_id');
+      expect(projectColumnNames).toContain('environment_id');
+      expect(sessionColumnNames).toContain('active_connections');
+      expect(sessionColumnNames).toContain('destroy_at');
+      expect(sessionColumnNames).toContain('session_state');
+
+      // v4で追加されたインデックスが存在することを確認
+      const indexes = db2.prepare(
+        "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='Session'"
+      ).all() as { name: string }[];
+      const indexNames = indexes.map((i) => i.name);
+      expect(indexNames).toContain('sessions_session_state_idx');
+      expect(indexNames).toContain('sessions_destroy_at_idx');
+      expect(indexNames).toContain('sessions_last_activity_at_idx');
+
       db2.close();
     });
 
-    it('should skip migration when DB is already at latest version', () => {
+    it('should migrate v3 DB to v4', () => {
+      const dbPath = join(testDir, 'v3-db.db');
+
+      // v3のDBを作成
+      const Database = require('better-sqlite3');
+      const db = new Database(dbPath);
+      db.pragma('journal_mode = WAL');
+
+      db.exec(`
+        CREATE TABLE "Project" (
+          "id" text PRIMARY KEY NOT NULL,
+          "name" text NOT NULL,
+          "path" text NOT NULL,
+          "remote_url" text,
+          "claude_code_options" text NOT NULL DEFAULT '{}',
+          "custom_env_vars" text NOT NULL DEFAULT '{}',
+          "created_at" integer NOT NULL,
+          "updated_at" integer NOT NULL
+        );
+      `);
+      db.exec(`
+        CREATE TABLE "ExecutionEnvironment" (
+          "id" text PRIMARY KEY NOT NULL,
+          "name" text NOT NULL,
+          "type" text NOT NULL,
+          "description" text,
+          "config" text NOT NULL,
+          "auth_dir_path" text,
+          "is_default" integer NOT NULL DEFAULT 0,
+          "created_at" integer NOT NULL,
+          "updated_at" integer NOT NULL
+        );
+      `);
+      db.exec(`
+        CREATE TABLE "Session" (
+          "id" text PRIMARY KEY NOT NULL,
+          "project_id" text NOT NULL REFERENCES "Project"("id") ON DELETE CASCADE,
+          "name" text NOT NULL,
+          "status" text NOT NULL,
+          "worktree_path" text NOT NULL,
+          "branch_name" text NOT NULL,
+          "resume_session_id" text,
+          "last_activity_at" integer,
+          "pr_url" text,
+          "pr_number" integer,
+          "pr_status" text,
+          "pr_updated_at" integer,
+          "docker_mode" integer NOT NULL DEFAULT 0,
+          "container_id" text,
+          "environment_id" text REFERENCES "ExecutionEnvironment"("id") ON DELETE SET NULL,
+          "claude_code_options" text,
+          "custom_env_vars" text,
+          "created_at" integer NOT NULL,
+          "updated_at" integer NOT NULL
+        );
+      `);
+      db.exec(`
+        CREATE TABLE "GitHubPAT" (
+          "id" text PRIMARY KEY NOT NULL,
+          "name" text NOT NULL,
+          "description" text,
+          "encrypted_token" text NOT NULL,
+          "is_active" integer NOT NULL DEFAULT 1,
+          "created_at" integer NOT NULL,
+          "updated_at" integer NOT NULL
+        );
+      `);
+      db.exec('PRAGMA user_version = 3');
+      db.close();
+
+      // マイグレーション実行
+      const result = migrateDatabase(dbPath);
+      expect(result).toBe(true);
+
+      // 確認
+      const db2 = new Database(dbPath, { readonly: true });
+      const row = db2.prepare('PRAGMA user_version').get() as { user_version: number };
+      expect(row.user_version).toBe(4);
+
+      // v4で追加されたカラムが存在することを確認
+      const projectColumns = db2.prepare("PRAGMA table_info('Project')").all() as { name: string }[];
+      const projectColumnNames = projectColumns.map((c) => c.name);
+      expect(projectColumnNames).toContain('clone_location');
+      expect(projectColumnNames).toContain('docker_volume_id');
+      expect(projectColumnNames).toContain('environment_id');
+
+      const sessionColumns = db2.prepare("PRAGMA table_info('Session')").all() as { name: string }[];
+      const sessionColumnNames = sessionColumns.map((c) => c.name);
+      expect(sessionColumnNames).toContain('active_connections');
+      expect(sessionColumnNames).toContain('destroy_at');
+      expect(sessionColumnNames).toContain('session_state');
+
+      const indexes = db2.prepare(
+        "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='Session'"
+      ).all() as { name: string }[];
+      const indexNames = indexes.map((i) => i.name);
+      expect(indexNames).toContain('sessions_session_state_idx');
+      expect(indexNames).toContain('sessions_destroy_at_idx');
+      expect(indexNames).toContain('sessions_last_activity_at_idx');
+
+      db2.close();
+    });
+
+    it('should skip migration when DB is already at latest version (4)', () => {
       const dbPath = join(testDir, 'latest-db.db');
 
       // 最新バージョンのDBを作成
       migrateDatabase(dbPath);
 
-       
+
       const Database = require('better-sqlite3');
       const db = new Database(dbPath, { readonly: true });
       const rowBefore = db.prepare('PRAGMA user_version').get() as { user_version: number };
-      expect(rowBefore.user_version).toBe(3);
+      expect(rowBefore.user_version).toBe(4);
       db.close();
 
       // 再度マイグレーション実行（スキップされるはず）
@@ -606,7 +650,7 @@ describe('cli-utils', () => {
       // バージョンが変わっていないことを確認
       const db2 = new Database(dbPath, { readonly: true });
       const rowAfter = db2.prepare('PRAGMA user_version').get() as { user_version: number };
-      expect(rowAfter.user_version).toBe(3);
+      expect(rowAfter.user_version).toBe(4);
       db2.close();
     });
 
@@ -622,11 +666,11 @@ describe('cli-utils', () => {
       expect(result2).toBe(true);
       expect(result3).toBe(true);
 
-       
+
       const Database = require('better-sqlite3');
       const db = new Database(dbPath, { readonly: true });
       const row = db.prepare('PRAGMA user_version').get() as { user_version: number };
-      expect(row.user_version).toBe(3);
+      expect(row.user_version).toBe(4);
       db.close();
     });
 
@@ -634,7 +678,7 @@ describe('cli-utils', () => {
       const dbPath = join(testDir, 'data-preserve-db.db');
 
       // v1のDBを作成してデータを挿入（v1は全テーブルが存在する状態）
-       
+
       const Database = require('better-sqlite3');
       const db = new Database(dbPath);
       db.pragma('journal_mode = WAL');

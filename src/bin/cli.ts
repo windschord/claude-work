@@ -23,10 +23,8 @@ import fs from 'fs';
 import dotenv from 'dotenv';
 import {
   checkNextBuild as checkNextBuildUtil,
-  checkDrizzle as checkDrizzleUtil,
   checkDatabase as checkDatabaseUtil,
-  syncSchema,
-  findBinDir,
+  migrateDatabase,
 } from './cli-utils';
 
 // CommonJSビルド時は__dirnameが利用可能
@@ -42,12 +40,39 @@ const command = args[0] || '';
 // プラットフォーム固有のコマンド
 const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
-// ローカルバイナリのパス（npx ではなく node_modules/.bin を直接参照）
-// npx実行時は親の node_modules/.bin にバイナリが配置されるため、上位探索する
-const binDir = findBinDir(projectRoot);
-const pm2Cmd = path.join(binDir, process.platform === 'win32' ? 'pm2.cmd' : 'pm2');
+// pm2コマンドのパス
+// node_modules/.bin/pm2 を直接参照する。npx実行時は親ディレクトリを上位探索する。
+const pm2Cmd = resolvePm2Cmd(projectRoot);
 
 const PM2_APP_NAME = 'claude-work';
+
+/**
+ * pm2コマンドのパスを解決する
+ *
+ * projectRoot から上位ディレクトリを辿り、node_modules/.bin/pm2 を探す。
+ * 見つからない場合は 'pm2' をそのまま返し、PATH上のpm2を使用する。
+ *
+ * @param startDir - 探索を開始するディレクトリ
+ * @returns pm2コマンドのパス
+ */
+function resolvePm2Cmd(startDir: string): string {
+  const pm2Bin = process.platform === 'win32' ? 'pm2.cmd' : 'pm2';
+  let current = path.resolve(startDir);
+  const root = path.parse(current).root;
+
+  while (current !== root) {
+    const binPath = path.join(current, 'node_modules', '.bin', pm2Bin);
+    if (fs.existsSync(binPath)) {
+      return binPath;
+    }
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+
+  // 見つからない場合はPATH上のpm2を使用
+  return pm2Bin;
+}
 
 /**
  * ヘルプメッセージを表示
@@ -102,13 +127,6 @@ function setupEnvFile(): void {
 }
 
 /**
- * Drizzle ORMがインストールされているか確認
- */
-function checkDrizzle(): boolean {
-  return checkDrizzleUtil(projectRoot);
-}
-
-/**
  * データベースファイルが存在するか確認
  */
 function checkDatabase(): boolean {
@@ -136,7 +154,7 @@ function resolveDbPathFromEnv(): string | null {
 }
 
 /**
- * データベースディレクトリを作成し、drizzle-kit push でスキーマを同期
+ * データベースディレクトリを作成し、ネイティブSQLマイグレーションでスキーマを同期
  */
 function setupDatabase(): boolean {
   console.log('Setting up database...');
@@ -147,10 +165,6 @@ function setupDatabase(): boolean {
     fs.mkdirSync(dataDir, { recursive: true });
   }
 
-  // DATABASE_URLが未設定の場合はデフォルトパスを使用
-  const databaseUrl =
-    process.env.DATABASE_URL || `file:${path.join(dataDir, 'claudework.db')}`;
-
   // DATABASE_URLが外部パスを指している場合、そのディレクトリを事前に作成
   const envDbPath = resolveDbPathFromEnv();
   if (envDbPath) {
@@ -160,11 +174,12 @@ function setupDatabase(): boolean {
     }
   }
 
-  // drizzle-kit push でスキーマを同期（src/db/schema.ts が Single Source of Truth）
-  try {
-    syncSchema(databaseUrl);
-  } catch (error) {
-    console.error('Failed to sync database schema:', error);
+  // DBファイルのパスを解決（外部パス指定がなければデフォルトパスを使用）
+  const resolvedDbPath = envDbPath || path.join(dataDir, 'claudework.db');
+
+  // ネイティブSQLマイグレーションでスキーマを同期
+  if (!migrateDatabase(resolvedDbPath)) {
+    console.error('Failed to migrate database schema.');
     return false;
   }
 
@@ -205,13 +220,7 @@ function buildNext(): boolean {
  * 初期セットアップを実行
  */
 function runSetup(): boolean {
-  // 1. Drizzle ORMの確認
-  if (!checkDrizzle()) {
-    console.error('Drizzle ORM not found. Please run npm install first.');
-    return false;
-  }
-
-  // 2. データベースの確認・スキーマ同期
+  // 1. データベースの確認・スキーマ同期
   // DB未存在時はセットアップログを表示し、既存DBでも常にスキーマを同期する
   if (!checkDatabase()) {
     console.log('Database not found. Setting up...');
@@ -220,7 +229,7 @@ function runSetup(): boolean {
     return false;
   }
 
-  // 3. Next.jsビルドの確認・実行
+  // 2. Next.jsビルドの確認・実行
   if (!checkNextBuild()) {
     console.log('No production build found. Building...');
     if (!buildNext()) {

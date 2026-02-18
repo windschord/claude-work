@@ -6,7 +6,6 @@
 
 import fs from 'fs';
 import path from 'path';
-import { spawnSync } from 'child_process';
 import Database from 'better-sqlite3';
 
 /**
@@ -16,107 +15,12 @@ import Database from 'better-sqlite3';
  * - v0: 初期状態（user_versionのデフォルト値）
  * - v1: 初期テーブル作成
  * - v2: claude_code_options, custom_env_vars カラム追加
+ * - v3: GitHubPATテーブル作成
+ * - v4: Projectに clone_location, docker_volume_id, environment_id を追加
+ *       Sessionに active_connections, destroy_at, session_state を追加
+ *       Sessionインデックス (session_state, destroy_at, last_activity_at) を追加
  */
-const CURRENT_DB_VERSION = 3;
-
-/**
- * package.json の位置からパッケージルートを特定する
- *
- * startDir から親ディレクトリを辿り、package.json が存在する最初のディレクトリを返す。
- * TypeScriptソース（src/bin/）でも、コンパイル済み（dist/src/bin/）でも正しく動作する。
- *
- * @param startDir - 探索を開始するディレクトリ
- * @returns パッケージルートのパス
- * @throws {Error} package.json が見つからない場合
- */
-function findPackageRoot(startDir: string): string {
-  let dir = path.resolve(startDir);
-  const root = path.parse(dir).root;
-
-  while (dir !== root) {
-    if (fs.existsSync(path.join(dir, 'package.json'))) {
-      return dir;
-    }
-    const parent = path.dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-
-  throw new Error(`Could not find package root (no package.json found from ${startDir})`);
-}
-
-/**
- * drizzle-kit pushを使用してデータベーススキーマを同期する
- *
- * src/db/schema.ts の定義に基づき drizzle-kit push を実行し、
- * データベースのスキーマを最新状態に同期する。
- * CLI起動時に自動的に呼び出される。
- *
- * @param databaseUrl - データベースファイルのURL（例: file:../data/claudework.db）
- * @throws {Error} DATABASE_URLが未設定、またはdrizzle-kit pushが失敗した場合
- *
- * @example
- * ```typescript
- * syncSchema(process.env.DATABASE_URL!);
- * ```
- */
-export function syncSchema(databaseUrl: string): void {
-  if (!databaseUrl) {
-    throw new Error('DATABASE_URL is not set');
-  }
-
-  console.log('🔄 スキーマ同期中...');
-
-  // パッケージルートをpackage.jsonの位置で特定する
-  // process.cwd() はsystemd実行時にパッケージ外のディレクトリになるため使用しない
-  const packageRoot = findPackageRoot(__dirname);
-
-  // drizzle-kit は node_modules 内の TypeScript ファイルを処理できないため、
-  // コンパイル済みの JS スキーマを参照する一時 JSON 設定ファイルを /tmp に生成する
-  const schemaPath = path.join(packageRoot, 'dist', 'src', 'db', 'schema.js');
-  const dbPath = databaseUrl.startsWith('file://')
-    ? databaseUrl.slice('file://'.length)
-    : databaseUrl.replace(/^file:/, '');
-  // 設定ファイルはpackageRoot内に生成する。
-  // drizzle-kitは設定ファイルの置き場所を起点にdrizzle-ormを探すため、
-  // /tmp/に置くとnode_modules/drizzle-ormが見つからずエラーになる。
-  const tmpConfig = path.join(packageRoot, `drizzle-push-config-${process.pid}.json`);
-
-  try {
-    fs.writeFileSync(
-      tmpConfig,
-      JSON.stringify({
-        schema: schemaPath,
-        dialect: 'sqlite',
-        dbCredentials: { url: dbPath },
-      })
-    );
-
-    // cwd をパッケージルートに設定することで、drizzle-kit が drizzle-orm を
-    // パッケージの node_modules から解決できるようにする
-    const result = spawnSync('npx', ['drizzle-kit', 'push', `--config=${tmpConfig}`], {
-      stdio: 'inherit',
-      cwd: packageRoot,
-      env: { ...process.env, DATABASE_URL: databaseUrl },
-    });
-
-    if (result.error) {
-      throw new Error(`Failed to execute drizzle-kit: ${result.error.message}`);
-    }
-
-    if (result.signal) {
-      throw new Error(`drizzle-kit push was killed by signal ${result.signal}`);
-    }
-
-    if (result.status !== 0) {
-      throw new Error(`drizzle-kit push failed with exit code ${result.status}`);
-    }
-  } finally {
-    try { fs.unlinkSync(tmpConfig); } catch { /* 一時ファイル削除失敗は無視 */ }
-  }
-
-  console.log('✅ スキーマ同期完了');
-}
+const CURRENT_DB_VERSION = 4;
 
 /**
  * Next.jsビルドが存在し、完全かどうかを確認
@@ -152,62 +56,6 @@ export function checkNextBuild(projectRoot: string): boolean {
   }
 
   return true;
-}
-
-/**
- * drizzle-ormがインストールされているか確認
- *
- * projectRoot/node_modules/drizzle-orm を最初に確認し、
- * 見つからない場合は上位ディレクトリの node_modules も探索する。
- * npx実行時はパッケージがフラットにインストールされるため、
- * drizzle-orm が親の node_modules に配置されるケースに対応。
- *
- * @param projectRoot - プロジェクトルートディレクトリ
- * @returns drizzle-ormが存在する場合はtrue
- */
-export function checkDrizzle(projectRoot: string): boolean {
-  let current = path.resolve(projectRoot);
-  const root = path.parse(current).root;
-
-  while (current !== root) {
-    const drizzlePath = path.join(current, 'node_modules', 'drizzle-orm');
-    if (fs.existsSync(drizzlePath)) {
-      return true;
-    }
-    const parent = path.dirname(current);
-    if (parent === current) break;
-    current = parent;
-  }
-
-  return false;
-}
-
-/**
- * node_modules/.bin ディレクトリを探索する
- *
- * projectRoot から上位ディレクトリを辿り、node_modules/.bin を探す。
- * npx実行時はバイナリが親の node_modules/.bin に配置されるケースに対応。
- * 見つからない場合は projectRoot/node_modules/.bin をフォールバックとして返す。
- *
- * @param projectRoot - プロジェクトルートディレクトリ
- * @returns node_modules/.bin ディレクトリのパス
- */
-export function findBinDir(projectRoot: string): string {
-  const fallback = path.join(projectRoot, 'node_modules', '.bin');
-  let current = path.resolve(projectRoot);
-  const root = path.parse(current).root;
-
-  while (current !== root) {
-    const binDir = path.join(current, 'node_modules', '.bin');
-    if (fs.existsSync(binDir)) {
-      return binDir;
-    }
-    const parent = path.dirname(current);
-    if (parent === current) break;
-    current = parent;
-  }
-
-  return fallback;
 }
 
 /**
@@ -319,6 +167,12 @@ export function migrateDatabase(dbPath: string): boolean {
         version = 3;
       }
 
+      // バージョン 3 → 4: 欠けているカラム・インデックスを追加
+      if (version < 4) {
+        migrateV3ToV4(db!);
+        version = 4;
+      }
+
       // バージョン番号を更新
       db!.exec(`PRAGMA user_version = ${version}`);
     });
@@ -343,26 +197,34 @@ export function migrateDatabase(dbPath: string): boolean {
 
 /**
  * 初期テーブルを作成（v0 → v1）
+ *
+ * 最新スキーマの全カラム・全インデックスを含む完全版。
+ * 新規DBはv0からv1→v2→v3→v4と段階的にマイグレーションされるが、
+ * v1で全カラムを作成しておくことで後続マイグレーションはスキップされる。
  */
 function createInitialTables(db: InstanceType<typeof Database>): void {
-  // Project テーブル
+  // Project テーブル（最新スキーマに合わせた完全版）
   db.exec(`
     CREATE TABLE IF NOT EXISTS "Project" (
       "id" text PRIMARY KEY NOT NULL,
       "name" text NOT NULL,
-      "path" text NOT NULL,
+      "path" text NOT NULL UNIQUE,
       "remote_url" text,
+      "claude_code_options" text NOT NULL DEFAULT '{}',
+      "custom_env_vars" text NOT NULL DEFAULT '{}',
+      "clone_location" text DEFAULT 'docker',
+      "docker_volume_id" text,
+      "environment_id" text REFERENCES "ExecutionEnvironment"("id") ON DELETE SET NULL,
       "created_at" integer NOT NULL,
       "updated_at" integer NOT NULL
     );
   `);
 
-  // Project.path のユニーク制約
   db.exec(`
     CREATE UNIQUE INDEX IF NOT EXISTS "Project_path_unique" ON "Project" ("path");
   `);
 
-  // ExecutionEnvironment テーブル
+  // ExecutionEnvironment テーブル（変更なし）
   db.exec(`
     CREATE TABLE IF NOT EXISTS "ExecutionEnvironment" (
       "id" text PRIMARY KEY NOT NULL,
@@ -377,7 +239,7 @@ function createInitialTables(db: InstanceType<typeof Database>): void {
     );
   `);
 
-  // Session テーブル
+  // Session テーブル（最新スキーマに合わせた完全版）
   db.exec(`
     CREATE TABLE IF NOT EXISTS "Session" (
       "id" text PRIMARY KEY NOT NULL,
@@ -394,13 +256,22 @@ function createInitialTables(db: InstanceType<typeof Database>): void {
       "pr_updated_at" integer,
       "docker_mode" integer NOT NULL DEFAULT 0,
       "container_id" text,
+      "claude_code_options" text,
+      "custom_env_vars" text,
       "environment_id" text REFERENCES "ExecutionEnvironment"("id") ON DELETE SET NULL,
+      "active_connections" integer NOT NULL DEFAULT 0,
+      "destroy_at" integer,
+      "session_state" text NOT NULL DEFAULT 'ACTIVE',
       "created_at" integer NOT NULL,
       "updated_at" integer NOT NULL
     );
   `);
 
-  // Message テーブル
+  db.exec(`CREATE INDEX IF NOT EXISTS "sessions_session_state_idx" ON "Session" ("session_state");`);
+  db.exec(`CREATE INDEX IF NOT EXISTS "sessions_destroy_at_idx" ON "Session" ("destroy_at");`);
+  db.exec(`CREATE INDEX IF NOT EXISTS "sessions_last_activity_at_idx" ON "Session" ("last_activity_at");`);
+
+  // Message テーブル（変更なし）
   db.exec(`
     CREATE TABLE IF NOT EXISTS "Message" (
       "id" text PRIMARY KEY NOT NULL,
@@ -412,7 +283,7 @@ function createInitialTables(db: InstanceType<typeof Database>): void {
     );
   `);
 
-  // Prompt テーブル
+  // Prompt テーブル（変更なし）
   db.exec(`
     CREATE TABLE IF NOT EXISTS "Prompt" (
       "id" text PRIMARY KEY NOT NULL,
@@ -424,12 +295,11 @@ function createInitialTables(db: InstanceType<typeof Database>): void {
     );
   `);
 
-  // Prompt.content のユニーク制約
   db.exec(`
     CREATE UNIQUE INDEX IF NOT EXISTS "Prompt_content_unique" ON "Prompt" ("content");
   `);
 
-  // RunScript テーブル
+  // RunScript テーブル（変更なし）
   db.exec(`
     CREATE TABLE IF NOT EXISTS "RunScript" (
       "id" text PRIMARY KEY NOT NULL,
@@ -442,7 +312,6 @@ function createInitialTables(db: InstanceType<typeof Database>): void {
     );
   `);
 
-  // RunScript.project_id のインデックス
   db.exec(`
     CREATE INDEX IF NOT EXISTS "run_scripts_project_id_idx" ON "RunScript" ("project_id");
   `);
@@ -453,12 +322,59 @@ function createInitialTables(db: InstanceType<typeof Database>): void {
  */
 function addClaudeCodeOptionsColumns(db: InstanceType<typeof Database>): void {
   // Project テーブル
-  safeAddColumn(db, 'Project', 'claude_code_options', 'TEXT NOT NULL DEFAULT "{}"');
-  safeAddColumn(db, 'Project', 'custom_env_vars', 'TEXT NOT NULL DEFAULT "{}"');
+  safeAddColumn(db, 'Project', 'claude_code_options', "TEXT NOT NULL DEFAULT '{}'");
+  safeAddColumn(db, 'Project', 'custom_env_vars', "TEXT NOT NULL DEFAULT '{}'");
 
   // Session テーブル
   safeAddColumn(db, 'Session', 'claude_code_options', 'TEXT');
   safeAddColumn(db, 'Session', 'custom_env_vars', 'TEXT');
+}
+
+/**
+ * GitHubPATテーブルを作成（v2 → v3）
+ */
+function createGitHubPATTable(db: InstanceType<typeof Database>): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS "GitHubPAT" (
+      "id" text PRIMARY KEY NOT NULL,
+      "name" text NOT NULL,
+      "description" text,
+      "encrypted_token" text NOT NULL,
+      "is_active" integer NOT NULL DEFAULT 1,
+      "created_at" integer NOT NULL,
+      "updated_at" integer NOT NULL
+    );
+  `);
+}
+
+/**
+ * 欠けているカラム・インデックスを追加（v3 → v4）
+ *
+ * schema.tsにあるがmigrateDatabase()に欠けていたカラム・インデックスを追加する:
+ * - Project: clone_location, docker_volume_id, environment_id
+ * - Session: last_activity_at, active_connections, destroy_at, session_state
+ * - Sessionインデックス: session_state, destroy_at, last_activity_at
+ */
+function migrateV3ToV4(db: InstanceType<typeof Database>): void {
+  console.log('Migrating to v4: Adding missing columns and indexes...');
+
+  // Project テーブルの欠けているカラムを追加
+  safeAddColumn(db, 'Project', 'clone_location', "TEXT DEFAULT 'docker'");
+  safeAddColumn(db, 'Project', 'docker_volume_id', 'TEXT');
+  safeAddColumn(db, 'Project', 'environment_id', 'TEXT');
+  // 注: SQLiteはALTER TABLE ADD COLUMN でFK制約を追加できないため省略
+
+  // Session テーブルの欠けているカラムを追加
+  // last_activity_at は v1 のミニマルテーブルには存在しない場合があるため追加
+  safeAddColumn(db, 'Session', 'last_activity_at', 'INTEGER');
+  safeAddColumn(db, 'Session', 'active_connections', 'INTEGER NOT NULL DEFAULT 0');
+  safeAddColumn(db, 'Session', 'destroy_at', 'INTEGER');
+  safeAddColumn(db, 'Session', 'session_state', "TEXT NOT NULL DEFAULT 'ACTIVE'");
+
+  // インデックスを追加（存在しない場合のみ）
+  db.exec(`CREATE INDEX IF NOT EXISTS "sessions_session_state_idx" ON "Session" ("session_state");`);
+  db.exec(`CREATE INDEX IF NOT EXISTS "sessions_destroy_at_idx" ON "Session" ("destroy_at");`);
+  db.exec(`CREATE INDEX IF NOT EXISTS "sessions_last_activity_at_idx" ON "Session" ("last_activity_at");`);
 }
 
 /**
@@ -482,23 +398,6 @@ function safeAddColumn(
       throw e;
     }
   }
-}
-
-/**
- * GitHubPATテーブルを作成（v2 → v3）
- */
-function createGitHubPATTable(db: InstanceType<typeof Database>): void {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS "GitHubPAT" (
-      "id" text PRIMARY KEY NOT NULL,
-      "name" text NOT NULL,
-      "description" text,
-      "encrypted_token" text NOT NULL,
-      "is_active" integer NOT NULL DEFAULT 1,
-      "created_at" integer NOT NULL,
-      "updated_at" integer NOT NULL
-    );
-  `);
 }
 
 /**
