@@ -208,7 +208,7 @@ function createInitialTables(db: InstanceType<typeof Database>): void {
     CREATE TABLE IF NOT EXISTS "Project" (
       "id" text PRIMARY KEY NOT NULL,
       "name" text NOT NULL,
-      "path" text NOT NULL UNIQUE,
+      "path" text NOT NULL,
       "remote_url" text,
       "claude_code_options" text NOT NULL DEFAULT '{}',
       "custom_env_vars" text NOT NULL DEFAULT '{}',
