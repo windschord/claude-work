@@ -145,7 +145,9 @@ export class RemoteRepoService {
    */
   async pull(projectPath: string, environmentId: string): Promise<PullResult> {
     try {
-      const adapter = await this.adapterFactory.getAdapter(environmentId);
+      const environment = await this.environmentService.findById(environmentId);
+      const { AdapterFactory } = await import('./adapter-factory');
+      const adapter = AdapterFactory.getAdapter(environment) as DockerAdapter;
       return await adapter.gitPull(projectPath);
     } catch (error) {
       return {
@@ -162,7 +164,9 @@ export class RemoteRepoService {
    */
   async getBranches(projectPath: string, environmentId: string): Promise<Branch[]> {
     try {
-      const adapter = await this.adapterFactory.getAdapter(environmentId);
+      const environment = await this.environmentService.findById(environmentId);
+      const { AdapterFactory } = await import('./adapter-factory');
+      const adapter = AdapterFactory.getAdapter(environment) as DockerAdapter;
       return await adapter.gitGetBranches(projectPath);
     } catch (error) {
       logger.error('Failed to get branches', { projectPath, error });
