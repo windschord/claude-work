@@ -27,12 +27,12 @@
 
 | フェーズ | 完了 | 進行中 | 未着手 | ブロック | 詳細リンク |
 |---------|------|--------|--------|----------|-----------|
-| Phase 1: データベース・基盤 | 0 | 0 | 4 | 0 | [詳細](phase-1/) @phase-1/ |
-| Phase 2: API実装 | 0 | 0 | 2 | 0 | [詳細](phase-2/) @phase-2/ |
-| Phase 3: Docker統合 | 0 | 0 | 3 | 0 | [詳細](phase-3/) @phase-3/ |
+| Phase 1: データベース・基盤 | 4 | 0 | 0 | 0 | [詳細](phase-1/) @phase-1/ |
+| Phase 2: API実装 | 2 | 0 | 0 | 0 | [詳細](phase-2/) @phase-2/ |
+| Phase 3: Docker統合 | 1 | 0 | 2 | 0 | [詳細](phase-3/) @phase-3/ |
 | Phase 4: UI実装 | 0 | 0 | 3 | 0 | [詳細](phase-4/) @phase-4/ |
 
-**全体進捗**: 0/12タスク完了（0%）
+**全体進捗**: 7/12タスク完了（58%）
 
 ---
 
@@ -94,7 +94,7 @@ Phase 3完了後、UI実装の一部を並列実行可能：
 
 | タスクID | タスクタイトル | ステータス | 依存 | 見積 | 詳細リンク |
 |----------|-------------|-----------|------|------|-----------|
-| TASK-007 | DockerAdapter拡張（injectDeveloperSettings）実装（TDD） | IN_PROGRESS | Phase 2 | 50min | [詳細](phase-3/TASK-007.md) @phase-3/TASK-007.md |
+| TASK-007 | DockerAdapter拡張（injectDeveloperSettings）実装（TDD） | DONE | Phase 2 | 50min | [詳細](phase-3/TASK-007.md) @phase-3/TASK-007.md |
 | TASK-008 | SSH鍵一時ファイル管理とクリーンアップ実装 | TODO | TASK-007 | 30min | [詳細](phase-3/TASK-008.md) @phase-3/TASK-008.md |
 | TASK-009 | Docker統合テスト | TODO | TASK-008 | 30min | [詳細](phase-3/TASK-009.md) @phase-3/TASK-009.md |
 
