@@ -93,23 +93,31 @@ export function CreateSessionModal({
     setProjectEnvironmentId(null);
     setSelectedEnvironmentId('');
 
+    const controller = new AbortController();
+
     const fetchProject = async () => {
       try {
-        const response = await fetch(`/api/projects/${projectId}`);
+        const response = await fetch(`/api/projects/${projectId}`, {
+          signal: controller.signal,
+        });
         if (response.ok) {
           const data = await response.json();
           setProjectEnvironmentId(data.project?.environment_id || null);
         } else {
           setProjectEnvironmentId(null);
         }
-      } catch {
+      } catch (err) {
+        if ((err as DOMException).name === 'AbortError') return;
         setProjectEnvironmentId(null);
       } finally {
-        setIsProjectFetched(true);
+        if (!controller.signal.aborted) {
+          setIsProjectFetched(true);
+        }
       }
     };
 
     fetchProject();
+    return () => controller.abort();
   }, [isOpen, projectId]);
 
   // プロジェクトの環境設定またはデフォルト環境を初期選択
