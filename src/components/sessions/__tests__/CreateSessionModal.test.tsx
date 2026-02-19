@@ -253,20 +253,22 @@ describe('CreateSessionModal', () => {
         expect(radioButtons[1]).toHaveAttribute('aria-checked', 'true');
       });
 
+      // ブランチ読み込み完了を待つ
+      await waitFor(() => {
+        expect(screen.getByText('main')).toBeInTheDocument();
+      });
+
       const createButton = screen.getByRole('button', { name: '作成' });
       fireEvent.click(createButton);
 
       await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledWith('/api/projects/project-1/sessions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            environment_id: 'env-1', // デフォルト環境
-            source_branch: 'main',
-          }),
-        });
+        const sessionCreateCalls = mockFetch.mock.calls.filter(
+          (call: unknown[]) => typeof call[0] === 'string' && call[0].includes('/sessions') && (call[1] as RequestInit)?.method === 'POST'
+        );
+        expect(sessionCreateCalls).toHaveLength(1);
+        const body = JSON.parse((sessionCreateCalls[0][1] as RequestInit).body as string);
+        expect(body.environment_id).toBe('env-1'); // デフォルト環境
+        expect(body.source_branch).toBe('main');
       });
     });
 
@@ -286,6 +288,11 @@ describe('CreateSessionModal', () => {
         expect(radioButtons[1]).toHaveAttribute('aria-checked', 'true');
       });
 
+      // ブランチ読み込み完了を待つ
+      await waitFor(() => {
+        expect(screen.getByText('main')).toBeInTheDocument();
+      });
+
       // ソート後: Docker Env(0), Default Host(1), SSH Remote(2)
       // Docker環境を選択
       const radioButtons = screen.getAllByRole('radio');
@@ -295,16 +302,13 @@ describe('CreateSessionModal', () => {
       fireEvent.click(createButton);
 
       await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledWith('/api/projects/project-1/sessions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            environment_id: 'env-2', // Docker環境
-            source_branch: 'main',
-          }),
-        });
+        const sessionCreateCalls = mockFetch.mock.calls.filter(
+          (call: unknown[]) => typeof call[0] === 'string' && call[0].includes('/sessions') && (call[1] as RequestInit)?.method === 'POST'
+        );
+        expect(sessionCreateCalls).toHaveLength(1);
+        const body = JSON.parse((sessionCreateCalls[0][1] as RequestInit).body as string);
+        expect(body.environment_id).toBe('env-2'); // Docker環境
+        expect(body.source_branch).toBe('main');
       });
     });
 

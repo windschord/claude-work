@@ -90,6 +90,7 @@ export function CreateSessionModal({
     }
 
     setIsProjectFetched(false);
+    setProjectEnvironmentId(null);
 
     const fetchProject = async () => {
       try {
@@ -97,6 +98,8 @@ export function CreateSessionModal({
         if (response.ok) {
           const data = await response.json();
           setProjectEnvironmentId(data.project?.environment_id || null);
+        } else {
+          setProjectEnvironmentId(null);
         }
       } catch {
         setProjectEnvironmentId(null);
@@ -138,6 +141,7 @@ export function CreateSessionModal({
       setCustomEnvVars({});
       setSelectedEnvironmentId('');
       setIsProjectFetched(false);
+      setProjectEnvironmentId(null);
     }
   }, [isOpen]);
 
@@ -309,7 +313,7 @@ export function CreateSessionModal({
                     <RadioGroup
                       value={selectedEnvironmentId}
                       onChange={setSelectedEnvironmentId}
-                      disabled={isCreating}
+                      disabled={isCreating || !isProjectFetched}
                     >
                       <div className="space-y-2">
                         {sortedEnvironments.map((env: Environment) => (
