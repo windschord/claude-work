@@ -91,6 +91,7 @@ export function CreateSessionModal({
 
     setIsProjectFetched(false);
     setProjectEnvironmentId(null);
+    setSelectedEnvironmentId('');
 
     const fetchProject = async () => {
       try {
