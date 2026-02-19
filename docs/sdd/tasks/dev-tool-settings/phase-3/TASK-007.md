@@ -34,4 +34,4 @@ Docker環境への開発ツール設定自動適用機能を DockerAdapter に�
 5. テスト通過確認
 6. 実装コミット: `feat: Add DockerAdapter.injectDeveloperSettings`
 
-**推定工数**: 50分 | **ステータス**: TODO | **依存**: Phase 2
+**推定工数**: 50分 | **ステータス**: IN_PROGRESS | **依存**: Phase 2

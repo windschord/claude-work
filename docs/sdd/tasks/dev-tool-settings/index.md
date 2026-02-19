@@ -94,7 +94,7 @@ Phase 3完了後、UI実装の一部を並列実行可能：
 
 | タスクID | タスクタイトル | ステータス | 依存 | 見積 | 詳細リンク |
 |----------|-------------|-----------|------|------|-----------|
-| TASK-007 | DockerAdapter拡張（injectDeveloperSettings）実装（TDD） | TODO | Phase 2 | 50min | [詳細](phase-3/TASK-007.md) @phase-3/TASK-007.md |
+| TASK-007 | DockerAdapter拡張（injectDeveloperSettings）実装（TDD） | IN_PROGRESS | Phase 2 | 50min | [詳細](phase-3/TASK-007.md) @phase-3/TASK-007.md |
 | TASK-008 | SSH鍵一時ファイル管理とクリーンアップ実装 | TODO | TASK-007 | 30min | [詳細](phase-3/TASK-008.md) @phase-3/TASK-008.md |
 | TASK-009 | Docker統合テスト | TODO | TASK-008 | 30min | [詳細](phase-3/TASK-009.md) @phase-3/TASK-009.md |
 
