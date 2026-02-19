@@ -117,7 +117,7 @@ jobs:
       id: cli-package-cache
       with:
         path: /tmp/cli-e2e-package
-        key: cli-e2e-pkg-${{ runner.os }}-${{ hashFiles('package.json', 'pnpm-lock.yaml', 'src/bin/**', 'tsconfig*.json', 'next.config.js', '.npmignore') }}
+        key: cli-e2e-pkg-${{ runner.os }}-${{ hashFiles('package.json', 'pnpm-lock.yaml', 'src/**', 'server.ts', 'tsconfig*.json', 'next.config.js', 'tailwind.config.*', 'postcss.config.*', '.npmignore') }}
 
     - name: Build CLI E2E package
       if: steps.cli-package-cache.outputs.cache-hit != 'true'

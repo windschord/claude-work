@@ -35,11 +35,18 @@ test.describe.serial('npx CLI installation test', () => {
   test.beforeAll(async () => {
     // CI最適化: 事前ビルド済みパッケージディレクトリが指定されている場合はそれを使用
     const prebuiltDir = process.env.CLI_PACKAGE_DIR;
-    if (
-      prebuiltDir &&
-      fs.existsSync(prebuiltDir) &&
-      fs.existsSync(path.join(prebuiltDir, 'dist', 'src', 'bin', 'cli.js'))
-    ) {
+    if (prebuiltDir && fs.existsSync(prebuiltDir)) {
+      const requiredArtifacts = [
+        path.join(prebuiltDir, 'dist', 'src', 'bin', 'cli.js'),
+        path.join(prebuiltDir, '.next'),
+        path.join(prebuiltDir, 'package.json'),
+      ];
+      const missingArtifacts = requiredArtifacts.filter((p) => !fs.existsSync(p));
+      if (missingArtifacts.length > 0) {
+        throw new Error(
+          `Pre-built CLI package at ${prebuiltDir} is incomplete. Missing: ${missingArtifacts.join(', ')}`
+        );
+      }
       console.log(`Using pre-built CLI package: ${prebuiltDir}`);
       tempDir = prebuiltDir;
       skipCleanup = true;
