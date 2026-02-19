@@ -24,4 +24,4 @@ Docker環境での設定自動適用を統合テストで検証してくださ�
 2. テスト実行
 3. コミット: `test: Add Docker integration tests for dev-tool-settings`
 
-**推定工数**: 30分 | **ステータス**: TODO | **依存**: TASK-008
+**推定工数**: 30分 | **ステータス**: IN_PROGRESS | **依存**: TASK-008
