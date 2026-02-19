@@ -8,7 +8,7 @@
 
 ### 現在のフロー
 
-```
+```text
 モーダルオープン
 ├── useEnvironments() → 環境リスト取得（高速、キャッシュ可能）
 ├── fetchProject() → プロジェクトのenvironment_id取得（API呼び出し、遅い）
