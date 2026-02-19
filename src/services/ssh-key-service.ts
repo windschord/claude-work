@@ -1,3 +1,7 @@
+import { db, schema } from '@/lib/db';
+import { eq, desc } from 'drizzle-orm';
+import { EncryptionService } from './encryption-service';
+
 // ==================== Error Classes ====================
 
 export class SshKeyNotFoundError extends Error {
@@ -48,34 +52,141 @@ export interface SshKeySummary {
 
 // ==================== Service Class ====================
 
+const PRIVATE_KEY_PATTERNS = [
+  /^-----BEGIN OPENSSH PRIVATE KEY-----/m,
+  /^-----BEGIN RSA PRIVATE KEY-----/m,
+  /^-----BEGIN EC PRIVATE KEY-----/m,
+  /^-----BEGIN DSA PRIVATE KEY-----/m,
+  /^-----BEGIN PRIVATE KEY-----/m,
+];
+
 export class SshKeyService {
-  // TODO: implement
-  async registerKey(_input: RegisterKeyInput): Promise<SshKeySummary> {
-    throw new Error('Not implemented');
+  private encryptionService: EncryptionService;
+
+  constructor() {
+    this.encryptionService = new EncryptionService();
   }
 
-  // TODO: implement
+  private toSummary(record: typeof schema.sshKeys.$inferSelect): SshKeySummary {
+    return {
+      id: record.id,
+      name: record.name,
+      publicKey: record.public_key,
+      hasPassphrase: record.has_passphrase,
+      createdAt: record.created_at,
+      updatedAt: record.updated_at,
+    };
+  }
+
+  validateKeyFormat(privateKey: string): boolean {
+    if (!privateKey || privateKey.trim().length === 0) {
+      return false;
+    }
+    return PRIVATE_KEY_PATTERNS.some((pattern) => pattern.test(privateKey));
+  }
+
+  async registerKey(input: RegisterKeyInput): Promise<SshKeySummary> {
+    // Check for duplicate name
+    const existing = db
+      .select()
+      .from(schema.sshKeys)
+      .where(eq(schema.sshKeys.name, input.name))
+      .get();
+
+    if (existing) {
+      throw new DuplicateSshKeyNameError(input.name);
+    }
+
+    // Validate key format
+    if (!this.validateKeyFormat(input.privateKey)) {
+      throw new InvalidSshKeyError('Invalid SSH private key format');
+    }
+
+    // Encrypt private key
+    let encryptedPrivateKey: string;
+    try {
+      encryptedPrivateKey = await this.encryptionService.encrypt(input.privateKey);
+    } catch (error) {
+      throw new SshKeyEncryptionError(
+        `Failed to encrypt SSH private key: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+
+    // Extract IV from encrypted format (iv:authTag:encrypted)
+    const iv = encryptedPrivateKey.split(':')[0];
+
+    const record = db
+      .insert(schema.sshKeys)
+      .values({
+        name: input.name,
+        public_key: input.publicKey,
+        private_key_encrypted: encryptedPrivateKey,
+        encryption_iv: iv,
+        has_passphrase: input.hasPassphrase,
+      })
+      .returning()
+      .get();
+
+    return this.toSummary(record);
+  }
+
   async getAllKeys(): Promise<SshKeySummary[]> {
-    throw new Error('Not implemented');
+    const records = db
+      .select()
+      .from(schema.sshKeys)
+      .orderBy(desc(schema.sshKeys.created_at))
+      .all();
+
+    return records.map((record) => this.toSummary(record));
   }
 
-  // TODO: implement
-  async getKeyById(_id: string): Promise<SshKeySummary | null> {
-    throw new Error('Not implemented');
+  async getKeyById(id: string): Promise<SshKeySummary | null> {
+    const record = db
+      .select()
+      .from(schema.sshKeys)
+      .where(eq(schema.sshKeys.id, id))
+      .get();
+
+    if (!record) {
+      return null;
+    }
+
+    return this.toSummary(record);
   }
 
-  // TODO: implement
-  async deleteKey(_id: string): Promise<void> {
-    throw new Error('Not implemented');
+  async deleteKey(id: string): Promise<void> {
+    const existing = db
+      .select()
+      .from(schema.sshKeys)
+      .where(eq(schema.sshKeys.id, id))
+      .get();
+
+    if (!existing) {
+      throw new SshKeyNotFoundError(id);
+    }
+
+    db.delete(schema.sshKeys)
+      .where(eq(schema.sshKeys.id, id))
+      .run();
   }
 
-  // TODO: implement
-  validateKeyFormat(_privateKey: string): boolean {
-    throw new Error('Not implemented');
-  }
+  async decryptPrivateKey(id: string): Promise<string> {
+    const record = db
+      .select()
+      .from(schema.sshKeys)
+      .where(eq(schema.sshKeys.id, id))
+      .get();
 
-  // TODO: implement
-  async decryptPrivateKey(_id: string): Promise<string> {
-    throw new Error('Not implemented');
+    if (!record) {
+      throw new SshKeyNotFoundError(id);
+    }
+
+    try {
+      return await this.encryptionService.decrypt(record.private_key_encrypted);
+    } catch (error) {
+      throw new SshKeyEncryptionError(
+        `Failed to decrypt SSH private key: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
   }
 }
