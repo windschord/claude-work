@@ -73,6 +73,19 @@ describe('CreateSessionModal', () => {
           }),
         });
       }
+      // プロジェクト詳細API (環境設定なし)
+      if (typeof url === 'string' && url.match(/\/api\/projects\/[^/]+$/) && !url.includes('/sessions')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            project: {
+              id: 'project-1',
+              name: 'Test Project',
+              environment_id: null,
+            },
+          }),
+        });
+      }
       // セッション作成API
       return Promise.resolve({
         ok: true,
@@ -234,6 +247,12 @@ describe('CreateSessionModal', () => {
         />
       );
 
+      // プロジェクト情報取得完了後、環境が選択されるのを待つ
+      await waitFor(() => {
+        const radioButtons = screen.getAllByRole('radio');
+        expect(radioButtons[1]).toHaveAttribute('aria-checked', 'true');
+      });
+
       const createButton = screen.getByRole('button', { name: '作成' });
       fireEvent.click(createButton);
 
@@ -245,6 +264,7 @@ describe('CreateSessionModal', () => {
           },
           body: JSON.stringify({
             environment_id: 'env-1', // デフォルト環境
+            source_branch: 'main',
           }),
         });
       });
@@ -259,6 +279,12 @@ describe('CreateSessionModal', () => {
           onSuccess={mockOnSuccess}
         />
       );
+
+      // プロジェクト情報取得完了後、環境が選択されるのを待つ
+      await waitFor(() => {
+        const radioButtons = screen.getAllByRole('radio');
+        expect(radioButtons[1]).toHaveAttribute('aria-checked', 'true');
+      });
 
       // ソート後: Docker Env(0), Default Host(1), SSH Remote(2)
       // Docker環境を選択
@@ -276,6 +302,7 @@ describe('CreateSessionModal', () => {
           },
           body: JSON.stringify({
             environment_id: 'env-2', // Docker環境
+            source_branch: 'main',
           }),
         });
       });
@@ -290,6 +317,12 @@ describe('CreateSessionModal', () => {
           onSuccess={mockOnSuccess}
         />
       );
+
+      // プロジェクト情報取得完了後、環境が選択されるのを待つ
+      await waitFor(() => {
+        const radioButtons = screen.getAllByRole('radio');
+        expect(radioButtons[1]).toHaveAttribute('aria-checked', 'true');
+      });
 
       const createButton = screen.getByRole('button', { name: '作成' });
       fireEvent.click(createButton);
@@ -309,6 +342,12 @@ describe('CreateSessionModal', () => {
         />
       );
 
+      // プロジェクト情報取得完了後、環境が選択されるのを待つ
+      await waitFor(() => {
+        const radioButtons = screen.getAllByRole('radio');
+        expect(radioButtons[1]).toHaveAttribute('aria-checked', 'true');
+      });
+
       const createButton = screen.getByRole('button', { name: '作成' });
       fireEvent.click(createButton);
 
@@ -326,6 +365,14 @@ describe('CreateSessionModal', () => {
             json: async () => ({ branches: [] }),
           });
         }
+        if (typeof url === 'string' && url.match(/\/api\/projects\/[^/]+$/) && !url.includes('/sessions')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              project: { id: 'project-1', name: 'Test Project', environment_id: null },
+            }),
+          });
+        }
         return new Promise(() => {});
       });
 
@@ -337,6 +384,12 @@ describe('CreateSessionModal', () => {
           onSuccess={mockOnSuccess}
         />
       );
+
+      // プロジェクト情報取得完了後、環境が選択されるのを待つ
+      await waitFor(() => {
+        const radioButtons = screen.getAllByRole('radio');
+        expect(radioButtons[1]).toHaveAttribute('aria-checked', 'true');
+      });
 
       const createButton = screen.getByRole('button', { name: '作成' });
       fireEvent.click(createButton);
@@ -355,6 +408,14 @@ describe('CreateSessionModal', () => {
             json: async () => ({ branches: [] }),
           });
         }
+        if (typeof url === 'string' && url.match(/\/api\/projects\/[^/]+$/) && !url.includes('/sessions')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              project: { id: 'project-1', name: 'Test Project', environment_id: null },
+            }),
+          });
+        }
         return new Promise(() => {});
       });
 
@@ -366,6 +427,12 @@ describe('CreateSessionModal', () => {
           onSuccess={mockOnSuccess}
         />
       );
+
+      // プロジェクト情報取得完了後、環境が選択されるのを待つ
+      await waitFor(() => {
+        const radioButtons = screen.getAllByRole('radio');
+        expect(radioButtons[1]).toHaveAttribute('aria-checked', 'true');
+      });
 
       const createButton = screen.getByRole('button', { name: '作成' });
       fireEvent.click(createButton);
@@ -385,6 +452,14 @@ describe('CreateSessionModal', () => {
             json: async () => ({ branches: [] }),
           });
         }
+        if (typeof url === 'string' && url.match(/\/api\/projects\/[^/]+$/) && !url.includes('/sessions')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              project: { id: 'project-1', name: 'Test Project', environment_id: null },
+            }),
+          });
+        }
         // セッション作成APIはエラーを返す
         return Promise.resolve({
           ok: false,
@@ -400,6 +475,12 @@ describe('CreateSessionModal', () => {
           onSuccess={mockOnSuccess}
         />
       );
+
+      // プロジェクト情報取得完了後、環境が選択されるのを待つ
+      await waitFor(() => {
+        const radioButtons = screen.getAllByRole('radio');
+        expect(radioButtons[1]).toHaveAttribute('aria-checked', 'true');
+      });
 
       const createButton = screen.getByRole('button', { name: '作成' });
       fireEvent.click(createButton);
@@ -417,6 +498,14 @@ describe('CreateSessionModal', () => {
             json: async () => ({ branches: [] }),
           });
         }
+        if (typeof url === 'string' && url.match(/\/api\/projects\/[^/]+$/) && !url.includes('/sessions')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              project: { id: 'project-1', name: 'Test Project', environment_id: null },
+            }),
+          });
+        }
         // セッション作成APIはネットワークエラー
         return Promise.reject(new Error('Network error'));
       });
@@ -429,6 +518,12 @@ describe('CreateSessionModal', () => {
           onSuccess={mockOnSuccess}
         />
       );
+
+      // プロジェクト情報取得完了後、環境が選択されるのを待つ
+      await waitFor(() => {
+        const radioButtons = screen.getAllByRole('radio');
+        expect(radioButtons[1]).toHaveAttribute('aria-checked', 'true');
+      });
 
       const createButton = screen.getByRole('button', { name: '作成' });
       fireEvent.click(createButton);
@@ -446,6 +541,14 @@ describe('CreateSessionModal', () => {
             json: async () => ({ branches: [] }),
           });
         }
+        if (typeof url === 'string' && url.match(/\/api\/projects\/[^/]+$/) && !url.includes('/sessions')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              project: { id: 'project-1', name: 'Test Project', environment_id: null },
+            }),
+          });
+        }
         return Promise.resolve({
           ok: false,
           json: async () => ({ error: 'セッション作成に失敗しました' }),
@@ -460,6 +563,12 @@ describe('CreateSessionModal', () => {
           onSuccess={mockOnSuccess}
         />
       );
+
+      // プロジェクト情報取得完了後、環境が選択されるのを待つ
+      await waitFor(() => {
+        const radioButtons = screen.getAllByRole('radio');
+        expect(radioButtons[1]).toHaveAttribute('aria-checked', 'true');
+      });
 
       const createButton = screen.getByRole('button', { name: '作成' });
       fireEvent.click(createButton);
@@ -479,6 +588,14 @@ describe('CreateSessionModal', () => {
             json: async () => ({ branches: [] }),
           });
         }
+        if (typeof url === 'string' && url.match(/\/api\/projects\/[^/]+$/) && !url.includes('/sessions')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              project: { id: 'project-1', name: 'Test Project', environment_id: null },
+            }),
+          });
+        }
         return Promise.resolve({
           ok: false,
           json: async () => ({ error: 'セッション作成に失敗しました' }),
@@ -493,6 +610,12 @@ describe('CreateSessionModal', () => {
           onSuccess={mockOnSuccess}
         />
       );
+
+      // プロジェクト情報取得完了後、環境が選択されるのを待つ
+      await waitFor(() => {
+        const radioButtons = screen.getAllByRole('radio');
+        expect(radioButtons[1]).toHaveAttribute('aria-checked', 'true');
+      });
 
       const createButton = screen.getByRole('button', { name: '作成' });
       fireEvent.click(createButton);
@@ -574,7 +697,7 @@ describe('CreateSessionModal', () => {
       ];
 
       const { useEnvironments } = await import('@/hooks/useEnvironments');
-      vi.mocked(useEnvironments).mockReturnValueOnce({
+      vi.mocked(useEnvironments).mockReturnValue({
         environments: noDefaultEnvironments,
         isLoading: false,
         error: null,
@@ -585,21 +708,35 @@ describe('CreateSessionModal', () => {
         refreshEnvironment: vi.fn(),
       });
 
-      render(
-        <CreateSessionModal
-          isOpen={true}
-          onClose={mockOnClose}
-          projectId="project-1"
-          onSuccess={mockOnSuccess}
-        />
-      );
+      try {
+        render(
+          <CreateSessionModal
+            isOpen={true}
+            onClose={mockOnClose}
+            projectId="project-1"
+            onSuccess={mockOnSuccess}
+          />
+        );
 
-      // Headless UIのRadioGroupはaria-checkedを使用
-      await waitFor(() => {
-        const radioButtons = screen.getAllByRole('radio');
-        // 最初の環境が選択されている
-        expect(radioButtons[0]).toHaveAttribute('aria-checked', 'true');
-      });
+        // Headless UIのRadioGroupはaria-checkedを使用
+        await waitFor(() => {
+          const radioButtons = screen.getAllByRole('radio');
+          // 最初の環境が選択されている（ソート後: Docker(0), Host(1)）
+          expect(radioButtons[0]).toHaveAttribute('aria-checked', 'true');
+        });
+      } finally {
+        // 元のモックに戻す
+        vi.mocked(useEnvironments).mockReturnValue({
+          environments: mockEnvironments,
+          isLoading: false,
+          error: null,
+          fetchEnvironments: vi.fn(),
+          createEnvironment: vi.fn(),
+          updateEnvironment: vi.fn(),
+          deleteEnvironment: vi.fn(),
+          refreshEnvironment: vi.fn(),
+        });
+      }
     });
   });
 
@@ -913,6 +1050,108 @@ describe('CreateSessionModal', () => {
             body: expect.stringContaining('"source_branch":"main"'),
           })
         );
+      });
+    });
+  });
+
+  describe('プロジェクトのデフォルト環境が設定されている場合', () => {
+    it('プロジェクトにenvironment_id(Docker)が設定されている場合、その環境が読み取り専用で表示される', async () => {
+      // プロジェクトAPIがDocker環境のIDを返すようモック
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes('/branches')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ branches: [] }),
+          });
+        }
+        if (url.match(/\/api\/projects\/[^/]+$/)) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              project: {
+                id: 'project-1',
+                name: 'Test Project',
+                environment_id: 'env-2', // Docker Env
+              },
+            }),
+          });
+        }
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ session: { id: 'new-session-id' } }),
+        });
+      });
+
+      render(
+        <CreateSessionModal
+          isOpen={true}
+          onClose={mockOnClose}
+          projectId="project-1"
+          onSuccess={mockOnSuccess}
+        />
+      );
+
+      // プロジェクトの環境設定が読み取り専用で表示される
+      await waitFor(() => {
+        expect(screen.getByText('Docker Env')).toBeInTheDocument();
+        expect(screen.getByText('この環境はプロジェクト設定で変更できます')).toBeInTheDocument();
+      });
+
+      // ラジオボタンは表示されない（読み取り専用表示のため）
+      expect(screen.queryAllByRole('radio')).toHaveLength(0);
+    });
+
+    it('プロジェクトにenvironment_idが設定されている場合、セッション作成時にenvironment_idを送信しない', async () => {
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes('/branches')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ branches: [] }),
+          });
+        }
+        if (url.match(/\/api\/projects\/[^/]+$/)) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              project: {
+                id: 'project-1',
+                name: 'Test Project',
+                environment_id: 'env-2', // Docker Env
+              },
+            }),
+          });
+        }
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ session: { id: 'new-session-id' } }),
+        });
+      });
+
+      render(
+        <CreateSessionModal
+          isOpen={true}
+          onClose={mockOnClose}
+          projectId="project-1"
+          onSuccess={mockOnSuccess}
+        />
+      );
+
+      // プロジェクト環境読み込み完了を待つ
+      await waitFor(() => {
+        expect(screen.getByText('この環境はプロジェクト設定で変更できます')).toBeInTheDocument();
+      });
+
+      const createButton = screen.getByRole('button', { name: '作成' });
+      fireEvent.click(createButton);
+
+      // environment_idがリクエストボディに含まれないことを確認
+      await waitFor(() => {
+        const sessionCreateCalls = mockFetch.mock.calls.filter(
+          (call: unknown[]) => typeof call[0] === 'string' && call[0].includes('/sessions') && (call[1] as RequestInit)?.method === 'POST'
+        );
+        expect(sessionCreateCalls).toHaveLength(1);
+        const body = JSON.parse((sessionCreateCalls[0][1] as RequestInit).body as string);
+        expect(body).not.toHaveProperty('environment_id');
       });
     });
   });

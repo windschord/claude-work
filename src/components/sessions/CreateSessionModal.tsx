@@ -57,6 +57,7 @@ export function CreateSessionModal({
   const { environments, isLoading: isEnvironmentsLoading } = useEnvironments();
   const [selectedEnvironmentId, setSelectedEnvironmentId] = useState<string>('');
   const [projectEnvironmentId, setProjectEnvironmentId] = useState<string | null>(null);
+  const [isProjectFetched, setIsProjectFetched] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string>('');
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -88,6 +89,8 @@ export function CreateSessionModal({
       return;
     }
 
+    setIsProjectFetched(false);
+
     const fetchProject = async () => {
       try {
         const response = await fetch(`/api/projects/${projectId}`);
@@ -97,6 +100,8 @@ export function CreateSessionModal({
         }
       } catch {
         setProjectEnvironmentId(null);
+      } finally {
+        setIsProjectFetched(true);
       }
     };
 
@@ -104,8 +109,10 @@ export function CreateSessionModal({
   }, [isOpen, projectId]);
 
   // プロジェクトの環境設定またはデフォルト環境を初期選択
+  // isProjectFetchedを待つことで、環境リストが先に読み込まれた場合でも
+  // プロジェクトのenvironment_idが正しく反映される（レースコンディション防止）
   useEffect(() => {
-    if (!isEnvironmentsLoading && sortedEnvironments.length > 0 && !selectedEnvironmentId) {
+    if (!isEnvironmentsLoading && sortedEnvironments.length > 0 && isProjectFetched) {
       // プロジェクトに環境が設定されている場合はそれを使用
       if (projectEnvironmentId) {
         setSelectedEnvironmentId(projectEnvironmentId);
@@ -121,7 +128,7 @@ export function CreateSessionModal({
         }
       }
     }
-  }, [sortedEnvironments, isEnvironmentsLoading, selectedEnvironmentId, projectEnvironmentId]);
+  }, [sortedEnvironments, isEnvironmentsLoading, projectEnvironmentId, isProjectFetched]);
 
   // モーダルが閉じられた時に状態をリセット
   useEffect(() => {
@@ -129,7 +136,8 @@ export function CreateSessionModal({
       setError('');
       setClaudeOptions({});
       setCustomEnvVars({});
-      // selectedEnvironmentIdは維持（再度開いた時に同じ環境が選択される）
+      setSelectedEnvironmentId('');
+      setIsProjectFetched(false);
     }
   }, [isOpen]);
 
