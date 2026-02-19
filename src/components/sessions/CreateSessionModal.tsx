@@ -57,6 +57,7 @@ export function CreateSessionModal({
   const { environments, isLoading: isEnvironmentsLoading } = useEnvironments();
   const [selectedEnvironmentId, setSelectedEnvironmentId] = useState<string>('');
   const [projectEnvironmentId, setProjectEnvironmentId] = useState<string | null>(null);
+  const [isProjectFetched, setIsProjectFetched] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string>('');
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -88,24 +89,42 @@ export function CreateSessionModal({
       return;
     }
 
+    setIsProjectFetched(false);
+    setProjectEnvironmentId(null);
+    setSelectedEnvironmentId('');
+
+    const controller = new AbortController();
+
     const fetchProject = async () => {
       try {
-        const response = await fetch(`/api/projects/${projectId}`);
+        const response = await fetch(`/api/projects/${projectId}`, {
+          signal: controller.signal,
+        });
         if (response.ok) {
           const data = await response.json();
           setProjectEnvironmentId(data.project?.environment_id || null);
+        } else {
+          setProjectEnvironmentId(null);
         }
-      } catch {
+      } catch (err) {
+        if ((err as DOMException).name === 'AbortError') return;
         setProjectEnvironmentId(null);
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsProjectFetched(true);
+        }
       }
     };
 
     fetchProject();
+    return () => controller.abort();
   }, [isOpen, projectId]);
 
   // プロジェクトの環境設定またはデフォルト環境を初期選択
+  // isProjectFetchedを待つことで、環境リストが先に読み込まれた場合でも
+  // プロジェクトのenvironment_idが正しく反映される（レースコンディション防止）
   useEffect(() => {
-    if (!isEnvironmentsLoading && sortedEnvironments.length > 0 && !selectedEnvironmentId) {
+    if (!isEnvironmentsLoading && sortedEnvironments.length > 0 && isProjectFetched) {
       // プロジェクトに環境が設定されている場合はそれを使用
       if (projectEnvironmentId) {
         setSelectedEnvironmentId(projectEnvironmentId);
@@ -121,7 +140,7 @@ export function CreateSessionModal({
         }
       }
     }
-  }, [sortedEnvironments, isEnvironmentsLoading, selectedEnvironmentId, projectEnvironmentId]);
+  }, [environments, isEnvironmentsLoading, projectEnvironmentId, isProjectFetched]);
 
   // モーダルが閉じられた時に状態をリセット
   useEffect(() => {
@@ -129,7 +148,9 @@ export function CreateSessionModal({
       setError('');
       setClaudeOptions({});
       setCustomEnvVars({});
-      // selectedEnvironmentIdは維持（再度開いた時に同じ環境が選択される）
+      setSelectedEnvironmentId('');
+      setIsProjectFetched(false);
+      setProjectEnvironmentId(null);
     }
   }, [isOpen]);
 
@@ -257,6 +278,10 @@ export function CreateSessionModal({
                     <div className="text-gray-500 dark:text-gray-400 py-4">
                       利用可能な環境がありません
                     </div>
+                  ) : !isProjectFetched ? (
+                    <div className="flex items-center justify-center py-4 text-gray-500 dark:text-gray-400">
+                      プロジェクト情報を読み込み中...
+                    </div>
                   ) : projectEnvironmentId ? (
                     // プロジェクトに環境が設定されている場合は表示のみ（変更不可）
                     <div className="bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg px-4 py-3">
@@ -301,7 +326,7 @@ export function CreateSessionModal({
                     <RadioGroup
                       value={selectedEnvironmentId}
                       onChange={setSelectedEnvironmentId}
-                      disabled={isCreating}
+                      disabled={isCreating || !isProjectFetched}
                     >
                       <div className="space-y-2">
                         {sortedEnvironments.map((env: Environment) => (
