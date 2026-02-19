@@ -22,6 +22,20 @@
       "when": 1770965531366,
       "tag": "0002_messy_karen_page",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1771503967212,
+      "tag": "0003_fair_nightcrawler",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1771504028484,
+      "tag": "0004_lively_sprite",
+      "breakpoints": true
     }
   ]
 }

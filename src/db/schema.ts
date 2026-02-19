@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import { relations } from 'drizzle-orm';
 
 // ==================== テーブル定義 ====================
@@ -141,6 +141,38 @@ export const githubPats = sqliteTable('GitHubPAT', {
   updated_at: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
 });
 
+/**
+ * developer_settings テーブル
+ * Git設定を階層的に管理（グローバル設定・プロジェクト別設定）
+ */
+export const developerSettings = sqliteTable('DeveloperSettings', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  scope: text('scope').notNull(), // 'GLOBAL' | 'PROJECT'
+  project_id: text('project_id').references(() => projects.id, { onDelete: 'cascade' }),
+  git_username: text('git_username'),
+  git_email: text('git_email'),
+  created_at: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+  updated_at: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+}, (table) => ({
+  scopeProjectIdIdx: index('developer_settings_scope_project_id_idx').on(table.scope, table.project_id),
+  scopeProjectIdUnique: uniqueIndex('developer_settings_scope_project_id_key').on(table.scope, table.project_id),
+}));
+
+/**
+ * ssh_keys テーブル
+ * SSH鍵ペアを管理（秘密鍵はAES-256で暗号化保存）
+ */
+export const sshKeys = sqliteTable('SshKey', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  name: text('name').notNull().unique(),
+  public_key: text('public_key').notNull(),
+  private_key_encrypted: text('private_key_encrypted').notNull(),
+  encryption_iv: text('encryption_iv').notNull(),
+  has_passphrase: integer('has_passphrase', { mode: 'boolean' }).notNull().default(false),
+  created_at: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+  updated_at: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+});
+
 // ==================== リレーション定義 ====================
 
 export const projectsRelations = relations(projects, ({ one, many }) => ({
@@ -150,6 +182,7 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   }),
   sessions: many(sessions),
   scripts: many(runScripts),
+  developerSettings: many(developerSettings),
 }));
 
 export const executionEnvironmentsRelations = relations(executionEnvironments, ({ many }) => ({
@@ -182,6 +215,15 @@ export const runScriptsRelations = relations(runScripts, ({ one }) => ({
   }),
 }));
 
+export const developerSettingsRelations = relations(developerSettings, ({ one }) => ({
+  project: one(projects, {
+    fields: [developerSettings.project_id],
+    references: [projects.id],
+  }),
+}));
+
+export const sshKeysRelations = relations(sshKeys, () => ({}));
+
 // ==================== 型エクスポート ====================
 
 export type Project = typeof projects.$inferSelect;
@@ -204,3 +246,9 @@ export type NewRunScript = typeof runScripts.$inferInsert;
 
 export type GitHubPAT = typeof githubPats.$inferSelect;
 export type NewGitHubPAT = typeof githubPats.$inferInsert;
+
+export type DeveloperSettings = typeof developerSettings.$inferSelect;
+export type NewDeveloperSettings = typeof developerSettings.$inferInsert;
+
+export type SshKey = typeof sshKeys.$inferSelect;
+export type NewSshKey = typeof sshKeys.$inferInsert;
