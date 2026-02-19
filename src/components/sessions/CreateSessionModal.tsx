@@ -140,7 +140,7 @@ export function CreateSessionModal({
         }
       }
     }
-  }, [sortedEnvironments, isEnvironmentsLoading, projectEnvironmentId, isProjectFetched]);
+  }, [environments, isEnvironmentsLoading, projectEnvironmentId, isProjectFetched]);
 
   // モーダルが閉じられた時に状態をリセット
   useEffect(() => {
@@ -277,6 +277,10 @@ export function CreateSessionModal({
                   ) : sortedEnvironments.length === 0 ? (
                     <div className="text-gray-500 dark:text-gray-400 py-4">
                       利用可能な環境がありません
+                    </div>
+                  ) : !isProjectFetched ? (
+                    <div className="flex items-center justify-center py-4 text-gray-500 dark:text-gray-400">
+                      プロジェクト情報を読み込み中...
                     </div>
                   ) : projectEnvironmentId ? (
                     // プロジェクトに環境が設定されている場合は表示のみ（変更不可）

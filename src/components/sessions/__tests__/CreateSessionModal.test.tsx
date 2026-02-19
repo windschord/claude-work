@@ -127,7 +127,7 @@ describe('CreateSessionModal', () => {
   });
 
   describe('環境一覧の表示', () => {
-    it('環境一覧がラジオボタンで表示される', () => {
+    it('環境一覧がラジオボタンで表示される', async () => {
       render(
         <CreateSessionModal
           isOpen={true}
@@ -137,17 +137,17 @@ describe('CreateSessionModal', () => {
         />
       );
 
-      // 環境名が表示される
-      expect(screen.getByText('Default Host')).toBeInTheDocument();
-      expect(screen.getByText('Docker Env')).toBeInTheDocument();
-      expect(screen.getByText('SSH Remote')).toBeInTheDocument();
-
-      // ラジオボタンが存在する
-      const radioButtons = screen.getAllByRole('radio');
-      expect(radioButtons).toHaveLength(3);
+      // プロジェクト情報取得完了後にradioボタンが表示される
+      await waitFor(() => {
+        expect(screen.getByText('Default Host')).toBeInTheDocument();
+        expect(screen.getByText('Docker Env')).toBeInTheDocument();
+        expect(screen.getByText('SSH Remote')).toBeInTheDocument();
+        const radioButtons = screen.getAllByRole('radio');
+        expect(radioButtons).toHaveLength(3);
+      });
     });
 
-    it('各環境のタイプバッジが表示される', () => {
+    it('各環境のタイプバッジが表示される', async () => {
       render(
         <CreateSessionModal
           isOpen={true}
@@ -157,9 +157,11 @@ describe('CreateSessionModal', () => {
         />
       );
 
-      expect(screen.getByText('HOST')).toBeInTheDocument();
-      expect(screen.getByText('DOCKER')).toBeInTheDocument();
-      expect(screen.getByText('SSH')).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByText('HOST')).toBeInTheDocument();
+        expect(screen.getByText('DOCKER')).toBeInTheDocument();
+        expect(screen.getByText('SSH')).toBeInTheDocument();
+      });
     });
 
     it('デフォルト環境が初期選択されている', async () => {
@@ -190,6 +192,12 @@ describe('CreateSessionModal', () => {
           onSuccess={mockOnSuccess}
         />
       );
+
+      // プロジェクト情報取得完了後にradioボタンが表示されるのを待つ
+      await waitFor(() => {
+        const radioButtons = screen.getAllByRole('radio');
+        expect(radioButtons).toHaveLength(3);
+      });
 
       const radioButtons = screen.getAllByRole('radio');
 
@@ -801,8 +809,12 @@ describe('CreateSessionModal', () => {
         />
       );
 
+      // プロジェクト情報取得完了後にradioボタンが表示されるのを待つ
+      await waitFor(() => {
+        expect(screen.getByText('Docker Container')).toBeInTheDocument();
+      });
+
       // 環境名がDocker→Host→SSHの順で表示されることを確認
-      expect(screen.getByText('Docker Container')).toBeInTheDocument();
       expect(screen.getByText('Host Local')).toBeInTheDocument();
       expect(screen.getByText('SSH Remote')).toBeInTheDocument();
 
@@ -888,6 +900,12 @@ describe('CreateSessionModal', () => {
           onSuccess={mockOnSuccess}
         />
       );
+
+      // プロジェクト情報取得完了後にradioボタンが表示されるのを待つ
+      await waitFor(() => {
+        const radioButtons = screen.getAllByRole('radio');
+        expect(radioButtons).toHaveLength(3);
+      });
 
       const radioButtons = screen.getAllByRole('radio');
 
