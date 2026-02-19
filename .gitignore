@@ -218,6 +218,12 @@ __marimo__/
 .DS_Store
 *.pem
 
+# Backup files
+*.backup
+*.bak
+*.orig
+*~
+
 # debug
 npm-debug.log*
 yarn-debug.log*

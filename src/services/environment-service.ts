@@ -1,6 +1,6 @@
 import { db, schema } from '@/lib/db';
 import type { ExecutionEnvironment } from '@/lib/db';
-import { eq, asc, count, sql } from 'drizzle-orm';
+import { eq, asc, count, sql, and } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
 import { getEnvironmentsDir } from '@/lib/data-dir';
 import * as path from 'path';
@@ -95,6 +95,21 @@ const DEFAULT_HOST_ENVIRONMENT = {
   type: 'HOST',
   description: 'デフォルトのホスト環境',
   config: '{}',
+  is_default: true,
+} as const;
+
+/**
+ * デフォルトDocker環境の定数
+ */
+const DEFAULT_DOCKER_ENVIRONMENT = {
+  id: 'docker-default',
+  name: 'Default Docker',
+  type: 'DOCKER',
+  description: 'デフォルトのDocker環境',
+  config: JSON.stringify({
+    imageName: 'claude-code-sandboxed',
+    imageTag: 'latest',
+  }),
   is_default: true,
 } as const;
 
@@ -269,6 +284,13 @@ export class EnvironmentService {
       }
     }
 
+    // 既存DBではmigrateV3ToV4でenvironment_idをFK制約なしで追加しているため、
+    // ON DELETE SET NULLが効かない。削除前に明示的にNULLに更新して参照整合性を保つ。
+    db.update(schema.projects)
+      .set({ environment_id: null })
+      .where(eq(schema.projects.environment_id, id))
+      .run();
+
     db.delete(schema.executionEnvironments)
       .where(eq(schema.executionEnvironments.id, id))
       .run();
@@ -316,6 +338,50 @@ export class EnvironmentService {
     }).run();
 
     logger.info('デフォルト環境を作成しました', { id: DEFAULT_HOST_ENVIRONMENT.id });
+  }
+
+  /**
+   * デフォルトDocker環境を取得または作成する
+   * @returns デフォルトDocker環境
+   */
+  async ensureDefaultEnvironment(): Promise<ExecutionEnvironment> {
+    // is_default=trueのDocker環境のみを検索
+    const existing = db.select().from(schema.executionEnvironments)
+      .where(and(
+        eq(schema.executionEnvironments.type, 'DOCKER'),
+        eq(schema.executionEnvironments.is_default, true)
+      ))
+      .get();
+
+    if (existing) {
+      logger.debug('デフォルトDocker環境は既に存在します', { id: existing.id });
+      return existing;
+    }
+
+    // 既存のデフォルト環境をis_default=falseに更新してから新規作成（トランザクションで保護）
+    const environment = db.transaction((tx) => {
+      tx.update(schema.executionEnvironments)
+        .set({ is_default: false })
+        .where(eq(schema.executionEnvironments.is_default, true))
+        .run();
+
+      return tx.insert(schema.executionEnvironments).values({
+        id: DEFAULT_DOCKER_ENVIRONMENT.id,
+        name: DEFAULT_DOCKER_ENVIRONMENT.name,
+        type: DEFAULT_DOCKER_ENVIRONMENT.type,
+        description: DEFAULT_DOCKER_ENVIRONMENT.description,
+        config: DEFAULT_DOCKER_ENVIRONMENT.config,
+        is_default: DEFAULT_DOCKER_ENVIRONMENT.is_default,
+      }).returning().get();
+    });
+
+    if (!environment) {
+      throw new Error('Failed to create default Docker environment');
+    }
+
+    logger.info('デフォルトDocker環境を作成しました', { id: environment.id, name: environment.name });
+
+    return environment;
   }
 
   /**

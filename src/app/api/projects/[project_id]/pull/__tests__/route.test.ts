@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { POST } from '../route';
 import { db, schema } from '@/lib/db';
 import { NextRequest } from 'next/server';
@@ -6,6 +6,7 @@ import { mkdtempSync, rmSync, mkdirSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { execSync } from 'child_process';
+import * as remoteRepoServiceModule from '@/services/remote-repo-service';
 
 describe('POST /api/projects/[project_id]/pull', () => {
   let testDir: string;
@@ -118,5 +119,61 @@ describe('POST /api/projects/[project_id]/pull', () => {
 
     const data = await response.json();
     expect(data.error).toContain('リモートから登録されていません');
+  });
+
+  it('should pass environment_id to RemoteRepoService when set', async () => {
+    // 実行環境を作成
+    const environment = db.insert(schema.executionEnvironments).values({
+      name: 'Test Docker Environment',
+      type: 'DOCKER',
+      config: JSON.stringify({ imageName: 'node', imageTag: '20-alpine' }),
+    }).returning().get();
+
+    // プロジェクトを登録（environment_id付き）
+    const project = db.insert(schema.projects).values({
+      name: 'Test Project with Environment',
+      path: clonedRepoPath,
+      remote_url: sourceRepoPath,
+      environment_id: environment.id,
+    }).returning().get();
+
+    // RemoteRepoService.pullをスパイ
+    const pullSpy = vi.spyOn(remoteRepoServiceModule.remoteRepoService, 'pull');
+
+    const request = new NextRequest(
+      `http://localhost:3000/api/projects/${project.id}/pull`,
+      { method: 'POST' }
+    );
+
+    await POST(request, { params: Promise.resolve({ project_id: project.id }) });
+
+    // environment_idが渡されたことを確認
+    expect(pullSpy).toHaveBeenCalledWith(project.path, environment.id);
+
+    pullSpy.mockRestore();
+  });
+
+  it('should call RemoteRepoService.pull without environment_id when not set', async () => {
+    // プロジェクトを登録（environment_id なし）
+    const project = db.insert(schema.projects).values({
+      name: 'Test Project without Environment',
+      path: clonedRepoPath,
+      remote_url: sourceRepoPath,
+    }).returning().get();
+
+    // RemoteRepoService.pullをスパイ
+    const pullSpy = vi.spyOn(remoteRepoServiceModule.remoteRepoService, 'pull');
+
+    const request = new NextRequest(
+      `http://localhost:3000/api/projects/${project.id}/pull`,
+      { method: 'POST' }
+    );
+
+    await POST(request, { params: Promise.resolve({ project_id: project.id }) });
+
+    // environment_idがundefinedで渡されたことを確認
+    expect(pullSpy).toHaveBeenCalledWith(project.path, undefined);
+
+    pullSpy.mockRestore();
   });
 });

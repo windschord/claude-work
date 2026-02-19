@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Fragment } from 'react';
+import { useState, useEffect, Fragment, useMemo } from 'react';
 import { Dialog, Transition, RadioGroup, Listbox } from '@headlessui/react';
 import { Check, ChevronsUpDown, GitBranch } from 'lucide-react';
 import { useEnvironments, Environment } from '@/hooks/useEnvironments';
@@ -57,6 +57,7 @@ export function CreateSessionModal({
   const { environments, isLoading: isEnvironmentsLoading } = useEnvironments();
   const [selectedEnvironmentId, setSelectedEnvironmentId] = useState<string>('');
   const [projectEnvironmentId, setProjectEnvironmentId] = useState<string | null>(null);
+  const [isProjectFetched, setIsProjectFetched] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string>('');
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -65,44 +66,81 @@ export function CreateSessionModal({
   const [claudeOptions, setClaudeOptions] = useState<ClaudeCodeOptions>({});
   const [customEnvVars, setCustomEnvVars] = useState<CustomEnvVars>({});
 
+  // 環境をDocker→Host→SSHの順にソート
+  const sortedEnvironments = useMemo(() => {
+    const typeOrder: Record<string, number> = { DOCKER: 1, HOST: 2, SSH: 3 };
+
+    return [...environments].sort((a, b) => {
+      // タイプ順でソート
+      const typeCompare = (typeOrder[a.type] || 99) - (typeOrder[b.type] || 99);
+      if (typeCompare !== 0) return typeCompare;
+
+      // 同じタイプ内ではis_default=trueを優先
+      if (a.is_default && !b.is_default) return -1;
+      if (!a.is_default && b.is_default) return 1;
+
+      return 0;
+    });
+  }, [environments]);
+
   // プロジェクトのenvironment_idを取得
   useEffect(() => {
     if (!isOpen || !projectId) {
       return;
     }
 
+    setIsProjectFetched(false);
+    setProjectEnvironmentId(null);
+    setSelectedEnvironmentId('');
+
+    const controller = new AbortController();
+
     const fetchProject = async () => {
       try {
-        const response = await fetch(`/api/projects/${projectId}`);
+        const response = await fetch(`/api/projects/${projectId}`, {
+          signal: controller.signal,
+        });
         if (response.ok) {
           const data = await response.json();
           setProjectEnvironmentId(data.project?.environment_id || null);
+        } else {
+          setProjectEnvironmentId(null);
         }
-      } catch {
+      } catch (err) {
+        if ((err as DOMException).name === 'AbortError') return;
         setProjectEnvironmentId(null);
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsProjectFetched(true);
+        }
       }
     };
 
     fetchProject();
+    return () => controller.abort();
   }, [isOpen, projectId]);
 
   // プロジェクトの環境設定またはデフォルト環境を初期選択
+  // isProjectFetchedを待つことで、環境リストが先に読み込まれた場合でも
+  // プロジェクトのenvironment_idが正しく反映される（レースコンディション防止）
   useEffect(() => {
-    if (!isEnvironmentsLoading && environments.length > 0 && !selectedEnvironmentId) {
+    if (!isEnvironmentsLoading && sortedEnvironments.length > 0 && isProjectFetched) {
       // プロジェクトに環境が設定されている場合はそれを使用
       if (projectEnvironmentId) {
         setSelectedEnvironmentId(projectEnvironmentId);
       } else {
-        // 設定されていない場合はデフォルト環境または最初の環境を選択
-        const defaultEnv = environments.find((env) => env.is_default);
+        // 設定されていない場合はデフォルト環境を優先選択
+        const defaultEnv = sortedEnvironments.find((env) => env.is_default);
         if (defaultEnv) {
           setSelectedEnvironmentId(defaultEnv.id);
         } else {
-          setSelectedEnvironmentId(environments[0].id);
+          // デフォルトがない場合は最初のDocker環境を選択
+          const dockerEnv = sortedEnvironments.find((env) => env.type === 'DOCKER');
+          setSelectedEnvironmentId(dockerEnv?.id || sortedEnvironments[0].id);
         }
       }
     }
-  }, [environments, isEnvironmentsLoading, selectedEnvironmentId, projectEnvironmentId]);
+  }, [environments, isEnvironmentsLoading, projectEnvironmentId, isProjectFetched]);
 
   // モーダルが閉じられた時に状態をリセット
   useEffect(() => {
@@ -110,7 +148,9 @@ export function CreateSessionModal({
       setError('');
       setClaudeOptions({});
       setCustomEnvVars({});
-      // selectedEnvironmentIdは維持（再度開いた時に同じ環境が選択される）
+      setSelectedEnvironmentId('');
+      setIsProjectFetched(false);
+      setProjectEnvironmentId(null);
     }
   }, [isOpen]);
 
@@ -234,15 +274,19 @@ export function CreateSessionModal({
                     <div className="flex items-center justify-center py-4 text-gray-500 dark:text-gray-400">
                       環境を読み込み中...
                     </div>
-                  ) : environments.length === 0 ? (
+                  ) : sortedEnvironments.length === 0 ? (
                     <div className="text-gray-500 dark:text-gray-400 py-4">
                       利用可能な環境がありません
+                    </div>
+                  ) : !isProjectFetched ? (
+                    <div className="flex items-center justify-center py-4 text-gray-500 dark:text-gray-400">
+                      プロジェクト情報を読み込み中...
                     </div>
                   ) : projectEnvironmentId ? (
                     // プロジェクトに環境が設定されている場合は表示のみ（変更不可）
                     <div className="bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg px-4 py-3">
                       {(() => {
-                        const env = environments.find((e) => e.id === projectEnvironmentId);
+                        const env = sortedEnvironments.find((e) => e.id === projectEnvironmentId);
                         return env ? (
                           <div className="flex w-full items-center justify-between">
                             <div className="flex items-center">
@@ -282,10 +326,10 @@ export function CreateSessionModal({
                     <RadioGroup
                       value={selectedEnvironmentId}
                       onChange={setSelectedEnvironmentId}
-                      disabled={isCreating}
+                      disabled={isCreating || !isProjectFetched}
                     >
                       <div className="space-y-2">
-                        {environments.map((env: Environment) => (
+                        {sortedEnvironments.map((env: Environment) => (
                           <RadioGroup.Option
                             key={env.id}
                             value={env.id}
@@ -448,7 +492,7 @@ export function CreateSessionModal({
                     disabled={
                       isCreating ||
                       isEnvironmentsLoading ||
-                      environments.length === 0 ||
+                      sortedEnvironments.length === 0 ||
                       !selectedEnvironmentId
                     }
                   >

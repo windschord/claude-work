@@ -19,6 +19,31 @@ export interface DockerAdapterConfig {
   authDirPath: string; // 環境専用認証ディレクトリ（絶対パス）
 }
 
+export interface GitCloneOptions {
+  url: string;
+  targetPath: string;
+  environmentId: string;
+}
+
+export interface GitCloneResult {
+  success: boolean;
+  path?: string;
+  error?: string;
+}
+
+export interface GitPullResult {
+  success: boolean;
+  updated: boolean;
+  message: string;
+  error?: string;
+}
+
+export interface Branch {
+  name: string;
+  isDefault: boolean;
+  isRemote: boolean;
+}
+
 interface DockerSession {
   ptyProcess: IPty;
   workingDir: string;
@@ -854,5 +879,220 @@ export class DockerAdapter extends BasePTYAdapter {
     } catch (error) {
       logger.error('Failed to cleanup orphaned containers:', error);
     }
+  }
+
+  /**
+   * Docker内でリモートリポジトリをクローン
+   */
+  async gitClone(options: GitCloneOptions): Promise<GitCloneResult> {
+    const { url, targetPath } = options;
+
+    try {
+      const args = [
+        'run', '--rm',
+        '-v', `${targetPath}:/workspace/target`,
+      ];
+
+      const sshDir = `${os.homedir()}/.ssh`;
+      if (fs.existsSync(sshDir)) {
+        args.push('-v', `${sshDir}:/home/node/.ssh:ro`);
+      }
+
+      if (process.env.SSH_AUTH_SOCK) {
+        args.push('-v', `${process.env.SSH_AUTH_SOCK}:/ssh-agent`);
+        args.push('-e', 'SSH_AUTH_SOCK=/ssh-agent');
+      }
+
+      args.push('-e', 'GIT_TERMINAL_PROMPT=0');
+      args.push(this.config.imageName + ':' + this.config.imageTag);
+      args.push('git', 'clone', url, '/workspace/target');
+
+      const result = await this.executeDockerCommand(args);
+
+      if (result.code === 0) {
+        return { success: true, path: targetPath };
+      } else {
+        return { success: false, error: result.stderr };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  /**
+   * Docker内でリポジトリを更新（fast-forward only）
+   */
+  async gitPull(repoPath: string): Promise<GitPullResult> {
+    try {
+      const args = [
+        'run', '--rm',
+        '-v', `${repoPath}:/workspace/repo`,
+      ];
+
+      const sshDir = `${os.homedir()}/.ssh`;
+      if (fs.existsSync(sshDir)) {
+        args.push('-v', `${sshDir}:/home/node/.ssh:ro`);
+      }
+
+      if (process.env.SSH_AUTH_SOCK) {
+        args.push('-v', `${process.env.SSH_AUTH_SOCK}:/ssh-agent`);
+        args.push('-e', 'SSH_AUTH_SOCK=/ssh-agent');
+      }
+
+      args.push('-e', 'GIT_TERMINAL_PROMPT=0');
+      args.push('-w', '/workspace/repo');
+      args.push(this.config.imageName + ':' + this.config.imageTag);
+      args.push('git', 'pull', '--ff-only');
+
+      const result = await this.executeDockerCommand(args);
+
+      if (result.code === 0) {
+        const updated = !result.stdout.includes('Already up to date');
+        return {
+          success: true,
+          updated,
+          message: result.stdout.trim(),
+        };
+      } else {
+        return {
+          success: false,
+          updated: false,
+          message: '',
+          error: result.stderr,
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        updated: false,
+        message: '',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  /**
+   * Docker内でブランチ一覧を取得
+   */
+  async gitGetBranches(repoPath: string): Promise<Branch[]> {
+    try {
+      const localResult = await this.executeGitCommand(repoPath, ['branch']);
+      const localBranches = this.parseLocalBranches(localResult.stdout);
+
+      const remoteResult = await this.executeGitCommand(repoPath, ['branch', '-r']);
+      const remoteBranches = this.parseRemoteBranches(remoteResult.stdout);
+
+      const defaultBranch = await this.gitGetDefaultBranch(repoPath);
+
+      const branches: Branch[] = [
+        ...localBranches.map(name => ({
+          name,
+          isDefault: name === defaultBranch,
+          isRemote: false,
+        })),
+        ...remoteBranches.map(name => ({
+          name,
+          isDefault: false,
+          isRemote: true,
+        })),
+      ];
+
+      return branches;
+    } catch (_error) {
+      logger.error('Failed to get branches', { repoPath, error: _error });
+      return [];
+    }
+  }
+
+  /**
+   * Docker内でデフォルトブランチを取得
+   */
+  async gitGetDefaultBranch(repoPath: string): Promise<string> {
+    try {
+      const result = await this.executeGitCommand(repoPath, [
+        'symbolic-ref',
+        'refs/remotes/origin/HEAD',
+      ]);
+
+      const match = result.stdout.trim().match(/refs\/remotes\/origin\/(.+)/);
+      return match ? match[1] : 'main';
+    } catch {
+      logger.warn('Could not determine default branch, using main', { repoPath });
+      return 'main';
+    }
+  }
+
+  /**
+   * Git操作用のヘルパーメソッド
+   */
+  private async executeGitCommand(
+    repoPath: string,
+    gitArgs: string[]
+  ): Promise<{ code: number; stdout: string; stderr: string }> {
+    const args = [
+      'run', '--rm',
+      '-v', `${repoPath}:/workspace/repo`,
+    ];
+
+    const sshDir = `${os.homedir()}/.ssh`;
+    if (fs.existsSync(sshDir)) {
+      args.push('-v', `${sshDir}:/home/node/.ssh:ro`);
+    }
+
+    if (process.env.SSH_AUTH_SOCK) {
+      args.push('-v', `${process.env.SSH_AUTH_SOCK}:/ssh-agent`);
+      args.push('-e', 'SSH_AUTH_SOCK=/ssh-agent');
+    }
+
+    args.push('-e', 'GIT_TERMINAL_PROMPT=0');
+    args.push('-w', '/workspace/repo');
+    args.push(this.config.imageName + ':' + this.config.imageTag);
+    args.push('git', ...gitArgs);
+
+    return this.executeDockerCommand(args);
+  }
+
+  private async executeDockerCommand(
+    args: string[]
+  ): Promise<{ code: number; stdout: string; stderr: string }> {
+    return new Promise((resolve) => {
+      const proc = childProcess.spawn('docker', args);
+      let stdout = '';
+      let stderr = '';
+
+      proc.stdout?.on('data', (data) => {
+        stdout += data.toString();
+      });
+
+      proc.stderr?.on('data', (data) => {
+        stderr += data.toString();
+      });
+
+      proc.on('close', (code) => {
+        resolve({ code: code ?? 1, stdout, stderr });
+      });
+
+      proc.on('error', (error) => {
+        logger.warn('Docker command execution error', { args: args.slice(0, 3), error: error.message });
+        resolve({ code: 1, stdout, stderr: error.message });
+      });
+    });
+  }
+
+  private parseLocalBranches(output: string): string[] {
+    return output
+      .split('\n')
+      .map(line => line.trim().replace(/^\* /, ''))
+      .filter(line => line.length > 0);
+  }
+
+  private parseRemoteBranches(output: string): string[] {
+    return output
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0 && !line.includes('HEAD ->'));
   }
 }

@@ -120,4 +120,36 @@ describe('ProjectCard', () => {
 
     expect(screen.getByText('5')).toBeInTheDocument();
   });
+
+  describe('リモートプロジェクトの機能', () => {
+    const remoteProject: Project = {
+      ...mockProject,
+      remote_url: 'git@github.com:user/repo.git',
+    };
+
+    it('リモートバッジが表示される', () => {
+      render(<ProjectCard project={remoteProject} onDelete={mockOnDelete} onSettings={mockOnSettings} />);
+
+      expect(screen.getByText('リモート')).toBeInTheDocument();
+    });
+
+    it('更新ボタンが表示される', () => {
+      render(<ProjectCard project={remoteProject} onDelete={mockOnDelete} onSettings={mockOnSettings} />);
+
+      const updateButton = screen.getByTitle('リモートから更新');
+      expect(updateButton).toBeInTheDocument();
+    });
+
+    it('ローカルプロジェクトではリモートバッジが表示されない', () => {
+      render(<ProjectCard project={mockProject} onDelete={mockOnDelete} onSettings={mockOnSettings} />);
+
+      expect(screen.queryByText('リモート')).not.toBeInTheDocument();
+    });
+
+    it('ローカルプロジェクトでは更新ボタンが表示されない', () => {
+      render(<ProjectCard project={mockProject} onDelete={mockOnDelete} onSettings={mockOnSettings} />);
+
+      expect(screen.queryByTitle('リモートから更新')).not.toBeInTheDocument();
+    });
+  });
 });

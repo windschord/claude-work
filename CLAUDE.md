@@ -40,26 +40,29 @@ ClaudeWork is a web-based tool for managing multiple Claude Code sessions throug
 ### Database Schema
 
 Key models (prisma/schema.prisma):
-- **Project**: Git repository with default model setting
+- **Project**: Git repository with default model setting, remote_url, and clone_location
 - **Session**: Links to project, has worktree_path and branch_name, environment_id
 - **Message**: Chat history with role/content
 - **RunScript**: Custom scripts per project
 - **ExecutionEnvironment**: Execution environment configuration (HOST, DOCKER, SSH)
+- **GitHubPAT**: GitHub Personal Access Tokens for HTTPS private repository cloning
 
 ### Execution Environments
 
 Claude Code can run in different execution environments:
 
 **Environment Types**:
-- **HOST**: Direct execution on the local machine (default)
-- **DOCKER**: Isolated execution in Docker containers with separate authentication
+- **DOCKER**: Isolated execution in Docker containers (default, recommended)
+- **HOST**: Direct execution on the local machine
 - **SSH**: Remote execution (not yet implemented)
 
 **Key Features**:
+- Docker is the default execution environment for security and isolation
 - Each Docker environment has isolated authentication directory (`data/environments/<env-id>/`)
 - Sessions can specify which environment to use via `environment_id`
 - Legacy `docker_mode` parameter is deprecated but still supported for backward compatibility
-- Default HOST environment is auto-created on server startup
+- Default Docker environment is auto-created on server startup
+- SSH keys are mounted read-only from `~/.ssh/` for private repository access
 
 **Architecture**:
 - `EnvironmentService`: CRUD operations and status checking
