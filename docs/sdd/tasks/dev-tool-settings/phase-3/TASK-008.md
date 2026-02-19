@@ -27,4 +27,4 @@ SSH鍵一時ファイルのクリーンアップロジックを DockerAdapter �
 3. テストで動作確認
 4. コミット: `feat: Add SSH key cleanup on container stop`
 
-**推定工数**: 30分 | **ステータス**: TODO | **依存**: TASK-007
+**推定工数**: 30分 | **ステータス**: IN_PROGRESS | **依存**: TASK-007
