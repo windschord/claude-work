@@ -237,13 +237,35 @@ describe('DockerAdapter - injectDeveloperSettings', () => {
 
   describe('クリーンアップ', () => {
     it('一時SSH鍵ファイルを削除する', async () => {
-      // このテストは実装後に具体的な検証を行う
-      expect(true).toBe(true);
+      // Arrange
+      const fsPromises = await import('fs/promises');
+      const mockFiles = ['id_rsa', 'id_rsa.pub', 'id_ed25519', 'id_ed25519.pub'];
+      vi.mocked(fsPromises.readdir).mockResolvedValue(mockFiles as any);
+
+      // Act
+      await adapter.cleanupSSHKeys();
+
+      // Assert
+      expect(fsPromises.readdir).toHaveBeenCalledWith('/tmp/test-auth/ssh');
+      expect(fsPromises.unlink).toHaveBeenCalledTimes(4);
+      expect(fsPromises.unlink).toHaveBeenCalledWith('/tmp/test-auth/ssh/id_rsa');
+      expect(fsPromises.unlink).toHaveBeenCalledWith('/tmp/test-auth/ssh/id_rsa.pub');
+      expect(fsPromises.unlink).toHaveBeenCalledWith('/tmp/test-auth/ssh/id_ed25519');
+      expect(fsPromises.unlink).toHaveBeenCalledWith('/tmp/test-auth/ssh/id_ed25519.pub');
     });
 
     it('ディレクトリ自体は削除しない', async () => {
-      // このテストは実装後に具体的な検証を行う
-      expect(true).toBe(true);
+      // Arrange
+      const fsPromises = await import('fs/promises');
+      const mockFiles = ['id_rsa', 'id_rsa.pub'];
+      vi.mocked(fsPromises.readdir).mockResolvedValue(mockFiles as any);
+
+      // Act
+      await adapter.cleanupSSHKeys();
+
+      // Assert
+      // ディレクトリ削除（rm）が呼ばれていないことを確認
+      expect(fsPromises.rm).not.toHaveBeenCalled();
     });
   });
 });

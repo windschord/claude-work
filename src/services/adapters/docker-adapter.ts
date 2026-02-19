@@ -612,6 +612,10 @@ export class DockerAdapter extends BasePTYAdapter {
           // コンテナは停止する（旧コンテナがゾンビにならないように）
           if (containerName && !shellMode) {
             this.stopContainer(containerName);
+            // SSH鍵一時ファイルのクリーンアップ
+            this.cleanupSSHKeys().catch((error) => {
+              logger.error(`Error cleaning up SSH keys in stale onExit:`, error);
+            });
           }
           return;
         }
@@ -635,6 +639,11 @@ export class DockerAdapter extends BasePTYAdapter {
         if (containerName && !shellMode) {
           this.stopContainer(containerName).catch((error) => {
             logger.error(`Error stopping container in onExit:`, error);
+          });
+
+          // SSH鍵一時ファイルのクリーンアップ
+          this.cleanupSSHKeys().catch((error) => {
+            logger.error(`Error cleaning up SSH keys in onExit:`, error);
           });
         }
       });
@@ -713,6 +722,13 @@ export class DockerAdapter extends BasePTYAdapter {
           await this.stopContainer(containerId);
         } catch (error) {
           logger.error(`Error stopping container in destroySession:`, error);
+        }
+
+        // SSH鍵一時ファイルのクリーンアップ
+        try {
+          await this.cleanupSSHKeys();
+        } catch (error) {
+          logger.error(`Error cleaning up SSH keys in destroySession:`, error);
         }
       }
 
