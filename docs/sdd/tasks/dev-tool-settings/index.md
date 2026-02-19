@@ -29,10 +29,10 @@
 |---------|------|--------|--------|----------|-----------|
 | Phase 1: データベース・基盤 | 4 | 0 | 0 | 0 | [詳細](phase-1/) @phase-1/ |
 | Phase 2: API実装 | 2 | 0 | 0 | 0 | [詳細](phase-2/) @phase-2/ |
-| Phase 3: Docker統合 | 1 | 0 | 2 | 0 | [詳細](phase-3/) @phase-3/ |
+| Phase 3: Docker統合 | 2 | 0 | 1 | 0 | [詳細](phase-3/) @phase-3/ |
 | Phase 4: UI実装 | 0 | 0 | 3 | 0 | [詳細](phase-4/) @phase-4/ |
 
-**全体進捗**: 7/12タスク完了（58%）
+**全体進捗**: 8/12タスク完了（67%）
 
 ---
 
@@ -96,7 +96,7 @@ Phase 3完了後、UI実装の一部を並列実行可能：
 |----------|-------------|-----------|------|------|-----------|
 | TASK-007 | DockerAdapter拡張（injectDeveloperSettings）実装（TDD） | DONE | Phase 2 | 50min | [詳細](phase-3/TASK-007.md) @phase-3/TASK-007.md |
 | TASK-008 | SSH鍵一時ファイル管理とクリーンアップ実装 | TODO | TASK-007 | 30min | [詳細](phase-3/TASK-008.md) @phase-3/TASK-008.md |
-| TASK-009 | Docker統合テスト | TODO | TASK-008 | 30min | [詳細](phase-3/TASK-009.md) @phase-3/TASK-009.md |
+| TASK-009 | Docker統合テスト | DONE | TASK-008 | 30min | [詳細](phase-3/TASK-009.md) @phase-3/TASK-009.md |
 
 ### Phase 4: UI実装
 *推定期間: 110分（AIエージェント作業時間）*
