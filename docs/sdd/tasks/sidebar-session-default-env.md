@@ -4,9 +4,9 @@
 
 | ID | タスク | ステータス | 推定時間 |
 |----|--------|-----------|---------|
-| TASK-001 | テスト作成: レースコンディション再現テスト | pending | 20分 |
-| TASK-002 | 修正実装: CreateSessionModalのレースコンディション修正 | pending | 20分 |
-| TASK-003 | 全テスト実行・検証 | pending | 10分 |
+| TASK-001 | テスト作成: レースコンディション再現テスト | completed | 20分 |
+| TASK-002 | 修正実装: CreateSessionModalのレースコンディション修正 | completed | 20分 |
+| TASK-003 | 全テスト実行・検証 | completed | 10分 |
 
 ---
 
