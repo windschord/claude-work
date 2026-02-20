@@ -121,10 +121,9 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
               setSelectedImage(imageValue);
             }
           }
-          if (config.skipPermissions === true) {
-            setSkipPermissions(true);
-          }
+          setSkipPermissions(config?.skipPermissions === true);
         } catch {
+          setSkipPermissions(false);
           // configのパースに失敗した場合はデフォルト値を使用
         }
       }

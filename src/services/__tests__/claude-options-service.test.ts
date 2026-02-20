@@ -248,9 +248,9 @@ describe('ClaudeOptionsService', () => {
 
   describe('dangerouslySkipPermissions', () => {
     describe('buildCliArgs', () => {
-      it('should add --dangerously-skip-permissions when true', () => {
+      it('should not add --dangerously-skip-permissions (handled by DockerAdapter)', () => {
         const options: ClaudeCodeOptions = { dangerouslySkipPermissions: true };
-        expect(ClaudeOptionsService.buildCliArgs(options)).toEqual(['--dangerously-skip-permissions']);
+        expect(ClaudeOptionsService.buildCliArgs(options)).toEqual([]);
       });
 
       it('should not add flag when false', () => {
@@ -263,13 +263,13 @@ describe('ClaudeOptionsService', () => {
         expect(ClaudeOptionsService.buildCliArgs(options)).toEqual(['--model', 'test']);
       });
 
-      it('should combine with other options', () => {
+      it('should not include dangerouslySkipPermissions with other options', () => {
         const options: ClaudeCodeOptions = {
           model: 'claude-sonnet-4-5-20250929',
           dangerouslySkipPermissions: true,
         };
         const args = ClaudeOptionsService.buildCliArgs(options);
-        expect(args).toContain('--dangerously-skip-permissions');
+        expect(args).not.toContain('--dangerously-skip-permissions');
         expect(args).toContain('--model');
         expect(args).toContain('claude-sonnet-4-5-20250929');
       });

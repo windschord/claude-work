@@ -4,7 +4,7 @@
 
 ## アーキテクチャ概要
 
-```
+```text
 環境設定 (ExecutionEnvironment.config)
   │ skipPermissions: boolean (default: false)
   │
@@ -88,7 +88,7 @@ export interface CreateSessionOptions {
 
 ### シーケンス: セッション作成時のskipPermissions解決
 
-```
+```text
 1. CreateSessionModal
    │ ユーザーが3択選択:
    │   "環境デフォルト" → dangerouslySkipPermissions = undefined (送信しない)

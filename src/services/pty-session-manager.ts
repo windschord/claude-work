@@ -187,10 +187,6 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
         }
         skipPermissions = claudeCodeOptions?.dangerouslySkipPermissions
           ?? (envConfig.skipPermissions === true)
-        // セッションオプションで明示的にfalseが指定された場合
-        if (claudeCodeOptions?.dangerouslySkipPermissions === false) {
-          skipPermissions = false
-        }
       }
 
       // アダプター経由でセッション作成

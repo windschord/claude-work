@@ -109,9 +109,8 @@ export class ClaudeOptionsService {
       args.push(...flagParts);
     }
 
-    if (options.dangerouslySkipPermissions === true) {
-      args.push('--dangerously-skip-permissions');
-    }
+    // dangerouslySkipPermissions はDockerAdapter.buildDockerArgs()で追加するため、
+    // ここでは追加しない（二重追加防止）
 
     return args;
   }
