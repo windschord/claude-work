@@ -84,6 +84,11 @@ export function CreateSessionModal({
     });
   }, [environments]);
 
+  // clone_location=dockerだがDocker環境が存在しない場合のフォールバック検出
+  const isDockerFallback = useMemo(() => {
+    return cloneLocation === 'docker' && !sortedEnvironments.some((env) => env.type === 'DOCKER');
+  }, [cloneLocation, sortedEnvironments]);
+
   // プロジェクトのenvironment_idを取得
   useEffect(() => {
     if (!isOpen || !projectId) {
@@ -155,7 +160,9 @@ export function CreateSessionModal({
         }
       }
     }
-  }, [sortedEnvironments, isEnvironmentsLoading, projectEnvironmentId, cloneLocation, isProjectFetched]);
+    // NOTE: sortedEnvironmentsはuseMemoでenvironmentsから派生するため、依存配列にはenvironmentsを使用
+    // sortedEnvironmentsを依存配列に含めると、useMemoの参照変更で不要な再実行が発生する可能性がある
+  }, [environments, isEnvironmentsLoading, projectEnvironmentId, cloneLocation, isProjectFetched]);
 
   // モーダルが閉じられた時に状態をリセット
   useEffect(() => {
@@ -339,9 +346,15 @@ export function CreateSessionModal({
                           </p>
                         );
                       })()}
-                      <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                        この環境はプロジェクト設定で変更できます
-                      </p>
+                      {isDockerFallback ? (
+                        <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                          Docker環境が登録されていないため、サーバー側でDocker環境が自動選択されます
+                        </p>
+                      ) : (
+                        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                          この環境はプロジェクト設定で変更できます
+                        </p>
+                      )}
                     </div>
                   ) : (
                     // プロジェクトに環境が設定されていない場合は選択可能
