@@ -176,6 +176,26 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
       // アダプターを取得（環境全体を渡す）
       const adapter = AdapterFactory.getAdapter(environment)
 
+      // skipPermissions の解決（Docker環境のみ）
+      let skipPermissions = false
+      if (environment.type === 'DOCKER') {
+        let envConfig: Record<string, unknown> = {}
+        try {
+          envConfig = JSON.parse(environment.config || '{}')
+        } catch {
+          // パース失敗時はデフォルト値を使用
+        }
+        skipPermissions = claudeCodeOptions?.dangerouslySkipPermissions
+          ?? (envConfig.skipPermissions === true)
+      }
+
+      // claudeCodeOptionsからdangerouslySkipPermissionsを除去
+      // （skipPermissionsとして解決済み。DockerAdapter.buildDockerArgs()で追加するため二重追加防止）
+      const adapterClaudeOptions = claudeCodeOptions ? { ...claudeCodeOptions } : undefined
+      if (adapterClaudeOptions) {
+        delete adapterClaudeOptions.dangerouslySkipPermissions
+      }
+
       // アダプター経由でセッション作成
       await adapter.createSession(
         sessionId,
@@ -183,10 +203,11 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
         initialPrompt,
         {
           resumeSessionId,
-          claudeCodeOptions,
+          claudeCodeOptions: adapterClaudeOptions,
           customEnvVars,
           cols: options.cols,
           rows: options.rows,
+          skipPermissions,
         }
       )
 

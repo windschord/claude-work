@@ -68,6 +68,7 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
   const [isLoadingImages, setIsLoadingImages] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [skipPermissions, setSkipPermissions] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   /**
@@ -120,7 +121,9 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
               setSelectedImage(imageValue);
             }
           }
+          setSkipPermissions(config?.skipPermissions === true);
         } catch {
+          setSkipPermissions(false);
           // configのパースに失敗した場合はデフォルト値を使用
         }
       }
@@ -133,6 +136,7 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
       setCustomImageName(DEFAULT_DOCKER_IMAGE);
       setDockerfileFile(null);
       setDockerfileUploaded(false);
+      setSkipPermissions(false);
     }
   }, [mode, environment, isOpen]);
 
@@ -154,6 +158,7 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
       return {
         imageSource: 'dockerfile',
         dockerfileUploaded: shouldPreserveUploadedState ? true : false,
+        skipPermissions,
       };
     } else {
       // 既存イメージを使用
@@ -175,6 +180,7 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
         imageSource: 'existing',
         imageName,
         imageTag,
+        skipPermissions,
       };
     }
   };
@@ -399,6 +405,7 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
     setDockerfileFile(null);
     setDockerfileUploaded(false);
     setIsDragging(false);
+    setSkipPermissions(false);
     onClose();
   };
 
@@ -761,6 +768,47 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
                           )}
                         </div>
                       )}
+
+                      {/* Skip Permissions Toggle */}
+                      <div className="mt-4 p-3 border border-amber-200 dark:border-amber-700 rounded-lg bg-amber-50 dark:bg-amber-900/20">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <label
+                              htmlFor="skip-permissions"
+                              className="text-sm font-medium text-gray-700 dark:text-gray-300"
+                            >
+                              パーミッション確認をスキップ
+                            </label>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                              --dangerously-skip-permissions フラグを有効にします
+                            </p>
+                          </div>
+                          <button
+                            id="skip-permissions"
+                            type="button"
+                            role="switch"
+                            aria-checked={skipPermissions}
+                            onClick={() => setSkipPermissions(!skipPermissions)}
+                            disabled={isLoading}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                              skipPermissions
+                                ? 'bg-amber-500'
+                                : 'bg-gray-200 dark:bg-gray-600'
+                            }`}
+                          >
+                            <span
+                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                skipPermissions ? 'translate-x-6' : 'translate-x-1'
+                              }`}
+                            />
+                          </button>
+                        </div>
+                        {skipPermissions && (
+                          <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                            この設定を有効にすると、Claude Codeが確認なしでツールを実行します。信頼できるコードベースでのみ使用してください。
+                          </p>
+                        )}
+                      </div>
                     </div>
                   )}
 

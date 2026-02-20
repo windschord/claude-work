@@ -16,6 +16,8 @@ export interface CreateSessionOptions {
   cols?: number;
   /** ターミナル行数（初期サイズ） */
   rows?: number;
+  /** パーミッション確認スキップ（Docker環境のみ、解決済みの値） */
+  skipPermissions?: boolean;
 }
 
 /**

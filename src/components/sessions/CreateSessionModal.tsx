@@ -57,6 +57,8 @@ export function CreateSessionModal({
   const { environments, isLoading: isEnvironmentsLoading } = useEnvironments();
   const [selectedEnvironmentId, setSelectedEnvironmentId] = useState<string>('');
   const [projectEnvironmentId, setProjectEnvironmentId] = useState<string | null>(null);
+  const [cloneLocation, setCloneLocation] = useState<'host' | 'docker' | null>(null);
+  const [isProjectFetched, setIsProjectFetched] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string>('');
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -64,6 +66,7 @@ export function CreateSessionModal({
   const [isBranchesLoading, setIsBranchesLoading] = useState(false);
   const [claudeOptions, setClaudeOptions] = useState<ClaudeCodeOptions>({});
   const [customEnvVars, setCustomEnvVars] = useState<CustomEnvVars>({});
+  const [skipPermissionsOverride, setSkipPermissionsOverride] = useState<'default' | 'enable' | 'disable'>('default');
 
   // 環境をDocker→Host→SSHの順にソート
   const sortedEnvironments = useMemo(() => {
@@ -82,33 +85,93 @@ export function CreateSessionModal({
     });
   }, [environments]);
 
+  // clone_location=dockerだがDocker環境が存在しない場合のフォールバック検出
+  const isDockerFallback = useMemo(() => {
+    return cloneLocation === 'docker' && !environments.some((env) => env.type === 'DOCKER');
+  }, [cloneLocation, environments]);
+
+  // 選択された環境のタイプとskipPermissionsデフォルト値を取得
+  const selectedEnvironment = useMemo(() => {
+    return sortedEnvironments.find((env) => env.id === selectedEnvironmentId);
+  }, [sortedEnvironments, selectedEnvironmentId]);
+
+  const isDockerEnvironment = useMemo(() => {
+    return selectedEnvironment?.type === 'DOCKER';
+  }, [selectedEnvironment]);
+
+  const envSkipPermissionsDefault = useMemo(() => {
+    if (!selectedEnvironment || selectedEnvironment.type !== 'DOCKER') return false;
+    try {
+      const config = typeof selectedEnvironment.config === 'string'
+        ? JSON.parse(selectedEnvironment.config)
+        : selectedEnvironment.config;
+      return config?.skipPermissions === true;
+    } catch {
+      return false;
+    }
+  }, [selectedEnvironment]);
+
   // プロジェクトのenvironment_idを取得
   useEffect(() => {
     if (!isOpen || !projectId) {
       return;
     }
 
+    setIsProjectFetched(false);
+    setProjectEnvironmentId(null);
+    setSelectedEnvironmentId('');
+
+    const controller = new AbortController();
+
     const fetchProject = async () => {
       try {
-        const response = await fetch(`/api/projects/${projectId}`);
+        const response = await fetch(`/api/projects/${projectId}`, {
+          signal: controller.signal,
+        });
         if (response.ok) {
           const data = await response.json();
           setProjectEnvironmentId(data.project?.environment_id || null);
+          setCloneLocation((data.project?.clone_location as 'host' | 'docker') || null);
+        } else {
+          setProjectEnvironmentId(null);
+          setCloneLocation(null);
         }
-      } catch {
+      } catch (err) {
+        if ((err as DOMException).name === 'AbortError') return;
         setProjectEnvironmentId(null);
+        setCloneLocation(null);
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsProjectFetched(true);
+        }
       }
     };
 
     fetchProject();
+    return () => controller.abort();
   }, [isOpen, projectId]);
 
   // プロジェクトの環境設定またはデフォルト環境を初期選択
+  // isProjectFetchedを待つことで、環境リストが先に読み込まれた場合でも
+  // プロジェクトのenvironment_idが正しく反映される（レースコンディション防止）
   useEffect(() => {
-    if (!isEnvironmentsLoading && sortedEnvironments.length > 0 && !selectedEnvironmentId) {
+    if (!isEnvironmentsLoading && sortedEnvironments.length > 0 && isProjectFetched) {
       // プロジェクトに環境が設定されている場合はそれを使用
       if (projectEnvironmentId) {
         setSelectedEnvironmentId(projectEnvironmentId);
+      } else if (cloneLocation === 'docker') {
+        // clone_location=dockerの場合は最初のDocker環境を自動選択
+        // サーバー側でもclone_locationに基づいてDocker環境が強制されるため、UIでも同じ挙動にする
+        const dockerEnv = sortedEnvironments.find((env) => env.type === 'DOCKER');
+        if (dockerEnv) {
+          setSelectedEnvironmentId(dockerEnv.id);
+        } else {
+          // Docker環境が存在しない場合はデフォルト環境または先頭の環境をフォールバック
+          // このフォールバック選択はUI検証（作成ボタンの有効化）のためのみ使用される
+          // サーバー側がclone_locationに基づいてDocker環境を自動選択する
+          const defaultEnv = sortedEnvironments.find((env) => env.is_default);
+          setSelectedEnvironmentId(defaultEnv?.id || sortedEnvironments[0].id);
+        }
       } else {
         // 設定されていない場合はデフォルト環境を優先選択
         const defaultEnv = sortedEnvironments.find((env) => env.is_default);
@@ -121,7 +184,7 @@ export function CreateSessionModal({
         }
       }
     }
-  }, [sortedEnvironments, isEnvironmentsLoading, selectedEnvironmentId, projectEnvironmentId]);
+  }, [sortedEnvironments, isEnvironmentsLoading, projectEnvironmentId, cloneLocation, isProjectFetched]);
 
   // モーダルが閉じられた時に状態をリセット
   useEffect(() => {
@@ -129,7 +192,11 @@ export function CreateSessionModal({
       setError('');
       setClaudeOptions({});
       setCustomEnvVars({});
-      // selectedEnvironmentIdは維持（再度開いた時に同じ環境が選択される）
+      setSkipPermissionsOverride('default');
+      setSelectedEnvironmentId('');
+      setIsProjectFetched(false);
+      setProjectEnvironmentId(null);
+      setCloneLocation(null);
     }
   }, [isOpen]);
 
@@ -180,10 +247,17 @@ export function CreateSessionModal({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          // プロジェクトに環境が設定されている場合はenvironment_idを送信しない（サーバー側でproject.environment_idを使用）
-          ...(projectEnvironmentId ? {} : { environment_id: selectedEnvironmentId }),
+          // プロジェクトに環境が設定されている場合、またはclone_location=dockerの場合はenvironment_idを送信しない
+          // （サーバー側でproject.environment_idまたはclone_locationに基づいて環境を決定）
+          ...(projectEnvironmentId || cloneLocation === 'docker' ? {} : { environment_id: selectedEnvironmentId }),
           source_branch: selectedBranch || undefined,
-          claude_code_options: Object.keys(claudeOptions).some(k => claudeOptions[k as keyof ClaudeCodeOptions] !== undefined) ? claudeOptions : undefined,
+          claude_code_options: (() => {
+            const opts = { ...claudeOptions };
+            if (isDockerEnvironment && skipPermissionsOverride !== 'default') {
+              opts.dangerouslySkipPermissions = skipPermissionsOverride === 'enable';
+            }
+            return Object.keys(opts).some(k => opts[k as keyof ClaudeCodeOptions] !== undefined) ? opts : undefined;
+          })(),
           custom_env_vars: Object.keys(customEnvVars).length > 0 ? customEnvVars : undefined,
         }),
       });
@@ -257,11 +331,33 @@ export function CreateSessionModal({
                     <div className="text-gray-500 dark:text-gray-400 py-4">
                       利用可能な環境がありません
                     </div>
-                  ) : projectEnvironmentId ? (
-                    // プロジェクトに環境が設定されている場合は表示のみ（変更不可）
+                  ) : !isProjectFetched ? (
+                    <div className="flex items-center justify-center py-4 text-gray-500 dark:text-gray-400">
+                      プロジェクト情報を読み込み中...
+                    </div>
+                  ) : (projectEnvironmentId || cloneLocation === 'docker') && !selectedEnvironmentId ? (
+                    // 環境IDが確定するまでローディング表示（useEffectによるsetSelectedEnvironmentId待ち）
+                    <div className="flex items-center justify-center py-4 text-gray-500 dark:text-gray-400">
+                      環境を設定中...
+                    </div>
+                  ) : isDockerFallback ? (
+                    // clone_location=dockerだがDocker環境が未登録の場合
+                    // フォールバック環境の詳細は表示せず、サーバー側Docker決定の通知のみ表示
+                    <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg px-4 py-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`px-2 py-0.5 text-xs font-medium rounded ${getTypeBadgeColor('DOCKER')}`}>
+                          DOCKER
+                        </span>
+                      </div>
+                      <p className="text-sm text-amber-700 dark:text-amber-300">
+                        Docker環境が登録されていないため、サーバー側でDocker環境が自動選択されます
+                      </p>
+                    </div>
+                  ) : (projectEnvironmentId || cloneLocation === 'docker') ? (
+                    // プロジェクトに環境が設定されている、またはclone_location=dockerの場合は表示のみ（変更不可）
                     <div className="bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg px-4 py-3">
                       {(() => {
-                        const env = sortedEnvironments.find((e) => e.id === projectEnvironmentId);
+                        const env = sortedEnvironments.find((e) => e.id === selectedEnvironmentId);
                         return env ? (
                           <div className="flex w-full items-center justify-between">
                             <div className="flex items-center">
@@ -301,7 +397,7 @@ export function CreateSessionModal({
                     <RadioGroup
                       value={selectedEnvironmentId}
                       onChange={setSelectedEnvironmentId}
-                      disabled={isCreating}
+                      disabled={isCreating || !isProjectFetched}
                     >
                       <div className="space-y-2">
                         {sortedEnvironments.map((env: Environment) => (
@@ -431,6 +527,50 @@ export function CreateSessionModal({
                     <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                       セッションのワークツリーを作成するベースとなるブランチを選択
                     </p>
+                  </div>
+                )}
+
+                {/* Skip Permissions Override (Docker環境のみ) */}
+                {isDockerEnvironment && (
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      パーミッション確認スキップ
+                    </label>
+                    <div className="p-3 border border-amber-200 dark:border-amber-700 rounded-lg bg-amber-50 dark:bg-amber-900/20">
+                      <div className="space-y-2">
+                        {[
+                          {
+                            value: 'default' as const,
+                            label: `環境のデフォルト（${envSkipPermissionsDefault ? '有効' : '無効'}）`,
+                          },
+                          { value: 'enable' as const, label: 'スキップを有効にする' },
+                          { value: 'disable' as const, label: 'スキップを無効にする' },
+                        ].map((option) => (
+                          <label
+                            key={option.value}
+                            className="flex items-center gap-2 cursor-pointer"
+                          >
+                            <input
+                              type="radio"
+                              name="skipPermissionsOverride"
+                              value={option.value}
+                              checked={skipPermissionsOverride === option.value}
+                              onChange={() => setSkipPermissionsOverride(option.value)}
+                              disabled={isCreating}
+                              className="text-amber-500 focus:ring-amber-500"
+                            />
+                            <span className="text-sm text-gray-700 dark:text-gray-300">
+                              {option.label}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                      {(skipPermissionsOverride === 'enable' || (skipPermissionsOverride === 'default' && envSkipPermissionsDefault)) && (
+                        <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                          Claude Codeが確認なしでツールを実行します。信頼できるコードベースでのみ使用してください。
+                        </p>
+                      )}
+                    </div>
                   </div>
                 )}
 
