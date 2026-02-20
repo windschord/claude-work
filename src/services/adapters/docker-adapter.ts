@@ -1167,9 +1167,13 @@ export class DockerAdapter extends BasePTYAdapter {
 
       const execFileAsync = promisify(childProcess.execFile);
 
+      // コンテナの実行ユーザーと同じコンテキストでgit configを実行
+      // デフォルトではrootで実行されるため、--user nodeを指定
       if (settings.git_username) {
         await execFileAsync('docker', [
           'exec',
+          '--user',
+          'node',
           containerId,
           'git',
           'config',
@@ -1183,6 +1187,8 @@ export class DockerAdapter extends BasePTYAdapter {
       if (settings.git_email) {
         await execFileAsync('docker', [
           'exec',
+          '--user',
+          'node',
           containerId,
           'git',
           'config',
@@ -1228,8 +1234,15 @@ export class DockerAdapter extends BasePTYAdapter {
           // 秘密鍵を復号化
           const privateKey = await this.encryptionService.decrypt(key.private_key_encrypted);
 
+          // パストラバーサル対策: 安全なファイル名に変換
+          // 英数字、ハイフン、アンダースコアのみを許可
+          const safeKeyName = key.name.replace(/[^a-zA-Z0-9_-]/g, '_');
+
+          // さらにpath.basenameで確実にディレクトリ脱出を防止
+          const safeName = path.basename(safeKeyName);
+
           // ファイルパス
-          const privateKeyPath = path.join(sshDir, `id_${key.name}`);
+          const privateKeyPath = path.join(sshDir, `id_${safeName}`);
           const publicKeyPath = `${privateKeyPath}.pub`;
 
           // ファイルに書き込み

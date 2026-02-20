@@ -33,7 +33,10 @@ function validateSettingsInput(body: Record<string, unknown>): {
 
   // git_username バリデーション
   if (git_username !== undefined) {
-    if (typeof git_username !== 'string' || git_username.length === 0) {
+    // null は設定クリアとして許可
+    if (git_username === null) {
+      // null は有効（設定をクリアする）
+    } else if (typeof git_username !== 'string' || git_username.length === 0) {
       return {
         valid: false,
         error: {
@@ -42,8 +45,7 @@ function validateSettingsInput(body: Record<string, unknown>): {
           details: { field: 'git_username', value: git_username },
         },
       };
-    }
-    if (git_username.length > 100) {
+    } else if (git_username.length > 100) {
       return {
         valid: false,
         error: {
@@ -57,7 +59,10 @@ function validateSettingsInput(body: Record<string, unknown>): {
 
   // git_email バリデーション
   if (git_email !== undefined) {
-    if (typeof git_email !== 'string' || !isValidEmail(git_email)) {
+    // null は設定クリアとして許可
+    if (git_email === null) {
+      // null は有効（設定をクリアする）
+    } else if (typeof git_email !== 'string' || !isValidEmail(git_email)) {
       return {
         valid: false,
         error: {
@@ -119,10 +124,14 @@ export async function GET(
     ]);
 
     // effective_settings のレスポンス構築
+    // フィールドごとに source を返す（username は global / email は project のような混在ケースに対応）
     const effective = {
       git_username: effectiveSettings.git_username,
       git_email: effectiveSettings.git_email,
-      source: effectiveSettings.source.git_username || effectiveSettings.source.git_email || null,
+      source: {
+        git_username: effectiveSettings.source.git_username,
+        git_email: effectiveSettings.source.git_email,
+      },
     };
 
     if (projectSettings) {

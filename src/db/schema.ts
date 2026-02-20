@@ -1,5 +1,5 @@
 import { sqliteTable, text, integer, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 
 // ==================== テーブル定義 ====================
 
@@ -155,7 +155,10 @@ export const developerSettings = sqliteTable('DeveloperSettings', {
   updated_at: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
 }, (table) => ({
   scopeProjectIdIdx: index('developer_settings_scope_project_id_idx').on(table.scope, table.project_id),
-  scopeProjectIdUnique: uniqueIndex('developer_settings_scope_project_id_key').on(table.scope, table.project_id),
+  // グローバル設定は1つのみ（部分ユニークインデックス）
+  globalSettingUnique: uniqueIndex('developer_settings_global_unique').on(table.scope).where(sql`scope = 'GLOBAL'`),
+  // プロジェクト設定はプロジェクトごとに1つ（project_id が NOT NULL の場合）
+  projectSettingUnique: uniqueIndex('developer_settings_project_unique').on(table.project_id).where(sql`scope = 'PROJECT' AND project_id IS NOT NULL`),
 }));
 
 /**
