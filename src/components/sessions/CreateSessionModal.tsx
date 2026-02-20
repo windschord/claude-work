@@ -85,9 +85,8 @@ export function CreateSessionModal({
   }, [environments]);
 
   // clone_location=dockerだがDocker環境が存在しない場合のフォールバック検出
-  // NOTE: sortedEnvironmentsはenvironmentsから派生するため、依存配列にはenvironmentsを使用
   const isDockerFallback = useMemo(() => {
-    return cloneLocation === 'docker' && !sortedEnvironments.some((env) => env.type === 'DOCKER');
+    return cloneLocation === 'docker' && !environments.some((env) => env.type === 'DOCKER');
   }, [cloneLocation, environments]);
 
   // プロジェクトのenvironment_idを取得
@@ -161,11 +160,7 @@ export function CreateSessionModal({
         }
       }
     }
-    // NOTE: エフェクト内でsortedEnvironmentsを参照しているが、依存配列にはenvironmentsを使用する
-    // 理由: sortedEnvironmentsはuseMemo(environments)から派生するため、environmentsが変わると
-    // Reactは再レンダー→useMemo再計算→エフェクト実行の順で処理し、stale closureは発生しない
-    // sortedEnvironmentsを依存配列に含めると、useMemoの参照変更で不要な再実行が発生する可能性がある
-  }, [environments, isEnvironmentsLoading, projectEnvironmentId, cloneLocation, isProjectFetched]);
+  }, [sortedEnvironments, isEnvironmentsLoading, projectEnvironmentId, cloneLocation, isProjectFetched]);
 
   // モーダルが閉じられた時に状態をリセット
   useEffect(() => {
