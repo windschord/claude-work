@@ -28,7 +28,7 @@ DockerAdapter.buildDockerArgs()
 
 ## 設計の原則
 
-1. **UI層で防止、バックエンド層で保証**: UIでdisabledにするが、バックエンドでも安全弁として除去
+1. **UI層で防止、バックエンド層で保証**: UIはdisabledにし、バックエンドも安全弁として除去
 2. **値の保持**: disabledフィールドの値はstateで保持し、skipPermissions解除時に復元
 3. **最小変更**: 既存コンポーネントのpropsを拡張するのみ。新規コンポーネント不要
 
