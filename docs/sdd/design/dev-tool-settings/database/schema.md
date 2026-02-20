@@ -237,40 +237,64 @@ SQLiteはマイグレーション履歴を管理しないため、ロールバ�
 
 **階層的設定の読み込み**:
 ```typescript
+import { db, schema } from '@/lib/db';
+import { eq, and, or, isNull, desc } from 'drizzle-orm';
+
 // プロジェクト設定を優先、存在しなければグローバル設定
-const settings = await prisma.developerSettings.findFirst({
-  where: {
-    OR: [
-      { scope: 'PROJECT', project_id: projectId },
-      { scope: 'GLOBAL', project_id: null }
-    ]
-  },
-  orderBy: { scope: 'desc' } // PROJECT > GLOBAL の順
-});
+const settings = db
+  .select()
+  .from(schema.developerSettings)
+  .where(
+    or(
+      and(
+        eq(schema.developerSettings.scope, 'PROJECT'),
+        eq(schema.developerSettings.project_id, projectId)
+      ),
+      and(
+        eq(schema.developerSettings.scope, 'GLOBAL'),
+        isNull(schema.developerSettings.project_id)
+      )
+    )
+  )
+  .orderBy(desc(schema.developerSettings.scope)) // PROJECT > GLOBAL の順
+  .get();
 ```
 
 **SSH鍵一覧の取得**:
 ```typescript
 // 公開鍵のみ選択（秘密鍵は取得しない）
-const keys = await prisma.sshKey.findMany({
-  select: {
-    id: true,
-    name: true,
-    public_key: true,
-    created_at: true
-  }
-});
+const keys = db
+  .select({
+    id: schema.sshKeys.id,
+    name: schema.sshKeys.name,
+    public_key: schema.sshKeys.public_key,
+    created_at: schema.sshKeys.created_at
+  })
+  .from(schema.sshKeys)
+  .all();
 ```
 
 ### N+1問題の回避
 
 プロジェクト一覧と設定を同時に取得する場合:
 ```typescript
-const projects = await prisma.project.findMany({
-  include: {
-    developerSettings: true // 1クエリで JOIN
-  }
-});
+// Drizzleでは明示的にJOINを使用
+import { eq } from 'drizzle-orm';
+
+const projectsWithSettings = db
+  .select({
+    project: schema.projects,
+    settings: schema.developerSettings
+  })
+  .from(schema.projects)
+  .leftJoin(
+    schema.developerSettings,
+    and(
+      eq(schema.developerSettings.scope, 'PROJECT'),
+      eq(schema.developerSettings.project_id, schema.projects.id)
+    )
+  )
+  .all();
 ```
 
 ---
