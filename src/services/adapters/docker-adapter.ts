@@ -88,7 +88,7 @@ export class DockerAdapter extends BasePTYAdapter {
   /**
    * Docker実行引数を構築（環境専用認証ディレクトリを使用）
    */
-  private buildDockerArgs(workingDir: string, options?: CreateSessionOptions): { args: string[]; containerName: string; envFilePath?: string } {
+  protected buildDockerArgs(workingDir: string, options?: CreateSessionOptions): { args: string[]; containerName: string; envFilePath?: string } {
     const args: string[] = ['run', '-it', '--rm'];
 
     // コンテナ名（環境ID + タイムスタンプで一意に）
