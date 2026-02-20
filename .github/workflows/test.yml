@@ -112,17 +112,23 @@ jobs:
       with:
         skip-db-setup: 'true'
 
+    - name: Get Node.js version for cache key
+      id: node-version
+      run: echo "version=$(node --version)" >> $GITHUB_OUTPUT
+
     - name: Cache CLI E2E package
       uses: actions/cache@v4
       id: cli-package-cache
       with:
         path: /tmp/cli-e2e-package
-        key: cli-e2e-pkg-${{ runner.os }}-${{ hashFiles('package.json', 'pnpm-lock.yaml', 'src/**', 'server.ts', 'tsconfig*.json', 'next.config.js', 'tailwind.config.*', 'postcss.config.*', '.npmignore') }}
+        # src/** を含めることでビルド成果物に影響する全ソースの変更を検出する。
+        # テストファイルの変更でもキャッシュが無効化されるが、ビルドの正確性を優先する。
+        key: cli-e2e-pkg-${{ runner.os }}-node${{ steps.node-version.outputs.version }}-${{ hashFiles('package.json', 'pnpm-lock.yaml', 'src/**', 'server.ts', 'tsconfig*.json', 'next.config.js', 'tailwind.config.*', 'postcss.config.*', '.npmignore') }}
 
     - name: Build CLI E2E package
       if: steps.cli-package-cache.outputs.cache-hit != 'true'
       run: |
-        set -e
+        set -eo pipefail
         echo "=== npm pack ==="
         TARBALL_NAME=$(npm pack --ignore-scripts | tail -1)
         echo "Created tarball: $TARBALL_NAME"
@@ -140,8 +146,24 @@ jobs:
 
     - name: Verify CLI package
       run: |
-        test -f /tmp/cli-e2e-package/package/dist/src/bin/cli.js
-        test -d /tmp/cli-e2e-package/package/.next
+        pkg=/tmp/cli-e2e-package/package
+        ok=true
+        for f in dist/src/bin/cli.js package.json; do
+          if [ ! -f "$pkg/$f" ]; then
+            echo "::error::Missing required file: $pkg/$f"
+            ok=false
+          fi
+        done
+        if [ ! -d "$pkg/.next" ]; then
+          echo "::error::Missing required directory: $pkg/.next"
+          ok=false
+        fi
+        if [ "$ok" != "true" ]; then
+          echo "CLI package verification failed. Listing contents:"
+          ls -la "$pkg"
+          exit 1
+        fi
+        echo "CLI package verified successfully"
 
     - name: Run CLI E2E tests
       run: SKIP_WEBSERVER=true CLI_PACKAGE_DIR=/tmp/cli-e2e-package/package pnpm exec playwright test --project=cli

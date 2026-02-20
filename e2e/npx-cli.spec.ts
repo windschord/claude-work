@@ -36,6 +36,9 @@ test.describe.serial('npx CLI installation test', () => {
     // CI最適化: 事前ビルド済みパッケージディレクトリが指定されている場合はそれを使用
     const prebuiltDir = process.env.CLI_PACKAGE_DIR;
     if (prebuiltDir && fs.existsSync(prebuiltDir)) {
+      if (!fs.statSync(prebuiltDir).isDirectory()) {
+        throw new Error(`CLI_PACKAGE_DIR is not a directory: ${prebuiltDir}`);
+      }
       const requiredArtifacts = [
         path.join(prebuiltDir, 'dist', 'src', 'bin', 'cli.js'),
         path.join(prebuiltDir, '.next'),
