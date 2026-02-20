@@ -6,6 +6,7 @@ export interface ClaudeCodeOptions {
   allowedTools?: string;    // --allowedTools <value>
   permissionMode?: string;  // --permission-mode <value>
   additionalFlags?: string; // その他フラグ（スペース区切り文字列）
+  dangerouslySkipPermissions?: boolean; // --dangerously-skip-permissions（Docker環境のみ）
 }
 
 /**
@@ -46,6 +47,7 @@ export class ClaudeOptionsService {
 
     const merged: ClaudeCodeOptions = {};
 
+    // 文字列フィールドのマージ（空文字列はクリア）
     for (const key of ['model', 'allowedTools', 'permissionMode', 'additionalFlags'] as const) {
       if (sessionOptions[key] !== undefined) {
         // 空文字列はクリア（フィールドを含めない）
@@ -55,6 +57,13 @@ export class ClaudeOptionsService {
       } else if (projectOptions[key] !== undefined && projectOptions[key] !== '') {
         merged[key] = projectOptions[key];
       }
+    }
+
+    // booleanフィールドのマージ（undefinedは上書きなし）
+    if (sessionOptions.dangerouslySkipPermissions !== undefined) {
+      merged.dangerouslySkipPermissions = sessionOptions.dangerouslySkipPermissions;
+    } else if (projectOptions.dangerouslySkipPermissions !== undefined) {
+      merged.dangerouslySkipPermissions = projectOptions.dangerouslySkipPermissions;
     }
 
     return merged;
@@ -100,6 +109,10 @@ export class ClaudeOptionsService {
       args.push(...flagParts);
     }
 
+    // dangerouslySkipPermissions は buildCliArgs() では意図的に除外。
+    // Docker環境種別やシェルモードに応じた条件付けが必要なため、
+    // DockerAdapter.buildDockerArgs() で直接処理する。
+
     return args;
   }
 
@@ -142,7 +155,7 @@ export class ClaudeOptionsService {
     }
 
     const obj = value as Record<string, unknown>;
-    const allowedKeys = new Set(['model', 'allowedTools', 'permissionMode', 'additionalFlags']);
+    const allowedKeys = new Set(['model', 'allowedTools', 'permissionMode', 'additionalFlags', 'dangerouslySkipPermissions']);
 
     // 未知のキーをチェック
     for (const key of Object.keys(obj)) {
@@ -153,6 +166,7 @@ export class ClaudeOptionsService {
 
     const result: ClaudeCodeOptions = {};
 
+    // 文字列フィールドのバリデーション
     for (const key of ['model', 'allowedTools', 'permissionMode', 'additionalFlags'] as const) {
       if (key in obj) {
         const fieldValue = obj[key];
@@ -162,6 +176,17 @@ export class ClaudeOptionsService {
         if (typeof fieldValue === 'string') {
           result[key] = fieldValue;
         }
+      }
+    }
+
+    // booleanフィールドのバリデーション
+    if ('dangerouslySkipPermissions' in obj) {
+      const fieldValue = obj.dangerouslySkipPermissions;
+      if (typeof fieldValue !== 'boolean' && fieldValue !== undefined) {
+        return null; // boolean以外は失敗
+      }
+      if (typeof fieldValue === 'boolean') {
+        result.dangerouslySkipPermissions = fieldValue;
       }
     }
 
@@ -178,7 +203,7 @@ export class ClaudeOptionsService {
     }
 
     const obj = value as Record<string, unknown>;
-    const allowedKeys = new Set(['model', 'allowedTools', 'permissionMode', 'additionalFlags']);
+    const allowedKeys = new Set(['model', 'allowedTools', 'permissionMode', 'additionalFlags', 'dangerouslySkipPermissions']);
 
     return Object.keys(obj).filter(key => !allowedKeys.has(key));
   }
@@ -229,6 +254,10 @@ export class ClaudeOptionsService {
         if (key in parsed && typeof parsed[key] === 'string') {
           result[key] = parsed[key];
         }
+      }
+      // booleanフィールド
+      if ('dangerouslySkipPermissions' in parsed && typeof parsed.dangerouslySkipPermissions === 'boolean') {
+        result.dangerouslySkipPermissions = parsed.dangerouslySkipPermissions;
       }
       return result;
     } catch {

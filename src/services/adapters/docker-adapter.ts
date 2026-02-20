@@ -104,7 +104,7 @@ export class DockerAdapter extends BasePTYAdapter {
   /**
    * Docker実行引数を構築（環境専用認証ディレクトリを使用）
    */
-  private buildDockerArgs(workingDir: string, options?: CreateSessionOptions): { args: string[]; containerName: string; envFilePath?: string } {
+  protected buildDockerArgs(workingDir: string, options?: CreateSessionOptions): { args: string[]; containerName: string; envFilePath?: string } {
     const args: string[] = ['run', '-it', '--rm'];
 
     // コンテナ名（環境ID + タイムスタンプで一意に）
@@ -174,6 +174,12 @@ export class DockerAdapter extends BasePTYAdapter {
 
     // イメージ
     args.push(`${this.config.imageName}:${this.config.imageTag}`);
+
+    // --dangerously-skip-permissions（shellModeではスキップ）
+    if (!options?.shellMode && options?.skipPermissions) {
+      args.push('--dangerously-skip-permissions');
+      logger.info('DockerAdapter: --dangerously-skip-permissions enabled');
+    }
 
     // claudeコマンドの引数（--entrypoint使用時はイメージ名の後に引数を指定）
     // シェルモードでは--resumeフラグは不要

@@ -100,6 +100,18 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       updateData.description = description;
     }
     if (config !== undefined) {
+      // skipPermissions のバリデーション（Docker環境のみ）
+      if (config?.skipPermissions !== undefined) {
+        if (existing.type !== 'DOCKER') {
+          // Docker以外の環境では skipPermissions を削除
+          delete config.skipPermissions;
+        } else if (typeof config.skipPermissions !== 'boolean') {
+          return NextResponse.json(
+            { error: 'config.skipPermissions must be a boolean' },
+            { status: 400 }
+          );
+        }
+      }
       updateData.config = config;
     }
 
