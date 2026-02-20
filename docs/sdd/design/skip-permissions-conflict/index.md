@@ -17,7 +17,7 @@ ClaudeOptionsForm
   │
   ▼
 PTYSessionManager
-  │ skipPermissions=true の場合
+  │ ClaudeOptionsService.stripConflictingOptions() を呼び出し
   │ → claudeCodeOptions から permissionMode, allowedTools を除去
   │
   ▼
@@ -38,7 +38,8 @@ DockerAdapter.buildDockerArgs()
 |--------------|------|------------|---------:|
 | CreateSessionModal | effectiveSkipPermissions計算、props伝播 | src/components/sessions/CreateSessionModal.tsx | 拡張 |
 | ClaudeOptionsForm | disabled化、警告表示 | src/components/claude-options/ClaudeOptionsForm.tsx | 拡張 |
-| PTYSessionManager | 矛盾オプション除去 | src/services/pty-session-manager.ts | 拡張 |
+| ClaudeOptionsService | 矛盾オプション除去（stripConflictingOptions） | src/services/claude-options-service.ts | 追加 |
+| PTYSessionManager | 競合除去の呼び出し、警告ログ出力 | src/services/pty-session-manager.ts | 拡張 |
 
 ## データフロー
 
@@ -114,29 +115,15 @@ interface ClaudeOptionsFormProps {
 )}
 ```
 
-### 4. PTYSessionManager: 矛盾オプション除去
+### 4. PTYSessionManager: 矛盾オプション除去（ClaudeOptionsService経由）
 
 ```typescript
-// 既存: dangerouslySkipPermissionsの除去
-const adapterClaudeOptions = claudeCodeOptions ? { ...claudeCodeOptions } : undefined
-if (adapterClaudeOptions) {
-  delete adapterClaudeOptions.dangerouslySkipPermissions
-}
-
-// 追加: skipPermissions有効時にpermissionModeとallowedToolsも除去
-if (skipPermissions && adapterClaudeOptions) {
-  if (adapterClaudeOptions.permissionMode) {
-    logger.info('skipPermissions enabled: ignoring permissionMode', {
-      permissionMode: adapterClaudeOptions.permissionMode
-    });
-    delete adapterClaudeOptions.permissionMode;
-  }
-  if (adapterClaudeOptions.allowedTools) {
-    logger.info('skipPermissions enabled: ignoring allowedTools', {
-      allowedTools: adapterClaudeOptions.allowedTools
-    });
-    delete adapterClaudeOptions.allowedTools;
-  }
+// ClaudeOptionsService.stripConflictingOptions() に集約
+// dangerouslySkipPermissionsの除去 + skipPermissions有効時のpermissionMode/allowedTools除去
+const { result: adapterClaudeOptions, warnings } =
+  ClaudeOptionsService.stripConflictingOptions(claudeCodeOptions, skipPermissions)
+for (const warning of warnings) {
+  logger.warn(warning)
 }
 ```
 
@@ -146,7 +133,7 @@ if (skipPermissions && adapterClaudeOptions) {
 |----|---------|------|
 | DEC-001 | UIのdisabled化はClaudeOptionsFormのpropsで制御 | CreateSessionModalからの単方向データフロー。ClaudeOptionsFormの再利用性を維持 |
 | DEC-002 | additionalFlagsはdisabledにせず警告のみ | 他の有効なフラグ（--model等以外のカスタムフラグ）も入力できなくなるため |
-| DEC-003 | バックエンドでの除去はPTYSessionManagerで行う | 既存のdangerouslySkipPermissions除去ロジックと同じ場所に配置。関心の集約 |
+| DEC-003 | バックエンドでの除去はClaudeOptionsServiceに集約 | PTYSessionManagerから呼び出し、テスト容易性と一貫した警告・除去処理を提供 |
 | DEC-004 | additionalFlags内の権限フラグは除去しない | フリーテキストのパースは複雑でエラーが起きやすい。UIの警告で十分 |
 | DEC-005 | disabledフィールドの値はReact stateで保持 | onChangeを呼ばない（値を変更しない）ことで自然に保持される |
 
@@ -155,7 +142,7 @@ if (skipPermissions && adapterClaudeOptions) {
 ### 防御層
 
 1. **UI層**: permissionMode/allowedToolsフィールドをdisabled化（入力防止）
-2. **バックエンド層（PTYSessionManager）**: skipPermissions有効時にCLI引数から除去（安全弁）
+2. **バックエンド層（ClaudeOptionsService）**: skipPermissions有効時にCLI引数から除去（安全弁）
 
 UI層をバイパスしてAPIを直接呼んだ場合でも、バックエンド層で除去されるため安全。
 
@@ -163,13 +150,14 @@ UI層をバイパスしてAPIを直接呼んだ場合でも、バックエンド
 
 | テストレベル | 対象 | ツール |
 |------------|------|-------|
-| ユニットテスト | PTYSessionManagerの矛盾オプション除去 | Vitest |
+| ユニットテスト | ClaudeOptionsService.stripConflictingOptionsの矛盾オプション除去 | Vitest |
 | ユニットテスト | ClaudeOptionsFormのdisabled状態 | Vitest + React Testing Library |
 
 ## 実装の優先順位
 
 ### Phase 1: バックエンド
-1. PTYSessionManager: skipPermissions有効時にpermissionMode/allowedToolsを除去
+1. ClaudeOptionsService.stripConflictingOptions: skipPermissions有効時にpermissionMode/allowedToolsを除去
+2. PTYSessionManager: stripConflictingOptionsの呼び出しと警告ログ出力
 
 ### Phase 2: UI
 2. ClaudeOptionsForm: disabledBySkipPermissions prop追加
@@ -189,3 +177,4 @@ UI層をバイパスしてAPIを直接呼んだ場合でも、バックエンド
 | 日付 | 変更内容 | 担当者 |
 |------|---------|--------|
 | 2026-02-21 | 初版作成 | Claude Code |
+| 2026-02-21 | リファクタリング反映: ロジックをClaudeOptionsServiceに集約 | Claude Code |
