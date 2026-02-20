@@ -85,9 +85,10 @@ export function CreateSessionModal({
   }, [environments]);
 
   // clone_location=dockerだがDocker環境が存在しない場合のフォールバック検出
+  // NOTE: sortedEnvironmentsはenvironmentsから派生するため、依存配列にはenvironmentsを使用
   const isDockerFallback = useMemo(() => {
     return cloneLocation === 'docker' && !sortedEnvironments.some((env) => env.type === 'DOCKER');
-  }, [cloneLocation, sortedEnvironments]);
+  }, [cloneLocation, environments]);
 
   // プロジェクトのenvironment_idを取得
   useEffect(() => {
@@ -160,7 +161,9 @@ export function CreateSessionModal({
         }
       }
     }
-    // NOTE: sortedEnvironmentsはuseMemoでenvironmentsから派生するため、依存配列にはenvironmentsを使用
+    // NOTE: エフェクト内でsortedEnvironmentsを参照しているが、依存配列にはenvironmentsを使用する
+    // 理由: sortedEnvironmentsはuseMemo(environments)から派生するため、environmentsが変わると
+    // Reactは再レンダー→useMemo再計算→エフェクト実行の順で処理し、stale closureは発生しない
     // sortedEnvironmentsを依存配列に含めると、useMemoの参照変更で不要な再実行が発生する可能性がある
   }, [environments, isEnvironmentsLoading, projectEnvironmentId, cloneLocation, isProjectFetched]);
 
@@ -311,6 +314,19 @@ export function CreateSessionModal({
                     <div className="flex items-center justify-center py-4 text-gray-500 dark:text-gray-400">
                       環境を設定中...
                     </div>
+                  ) : isDockerFallback ? (
+                    // clone_location=dockerだがDocker環境が未登録の場合
+                    // フォールバック環境の詳細は表示せず、サーバー側Docker決定の通知のみ表示
+                    <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg px-4 py-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`px-2 py-0.5 text-xs font-medium rounded ${getTypeBadgeColor('DOCKER')}`}>
+                          DOCKER
+                        </span>
+                      </div>
+                      <p className="text-sm text-amber-700 dark:text-amber-300">
+                        Docker環境が登録されていないため、サーバー側でDocker環境が自動選択されます
+                      </p>
+                    </div>
                   ) : (projectEnvironmentId || cloneLocation === 'docker') ? (
                     // プロジェクトに環境が設定されている、またはclone_location=dockerの場合は表示のみ（変更不可）
                     <div className="bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg px-4 py-3">
@@ -346,15 +362,9 @@ export function CreateSessionModal({
                           </p>
                         );
                       })()}
-                      {isDockerFallback ? (
-                        <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
-                          Docker環境が登録されていないため、サーバー側でDocker環境が自動選択されます
-                        </p>
-                      ) : (
-                        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                          この環境はプロジェクト設定で変更できます
-                        </p>
-                      )}
+                      <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                        この環境はプロジェクト設定で変更できます
+                      </p>
                     </div>
                   ) : (
                     // プロジェクトに環境が設定されていない場合は選択可能

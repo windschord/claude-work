@@ -1297,5 +1297,114 @@ describe('CreateSessionModal', () => {
         expect(radioButtons).toHaveLength(3);
       });
     });
+
+    it('clone_location=dockerでDocker環境が未登録の場合、フォールバック通知が表示される', async () => {
+      // Docker環境を含まない環境リストをモック
+      const noDockerEnvironments = [
+        {
+          id: 'env-host',
+          name: 'Host Only',
+          type: 'HOST' as const,
+          description: 'ホスト環境',
+          config: '{}',
+          is_default: true,
+          created_at: '2024-01-01T00:00:00Z',
+          updated_at: '2024-01-01T00:00:00Z',
+        },
+        {
+          id: 'env-ssh',
+          name: 'SSH Only',
+          type: 'SSH' as const,
+          description: 'SSH環境',
+          config: '{}',
+          is_default: false,
+          created_at: '2024-01-01T00:00:00Z',
+          updated_at: '2024-01-01T00:00:00Z',
+        },
+      ];
+
+      const { useEnvironments } = await import('@/hooks/useEnvironments');
+      vi.mocked(useEnvironments).mockReturnValue({
+        environments: noDockerEnvironments,
+        isLoading: false,
+        error: null,
+        fetchEnvironments: vi.fn(),
+        createEnvironment: vi.fn(),
+        updateEnvironment: vi.fn(),
+        deleteEnvironment: vi.fn(),
+        refreshEnvironment: vi.fn(),
+      });
+
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes('/branches')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ branches: [] }),
+          });
+        }
+        if (url.match(/\/api\/projects\/[^/]+$/) && !url.includes('/sessions')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              project: {
+                id: 'project-1',
+                name: 'Docker Clone Project',
+                environment_id: null,
+                clone_location: 'docker',
+              },
+            }),
+          });
+        }
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ session: { id: 'new-session-id' } }),
+        });
+      });
+
+      try {
+        render(
+          <CreateSessionModal
+            isOpen={true}
+            onClose={mockOnClose}
+            projectId="project-1"
+            onSuccess={mockOnSuccess}
+          />
+        );
+
+        // フォールバック通知が表示される
+        await waitFor(() => {
+          expect(screen.getByText('Docker環境が登録されていないため、サーバー側でDocker環境が自動選択されます')).toBeInTheDocument();
+        });
+
+        // ラジオボタンは表示されない（読み取り専用表示のため）
+        expect(screen.queryAllByRole('radio')).toHaveLength(0);
+
+        // 作成ボタンが有効（フォールバック環境が選択されているため）
+        const createButton = screen.getByRole('button', { name: '作成' });
+        fireEvent.click(createButton);
+
+        // environment_idは送信しない（サーバー側で決定）
+        await waitFor(() => {
+          const sessionCreateCalls = mockFetch.mock.calls.filter(
+            (call: unknown[]) => typeof call[0] === 'string' && call[0].includes('/sessions') && (call[1] as RequestInit)?.method === 'POST'
+          );
+          expect(sessionCreateCalls).toHaveLength(1);
+          const body = JSON.parse((sessionCreateCalls[0][1] as RequestInit).body as string);
+          expect(body).not.toHaveProperty('environment_id');
+        });
+      } finally {
+        // 元のモックに戻す
+        vi.mocked(useEnvironments).mockReturnValue({
+          environments: mockEnvironments,
+          isLoading: false,
+          error: null,
+          fetchEnvironments: vi.fn(),
+          createEnvironment: vi.fn(),
+          updateEnvironment: vi.fn(),
+          deleteEnvironment: vi.fn(),
+          refreshEnvironment: vi.fn(),
+        });
+      }
+    });
   });
 });
