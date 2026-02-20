@@ -57,6 +57,7 @@ export function CreateSessionModal({
   const { environments, isLoading: isEnvironmentsLoading } = useEnvironments();
   const [selectedEnvironmentId, setSelectedEnvironmentId] = useState<string>('');
   const [projectEnvironmentId, setProjectEnvironmentId] = useState<string | null>(null);
+  const [cloneLocation, setCloneLocation] = useState<string | null>(null);
   const [isProjectFetched, setIsProjectFetched] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string>('');
@@ -103,6 +104,7 @@ export function CreateSessionModal({
         if (response.ok) {
           const data = await response.json();
           setProjectEnvironmentId(data.project?.environment_id || null);
+          setCloneLocation(data.project?.clone_location || null);
         } else {
           setProjectEnvironmentId(null);
         }
@@ -128,6 +130,13 @@ export function CreateSessionModal({
       // プロジェクトに環境が設定されている場合はそれを使用
       if (projectEnvironmentId) {
         setSelectedEnvironmentId(projectEnvironmentId);
+      } else if (cloneLocation === 'docker') {
+        // clone_location=dockerの場合は最初のDocker環境を自動選択
+        // サーバー側でもclone_locationに基づいてDocker環境が強制されるため、UIでも同じ挙動にする
+        const dockerEnv = sortedEnvironments.find((env) => env.type === 'DOCKER');
+        if (dockerEnv) {
+          setSelectedEnvironmentId(dockerEnv.id);
+        }
       } else {
         // 設定されていない場合はデフォルト環境を優先選択
         const defaultEnv = sortedEnvironments.find((env) => env.is_default);
@@ -140,7 +149,7 @@ export function CreateSessionModal({
         }
       }
     }
-  }, [environments, isEnvironmentsLoading, projectEnvironmentId, isProjectFetched]);
+  }, [environments, isEnvironmentsLoading, projectEnvironmentId, cloneLocation, isProjectFetched]);
 
   // モーダルが閉じられた時に状態をリセット
   useEffect(() => {
@@ -151,6 +160,7 @@ export function CreateSessionModal({
       setSelectedEnvironmentId('');
       setIsProjectFetched(false);
       setProjectEnvironmentId(null);
+      setCloneLocation(null);
     }
   }, [isOpen]);
 
@@ -201,8 +211,9 @@ export function CreateSessionModal({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          // プロジェクトに環境が設定されている場合はenvironment_idを送信しない（サーバー側でproject.environment_idを使用）
-          ...(projectEnvironmentId ? {} : { environment_id: selectedEnvironmentId }),
+          // プロジェクトに環境が設定されている場合、またはclone_location=dockerの場合はenvironment_idを送信しない
+          // （サーバー側でproject.environment_idまたはclone_locationに基づいて環境を決定）
+          ...(projectEnvironmentId || cloneLocation === 'docker' ? {} : { environment_id: selectedEnvironmentId }),
           source_branch: selectedBranch || undefined,
           claude_code_options: Object.keys(claudeOptions).some(k => claudeOptions[k as keyof ClaudeCodeOptions] !== undefined) ? claudeOptions : undefined,
           custom_env_vars: Object.keys(customEnvVars).length > 0 ? customEnvVars : undefined,
@@ -282,11 +293,11 @@ export function CreateSessionModal({
                     <div className="flex items-center justify-center py-4 text-gray-500 dark:text-gray-400">
                       プロジェクト情報を読み込み中...
                     </div>
-                  ) : projectEnvironmentId ? (
-                    // プロジェクトに環境が設定されている場合は表示のみ（変更不可）
+                  ) : (projectEnvironmentId || cloneLocation === 'docker') ? (
+                    // プロジェクトに環境が設定されている、またはclone_location=dockerの場合は表示のみ（変更不可）
                     <div className="bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg px-4 py-3">
                       {(() => {
-                        const env = sortedEnvironments.find((e) => e.id === projectEnvironmentId);
+                        const env = sortedEnvironments.find((e) => e.id === selectedEnvironmentId);
                         return env ? (
                           <div className="flex w-full items-center justify-between">
                             <div className="flex items-center">
