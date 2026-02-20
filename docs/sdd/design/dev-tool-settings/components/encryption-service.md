@@ -42,6 +42,7 @@
 interface EncryptedData {
   encrypted: string; // Base64エンコードされた暗号文
   iv: string;        // Base64エンコードされたIV
+  authTag: string;   // Base64エンコードされた認証タグ (GCM)
 }
 ```
 
@@ -59,7 +60,7 @@ const result = await service.encrypt(privateKeyContent);
 
 ---
 
-#### `decrypt(encrypted: string, iv: string): Promise<string>`
+#### `decrypt(encrypted: string, iv: string, authTag: string): Promise<string>`
 
 **説明**: 暗号化されたSSH秘密鍵を復号化
 
@@ -68,6 +69,7 @@ const result = await service.encrypt(privateKeyContent);
 |------|-----|------|------|
 | encrypted | string | Yes | Base64エンコードされた暗号文 |
 | iv | string | Yes | Base64エンコードされたIV |
+| authTag | string | Yes | Base64エンコードされた認証タグ (GCM) |
 
 **戻り値**: `Promise<string>` - 復号化されたSSH秘密鍵（平文）
 
@@ -107,11 +109,13 @@ sequenceDiagram
     Env-->>Enc: masterKey
     Enc->>Crypto: randomBytes(16)
     Crypto-->>Enc: IV
-    Enc->>Crypto: createCipheriv('aes-256-cbc', key, IV)
+    Enc->>Crypto: createCipheriv('aes-256-gcm', key, IV)
     Crypto-->>Enc: cipher
     Enc->>Crypto: cipher.update(plaintext) + cipher.final()
     Crypto-->>Enc: encrypted
-    Enc-->>Client: { encrypted, iv }
+    Enc->>Crypto: cipher.getAuthTag()
+    Crypto-->>Enc: authTag
+    Enc-->>Client: { encrypted, iv, authTag }
 ```
 
 ## 内部設計
@@ -120,7 +124,7 @@ sequenceDiagram
 
 ```typescript
 export class EncryptionService {
-  private readonly ALGORITHM = 'aes-256-cbc';
+  private readonly ALGORITHM = 'aes-256-gcm';
   private readonly KEY_LENGTH = 32; // 256 bits
 
   /**
@@ -148,22 +152,26 @@ export class EncryptionService {
       cipher.update(plaintext, 'utf8'),
       cipher.final()
     ]);
+    const authTag = cipher.getAuthTag();
 
     return {
       encrypted: encrypted.toString('base64'),
-      iv: iv.toString('base64')
+      iv: iv.toString('base64'),
+      authTag: authTag.toString('base64')
     };
   }
 
   /**
    * 暗号化されたSSH秘密鍵を復号化
    */
-  async decrypt(encrypted: string, iv: string): Promise<string> {
+  async decrypt(encrypted: string, iv: string, authTag: string): Promise<string> {
     const key = this.getMasterKey();
     const ivBuffer = Buffer.from(iv, 'base64');
     const encryptedBuffer = Buffer.from(encrypted, 'base64');
+    const authTagBuffer = Buffer.from(authTag, 'base64');
 
     const decipher = crypto.createDecipheriv(this.ALGORITHM, key, ivBuffer);
+    decipher.setAuthTag(authTagBuffer);
     const decrypted = Buffer.concat([
       decipher.update(encryptedBuffer),
       decipher.final()

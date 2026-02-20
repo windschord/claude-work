@@ -118,7 +118,7 @@ export const developerSettingsRelations = relations(developerSettings, ({ one })
 
 ### SshKey {#sshkey}
 
-**概要**: SSH鍵ペアを管理（秘密鍵はAES-256で暗号化保存）
+**概要**: SSH鍵ペアを管理（秘密鍵はAES-256-GCMで暗号化保存）
 
 **Drizzleスキーマ**:
 ```typescript
