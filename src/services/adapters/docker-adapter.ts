@@ -1271,20 +1271,21 @@ export class DockerAdapter extends BasePTYAdapter {
       const sshConfigPath = path.join(sshDir, 'config');
       await fsPromises.writeFile(sshConfigPath, sshConfig, { mode: 0o644 });
 
-      // コンテナ内の /root/.ssh/ ディレクトリを作成
+      // コンテナ内の /home/node/.ssh/ ディレクトリを作成
+      // git configと同じnodeユーザーで実行
       const execFileAsync = promisify(childProcess.execFile);
-      await execFileAsync('docker', ['exec', containerId, 'mkdir', '-p', '/root/.ssh']);
-      await execFileAsync('docker', ['exec', containerId, 'chmod', '700', '/root/.ssh']);
+      await execFileAsync('docker', ['exec', '--user', 'node', containerId, 'mkdir', '-p', '/home/node/.ssh']);
+      await execFileAsync('docker', ['exec', '--user', 'node', containerId, 'chmod', '700', '/home/node/.ssh']);
 
       // SSH鍵ファイルをコンテナにコピー
       for (const keyPath of keyPaths) {
         const fileName = path.basename(keyPath);
-        await execFileAsync('docker', ['cp', keyPath, `${containerId}:/root/.ssh/${fileName}`]);
-        await execFileAsync('docker', ['cp', `${keyPath}.pub`, `${containerId}:/root/.ssh/${fileName}.pub`]);
+        await execFileAsync('docker', ['cp', keyPath, `${containerId}:/home/node/.ssh/${fileName}`]);
+        await execFileAsync('docker', ['cp', `${keyPath}.pub`, `${containerId}:/home/node/.ssh/${fileName}.pub`]);
       }
 
       // SSH config をコンテナにコピー
-      await execFileAsync('docker', ['cp', sshConfigPath, `${containerId}:/root/.ssh/config`]);
+      await execFileAsync('docker', ['cp', sshConfigPath, `${containerId}:/home/node/.ssh/config`]);
 
       logger.info('SSH keys applied successfully', { keyCount: keyPaths.length });
     } catch (error) {
@@ -1299,7 +1300,7 @@ export class DockerAdapter extends BasePTYAdapter {
    * SSH config ファイルの内容を生成
    */
   private generateSSHConfig(keys: SshKey[]): string {
-    const identityFiles = keys.map(key => `  IdentityFile /root/.ssh/id_${key.name}`).join('\n');
+    const identityFiles = keys.map(key => `  IdentityFile /home/node/.ssh/id_${key.name}`).join('\n');
 
     return `Host *
   StrictHostKeyChecking accept-new
