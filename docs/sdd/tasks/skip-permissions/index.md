@@ -45,7 +45,7 @@ Docker実行環境でClaude Code起動時に `--dangerously-skip-permissions` �
 
 ### TASK-001: ClaudeOptionsService に boolean フィールド対応を追加
 
-**ステータス**: TODO
+**ステータス**: DONE
 **推定工数**: 30分
 **対象ファイル**:
 - `src/services/claude-options-service.ts`
@@ -97,9 +97,7 @@ Docker実行環境でClaude Code起動時に `--dangerously-skip-permissions` �
 
 **TDD手順**:
 1. テスト作成:
-   - `buildCliArgs()`: dangerouslySkipPermissions=true で `--dangerously-skip-permissions` が含まれる
-   - `buildCliArgs()`: dangerouslySkipPermissions=false で含まれない
-   - `buildCliArgs()`: dangerouslySkipPermissions=undefined で含まれない
+   - `buildCliArgs()`: dangerouslySkipPermissions=true でも `--dangerously-skip-permissions` が含まれない（DockerAdapterで処理）
    - `validateClaudeCodeOptions()`: boolean値を受け入れる
    - `validateClaudeCodeOptions()`: 文字列値を拒否する
    - `parseOptions()`: JSONからboolean値をパースできる
@@ -110,7 +108,7 @@ Docker実行環境でClaude Code起動時に `--dangerously-skip-permissions` �
 4. テスト実行 → 通過確認
 
 **受入基準**:
-- [x] `dangerouslySkipPermissions: true` でフラグが生成される
+- [x] `buildCliArgs()` はdangerouslySkipPermissionsを出力しない（DockerAdapterで処理）
 - [x] boolean型のみ受け入れ、文字列は拒否する
 - [x] 既存のstring型フィールドの動作が変わらない
 - [x] 全テスト通過
@@ -119,7 +117,7 @@ Docker実行環境でClaude Code起動時に `--dangerously-skip-permissions` �
 
 ### TASK-002: DockerAdapter と CreateSessionOptions に skipPermissions を追加
 
-**ステータス**: TODO
+**ステータス**: DONE
 **推定工数**: 30分
 **依存**: TASK-001
 **対象ファイル**:
@@ -171,7 +169,7 @@ Docker実行環境でClaude Code起動時に `--dangerously-skip-permissions` �
 
 ### TASK-003: PTYSessionManager に skipPermissions 解決ロジックを追加
 
-**ステータス**: TODO
+**ステータス**: DONE
 **推定工数**: 20分
 **依存**: TASK-001, TASK-002
 **対象ファイル**:
@@ -224,7 +222,7 @@ await adapter.createSession(sessionId, workingDir, initialPrompt, {
 
 ### TASK-004: 環境API に skipPermissions バリデーションを追加
 
-**ステータス**: TODO
+**ステータス**: DONE
 **推定工数**: 15分
 **依存**: TASK-001
 **対象ファイル**:
@@ -268,7 +266,7 @@ await adapter.createSession(sessionId, workingDir, initialPrompt, {
 
 ### TASK-005: セッション作成API に dangerouslySkipPermissions バリデーションを追加
 
-**ステータス**: TODO
+**ステータス**: DONE
 **推定工数**: 15分
 **依存**: TASK-001
 **対象ファイル**:
@@ -304,7 +302,7 @@ await adapter.createSession(sessionId, workingDir, initialPrompt, {
 
 ### TASK-006: EnvironmentForm に skipPermissions トグルを追加
 
-**ステータス**: TODO
+**ステータス**: DONE
 **推定工数**: 30分
 **依存**: TASK-004
 **対象ファイル**:
@@ -377,7 +375,7 @@ await adapter.createSession(sessionId, workingDir, initialPrompt, {
 
 ### TASK-007: CreateSessionModal に skipPermissions セレクタを追加
 
-**ステータス**: TODO
+**ステータス**: DONE
 **推定工数**: 30分
 **依存**: TASK-005
 **対象ファイル**:
