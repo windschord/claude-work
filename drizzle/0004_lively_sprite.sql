@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX `developer_settings_scope_project_id_key` ON `DeveloperSettings` (`scope`,`project_id`);

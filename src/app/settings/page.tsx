@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Settings, Server, Key } from 'lucide-react';
+import { Settings, Server, Key, Code } from 'lucide-react';
 
 interface SettingCardProps {
   href: string;
@@ -82,6 +82,13 @@ export default function SettingsPage() {
           icon={<Key className="w-8 h-8" />}
           title="GitHub PAT"
           description="GitHubリポジトリアクセス用のPersonal Access Token管理を行います。"
+        />
+
+        <SettingCard
+          href="/settings/developer"
+          icon={<Code className="w-8 h-8" />}
+          title="開発ツール設定"
+          description="Git設定（username, email）やSSH鍵の管理を行います。"
         />
       </div>
     </div>
