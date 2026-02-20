@@ -196,6 +196,24 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
         delete adapterClaudeOptions.dangerouslySkipPermissions
       }
 
+      // skipPermissions有効時（Docker環境のみ）は矛盾するオプションも除去
+      // --dangerously-skip-permissions は全パーミッション確認をスキップするため、
+      // --permission-mode と --allowedTools は意味をなさない
+      if (skipPermissions && adapterClaudeOptions) {
+        if (adapterClaudeOptions.permissionMode) {
+          logger.warn('skipPermissions enabled: ignoring permissionMode', {
+            permissionMode: adapterClaudeOptions.permissionMode
+          })
+          delete adapterClaudeOptions.permissionMode
+        }
+        if (adapterClaudeOptions.allowedTools) {
+          logger.warn('skipPermissions enabled: ignoring allowedTools', {
+            allowedTools: adapterClaudeOptions.allowedTools
+          })
+          delete adapterClaudeOptions.allowedTools
+        }
+      }
+
       // アダプター経由でセッション作成
       await adapter.createSession(
         sessionId,
