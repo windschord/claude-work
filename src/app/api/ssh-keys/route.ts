@@ -172,16 +172,20 @@ export async function POST(request: NextRequest) {
     const finalPublicKey = public_key || `Generated from private key for ${name}`;
 
     // 秘密鍵を暗号化
-    const { encrypted, iv } = await encryptionService.encrypt(private_key);
+    // EncryptionServiceはiv:authTag:encryptedの形式で返す
+    const encryptedData = await encryptionService.encrypt(private_key);
+    const [iv, authTag] = encryptedData.split(':');
 
     // データベースに保存
+    // private_key_encryptedには完全な暗号化データ（iv:authTag:encrypted）を保存
+    // encryption_ivには参照用にiv:authTagを保存
     const newKey = db
       .insert(schema.sshKeys)
       .values({
         name,
         public_key: finalPublicKey,
-        private_key_encrypted: encrypted,
-        encryption_iv: iv,
+        private_key_encrypted: encryptedData,
+        encryption_iv: `${iv}:${authTag}`,
         has_passphrase: !!passphrase,
       })
       .returning({
