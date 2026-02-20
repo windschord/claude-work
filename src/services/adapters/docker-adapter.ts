@@ -159,6 +159,12 @@ export class DockerAdapter extends BasePTYAdapter {
     // イメージ
     args.push(`${this.config.imageName}:${this.config.imageTag}`);
 
+    // --dangerously-skip-permissions（shellModeではスキップ）
+    if (!options?.shellMode && options?.skipPermissions) {
+      args.push('--dangerously-skip-permissions');
+      logger.info('DockerAdapter: --dangerously-skip-permissions enabled');
+    }
+
     // claudeコマンドの引数（--entrypoint使用時はイメージ名の後に引数を指定）
     // シェルモードでは--resumeフラグは不要
     if (!options?.shellMode && options?.resumeSessionId) {
