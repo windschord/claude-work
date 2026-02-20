@@ -57,7 +57,7 @@ export function CreateSessionModal({
   const { environments, isLoading: isEnvironmentsLoading } = useEnvironments();
   const [selectedEnvironmentId, setSelectedEnvironmentId] = useState<string>('');
   const [projectEnvironmentId, setProjectEnvironmentId] = useState<string | null>(null);
-  const [cloneLocation, setCloneLocation] = useState<string | null>(null);
+  const [cloneLocation, setCloneLocation] = useState<'host' | 'docker' | null>(null);
   const [isProjectFetched, setIsProjectFetched] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string>('');
@@ -109,7 +109,7 @@ export function CreateSessionModal({
         if (response.ok) {
           const data = await response.json();
           setProjectEnvironmentId(data.project?.environment_id || null);
-          setCloneLocation(data.project?.clone_location || null);
+          setCloneLocation((data.project?.clone_location as 'host' | 'docker') || null);
         } else {
           setProjectEnvironmentId(null);
           setCloneLocation(null);
@@ -145,6 +145,8 @@ export function CreateSessionModal({
           setSelectedEnvironmentId(dockerEnv.id);
         } else {
           // Docker環境が存在しない場合はデフォルト環境または先頭の環境をフォールバック
+          // このフォールバック選択はUI検証（作成ボタンの有効化）のためのみ使用される
+          // サーバー側がclone_locationに基づいてDocker環境を自動選択する
           const defaultEnv = sortedEnvironments.find((env) => env.is_default);
           setSelectedEnvironmentId(defaultEnv?.id || sortedEnvironments[0].id);
         }
