@@ -621,6 +621,18 @@ describe('DockerAdapter', () => {
       isContainerRunningSpy.mockRestore();
     });
 
+    it('destroySession()でSSH鍵クリーンアップが実行されること', async () => {
+      const sessionId = 'session-ssh-cleanup';
+      await adapter.createSession(sessionId, '/projects/test');
+
+      const cleanupSpy = vi.spyOn(adapter, 'cleanupSSHKeys').mockResolvedValue();
+
+      await adapter.destroySession(sessionId);
+
+      expect(cleanupSpy).toHaveBeenCalled();
+      cleanupSpy.mockRestore();
+    });
+
     it('onExit時にdocker stopが実行されること', async () => {
       const sessionId = 'session-exit-cleanup';
       await adapter.createSession(sessionId, '/projects/test');

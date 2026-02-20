@@ -11,6 +11,9 @@ import { db, schema } from '@/lib/db';
 import { eq } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
 import { BasePTYAdapter } from './base-adapter';
+import { DeveloperSettingsService } from '@/services/developer-settings-service';
+import { EncryptionService } from '@/services/encryption-service';
+import * as fsPromises from 'fs/promises';
 
 export interface DockerAdapterConfig {
   environmentId: string;
@@ -44,6 +47,15 @@ export interface Branch {
   isRemote: boolean;
 }
 
+export interface SshKey {
+  id: string;
+  name: string;
+  public_key: string;
+  private_key_encrypted: string;
+  encryption_iv: string;
+  has_passphrase: boolean;
+}
+
 interface DockerSession {
   ptyProcess: IPty;
   workingDir: string;
@@ -74,10 +86,14 @@ interface DockerSession {
 export class DockerAdapter extends BasePTYAdapter {
   private config: DockerAdapterConfig;
   private sessions: Map<string, DockerSession> = new Map();
+  private developerSettingsService: DeveloperSettingsService;
+  private encryptionService: EncryptionService;
 
   constructor(config: DockerAdapterConfig) {
     super();
     this.config = config;
+    this.developerSettingsService = new DeveloperSettingsService();
+    this.encryptionService = new EncryptionService();
     logger.info('DockerAdapter initialized', {
       environmentId: config.environmentId,
       imageName: config.imageName,
@@ -596,6 +612,10 @@ export class DockerAdapter extends BasePTYAdapter {
           // コンテナは停止する（旧コンテナがゾンビにならないように）
           if (containerName && !shellMode) {
             this.stopContainer(containerName);
+            // SSH鍵一時ファイルのクリーンアップ
+            this.cleanupSSHKeys().catch((error) => {
+              logger.error(`Error cleaning up SSH keys in stale onExit:`, error);
+            });
           }
           return;
         }
@@ -619,6 +639,11 @@ export class DockerAdapter extends BasePTYAdapter {
         if (containerName && !shellMode) {
           this.stopContainer(containerName).catch((error) => {
             logger.error(`Error stopping container in onExit:`, error);
+          });
+
+          // SSH鍵一時ファイルのクリーンアップ
+          this.cleanupSSHKeys().catch((error) => {
+            logger.error(`Error cleaning up SSH keys in onExit:`, error);
           });
         }
       });
@@ -697,6 +722,13 @@ export class DockerAdapter extends BasePTYAdapter {
           await this.stopContainer(containerId);
         } catch (error) {
           logger.error(`Error stopping container in destroySession:`, error);
+        }
+
+        // SSH鍵一時ファイルのクリーンアップ
+        try {
+          await this.cleanupSSHKeys();
+        } catch (error) {
+          logger.error(`Error cleaning up SSH keys in destroySession:`, error);
         }
       }
 
@@ -1094,5 +1126,218 @@ export class DockerAdapter extends BasePTYAdapter {
       .split('\n')
       .map(line => line.trim())
       .filter(line => line.length > 0 && !line.includes('HEAD ->'));
+  }
+
+  /**
+   * Docker環境への開発ツール設定自動適用
+   * Git設定とSSH鍵をコンテナに注入する
+   */
+  async injectDeveloperSettings(projectId: string, containerId: string): Promise<void> {
+    logger.info('Injecting developer settings', { projectId, containerId });
+
+    try {
+      // 1. Git設定を適用
+      await this.applyGitConfig(projectId, containerId);
+
+      // 2. SSH鍵を適用
+      await this.applySSHKeys(containerId);
+
+      logger.info('Developer settings injected successfully', { projectId, containerId });
+    } catch (error) {
+      logger.error('Failed to inject developer settings', {
+        projectId,
+        containerId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Git設定をdocker execで適用
+   */
+  private async applyGitConfig(projectId: string, containerId: string): Promise<void> {
+    try {
+      const settings = await this.developerSettingsService.getEffectiveSettings(projectId);
+
+      if (!settings.git_username && !settings.git_email) {
+        logger.warn('No Git settings configured, skipping git config', { projectId });
+        return;
+      }
+
+      const execFileAsync = promisify(childProcess.execFile);
+
+      // コンテナの実行ユーザーと同じコンテキストでgit configを実行
+      // デフォルトではrootで実行されるため、--user nodeを指定
+      if (settings.git_username) {
+        await execFileAsync('docker', [
+          'exec',
+          '--user',
+          'node',
+          containerId,
+          'git',
+          'config',
+          '--global',
+          'user.name',
+          settings.git_username,
+        ]);
+        logger.debug('Applied git user.name', { username: settings.git_username });
+      }
+
+      if (settings.git_email) {
+        await execFileAsync('docker', [
+          'exec',
+          '--user',
+          'node',
+          containerId,
+          'git',
+          'config',
+          '--global',
+          'user.email',
+          settings.git_email,
+        ]);
+        logger.debug('Applied git user.email', { email: settings.git_email });
+      }
+
+      logger.info('Git config applied successfully', { projectId, containerId });
+    } catch (error) {
+      logger.error('Failed to apply git config', {
+        projectId,
+        containerId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      // Git設定の失敗は致命的ではないため、エラーをログに記録して続行
+    }
+  }
+
+  /**
+   * SSH鍵をコンテナに適用
+   */
+  private async applySSHKeys(containerId: string): Promise<void> {
+    try {
+      // SSH鍵一覧を取得
+      const keys = await this.getAllSSHKeys();
+
+      if (keys.length === 0) {
+        logger.debug('No SSH keys configured, skipping SSH key setup');
+        return;
+      }
+
+      // 一時ディレクトリに鍵を保存
+      const sshDir = path.join(this.config.authDirPath, 'ssh');
+      await fsPromises.mkdir(sshDir, { recursive: true });
+
+      const keyPaths: string[] = [];
+
+      for (const key of keys) {
+        try {
+          // 秘密鍵を復号化
+          const privateKey = await this.encryptionService.decrypt(key.private_key_encrypted);
+
+          // パストラバーサル対策: 安全なファイル名に変換
+          // 英数字、ハイフン、アンダースコアのみを許可
+          const safeKeyName = key.name.replace(/[^a-zA-Z0-9_-]/g, '_');
+
+          // さらにpath.basenameで確実にディレクトリ脱出を防止
+          const safeName = path.basename(safeKeyName);
+
+          // ファイルパス
+          const privateKeyPath = path.join(sshDir, `id_${safeName}`);
+          const publicKeyPath = `${privateKeyPath}.pub`;
+
+          // ファイルに書き込み
+          await fsPromises.writeFile(privateKeyPath, privateKey, { mode: 0o600 });
+          await fsPromises.writeFile(publicKeyPath, key.public_key, { mode: 0o644 });
+
+          keyPaths.push(privateKeyPath);
+
+          logger.debug('SSH key files created', { keyName: key.name });
+        } catch (error) {
+          logger.error('Failed to process SSH key, skipping', {
+            keyName: key.name,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+          // 一つの鍵の処理に失敗しても他の鍵は処理を続行
+        }
+      }
+
+      if (keyPaths.length === 0) {
+        logger.warn('No SSH keys were successfully processed');
+        return;
+      }
+
+      // SSH config を生成してコンテナにコピー
+      const sshConfig = this.generateSSHConfig(keys);
+      const sshConfigPath = path.join(sshDir, 'config');
+      await fsPromises.writeFile(sshConfigPath, sshConfig, { mode: 0o644 });
+
+      // コンテナ内の /home/node/.ssh/ ディレクトリを作成
+      // git configと同じnodeユーザーで実行
+      const execFileAsync = promisify(childProcess.execFile);
+      await execFileAsync('docker', ['exec', '--user', 'node', containerId, 'mkdir', '-p', '/home/node/.ssh']);
+      await execFileAsync('docker', ['exec', '--user', 'node', containerId, 'chmod', '700', '/home/node/.ssh']);
+
+      // SSH鍵ファイルをコンテナにコピー
+      for (const keyPath of keyPaths) {
+        const fileName = path.basename(keyPath);
+        await execFileAsync('docker', ['cp', keyPath, `${containerId}:/home/node/.ssh/${fileName}`]);
+        await execFileAsync('docker', ['cp', `${keyPath}.pub`, `${containerId}:/home/node/.ssh/${fileName}.pub`]);
+      }
+
+      // SSH config をコンテナにコピー
+      await execFileAsync('docker', ['cp', sshConfigPath, `${containerId}:/home/node/.ssh/config`]);
+
+      logger.info('SSH keys applied successfully', { keyCount: keyPaths.length });
+    } catch (error) {
+      logger.error('Failed to apply SSH keys', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      // SSH鍵の失敗は致命的ではないため、エラーをログに記録して続行
+    }
+  }
+
+  /**
+   * SSH config ファイルの内容を生成
+   */
+  private generateSSHConfig(keys: SshKey[]): string {
+    const identityFiles = keys.map(key => `  IdentityFile /home/node/.ssh/id_${key.name}`).join('\n');
+
+    return `Host *
+  StrictHostKeyChecking accept-new
+${identityFiles}
+`;
+  }
+
+  /**
+   * すべてのSSH鍵を取得
+   */
+  private async getAllSSHKeys(): Promise<SshKey[]> {
+    const records = db
+      .select()
+      .from(schema.sshKeys)
+      .all();
+
+    return records as SshKey[];
+  }
+
+  /**
+   * SSH鍵一時ファイルをクリーンアップ
+   */
+  async cleanupSSHKeys(): Promise<void> {
+    try {
+      const sshDir = path.join(this.config.authDirPath, 'ssh');
+      const files = await fsPromises.readdir(sshDir);
+
+      for (const file of files) {
+        const filePath = path.join(sshDir, file);
+        await fsPromises.unlink(filePath);
+      }
+
+      logger.info('SSH keys cleaned up', { sshDir });
+    } catch (error) {
+      logger.error('Failed to cleanup SSH keys', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
   }
 }
