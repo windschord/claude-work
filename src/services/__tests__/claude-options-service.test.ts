@@ -246,6 +246,124 @@ describe('ClaudeOptionsService', () => {
     });
   });
 
+  describe('dangerouslySkipPermissions', () => {
+    describe('buildCliArgs', () => {
+      it('should add --dangerously-skip-permissions when true', () => {
+        const options: ClaudeCodeOptions = { dangerouslySkipPermissions: true };
+        expect(ClaudeOptionsService.buildCliArgs(options)).toEqual(['--dangerously-skip-permissions']);
+      });
+
+      it('should not add flag when false', () => {
+        const options: ClaudeCodeOptions = { dangerouslySkipPermissions: false };
+        expect(ClaudeOptionsService.buildCliArgs(options)).toEqual([]);
+      });
+
+      it('should not add flag when undefined', () => {
+        const options: ClaudeCodeOptions = { model: 'test' };
+        expect(ClaudeOptionsService.buildCliArgs(options)).toEqual(['--model', 'test']);
+      });
+
+      it('should combine with other options', () => {
+        const options: ClaudeCodeOptions = {
+          model: 'claude-sonnet-4-5-20250929',
+          dangerouslySkipPermissions: true,
+        };
+        const args = ClaudeOptionsService.buildCliArgs(options);
+        expect(args).toContain('--dangerously-skip-permissions');
+        expect(args).toContain('--model');
+        expect(args).toContain('claude-sonnet-4-5-20250929');
+      });
+    });
+
+    describe('validateClaudeCodeOptions', () => {
+      it('should accept boolean dangerouslySkipPermissions', () => {
+        const result = ClaudeOptionsService.validateClaudeCodeOptions({
+          dangerouslySkipPermissions: true,
+        });
+        expect(result).toEqual({ dangerouslySkipPermissions: true });
+      });
+
+      it('should accept false value', () => {
+        const result = ClaudeOptionsService.validateClaudeCodeOptions({
+          dangerouslySkipPermissions: false,
+        });
+        expect(result).toEqual({ dangerouslySkipPermissions: false });
+      });
+
+      it('should reject string value for dangerouslySkipPermissions', () => {
+        const result = ClaudeOptionsService.validateClaudeCodeOptions({
+          dangerouslySkipPermissions: 'true',
+        });
+        expect(result).toBeNull();
+      });
+
+      it('should accept mixed string and boolean fields', () => {
+        const result = ClaudeOptionsService.validateClaudeCodeOptions({
+          model: 'test',
+          dangerouslySkipPermissions: true,
+        });
+        expect(result).toEqual({ model: 'test', dangerouslySkipPermissions: true });
+      });
+    });
+
+    describe('getUnknownKeys', () => {
+      it('should not report dangerouslySkipPermissions as unknown', () => {
+        const unknownKeys = ClaudeOptionsService.getUnknownKeys({
+          dangerouslySkipPermissions: true,
+        });
+        expect(unknownKeys).toEqual([]);
+      });
+    });
+
+    describe('parseOptions', () => {
+      it('should parse boolean dangerouslySkipPermissions from JSON', () => {
+        const result = ClaudeOptionsService.parseOptions('{"dangerouslySkipPermissions":true}');
+        expect(result).toEqual({ dangerouslySkipPermissions: true });
+      });
+
+      it('should parse false value from JSON', () => {
+        const result = ClaudeOptionsService.parseOptions('{"dangerouslySkipPermissions":false}');
+        expect(result).toEqual({ dangerouslySkipPermissions: false });
+      });
+
+      it('should ignore string value for dangerouslySkipPermissions in JSON', () => {
+        const result = ClaudeOptionsService.parseOptions('{"dangerouslySkipPermissions":"true"}');
+        expect(result).toEqual({});
+      });
+
+      it('should parse mixed string and boolean fields from JSON', () => {
+        const result = ClaudeOptionsService.parseOptions('{"model":"test","dangerouslySkipPermissions":true}');
+        expect(result).toEqual({ model: 'test', dangerouslySkipPermissions: true });
+      });
+    });
+
+    describe('mergeOptions', () => {
+      it('should preserve project dangerouslySkipPermissions when session is null', () => {
+        const project: ClaudeCodeOptions = { dangerouslySkipPermissions: true };
+        expect(ClaudeOptionsService.mergeOptions(project, null)).toEqual({
+          dangerouslySkipPermissions: true,
+        });
+      });
+
+      it('should override project with session dangerouslySkipPermissions', () => {
+        const project: ClaudeCodeOptions = { dangerouslySkipPermissions: true };
+        const session: ClaudeCodeOptions = { dangerouslySkipPermissions: false };
+        expect(ClaudeOptionsService.mergeOptions(project, session)).toEqual({
+          dangerouslySkipPermissions: false,
+        });
+      });
+
+      it('should keep project value when session does not specify', () => {
+        const project: ClaudeCodeOptions = { model: 'test', dangerouslySkipPermissions: true };
+        const session: ClaudeCodeOptions = { model: 'override' };
+        expect(ClaudeOptionsService.mergeOptions(project, session)).toEqual({
+          model: 'override',
+          dangerouslySkipPermissions: true,
+        });
+      });
+    });
+  });
+
   describe('getUnknownKeys', () => {
     it('should return unknown keys', () => {
       const unknownKeys = ClaudeOptionsService.getUnknownKeys({
