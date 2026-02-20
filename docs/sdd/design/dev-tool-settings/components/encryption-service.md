@@ -80,7 +80,7 @@ const result = await service.encrypt(privateKeyContent);
 **使用例**:
 ```typescript
 const service = new EncryptionService();
-const plaintext = await service.decrypt(encryptedKey, iv);
+const plaintext = await service.decrypt(encryptedKey, iv, authTag);
 // plaintext: 元のSSH秘密鍵
 ```
 
