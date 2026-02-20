@@ -140,7 +140,7 @@ export const sshKeys = sqliteTable('SshKey', {
 | id | String(UUID) | PRIMARY KEY | uuid() | 一意識別子 |
 | name | String | NOT NULL, UNIQUE | - | 鍵の識別名 |
 | public_key | Text | NOT NULL | - | SSH公開鍵（平文） |
-| private_key_encrypted | Text | NOT NULL | - | SSH秘密鍵（AES-256-CBC暗号化） |
+| private_key_encrypted | Text | NOT NULL | - | SSH秘密鍵（AES-256-GCM暗号化） |
 | encryption_iv | String | NOT NULL | - | 暗号化初期化ベクトル（Base64エンコード） |
 | has_passphrase | Boolean | NOT NULL | false | パスフレーズ保護の有無 |
 | created_at | DateTime | NOT NULL | now() | 作成日時（UTC） |
@@ -153,7 +153,7 @@ export const sshKeys = sqliteTable('SshKey', {
 | SshKey_name_key | name | UNIQUE | 名前重複チェック |
 
 **暗号化仕様**:
-- **アルゴリズム**: AES-256-CBC
+- **アルゴリズム**: AES-256-GCM
 - **鍵**: 環境変数 `ENCRYPTION_MASTER_KEY` から導出
 - **IV**: 各鍵ごとにランダム生成（16バイト）
 - **IV保存**: Base64エンコードして `encryption_iv` カラムに保存

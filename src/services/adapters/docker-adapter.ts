@@ -1234,6 +1234,7 @@ export class DockerAdapter extends BasePTYAdapter {
       await fsPromises.mkdir(sshDir, { recursive: true });
 
       const keyPaths: string[] = [];
+      const successfulKeys: SshKey[] = [];
 
       for (const key of keys) {
         try {
@@ -1256,6 +1257,7 @@ export class DockerAdapter extends BasePTYAdapter {
           await fsPromises.writeFile(publicKeyPath, key.public_key, { mode: 0o644 });
 
           keyPaths.push(privateKeyPath);
+          successfulKeys.push(key);
 
           logger.debug('SSH key files created', { keyName: key.name });
         } catch (error) {
@@ -1272,8 +1274,8 @@ export class DockerAdapter extends BasePTYAdapter {
         return;
       }
 
-      // SSH config を生成してコンテナにコピー
-      const sshConfig = this.generateSSHConfig(keys);
+      // SSH config を生成してコンテナにコピー（成功した鍵のみ）
+      const sshConfig = this.generateSSHConfig(successfulKeys);
       const sshConfigPath = path.join(sshDir, 'config');
       await fsPromises.writeFile(sshConfigPath, sshConfig, { mode: 0o644 });
 
