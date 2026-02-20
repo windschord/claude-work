@@ -158,10 +158,9 @@ static buildCliArgs(options: ClaudeCodeOptions): string[] {
   const args: string[] = [];
   // ... 既存ロジック ...
 
-  // 追加: dangerouslySkipPermissions
-  if (options.dangerouslySkipPermissions === true) {
-    args.push('--dangerously-skip-permissions');
-  }
+  // dangerouslySkipPermissions は buildCliArgs() では意図的に除外。
+  // Docker環境種別やシェルモードに応じた条件付けが必要なため、
+  // DockerAdapter.buildDockerArgs() で直接処理する。
 
   return args;
 }

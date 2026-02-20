@@ -109,8 +109,9 @@ export class ClaudeOptionsService {
       args.push(...flagParts);
     }
 
-    // dangerouslySkipPermissions はDockerAdapter.buildDockerArgs()で追加するため、
-    // ここでは追加しない（二重追加防止）
+    // dangerouslySkipPermissions は buildCliArgs() では意図的に除外。
+    // Docker環境種別やシェルモードに応じた条件付けが必要なため、
+    // DockerAdapter.buildDockerArgs() で直接処理する。
 
     return args;
   }

@@ -191,9 +191,10 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
 
       // claudeCodeOptionsからdangerouslySkipPermissionsを除去
       // （skipPermissionsとして解決済み。DockerAdapter.buildDockerArgs()で追加するため二重追加防止）
-      const adapterClaudeOptions = claudeCodeOptions
-        ? (({ dangerouslySkipPermissions: _, ...rest }) => rest)(claudeCodeOptions)
-        : undefined
+      const adapterClaudeOptions = claudeCodeOptions ? { ...claudeCodeOptions } : undefined
+      if (adapterClaudeOptions) {
+        delete adapterClaudeOptions.dangerouslySkipPermissions
+      }
 
       // アダプター経由でセッション作成
       await adapter.createSession(

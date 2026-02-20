@@ -55,12 +55,9 @@ Docker実行環境でClaude Code起動時に `--dangerously-skip-permissions` �
 
 1. `ClaudeCodeOptions` インターフェースに `dangerouslySkipPermissions?: boolean` を追加
 
-2. `buildCliArgs()` を拡張:
-   ```typescript
-   if (options.dangerouslySkipPermissions === true) {
-     args.push('--dangerously-skip-permissions');
-   }
-   ```
+2. `buildCliArgs()` では `dangerouslySkipPermissions` を意図的に除外:
+   - Docker環境種別やシェルモードの条件付けが必要なため、`DockerAdapter.buildDockerArgs()` で直接処理する
+   - `buildCliArgs()` にはコメントで除外理由を記載
 
 3. `validateClaudeCodeOptions()` を拡張:
    - `allowedKeys` に `'dangerouslySkipPermissions'` を追加
