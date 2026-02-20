@@ -107,10 +107,12 @@ export function CreateSessionModal({
           setCloneLocation(data.project?.clone_location || null);
         } else {
           setProjectEnvironmentId(null);
+          setCloneLocation(null);
         }
       } catch (err) {
         if ((err as DOMException).name === 'AbortError') return;
         setProjectEnvironmentId(null);
+        setCloneLocation(null);
       } finally {
         if (!controller.signal.aborted) {
           setIsProjectFetched(true);
@@ -136,6 +138,10 @@ export function CreateSessionModal({
         const dockerEnv = sortedEnvironments.find((env) => env.type === 'DOCKER');
         if (dockerEnv) {
           setSelectedEnvironmentId(dockerEnv.id);
+        } else {
+          // Docker環境が存在しない場合はデフォルト環境または先頭の環境をフォールバック
+          const defaultEnv = sortedEnvironments.find((env) => env.is_default);
+          setSelectedEnvironmentId(defaultEnv?.id || sortedEnvironments[0].id);
         }
       } else {
         // 設定されていない場合はデフォルト環境を優先選択
@@ -149,7 +155,7 @@ export function CreateSessionModal({
         }
       }
     }
-  }, [environments, isEnvironmentsLoading, projectEnvironmentId, cloneLocation, isProjectFetched]);
+  }, [sortedEnvironments, isEnvironmentsLoading, projectEnvironmentId, cloneLocation, isProjectFetched]);
 
   // モーダルが閉じられた時に状態をリセット
   useEffect(() => {
@@ -292,6 +298,11 @@ export function CreateSessionModal({
                   ) : !isProjectFetched ? (
                     <div className="flex items-center justify-center py-4 text-gray-500 dark:text-gray-400">
                       プロジェクト情報を読み込み中...
+                    </div>
+                  ) : (projectEnvironmentId || cloneLocation === 'docker') && !selectedEnvironmentId ? (
+                    // 環境IDが確定するまでローディング表示（useEffectによるsetSelectedEnvironmentId待ち）
+                    <div className="flex items-center justify-center py-4 text-gray-500 dark:text-gray-400">
+                      環境を設定中...
                     </div>
                   ) : (projectEnvironmentId || cloneLocation === 'docker') ? (
                     // プロジェクトに環境が設定されている、またはclone_location=dockerの場合は表示のみ（変更不可）
