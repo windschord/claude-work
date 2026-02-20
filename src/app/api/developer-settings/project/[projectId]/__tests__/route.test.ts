@@ -112,7 +112,10 @@ describe('/api/developer-settings/project/[projectId]', () => {
       expect(data.git_email).toBe('work@company.com');
       expect(data.effective_settings).toBeDefined();
       expect(data.effective_settings.git_username).toBe('work.user');
-      expect(data.effective_settings.source).toBe('project');
+      expect(data.effective_settings.source).toEqual({
+        git_username: 'project',
+        git_email: 'project',
+      });
     });
 
     it('プロジェクト設定がない場合、グローバル設定をeffective_settingsとして返す', async () => {
@@ -141,7 +144,10 @@ describe('/api/developer-settings/project/[projectId]', () => {
       expect(data.git_username).toBeNull();
       expect(data.git_email).toBeNull();
       expect(data.effective_settings.git_username).toBe('john.doe');
-      expect(data.effective_settings.source).toBe('global');
+      expect(data.effective_settings.source).toEqual({
+        git_username: 'global',
+        git_email: 'global',
+      });
     });
 
     it('プロジェクトが存在しない場合は404を返す', async () => {
