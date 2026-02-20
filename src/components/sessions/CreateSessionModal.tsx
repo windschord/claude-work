@@ -111,6 +111,14 @@ export function CreateSessionModal({
     }
   }, [selectedEnvironment]);
 
+  // skipPermissionsの実効的な有効/無効状態
+  const effectiveSkipPermissions = useMemo(() => {
+    if (!isDockerEnvironment) return false;
+    if (skipPermissionsOverride === 'enable') return true;
+    if (skipPermissionsOverride === 'disable') return false;
+    return envSkipPermissionsDefault;
+  }, [isDockerEnvironment, skipPermissionsOverride, envSkipPermissionsDefault]);
+
   // プロジェクトのenvironment_idを取得
   useEffect(() => {
     if (!isOpen || !projectId) {
@@ -582,6 +590,7 @@ export function CreateSessionModal({
                     onOptionsChange={setClaudeOptions}
                     onEnvVarsChange={setCustomEnvVars}
                     disabled={isCreating}
+                    disabledBySkipPermissions={effectiveSkipPermissions}
                   />
                 </div>
 

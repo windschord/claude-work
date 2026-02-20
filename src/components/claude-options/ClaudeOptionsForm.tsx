@@ -19,6 +19,7 @@ interface ClaudeOptionsFormProps {
   onOptionsChange: (options: ClaudeCodeOptions) => void;
   onEnvVarsChange: (envVars: CustomEnvVars) => void;
   disabled?: boolean;
+  disabledBySkipPermissions?: boolean;
 }
 
 const PERMISSION_MODES = [
@@ -59,6 +60,7 @@ export function ClaudeOptionsForm({
   onOptionsChange,
   onEnvVarsChange,
   disabled = false,
+  disabledBySkipPermissions = false,
 }: ClaudeOptionsFormProps) {
   const [envEntries, setEnvEntries] = useState<EnvVarEntry[]>(() =>
     envVarsToEntries(envVars)
@@ -151,9 +153,14 @@ export function ClaudeOptionsForm({
                   value={options.allowedTools || ''}
                   onChange={(e) => handleOptionChange('allowedTools', e.target.value)}
                   placeholder="例: Bash,Read,Write"
-                  className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
-                  disabled={disabled}
+                  className={`w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 ${disabledBySkipPermissions ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  disabled={disabled || disabledBySkipPermissions}
                 />
+                {disabledBySkipPermissions && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                    パーミッション確認スキップが有効なため、この設定は無視されます
+                  </p>
+                )}
               </div>
 
               <div>
@@ -163,8 +170,8 @@ export function ClaudeOptionsForm({
                 <select
                   value={options.permissionMode || ''}
                   onChange={(e) => handleOptionChange('permissionMode', e.target.value)}
-                  className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                  disabled={disabled}
+                  className={`w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 ${disabledBySkipPermissions ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  disabled={disabled || disabledBySkipPermissions}
                 >
                   {PERMISSION_MODES.map((mode) => (
                     <option key={mode.value} value={mode.value}>
@@ -172,6 +179,11 @@ export function ClaudeOptionsForm({
                     </option>
                   ))}
                 </select>
+                {disabledBySkipPermissions && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                    パーミッション確認スキップが有効なため、この設定は無視されます
+                  </p>
+                )}
               </div>
 
               <div>
@@ -186,6 +198,11 @@ export function ClaudeOptionsForm({
                   className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                   disabled={disabled}
                 />
+                {disabledBySkipPermissions && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                    権限関連フラグ（--permission-mode, --allowedTools）は無視されます
+                  </p>
+                )}
               </div>
             </div>
 
