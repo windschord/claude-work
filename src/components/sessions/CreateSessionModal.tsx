@@ -66,6 +66,7 @@ export function CreateSessionModal({
   const [isBranchesLoading, setIsBranchesLoading] = useState(false);
   const [claudeOptions, setClaudeOptions] = useState<ClaudeCodeOptions>({});
   const [customEnvVars, setCustomEnvVars] = useState<CustomEnvVars>({});
+  const [skipPermissionsOverride, setSkipPermissionsOverride] = useState<'default' | 'enable' | 'disable'>('default');
 
   // 環境をDocker→Host→SSHの順にソート
   const sortedEnvironments = useMemo(() => {
@@ -88,6 +89,27 @@ export function CreateSessionModal({
   const isDockerFallback = useMemo(() => {
     return cloneLocation === 'docker' && !environments.some((env) => env.type === 'DOCKER');
   }, [cloneLocation, environments]);
+
+  // 選択された環境のタイプとskipPermissionsデフォルト値を取得
+  const selectedEnvironment = useMemo(() => {
+    return sortedEnvironments.find((env) => env.id === selectedEnvironmentId);
+  }, [sortedEnvironments, selectedEnvironmentId]);
+
+  const isDockerEnvironment = useMemo(() => {
+    return selectedEnvironment?.type === 'DOCKER';
+  }, [selectedEnvironment]);
+
+  const envSkipPermissionsDefault = useMemo(() => {
+    if (!selectedEnvironment || selectedEnvironment.type !== 'DOCKER') return false;
+    try {
+      const config = typeof selectedEnvironment.config === 'string'
+        ? JSON.parse(selectedEnvironment.config)
+        : selectedEnvironment.config;
+      return config?.skipPermissions === true;
+    } catch {
+      return false;
+    }
+  }, [selectedEnvironment]);
 
   // プロジェクトのenvironment_idを取得
   useEffect(() => {
@@ -170,6 +192,7 @@ export function CreateSessionModal({
       setError('');
       setClaudeOptions({});
       setCustomEnvVars({});
+      setSkipPermissionsOverride('default');
       setSelectedEnvironmentId('');
       setIsProjectFetched(false);
       setProjectEnvironmentId(null);
@@ -228,7 +251,13 @@ export function CreateSessionModal({
           // （サーバー側でproject.environment_idまたはclone_locationに基づいて環境を決定）
           ...(projectEnvironmentId || cloneLocation === 'docker' ? {} : { environment_id: selectedEnvironmentId }),
           source_branch: selectedBranch || undefined,
-          claude_code_options: Object.keys(claudeOptions).some(k => claudeOptions[k as keyof ClaudeCodeOptions] !== undefined) ? claudeOptions : undefined,
+          claude_code_options: (() => {
+            const opts = { ...claudeOptions };
+            if (isDockerEnvironment && skipPermissionsOverride !== 'default') {
+              opts.dangerouslySkipPermissions = skipPermissionsOverride === 'enable';
+            }
+            return Object.keys(opts).some(k => opts[k as keyof ClaudeCodeOptions] !== undefined) ? opts : undefined;
+          })(),
           custom_env_vars: Object.keys(customEnvVars).length > 0 ? customEnvVars : undefined,
         }),
       });
@@ -498,6 +527,50 @@ export function CreateSessionModal({
                     <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                       セッションのワークツリーを作成するベースとなるブランチを選択
                     </p>
+                  </div>
+                )}
+
+                {/* Skip Permissions Override (Docker環境のみ) */}
+                {isDockerEnvironment && (
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      パーミッション確認スキップ
+                    </label>
+                    <div className="p-3 border border-amber-200 dark:border-amber-700 rounded-lg bg-amber-50 dark:bg-amber-900/20">
+                      <div className="space-y-2">
+                        {[
+                          {
+                            value: 'default' as const,
+                            label: `環境のデフォルト（${envSkipPermissionsDefault ? '有効' : '無効'}）`,
+                          },
+                          { value: 'enable' as const, label: 'スキップを有効にする' },
+                          { value: 'disable' as const, label: 'スキップを無効にする' },
+                        ].map((option) => (
+                          <label
+                            key={option.value}
+                            className="flex items-center gap-2 cursor-pointer"
+                          >
+                            <input
+                              type="radio"
+                              name="skipPermissionsOverride"
+                              value={option.value}
+                              checked={skipPermissionsOverride === option.value}
+                              onChange={() => setSkipPermissionsOverride(option.value)}
+                              disabled={isCreating}
+                              className="text-amber-500 focus:ring-amber-500"
+                            />
+                            <span className="text-sm text-gray-700 dark:text-gray-300">
+                              {option.label}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                      {(skipPermissionsOverride === 'enable' || (skipPermissionsOverride === 'default' && envSkipPermissionsDefault)) && (
+                        <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                          Claude Codeが確認なしでツールを実行します。信頼できるコードベースでのみ使用してください。
+                        </p>
+                      )}
+                    </div>
                   </div>
                 )}
 
