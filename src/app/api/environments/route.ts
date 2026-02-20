@@ -236,6 +236,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // skipPermissions のバリデーション（Docker環境のみ）
+    if (config?.skipPermissions !== undefined) {
+      if (type !== 'DOCKER') {
+        // Docker以外の環境では skipPermissions を削除
+        delete config.skipPermissions;
+      } else if (typeof config.skipPermissions !== 'boolean') {
+        return NextResponse.json(
+          { error: 'config.skipPermissions must be a boolean' },
+          { status: 400 }
+        );
+      }
+    }
+
     // 環境を作成
     const environment = await environmentService.create({
       name: name.trim(),
