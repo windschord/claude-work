@@ -21,6 +21,8 @@ import * as os from 'os';
 let tempDir: string;
 // tarballパス（afterAllでのクリーンアップ用）
 let tarballPath: string | null = null;
+// CI最適化: 事前ビルド済みパッケージを使用する場合はクリーンアップをスキップ
+let skipCleanup = false;
 
 // プロジェクトルート
 const projectRoot = path.resolve(__dirname, '..');
@@ -31,6 +33,29 @@ test.setTimeout(300000);
 // このテストスイートは直列実行（並列実行するとnpm packが競合する）
 test.describe.serial('npx CLI installation test', () => {
   test.beforeAll(async () => {
+    // CI最適化: 事前ビルド済みパッケージディレクトリが指定されている場合はそれを使用
+    const prebuiltDir = process.env.CLI_PACKAGE_DIR;
+    if (prebuiltDir && fs.existsSync(prebuiltDir)) {
+      if (!fs.statSync(prebuiltDir).isDirectory()) {
+        throw new Error(`CLI_PACKAGE_DIR is not a directory: ${prebuiltDir}`);
+      }
+      const requiredArtifacts = [
+        path.join(prebuiltDir, 'dist', 'src', 'bin', 'cli.js'),
+        path.join(prebuiltDir, '.next'),
+        path.join(prebuiltDir, 'package.json'),
+      ];
+      const missingArtifacts = requiredArtifacts.filter((p) => !fs.existsSync(p));
+      if (missingArtifacts.length > 0) {
+        throw new Error(
+          `Pre-built CLI package at ${prebuiltDir} is incomplete. Missing: ${missingArtifacts.join(', ')}`
+        );
+      }
+      console.log(`Using pre-built CLI package: ${prebuiltDir}`);
+      tempDir = prebuiltDir;
+      skipCleanup = true;
+      return;
+    }
+
     // 一時ディレクトリを作成
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-work-e2e-'));
     console.log(`Created temp directory: ${tempDir}`);
@@ -92,6 +117,12 @@ test.describe.serial('npx CLI installation test', () => {
   });
 
   test.afterAll(async () => {
+    // CI最適化: 事前ビルド済みパッケージはCIキャッシュが管理するためクリーンアップしない
+    if (skipCleanup) {
+      console.log('Skipping cleanup of pre-built CLI package directory');
+      return;
+    }
+
     // tarball を削除（beforeAllで失敗した場合の保険）
     if (tarballPath) {
       try {
