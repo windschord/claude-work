@@ -5,6 +5,7 @@ import { EnvironmentAdapter, PTYExitInfo } from './environment-adapter'
 import { db } from '@/lib/db'
 import { logger } from '@/lib/logger'
 import { ScrollbackBuffer } from './scrollback-buffer'
+import { ClaudeOptionsService } from './claude-options-service'
 import type { ClaudeCodeOptions, CustomEnvVars } from './claude-options-service'
 import type WebSocket from 'ws'
 import { sessions } from '@/db/schema'
@@ -189,11 +190,11 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
           ?? (envConfig.skipPermissions === true)
       }
 
-      // claudeCodeOptionsからdangerouslySkipPermissionsを除去
-      // （skipPermissionsとして解決済み。DockerAdapter.buildDockerArgs()で追加するため二重追加防止）
-      const adapterClaudeOptions = claudeCodeOptions ? { ...claudeCodeOptions } : undefined
-      if (adapterClaudeOptions) {
-        delete adapterClaudeOptions.dangerouslySkipPermissions
+      // dangerouslySkipPermissionsの除去 + skipPermissions有効時の矛盾オプション除去
+      const { result: adapterClaudeOptions, warnings } =
+        ClaudeOptionsService.stripConflictingOptions(claudeCodeOptions, skipPermissions)
+      for (const warning of warnings) {
+        logger.warn(warning)
       }
 
       // アダプター経由でセッション作成
