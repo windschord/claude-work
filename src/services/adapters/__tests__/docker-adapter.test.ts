@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vite
 import { EventEmitter } from 'events';
 import type { IPty } from 'node-pty';
 import { DockerAdapter, DockerAdapterConfig } from '../docker-adapter';
+import type { PortMapping, VolumeMount } from '@/types/environment';
 
 // node-ptyのモック
 vi.mock('node-pty', () => ({
@@ -1505,6 +1506,197 @@ describe('DockerAdapter', () => {
       // stopが完了してからcleanupが完了することを確認
       expect(stopCompleted).toBe(true);
       expect(cleanupCompleted).toBe(true);
+    });
+  });
+
+  describe('buildDockerArgs port mappings and volume mounts', () => {
+    // テスト用サブクラスでprotectedメソッドを公開
+    class TestDockerAdapter extends DockerAdapter {
+      public testBuildDockerArgs(workingDir: string, options?: import('../../environment-adapter').CreateSessionOptions) {
+        return this.buildDockerArgs(workingDir, options);
+      }
+    }
+
+    let testAdapter: TestDockerAdapter;
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('portMappingsが設定されている場合、-p引数が生成される', () => {
+      const portMappings: PortMapping[] = [
+        { hostPort: 3000, containerPort: 3000, protocol: 'tcp' },
+      ];
+      const config: DockerAdapterConfig = {
+        ...defaultConfig,
+        portMappings,
+      };
+      testAdapter = new TestDockerAdapter(config);
+
+      const { args } = testAdapter.testBuildDockerArgs('/projects/test');
+
+      expect(args).toContain('-p');
+      expect(args).toContain('3000:3000/tcp');
+    });
+
+    it('複数のportMappingsが正しい形式で出力される', () => {
+      const portMappings: PortMapping[] = [
+        { hostPort: 3000, containerPort: 3000, protocol: 'tcp' },
+        { hostPort: 8080, containerPort: 80, protocol: 'udp' },
+      ];
+      const config: DockerAdapterConfig = {
+        ...defaultConfig,
+        portMappings,
+      };
+      testAdapter = new TestDockerAdapter(config);
+
+      const { args } = testAdapter.testBuildDockerArgs('/projects/test');
+
+      expect(args).toContain('3000:3000/tcp');
+      expect(args).toContain('8080:80/udp');
+    });
+
+    it('volumeMountsが設定されている場合、-v引数が生成される', () => {
+      const volumeMounts: VolumeMount[] = [
+        { hostPath: '/host/data', containerPath: '/container/data', accessMode: 'rw' },
+      ];
+      const config: DockerAdapterConfig = {
+        ...defaultConfig,
+        volumeMounts,
+      };
+      testAdapter = new TestDockerAdapter(config);
+
+      const { args } = testAdapter.testBuildDockerArgs('/projects/test');
+
+      expect(args).toContain('/host/data:/container/data');
+    });
+
+    it('roモードで :ro サフィックスが付与される', () => {
+      const volumeMounts: VolumeMount[] = [
+        { hostPath: '/host/config', containerPath: '/container/config', accessMode: 'ro' },
+      ];
+      const config: DockerAdapterConfig = {
+        ...defaultConfig,
+        volumeMounts,
+      };
+      testAdapter = new TestDockerAdapter(config);
+
+      const { args } = testAdapter.testBuildDockerArgs('/projects/test');
+
+      expect(args).toContain('/host/config:/container/config:ro');
+    });
+
+    it('rwモードでサフィックスなし', () => {
+      const volumeMounts: VolumeMount[] = [
+        { hostPath: '/host/data', containerPath: '/container/data', accessMode: 'rw' },
+      ];
+      const config: DockerAdapterConfig = {
+        ...defaultConfig,
+        volumeMounts,
+      };
+      testAdapter = new TestDockerAdapter(config);
+
+      const { args } = testAdapter.testBuildDockerArgs('/projects/test');
+
+      expect(args).toContain('/host/data:/container/data');
+      // :ro サフィックスが付いていないことを確認
+      expect(args).not.toContain('/host/data:/container/data:ro');
+    });
+
+    it('ポートマッピング・ボリュームマウントが空配列の場合、-p/-v引数なし（システムの-vは除く）', () => {
+      const config: DockerAdapterConfig = {
+        ...defaultConfig,
+        portMappings: [],
+        volumeMounts: [],
+      };
+      testAdapter = new TestDockerAdapter(config);
+
+      const { args } = testAdapter.testBuildDockerArgs('/projects/test');
+
+      // -p引数が存在しないことを確認
+      expect(args).not.toContain('-p');
+
+      // -v引数はシステムボリューム（workspace, .claude, .config等）のみ存在
+      const vIndices = args.reduce<number[]>((acc, arg, i) => {
+        if (arg === '-v') acc.push(i);
+        return acc;
+      }, []);
+
+      // 各-v引数の値がシステムボリュームであることを確認
+      for (const idx of vIndices) {
+        const volumeArg = args[idx + 1];
+        expect(
+          volumeArg.includes(':/workspace') ||
+          volumeArg.includes(':/home/node/.claude') ||
+          volumeArg.includes(':/home/node/.config/claude') ||
+          volumeArg.includes(':/home/node/.ssh') ||
+          volumeArg.includes(':/home/node/.gitconfig') ||
+          volumeArg.includes(':/ssh-agent')
+        ).toBe(true);
+      }
+    });
+
+    it('ポートマッピングがシステムボリューム（-v workspace等）の後に配置される', () => {
+      const portMappings: PortMapping[] = [
+        { hostPort: 3000, containerPort: 3000, protocol: 'tcp' },
+      ];
+      const config: DockerAdapterConfig = {
+        ...defaultConfig,
+        portMappings,
+      };
+      testAdapter = new TestDockerAdapter(config);
+
+      const { args } = testAdapter.testBuildDockerArgs('/projects/test');
+
+      // システムボリューム（-v ...:/workspace）のインデックス
+      const workspaceVolumeIndex = args.findIndex(
+        (arg, i) => arg === '-v' && args[i + 1]?.includes(':/workspace')
+      );
+
+      // -p引数のインデックス
+      const portMappingIndex = args.indexOf('-p');
+
+      expect(workspaceVolumeIndex).toBeGreaterThanOrEqual(0);
+      expect(portMappingIndex).toBeGreaterThanOrEqual(0);
+      expect(portMappingIndex).toBeGreaterThan(workspaceVolumeIndex);
+    });
+
+    it('カスタムボリュームがシステムボリュームの後に配置される', () => {
+      const volumeMounts: VolumeMount[] = [
+        { hostPath: '/host/custom', containerPath: '/container/custom', accessMode: 'rw' },
+      ];
+      const config: DockerAdapterConfig = {
+        ...defaultConfig,
+        volumeMounts,
+      };
+      testAdapter = new TestDockerAdapter(config);
+
+      const { args } = testAdapter.testBuildDockerArgs('/projects/test');
+
+      // 最後のシステムボリュームのインデックスを取得
+      const systemVolumeIndices = args.reduce<number[]>((acc, arg, i) => {
+        if (arg === '-v' && args[i + 1] && (
+          args[i + 1].includes(':/workspace') ||
+          args[i + 1].includes(':/home/node/.claude') ||
+          args[i + 1].includes(':/home/node/.config/claude') ||
+          args[i + 1].includes(':/home/node/.ssh') ||
+          args[i + 1].includes(':/home/node/.gitconfig') ||
+          args[i + 1].includes(':/ssh-agent')
+        )) {
+          acc.push(i);
+        }
+        return acc;
+      }, []);
+
+      const lastSystemVolumeIndex = Math.max(...systemVolumeIndices);
+
+      // カスタムボリュームのインデックス
+      const customVolumeIndex = args.findIndex(
+        (arg, i) => arg === '-v' && args[i + 1] === '/host/custom:/container/custom'
+      );
+
+      expect(customVolumeIndex).toBeGreaterThanOrEqual(0);
+      expect(customVolumeIndex).toBeGreaterThan(lastSystemVolumeIndex);
     });
   });
 });

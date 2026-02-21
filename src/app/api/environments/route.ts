@@ -5,6 +5,7 @@ import * as path from 'path';
 import { environmentService } from '@/services/environment-service';
 import { logger } from '@/lib/logger';
 import { getEnvironmentsDir } from '@/lib/data-dir';
+import { validatePortMappings, validateVolumeMounts } from '@/lib/docker-config-validator';
 
 // 許可されたベースディレクトリ
 const ALLOWED_BASE_DIRS = [
@@ -249,6 +250,39 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // portMappings のバリデーション
+    if (config?.portMappings !== undefined) {
+      if (!Array.isArray(config.portMappings)) {
+        return NextResponse.json(
+          { error: 'config.portMappings must be an array' },
+          { status: 400 }
+        );
+      }
+      const portResult = validatePortMappings(config.portMappings);
+      if (!portResult.valid) {
+        return NextResponse.json(
+          { error: portResult.errors.join('; ') },
+          { status: 400 }
+        );
+      }
+    }
+
+    // volumeMounts のバリデーション
+    if (config?.volumeMounts !== undefined) {
+      if (!Array.isArray(config.volumeMounts)) {
+        return NextResponse.json(
+          { error: 'config.volumeMounts must be an array' },
+          { status: 400 }
+        );
+      }
+      const volumeResult = validateVolumeMounts(config.volumeMounts);
+      if (!volumeResult.valid) {
+        return NextResponse.json(
+          { error: volumeResult.errors.join('; ') },
+          { status: 400 }
+        );
+      }
+    }
     // 環境を作成
     const environment = await environmentService.create({
       name: name.trim(),
