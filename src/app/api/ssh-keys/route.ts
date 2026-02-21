@@ -28,7 +28,7 @@ function validateRegisterInput(body: unknown): {
   error?: { code: string; message: string };
   data?: { name: string; privateKey: string; publicKey: string; hasPassphrase: boolean };
 } {
-  if (body === null || typeof body !== 'object') {
+  if (body === null || typeof body !== 'object' || Array.isArray(body)) {
     return {
       valid: false,
       error: {
