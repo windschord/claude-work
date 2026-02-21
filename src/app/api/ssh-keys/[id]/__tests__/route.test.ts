@@ -74,5 +74,18 @@ describe('/api/ssh-keys/[id]', () => {
       expect(response.status).toBe(500);
       expect(data.error.code).toBe('INTERNAL_ERROR');
     });
+
+    it('idが空の場合は400を返す', async () => {
+      const request = new NextRequest('http://localhost:3000/api/ssh-keys/', {
+        method: 'DELETE',
+      });
+
+      const response = await DELETE(request, { params: Promise.resolve({ id: '' }) });
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error.code).toBe('VALIDATION_ERROR');
+      expect(mockDeleteKey).not.toHaveBeenCalled();
+    });
   });
 });

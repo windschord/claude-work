@@ -73,7 +73,7 @@ function validateRegisterInput(body: Record<string, unknown>): {
     data: {
       name: (name as string).trim(),
       privateKey: private_key as string,
-      publicKey: (public_key as string) || '',
+      publicKey: typeof public_key === 'string' ? public_key : '',
       hasPassphrase: !!passphrase,
     },
   };
