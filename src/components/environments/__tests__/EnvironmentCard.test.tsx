@@ -1,13 +1,25 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { EnvironmentCard } from '../EnvironmentCard';
 import { Environment } from '@/hooks/useEnvironments';
+
+// ApplyChangesButtonのfetch呼び出しをモック
+const mockFetch = vi.fn();
+global.fetch = mockFetch;
 
 describe('EnvironmentCard', () => {
   const defaultProps = {
     onEdit: vi.fn(),
     onDelete: vi.fn(),
   };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ sessions: [], count: 0 }),
+    });
+  });
 
   const createEnvironment = (overrides: Partial<Environment> = {}): Environment => ({
     id: 'env-1',
