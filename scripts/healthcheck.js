@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 // Docker HEALTHCHECK script for Claude Work
 // Usage: node scripts/healthcheck.js
+const port = process.env.PORT || 3000;
+
 require('http')
-  .get('http://localhost:3000/api/health', function (r) {
+  .get(`http://localhost:${port}/api/health`, function (r) {
     process.exit(r.statusCode === 200 ? 0 : 1);
   })
   .on('error', function () {
