@@ -21,12 +21,22 @@ function toApiResponse(key: SshKeySummary) {
   };
 }
 
-function validateRegisterInput(body: Record<string, unknown>): {
+function validateRegisterInput(body: unknown): {
   valid: boolean;
   error?: { code: string; message: string };
   data?: { name: string; privateKey: string; publicKey: string; hasPassphrase: boolean };
 } {
-  const { name, private_key, public_key, passphrase } = body;
+  if (body === null || typeof body !== 'object') {
+    return {
+      valid: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'リクエストボディが不正です',
+      },
+    };
+  }
+
+  const { name, private_key, public_key, passphrase } = body as Record<string, unknown>;
 
   if (!name || typeof name !== 'string' || name.trim().length === 0) {
     return {
