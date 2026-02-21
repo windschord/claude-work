@@ -19,6 +19,19 @@
 
 ---
 
+## 重要な注意事項
+
+**データベーススキーマとTypeScript型定義の違い**:
+
+このドキュメントは**データベーススキーマ**（永続化層）を記述しています。`DeveloperSettings`テーブルの`id`, `created_at`, `updated_at`カラムは、データベースレベルでは**すべてNOT NULL**です。
+
+一方、**TypeScript型定義**（`src/store/developer-settings.ts`）では、APIレスポンス層で設定が存在しない場合に`null`を返すため、これらのフィールドを`string | null`としています。これはアプリケーション層の型定義であり、データベーススキーマとは異なります。
+
+- **データベース**: `id`, `created_at`, `updated_at` → NOT NULL（レコードが存在する場合は必ず値がある）
+- **TypeScript/API**: `id | null`, `created_at | null`, `updated_at | null` → nullable（設定自体が存在しない場合にnullを返す）
+
+---
+
 ## ER図
 
 ```mermaid
