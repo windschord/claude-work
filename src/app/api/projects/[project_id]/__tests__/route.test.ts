@@ -696,6 +696,43 @@ describe('PATCH /api/projects/[project_id]', () => {
     expect(data.message).toBe('No fields to update');
   });
 
+  it('claude_code_optionsに未知のキーが含まれる場合は400エラーと具体的なメッセージ', async () => {
+    const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ claude_code_options: { unknownKey: 'value' } }),
+    });
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ project_id: project.id }),
+    });
+
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error).toContain('Invalid keys in claude_code_options: unknownKey');
+  });
+
+  it('dangerouslySkipPermissionsがbooleanとして受け入れられる', async () => {
+    const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ claude_code_options: { dangerouslySkipPermissions: true } }),
+    });
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ project_id: project.id }),
+    });
+
+    expect(response.status).toBe(200);
+
+    const updated = db
+      .select()
+      .from(schema.projects)
+      .where(eq(schema.projects.id, project.id))
+      .get();
+    expect(JSON.parse(updated?.claude_code_options || '{}')).toEqual({ dangerouslySkipPermissions: true });
+  });
+
   it('claude_code_optionsに非文字列値が含まれる場合は400エラー', async () => {
     const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
       method: 'PATCH',
