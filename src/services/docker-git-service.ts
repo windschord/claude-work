@@ -23,10 +23,10 @@ export class DockerGitService implements GitOperations {
   private configService = getConfigService();
 
   private static readonly PERMANENT_ERROR_PATTERNS = [
-    'No such file or directory',
-    'Permission denied',
+    'no such file or directory',
+    'permission denied',
     'repository not found',
-    'Authentication failed',
+    'authentication failed',
   ];
 
   private static readonly MAX_RETRY_ATTEMPTS = 3;
@@ -145,7 +145,7 @@ export class DockerGitService implements GitOperations {
    * エラーが永続的（リトライ不要）かどうかを判定
    */
   private isPermanentError(error: Error): boolean {
-    const message = error.message || '';
+    const message = (error.message || '').toLowerCase();
     return DockerGitService.PERMANENT_ERROR_PATTERNS.some(
       (pattern) => message.includes(pattern)
     );
@@ -191,7 +191,7 @@ export class DockerGitService implements GitOperations {
 
         const delay = DockerGitService.BASE_DELAY_MS * Math.pow(2, attempt - 1);
         logger.warn(`[docker] Retrying ${operationType} (attempt ${attempt + 1}/${maxAttempts}) after ${delay}ms`, {
-          error: lastError.message,
+          error: lastError.message.replace(/GIT_PAT=[^\s]*/g, 'GIT_PAT=***'),
           attempt,
           delay,
         });

@@ -55,9 +55,8 @@ import { DockerGitService } from '../docker-git-service';
 import { GitOperationError } from '../git-operations';
 
 /**
- * DockerGitService リトライロジック テスト
+ * DockerGitService リトライロジック テスト（TDD Green phase完了済み）
  *
- * TDD Red phase: これらのテストは現在の実装にはリトライロジックがないため失敗する。
  * 期待される動作:
  * - 一時的なエラー（ネットワーク不安定等）では最大3回までリトライ
  * - 永続的なエラー（パスが存在しない等）では即座に失敗
