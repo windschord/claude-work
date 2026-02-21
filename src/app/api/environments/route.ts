@@ -5,6 +5,7 @@ import * as path from 'path';
 import { environmentService } from '@/services/environment-service';
 import { logger } from '@/lib/logger';
 import { getEnvironmentsDir } from '@/lib/data-dir';
+import { validatePortMappings, validateVolumeMounts } from '@/lib/docker-config-validator';
 
 // 許可されたベースディレクトリ
 const ALLOWED_BASE_DIRS = [
@@ -244,6 +245,28 @@ export async function POST(request: NextRequest) {
       } else if (typeof config.skipPermissions !== 'boolean') {
         return NextResponse.json(
           { error: 'config.skipPermissions must be a boolean' },
+          { status: 400 }
+        );
+      }
+    }
+
+    // portMappings のバリデーション
+    if (config?.portMappings && Array.isArray(config.portMappings)) {
+      const portResult = validatePortMappings(config.portMappings);
+      if (!portResult.valid) {
+        return NextResponse.json(
+          { error: portResult.errors.join('; ') },
+          { status: 400 }
+        );
+      }
+    }
+
+    // volumeMounts のバリデーション
+    if (config?.volumeMounts && Array.isArray(config.volumeMounts)) {
+      const volumeResult = validateVolumeMounts(config.volumeMounts);
+      if (!volumeResult.valid) {
+        return NextResponse.json(
+          { error: volumeResult.errors.join('; ') },
           { status: 400 }
         );
       }
