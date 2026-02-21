@@ -200,7 +200,14 @@ export class DockerGitService implements GitOperations {
       }
     }
 
-    throw lastError!;
+    const safeMessage = (lastError!.message || '').replace(/GIT_PAT=[^\s]*/g, 'GIT_PAT=***');
+    throw new GitOperationError(
+      `All retry attempts failed for ${operationType}: ${safeMessage}`,
+      'docker',
+      operationType,
+      true,
+      lastError!
+    );
   }
 
   /**

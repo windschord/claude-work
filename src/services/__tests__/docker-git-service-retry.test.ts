@@ -156,7 +156,7 @@ describe('DockerGitService リトライロジック', () => {
       const cloneCalls = mockExecFile.mock.calls.filter(
         (call: unknown[]) => {
           const args = call[1] as string[];
-          return args.includes('clone') || args.includes('run');
+          return args.includes('clone');
         }
       );
       // volume createのdocker volume createコールを除く
