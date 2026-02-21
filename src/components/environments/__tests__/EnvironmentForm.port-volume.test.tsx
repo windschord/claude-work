@@ -245,9 +245,10 @@ describe('EnvironmentForm - PortMapping/VolumeMount integration', () => {
       // ボリュームを追加
       fireEvent.click(screen.getByText('ボリュームを追加'));
 
-      // 危険なホストパスを入力
+      // 危険なホストパスを入力してフォーカスを外す
       const hostPathInput = screen.getByPlaceholderText('/host/path');
       fireEvent.change(hostPathInput, { target: { value: '/etc' } });
+      fireEvent.blur(hostPathInput);
 
       // DangerousPathWarning ダイアログが表示される
       await waitFor(() => {
@@ -271,9 +272,10 @@ describe('EnvironmentForm - PortMapping/VolumeMount integration', () => {
       // ボリュームを追加
       fireEvent.click(screen.getByText('ボリュームを追加'));
 
-      // 危険なホストパスを入力
+      // 危険なホストパスを入力してフォーカスを外す
       const hostPathInput = screen.getByPlaceholderText('/host/path');
       fireEvent.change(hostPathInput, { target: { value: '/etc' } });
+      fireEvent.blur(hostPathInput);
 
       // ダイアログが表示されるのを待つ
       await waitFor(() => {
