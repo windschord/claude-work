@@ -201,8 +201,8 @@ export const prisma = new PrismaClient({ adapter });
 - 必要に応じてパスや引数を調整
 
 **受入基準**:
-- [-] `npx claude-work` で Prisma クライアント生成が成功する（Drizzle移行により不要）
-- [-] データベースセットアップが正常に動作する（Drizzle移行により不要）
+- ~~`npx claude-work` で Prisma クライアント生成が成功する~~ (Drizzle移行により不要)
+- ~~データベースセットアップが正常に動作する~~ (Drizzle移行により不要)
 
 **依存関係**: タスク3.2
 **ステータス**: `OBSOLETE`
@@ -236,8 +236,8 @@ export const prisma = new PrismaClient({ adapter });
 
 **受入基準**:
 - [x] 開発サーバーが起動する
-- [-] セッション作成が動作する（Drizzle移行により不要）
-- [-] セッション削除が動作する（Drizzle移行により不要）
+- ~~セッション作成が動作する~~ (Drizzle移行により不要)
+- ~~セッション削除が動作する~~ (Drizzle移行により不要)
 
 **依存関係**: タスク5.1
 **ステータス**: `OBSOLETE`
@@ -252,7 +252,7 @@ export const prisma = new PrismaClient({ adapter });
 
 **受入基準**:
 - [x] ビルドが成功する
-- [-] CLI コマンドが動作する（Drizzle移行により不要）
+- ~~CLI コマンドが動作する~~ (Drizzle移行により不要)
 
 **依存関係**: タスク5.2
 **ステータス**: `OBSOLETE`
@@ -264,3 +264,4 @@ export const prisma = new PrismaClient({ adapter });
 - `TODO` - 未着手
 - `IN_PROGRESS` - 作業中
 - `DONE` - 完了
+- `OBSOLETE` - 廃止（別の方法で解決済み）

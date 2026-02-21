@@ -147,3 +147,4 @@ const pm2Cmd = path.join(binDir, process.platform === 'win32' ? 'pm2.cmd' : 'pm2
 - `TODO` - 未着手
 - `IN_PROGRESS` - 作業中
 - `DONE` - 完了
+- `OBSOLETE` - 廃止（別の方法で解決済み）

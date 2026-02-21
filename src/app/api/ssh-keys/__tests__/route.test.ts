@@ -112,7 +112,7 @@ describe('/api/ssh-keys', () => {
     it('SSH鍵を登録できる', async () => {
       const registeredKey = {
         id: 'key-new',
-        name: 'New Key',
+        name: 'New-Key',
         publicKey: 'ssh-rsa AAAA...',
         hasPassphrase: false,
         createdAt: new Date('2026-02-21T12:00:00Z'),
@@ -124,7 +124,7 @@ describe('/api/ssh-keys', () => {
       const request = new NextRequest('http://localhost:3000/api/ssh-keys', {
         method: 'POST',
         body: JSON.stringify({
-          name: 'New Key',
+          name: 'New-Key',
           private_key: 'dummy-private-key',
           public_key: 'ssh-rsa AAAA...',
         }),
@@ -138,12 +138,12 @@ describe('/api/ssh-keys', () => {
       expect(data.key).toEqual(
         expect.objectContaining({
           id: 'key-new',
-          name: 'New Key',
+          name: 'New-Key',
           public_key: 'ssh-rsa AAAA...',
         })
       );
       expect(mockRegisterKey).toHaveBeenCalledWith({
-        name: 'New Key',
+        name: 'New-Key',
         privateKey: 'dummy-private-key',
         publicKey: 'ssh-rsa AAAA...',
         hasPassphrase: false,
@@ -153,7 +153,7 @@ describe('/api/ssh-keys', () => {
     it('パスフレーズ付きの鍵を登録できる', async () => {
       const registeredKey = {
         id: 'key-new',
-        name: 'Passphrase Key',
+        name: 'Passphrase-Key',
         publicKey: 'ssh-rsa AAAA...',
         hasPassphrase: true,
         createdAt: new Date('2026-02-21T12:00:00Z'),
@@ -165,7 +165,7 @@ describe('/api/ssh-keys', () => {
       const request = new NextRequest('http://localhost:3000/api/ssh-keys', {
         method: 'POST',
         body: JSON.stringify({
-          name: 'Passphrase Key',
+          name: 'Passphrase-Key',
           private_key: 'dummy-private-key',
           passphrase: 'my-secret',
         }),
@@ -198,11 +198,86 @@ describe('/api/ssh-keys', () => {
       expect(data.error.code).toBe('VALIDATION_ERROR');
     });
 
+    it('nameにスペースが含まれる場合は400を返す', async () => {
+      const request = new NextRequest('http://localhost:3000/api/ssh-keys', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: 'Invalid Name With Spaces',
+          private_key: 'dummy-private-key',
+        }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error.code).toBe('VALIDATION_ERROR');
+      expect(data.error.message).toContain('英数字、ハイフン、アンダースコア');
+    });
+
+    it('nameが101文字以上の場合は400を返す', async () => {
+      const longName = 'a'.repeat(101);
+      const request = new NextRequest('http://localhost:3000/api/ssh-keys', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: longName,
+          private_key: 'dummy-private-key',
+        }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error.code).toBe('VALIDATION_ERROR');
+      expect(data.error.message).toContain('英数字、ハイフン、アンダースコア');
+    });
+
+    it('public_keyが空文字の場合は400を返す', async () => {
+      const request = new NextRequest('http://localhost:3000/api/ssh-keys', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: 'test-key',
+          private_key: 'dummy-private-key',
+          public_key: '',
+        }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error.code).toBe('VALIDATION_ERROR');
+      expect(data.error.message).toContain('public_key');
+    });
+
+    it('public_keyが空白のみの場合は400を返す', async () => {
+      const request = new NextRequest('http://localhost:3000/api/ssh-keys', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: 'test-key',
+          private_key: 'dummy-private-key',
+          public_key: '   ',
+        }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error.code).toBe('VALIDATION_ERROR');
+      expect(data.error.message).toContain('public_key');
+    });
+
     it('private_keyが未指定の場合は400を返す', async () => {
       const request = new NextRequest('http://localhost:3000/api/ssh-keys', {
         method: 'POST',
         body: JSON.stringify({
-          name: 'Key Name',
+          name: 'Key-Name',
         }),
         headers: { 'Content-Type': 'application/json' },
       });
@@ -221,7 +296,7 @@ describe('/api/ssh-keys', () => {
       const request = new NextRequest('http://localhost:3000/api/ssh-keys', {
         method: 'POST',
         body: JSON.stringify({
-          name: 'Existing Key',
+          name: 'Existing-Key',
           private_key: 'dummy-private-key',
         }),
         headers: { 'Content-Type': 'application/json' },
@@ -231,7 +306,7 @@ describe('/api/ssh-keys', () => {
       const data = await response.json();
 
       expect(response.status).toBe(409);
-      expect(data.error.code).toBe('DUPLICATE_NAME');
+      expect(data.error.code).toBe('DUPLICATE_SSH_KEY_NAME');
     });
 
     it('無効な秘密鍵形式の場合は400を返す', async () => {
@@ -241,7 +316,7 @@ describe('/api/ssh-keys', () => {
       const request = new NextRequest('http://localhost:3000/api/ssh-keys', {
         method: 'POST',
         body: JSON.stringify({
-          name: 'Bad Key',
+          name: 'Bad-Key',
           private_key: 'not a valid key',
         }),
         headers: { 'Content-Type': 'application/json' },
@@ -251,7 +326,7 @@ describe('/api/ssh-keys', () => {
       const data = await response.json();
 
       expect(response.status).toBe(400);
-      expect(data.error.code).toBe('INVALID_KEY_FORMAT');
+      expect(data.error.code).toBe('INVALID_SSH_KEY');
     });
 
     it('暗号化エラーの場合は500を返す', async () => {
@@ -261,7 +336,7 @@ describe('/api/ssh-keys', () => {
       const request = new NextRequest('http://localhost:3000/api/ssh-keys', {
         method: 'POST',
         body: JSON.stringify({
-          name: 'Key Name',
+          name: 'Key-Name',
           private_key: 'dummy-private-key',
         }),
         headers: { 'Content-Type': 'application/json' },
@@ -294,7 +369,7 @@ describe('/api/ssh-keys', () => {
       const request = new NextRequest('http://localhost:3000/api/ssh-keys', {
         method: 'POST',
         body: JSON.stringify({
-          name: 'Key Name',
+          name: 'Key-Name',
           private_key: 'dummy-private-key',
         }),
         headers: { 'Content-Type': 'application/json' },

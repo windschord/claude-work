@@ -10,6 +10,8 @@ import { logger } from '@/lib/logger';
 
 const service = new SshKeyService();
 
+const NAME_PATTERN = /^[a-zA-Z0-9_-]{1,100}$/;
+
 function toApiResponse(key: SshKeySummary) {
   return {
     id: key.id,
@@ -48,6 +50,16 @@ function validateRegisterInput(body: unknown): {
     };
   }
 
+  if (!NAME_PATTERN.test(name as string)) {
+    return {
+      valid: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'name は1〜100文字の英数字、ハイフン、アンダースコアで指定してください',
+      },
+    };
+  }
+
   if (!private_key || typeof private_key !== 'string' || private_key.trim().length === 0) {
     return {
       valid: false,
@@ -64,6 +76,16 @@ function validateRegisterInput(body: unknown): {
       error: {
         code: 'VALIDATION_ERROR',
         message: 'public_key は文字列である必要があります',
+      },
+    };
+  }
+
+  if (typeof public_key === 'string' && public_key.trim().length === 0) {
+    return {
+      valid: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'public_key を指定する場合は空文字にできません',
       },
     };
   }
@@ -150,7 +172,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error: {
-            code: 'DUPLICATE_NAME',
+            code: 'DUPLICATE_SSH_KEY_NAME',
             message: '同名のSSH鍵が既に登録されています',
           },
         },
@@ -162,7 +184,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error: {
-            code: 'INVALID_KEY_FORMAT',
+            code: 'INVALID_SSH_KEY',
             message: 'SSH秘密鍵の形式が不正です',
           },
         },
