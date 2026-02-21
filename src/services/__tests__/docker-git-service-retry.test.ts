@@ -327,19 +327,20 @@ describe('DockerGitService リトライロジック', () => {
       ).rejects.toThrow(GitOperationError);
 
       // setTimeoutまたはsleep的な遅延が呼ばれたことを確認
-      // 最初のリトライ前: 約1000ms
-      // 2回目のリトライ前: 約2000ms
+      // 実装: BASE_DELAY_MS(1000) * Math.pow(2, attempt - 1)
+      //   attempt=1: 1000ms, attempt=2: 2000ms
+      // CI環境のタイマー精度のばらつきを考慮して広めの範囲で検証
       const timeoutCalls = setTimeoutSpy.mock.calls
         .map((call) => call[1] as number)
         .filter((ms) => ms >= 500); // 短いタイムアウトをフィルタリング
 
       expect(timeoutCalls.length).toBeGreaterThanOrEqual(2);
 
-      // 1回目のバックオフ: 約1000ms (800-1200ms程度の揺れを許容)
+      // 1回目のバックオフ: BASE_DELAY_MS * 2^0 = 1000ms (CI jitter許容: 800-1500ms)
       expect(timeoutCalls[0]).toBeGreaterThanOrEqual(800);
       expect(timeoutCalls[0]).toBeLessThanOrEqual(1500);
 
-      // 2回目のバックオフ: 約2000ms (1600-2400ms程度の揺れを許容)
+      // 2回目のバックオフ: BASE_DELAY_MS * 2^1 = 2000ms (CI jitter許容: 1600-3000ms)
       expect(timeoutCalls[1]).toBeGreaterThanOrEqual(1600);
       expect(timeoutCalls[1]).toBeLessThanOrEqual(3000);
 
