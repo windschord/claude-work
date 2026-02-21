@@ -4,8 +4,8 @@
 
 | ID | タスク | ステータス |
 |----|--------|-----------|
-| TASK-001 | テスト修正（Red） | TODO |
-| TASK-002 | VolumeMountList実装修正（Green） | TODO |
+| TASK-001 | テスト修正（Red） | DONE |
+| TASK-002 | VolumeMountList実装修正（Green） | DONE |
 
 ## TASK-001: テスト修正（Red）
 
@@ -29,7 +29,7 @@ VolumeMountList.test.tsxの`dangerous path warning`セクションを修正し�
 
 ### ステータス
 
-TODO
+DONE
 
 ## TASK-002: VolumeMountList実装修正（Green）
 
@@ -68,4 +68,4 @@ VolumeMountList.tsxのuseEffectをonBlurハンドラに置換する。
 
 ### ステータス
 
-TODO
+DONE

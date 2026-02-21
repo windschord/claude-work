@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { Plus, X } from 'lucide-react';
 import type { VolumeMount } from '@/types/environment';
 import { isDangerousPath, isSystemContainerPath } from '@/lib/docker-config-validator';
@@ -92,27 +92,8 @@ export function VolumeMountList({ value, onChange, onDangerousPath }: VolumeMoun
     }
   }
 
-  // 危険パスのコールバックを呼び出す（既に通知済みのパスは再通知しない）
+  // 危険パスのコールバック通知済み管理（同じパスの重複通知を防止）
   const notifiedPathsRef = useRef<Set<string>>(new Set());
-
-  useEffect(() => {
-    // 現在のvalueに含まれない通知済みパスをクリア（キャンセル等でパスが除去された場合に再通知可能にする）
-    const currentPaths = new Set(value.map(m => m.hostPath));
-    for (const path of notifiedPathsRef.current) {
-      if (!currentPaths.has(path)) {
-        notifiedPathsRef.current.delete(path);
-      }
-    }
-
-    if (!onDangerousPath) return;
-
-    for (const mount of value) {
-      if (mount.hostPath && isDangerousPath(mount.hostPath) && !notifiedPathsRef.current.has(mount.hostPath)) {
-        notifiedPathsRef.current.add(mount.hostPath);
-        onDangerousPath(mount.hostPath);
-      }
-    }
-  }, [value, onDangerousPath]);
 
   const handleAdd = () => {
     setKeyState(prev => ({
@@ -143,6 +124,15 @@ export function VolumeMountList({ value, onChange, onDangerousPath }: VolumeMoun
     onChange(newMounts);
   };
 
+  const handleHostPathBlur = (index: number) => {
+    if (!onDangerousPath) return;
+    const hostPath = value[index]?.hostPath;
+    if (!hostPath || !isDangerousPath(hostPath)) return;
+    if (notifiedPathsRef.current.has(hostPath)) return;
+    notifiedPathsRef.current.add(hostPath);
+    onDangerousPath(hostPath);
+  };
+
   return (
     <div className="space-y-3">
       <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300">
@@ -165,6 +155,7 @@ export function VolumeMountList({ value, onChange, onDangerousPath }: VolumeMoun
                     type="text"
                     value={mount.hostPath}
                     onChange={(e) => handleChange(index, 'hostPath', e.target.value)}
+                    onBlur={() => handleHostPathBlur(index)}
                     placeholder="/host/path"
                     className="flex-1 px-3 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
