@@ -1,6 +1,7 @@
 'use client';
 
 import { Environment, EnvironmentType } from '@/hooks/useEnvironments';
+import { ApplyChangesButton } from './ApplyChangesButton';
 
 interface EnvironmentCardProps {
   environment: Environment;
@@ -168,6 +169,12 @@ export function EnvironmentCard({ environment, onEdit, onDelete }: EnvironmentCa
           <p className="text-sm text-red-500 dark:text-red-400 mt-1">{status.error}</p>
         )}
       </div>
+
+      {environment.type === 'DOCKER' && (
+        <div className="mb-3">
+          <ApplyChangesButton environmentId={environment.id} />
+        </div>
+      )}
 
       <div className="flex gap-2">
         <button
