@@ -25,7 +25,7 @@ function toApiResponse(key: SshKeySummary) {
 
 function validateRegisterInput(body: unknown): {
   valid: boolean;
-  error?: { code: string; message: string };
+  error?: { code: string; message: string; details?: { field: string; value: unknown } };
   data?: { name: string; privateKey: string; publicKey: string; hasPassphrase: boolean };
 } {
   if (body === null || typeof body !== 'object' || Array.isArray(body)) {
@@ -46,6 +46,7 @@ function validateRegisterInput(body: unknown): {
       error: {
         code: 'VALIDATION_ERROR',
         message: 'name は必須です',
+        details: { field: 'name', value: name },
       },
     };
   }
@@ -56,6 +57,7 @@ function validateRegisterInput(body: unknown): {
       error: {
         code: 'VALIDATION_ERROR',
         message: 'name は1〜100文字の英数字、ハイフン、アンダースコアで指定してください',
+        details: { field: 'name', value: name },
       },
     };
   }
@@ -66,6 +68,7 @@ function validateRegisterInput(body: unknown): {
       error: {
         code: 'VALIDATION_ERROR',
         message: 'private_key は必須です',
+        details: { field: 'private_key', value: private_key },
       },
     };
   }
@@ -76,6 +79,7 @@ function validateRegisterInput(body: unknown): {
       error: {
         code: 'VALIDATION_ERROR',
         message: 'public_key は文字列である必要があります',
+        details: { field: 'public_key', value: public_key },
       },
     };
   }
@@ -86,6 +90,7 @@ function validateRegisterInput(body: unknown): {
       error: {
         code: 'VALIDATION_ERROR',
         message: 'public_key を指定する場合は空文字にできません',
+        details: { field: 'public_key', value: public_key },
       },
     };
   }
@@ -96,6 +101,18 @@ function validateRegisterInput(body: unknown): {
       error: {
         code: 'VALIDATION_ERROR',
         message: 'passphrase は文字列である必要があります',
+        details: { field: 'passphrase', value: passphrase },
+      },
+    };
+  }
+
+  if (typeof passphrase === 'string' && passphrase.trim().length === 0) {
+    return {
+      valid: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'passphrase を指定する場合は空文字にできません',
+        details: { field: 'passphrase', value: passphrase },
       },
     };
   }

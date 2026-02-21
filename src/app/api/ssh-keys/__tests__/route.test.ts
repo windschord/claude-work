@@ -289,6 +289,46 @@ describe('/api/ssh-keys', () => {
       expect(data.error.code).toBe('VALIDATION_ERROR');
     });
 
+    it('passphraseが空文字の場合は400を返す', async () => {
+      const request = new NextRequest('http://localhost:3000/api/ssh-keys', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: 'test-key',
+          private_key: 'dummy-private-key',
+          passphrase: '',
+        }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error.code).toBe('VALIDATION_ERROR');
+      expect(data.error.message).toContain('passphrase');
+      expect(data.error.details).toEqual({ field: 'passphrase', value: '' });
+    });
+
+    it('passphraseが空白のみの場合は400を返す', async () => {
+      const request = new NextRequest('http://localhost:3000/api/ssh-keys', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: 'test-key',
+          private_key: 'dummy-private-key',
+          passphrase: '   ',
+        }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error.code).toBe('VALIDATION_ERROR');
+      expect(data.error.message).toContain('passphrase');
+      expect(data.error.details).toEqual({ field: 'passphrase', value: '   ' });
+    });
+
     it('名前が重複している場合は409を返す', async () => {
       const { DuplicateSshKeyNameError } = await import('@/services/ssh-key-service');
       mockRegisterKey.mockRejectedValue(new DuplicateSshKeyNameError('Existing Key'));
