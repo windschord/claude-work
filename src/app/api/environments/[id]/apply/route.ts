@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { environmentService } from '@/services/environment-service';
-import { AdapterFactory } from '@/services/adapter-factory';
 import { db, schema } from '@/lib/db';
-import { eq, isNotNull, and } from 'drizzle-orm';
+import { isNotNull, and, eq } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
+
+// 動的インポートでAdapterFactoryを取得（node-ptyがビルド時に読み込まれるのを防ぐ）
+async function getAdapterFactory() {
+  const { AdapterFactory } = await import('@/services/adapter-factory');
+  return AdapterFactory;
+}
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -44,6 +49,7 @@ export async function POST(
     }
 
     // キャッシュされたDockerAdapterを削除（新しい設定で再生成させる）
+    const AdapterFactory = await getAdapterFactory();
     AdapterFactory.removeDockerAdapter(id);
 
     // 該当環境を使用している実行中セッションを取得
