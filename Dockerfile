@@ -85,4 +85,4 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD node scripts/healthcheck.js
 
-CMD ["node", "dist/src/bin/cli.js"]
+CMD ["node", "dist/server.js"]
