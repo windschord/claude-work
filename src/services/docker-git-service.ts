@@ -174,10 +174,11 @@ export class DockerGitService implements GitOperations {
         return await operation();
       } catch (error) {
         lastError = error as Error;
+        const safeMessage = (lastError.message || '').replace(/GIT_PAT=[^\s]*/g, 'GIT_PAT=***');
 
         if (this.isPermanentError(lastError)) {
           throw new GitOperationError(
-            `Permanent error during ${operationType}: ${lastError.message}`,
+            `Permanent error during ${operationType}: ${safeMessage}`,
             'docker',
             operationType,
             false,
@@ -191,7 +192,7 @@ export class DockerGitService implements GitOperations {
 
         const delay = DockerGitService.BASE_DELAY_MS * Math.pow(2, attempt - 1);
         logger.warn(`[docker] Retrying ${operationType} (attempt ${attempt + 1}/${maxAttempts}) after ${delay}ms`, {
-          error: lastError.message.replace(/GIT_PAT=[^\s]*/g, 'GIT_PAT=***'),
+          error: safeMessage,
           attempt,
           delay,
         });

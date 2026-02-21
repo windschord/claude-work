@@ -161,7 +161,7 @@ describe('DockerGitService リトライロジック', () => {
       );
       // volume createのdocker volume createコールを除く
       // docker run (clone)が1回のみ呼ばれるべき
-      expect(cloneCalls.length).toBeLessThanOrEqual(2); // run for clone + run for cleanup
+      expect(cloneCalls.length).toBe(1);
     });
 
     it('リトライ時にログが出力される', async () => {
