@@ -83,7 +83,6 @@ export function ApplyChangesButton({
           onApplied?.();
         }
       } else {
-        await response.json().catch(() => ({ error: response.statusText }));
         setApplyResult({
           applied: 0,
           failed: sessions.length,

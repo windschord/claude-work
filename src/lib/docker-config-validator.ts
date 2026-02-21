@@ -9,6 +9,7 @@ import type { PortMapping, VolumeMount } from '@/types/environment';
 
 /** 危険なホストパス一覧 */
 export const DANGEROUS_HOST_PATHS = [
+  '/',
   '/etc',
   '/proc',
   '/sys',
@@ -18,6 +19,7 @@ export const DANGEROUS_HOST_PATHS = [
   '/sbin',
   '/bin',
   '/usr/sbin',
+  '/var',
 ] as const;
 
 /** システムコンテナパス一覧（Docker環境が内部で使用するパス） */
@@ -127,6 +129,15 @@ export function validateVolumeMounts(mounts: VolumeMount[]): ValidationResult {
 
     if (mount.containerPath.includes('..')) {
       errors.push(`マウント${i + 1}: containerPathに「..」を含めることはできません`);
+    }
+
+    // コロン文字チェック（Docker -v デリミタとの衝突防止）
+    if (mount.hostPath.includes(':')) {
+      errors.push(`マウント${i + 1}: hostPathに「:」を含めることはできません`);
+    }
+
+    if (mount.containerPath.includes(':')) {
+      errors.push(`マウント${i + 1}: containerPathに「:」を含めることはできません`);
     }
 
     // 危険なホストパスチェック

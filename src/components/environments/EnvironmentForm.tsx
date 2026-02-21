@@ -129,10 +129,10 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
             }
           }
           setSkipPermissions(config?.skipPermissions === true);
-          if (config.portMappings) {
+          if (Array.isArray(config.portMappings)) {
             setPortMappings(config.portMappings);
           }
-          if (config.volumeMounts) {
+          if (Array.isArray(config.volumeMounts)) {
             setVolumeMounts(config.volumeMounts);
           }
         } catch {
@@ -908,10 +908,10 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
       path={dangerousPath || ''}
       onConfirm={() => setDangerousPath(null)}
       onCancel={() => {
-        // Clear the dangerous path from volumeMounts
+        // 危険パスのマウントエントリを削除
         if (dangerousPath) {
           setVolumeMounts(prev =>
-            prev.map(m => m.hostPath === dangerousPath ? { ...m, hostPath: '' } : m)
+            prev.filter(m => m.hostPath !== dangerousPath)
           );
         }
         setDangerousPath(null);

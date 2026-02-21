@@ -76,6 +76,10 @@ export function VolumeMountList({ value, onChange, onDangerousPath }: VolumeMoun
   };
 
   const handleRemove = (index: number) => {
+    const removedPath = value[index]?.hostPath;
+    if (removedPath) {
+      notifiedPathsRef.current.delete(removedPath);
+    }
     const newMounts = value.filter((_, i) => i !== index);
     onChange(newMounts);
   };

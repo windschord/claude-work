@@ -164,6 +164,24 @@ describe('docker-config-validator', () => {
       expect(result.errors.some((e) => e.includes('システム'))).toBe(true);
     });
 
+    it('hostPathにコロンを含むとエラー', () => {
+      const mounts: VolumeMount[] = [
+        { hostPath: '/home/user/data:extra', containerPath: '/data', accessMode: 'rw' },
+      ];
+      const result = validateVolumeMounts(mounts);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.includes(':'))).toBe(true);
+    });
+
+    it('containerPathにコロンを含むとエラー', () => {
+      const mounts: VolumeMount[] = [
+        { hostPath: '/home/user/data', containerPath: '/data:extra', accessMode: 'rw' },
+      ];
+      const result = validateVolumeMounts(mounts);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.includes(':'))).toBe(true);
+    });
+
     it('accessModeがrw/ro以外ならエラー', () => {
       const mounts = [
         { hostPath: '/home/user/data', containerPath: '/data', accessMode: 'rx' as VolumeMount['accessMode'] },
