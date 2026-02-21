@@ -48,6 +48,26 @@ function validateRegisterInput(body: Record<string, unknown>): {
     };
   }
 
+  if (public_key !== undefined && typeof public_key !== 'string') {
+    return {
+      valid: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'public_key は文字列である必要があります',
+      },
+    };
+  }
+
+  if (passphrase !== undefined && typeof passphrase !== 'string') {
+    return {
+      valid: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'passphrase は文字列である必要があります',
+      },
+    };
+  }
+
   return {
     valid: true,
     data: {

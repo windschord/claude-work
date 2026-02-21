@@ -125,7 +125,7 @@ describe('/api/ssh-keys', () => {
         method: 'POST',
         body: JSON.stringify({
           name: 'New Key',
-          private_key: '-----BEGIN OPENSSH PRIVATE KEY-----\ntest\n-----END OPENSSH PRIVATE KEY-----',
+          private_key: 'dummy-private-key',
           public_key: 'ssh-rsa AAAA...',
         }),
         headers: { 'Content-Type': 'application/json' },
@@ -144,7 +144,7 @@ describe('/api/ssh-keys', () => {
       );
       expect(mockRegisterKey).toHaveBeenCalledWith({
         name: 'New Key',
-        privateKey: '-----BEGIN OPENSSH PRIVATE KEY-----\ntest\n-----END OPENSSH PRIVATE KEY-----',
+        privateKey: 'dummy-private-key',
         publicKey: 'ssh-rsa AAAA...',
         hasPassphrase: false,
       });
@@ -166,7 +166,7 @@ describe('/api/ssh-keys', () => {
         method: 'POST',
         body: JSON.stringify({
           name: 'Passphrase Key',
-          private_key: '-----BEGIN OPENSSH PRIVATE KEY-----\ntest\n-----END OPENSSH PRIVATE KEY-----',
+          private_key: 'dummy-private-key',
           passphrase: 'my-secret',
         }),
         headers: { 'Content-Type': 'application/json' },
@@ -186,7 +186,7 @@ describe('/api/ssh-keys', () => {
       const request = new NextRequest('http://localhost:3000/api/ssh-keys', {
         method: 'POST',
         body: JSON.stringify({
-          private_key: '-----BEGIN OPENSSH PRIVATE KEY-----\ntest\n-----END OPENSSH PRIVATE KEY-----',
+          private_key: 'dummy-private-key',
         }),
         headers: { 'Content-Type': 'application/json' },
       });
@@ -222,7 +222,7 @@ describe('/api/ssh-keys', () => {
         method: 'POST',
         body: JSON.stringify({
           name: 'Existing Key',
-          private_key: '-----BEGIN OPENSSH PRIVATE KEY-----\ntest\n-----END OPENSSH PRIVATE KEY-----',
+          private_key: 'dummy-private-key',
         }),
         headers: { 'Content-Type': 'application/json' },
       });
@@ -262,7 +262,7 @@ describe('/api/ssh-keys', () => {
         method: 'POST',
         body: JSON.stringify({
           name: 'Key Name',
-          private_key: '-----BEGIN OPENSSH PRIVATE KEY-----\ntest\n-----END OPENSSH PRIVATE KEY-----',
+          private_key: 'dummy-private-key',
         }),
         headers: { 'Content-Type': 'application/json' },
       });
@@ -295,7 +295,7 @@ describe('/api/ssh-keys', () => {
         method: 'POST',
         body: JSON.stringify({
           name: 'Key Name',
-          private_key: '-----BEGIN OPENSSH PRIVATE KEY-----\ntest\n-----END OPENSSH PRIVATE KEY-----',
+          private_key: 'dummy-private-key',
         }),
         headers: { 'Content-Type': 'application/json' },
       });

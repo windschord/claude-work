@@ -13,6 +13,19 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+
+    if (!id || typeof id !== 'string' || id.trim().length === 0) {
+      return NextResponse.json(
+        {
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'id は必須です',
+          },
+        },
+        { status: 400 }
+      );
+    }
+
     await service.deleteKey(id);
 
     return NextResponse.json(
