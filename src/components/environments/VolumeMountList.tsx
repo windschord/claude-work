@@ -117,6 +117,13 @@ export function VolumeMountList({ value, onChange, onDangerousPath }: VolumeMoun
   };
 
   const handleChange = (index: number, field: keyof VolumeMount, fieldValue: string) => {
+    // hostPath変更時に旧パスの通知状態をクリア（キャンセル後の再入力で再通知可能にする）
+    if (field === 'hostPath') {
+      const prevHostPath = value[index]?.hostPath;
+      if (prevHostPath && prevHostPath !== fieldValue) {
+        notifiedPathsRef.current.delete(prevHostPath);
+      }
+    }
     const newMounts = value.map((mount, i) => {
       if (i !== index) return mount;
       return { ...mount, [field]: fieldValue };
@@ -124,9 +131,8 @@ export function VolumeMountList({ value, onChange, onDangerousPath }: VolumeMoun
     onChange(newMounts);
   };
 
-  const handleHostPathBlur = (index: number) => {
+  const handleHostPathBlur = (hostPath: string) => {
     if (!onDangerousPath) return;
-    const hostPath = value[index]?.hostPath;
     if (!hostPath || !isDangerousPath(hostPath)) return;
     if (notifiedPathsRef.current.has(hostPath)) return;
     notifiedPathsRef.current.add(hostPath);
@@ -155,7 +161,7 @@ export function VolumeMountList({ value, onChange, onDangerousPath }: VolumeMoun
                     type="text"
                     value={mount.hostPath}
                     onChange={(e) => handleChange(index, 'hostPath', e.target.value)}
-                    onBlur={() => handleHostPathBlur(index)}
+                    onBlur={(e) => handleHostPathBlur(e.currentTarget.value)}
                     placeholder="/host/path"
                     className="flex-1 px-3 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />

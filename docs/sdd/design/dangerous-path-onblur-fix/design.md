@@ -6,7 +6,7 @@
 
 ## 現在の実装
 
-```
+```text
 onChange → value更新 → useEffect発火 → isDangerousPath判定 → onDangerousPathコールバック → ダイアログ表示
 ```
 
@@ -14,7 +14,7 @@ onChange → value更新 → useEffect発火 → isDangerousPath判定 → onDan
 
 ## 修正後の実装
 
-```
+```text
 onBlur（hostPathフィールド） → isDangerousPath判定 → onDangerousPathコールバック → ダイアログ表示
 ```
 
@@ -28,12 +28,11 @@ onBlur（hostPathフィールド） → isDangerousPath判定 → onDangerousPat
 
 #### 追加するコード
 
-1. `handleHostPathBlur`関数: hostPathフィールドのblurイベントハンドラ
+1. `handleHostPathBlur`関数: blurイベントからhostPathを直接受け取り判定
 
 ```typescript
-const handleHostPathBlur = (index: number) => {
+const handleHostPathBlur = (hostPath: string) => {
   if (!onDangerousPath) return;
-  const hostPath = value[index]?.hostPath;
   if (!hostPath || !isDangerousPath(hostPath)) return;
   if (notifiedPathsRef.current.has(hostPath)) return;
   notifiedPathsRef.current.add(hostPath);
@@ -41,21 +40,34 @@ const handleHostPathBlur = (index: number) => {
 };
 ```
 
-2. hostPath inputに`onBlur`プロパティを追加:
+2. hostPath inputに`onBlur`プロパティを追加（event.currentTarget.valueで最新値を取得）:
 
 ```tsx
 <input
   ...
-  onBlur={() => handleHostPathBlur(index)}
+  onBlur={(e) => handleHostPathBlur(e.currentTarget.value)}
 />
 ```
 
-#### notifiedPathsRefの管理変更
+3. `handleChange`でhostPath変更時に旧パスの通知状態をクリア:
 
-- `useEffect`でのクリーンアップロジックは不要（useEffect自体を削除するため）
-- `handleRemove`内の既存の`notifiedPathsRef.current.delete(removedPath)`は維持
-- `handleHostPathBlur`内で変更前パスの通知状態をクリアする必要があるか検討
-  - 不要: `handleRemove`（キャンセル時にEnvironmentFormが呼ぶ`prev.filter`で行が削除される）で既にクリアされている
+```typescript
+const handleChange = (index: number, field: keyof VolumeMount, fieldValue: string) => {
+  if (field === 'hostPath') {
+    const prevHostPath = value[index]?.hostPath;
+    if (prevHostPath && prevHostPath !== fieldValue) {
+      notifiedPathsRef.current.delete(prevHostPath);
+    }
+  }
+  // ...
+};
+```
+
+#### notifiedPathsRefの管理
+
+- `handleRemove`: 行削除時にnotifiedPathsRefから該当パスを削除（維持）
+- `handleChange`: hostPath変更時に旧パスをnotifiedPathsRefから削除（新規追加）
+- 親コンポーネント（EnvironmentForm）のDangerousPathWarning onCancelは`setVolumeMounts(prev.filter(...))`でvalue配列を直接変更する。この場合、VolumeMountListのhandleRemoveは呼ばれないが、handleChangeのクリーンアップにより同じパスの再入力時に再通知が可能
 
 #### import変更
 
@@ -81,9 +93,13 @@ const handleHostPathBlur = (index: number) => {
 
 useEffectはvalue配列全体を依存配列に持つため、どのフィールドが変更されても全マウントを再チェックしてしまう。onBlurに移行することで、ユーザーが入力を完了した特定の行のみをチェックでき、効率的かつ正確になる。
 
-### notifiedPathsRefのクリーンアップ簡素化
+### event.currentTarget.valueの使用
 
-useEffect内のクリーンアップロジック（現在のvalueに含まれないパスの通知状態クリア）は、handleRemove内の`notifiedPathsRef.current.delete(removedPath)`で代替される。EnvironmentFormのonCancelはvolumeMountsを`prev.filter`で更新し、VolumeMountListのhandleRemoveが呼ばれるフローのため、クリーンアップは維持される。
+handleHostPathBlurはvalue[index]からではなく、blurイベントのcurrentTarget.valueから最新の入力値を直接取得する。これにより、Reactの状態更新バッチングによる古い値の参照リスクを排除する。
+
+### notifiedPathsRefの二重クリーンアップ
+
+handleRemove（内部削除）とhandleChange（hostPath変更時）の両方でnotifiedPathsRefをクリアする。EnvironmentFormのDangerousPathWarning onCancelはvolumeMountsを直接`prev.filter`で更新するため、VolumeMountListのhandleRemoveは経由しない。handleChangeでのクリーンアップにより、パスを編集して同じ危険パスを再入力した場合も再通知される。
 
 ## 要件との整合性
 
@@ -92,4 +108,4 @@ useEffect内のクリーンアップロジック（現在のvalueに含まれな
 | REQ-112-FIX-001 | useEffectをonBlurハンドラに置換 |
 | REQ-112-FIX-002 | validateMount関数は変更なし（onChangeで即座にインライン表示） |
 | REQ-112-FIX-003 | useEffect削除により、初期表示時にコールバックは発火しない |
-| REQ-112-FIX-004 | handleRemoveでnotifiedPathsRefからパスを削除するため、再blur時に再発火する |
+| REQ-112-FIX-004 | handleChangeとhandleRemoveでnotifiedPathsRefをクリアするため、再blur時に再発火する |
