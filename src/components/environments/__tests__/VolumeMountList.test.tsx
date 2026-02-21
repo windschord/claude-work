@@ -187,7 +187,7 @@ describe('VolumeMountList', () => {
   });
 
   describe('dangerous path warning', () => {
-    it('should show warning for dangerous host path', () => {
+    it('should show inline warning for dangerous host path', () => {
       const mounts: VolumeMount[] = [
         { hostPath: '/etc', containerPath: '/mnt/etc', accessMode: 'rw' },
       ];
@@ -196,7 +196,16 @@ describe('VolumeMountList', () => {
       expect(screen.getByText(/危険なシステムパスです/)).toBeInTheDocument();
     });
 
-    it('should call onDangerousPath when dangerous path is detected', () => {
+    it('should show inline warning for dangerous subpath', () => {
+      const mounts: VolumeMount[] = [
+        { hostPath: '/proc/cpuinfo', containerPath: '/mnt/cpu', accessMode: 'ro' },
+      ];
+      render(<VolumeMountList value={mounts} onChange={vi.fn()} />);
+
+      expect(screen.getByText(/危険なシステムパスです/)).toBeInTheDocument();
+    });
+
+    it('should NOT call onDangerousPath on render with dangerous path', () => {
       const onDangerousPath = vi.fn();
       const mounts: VolumeMount[] = [
         { hostPath: '/etc/nginx', containerPath: '/mnt/etc', accessMode: 'rw' },
@@ -209,16 +218,45 @@ describe('VolumeMountList', () => {
         />
       );
 
+      expect(onDangerousPath).not.toHaveBeenCalled();
+    });
+
+    it('should call onDangerousPath on hostPath blur with dangerous path', () => {
+      const onDangerousPath = vi.fn();
+      const mounts: VolumeMount[] = [
+        { hostPath: '/etc/nginx', containerPath: '/mnt/etc', accessMode: 'rw' },
+      ];
+      render(
+        <VolumeMountList
+          value={mounts}
+          onChange={vi.fn()}
+          onDangerousPath={onDangerousPath}
+        />
+      );
+
+      const hostPathInput = screen.getByPlaceholderText('/host/path');
+      fireEvent.blur(hostPathInput);
+
       expect(onDangerousPath).toHaveBeenCalledWith('/etc/nginx');
     });
 
-    it('should show warning for dangerous subpath', () => {
+    it('should NOT call onDangerousPath on blur with safe path', () => {
+      const onDangerousPath = vi.fn();
       const mounts: VolumeMount[] = [
-        { hostPath: '/proc/cpuinfo', containerPath: '/mnt/cpu', accessMode: 'ro' },
+        { hostPath: '/home/user/data', containerPath: '/mnt/data', accessMode: 'rw' },
       ];
-      render(<VolumeMountList value={mounts} onChange={vi.fn()} />);
+      render(
+        <VolumeMountList
+          value={mounts}
+          onChange={vi.fn()}
+          onDangerousPath={onDangerousPath}
+        />
+      );
 
-      expect(screen.getByText(/危険なシステムパスです/)).toBeInTheDocument();
+      const hostPathInput = screen.getByPlaceholderText('/host/path');
+      fireEvent.blur(hostPathInput);
+
+      expect(onDangerousPath).not.toHaveBeenCalled();
     });
   });
 
