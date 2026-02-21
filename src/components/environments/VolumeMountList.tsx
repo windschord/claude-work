@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Plus, X } from 'lucide-react';
 import type { VolumeMount } from '@/types/environment';
 import { isDangerousPath, isSystemContainerPath } from '@/lib/docker-config-validator';
@@ -94,6 +94,19 @@ export function VolumeMountList({ value, onChange, onDangerousPath }: VolumeMoun
 
   // 危険パスのコールバック通知済み管理（同じパスの重複通知を防止）
   const notifiedPathsRef = useRef<Set<string>>(new Set());
+
+  // 親コンポーネントがvalue配列を直接変更した場合（DangerousPathWarningのキャンセル等）、
+  // notifiedPathsRefから削除済みパスを剪定して再通知を可能にする
+  useEffect(() => {
+    const currentPaths = new Set(
+      value.map((m) => m.hostPath).filter(Boolean)
+    );
+    for (const path of notifiedPathsRef.current) {
+      if (!currentPaths.has(path)) {
+        notifiedPathsRef.current.delete(path);
+      }
+    }
+  }, [value]);
 
   const handleAdd = () => {
     setKeyState(prev => ({
