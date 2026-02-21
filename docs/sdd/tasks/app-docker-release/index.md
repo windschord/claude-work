@@ -6,16 +6,16 @@
 |------|------|
 | フィーチャー名 | app-docker-release |
 | 作成日 | 2026-02-22 |
-| ステータス | IN_PROGRESS |
+| ステータス | DONE |
 | 関連設計 | [design/app-docker-release/index.md](../../design/app-docker-release/index.md) |
 
 ## タスク一覧
 
 | ID | タイトル | ステータス | 依存 |
 |----|---------|-----------|------|
-| TASK-001 | .dockerignoreの作成 | TODO | なし |
-| TASK-002 | Dockerfile（アプリ本体用）の作成 | TODO | なし |
-| TASK-003 | release.ymlワークフローの作成 | TODO | なし |
+| TASK-001 | .dockerignoreの作成 | DONE | なし |
+| TASK-002 | Dockerfile（アプリ本体用）の作成 | DONE | なし |
+| TASK-003 | release.ymlワークフローの作成 | DONE | なし |
 
 TASK-001〜003は互いに独立しており、並列実行可能。
 
@@ -23,7 +23,7 @@ TASK-001〜003は互いに独立しており、並列実行可能。
 
 ## TASK-001: .dockerignoreの作成
 
-**ステータス**: TODO
+**ステータス**: DONE
 
 **目的**: ビルドコンテキストの最小化とセキュリティ向上
 
@@ -91,7 +91,7 @@ ecosystem.config.js
 
 ## TASK-002: Dockerfile（アプリ本体用）の作成
 
-**ステータス**: TODO
+**ステータス**: DONE
 
 **目的**: Claude Workアプリケーション本体のDockerイメージ作成
 
@@ -114,12 +114,18 @@ WORKDIR /app
 # Stage 2: deps-prod - 本番用依存関係のみ
 FROM base AS deps-prod
 COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --prod --frozen-lockfile
+# --ignore-scripts でprepareスクリプト(npm run build)の実行を抑制（ソースファイル未コピーのため）
+RUN pnpm install --prod --frozen-lockfile --ignore-scripts
+# ネイティブモジュール（better-sqlite3, node-pty）を明示的にビルド
+RUN pnpm rebuild
 
 # Stage 3: deps-all - 全依存関係（ビルド用）
 FROM base AS deps-all
 COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+# --ignore-scripts でprepareスクリプト(npm run build)の実行を抑制（ソースファイル未コピーのため）
+RUN pnpm install --frozen-lockfile --ignore-scripts
+# ネイティブモジュール（better-sqlite3, node-pty）を明示的にビルド
+RUN pnpm rebuild
 
 # Stage 4: builder - アプリビルド
 FROM base AS builder
@@ -136,6 +142,7 @@ LABEL org.opencontainers.image.source="https://github.com/windschord/claude-work
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
+ENV HOST=0.0.0.0
 ENV DATABASE_URL=file:/data/claudework.db
 ENV DATA_DIR=/data
 # 本番用依存関係のみコピー（devDependencies除外）
@@ -144,6 +151,8 @@ COPY --from=deps-prod /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/package.json ./package.json
+# ヘルスチェックスクリプトのコピー
+COPY --from=builder /app/scripts/healthcheck.js ./scripts/healthcheck.js
 # データディレクトリ（永続化対象）
 RUN mkdir -p /data && chown node:node /data
 VOLUME ["/data"]
@@ -160,15 +169,11 @@ CMD ["node", "dist/server.js"]
 - コンテナが非rootユーザー（node, UID 1000）で動作する
 - HealthCheckが設定されている
 
-**注意事項**:
-- `/api/health` エンドポイントが存在しない場合、HealthCheckを `node -e "process.exit(0)"` に変更する
-- `public/` ディレクトリが存在しない場合は COPY しない（確認後に対応）
-
 ---
 
 ## TASK-003: release.ymlワークフローの作成
 
-**ステータス**: TODO
+**ステータス**: DONE
 
 **目的**: `v*`タグpush時のGitHub Release自動作成とDockerイメージGHCR公開
 
@@ -192,9 +197,34 @@ permissions:
   packages: write
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      DATABASE_URL: file:./data/test.db
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup project
+        uses: ./.github/actions/setup
+
+      - name: Run backend tests
+        run: |
+          pnpm exec vitest run src/app/api src/lib src/services src/bin \
+            --exclude='**/*.integration.test.ts' \
+            --exclude='**/docker-adapter.test.ts' \
+            --exclude='**/docker-adapter-git.test.ts' \
+            --exclude='src/services/__tests__/pty-session-manager.test.ts' \
+            --reporter=verbose
+        timeout-minutes: 10
+
   release:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    needs: test
 
     steps:
       - name: Checkout repository
@@ -226,7 +256,7 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
-            type=raw,value=latest
+            type=raw,value=latest,enable=${{ !contains(github.ref, '-') }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
@@ -244,11 +274,14 @@ jobs:
         uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2
         with:
           generate_release_notes: true
-          make_latest: true
+          make_latest: ${{ !contains(github.ref, '-') }}
+          prerelease: ${{ contains(github.ref, '-') }}
 ```
 
 **受入条件**:
 - `v*` タグpush時にワークフローが起動する
-- GHCRにイメージがpushされる（semverタグ + latest）
+- テストが成功した場合のみリリースが実行される
+- GHCRにイメージがpushされる（semverタグ + latest※プレリリース除外）
 - GitHub Releasesページにリリースが作成される
 - リリースノートが自動生成される
+- プレリリースタグ（`v1.0.0-beta` 等）は `latest` タグ・`make_latest` から除外される
