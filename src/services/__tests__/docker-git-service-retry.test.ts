@@ -309,10 +309,7 @@ describe('DockerGitService リトライロジック', () => {
 
   describe('指数バックオフ', () => {
     it('リトライ間隔が指数的に増加する（約1000ms, 2000ms）', async () => {
-      const sleepSpy = vi.fn<[number], Promise<void>>().mockResolvedValue(undefined);
-
-      // DockerGitServiceの内部sleep関数をモニタリング
-      // 現時点では実装がないので、setTimeoutの呼び出しを監視する
+      // setTimeoutの呼び出しを監視してバックオフ遅延を検証
       const setTimeoutSpy = vi.spyOn(global, 'setTimeout');
 
       // 全てのclone試行が失敗するケース（3回試行後に失敗）
