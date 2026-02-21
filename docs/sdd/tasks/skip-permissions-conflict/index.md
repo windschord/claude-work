@@ -4,10 +4,10 @@
 
 | フェーズ | タスク数 | 完了 | 進捗率 |
 |---------|---------|------|--------|
-| Phase 1: バックエンド | 1 | 0 | 0% |
-| Phase 2: UI | 2 | 0 | 0% |
-| Phase 3: テスト | 1 | 0 | 0% |
-| **合計** | **4** | **0** | **0%** |
+| Phase 1: バックエンド | 1 | 1 | 100% |
+| Phase 2: UI | 2 | 2 | 100% |
+| Phase 3: テスト | 1 | 1 | 100% |
+| **合計** | **4** | **4** | **100%** |
 
 ---
 
@@ -15,7 +15,8 @@
 
 ### TASK-001: PTYSessionManagerで矛盾オプション除去
 
-**ステータス**: TODO
+**ステータス**: DONE
+**完了サマリー**: PTYSessionManagerでClaudeOptionsService.stripConflictingOptions()を呼び出し、skipPermissions有効時にpermissionMode/allowedToolsを除去。テスト10件パス。
 **対象ファイル**: `src/services/pty-session-manager.ts`
 **関連要件**: REQ-003
 
@@ -70,7 +71,8 @@ skipPermissionsが有効な場合、claudeCodeOptionsからpermissionModeとallo
 
 ### TASK-002: ClaudeOptionsFormにdisabled制御を追加
 
-**ステータス**: TODO
+**ステータス**: DONE
+**完了サマリー**: ClaudeOptionsFormにdisabledBySkipPermissions propを実装。disabled時に説明メッセージと警告メッセージを表示。UIテスト11件追加・パス。
 **対象ファイル**: `src/components/claude-options/ClaudeOptionsForm.tsx`
 **関連要件**: REQ-001, REQ-002
 
@@ -105,16 +107,17 @@ ClaudeOptionsFormコンポーネントに `disabledBySkipPermissions` propsを�
 8. disabledフィールドのスタイリング: `opacity-50 cursor-not-allowed` クラスを条件付きで追加
 
 #### 受入基準
-- [ ] `disabledBySkipPermissions` propが未指定またはfalseの場合、既存動作と同じ
-- [ ] trueの場合、permissionModeとallowedToolsがdisabledになる
-- [ ] trueの場合、disabledフィールドに説明メッセージが表示される
-- [ ] trueの場合、additionalFlagsに警告メッセージが表示される
-- [ ] additionalFlags自体はdisabledにならない
-- [ ] disabled中もフィールドの値は保持される
+- [x] `disabledBySkipPermissions` propが未指定またはfalseの場合、既存動作と同じ
+- [x] trueの場合、permissionModeとallowedToolsがdisabledになる
+- [x] trueの場合、disabledフィールドに説明メッセージが表示される
+- [x] trueの場合、additionalFlagsに警告メッセージが表示される
+- [x] additionalFlags自体はdisabledにならない
+- [x] disabled中もフィールドの値は保持される
 
 ### TASK-003: CreateSessionModalでeffectiveSkipPermissionsを計算してprops伝播
 
-**ステータス**: TODO
+**ステータス**: DONE
+**完了サマリー**: CreateSessionModalでeffectiveSkipPermissionsをuseMemoで計算し、ClaudeOptionsFormにprops伝播。
 **対象ファイル**: `src/components/sessions/CreateSessionModal.tsx`
 **関連要件**: REQ-001
 
@@ -138,12 +141,12 @@ skipPermissionsの実効的な有効/無効状態を計算し、ClaudeOptionsFor
 3. 既存の `isDockerEnvironment` と `envSkipPermissionsDefault` を活用（新規state不要）
 
 #### 受入基準
-- [ ] Docker環境 + スキップ「有効」→ ClaudeOptionsFormのpermissionMode/allowedToolsがdisabled
-- [ ] Docker環境 + スキップ「環境デフォルト(有効)」→ disabled
-- [ ] Docker環境 + スキップ「環境デフォルト(無効)」→ enabled
-- [ ] Docker環境 + スキップ「無効」→ enabled
-- [ ] HOST環境 → 常にenabled
-- [ ] スキップの切り替え時にpermissionMode/allowedToolsの既存値が保持される
+- [x] Docker環境 + スキップ「有効」→ ClaudeOptionsFormのpermissionMode/allowedToolsがdisabled
+- [x] Docker環境 + スキップ「環境デフォルト(有効)」→ disabled
+- [x] Docker環境 + スキップ「環境デフォルト(無効)」→ enabled
+- [x] Docker環境 + スキップ「無効」→ enabled
+- [x] HOST環境 → 常にenabled
+- [x] スキップの切り替え時にpermissionMode/allowedToolsの既存値が保持される
 
 ---
 
@@ -151,7 +154,8 @@ skipPermissionsの実効的な有効/無効状態を計算し、ClaudeOptionsFor
 
 ### TASK-004: ユニットテスト作成
 
-**ステータス**: TODO
+**ステータス**: DONE
+**完了サマリー**: PTYSessionManager(10件)、ClaudeOptionsForm(11件)のテストが全てパス。既存テストへの影響なし。lint通過。
 **対象ファイル**:
 - `src/services/__tests__/pty-session-manager-skip-conflict.test.ts`（TASK-001で作成済み）
 
@@ -159,9 +163,9 @@ skipPermissionsの実効的な有効/無効状態を計算し、ClaudeOptionsFor
 TASK-001のTDDで作成したテストが全て通過することを最終確認する。
 
 #### 受入基準
-- [ ] PTYSessionManagerのテストが全て通過
-- [ ] 既存テストが壊れていない（`npx vitest run` で全テスト通過）
-- [ ] lint通過
+- [x] PTYSessionManagerのテストが全て通過
+- [x] 既存テストが壊れていない（`npx vitest run` で全テスト通過）
+- [x] lint通過
 
 ---
 
