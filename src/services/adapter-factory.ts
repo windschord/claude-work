@@ -3,11 +3,7 @@ import { HostAdapter } from './adapters/host-adapter';
 import { DockerAdapter, DockerAdapterConfig } from './adapters/docker-adapter';
 import type { ExecutionEnvironment } from '@/lib/db';
 import { logger } from '@/lib/logger';
-
-interface DockerEnvironmentConfig {
-  imageName?: string;
-  imageTag?: string;
-}
+import type { DockerEnvironmentConfig } from '@/types/environment';
 
 /**
  * AdapterFactory
