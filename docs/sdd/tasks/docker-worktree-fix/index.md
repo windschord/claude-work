@@ -8,9 +8,9 @@ Docker環境プロジェクトのworktree管理問題を修正するための実
 
 | タスクID | タイトル | ステータス | 担当 | 推定工数 | 詳細 |
 |---------|---------|-----------|------|---------|------|
-| TASK-001 | DockerAdapterのPTY起動実装 | TODO | - | 40分 | [詳細](phase-1/TASK-001.md) @phase-1/TASK-001.md |
-| TASK-002 | エラーハンドリングの改善 | TODO | - | 30分 | [詳細](phase-1/TASK-002.md) @phase-1/TASK-002.md |
-| TASK-003 | 統合テストとデバッグ | TODO | - | 40分 | [詳細](phase-1/TASK-003.md) @phase-1/TASK-003.md |
+| TASK-001 | DockerAdapterのPTY起動実装 | DONE | - | 40分 | [詳細](phase-1/TASK-001.md) @phase-1/TASK-001.md |
+| TASK-002 | エラーハンドリングの改善 | DONE | - | 30分 | [詳細](phase-1/TASK-002.md) @phase-1/TASK-002.md |
+| TASK-003 | 統合テストとデバッグ | DONE | - | 40分 | [詳細](phase-1/TASK-003.md) @phase-1/TASK-003.md |
 
 ## 依存関係
 
@@ -25,9 +25,9 @@ TASK-003 (統合テスト)
 ## 進捗サマリ
 
 - **総タスク数**: 3
-- **完了**: 0
+- **完了**: 3
 - **進行中**: 0
-- **TODO**: 3
+- **TODO**: 0
 
 ## 注意事項
 
