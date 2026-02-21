@@ -93,11 +93,18 @@ describe('docker-config-validator', () => {
     });
 
     it('protocolが未指定の場合はtcpとして扱いエラーにならない', () => {
-      const mappings = [
-        { hostPort: 8080, containerPort: 3000 } as PortMapping,
+      const mappings: PortMapping[] = [
+        { hostPort: 8080, containerPort: 3000 },
       ];
       const result = validatePortMappings(mappings);
       expect(result.valid).toBe(true);
+    });
+
+    it('配列要素がnullの場合エラー', () => {
+      const mappings = [null] as unknown as PortMapping[];
+      const result = validatePortMappings(mappings);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.includes('無効'))).toBe(true);
     });
   });
 
@@ -192,11 +199,18 @@ describe('docker-config-validator', () => {
     });
 
     it('accessModeが未指定の場合はrwとして扱いエラーにならない', () => {
-      const mounts = [
-        { hostPath: '/home/user/data', containerPath: '/data' } as VolumeMount,
+      const mounts: VolumeMount[] = [
+        { hostPath: '/home/user/data', containerPath: '/data' },
       ];
       const result = validateVolumeMounts(mounts);
       expect(result.valid).toBe(true);
+    });
+
+    it('配列要素がnullの場合エラー', () => {
+      const mounts = [null] as unknown as VolumeMount[];
+      const result = validateVolumeMounts(mounts);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.includes('無効'))).toBe(true);
     });
   });
 

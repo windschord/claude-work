@@ -4,16 +4,16 @@
 
 /** ポートマッピング設定 */
 export interface PortMapping {
-  hostPort: number;          // 1-65535
-  containerPort: number;     // 1-65535
-  protocol: 'tcp' | 'udp';  // デフォルト: 'tcp'
+  hostPort: number;                   // 1-65535
+  containerPort: number;              // 1-65535
+  protocol?: 'tcp' | 'udp';          // 省略時のデフォルト: 'tcp'
 }
 
 /** ボリュームマウント設定 */
 export interface VolumeMount {
-  hostPath: string;          // 絶対パス
-  containerPath: string;     // 絶対パス
-  accessMode: 'rw' | 'ro';  // デフォルト: 'rw'
+  hostPath: string;                   // 絶対パス
+  containerPath: string;              // 絶対パス
+  accessMode?: 'rw' | 'ro';          // 省略時のデフォルト: 'rw'
 }
 
 /** Docker環境の拡張config */

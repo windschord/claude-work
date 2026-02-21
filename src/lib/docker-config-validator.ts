@@ -71,6 +71,11 @@ export function validatePortMappings(mappings: PortMapping[]): ValidationResult 
   for (let i = 0; i < mappings.length; i++) {
     const mapping = mappings[i];
 
+    if (!mapping || typeof mapping !== 'object') {
+      errors.push(`マッピング${i + 1}: 無効なマッピングオブジェクトです`);
+      continue;
+    }
+
     errors.push(...validatePort(mapping.hostPort, 'hostPort', i));
     errors.push(...validatePort(mapping.containerPort, 'containerPort', i));
 
@@ -85,6 +90,7 @@ export function validatePortMappings(mappings: PortMapping[]): ValidationResult 
   const seen = new Set<string>();
   for (let i = 0; i < mappings.length; i++) {
     const mapping = mappings[i];
+    if (!mapping || typeof mapping !== 'object') continue;
     const normalizedProtocol = (mapping.protocol ?? 'tcp').toLowerCase();
     const key = `${mapping.hostPort}:${normalizedProtocol}`;
 
@@ -112,6 +118,11 @@ export function validateVolumeMounts(mounts: VolumeMount[]): ValidationResult {
 
   for (let i = 0; i < mounts.length; i++) {
     const mount = mounts[i];
+
+    if (!mount || typeof mount !== 'object') {
+      errors.push(`マウント${i + 1}: 無効なマウントオブジェクトです`);
+      continue;
+    }
 
     // 絶対パスチェック
     if (!mount.hostPath.startsWith('/')) {
@@ -163,7 +174,9 @@ export function validateVolumeMounts(mounts: VolumeMount[]): ValidationResult {
   // containerPath の重複チェック
   const seen = new Set<string>();
   for (let i = 0; i < mounts.length; i++) {
-    const containerPath = mounts[i].containerPath;
+    const mount = mounts[i];
+    if (!mount || typeof mount !== 'object') continue;
+    const containerPath = mount.containerPath;
 
     if (seen.has(containerPath)) {
       errors.push(
