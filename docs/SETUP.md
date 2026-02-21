@@ -108,7 +108,15 @@ https://github.com/user/repo.git
 - **セッション名**: 任意の名前（省略可）
 - **ブランチ**: 作業するブランチを選択
 - **実行環境**: Docker（推奨）、Host、SSH から選択
+- **権限スキップ**: Docker環境選択時に `--dangerously-skip-permissions` オプションの動作を設定（Docker環境のみ）
+  - 環境デフォルト・有効・無効から選択可能
 - **プロンプト**: 初期プロンプトを入力
+
+### 3. Docker環境の詳細設定
+
+Docker環境ではポートマッピングやボリュームマウントを設定できます。Settings → Environments から各環境の設定を行います。
+
+詳細は [Docker環境詳細設定ガイド](DOCKER_ENVIRONMENT.md) を参照してください。
 
 ## トラブルシューティング
 
