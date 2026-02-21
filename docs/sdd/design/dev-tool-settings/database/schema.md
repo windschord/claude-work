@@ -167,12 +167,12 @@ export const sshKeys = sqliteTable('SshKey', {
 
 **暗号化仕様**:
 - **アルゴリズム**: AES-256-GCM
-- **鍵**: 環境変数 `ENCRYPTION_MASTER_KEY` から導出
+- **鍵**: 環境変数 `ENCRYPTION_KEY`（Base64エンコードされた32バイト鍵）から取得
 - **IV**: 各鍵ごとにランダム生成（16バイト）
 - **authTag**: GCM認証タグ（暗号化時に自動生成）
 - **保存形式**:
-  - `private_key_encrypted`: `iv:authTag:encrypted`（コロン区切り、Base64エンコード）
-  - `encryption_iv`: `iv:authTag`（参照用、Base64エンコード）
+  - `private_key_encrypted`: `iv:authTag:encrypted`（コロン区切り、各要素はBase64エンコード）
+  - `encryption_iv`: 暗号化メタデータ（`private_key_encrypted` の形式に依存する参照用カラム）
 
 ---
 

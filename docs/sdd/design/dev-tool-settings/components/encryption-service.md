@@ -8,13 +8,13 @@
 - SSH秘密鍵のAES-256-GCM暗号化
 - 暗号化されたSSH秘密鍵の復号化
 - 暗号化初期化ベクトル（IV）のランダム生成
-- マスターキーの管理（環境変数からの取得）
+- 暗号化鍵の管理（環境変数からの取得）
 
 ## 情報の明確性
 
 ### 明示された情報
 - 暗号化アルゴリズム: AES-256-GCM
-- マスターキー管理: 環境変数 `ENCRYPTION_MASTER_KEY`
+- 暗号化鍵管理: 環境変数 `ENCRYPTION_KEY`（Base64エンコードされた32バイト鍵）
 - IV: 鍵ごとにランダム生成（16バイト）
 
 ### 不明/要確認の情報
@@ -27,62 +27,59 @@
 
 ### 公開API/メソッド
 
-#### `encrypt(plaintext: string): Promise<EncryptedData>`
+#### `encrypt(plainText: string): Promise<string>`
 
-**説明**: SSH秘密鍵を暗号化
+**説明**: SSH秘密鍵を暗号化し、`iv:authTag:encrypted` 形式の文字列を返す
 
 **パラメータ**:
 | 名前 | 型 | 必須 | 説明 |
 |------|-----|------|------|
-| plaintext | string | Yes | SSH秘密鍵（平文） |
+| plainText | string | Yes | SSH秘密鍵（平文） |
 
-**戻り値**: `Promise<EncryptedData>` - 暗号化されたデータとIV
-
-```typescript
-interface EncryptedData {
-  encrypted: string; // Base64エンコードされた暗号文
-  iv: string;        // Base64エンコードされたIV
-  authTag: string;   // Base64エンコードされた認証タグ (GCM)
-}
-```
+**戻り値**: `Promise<string>` - `iv:authTag:encrypted` 形式（各要素はBase64エンコード、コロン区切り）
 
 **例外**:
-- `EncryptionError`: 環境変数 `ENCRYPTION_MASTER_KEY` が未設定
-- `EncryptionError`: 暗号化処理に失敗
+- `EncryptionKeyNotFoundError`: 環境変数 `ENCRYPTION_KEY` が未設定
+- `EncryptionError`: `ENCRYPTION_KEY` が32バイトでない、または暗号化処理に失敗
 
 **使用例**:
 ```typescript
 const service = new EncryptionService();
-const result = await service.encrypt(privateKeyContent);
-// result.encrypted: 暗号化された秘密鍵
-// result.iv: 初期化ベクトル
+const encrypted = await service.encrypt(privateKeyContent);
+// encrypted: "base64iv:base64authTag:base64encrypted"
 ```
 
 ---
 
-#### `decrypt(encrypted: string, iv: string, authTag: string): Promise<string>`
+#### `decrypt(encryptedText: string): Promise<string>`
 
-**説明**: 暗号化されたSSH秘密鍵を復号化
+**説明**: `iv:authTag:encrypted` 形式の文字列を復号化
 
 **パラメータ**:
 | 名前 | 型 | 必須 | 説明 |
 |------|-----|------|------|
-| encrypted | string | Yes | Base64エンコードされた暗号文 |
-| iv | string | Yes | Base64エンコードされたIV |
-| authTag | string | Yes | Base64エンコードされた認証タグ (GCM) |
+| encryptedText | string | Yes | `iv:authTag:encrypted` 形式の暗号化文字列 |
 
 **戻り値**: `Promise<string>` - 復号化されたSSH秘密鍵（平文）
 
 **例外**:
-- `DecryptionError`: 環境変数 `ENCRYPTION_MASTER_KEY` が未設定
-- `DecryptionError`: 復号化処理に失敗（IVが不正、暗号文が破損など）
+- `EncryptionKeyNotFoundError`: 環境変数 `ENCRYPTION_KEY` が未設定
+- `DecryptionError`: 形式が不正（コロン区切りで3要素でない）、または復号化失敗
 
 **使用例**:
 ```typescript
 const service = new EncryptionService();
-const plaintext = await service.decrypt(encryptedKey, iv, authTag);
+const plaintext = await service.decrypt(encryptedText);
 // plaintext: 元のSSH秘密鍵
 ```
+
+---
+
+#### `isKeyConfigured(): boolean`
+
+**説明**: `ENCRYPTION_KEY` が設定されているかを確認
+
+**戻り値**: `boolean` - 設定されている場合は `true`
 
 ---
 
@@ -90,7 +87,7 @@ const plaintext = await service.decrypt(encryptedKey, iv, authTag);
 
 ### 依存するコンポーネント
 - **Node.js crypto**: 標準ライブラリによる暗号化・復号化
-- **環境変数**: `process.env.ENCRYPTION_MASTER_KEY`
+- **環境変数**: `process.env.ENCRYPTION_KEY`
 
 ### 依存されるコンポーネント
 - [SshKeyService](ssh-key-service.md) @ssh-key-service.md: SSH鍵登録時に暗号化を使用
@@ -104,18 +101,19 @@ sequenceDiagram
     participant Crypto as Node.js crypto
     participant Env as Environment Variables
 
-    Client->>Enc: encrypt(plaintext)
-    Enc->>Env: ENCRYPTION_MASTER_KEY
-    Env-->>Enc: masterKey
+    Client->>Enc: encrypt(plainText)
+    Enc->>Env: ENCRYPTION_KEY (base64)
+    Env-->>Enc: keyBase64
+    Enc->>Enc: Buffer.from(keyBase64, 'base64') → 32バイト鍵
     Enc->>Crypto: randomBytes(16)
     Crypto-->>Enc: IV
     Enc->>Crypto: createCipheriv('aes-256-gcm', key, IV)
     Crypto-->>Enc: cipher
-    Enc->>Crypto: cipher.update(plaintext) + cipher.final()
+    Enc->>Crypto: cipher.update(plainText) + cipher.final()
     Crypto-->>Enc: encrypted
     Enc->>Crypto: cipher.getAuthTag()
     Crypto-->>Enc: authTag
-    Enc-->>Client: { encrypted, iv, authTag }
+    Enc-->>Client: "iv:authTag:encrypted" (Base64コロン区切り)
 ```
 
 ## 内部設計
@@ -124,92 +122,74 @@ sequenceDiagram
 
 ```typescript
 export class EncryptionService {
-  private readonly ALGORITHM = 'aes-256-gcm';
-  private readonly KEY_LENGTH = 32; // 256 bits
-
-  /**
-   * 環境変数からマスターキーを取得
-   * @throws {EncryptionError} マスターキーが未設定の場合
-   */
-  private getMasterKey(): Buffer {
-    const masterKey = process.env.ENCRYPTION_MASTER_KEY;
-    if (!masterKey) {
-      throw new EncryptionError('ENCRYPTION_MASTER_KEY is not set');
+  private getKey(): Buffer {
+    const keyBase64 = process.env.ENCRYPTION_KEY;
+    if (!keyBase64) {
+      throw new EncryptionKeyNotFoundError();
     }
-    // SHA-256ハッシュで32バイトの鍵を導出
-    return crypto.createHash('sha256').update(masterKey).digest();
+    const key = Buffer.from(keyBase64, 'base64');
+    if (key.length !== 32) {
+      throw new EncryptionError(`Invalid ENCRYPTION_KEY length: expected 32 bytes, got ${key.length} bytes.`);
+    }
+    return key;
   }
 
-  /**
-   * SSH秘密鍵を暗号化
-   */
-  async encrypt(plaintext: string): Promise<EncryptedData> {
-    const key = this.getMasterKey();
-    const iv = crypto.randomBytes(16); // 128 bits IV
+  isKeyConfigured(): boolean {
+    const key = process.env.ENCRYPTION_KEY;
+    return typeof key === 'string' && key.length > 0;
+  }
 
-    const cipher = crypto.createCipheriv(this.ALGORITHM, key, iv);
-    const encrypted = Buffer.concat([
-      cipher.update(plaintext, 'utf8'),
-      cipher.final()
-    ]);
+  async encrypt(plainText: string): Promise<string> {
+    const key = this.getKey();
+    const iv = randomBytes(16);
+    const cipher = createCipheriv('aes-256-gcm', key, iv);
+
+    let encrypted = cipher.update(plainText, 'utf8', 'base64');
+    encrypted += cipher.final('base64');
     const authTag = cipher.getAuthTag();
 
-    return {
-      encrypted: encrypted.toString('base64'),
-      iv: iv.toString('base64'),
-      authTag: authTag.toString('base64')
-    };
+    return `${iv.toString('base64')}:${authTag.toString('base64')}:${encrypted}`;
   }
 
-  /**
-   * 暗号化されたSSH秘密鍵を復号化
-   */
-  async decrypt(encrypted: string, iv: string, authTag: string): Promise<string> {
-    const key = this.getMasterKey();
-    const ivBuffer = Buffer.from(iv, 'base64');
-    const encryptedBuffer = Buffer.from(encrypted, 'base64');
-    const authTagBuffer = Buffer.from(authTag, 'base64');
+  async decrypt(encryptedText: string): Promise<string> {
+    const key = this.getKey();
+    const parts = encryptedText.split(':');
+    if (parts.length !== 3) {
+      throw new DecryptionError('Invalid encrypted text format: expected iv:authTag:encrypted');
+    }
+    const iv = Buffer.from(parts[0], 'base64');
+    const authTag = Buffer.from(parts[1], 'base64');
+    const encrypted = parts[2];
 
-    const decipher = crypto.createDecipheriv(this.ALGORITHM, key, ivBuffer);
-    decipher.setAuthTag(authTagBuffer);
-    const decrypted = Buffer.concat([
-      decipher.update(encryptedBuffer),
-      decipher.final()
-    ]);
+    const decipher = createDecipheriv('aes-256-gcm', key, iv);
+    decipher.setAuthTag(authTag);
 
-    return decrypted.toString('utf8');
-  }
-}
-
-export class EncryptionError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'EncryptionError';
-  }
-}
-
-export class DecryptionError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'DecryptionError';
+    let decrypted = decipher.update(encrypted, 'base64', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
   }
 }
 ```
 
 ## セキュリティ考慮事項
 
-### マスターキー管理
-- 環境変数 `ENCRYPTION_MASTER_KEY` に保存
+### 暗号化鍵管理
+- 環境変数 `ENCRYPTION_KEY` に保存（Base64エンコードされた32バイト鍵）
+- 鍵の生成: `openssl rand -base64 32`
 - `.env` ファイルに記載（`.gitignore` で除外）
 - 本番環境では専用のシークレット管理サービス使用を推奨
 
-### 鍵導出
-- マスターキーをSHA-256でハッシュ化して32バイトの鍵を導出
-- マスターキーは最低32文字以上を推奨
+### 鍵の形式
+- Base64エンコードされた32バイト（256ビット）の鍵を直接使用
+- ハッシュ化や鍵導出は行わない（`ENCRYPTION_KEY` 自体が32バイトの最終鍵）
 
 ### IV の安全性
 - 各暗号化操作で新しいIVをランダム生成
 - 同じ平文を暗号化しても異なる暗号文が生成される
+
+### 保存形式
+- `iv:authTag:encrypted` 形式でひとつのカラムに保存（コロン区切り、各要素はBase64）
+- GCM認証タグにより改ざん検出が可能
 
 ### エラーハンドリング
 - 復号化エラー時は詳細なエラー情報を外部に漏らさない
@@ -221,8 +201,9 @@ export class DecryptionError extends Error {
 1. 暗号化→復号化のラウンドトリップテスト
 2. 異なる平文で異なる暗号文が生成されることを確認
 3. 同じ平文でもIVが異なれば異なる暗号文が生成されることを確認
-4. 不正なIVでの復号化エラーを確認
-5. マスターキー未設定時のエラーを確認
+4. 不正な形式でのDecryptionErrorを確認
+5. `ENCRYPTION_KEY` 未設定時のEncryptionKeyNotFoundErrorを確認
+6. 鍵長が32バイトでない場合のEncryptionErrorを確認
 
 ### 統合テスト
 - SshKeyService との統合テスト（SSH鍵の登録→取得→復号化）
