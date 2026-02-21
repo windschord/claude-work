@@ -145,7 +145,7 @@ export function ApplyChangesButton({
       )}
 
       <Transition appear show={isDialogOpen} as={Fragment}>
-        <Dialog as="div" className="relative z-10" onClose={handleCloseDialog}>
+        <Dialog as="div" className="relative z-10" onClose={state === 'applying' ? () => {} : handleCloseDialog}>
           <Transition.Child
             as={Fragment}
             enter="ease-out duration-300"

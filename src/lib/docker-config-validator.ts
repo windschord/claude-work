@@ -80,7 +80,12 @@ export function validatePortMappings(mappings: PortMapping[]): ValidationResult 
     errors.push(...validatePort(mapping.containerPort, 'containerPort', i));
 
     // protocol バリデーション
-    const protocol = (mapping.protocol ?? 'tcp').toLowerCase();
+    const rawProtocol = mapping.protocol ?? 'tcp';
+    if (typeof rawProtocol !== 'string') {
+      errors.push(`マッピング${i + 1}: protocolは文字列である必要があります`);
+      continue;
+    }
+    const protocol = rawProtocol.toLowerCase();
     if (protocol !== 'tcp' && protocol !== 'udp') {
       errors.push(`マッピング${i + 1}: protocolは"tcp"または"udp"である必要があります`);
     }
@@ -91,12 +96,14 @@ export function validatePortMappings(mappings: PortMapping[]): ValidationResult 
   for (let i = 0; i < mappings.length; i++) {
     const mapping = mappings[i];
     if (!mapping || typeof mapping !== 'object') continue;
-    const normalizedProtocol = (mapping.protocol ?? 'tcp').toLowerCase();
+    const rawDupProtocol = mapping.protocol ?? 'tcp';
+    if (typeof rawDupProtocol !== 'string') continue;
+    const normalizedProtocol = rawDupProtocol.toLowerCase();
     const key = `${mapping.hostPort}:${normalizedProtocol}`;
 
     if (seen.has(key)) {
       errors.push(
-        `マッピング${i + 1}: hostPort ${mapping.hostPort}/${mapping.protocol} が重複しています`
+        `マッピング${i + 1}: hostPort ${mapping.hostPort}/${normalizedProtocol} が重複しています`
       );
     }
     seen.add(key);
@@ -121,6 +128,11 @@ export function validateVolumeMounts(mounts: VolumeMount[]): ValidationResult {
 
     if (!mount || typeof mount !== 'object') {
       errors.push(`マウント${i + 1}: 無効なマウントオブジェクトです`);
+      continue;
+    }
+
+    if (typeof mount.hostPath !== 'string' || typeof mount.containerPath !== 'string') {
+      errors.push(`マウント${i + 1}: hostPathとcontainerPathは文字列である必要があります`);
       continue;
     }
 
@@ -176,6 +188,7 @@ export function validateVolumeMounts(mounts: VolumeMount[]): ValidationResult {
   for (let i = 0; i < mounts.length; i++) {
     const mount = mounts[i];
     if (!mount || typeof mount !== 'object') continue;
+    if (typeof mount.containerPath !== 'string') continue;
     const containerPath = mount.containerPath;
 
     if (seen.has(containerPath)) {

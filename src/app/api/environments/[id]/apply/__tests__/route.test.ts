@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
 // モック
@@ -69,17 +69,13 @@ import { POST } from '../route';
 
 describe('/api/environments/[id]/apply', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     // デフォルトのチェーンを再設定
     mockAll.mockReturnValue([]);
     mockInnerJoin.mockReturnValue({ all: mockAll });
     mockWhere.mockReturnValue({ innerJoin: mockInnerJoin });
     mockFrom.mockReturnValue({ where: mockWhere });
     mockSelect.mockReturnValue({ from: mockFrom });
-  });
-
-  afterEach(() => {
-    vi.resetAllMocks();
   });
 
   describe('POST /api/environments/:id/apply', () => {

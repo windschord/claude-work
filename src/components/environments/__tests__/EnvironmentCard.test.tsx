@@ -1,13 +1,18 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { EnvironmentCard } from '../EnvironmentCard';
 import { Environment } from '@/hooks/useEnvironments';
 
 // ApplyChangesButtonのfetch呼び出しをモック
+const originalFetch = global.fetch;
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
 describe('EnvironmentCard', () => {
+  afterAll(() => {
+    global.fetch = originalFetch;
+  });
+
   const defaultProps = {
     onEdit: vi.fn(),
     onDelete: vi.fn(),
