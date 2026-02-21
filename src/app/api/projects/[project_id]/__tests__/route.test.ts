@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { GET, PUT, DELETE } from '../route';
+import { GET, PUT, DELETE, PATCH } from '../route';
 import { db, schema } from '@/lib/db';
 import { eq } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { NextRequest } from 'next/server';
 import { mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
@@ -480,6 +481,201 @@ describe('PUT /api/projects/[project_id]', () => {
       expect(data.project.path).toBe(newRepoPath);
       expect(data.project.scripts).toHaveLength(1);
     });
+  });
+});
+
+describe('PATCH /api/projects/[project_id]', () => {
+  let testRepoPath: string;
+  let project: Project;
+  let testEnvId: string;
+
+  beforeEach(async () => {
+    db.delete(schema.runScripts).run();
+    db.delete(schema.projects).run();
+
+    testRepoPath = mkdtempSync(join(tmpdir(), 'project-patch-test-'));
+    execSync('git init', { cwd: testRepoPath });
+    execSync('git config user.name "Test"', { cwd: testRepoPath });
+    execSync('git config user.email "test@example.com"', { cwd: testRepoPath });
+    execSync('echo "test" > README.md && git add . && git commit -m "initial"', {
+      cwd: testRepoPath,
+      shell: true,
+    });
+    execSync('git branch -M main', { cwd: testRepoPath });
+
+    // テスト用の実行環境を作成
+    const testEnv = db.insert(schema.executionEnvironments).values({
+      name: 'Test Env',
+      type: 'DOCKER',
+      config: '{}',
+      is_default: false,
+    }).returning().get();
+    testEnvId = testEnv.id;
+
+    project = db.insert(schema.projects).values({
+      name: 'Test Project',
+      path: testRepoPath,
+      environment_id: testEnvId,
+    }).returning().get();
+  });
+
+  afterEach(async () => {
+    db.delete(schema.runScripts).run();
+    db.delete(schema.projects).run();
+    db.run(sql`PRAGMA foreign_keys = OFF`);
+    db.delete(schema.executionEnvironments).where(eq(schema.executionEnvironments.id, testEnvId)).run();
+    db.run(sql`PRAGMA foreign_keys = ON`);
+    if (testRepoPath) {
+      rmSync(testRepoPath, { recursive: true, force: true });
+    }
+  });
+
+  it('environment_idが送信されても無視される', async () => {
+    const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ environment_id: 'new-env-456' }),
+    });
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ project_id: project.id }),
+    });
+
+    expect(response.status).toBe(200);
+
+    const updated = db
+      .select()
+      .from(schema.projects)
+      .where(eq(schema.projects.id, project.id))
+      .get();
+    expect(updated?.environment_id).toBe(testEnvId);
+  });
+
+  it('claude_code_optionsを正しく更新する', async () => {
+    const options = { model: 'claude-sonnet-4-5-20250929', verbose: 'true' };
+    const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ claude_code_options: options }),
+    });
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ project_id: project.id }),
+    });
+
+    expect(response.status).toBe(200);
+
+    const updated = db
+      .select()
+      .from(schema.projects)
+      .where(eq(schema.projects.id, project.id))
+      .get();
+    expect(JSON.parse(updated?.claude_code_options || '{}')).toEqual(options);
+  });
+
+  it('custom_env_varsを正しく更新する', async () => {
+    const envVars = { MY_VAR: 'value1', OTHER_VAR: 'value2' };
+    const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ custom_env_vars: envVars }),
+    });
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ project_id: project.id }),
+    });
+
+    expect(response.status).toBe(200);
+
+    const updated = db
+      .select()
+      .from(schema.projects)
+      .where(eq(schema.projects.id, project.id))
+      .get();
+    expect(JSON.parse(updated?.custom_env_vars || '{}')).toEqual(envVars);
+  });
+
+  it('claude_code_optionsとcustom_env_varsを同時に更新できる', async () => {
+    const options = { model: 'claude-sonnet-4-5-20250929' };
+    const envVars = { API_KEY: 'test-key' };
+    const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        claude_code_options: options,
+        custom_env_vars: envVars,
+      }),
+    });
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ project_id: project.id }),
+    });
+
+    expect(response.status).toBe(200);
+
+    const updated = db
+      .select()
+      .from(schema.projects)
+      .where(eq(schema.projects.id, project.id))
+      .get();
+    expect(JSON.parse(updated?.claude_code_options || '{}')).toEqual(options);
+    expect(JSON.parse(updated?.custom_env_vars || '{}')).toEqual(envVars);
+  });
+
+  it('claude_code_optionsがオブジェクトでない場合は400エラー', async () => {
+    const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ claude_code_options: 'invalid' }),
+    });
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ project_id: project.id }),
+    });
+
+    expect(response.status).toBe(400);
+  });
+
+  it('custom_env_varsのキーが不正な形式の場合は400エラー', async () => {
+    const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ custom_env_vars: { 'invalid-key': 'value' } }),
+    });
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ project_id: project.id }),
+    });
+
+    expect(response.status).toBe(400);
+  });
+
+  it('存在しないプロジェクトの場合は404エラー', async () => {
+    const request = new NextRequest('http://localhost:3000/api/projects/nonexistent', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ claude_code_options: {} }),
+    });
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ project_id: 'nonexistent' }),
+    });
+
+    expect(response.status).toBe(404);
+  });
+
+  it('空のボディでもエラーにならない', async () => {
+    const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ project_id: project.id }),
+    });
+
+    expect(response.status).toBe(200);
   });
 });
 
