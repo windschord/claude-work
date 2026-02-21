@@ -13,9 +13,34 @@ permissions:
   packages: write
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      DATABASE_URL: file:./data/test.db
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup project
+        uses: ./.github/actions/setup
+
+      - name: Run backend tests
+        run: |
+          pnpm exec vitest run src/app/api src/lib src/services src/bin \
+            --exclude='**/*.integration.test.ts' \
+            --exclude='**/docker-adapter.test.ts' \
+            --exclude='**/docker-adapter-git.test.ts' \
+            --exclude='src/services/__tests__/pty-session-manager.test.ts' \
+            --reporter=verbose
+        timeout-minutes: 10
+
   release:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    needs: test
 
     steps:
       - name: Checkout repository

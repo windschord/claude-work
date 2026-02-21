@@ -21,15 +21,17 @@ WORKDIR /app
 FROM base AS deps-prod
 COPY package.json pnpm-lock.yaml ./
 # --prod フラグでdevDependenciesを除外してインストール
+# --ignore-scripts でprepareスクリプト(npm run build)の実行を抑制（ソースファイル未コピーのため）
 # ネイティブモジュール（better-sqlite3, node-pty）はここでコンパイルされる
-RUN pnpm install --prod --frozen-lockfile
+RUN pnpm install --prod --frozen-lockfile --ignore-scripts
 
 # =============================================================================
 # Stage 3: deps-all - 全依存関係（ビルド用）
 # =============================================================================
 FROM base AS deps-all
 COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+# --ignore-scripts でprepareスクリプト(npm run build)の実行を抑制（ソースファイル未コピーのため）
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
 # =============================================================================
 # Stage 4: builder - アプリケーションビルド
