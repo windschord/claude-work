@@ -14,12 +14,15 @@ import { BasePTYAdapter } from './base-adapter';
 import { DeveloperSettingsService } from '@/services/developer-settings-service';
 import { EncryptionService } from '@/services/encryption-service';
 import * as fsPromises from 'fs/promises';
+import type { PortMapping, VolumeMount } from '@/types/environment';
 
 export interface DockerAdapterConfig {
   environmentId: string;
   imageName: string;
   imageTag: string;
   authDirPath: string; // 環境専用認証ディレクトリ（絶対パス）
+  portMappings?: PortMapping[];    // カスタムポートマッピング
+  volumeMounts?: VolumeMount[];    // カスタムボリュームマウント
 }
 
 export interface GitCloneOptions {
@@ -141,6 +144,23 @@ export class DockerAdapter extends BasePTYAdapter {
     if (sshAuthSock) {
       args.push('-v', `${sshAuthSock}:/ssh-agent`);
       args.push('-e', 'SSH_AUTH_SOCK=/ssh-agent');
+    }
+
+    // ポートマッピング（カスタム）
+    if (this.config.portMappings && this.config.portMappings.length > 0) {
+      for (const pm of this.config.portMappings) {
+        args.push('-p', `${pm.hostPort}:${pm.containerPort}/${pm.protocol || 'tcp'}`);
+      }
+    }
+
+    // カスタムボリュームマウント（システムボリュームの後に追加）
+    if (this.config.volumeMounts && this.config.volumeMounts.length > 0) {
+      for (const vm of this.config.volumeMounts) {
+        const volumeArg = vm.accessMode === 'ro'
+          ? `${vm.hostPath}:${vm.containerPath}:ro`
+          : `${vm.hostPath}:${vm.containerPath}`;
+        args.push('-v', volumeArg);
+      }
     }
 
     // ANTHROPIC_API_KEY転送（キー名のみ指定でホスト環境変数から継承）
