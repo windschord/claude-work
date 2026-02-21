@@ -22,6 +22,16 @@ const execFileAsync = promisify(execFile);
 export class DockerGitService implements GitOperations {
   private configService = getConfigService();
 
+  private static readonly PERMANENT_ERROR_PATTERNS = [
+    'No such file or directory',
+    'Permission denied',
+    'repository not found',
+    'Authentication failed',
+  ];
+
+  private static readonly MAX_RETRY_ATTEMPTS = 3;
+  private static readonly BASE_DELAY_MS = 1000;
+
   /**
    * Dockerボリューム名を生成
    */
@@ -132,6 +142,67 @@ export class DockerGitService implements GitOperations {
   }
 
   /**
+   * エラーが永続的（リトライ不要）かどうかを判定
+   */
+  private isPermanentError(error: Error): boolean {
+    const message = error.message || '';
+    return DockerGitService.PERMANENT_ERROR_PATTERNS.some(
+      (pattern) => message.includes(pattern)
+    );
+  }
+
+  /**
+   * 指定ミリ秒待機する
+   */
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * 指数バックオフ付きリトライ
+   * 一時的エラーでは最大MAX_RETRY_ATTEMPTS回リトライ、永続エラーでは即座に失敗
+   */
+  private async retryWithBackoff<T>(
+    operation: () => Promise<T>,
+    operationType: 'clone' | 'worktree' | 'volume',
+  ): Promise<T> {
+    const maxAttempts = DockerGitService.MAX_RETRY_ATTEMPTS;
+    let lastError: Error | null = null;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        return await operation();
+      } catch (error) {
+        lastError = error as Error;
+
+        if (this.isPermanentError(lastError)) {
+          throw new GitOperationError(
+            `Permanent error during ${operationType}: ${lastError.message}`,
+            'docker',
+            operationType,
+            false,
+            lastError
+          );
+        }
+
+        if (attempt === maxAttempts) {
+          break;
+        }
+
+        const delay = DockerGitService.BASE_DELAY_MS * Math.pow(2, attempt - 1);
+        logger.warn(`[docker] Retrying ${operationType} (attempt ${attempt + 1}/${maxAttempts}) after ${delay}ms`, {
+          error: lastError.message,
+          attempt,
+          delay,
+        });
+        await this.sleep(delay);
+      }
+    }
+
+    throw lastError!;
+  }
+
+  /**
    * リポジトリをcloneする
    */
   async cloneRepository(options: GitCloneOptions): Promise<GitOperationResult> {
@@ -160,9 +231,12 @@ export class DockerGitService implements GitOperations {
 
       logger.info('[docker] Starting git clone', { url, volumeName, timeout });
 
-      // 4. git clone実行
+      // 4. git clone実行（リトライ付き）
       const startTime = Date.now();
-      await execFileAsync('docker', dockerArgs, { timeout });
+      await this.retryWithBackoff(
+        () => execFileAsync('docker', dockerArgs, { timeout }),
+        'clone',
+      );
       const duration = Date.now() - startTime;
 
       logger.info('[docker] git clone completed', { url, volumeName, duration });
@@ -182,6 +256,8 @@ export class DockerGitService implements GitOperations {
           logger.error('[docker] Failed to cleanup volume after clone failure', { cleanupError, volumeName });
         }
       }
+
+      if (error instanceof GitOperationError) throw error;
 
       throw new GitOperationError(
         `Failed to clone repository in Docker environment`,
@@ -220,7 +296,10 @@ export class DockerGitService implements GitOperations {
       logger.info('[docker] Creating worktree', { projectId, sessionName, branchName });
 
       const startTime = Date.now();
-      await execFileAsync('docker', dockerArgs, { timeout: 30000 });
+      await this.retryWithBackoff(
+        () => execFileAsync('docker', dockerArgs, { timeout: 30000 }),
+        'worktree',
+      );
       const duration = Date.now() - startTime;
 
       logger.info('[docker] worktree created', { projectId, sessionName, duration });
@@ -231,6 +310,8 @@ export class DockerGitService implements GitOperations {
       };
     } catch (error) {
       logger.error('[docker] Failed to create worktree', { error, projectId, sessionName });
+
+      if (error instanceof GitOperationError) throw error;
 
       throw new GitOperationError(
         `Failed to create worktree in Docker environment`,
@@ -326,9 +407,12 @@ export class DockerGitService implements GitOperations {
 
       logger.info('[docker] Starting git clone with PAT', { repoUrl, volumeName, timeout });
 
-      // 4. git clone実行
+      // 4. git clone実行（リトライ付き）
       const startTime = Date.now();
-      await execFileAsync('docker', dockerArgs, { timeout });
+      await this.retryWithBackoff(
+        () => execFileAsync('docker', dockerArgs, { timeout }),
+        'clone',
+      );
       const duration = Date.now() - startTime;
 
       logger.info('[docker] git clone with PAT completed', { repoUrl, volumeName, duration });
@@ -348,6 +432,8 @@ export class DockerGitService implements GitOperations {
           logger.error('[docker] Failed to cleanup volume after PAT clone failure', { cleanupError, volumeName });
         }
       }
+
+      if (error instanceof GitOperationError) throw error;
 
       throw new GitOperationError(
         'Failed to clone repository with PAT in Docker environment',
