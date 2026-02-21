@@ -18,14 +18,14 @@
 - 要件: `@docs/sdd/requirements/dev-tool-settings/stories/US-005.md`
 
 ## 受入基準
-- [ ] `/settings/developer` ページが表示される
-- [ ] グローバル設定タブとプロジェクト別設定タブがある
-- [ ] Git設定フォームが動作する（保存・更新）
-- [ ] SSH鍵アップロードフォームが動作する
-- [ ] SSH鍵一覧が表示される
-- [ ] SSH鍵削除が動作する
-- [ ] バリデーションエラーが表示される
-- [ ] レスポンシブデザインが適用されている
+- [x] `/settings/developer` ページが表示される
+- [x] グローバル設定タブとプロジェクト別設定タブがある
+- [x] Git設定フォームが動作する（保存・更新）
+- [x] SSH鍵アップロードフォームが動作する
+- [x] SSH鍵一覧が表示される
+- [x] SSH鍵削除が動作する
+- [x] バリデーションエラーが表示される
+- [x] レスポンシブデザインが適用されている
 
 ## 実装手順
 1. ページとコンポーネント作成
@@ -34,4 +34,6 @@
 4. スタイリング適用
 5. コミット: `feat: Implement DeveloperSettingsPage UI`
 
-**推定工数**: 50分 | **ステータス**: TODO | **依存**: Phase 3
+**推定工数**: 50分 | **ステータス**: DONE | **依存**: Phase 3
+
+**完了サマリー**: /settings/developer ページをNext.js App Routerで実装。グローバル設定タブ・プロジェクト別設定タブ(Headless UI Tab)、DeveloperSettingsFormコンポーネント、SshKeyManagerコンポーネントを実装。

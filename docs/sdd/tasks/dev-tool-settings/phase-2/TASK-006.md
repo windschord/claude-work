@@ -19,12 +19,12 @@ SSH鍵管理のためのAPIエンドポイントを実装してください。
 - 要件: `@docs/sdd/requirements/dev-tool-settings/stories/US-003.md`
 
 ## 受入基準
-- [ ] `GET /api/ssh-keys` が実装されている（公開鍵のみ返却）
-- [ ] `POST /api/ssh-keys` が実装されている（暗号化含む）
-- [ ] `DELETE /api/ssh-keys/:id` が実装されている
-- [ ] バリデーションエラー処理が実装されている
-- [ ] 名前重複時のエラーレスポンスが実装されている
-- [ ] 統合テストがすべてパスする
+- [x] `GET /api/ssh-keys` が実装されている（公開鍵のみ返却）
+- [x] `POST /api/ssh-keys` が実装されている（暗号化含む）
+- [x] `DELETE /api/ssh-keys/:id` が実装されている
+- [x] バリデーションエラー処理が実装されている
+- [x] 名前重複時のエラーレスポンスが実装されている
+- [x] 統合テストがすべてパスする
 
 ## 実装手順（TDD）
 1. テスト作成: API統合テスト
@@ -34,4 +34,6 @@ SSH鍵管理のためのAPIエンドポイントを実装してください。
 5. テスト通過確認
 6. 実装コミット: `feat: Implement ssh-keys API`
 
-**推定工数**: 35分 | **ステータス**: TODO | **依存**: Phase 1
+**推定工数**: 35分 | **ステータス**: DONE | **依存**: Phase 1
+
+**完了サマリー**: SSH keys APIエンドポイント(GET/POST/DELETE)をSshKeyService委譲にリファクタリング。入力バリデーションはAPIルートで基本型チェック、ビジネスロジック検証はSshKeyServiceに委譲。テスト16件パス。

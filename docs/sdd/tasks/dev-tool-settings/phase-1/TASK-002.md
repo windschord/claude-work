@@ -17,13 +17,13 @@ SSH秘密鍵のAES-256-GCM暗号化・復号化を行う **EncryptionService** �
 - 要件: `@docs/sdd/requirements/dev-tool-settings/nfr/security.md`
 
 ## 受入基準
-- [ ] `encrypt(plaintext)` メソッドが実装されている
-- [ ] `decrypt(encrypted, iv)` メソッドが実装されている
-- [ ] 環境変数 `ENCRYPTION_MASTER_KEY` から鍵を取得している
-- [ ] 暗号化→復号化のラウンドトリップテストがパスする
-- [ ] 異なる平文で異なる暗号文が生成されることをテストで確認
-- [ ] 不正なIVでの復号化エラーをテストで確認
-- [ ] `npm test` ですべてのテストがパスする
+- [x] `encrypt(plaintext)` メソッドが実装されている
+- [x] `decrypt(encrypted, iv)` メソッドが実装されている
+- [x] 環境変数 `ENCRYPTION_MASTER_KEY` から鍵を取得している
+- [x] 暗号化→復号化のラウンドトリップテストがパスする
+- [x] 異なる平文で異なる暗号文が生成されることをテストで確認
+- [x] 不正なIVでの復号化エラーをテストで確認
+- [x] `npm test` ですべてのテストがパスする
 
 ## 実装手順（TDD）
 1. テスト作成: `encryption-service.test.ts`
@@ -33,4 +33,6 @@ SSH秘密鍵のAES-256-GCM暗号化・復号化を行う **EncryptionService** �
 5. テスト通過確認
 6. 実装コミット: `feat: Implement EncryptionService`
 
-**推定工数**: 40分 | **ステータス**: TODO | **依存**: TASK-001
+**推定工数**: 40分 | **ステータス**: DONE | **依存**: TASK-001
+
+**完了サマリー**: EncryptionServiceをAES-256-GCMで実装。encrypt/decryptメソッド、環境変数ENCRYPTION_MASTER_KEYからの鍵取得を実装。テスト12件パス。
