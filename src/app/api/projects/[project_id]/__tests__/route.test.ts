@@ -677,6 +677,102 @@ describe('PATCH /api/projects/[project_id]', () => {
 
     expect(response.status).toBe(200);
   });
+
+  it('claude_code_optionsに非文字列値が含まれる場合は400エラー', async () => {
+    const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ claude_code_options: { model: 123 } }),
+    });
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ project_id: project.id }),
+    });
+
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error).toBe('claude_code_options values must be strings');
+  });
+
+  it('custom_env_varsに非文字列値が含まれる場合は400エラー', async () => {
+    const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ custom_env_vars: { MY_VAR: 456 } }),
+    });
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ project_id: project.id }),
+    });
+
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error).toBe('custom_env_vars values must be strings');
+  });
+
+  it('claude_code_optionsがnullの場合は400エラー', async () => {
+    const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ claude_code_options: null }),
+    });
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ project_id: project.id }),
+    });
+
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error).toBe('claude_code_options must be an object');
+  });
+
+  it('claude_code_optionsが配列の場合は400エラー', async () => {
+    const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ claude_code_options: ['a', 'b'] }),
+    });
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ project_id: project.id }),
+    });
+
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error).toBe('claude_code_options must be an object');
+  });
+
+  it('custom_env_varsがnullの場合は400エラー', async () => {
+    const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ custom_env_vars: null }),
+    });
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ project_id: project.id }),
+    });
+
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error).toBe('custom_env_vars must be an object');
+  });
+
+  it('custom_env_varsが配列の場合は400エラー', async () => {
+    const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ custom_env_vars: ['a', 'b'] }),
+    });
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ project_id: project.id }),
+    });
+
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error).toBe('custom_env_vars must be an object');
+  });
 });
 
 describe('DELETE /api/projects/[project_id]', () => {

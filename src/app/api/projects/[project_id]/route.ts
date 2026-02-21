@@ -5,6 +5,35 @@ import { logger } from '@/lib/logger';
 import { existsSync } from 'fs';
 import { spawnSync } from 'child_process';
 
+function validateClaudeCodeOptions(options: unknown): string | null {
+  if (options === undefined) return null;
+  if (typeof options !== 'object' || options === null || Array.isArray(options)) {
+    return 'claude_code_options must be an object';
+  }
+  for (const value of Object.values(options)) {
+    if (typeof value !== 'string') {
+      return 'claude_code_options values must be strings';
+    }
+  }
+  return null;
+}
+
+function validateCustomEnvVars(envVars: unknown): string | null {
+  if (envVars === undefined) return null;
+  if (typeof envVars !== 'object' || envVars === null || Array.isArray(envVars)) {
+    return 'custom_env_vars must be an object';
+  }
+  for (const [key, value] of Object.entries(envVars as Record<string, unknown>)) {
+    if (typeof value !== 'string') {
+      return 'custom_env_vars values must be strings';
+    }
+    if (!/^[A-Z_][A-Z0-9_]*$/.test(key)) {
+      return 'custom_env_vars keys must be uppercase with underscores';
+    }
+  }
+  return null;
+}
+
 /**
  * GET /api/projects/[project_id] - プロジェクト詳細取得
  */
@@ -68,30 +97,15 @@ export async function PATCH(
     }
 
     // claude_code_options のバリデーション
-    if (claude_code_options !== undefined) {
-      if (typeof claude_code_options !== 'object' || claude_code_options === null || Array.isArray(claude_code_options)) {
-        return NextResponse.json({ error: 'claude_code_options must be an object' }, { status: 400 });
-      }
-      for (const value of Object.values(claude_code_options)) {
-        if (typeof value !== 'string') {
-          return NextResponse.json({ error: 'claude_code_options values must be strings' }, { status: 400 });
-        }
-      }
+    const optionsError = validateClaudeCodeOptions(claude_code_options);
+    if (optionsError) {
+      return NextResponse.json({ error: optionsError }, { status: 400 });
     }
 
     // custom_env_vars のバリデーション
-    if (custom_env_vars !== undefined) {
-      if (typeof custom_env_vars !== 'object' || custom_env_vars === null || Array.isArray(custom_env_vars)) {
-        return NextResponse.json({ error: 'custom_env_vars must be an object' }, { status: 400 });
-      }
-      for (const [key, value] of Object.entries(custom_env_vars)) {
-        if (typeof value !== 'string') {
-          return NextResponse.json({ error: 'custom_env_vars values must be strings' }, { status: 400 });
-        }
-        if (!/^[A-Z_][A-Z0-9_]*$/.test(key)) {
-          return NextResponse.json({ error: 'custom_env_vars keys must be uppercase with underscores' }, { status: 400 });
-        }
-      }
+    const envVarsError = validateCustomEnvVars(custom_env_vars);
+    if (envVarsError) {
+      return NextResponse.json({ error: envVarsError }, { status: 400 });
     }
 
     // 更新データの構築
@@ -146,30 +160,15 @@ export async function PUT(
     }
 
     // claude_code_options のバリデーション
-    if (claude_code_options !== undefined) {
-      if (typeof claude_code_options !== 'object' || claude_code_options === null || Array.isArray(claude_code_options)) {
-        return NextResponse.json({ error: 'claude_code_options must be an object' }, { status: 400 });
-      }
-      for (const value of Object.values(claude_code_options)) {
-        if (typeof value !== 'string') {
-          return NextResponse.json({ error: 'claude_code_options values must be strings' }, { status: 400 });
-        }
-      }
+    const optionsError = validateClaudeCodeOptions(claude_code_options);
+    if (optionsError) {
+      return NextResponse.json({ error: optionsError }, { status: 400 });
     }
 
     // custom_env_vars のバリデーション
-    if (custom_env_vars !== undefined) {
-      if (typeof custom_env_vars !== 'object' || custom_env_vars === null || Array.isArray(custom_env_vars)) {
-        return NextResponse.json({ error: 'custom_env_vars must be an object' }, { status: 400 });
-      }
-      for (const [key, value] of Object.entries(custom_env_vars)) {
-        if (typeof value !== 'string') {
-          return NextResponse.json({ error: 'custom_env_vars values must be strings' }, { status: 400 });
-        }
-        if (!/^[A-Z_][A-Z0-9_]*$/.test(key)) {
-          return NextResponse.json({ error: 'custom_env_vars keys must be uppercase with underscores' }, { status: 400 });
-        }
-      }
+    const envVarsError = validateCustomEnvVars(custom_env_vars);
+    if (envVarsError) {
+      return NextResponse.json({ error: envVarsError }, { status: 400 });
     }
 
     // path のバリデーション
