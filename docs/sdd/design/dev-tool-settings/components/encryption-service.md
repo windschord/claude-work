@@ -32,6 +32,7 @@
 **説明**: SSH秘密鍵を暗号化し、`iv:authTag:encrypted` 形式の文字列を返す
 
 **パラメータ**:
+
 | 名前 | 型 | 必須 | 説明 |
 |------|-----|------|------|
 | plainText | string | Yes | SSH秘密鍵（平文） |
@@ -56,6 +57,7 @@ const encrypted = await service.encrypt(privateKeyContent);
 **説明**: `iv:authTag:encrypted` 形式の文字列を復号化
 
 **パラメータ**:
+
 | 名前 | 型 | 必須 | 説明 |
 |------|-----|------|------|
 | encryptedText | string | Yes | `iv:authTag:encrypted` 形式の暗号化文字列 |

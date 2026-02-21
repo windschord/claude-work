@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useDeveloperSettingsStore } from '../developer-settings';
 import type {
   DeveloperSettings,
@@ -6,11 +6,11 @@ import type {
   SshKey,
 } from '../developer-settings';
 
-// global fetchのモック
-global.fetch = vi.fn();
+const fetchMock = vi.fn();
 
 describe('useDeveloperSettingsStore (developer-settings)', () => {
   beforeEach(() => {
+    vi.stubGlobal('fetch', fetchMock);
     useDeveloperSettingsStore.setState({
       globalSettings: null,
       projectSettings: {},
@@ -20,6 +20,10 @@ describe('useDeveloperSettingsStore (developer-settings)', () => {
       successMessage: null,
     });
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   // =====================
@@ -36,7 +40,7 @@ describe('useDeveloperSettingsStore (developer-settings)', () => {
     };
 
     it('グローバル設定を取得してストアに保存する', async () => {
-      vi.mocked(global.fetch).mockResolvedValueOnce({
+      vi.mocked(fetchMock).mockResolvedValueOnce({
         ok: true,
         json: async () => mockSettings,
       } as Response);
@@ -47,11 +51,11 @@ describe('useDeveloperSettingsStore (developer-settings)', () => {
       expect(state.globalSettings).toEqual(mockSettings);
       expect(state.loading).toBe(false);
       expect(state.error).toBeNull();
-      expect(global.fetch).toHaveBeenCalledWith('/api/developer-settings/global');
+      expect(fetchMock).toHaveBeenCalledWith('/api/developer-settings/global');
     });
 
     it('404の場合はglobalSettingsをnullに設定しエラーにしない', async () => {
-      vi.mocked(global.fetch).mockResolvedValueOnce({
+      vi.mocked(fetchMock).mockResolvedValueOnce({
         ok: false,
         status: 404,
         json: async () => ({}),
@@ -66,7 +70,7 @@ describe('useDeveloperSettingsStore (developer-settings)', () => {
     });
 
     it('サーバーエラーの場合にエラーメッセージを設定する', async () => {
-      vi.mocked(global.fetch).mockResolvedValueOnce({
+      vi.mocked(fetchMock).mockResolvedValueOnce({
         ok: false,
         status: 500,
         json: async () => ({ error: { message: 'Internal Server Error' } }),
@@ -80,7 +84,7 @@ describe('useDeveloperSettingsStore (developer-settings)', () => {
     });
 
     it('ネットワークエラーの場合にエラーメッセージを設定する', async () => {
-      vi.mocked(global.fetch).mockRejectedValueOnce(new Error('Network error'));
+      vi.mocked(fetchMock).mockRejectedValueOnce(new Error('Network error'));
 
       await useDeveloperSettingsStore.getState().fetchGlobalSettings();
 
@@ -101,7 +105,7 @@ describe('useDeveloperSettingsStore (developer-settings)', () => {
     };
 
     it('グローバル設定を更新してsuccessMessageを設定する', async () => {
-      vi.mocked(global.fetch).mockResolvedValueOnce({
+      vi.mocked(fetchMock).mockResolvedValueOnce({
         ok: true,
         json: async () => updatedSettings,
       } as Response);
@@ -115,7 +119,7 @@ describe('useDeveloperSettingsStore (developer-settings)', () => {
       expect(state.globalSettings).toEqual(updatedSettings);
       expect(state.loading).toBe(false);
       expect(state.successMessage).toBe('設定を保存しました');
-      expect(global.fetch).toHaveBeenCalledWith('/api/developer-settings/global', {
+      expect(fetchMock).toHaveBeenCalledWith('/api/developer-settings/global', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ git_username: 'new.user', git_email: 'new@example.com' }),
@@ -123,7 +127,7 @@ describe('useDeveloperSettingsStore (developer-settings)', () => {
     });
 
     it('エラー時にエラーメッセージを設定してthrowする', async () => {
-      vi.mocked(global.fetch).mockResolvedValueOnce({
+      vi.mocked(fetchMock).mockResolvedValueOnce({
         ok: false,
         status: 400,
         json: async () => ({ error: { message: 'Validation error' } }),
@@ -164,7 +168,7 @@ describe('useDeveloperSettingsStore (developer-settings)', () => {
         },
       };
 
-      vi.mocked(global.fetch).mockResolvedValueOnce({
+      vi.mocked(fetchMock).mockResolvedValueOnce({
         ok: true,
         json: async () => mockProjectSettings,
       } as Response);
@@ -196,7 +200,7 @@ describe('useDeveloperSettingsStore (developer-settings)', () => {
         },
       };
 
-      vi.mocked(global.fetch).mockResolvedValueOnce({
+      vi.mocked(fetchMock).mockResolvedValueOnce({
         ok: true,
         json: async () => mockWithGlobalSource,
       } as Response);
@@ -230,7 +234,7 @@ describe('useDeveloperSettingsStore (developer-settings)', () => {
         },
       };
 
-      vi.mocked(global.fetch).mockResolvedValueOnce({
+      vi.mocked(fetchMock).mockResolvedValueOnce({
         ok: true,
         json: async () => mockMixedSource,
       } as Response);
@@ -244,7 +248,7 @@ describe('useDeveloperSettingsStore (developer-settings)', () => {
     });
 
     it('サーバーエラーの場合にエラーメッセージを設定する', async () => {
-      vi.mocked(global.fetch).mockResolvedValueOnce({
+      vi.mocked(fetchMock).mockResolvedValueOnce({
         ok: false,
         status: 500,
         json: async () => ({ error: { message: 'Server error' } }),
@@ -272,7 +276,7 @@ describe('useDeveloperSettingsStore (developer-settings)', () => {
         updated_at: '2024-01-20T10:30:00Z',
       };
 
-      vi.mocked(global.fetch).mockResolvedValueOnce({
+      vi.mocked(fetchMock).mockResolvedValueOnce({
         ok: true,
         json: async () => updated,
       } as Response);
@@ -305,7 +309,7 @@ describe('useDeveloperSettingsStore (developer-settings)', () => {
         },
       });
 
-      vi.mocked(global.fetch).mockResolvedValueOnce({
+      vi.mocked(fetchMock).mockResolvedValueOnce({
         ok: true,
         status: 204,
       } as Response);
@@ -332,7 +336,7 @@ describe('useDeveloperSettingsStore (developer-settings)', () => {
         },
       });
 
-      vi.mocked(global.fetch).mockResolvedValueOnce({
+      vi.mocked(fetchMock).mockResolvedValueOnce({
         ok: true,
         status: 200,
         json: async () => ({}),
@@ -366,7 +370,7 @@ describe('useDeveloperSettingsStore (developer-settings)', () => {
     ];
 
     it('SSH鍵一覧を取得してストアに保存する', async () => {
-      vi.mocked(global.fetch).mockResolvedValueOnce({
+      vi.mocked(fetchMock).mockResolvedValueOnce({
         ok: true,
         json: async () => ({ keys: mockKeys }),
       } as Response);
@@ -377,11 +381,11 @@ describe('useDeveloperSettingsStore (developer-settings)', () => {
       expect(state.sshKeys).toEqual(mockKeys);
       expect(state.loading).toBe(false);
       expect(state.error).toBeNull();
-      expect(global.fetch).toHaveBeenCalledWith('/api/ssh-keys');
+      expect(fetchMock).toHaveBeenCalledWith('/api/ssh-keys');
     });
 
     it('キーがない場合は空配列になる', async () => {
-      vi.mocked(global.fetch).mockResolvedValueOnce({
+      vi.mocked(fetchMock).mockResolvedValueOnce({
         ok: true,
         json: async () => ({ keys: undefined }),
       } as Response);
@@ -400,7 +404,7 @@ describe('useDeveloperSettingsStore (developer-settings)', () => {
         created_at: '2024-01-03T00:00:00Z',
       };
 
-      vi.mocked(global.fetch).mockResolvedValueOnce({
+      vi.mocked(fetchMock).mockResolvedValueOnce({
         ok: true,
         json: async () => ({ keys: [keyWithFingerprint] }),
       } as Response);
@@ -422,7 +426,7 @@ describe('useDeveloperSettingsStore (developer-settings)', () => {
     };
 
     it('SSH鍵を登録してストアに追加しsuccessMessageを設定する', async () => {
-      vi.mocked(global.fetch).mockResolvedValueOnce({
+      vi.mocked(fetchMock).mockResolvedValueOnce({
         ok: true,
         status: 201,
         json: async () => ({ key: newKey }),
@@ -439,7 +443,7 @@ describe('useDeveloperSettingsStore (developer-settings)', () => {
     });
 
     it('エラー時にエラーメッセージを設定してthrowする', async () => {
-      vi.mocked(global.fetch).mockResolvedValueOnce({
+      vi.mocked(fetchMock).mockResolvedValueOnce({
         ok: false,
         status: 409,
         json: async () => ({ error: { message: 'Duplicate name' } }),
@@ -465,7 +469,7 @@ describe('useDeveloperSettingsStore (developer-settings)', () => {
         ],
       });
 
-      vi.mocked(global.fetch).mockResolvedValueOnce({
+      vi.mocked(fetchMock).mockResolvedValueOnce({
         ok: true,
         status: 204,
       } as Response);
@@ -505,7 +509,7 @@ describe('useDeveloperSettingsStore (developer-settings)', () => {
         successMessage: '前回の成功メッセージ',
       });
 
-      vi.mocked(global.fetch).mockResolvedValueOnce({
+      vi.mocked(fetchMock).mockResolvedValueOnce({
         ok: true,
         json: async () => ({
           id: 'global-1',

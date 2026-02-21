@@ -295,7 +295,7 @@ const keys = db
 プロジェクト一覧と設定を同時に取得する場合:
 ```typescript
 // Drizzleでは明示的にJOINを使用
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 
 const projectsWithSettings = db
   .select({
