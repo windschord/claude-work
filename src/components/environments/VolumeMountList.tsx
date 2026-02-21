@@ -78,6 +78,20 @@ export function VolumeMountList({ value, onChange, onDangerousPath }: VolumeMoun
     keys: value.map((_, i) => i),
   }));
 
+  // 親コンポーネントによるvalue外部変更時にkeysを同期する
+  if (keyState.keys.length !== value.length) {
+    if (value.length > keyState.keys.length) {
+      const newKeys = [...keyState.keys];
+      let counter = keyState.counter;
+      while (newKeys.length < value.length) {
+        newKeys.push(counter++);
+      }
+      setKeyState({ counter, keys: newKeys });
+    } else {
+      setKeyState(prev => ({ ...prev, keys: prev.keys.slice(0, value.length) }));
+    }
+  }
+
   // 危険パスのコールバックを呼び出す（既に通知済みのパスは再通知しない）
   const notifiedPathsRef = useRef<Set<string>>(new Set());
 

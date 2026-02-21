@@ -149,7 +149,8 @@ export class DockerAdapter extends BasePTYAdapter {
     // ポートマッピング（カスタム）
     if (this.config.portMappings && this.config.portMappings.length > 0) {
       for (const pm of this.config.portMappings) {
-        args.push('-p', `${pm.hostPort}:${pm.containerPort}/${pm.protocol || 'tcp'}`);
+        const protocol = String(pm.protocol ?? 'tcp').toLowerCase();
+        args.push('-p', `${pm.hostPort}:${pm.containerPort}/${protocol}`);
       }
     }
 
