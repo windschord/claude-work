@@ -82,6 +82,23 @@ describe('docker-config-validator', () => {
       expect(result.valid).toBe(false);
       expect(result.errors.length).toBeGreaterThan(0);
     });
+
+    it('protocolがtcp/udp以外ならエラー', () => {
+      const mappings = [
+        { hostPort: 8080, containerPort: 3000, protocol: 'http' as PortMapping['protocol'] },
+      ];
+      const result = validatePortMappings(mappings);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.includes('protocol'))).toBe(true);
+    });
+
+    it('protocolが未指定の場合はtcpとして扱いエラーにならない', () => {
+      const mappings = [
+        { hostPort: 8080, containerPort: 3000 } as PortMapping,
+      ];
+      const result = validatePortMappings(mappings);
+      expect(result.valid).toBe(true);
+    });
   });
 
   describe('validateVolumeMounts', () => {
@@ -145,6 +162,23 @@ describe('docker-config-validator', () => {
       const result = validateVolumeMounts(mounts);
       expect(result.valid).toBe(false);
       expect(result.errors.some((e) => e.includes('システム'))).toBe(true);
+    });
+
+    it('accessModeがrw/ro以外ならエラー', () => {
+      const mounts = [
+        { hostPath: '/home/user/data', containerPath: '/data', accessMode: 'rx' as VolumeMount['accessMode'] },
+      ];
+      const result = validateVolumeMounts(mounts);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.includes('accessMode'))).toBe(true);
+    });
+
+    it('accessModeが未指定の場合はrwとして扱いエラーにならない', () => {
+      const mounts = [
+        { hostPath: '/home/user/data', containerPath: '/data' } as VolumeMount,
+      ];
+      const result = validateVolumeMounts(mounts);
+      expect(result.valid).toBe(true);
     });
   });
 

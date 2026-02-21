@@ -251,7 +251,13 @@ export async function POST(request: NextRequest) {
     }
 
     // portMappings のバリデーション
-    if (config?.portMappings && Array.isArray(config.portMappings)) {
+    if (config?.portMappings !== undefined) {
+      if (!Array.isArray(config.portMappings)) {
+        return NextResponse.json(
+          { error: 'config.portMappings must be an array' },
+          { status: 400 }
+        );
+      }
       const portResult = validatePortMappings(config.portMappings);
       if (!portResult.valid) {
         return NextResponse.json(
@@ -262,7 +268,13 @@ export async function POST(request: NextRequest) {
     }
 
     // volumeMounts のバリデーション
-    if (config?.volumeMounts && Array.isArray(config.volumeMounts)) {
+    if (config?.volumeMounts !== undefined) {
+      if (!Array.isArray(config.volumeMounts)) {
+        return NextResponse.json(
+          { error: 'config.volumeMounts must be an array' },
+          { status: 400 }
+        );
+      }
       const volumeResult = validateVolumeMounts(config.volumeMounts);
       if (!volumeResult.valid) {
         return NextResponse.json(
@@ -271,7 +283,6 @@ export async function POST(request: NextRequest) {
         );
       }
     }
-
     // 環境を作成
     const environment = await environmentService.create({
       name: name.trim(),

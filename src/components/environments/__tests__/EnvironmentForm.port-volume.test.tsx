@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { EnvironmentForm } from '../EnvironmentForm';
 import { Environment, CreateEnvironmentInput, UpdateEnvironmentInput } from '@/hooks/useEnvironments';
 
@@ -281,12 +281,11 @@ describe('EnvironmentForm - PortMapping/VolumeMount integration', () => {
       });
 
       // キャンセルボタンをクリック
-      // 注意: EnvironmentFormの「キャンセル」ボタンとDangerousPathWarningの「キャンセル」ボタンの
-      // 両方が表示されている可能性がある。DangerousPathWarningはz-20で表示されるため、
-      // 「同意して設定」ボタンの隣にある「キャンセル」を探す
-      const cancelButtons = screen.getAllByRole('button', { name: 'キャンセル' });
-      // DangerousPathWarningのキャンセルは最後のキャンセルボタン（z-indexが高い方のダイアログ内）
-      fireEvent.click(cancelButtons[cancelButtons.length - 1]);
+      // DangerousPathWarningダイアログ内のキャンセルボタンを取得
+      const dialogs = screen.getAllByRole('dialog');
+      const dangerousPathDialog = dialogs[dialogs.length - 1];
+      const cancelButton = within(dangerousPathDialog).getByRole('button', { name: 'キャンセル' });
+      fireEvent.click(cancelButton);
 
       // パスがクリアされる（マウントが削除されるか、パスが空になる）
       await waitFor(() => {

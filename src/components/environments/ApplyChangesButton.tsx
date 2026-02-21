@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Fragment, useCallback } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { RefreshCw, Loader2 } from 'lucide-react';
 
@@ -41,24 +41,23 @@ export function ApplyChangesButton({
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [applyResult, setApplyResult] = useState<ApplyResult | null>(null);
 
-  const fetchSessions = useCallback(async () => {
-    try {
-      const response = await fetch(
-        `/api/environments/${environmentId}/sessions`,
-        { method: 'GET' }
-      );
-      if (response.ok) {
-        const data = await response.json();
-        setSessions(data.sessions);
-      }
-    } finally {
-      setState('ready');
-    }
-  }, [environmentId]);
-
   useEffect(() => {
+    const fetchSessions = async () => {
+      try {
+        const response = await fetch(
+          `/api/environments/${environmentId}/sessions`,
+          { method: 'GET' }
+        );
+        if (response.ok) {
+          const data = await response.json();
+          setSessions(data.sessions);
+        }
+      } finally {
+        setState('ready');
+      }
+    };
     fetchSessions();
-  }, [fetchSessions]);
+  }, [environmentId]);
 
   const handleOpenDialog = () => {
     setState('dialog');
@@ -80,14 +79,25 @@ export function ApplyChangesButton({
         const result: ApplyResult = await response.json();
         setApplyResult(result);
         setState('result');
-        if (result.failed === 0) {
+        if (result.failed === 0 && result.applied > 0) {
           onApplied?.();
         }
       } else {
-        setState('dialog');
+        await response.json().catch(() => ({ error: response.statusText }));
+        setApplyResult({
+          applied: 0,
+          failed: sessions.length,
+          sessions: sessions.map(s => ({ id: s.id, name: s.name, status: 'failed' as const })),
+        });
+        setState('result');
       }
-    } catch {
-      setState('dialog');
+    } catch (error) {
+      setApplyResult({
+        applied: 0,
+        failed: sessions.length,
+        sessions: sessions.map(s => ({ id: s.id, name: s.name, status: 'failed' as const })),
+      });
+      setState('result');
     }
   };
 
@@ -203,7 +213,7 @@ export function ApplyChangesButton({
                       {state === 'applying' && (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       )}
-                      適用する
+                      {state === 'result' ? '閉じる' : '適用する'}
                     </button>
                   </div>
                 </Dialog.Panel>

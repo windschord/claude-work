@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Plus, X } from 'lucide-react';
 import type { VolumeMount } from '@/types/environment';
 import { isDangerousPath, isSystemContainerPath } from '@/lib/docker-config-validator';
@@ -57,12 +57,15 @@ function validateMount(mount: VolumeMount): { errors: MountError; warnings: Moun
  * リアルタイムでバリデーションを行い、エラーや警告を表示します。
  */
 export function VolumeMountList({ value, onChange, onDangerousPath }: VolumeMountListProps) {
-  // 危険パスのコールバックを呼び出す
+  // 危険パスのコールバックを呼び出す（既に通知済みのパスは再通知しない）
+  const notifiedPathsRef = useRef<Set<string>>(new Set());
+
   useEffect(() => {
     if (!onDangerousPath) return;
 
     for (const mount of value) {
-      if (mount.hostPath && isDangerousPath(mount.hostPath)) {
+      if (mount.hostPath && isDangerousPath(mount.hostPath) && !notifiedPathsRef.current.has(mount.hostPath)) {
+        notifiedPathsRef.current.add(mount.hostPath);
         onDangerousPath(mount.hostPath);
       }
     }

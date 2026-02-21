@@ -224,21 +224,11 @@ describe('ApplyChangesButton', () => {
       fireEvent.click(screen.getByRole('button', { name: /今すぐ適用/ }));
 
       // 2. 適用APIを遅延させる
-      mockFetch.mockImplementationOnce(
-        () =>
-          new Promise((resolve) => {
-            setTimeout(() => {
-              resolve({
-                ok: true,
-                json: async () => ({
-                  applied: 1,
-                  failed: 0,
-                  sessions: [{ id: 'session-1', name: 'Session 1', status: 'applied' }],
-                }),
-              });
-            }, 100);
-          })
-      );
+      let resolveApply: (value: unknown) => void;
+      const applyPromise = new Promise((resolve) => {
+        resolveApply = resolve;
+      });
+      mockFetch.mockImplementationOnce(() => applyPromise);
 
       // 確認ボタンをクリック
       const confirmButton = screen.getByRole('button', { name: /適用する/ });
@@ -246,6 +236,16 @@ describe('ApplyChangesButton', () => {
 
       // ローディング中はボタンが無効化される
       expect(confirmButton).toBeDisabled();
+
+      // Promiseをresolve
+      resolveApply!({
+        ok: true,
+        json: async () => ({
+          applied: 1,
+          failed: 0,
+          sessions: [{ id: 'session-1', name: 'Session 1', status: 'applied' }],
+        }),
+      });
 
       // 完了後に有効化される
       await waitFor(() => {

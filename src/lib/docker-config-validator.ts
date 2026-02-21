@@ -71,13 +71,20 @@ export function validatePortMappings(mappings: PortMapping[]): ValidationResult 
 
     errors.push(...validatePort(mapping.hostPort, 'hostPort', i));
     errors.push(...validatePort(mapping.containerPort, 'containerPort', i));
+
+    // protocol バリデーション
+    const protocol = (mapping.protocol ?? 'tcp').toLowerCase();
+    if (protocol !== 'tcp' && protocol !== 'udp') {
+      errors.push(`マッピング${i + 1}: protocolは"tcp"または"udp"である必要があります`);
+    }
   }
 
   // hostPort + protocol の重複チェック
   const seen = new Set<string>();
   for (let i = 0; i < mappings.length; i++) {
     const mapping = mappings[i];
-    const key = `${mapping.hostPort}:${mapping.protocol}`;
+    const normalizedProtocol = (mapping.protocol ?? 'tcp').toLowerCase();
+    const key = `${mapping.hostPort}:${normalizedProtocol}`;
 
     if (seen.has(key)) {
       errors.push(
@@ -134,6 +141,11 @@ export function validateVolumeMounts(mounts: VolumeMount[]): ValidationResult {
       errors.push(
         `マウント${i + 1}: containerPath「${mount.containerPath}」はシステムが使用するパスのためマウントできません`
       );
+    }
+    // accessMode バリデーション
+    const accessMode = mount.accessMode ?? 'rw';
+    if (accessMode !== 'rw' && accessMode !== 'ro') {
+      errors.push(`マウント${i + 1}: accessModeは"rw"または"ro"である必要があります`);
     }
   }
 
