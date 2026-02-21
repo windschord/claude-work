@@ -42,7 +42,7 @@ describe('/api/ssh-keys/[id]', () => {
 
       const response = await DELETE(request, { params: Promise.resolve({ id: 'key-1' }) });
 
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(204);
       expect(mockDeleteKey).toHaveBeenCalledWith('key-1');
     });
 

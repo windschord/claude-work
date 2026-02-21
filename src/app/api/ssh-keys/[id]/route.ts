@@ -28,10 +28,7 @@ export async function DELETE(
 
     await service.deleteKey(id);
 
-    return NextResponse.json(
-      { message: 'SSH鍵を削除しました' },
-      { status: 200 }
-    );
+    return new NextResponse(null, { status: 204 });
   } catch (error) {
     if (error instanceof SshKeyNotFoundError) {
       return NextResponse.json(
