@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Plus, X } from 'lucide-react';
 import type { VolumeMount } from '@/types/environment';
 import { isDangerousPath, isSystemContainerPath } from '@/lib/docker-config-validator';
@@ -73,6 +73,11 @@ function validateMount(mount: VolumeMount): { errors: MountError; warnings: Moun
  * リアルタイムでバリデーションを行い、エラーや警告を表示します。
  */
 export function VolumeMountList({ value, onChange, onDangerousPath }: VolumeMountListProps) {
+  const [keyState, setKeyState] = useState(() => ({
+    counter: value.length,
+    keys: value.map((_, i) => i),
+  }));
+
   // 危険パスのコールバックを呼び出す（既に通知済みのパスは再通知しない）
   const notifiedPathsRef = useRef<Set<string>>(new Set());
 
@@ -88,6 +93,10 @@ export function VolumeMountList({ value, onChange, onDangerousPath }: VolumeMoun
   }, [value, onDangerousPath]);
 
   const handleAdd = () => {
+    setKeyState(prev => ({
+      counter: prev.counter + 1,
+      keys: [...prev.keys, prev.counter],
+    }));
     onChange([...value, { hostPath: '', containerPath: '', accessMode: 'rw' }]);
   };
 
@@ -96,6 +105,10 @@ export function VolumeMountList({ value, onChange, onDangerousPath }: VolumeMoun
     if (removedPath) {
       notifiedPathsRef.current.delete(removedPath);
     }
+    setKeyState(prev => ({
+      ...prev,
+      keys: prev.keys.filter((_, i) => i !== index),
+    }));
     const newMounts = value.filter((_, i) => i !== index);
     onChange(newMounts);
   };
@@ -124,7 +137,7 @@ export function VolumeMountList({ value, onChange, onDangerousPath }: VolumeMoun
             const { errors, warnings } = validateMount(mount);
 
             return (
-              <div key={index} className="space-y-1">
+              <div key={keyState.keys[index]} className="space-y-1">
                 <div className="flex items-center gap-2">
                   <input
                     type="text"

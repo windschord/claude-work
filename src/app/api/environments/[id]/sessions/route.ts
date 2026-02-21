@@ -41,14 +41,17 @@ export async function GET(
       container_id: schema.sessions.container_id,
     })
     .from(schema.sessions)
-    .where(
-      isNotNull(schema.sessions.container_id)
-    )
     .innerJoin(
       schema.projects,
       and(
         eq(schema.sessions.project_id, schema.projects.id),
         eq(schema.projects.environment_id, id)
+      )
+    )
+    .where(
+      and(
+        isNotNull(schema.sessions.container_id),
+        eq(schema.sessions.session_state, 'ACTIVE')
       )
     )
     .all();

@@ -32,14 +32,14 @@ graph TD
 export interface PortMapping {
   hostPort: number;          // 1-65535
   containerPort: number;     // 1-65535
-  protocol: 'tcp' | 'udp';  // デフォルト: 'tcp'
+  protocol?: 'tcp' | 'udp';  // 省略時のデフォルト: 'tcp'
 }
 
 /** ボリュームマウント設定 */
 export interface VolumeMount {
   hostPath: string;          // 絶対パス
   containerPath: string;     // 絶対パス
-  accessMode: 'rw' | 'ro';  // デフォルト: 'rw'
+  accessMode?: 'rw' | 'ro';  // 省略時のデフォルト: 'rw'
 }
 
 /** Docker環境の拡張config */
@@ -64,8 +64,9 @@ export interface DockerEnvironmentConfig {
 ```typescript
 /** 危険パスのリスト */
 export const DANGEROUS_HOST_PATHS = [
+  '/',
   '/etc', '/proc', '/sys', '/dev', '/root',
-  '/boot', '/sbin', '/bin', '/usr/sbin',
+  '/boot', '/sbin', '/bin', '/usr/sbin', '/var',
 ];
 
 /** システムが自動マウントするコンテナパス */
@@ -446,7 +447,7 @@ if (config.volumeMounts) setVolumeMounts(config.volumeMounts);
 ### 入力値のサニタイズ（NFR-005）
 
 - ポートマッピング: `hostPort`と`containerPort`はparseInt()で整数変換し、NaN/範囲外を拒否
-- ボリュームマウント: `hostPath`と`containerPath`はpath.resolve()で正規化し、`../`を含む場合は拒否
+- ボリュームマウント: `hostPath`と`containerPath`はパストラバーサルを文字列操作（startsWith, includes）で検出し、`../`を含む場合は拒否。このモジュールはフロントエンドとバックエンドで共有されるため、Node固有のAPIは意図的に使用しない
 - docker runコマンドは既存と同様にspawn()で引数を配列として渡し、shell経由を避ける
 
 ### 危険パスの警告（NFR-002）

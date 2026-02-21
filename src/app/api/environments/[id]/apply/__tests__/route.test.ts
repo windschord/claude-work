@@ -30,11 +30,11 @@ vi.mock('@/services/adapter-factory', () => ({
   },
 }));
 
-// db モック: select().from().where().innerJoin().all() チェーン
+// db モック: select().from().innerJoin().where().all() チェーン
 const mockAll = vi.fn();
-const mockInnerJoin = vi.fn().mockReturnValue({ all: mockAll });
-const mockWhere = vi.fn().mockReturnValue({ innerJoin: mockInnerJoin });
-const mockFrom = vi.fn().mockReturnValue({ where: mockWhere });
+const mockWhere = vi.fn().mockReturnValue({ all: mockAll });
+const mockInnerJoin = vi.fn().mockReturnValue({ where: mockWhere });
+const mockFrom = vi.fn().mockReturnValue({ innerJoin: mockInnerJoin });
 const mockSelect = vi.fn().mockReturnValue({ from: mockFrom });
 
 vi.mock('@/lib/db', () => ({
@@ -49,6 +49,7 @@ vi.mock('@/lib/db', () => ({
       container_id: 'sessions.container_id',
       project_id: 'sessions.project_id',
       worktree_path: 'sessions.worktree_path',
+      session_state: 'sessions.session_state',
     },
     projects: {
       id: 'projects.id',
@@ -72,9 +73,9 @@ describe('/api/environments/[id]/apply', () => {
     vi.resetAllMocks();
     // デフォルトのチェーンを再設定
     mockAll.mockReturnValue([]);
-    mockInnerJoin.mockReturnValue({ all: mockAll });
-    mockWhere.mockReturnValue({ innerJoin: mockInnerJoin });
-    mockFrom.mockReturnValue({ where: mockWhere });
+    mockWhere.mockReturnValue({ all: mockAll });
+    mockInnerJoin.mockReturnValue({ where: mockWhere });
+    mockFrom.mockReturnValue({ innerJoin: mockInnerJoin });
     mockSelect.mockReturnValue({ from: mockFrom });
   });
 
