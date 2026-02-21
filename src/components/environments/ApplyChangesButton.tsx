@@ -91,7 +91,7 @@ export function ApplyChangesButton({
         });
         setState('result');
       }
-    } catch (error) {
+    } catch {
       setApplyResult({
         applied: 0,
         failed: sessions.length,
