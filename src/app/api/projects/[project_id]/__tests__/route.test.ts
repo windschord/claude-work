@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { GET, PUT, DELETE, PATCH } from '../route';
 import { db, schema } from '@/lib/db';
 import { eq } from 'drizzle-orm';
-import { sql } from 'drizzle-orm';
 import { NextRequest } from 'next/server';
 import { mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
@@ -493,15 +492,8 @@ describe('PATCH /api/projects/[project_id]', () => {
     db.delete(schema.runScripts).run();
     db.delete(schema.projects).run();
 
-    testRepoPath = mkdtempSync(join(tmpdir(), 'project-patch-test-'));
-    execSync('git init', { cwd: testRepoPath });
-    execSync('git config user.name "Test"', { cwd: testRepoPath });
-    execSync('git config user.email "test@example.com"', { cwd: testRepoPath });
-    execSync('echo "test" > README.md && git add . && git commit -m "initial"', {
-      cwd: testRepoPath,
-      shell: true,
-    });
-    execSync('git branch -M main', { cwd: testRepoPath });
+    // PATCHはpathを使わないためダミーパスで十分
+    testRepoPath = '/tmp/dummy-project-patch-path';
 
     // テスト用の実行環境を作成
     const testEnv = db.insert(schema.executionEnvironments).values({
@@ -520,14 +512,10 @@ describe('PATCH /api/projects/[project_id]', () => {
   });
 
   afterEach(async () => {
+    // FK制約を尊重した削除順: projects(参照元) → executionEnvironments(参照先)
     db.delete(schema.runScripts).run();
     db.delete(schema.projects).run();
-    db.run(sql`PRAGMA foreign_keys = OFF`);
     db.delete(schema.executionEnvironments).where(eq(schema.executionEnvironments.id, testEnvId)).run();
-    db.run(sql`PRAGMA foreign_keys = ON`);
-    if (testRepoPath) {
-      rmSync(testRepoPath, { recursive: true, force: true });
-    }
   });
 
   it('environment_idが送信されても無視される', async () => {
