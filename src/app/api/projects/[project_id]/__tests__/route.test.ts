@@ -552,7 +552,7 @@ describe('PATCH /api/projects/[project_id]', () => {
   });
 
   it('claude_code_optionsを正しく更新する', async () => {
-    const options = { model: 'claude-sonnet-4-5-20250929', verbose: 'true' };
+    const options = { model: 'claude-sonnet-4-5-20250929', additionalFlags: '--verbose' };
     const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -650,6 +650,22 @@ describe('PATCH /api/projects/[project_id]', () => {
     expect(response.status).toBe(400);
   });
 
+  it('不正なJSONボディの場合は400エラー', async () => {
+    const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: 'invalid json',
+    });
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ project_id: project.id }),
+    });
+
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error).toBe('Invalid JSON in request body');
+  });
+
   it('存在しないプロジェクトの場合は404エラー', async () => {
     const request = new NextRequest('http://localhost:3000/api/projects/nonexistent', {
       method: 'PATCH',
@@ -676,6 +692,8 @@ describe('PATCH /api/projects/[project_id]', () => {
     });
 
     expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.message).toBe('No fields to update');
   });
 
   it('claude_code_optionsに非文字列値が含まれる場合は400エラー', async () => {
@@ -691,7 +709,7 @@ describe('PATCH /api/projects/[project_id]', () => {
 
     expect(response.status).toBe(400);
     const data = await response.json();
-    expect(data.error).toBe('claude_code_options values must be strings');
+    expect(data.error).toBe('claude_code_options must be a plain object with valid fields');
   });
 
   it('custom_env_varsに非文字列値が含まれる場合は400エラー', async () => {
@@ -707,7 +725,7 @@ describe('PATCH /api/projects/[project_id]', () => {
 
     expect(response.status).toBe(400);
     const data = await response.json();
-    expect(data.error).toBe('custom_env_vars values must be strings');
+    expect(data.error).toBe('custom_env_vars must be a plain object with keys matching ^[A-Z_][A-Z0-9_]*$ and string values');
   });
 
   it('claude_code_optionsがnullの場合は400エラー', async () => {
@@ -723,7 +741,7 @@ describe('PATCH /api/projects/[project_id]', () => {
 
     expect(response.status).toBe(400);
     const data = await response.json();
-    expect(data.error).toBe('claude_code_options must be an object');
+    expect(data.error).toBe('claude_code_options must be a plain object with valid fields');
   });
 
   it('claude_code_optionsが配列の場合は400エラー', async () => {
@@ -739,7 +757,7 @@ describe('PATCH /api/projects/[project_id]', () => {
 
     expect(response.status).toBe(400);
     const data = await response.json();
-    expect(data.error).toBe('claude_code_options must be an object');
+    expect(data.error).toBe('claude_code_options must be a plain object with valid fields');
   });
 
   it('custom_env_varsがnullの場合は400エラー', async () => {
@@ -755,7 +773,7 @@ describe('PATCH /api/projects/[project_id]', () => {
 
     expect(response.status).toBe(400);
     const data = await response.json();
-    expect(data.error).toBe('custom_env_vars must be an object');
+    expect(data.error).toBe('custom_env_vars must be a plain object with keys matching ^[A-Z_][A-Z0-9_]*$ and string values');
   });
 
   it('custom_env_varsが配列の場合は400エラー', async () => {
@@ -771,7 +789,7 @@ describe('PATCH /api/projects/[project_id]', () => {
 
     expect(response.status).toBe(400);
     const data = await response.json();
-    expect(data.error).toBe('custom_env_vars must be an object');
+    expect(data.error).toBe('custom_env_vars must be a plain object with keys matching ^[A-Z_][A-Z0-9_]*$ and string values');
   });
 });
 

@@ -29,9 +29,10 @@ export function ProjectEnvironmentSettings({ projectId }: ProjectEnvironmentSett
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const controller = new AbortController();
     const fetchProject = async () => {
       try {
-        const res = await fetch(`/api/projects/${projectId}`);
+        const res = await fetch(`/api/projects/${projectId}`, { signal: controller.signal });
         if (!res.ok) {
           setError(`Failed to fetch project (status: ${res.status})`);
           return;
@@ -43,6 +44,7 @@ export function ProjectEnvironmentSettings({ projectId }: ProjectEnvironmentSett
           environment: data.project.environment || null,
         });
       } catch (err) {
+        if ((err as Error).name === 'AbortError') return;
         console.error('Failed to fetch project', err);
         setError('Failed to fetch project');
       } finally {
@@ -50,10 +52,15 @@ export function ProjectEnvironmentSettings({ projectId }: ProjectEnvironmentSett
       }
     };
     fetchProject();
+    return () => controller.abort();
   }, [projectId]);
 
   const getEnvironmentDisplay = () => {
     if (!projectEnv) return { label: '-', type: '-' };
+
+    if (projectEnv.environment_id && !projectEnv.environment) {
+      return { label: '環境情報を取得できません', type: 'UNKNOWN' };
+    }
 
     if (projectEnv.environment_id && projectEnv.environment) {
       return {

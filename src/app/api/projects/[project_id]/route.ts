@@ -4,35 +4,7 @@ import { eq } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
 import { existsSync } from 'fs';
 import { spawnSync } from 'child_process';
-
-function validateClaudeCodeOptions(options: unknown): string | null {
-  if (options === undefined) return null;
-  if (typeof options !== 'object' || options === null || Array.isArray(options)) {
-    return 'claude_code_options must be an object';
-  }
-  for (const value of Object.values(options)) {
-    if (typeof value !== 'string') {
-      return 'claude_code_options values must be strings';
-    }
-  }
-  return null;
-}
-
-function validateCustomEnvVars(envVars: unknown): string | null {
-  if (envVars === undefined) return null;
-  if (typeof envVars !== 'object' || envVars === null || Array.isArray(envVars)) {
-    return 'custom_env_vars must be an object';
-  }
-  for (const [key, value] of Object.entries(envVars as Record<string, unknown>)) {
-    if (typeof value !== 'string') {
-      return 'custom_env_vars values must be strings';
-    }
-    if (!/^[A-Z_][A-Z0-9_]*$/.test(key)) {
-      return 'custom_env_vars keys must be uppercase with underscores';
-    }
-  }
-  return null;
-}
+import { ClaudeOptionsService } from '@/services/claude-options-service';
 
 /**
  * GET /api/projects/[project_id] - プロジェクト詳細取得
@@ -88,7 +60,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
 
-    const { claude_code_options, custom_env_vars } = body;
+    let { claude_code_options, custom_env_vars } = body;
 
     // プロジェクトの存在確認
     const project = db.select().from(schema.projects).where(eq(schema.projects.id, project_id)).get();
@@ -97,21 +69,39 @@ export async function PATCH(
     }
 
     // claude_code_options のバリデーション
-    const optionsError = validateClaudeCodeOptions(claude_code_options);
-    if (optionsError) {
-      return NextResponse.json({ error: optionsError }, { status: 400 });
+    if (claude_code_options !== undefined) {
+      const validatedOptions = ClaudeOptionsService.validateClaudeCodeOptions(claude_code_options);
+      if (validatedOptions === null) {
+        const unknownKeys = ClaudeOptionsService.getUnknownKeys(claude_code_options);
+        const errorMessage = unknownKeys.length > 0
+          ? `Invalid keys in claude_code_options: ${unknownKeys.join(', ')}. Allowed keys: model, allowedTools, permissionMode, additionalFlags, dangerouslySkipPermissions`
+          : 'claude_code_options must be a plain object with valid fields';
+        return NextResponse.json({ error: errorMessage }, { status: 400 });
+      }
+      claude_code_options = validatedOptions;
     }
 
     // custom_env_vars のバリデーション
-    const envVarsError = validateCustomEnvVars(custom_env_vars);
-    if (envVarsError) {
-      return NextResponse.json({ error: envVarsError }, { status: 400 });
+    if (custom_env_vars !== undefined) {
+      const validatedEnvVars = ClaudeOptionsService.validateCustomEnvVars(custom_env_vars);
+      if (validatedEnvVars === null) {
+        return NextResponse.json(
+          { error: 'custom_env_vars must be a plain object with keys matching ^[A-Z_][A-Z0-9_]*$ and string values' },
+          { status: 400 }
+        );
+      }
+      custom_env_vars = validatedEnvVars;
     }
 
     // 更新データの構築
     const updateData: Record<string, unknown> = { updated_at: new Date() };
     if (claude_code_options !== undefined) updateData.claude_code_options = JSON.stringify(claude_code_options);
     if (custom_env_vars !== undefined) updateData.custom_env_vars = JSON.stringify(custom_env_vars);
+
+    // 空更新の早期リターン（updated_atのみの場合）
+    if (Object.keys(updateData).length === 1) {
+      return NextResponse.json({ message: 'No fields to update' }, { status: 200 });
+    }
 
     // 更新
     const updated = db
@@ -151,7 +141,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
 
-    const { name, path: newPath, run_scripts, claude_code_options, custom_env_vars } = body;
+    let { name, path: newPath, run_scripts, claude_code_options, custom_env_vars } = body;
 
     // プロジェクトの存在確認
     const project = db.select().from(schema.projects).where(eq(schema.projects.id, project_id)).get();
@@ -160,15 +150,28 @@ export async function PUT(
     }
 
     // claude_code_options のバリデーション
-    const optionsError = validateClaudeCodeOptions(claude_code_options);
-    if (optionsError) {
-      return NextResponse.json({ error: optionsError }, { status: 400 });
+    if (claude_code_options !== undefined) {
+      const validatedOptions = ClaudeOptionsService.validateClaudeCodeOptions(claude_code_options);
+      if (validatedOptions === null) {
+        const unknownKeys = ClaudeOptionsService.getUnknownKeys(claude_code_options);
+        const errorMessage = unknownKeys.length > 0
+          ? `Invalid keys in claude_code_options: ${unknownKeys.join(', ')}. Allowed keys: model, allowedTools, permissionMode, additionalFlags, dangerouslySkipPermissions`
+          : 'claude_code_options must be a plain object with valid fields';
+        return NextResponse.json({ error: errorMessage }, { status: 400 });
+      }
+      claude_code_options = validatedOptions;
     }
 
     // custom_env_vars のバリデーション
-    const envVarsError = validateCustomEnvVars(custom_env_vars);
-    if (envVarsError) {
-      return NextResponse.json({ error: envVarsError }, { status: 400 });
+    if (custom_env_vars !== undefined) {
+      const validatedEnvVars = ClaudeOptionsService.validateCustomEnvVars(custom_env_vars);
+      if (validatedEnvVars === null) {
+        return NextResponse.json(
+          { error: 'custom_env_vars must be a plain object with keys matching ^[A-Z_][A-Z0-9_]*$ and string values' },
+          { status: 400 }
+        );
+      }
+      custom_env_vars = validatedEnvVars;
     }
 
     // path のバリデーション
