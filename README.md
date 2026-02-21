@@ -63,7 +63,7 @@ npx github:windschord/claude-work#feature-branch start
 | ステップ | 処理内容 |
 |---------|---------|
 | 1. 環境設定 | `.env` がなければ `.env.example` からコピー |
-| 2. Prisma | クライアントがなければ自動生成 |
+| 2. データベース | スキーマを自動適用 |
 | 3. データベース | DBがなければ自動作成 |
 | 4. ビルド | `.next` がなければ自動ビルド |
 | 5. 起動 | サーバー起動 (`http://localhost:3000`) |
@@ -246,7 +246,7 @@ Apache License 2.0 - 詳細は [LICENSE](LICENSE) を参照してください。
 ## 技術スタック
 
 - **フロントエンド**: Next.js 15.1, React 19, TypeScript, Tailwind CSS, Zustand
-- **バックエンド**: Next.js API Routes, Prisma, SQLite, WebSocket (ws)
+- **バックエンド**: Next.js API Routes, Drizzle ORM, SQLite, WebSocket (ws)
 - **その他**: XTerm.js, react-diff-viewer-continued, Headless UI, next-themes
 
 ## ドキュメント

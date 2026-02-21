@@ -859,13 +859,13 @@ export class DockerAdapter extends BasePTYAdapter {
   /**
    * 孤立したDockerコンテナをクリーンアップする（サーバー起動時に実行）
    */
-  static async cleanupOrphanedContainers(prismaClient: typeof db): Promise<void> {
+  static async cleanupOrphanedContainers(dbClient: typeof db): Promise<void> {
     logger.info('Checking for orphaned Docker containers');
     const execFileAsync = promisify(childProcess.execFile);
 
     try {
       // データベースから全セッションのコンテナIDを取得
-      const sessions = prismaClient
+      const sessions = dbClient
         .select({
           id: schema.sessions.id,
           container_id: schema.sessions.container_id,
@@ -897,7 +897,7 @@ export class DockerAdapter extends BasePTYAdapter {
             );
 
             // セッション状態をERRORに更新
-            prismaClient
+            dbClient
               .update(schema.sessions)
               .set({
                 status: 'ERROR',
@@ -922,7 +922,7 @@ export class DockerAdapter extends BasePTYAdapter {
           );
 
           // コンテナが存在しない場合も孤立とみなす
-          prismaClient
+          dbClient
             .update(schema.sessions)
             .set({
               status: 'ERROR',

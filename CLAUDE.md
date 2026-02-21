@@ -22,7 +22,7 @@ ClaudeWork is a web-based tool for managing multiple Claude Code sessions throug
 - Each session creates an isolated Git worktree under `.worktrees/<session-name>/`
 - ClaudePTYManager spawns Claude Code in interactive mode using node-pty
 - PTYManager handles shell terminal sessions using node-pty
-- Sessions are persisted in SQLite via Prisma
+- Sessions are persisted in SQLite via Drizzle ORM
 - UI provides a thin wrapper around Claude Code terminal (XTerm.js)
 
 **Git Integration** (src/services/git-service.ts):
@@ -39,7 +39,7 @@ ClaudeWork is a web-based tool for managing multiple Claude Code sessions throug
 
 ### Database Schema
 
-Key models (prisma/schema.prisma):
+Key models (src/db/schema.ts):
 - **Project**: Git repository with default model setting, remote_url, and clone_location
 - **Session**: Links to project, has worktree_path and branch_name, environment_id
 - **Message**: Chat history with role/content
@@ -126,9 +126,9 @@ npm run build:next        # Next.js only
 npm run build:server      # TypeScript server only
 
 # Database
-npx prisma generate       # Generate Prisma client
-npx prisma db push        # Push schema to database
-npx prisma studio         # Database GUI
+npm run db:generate       # Generate Drizzle migrations
+npm run db:push           # Push schema to database
+npm run db:studio         # Database GUI
 
 # Linting
 npm run lint              # ESLint
@@ -234,17 +234,20 @@ Security: All paths validated against `.worktrees/` base to prevent traversal at
 
 ### Database Migrations
 
-Prisma schema changes require:
+Drizzle ORM schema changes require:
 
 ```bash
-# Apply schema changes to SQLite
-npx prisma db push
+# Update schema definition
+# Edit src/db/schema.ts
 
-# Regenerate Prisma client
-npx prisma generate
+# Apply schema changes to SQLite
+npm run db:push
+
+# Generate migration files (optional)
+npm run db:generate
 ```
 
-Note: Using `db push` instead of migrations for SQLite simplicity.
+Note: Using `db:push` instead of migrations for SQLite simplicity.
 
 ## Testing Strategy
 
@@ -288,11 +291,10 @@ Manual testing script: `npm run integration-test`
 
 ### Adding Database Model
 
-1. Update `prisma/schema.prisma`
-2. Run `npx prisma db push`
-3. Run `npx prisma generate`
-4. Create service layer in `src/lib/` or `src/services/`
-5. Add tests for database operations
+1. Update `src/db/schema.ts`
+2. Run `npm run db:push`
+3. Create service layer in `src/lib/` or `src/services/`
+4. Add tests for database operations
 
 ## Known Issues
 
@@ -310,8 +312,6 @@ For detailed troubleshooting information, see `docs/sdd/troubleshooting/`.
 ├── server.ts                 # Custom Next.js server with WebSocket
 ├── ecosystem.config.js       # PM2 process configuration
 ├── data/                     # SQLite database files (バックアップ対象)
-├── prisma/
-│   └── schema.prisma        # Database schema
 ├── src/
 │   ├── app/                 # Next.js App Router
 │   │   ├── api/            # API routes
@@ -325,7 +325,7 @@ For detailed troubleshooting information, see `docs/sdd/troubleshooting/`.
 │   │   └── useEnvironments.ts # Environment management hook
 │   ├── lib/                # Shared libraries
 │   │   ├── websocket/      # WebSocket handlers
-│   │   ├── db.ts           # Prisma client
+│   │   ├── db.ts           # Drizzle ORM client
 │   │   └── logger.ts       # Winston logger
 │   ├── services/           # Business logic
 │   │   ├── git-service.ts        # Git operations
