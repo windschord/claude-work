@@ -65,6 +65,8 @@ COPY --from=deps-prod /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/package.json ./package.json
+# ヘルスチェックスクリプトのコピー
+COPY --from=builder /app/scripts/healthcheck.js ./scripts/healthcheck.js
 
 # データディレクトリの準備（SQLiteデータの永続化）
 RUN mkdir -p /data && chown node:node /data
@@ -79,6 +81,6 @@ EXPOSE 3000
 
 # ヘルスチェック（/api/health エンドポイントを使用）
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD node -e "require('http').get('http://localhost:3000/api/health', function(r){process.exit(r.statusCode===200?0:1)}).on('error',function(){process.exit(1)})"
+    CMD node scripts/healthcheck.js
 
 CMD ["node", "dist/server.js"]
