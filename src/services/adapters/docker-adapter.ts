@@ -1234,6 +1234,7 @@ export class DockerAdapter extends BasePTYAdapter {
       await fsPromises.mkdir(sshDir, { recursive: true });
 
       const keyPaths: string[] = [];
+      const successfulKeyNames: string[] = [];
 
       for (const key of keys) {
         try {
@@ -1256,6 +1257,7 @@ export class DockerAdapter extends BasePTYAdapter {
           await fsPromises.writeFile(publicKeyPath, key.public_key, { mode: 0o644 });
 
           keyPaths.push(privateKeyPath);
+          successfulKeyNames.push(safeName);
 
           logger.debug('SSH key files created', { keyName: key.name });
         } catch (error) {
@@ -1272,8 +1274,8 @@ export class DockerAdapter extends BasePTYAdapter {
         return;
       }
 
-      // SSH config を生成してコンテナにコピー
-      const sshConfig = this.generateSSHConfig(keys);
+      // SSH config を生成してコンテナにコピー（成功した鍵のみ）
+      const sshConfig = this.generateSSHConfig(successfulKeyNames);
       const sshConfigPath = path.join(sshDir, 'config');
       await fsPromises.writeFile(sshConfigPath, sshConfig, { mode: 0o644 });
 
@@ -1305,8 +1307,8 @@ export class DockerAdapter extends BasePTYAdapter {
   /**
    * SSH config ファイルの内容を生成
    */
-  private generateSSHConfig(keys: SshKey[]): string {
-    const identityFiles = keys.map(key => `  IdentityFile /home/node/.ssh/id_${key.name}`).join('\n');
+  private generateSSHConfig(keyNames: string[]): string {
+    const identityFiles = keyNames.map(name => `  IdentityFile /home/node/.ssh/id_${name}`).join('\n');
 
     return `Host *
   StrictHostKeyChecking accept-new

@@ -1,7 +1,7 @@
 # TASK-002: EncryptionService実装（TDD）
 
 ## あなたのタスク
-SSH秘密鍵のAES-256-CBC暗号化・復号化を行う **EncryptionService** を実装してください。
+SSH秘密鍵のAES-256-GCM暗号化・復号化を行う **EncryptionService** を実装してください。
 
 ## 作成/変更するファイル
 | 操作 | ファイルパス | 説明 |

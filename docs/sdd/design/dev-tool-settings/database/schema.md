@@ -19,6 +19,19 @@
 
 ---
 
+## 重要な注意事項
+
+**データベーススキーマとTypeScript型定義の違い**:
+
+このドキュメントは**データベーススキーマ**（永続化層）を記述しています。`DeveloperSettings`テーブルの`id`, `created_at`, `updated_at`カラムは、データベースレベルでは**すべてNOT NULL**です。
+
+一方、**TypeScript型定義**（`src/store/developer-settings.ts`）では、APIレスポンス層で設定が存在しない場合に`null`を返すため、これらのフィールドを`string | null`としています。これはアプリケーション層の型定義であり、データベーススキーマとは異なります。
+
+- **データベース**: `id`, `created_at`, `updated_at` → NOT NULL（レコードが存在する場合は必ず値がある）
+- **TypeScript/API**: `id | null`, `created_at | null`, `updated_at | null` → nullable（設定自体が存在しない場合にnullを返す）
+
+---
+
 ## ER図
 
 ```mermaid
@@ -118,7 +131,7 @@ export const developerSettingsRelations = relations(developerSettings, ({ one })
 
 ### SshKey {#sshkey}
 
-**概要**: SSH鍵ペアを管理（秘密鍵はAES-256で暗号化保存）
+**概要**: SSH鍵ペアを管理（秘密鍵はAES-256-GCMで暗号化保存）
 
 **Drizzleスキーマ**:
 ```typescript
@@ -140,8 +153,8 @@ export const sshKeys = sqliteTable('SshKey', {
 | id | String(UUID) | PRIMARY KEY | uuid() | 一意識別子 |
 | name | String | NOT NULL, UNIQUE | - | 鍵の識別名 |
 | public_key | Text | NOT NULL | - | SSH公開鍵（平文） |
-| private_key_encrypted | Text | NOT NULL | - | SSH秘密鍵（AES-256-CBC暗号化） |
-| encryption_iv | String | NOT NULL | - | 暗号化初期化ベクトル（Base64エンコード） |
+| private_key_encrypted | Text | NOT NULL | - | SSH秘密鍵（AES-256-GCM暗号化、形式: `iv:authTag:encrypted`） |
+| encryption_iv | String | NOT NULL | - | 暗号化メタデータ（形式: `iv:authTag`、Base64エンコード） |
 | has_passphrase | Boolean | NOT NULL | false | パスフレーズ保護の有無 |
 | created_at | DateTime | NOT NULL | now() | 作成日時（UTC） |
 | updated_at | DateTime | NOT NULL | updatedAt | 更新日時（UTC） |
@@ -153,10 +166,13 @@ export const sshKeys = sqliteTable('SshKey', {
 | SshKey_name_key | name | UNIQUE | 名前重複チェック |
 
 **暗号化仕様**:
-- **アルゴリズム**: AES-256-CBC
+- **アルゴリズム**: AES-256-GCM
 - **鍵**: 環境変数 `ENCRYPTION_MASTER_KEY` から導出
 - **IV**: 各鍵ごとにランダム生成（16バイト）
-- **IV保存**: Base64エンコードして `encryption_iv` カラムに保存
+- **authTag**: GCM認証タグ（暗号化時に自動生成）
+- **保存形式**:
+  - `private_key_encrypted`: `iv:authTag:encrypted`（コロン区切り、Base64エンコード）
+  - `encryption_iv`: `iv:authTag`（参照用、Base64エンコード）
 
 ---
 
@@ -215,7 +231,7 @@ DeveloperSettings テーブルは Project テーブルと外部キーで関連�
 SQLiteはマイグレーション履歴を管理しないため、ロールバックは以下の手順で行います：
 
 1. スキーマから該当モデルを削除
-2. `npx prisma db push --force-reset` でデータベースをリセット（注意: 全データ削除）
+2. `npm run db:push` でスキーマを再同期、または必要に応じてデータベースファイルを削除（注意: 全データ削除）
 3. バックアップからデータを復元（必要に応じて）
 
 **推奨**: 本番環境ではバックアップを定期的に取得
@@ -237,40 +253,64 @@ SQLiteはマイグレーション履歴を管理しないため、ロールバ�
 
 **階層的設定の読み込み**:
 ```typescript
+import { db, schema } from '@/lib/db';
+import { eq, and, or, isNull, desc } from 'drizzle-orm';
+
 // プロジェクト設定を優先、存在しなければグローバル設定
-const settings = await prisma.developerSettings.findFirst({
-  where: {
-    OR: [
-      { scope: 'PROJECT', project_id: projectId },
-      { scope: 'GLOBAL', project_id: null }
-    ]
-  },
-  orderBy: { scope: 'desc' } // PROJECT > GLOBAL の順
-});
+const settings = db
+  .select()
+  .from(schema.developerSettings)
+  .where(
+    or(
+      and(
+        eq(schema.developerSettings.scope, 'PROJECT'),
+        eq(schema.developerSettings.project_id, projectId)
+      ),
+      and(
+        eq(schema.developerSettings.scope, 'GLOBAL'),
+        isNull(schema.developerSettings.project_id)
+      )
+    )
+  )
+  .orderBy(desc(schema.developerSettings.scope)) // PROJECT > GLOBAL の順
+  .get();
 ```
 
 **SSH鍵一覧の取得**:
 ```typescript
 // 公開鍵のみ選択（秘密鍵は取得しない）
-const keys = await prisma.sshKey.findMany({
-  select: {
-    id: true,
-    name: true,
-    public_key: true,
-    created_at: true
-  }
-});
+const keys = db
+  .select({
+    id: schema.sshKeys.id,
+    name: schema.sshKeys.name,
+    public_key: schema.sshKeys.public_key,
+    created_at: schema.sshKeys.created_at
+  })
+  .from(schema.sshKeys)
+  .all();
 ```
 
 ### N+1問題の回避
 
 プロジェクト一覧と設定を同時に取得する場合:
 ```typescript
-const projects = await prisma.project.findMany({
-  include: {
-    developerSettings: true // 1クエリで JOIN
-  }
-});
+// Drizzleでは明示的にJOINを使用
+import { eq } from 'drizzle-orm';
+
+const projectsWithSettings = db
+  .select({
+    project: schema.projects,
+    settings: schema.developerSettings
+  })
+  .from(schema.projects)
+  .leftJoin(
+    schema.developerSettings,
+    and(
+      eq(schema.developerSettings.scope, 'PROJECT'),
+      eq(schema.developerSettings.project_id, schema.projects.id)
+    )
+  )
+  .all();
 ```
 
 ---

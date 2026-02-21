@@ -2,10 +2,10 @@
 
 ## 概要
 
-**目的**: SSH秘密鍵のAES-256-CBC暗号化・復号化を提供
+**目的**: SSH秘密鍵のAES-256-GCM暗号化・復号化を提供
 
 **責務**:
-- SSH秘密鍵のAES-256-CBC暗号化
+- SSH秘密鍵のAES-256-GCM暗号化
 - 暗号化されたSSH秘密鍵の復号化
 - 暗号化初期化ベクトル（IV）のランダム生成
 - マスターキーの管理（環境変数からの取得）
@@ -13,7 +13,7 @@
 ## 情報の明確性
 
 ### 明示された情報
-- 暗号化アルゴリズム: AES-256-CBC
+- 暗号化アルゴリズム: AES-256-GCM
 - マスターキー管理: 環境変数 `ENCRYPTION_MASTER_KEY`
 - IV: 鍵ごとにランダム生成（16バイト）
 
@@ -42,6 +42,7 @@
 interface EncryptedData {
   encrypted: string; // Base64エンコードされた暗号文
   iv: string;        // Base64エンコードされたIV
+  authTag: string;   // Base64エンコードされた認証タグ (GCM)
 }
 ```
 
@@ -59,7 +60,7 @@ const result = await service.encrypt(privateKeyContent);
 
 ---
 
-#### `decrypt(encrypted: string, iv: string): Promise<string>`
+#### `decrypt(encrypted: string, iv: string, authTag: string): Promise<string>`
 
 **説明**: 暗号化されたSSH秘密鍵を復号化
 
@@ -68,6 +69,7 @@ const result = await service.encrypt(privateKeyContent);
 |------|-----|------|------|
 | encrypted | string | Yes | Base64エンコードされた暗号文 |
 | iv | string | Yes | Base64エンコードされたIV |
+| authTag | string | Yes | Base64エンコードされた認証タグ (GCM) |
 
 **戻り値**: `Promise<string>` - 復号化されたSSH秘密鍵（平文）
 
@@ -78,7 +80,7 @@ const result = await service.encrypt(privateKeyContent);
 **使用例**:
 ```typescript
 const service = new EncryptionService();
-const plaintext = await service.decrypt(encryptedKey, iv);
+const plaintext = await service.decrypt(encryptedKey, iv, authTag);
 // plaintext: 元のSSH秘密鍵
 ```
 
@@ -107,11 +109,13 @@ sequenceDiagram
     Env-->>Enc: masterKey
     Enc->>Crypto: randomBytes(16)
     Crypto-->>Enc: IV
-    Enc->>Crypto: createCipheriv('aes-256-cbc', key, IV)
+    Enc->>Crypto: createCipheriv('aes-256-gcm', key, IV)
     Crypto-->>Enc: cipher
     Enc->>Crypto: cipher.update(plaintext) + cipher.final()
     Crypto-->>Enc: encrypted
-    Enc-->>Client: { encrypted, iv }
+    Enc->>Crypto: cipher.getAuthTag()
+    Crypto-->>Enc: authTag
+    Enc-->>Client: { encrypted, iv, authTag }
 ```
 
 ## 内部設計
@@ -120,7 +124,7 @@ sequenceDiagram
 
 ```typescript
 export class EncryptionService {
-  private readonly ALGORITHM = 'aes-256-cbc';
+  private readonly ALGORITHM = 'aes-256-gcm';
   private readonly KEY_LENGTH = 32; // 256 bits
 
   /**
@@ -148,22 +152,26 @@ export class EncryptionService {
       cipher.update(plaintext, 'utf8'),
       cipher.final()
     ]);
+    const authTag = cipher.getAuthTag();
 
     return {
       encrypted: encrypted.toString('base64'),
-      iv: iv.toString('base64')
+      iv: iv.toString('base64'),
+      authTag: authTag.toString('base64')
     };
   }
 
   /**
    * 暗号化されたSSH秘密鍵を復号化
    */
-  async decrypt(encrypted: string, iv: string): Promise<string> {
+  async decrypt(encrypted: string, iv: string, authTag: string): Promise<string> {
     const key = this.getMasterKey();
     const ivBuffer = Buffer.from(iv, 'base64');
     const encryptedBuffer = Buffer.from(encrypted, 'base64');
+    const authTagBuffer = Buffer.from(authTag, 'base64');
 
     const decipher = crypto.createDecipheriv(this.ALGORITHM, key, ivBuffer);
+    decipher.setAuthTag(authTagBuffer);
     const decrypted = Buffer.concat([
       decipher.update(encryptedBuffer),
       decipher.final()

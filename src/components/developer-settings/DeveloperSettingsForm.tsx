@@ -9,7 +9,10 @@ interface DeveloperSettingsFormProps {
   effectiveSettings?: {
     git_username: string | null;
     git_email: string | null;
-    source: string | null;
+    source: {
+      git_username: 'global' | 'project';
+      git_email: 'global' | 'project';
+    };
   } | null;
   onSave: (data: { git_username?: string; git_email?: string }) => Promise<void>;
   onDelete?: () => Promise<void>;
@@ -97,7 +100,8 @@ export function DeveloperSettingsForm({
         Git 設定
       </h3>
 
-      {effectiveSettings && effectiveSettings.source === 'global' && (
+      {effectiveSettings &&
+       (effectiveSettings.source?.git_username === 'global' || effectiveSettings.source?.git_email === 'global') && (
         <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
           <p className="text-sm text-blue-700 dark:text-blue-300">
             グローバル設定が適用されています。プロジェクト固有の設定を追加するには、以下のフォームに入力してください。
