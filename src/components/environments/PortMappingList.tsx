@@ -1,6 +1,5 @@
 'use client';
 
-import { useRef } from 'react';
 import { Plus, X } from 'lucide-react';
 import type { PortMapping } from '@/types/environment';
 import { validatePortMappings } from '@/lib/docker-config-validator';
@@ -18,15 +17,6 @@ interface PortMappingListProps {
  * validatePortMappings()によるリアルタイムバリデーションを行う。
  */
 export function PortMappingList({ value, onChange }: PortMappingListProps) {
-  // 安定したキーを生成するためのカウンターとキー配列
-  const keyCounterRef = useRef(0);
-  const keysRef = useRef<number[]>([]);
-  if (keysRef.current.length < value.length) {
-    while (keysRef.current.length < value.length) {
-      keysRef.current.push(keyCounterRef.current++);
-    }
-  }
-
   const validation = value.length > 0 ? validatePortMappings(value) : null;
 
   const handleAdd = () => {
@@ -34,7 +24,6 @@ export function PortMappingList({ value, onChange }: PortMappingListProps) {
   };
 
   const handleRemove = (index: number) => {
-    keysRef.current = keysRef.current.filter((_, i) => i !== index);
     onChange(value.filter((_, i) => i !== index));
   };
 
@@ -66,7 +55,7 @@ export function PortMappingList({ value, onChange }: PortMappingListProps) {
       ) : (
         <div className="space-y-2">
           {value.map((mapping, index) => (
-            <div key={keysRef.current[index]} className="flex items-center gap-2">
+            <div key={index} className="flex items-center gap-2">
               <input
                 type="number"
                 value={mapping.hostPort || ''}

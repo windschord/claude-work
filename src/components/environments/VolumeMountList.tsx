@@ -73,15 +73,6 @@ function validateMount(mount: VolumeMount): { errors: MountError; warnings: Moun
  * リアルタイムでバリデーションを行い、エラーや警告を表示します。
  */
 export function VolumeMountList({ value, onChange, onDangerousPath }: VolumeMountListProps) {
-  // 安定したキーを生成するためのカウンターとキー配列
-  const keyCounterRef = useRef(0);
-  const keysRef = useRef<number[]>([]);
-  if (keysRef.current.length < value.length) {
-    while (keysRef.current.length < value.length) {
-      keysRef.current.push(keyCounterRef.current++);
-    }
-  }
-
   // 危険パスのコールバックを呼び出す（既に通知済みのパスは再通知しない）
   const notifiedPathsRef = useRef<Set<string>>(new Set());
 
@@ -105,7 +96,6 @@ export function VolumeMountList({ value, onChange, onDangerousPath }: VolumeMoun
     if (removedPath) {
       notifiedPathsRef.current.delete(removedPath);
     }
-    keysRef.current = keysRef.current.filter((_, i) => i !== index);
     const newMounts = value.filter((_, i) => i !== index);
     onChange(newMounts);
   };
@@ -134,7 +124,7 @@ export function VolumeMountList({ value, onChange, onDangerousPath }: VolumeMoun
             const { errors, warnings } = validateMount(mount);
 
             return (
-              <div key={keysRef.current[index]} className="space-y-1">
+              <div key={index} className="space-y-1">
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
