@@ -19,13 +19,13 @@ Git設定管理のためのAPIエンドポイントを実装してください�
 - 要件: `@docs/sdd/requirements/dev-tool-settings/stories/US-001.md`, `US-002.md`
 
 ## 受入基準
-- [ ] `GET /api/developer-settings/global` が実装されている
-- [ ] `PUT /api/developer-settings/global` が実装されている
-- [ ] `GET /api/developer-settings/project/:projectId` が実装されている
-- [ ] `PUT /api/developer-settings/project/:projectId` が実装されている
-- [ ] `DELETE /api/developer-settings/project/:projectId` が実装されている
-- [ ] バリデーションエラー処理が実装されている
-- [ ] 統合テストがすべてパスする
+- [x] `GET /api/developer-settings/global` が実装されている
+- [x] `PUT /api/developer-settings/global` が実装されている
+- [x] `GET /api/developer-settings/project/:projectId` が実装されている
+- [x] `PUT /api/developer-settings/project/:projectId` が実装されている
+- [x] `DELETE /api/developer-settings/project/:projectId` が実装されている
+- [x] バリデーションエラー処理が実装されている
+- [x] 統合テストがすべてパスする
 
 ## 実装手順（TDD）
 1. テスト作成: API統合テスト
@@ -35,4 +35,6 @@ Git設定管理のためのAPIエンドポイントを実装してください�
 5. テスト通過確認
 6. 実装コミット: `feat: Implement developer-settings API`
 
-**推定工数**: 35分 | **ステータス**: TODO | **依存**: Phase 1
+**推定工数**: 35分 | **ステータス**: DONE | **依存**: Phase 1
+
+**完了サマリー**: /api/developer-settings/global (GET, PUT) と /api/developer-settings/project/[projectId] (GET, PUT, DELETE) を実装。バリデーション(メール形式、文字数制限)とエラーハンドリングを含む。テスト27件パス。

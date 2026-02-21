@@ -17,14 +17,14 @@ Git設定の保存・読み取り・優先順位解決を行う **DeveloperSetti
 - 要件: `@docs/sdd/requirements/dev-tool-settings/stories/US-001.md`, `@docs/sdd/requirements/dev-tool-settings/stories/US-002.md`
 
 ## 受入基準
-- [ ] `getEffectiveSettings(projectId)` メソッドが実装されている（優先順位解決）
-- [ ] `getGlobalSettings()` メソッドが実装されている
-- [ ] `updateGlobalSettings(data)` メソッドが実装されている
-- [ ] `getProjectSettings(projectId)` メソッドが実装されている
-- [ ] `updateProjectSettings(projectId, data)` メソッドが実装されている
-- [ ] `deleteProjectSettings(projectId)` メソッドが実装されている
-- [ ] 優先順位ロジック（プロジェクト > グローバル）がテストで確認されている
-- [ ] `npm test` ですべてのテストがパスする
+- [x] `getEffectiveSettings(projectId)` メソッドが実装されている（優先順位解決）
+- [x] `getGlobalSettings()` メソッドが実装されている
+- [x] `updateGlobalSettings(data)` メソッドが実装されている
+- [x] `getProjectSettings(projectId)` メソッドが実装されている
+- [x] `updateProjectSettings(projectId, data)` メソッドが実装されている
+- [x] `deleteProjectSettings(projectId)` メソッドが実装されている
+- [x] 優先順位ロジック（プロジェクト > グローバル）がテストで確認されている
+- [x] `npm test` ですべてのテストがパスする
 
 ## 実装手順（TDD）
 1. テスト作成: `developer-settings-service.test.ts`
@@ -34,4 +34,6 @@ Git設定の保存・読み取り・優先順位解決を行う **DeveloperSetti
 5. テスト通過確認
 6. 実装コミット: `feat: Implement DeveloperSettingsService`
 
-**推定工数**: 40分 | **ステータス**: TODO | **依存**: TASK-001
+**推定工数**: 40分 | **ステータス**: DONE | **依存**: TASK-001
+
+**完了サマリー**: DeveloperSettingsServiceを実装。getEffectiveSettings, getGlobalSettings, updateGlobalSettings, getProjectSettings, updateProjectSettings, deleteProjectSettingsメソッドを実装。テスト18件パス。

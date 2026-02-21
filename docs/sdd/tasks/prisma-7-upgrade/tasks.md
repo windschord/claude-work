@@ -1,5 +1,8 @@
 # タスク: Prisma 7 アップグレード
 
+> **廃止**: Drizzle ORM移行（PR #132）により、Prismaは完全に削除されました。
+> このタスクの未完了項目はすべて不要です。フェーズ1-3はDrizzle移行前の中間成果物として完了済み。
+
 > このドキュメントはAIエージェント（Claude Code等）が実装を行うことを前提としています。
 
 ## 実装計画
@@ -199,11 +202,11 @@ export const prisma = new PrismaClient({ adapter });
 - 必要に応じてパスや引数を調整
 
 **受入基準**:
-- [ ] `npx claude-work` で Prisma クライアント生成が成功する
-- [ ] データベースセットアップが正常に動作する
+- [-] `npx claude-work` で Prisma クライアント生成が成功する（Drizzle移行により不要）
+- [-] データベースセットアップが正常に動作する（Drizzle移行により不要）
 
 **依存関係**: タスク3.2
-**ステータス**: `TODO`
+**ステータス**: `OBSOLETE`
 
 ---
 
@@ -234,11 +237,11 @@ export const prisma = new PrismaClient({ adapter });
 
 **受入基準**:
 - [x] 開発サーバーが起動する
-- [ ] セッション作成が動作する
-- [ ] セッション削除が動作する
+- [-] セッション作成が動作する（Drizzle移行により不要）
+- [-] セッション削除が動作する（Drizzle移行により不要）
 
 **依存関係**: タスク5.1
-**ステータス**: `IN_PROGRESS`
+**ステータス**: `OBSOLETE`
 
 ---
 
@@ -250,10 +253,10 @@ export const prisma = new PrismaClient({ adapter });
 
 **受入基準**:
 - [x] ビルドが成功する
-- [ ] CLI コマンドが動作する
+- [-] CLI コマンドが動作する（Drizzle移行により不要）
 
 **依存関係**: タスク5.2
-**ステータス**: `IN_PROGRESS`
+**ステータス**: `OBSOLETE`
 
 ---
 

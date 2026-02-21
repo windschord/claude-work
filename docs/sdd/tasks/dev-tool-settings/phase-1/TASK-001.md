@@ -48,15 +48,15 @@
 
 以下のすべての基準を満たしたら、このタスクは完了です：
 
-- [ ] `prisma/schema.prisma` に `DeveloperSettings` モデルが追加されている
-- [ ] `prisma/schema.prisma` に `SshKey` モデルが追加されている
-- [ ] `prisma/schema.prisma` に `SettingScope` enum が追加されている
-- [ ] `@@unique([scope, project_id])` 制約が DeveloperSettings に設定されている
-- [ ] `name` フィールドに `@unique` 制約が SshKey に設定されている
-- [ ] `npx prisma format` でフォーマットエラーが0件である
-- [ ] `npx prisma validate` でバリデーションエラーが0件である
-- [ ] `npx prisma db push` でスキーマがデータベースに適用できる
-- [ ] `npx prisma generate` で Drizzle Client が生成できる
+- [x] `prisma/schema.prisma` に `DeveloperSettings` モデルが追加されている
+- [x] `prisma/schema.prisma` に `SshKey` モデルが追加されている
+- [x] `prisma/schema.prisma` に `SettingScope` enum が追加されている
+- [x] `@@unique([scope, project_id])` 制約が DeveloperSettings に設定されている
+- [x] `name` フィールドに `@unique` 制約が SshKey に設定されている
+- [x] `npx prisma format` でフォーマットエラーが0件である
+- [x] `npx prisma validate` でバリデーションエラーが0件である
+- [x] `npx prisma db push` でスキーマがデータベースに適用できる
+- [x] `npx prisma generate` で Drizzle Client が生成できる
 
 ---
 
@@ -169,5 +169,8 @@ npx prisma generate
 ---
 
 **推定工数**: 20分
-**ステータス**: TODO
+**ステータス**: DONE
+
+**完了サマリー**: Drizzleスキーマ(src/db/schema.ts)にDeveloperSettings, SshKeyテーブルとsettingScopeカラムを追加。@@unique, @unique制約を設定。npm run db:pushでスキーマ適用済み。
+
 **依存**: なし

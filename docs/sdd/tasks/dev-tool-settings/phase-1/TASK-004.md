@@ -18,13 +18,13 @@ SSH鍵の登録・削除・バリデーションを行う **SshKeyService** を�
 - 要件: `@docs/sdd/requirements/dev-tool-settings/stories/US-003.md`
 
 ## 受入基準
-- [ ] `registerKey(input)` メソッドが実装されている（暗号化含む）
-- [ ] `getAllKeys()` メソッドが実装されている（公開鍵のみ返却）
-- [ ] `getKeyById(id)` メソッドが実装されている
-- [ ] `deleteKey(id)` メソッドが実装されている
-- [ ] `validateKeyFormat(privateKey)` メソッドが実装されている
-- [ ] 名前重複時のエラー処理がテストで確認されている
-- [ ] `npm test` ですべてのテストがパスする
+- [x] `registerKey(input)` メソッドが実装されている（暗号化含む）
+- [x] `getAllKeys()` メソッドが実装されている（公開鍵のみ返却）
+- [x] `getKeyById(id)` メソッドが実装されている
+- [x] `deleteKey(id)` メソッドが実装されている
+- [x] `validateKeyFormat(privateKey)` メソッドが実装されている
+- [x] 名前重複時のエラー処理がテストで確認されている
+- [x] `npm test` ですべてのテストがパスする
 
 ## 実装手順（TDD）
 1. テスト作成: `ssh-key-service.test.ts`
@@ -34,4 +34,6 @@ SSH鍵の登録・削除・バリデーションを行う **SshKeyService** を�
 5. テスト通過確認
 6. 実装コミット: `feat: Implement SshKeyService`
 
-**推定工数**: 40分 | **ステータス**: TODO | **依存**: TASK-001
+**推定工数**: 40分 | **ステータス**: DONE | **依存**: TASK-001
+
+**完了サマリー**: SshKeyServiceを実装。registerKey(暗号化含む), getAllKeys(公開鍵のみ), getKeyById, deleteKey, validateKeyFormat, decryptPrivateKeyメソッドを実装。テスト23件パス。
