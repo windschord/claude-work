@@ -77,12 +77,16 @@ export class AdapterFactory {
       imageName: configData.imageName || 'claude-code-sandboxed',
       imageTag: configData.imageTag || 'latest',
       authDirPath: environment.auth_dir_path,
+      portMappings: configData.portMappings,
+      volumeMounts: configData.volumeMounts,
     };
 
     logger.info('AdapterFactory: Creating DockerAdapter', {
       environmentId: environment.id,
       imageName: config.imageName,
       imageTag: config.imageTag,
+      portMappings: config.portMappings?.length ?? 0,
+      volumeMounts: config.volumeMounts?.length ?? 0,
     });
 
     const adapter = new DockerAdapter(config);
