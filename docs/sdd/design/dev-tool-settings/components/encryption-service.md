@@ -123,6 +123,29 @@ sequenceDiagram
 ### クラス/モジュール構造
 
 ```typescript
+import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
+
+export class EncryptionKeyNotFoundError extends Error {
+  constructor() {
+    super('ENCRYPTION_KEY environment variable is not set.');
+    this.name = 'EncryptionKeyNotFoundError';
+  }
+}
+
+export class EncryptionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'EncryptionError';
+  }
+}
+
+export class DecryptionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'DecryptionError';
+  }
+}
+
 export class EncryptionService {
   private getKey(): Buffer {
     const keyBase64 = process.env.ENCRYPTION_KEY;

@@ -525,6 +525,7 @@ describe('useDeveloperSettingsStore (developer-settings)', () => {
 
       const state = useDeveloperSettingsStore.getState();
       expect(state.error).toBeNull();
+      expect(state.successMessage).toBe('設定を保存しました');
     });
   });
 });

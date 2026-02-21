@@ -154,7 +154,7 @@ export const sshKeys = sqliteTable('SshKey', {
 | name | String | NOT NULL, UNIQUE | - | 鍵の識別名 |
 | public_key | Text | NOT NULL | - | SSH公開鍵（平文） |
 | private_key_encrypted | Text | NOT NULL | - | SSH秘密鍵（AES-256-GCM暗号化、形式: `iv:authTag:encrypted`） |
-| encryption_iv | String | NOT NULL | - | 暗号化メタデータ（形式: `iv:authTag`、Base64エンコード） |
+| encryption_iv | String | NOT NULL | - | 暗号化初期化ベクトル（IV）（Base64エンコード、16バイト） |
 | has_passphrase | Boolean | NOT NULL | false | パスフレーズ保護の有無 |
 | created_at | DateTime | NOT NULL | now() | 作成日時（UTC） |
 | updated_at | DateTime | NOT NULL | updatedAt | 更新日時（UTC） |
@@ -172,7 +172,7 @@ export const sshKeys = sqliteTable('SshKey', {
 - **authTag**: GCM認証タグ（暗号化時に自動生成）
 - **保存形式**:
   - `private_key_encrypted`: `iv:authTag:encrypted`（コロン区切り、各要素はBase64エンコード）
-  - `encryption_iv`: 暗号化メタデータ（`private_key_encrypted` の形式に依存する参照用カラム）
+  - `encryption_iv`: 暗号化初期化ベクトル（IV）を単独で保存（Base64エンコード、16バイト）
 
 ---
 
