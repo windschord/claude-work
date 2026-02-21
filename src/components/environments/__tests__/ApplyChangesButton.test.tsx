@@ -58,6 +58,35 @@ describe('ApplyChangesButton', () => {
     });
   });
 
+  describe('セッション取得に失敗した場合', () => {
+    it('APIがエラーを返した場合にエラーメッセージが表示されること', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+      });
+
+      render(<ApplyChangesButton {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('セッション一覧の取得に失敗しました')).toBeInTheDocument();
+      });
+
+      expect(screen.queryByRole('button', { name: /今すぐ適用/ })).not.toBeInTheDocument();
+    });
+
+    it('ネットワークエラーの場合にエラーメッセージが表示されること', async () => {
+      mockFetch.mockRejectedValueOnce(new Error('Network error'));
+
+      render(<ApplyChangesButton {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('セッション一覧の取得に失敗しました')).toBeInTheDocument();
+      });
+
+      expect(screen.queryByRole('button', { name: /今すぐ適用/ })).not.toBeInTheDocument();
+    });
+  });
+
   describe('実行中セッションがある場合', () => {
     it('「今すぐ適用」ボタンとセッション数バッジが表示されること', async () => {
       mockSessionsResponse([

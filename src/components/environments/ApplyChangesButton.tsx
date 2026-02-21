@@ -40,6 +40,7 @@ export function ApplyChangesButton({
   const [state, setState] = useState<ComponentState>('loading');
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [applyResult, setApplyResult] = useState<ApplyResult | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchSessions = async () => {
@@ -51,7 +52,12 @@ export function ApplyChangesButton({
         if (response.ok) {
           const data = await response.json();
           setSessions(data.sessions);
+          setFetchError(null);
+        } else {
+          setFetchError('セッション一覧の取得に失敗しました');
         }
+      } catch {
+        setFetchError('セッション一覧の取得に失敗しました');
       } finally {
         setState('ready');
       }
@@ -104,6 +110,14 @@ export function ApplyChangesButton({
 
   if (state === 'loading') {
     return null;
+  }
+
+  if (fetchError) {
+    return (
+      <p className="text-sm text-red-500 dark:text-red-400">
+        {fetchError}
+      </p>
+    );
   }
 
   if (sessions.length === 0) {
