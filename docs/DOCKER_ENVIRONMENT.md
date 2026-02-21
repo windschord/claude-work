@@ -137,11 +137,12 @@ Docker環境は Settings → Environments から管理します。
 | 用途 | ホストパス | コンテナパス | 読み取り専用 |
 |------|-----------|-------------|-------------|
 | データの共有 | `/home/user/data` | `/mnt/data` | いいえ |
-| 設定ファイルの参照 | `/home/user/.config/tool` | `/root/.config/tool` | はい |
-| npm キャッシュの共有 | `/home/user/.npm` | `/root/.npm` | いいえ |
+| 設定ファイルの参照 | `/home/user/.config/tool` | `/home/node/.config/tool` | はい |
+| npm キャッシュの共有 | `/home/user/.npm` | `/home/node/.npm` | いいえ |
 
 ### 注意事項
 
+- コンテナは `node` ユーザー（ホームディレクトリは `/home/node`）で動作します。ホームディレクトリ配下へのマウントを行う場合は `/home/node/...` を使用してください
 - 書き込み可能なマウントでは、コンテナ内の操作がホストのファイルに影響します
 - セッション起動中にボリュームマウントを変更した場合は、[設定の即時適用](#設定の即時適用)が必要です
 
