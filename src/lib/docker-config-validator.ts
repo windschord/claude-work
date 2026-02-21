@@ -209,6 +209,7 @@ export function validateVolumeMounts(mounts: VolumeMount[]): ValidationResult {
 /**
  * 指定されたホストパスが危険なシステムパスかどうかを判定する
  * 完全一致またはサブパス（/etc/nginx等）の場合にtrueを返す
+ * 注: '/' は完全一致のみで判定される（startsWith('//')にはマッチしないため）
  */
 export function isDangerousPath(hostPath: string): boolean {
   for (const dangerousPath of DANGEROUS_HOST_PATHS) {

@@ -41,6 +41,22 @@ function validateMount(mount: VolumeMount): { errors: MountError; warnings: Moun
     errors.containerPath = `containerPath「${mount.containerPath}」はシステムが使用するパスのためマウントできません`;
   }
 
+  // パストラバーサルチェック
+  if (mount.hostPath && mount.hostPath.includes('..')) {
+    errors.hostPath = 'hostPathに「..」を含めることはできません';
+  }
+  if (mount.containerPath && mount.containerPath.includes('..')) {
+    errors.containerPath = 'containerPathに「..」を含めることはできません';
+  }
+
+  // コロン文字チェック
+  if (mount.hostPath && !errors.hostPath && mount.hostPath.includes(':')) {
+    errors.hostPath = 'hostPathに「:」を含めることはできません';
+  }
+  if (mount.containerPath && !errors.containerPath && mount.containerPath.includes(':')) {
+    errors.containerPath = 'containerPathに「:」を含めることはできません';
+  }
+
   // 危険なホストパスチェック
   if (mount.hostPath && isDangerousPath(mount.hostPath)) {
     warnings.hostPath = `hostPath「${mount.hostPath}」は危険なシステムパスです`;
@@ -57,6 +73,15 @@ function validateMount(mount: VolumeMount): { errors: MountError; warnings: Moun
  * リアルタイムでバリデーションを行い、エラーや警告を表示します。
  */
 export function VolumeMountList({ value, onChange, onDangerousPath }: VolumeMountListProps) {
+  // 安定したキーを生成するためのカウンターとキー配列
+  const keyCounterRef = useRef(0);
+  const keysRef = useRef<number[]>([]);
+  if (keysRef.current.length < value.length) {
+    while (keysRef.current.length < value.length) {
+      keysRef.current.push(keyCounterRef.current++);
+    }
+  }
+
   // 危険パスのコールバックを呼び出す（既に通知済みのパスは再通知しない）
   const notifiedPathsRef = useRef<Set<string>>(new Set());
 
@@ -80,6 +105,7 @@ export function VolumeMountList({ value, onChange, onDangerousPath }: VolumeMoun
     if (removedPath) {
       notifiedPathsRef.current.delete(removedPath);
     }
+    keysRef.current = keysRef.current.filter((_, i) => i !== index);
     const newMounts = value.filter((_, i) => i !== index);
     onChange(newMounts);
   };
@@ -108,7 +134,7 @@ export function VolumeMountList({ value, onChange, onDangerousPath }: VolumeMoun
             const { errors, warnings } = validateMount(mount);
 
             return (
-              <div key={index} className="space-y-1">
+              <div key={keysRef.current[index]} className="space-y-1">
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
@@ -128,7 +154,7 @@ export function VolumeMountList({ value, onChange, onDangerousPath }: VolumeMoun
                     className="flex-1 px-3 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                   <select
-                    value={mount.accessMode}
+                    value={mount.accessMode ?? 'rw'}
                     onChange={(e) => handleChange(index, 'accessMode', e.target.value)}
                     className="px-2 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
