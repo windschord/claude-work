@@ -4,6 +4,10 @@ import { useState, Fragment, useEffect, useCallback, useRef } from 'react';
 import { Dialog, Transition, Listbox, RadioGroup } from '@headlessui/react';
 import { ChevronDown, Check, Loader2, Upload, X, FileText } from 'lucide-react';
 import { Environment, EnvironmentType, CreateEnvironmentInput, UpdateEnvironmentInput } from '@/hooks/useEnvironments';
+import { PortMappingList } from './PortMappingList';
+import { VolumeMountList } from './VolumeMountList';
+import { DangerousPathWarning } from './DangerousPathWarning';
+import type { PortMapping, VolumeMount } from '@/types/environment';
 
 interface EnvironmentFormProps {
   isOpen: boolean;
@@ -69,6 +73,9 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
   const [imageError, setImageError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [skipPermissions, setSkipPermissions] = useState(false);
+  const [portMappings, setPortMappings] = useState<PortMapping[]>([]);
+  const [volumeMounts, setVolumeMounts] = useState<VolumeMount[]>([]);
+  const [dangerousPath, setDangerousPath] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   /**
@@ -122,6 +129,12 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
             }
           }
           setSkipPermissions(config?.skipPermissions === true);
+          if (config.portMappings) {
+            setPortMappings(config.portMappings);
+          }
+          if (config.volumeMounts) {
+            setVolumeMounts(config.volumeMounts);
+          }
         } catch {
           setSkipPermissions(false);
           // configのパースに失敗した場合はデフォルト値を使用
@@ -137,6 +150,8 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
       setDockerfileFile(null);
       setDockerfileUploaded(false);
       setSkipPermissions(false);
+      setPortMappings([]);
+      setVolumeMounts([]);
     }
   }, [mode, environment, isOpen]);
 
@@ -159,6 +174,8 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
         imageSource: 'dockerfile',
         dockerfileUploaded: shouldPreserveUploadedState ? true : false,
         skipPermissions,
+        portMappings: portMappings.length > 0 ? portMappings : undefined,
+        volumeMounts: volumeMounts.length > 0 ? volumeMounts : undefined,
       };
     } else {
       // 既存イメージを使用
@@ -181,6 +198,8 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
         imageName,
         imageTag,
         skipPermissions,
+        portMappings: portMappings.length > 0 ? portMappings : undefined,
+        volumeMounts: volumeMounts.length > 0 ? volumeMounts : undefined,
       };
     }
   };
@@ -406,6 +425,9 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
     setDockerfileUploaded(false);
     setIsDragging(false);
     setSkipPermissions(false);
+    setPortMappings([]);
+    setVolumeMounts([]);
+    setDangerousPath(null);
     onClose();
   };
 
@@ -428,6 +450,7 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
   };
 
   return (
+    <>
     <Transition appear show={isOpen} as={Fragment}>
       <Dialog as="div" className="relative z-10" onClose={handleClose}>
         <Transition.Child
@@ -769,6 +792,20 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
                         </div>
                       )}
 
+                      {/* Port Mapping Settings */}
+                      <div className="mt-4">
+                        <PortMappingList value={portMappings} onChange={setPortMappings} />
+                      </div>
+
+                      {/* Volume Mount Settings */}
+                      <div className="mt-4">
+                        <VolumeMountList
+                          value={volumeMounts}
+                          onChange={setVolumeMounts}
+                          onDangerousPath={(path) => setDangerousPath(path)}
+                        />
+                      </div>
+
                       {/* Skip Permissions Toggle */}
                       <div className="mt-4 p-3 border border-amber-200 dark:border-amber-700 rounded-lg bg-amber-50 dark:bg-amber-900/20">
                         <div className="flex items-center justify-between">
@@ -866,5 +903,20 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
         </div>
       </Dialog>
     </Transition>
+    <DangerousPathWarning
+      isOpen={dangerousPath !== null}
+      path={dangerousPath || ''}
+      onConfirm={() => setDangerousPath(null)}
+      onCancel={() => {
+        // Clear the dangerous path from volumeMounts
+        if (dangerousPath) {
+          setVolumeMounts(prev =>
+            prev.map(m => m.hostPath === dangerousPath ? { ...m, hostPath: '' } : m)
+          );
+        }
+        setDangerousPath(null);
+      }}
+    />
+    </>
   );
 }
