@@ -82,6 +82,14 @@ export function VolumeMountList({ value, onChange, onDangerousPath }: VolumeMoun
   const notifiedPathsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
+    // 現在のvalueに含まれない通知済みパスをクリア（キャンセル等でパスが除去された場合に再通知可能にする）
+    const currentPaths = new Set(value.map(m => m.hostPath));
+    for (const path of notifiedPathsRef.current) {
+      if (!currentPaths.has(path)) {
+        notifiedPathsRef.current.delete(path);
+      }
+    }
+
     if (!onDangerousPath) return;
 
     for (const mount of value) {
