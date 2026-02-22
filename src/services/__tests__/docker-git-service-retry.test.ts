@@ -217,13 +217,20 @@ describe('DockerGitService リトライロジック', () => {
       // 全て失敗
       mockExecFile.mockImplementation(failureImpl('Connection timed out'));
 
-      await expect(
-        dockerGitService.createWorktree({
+      let caughtError: GitOperationError | null = null;
+      try {
+        await dockerGitService.createWorktree({
           projectId: 'test-project-id',
           sessionName: 'test-session',
           branchName: 'session/test-session',
-        })
-      ).rejects.toThrow(GitOperationError);
+        });
+      } catch (err) {
+        caughtError = err as GitOperationError;
+      }
+
+      expect(caughtError).toBeInstanceOf(GitOperationError);
+      // 一時的エラーの最大リトライ失敗後もrecoverable=true
+      expect(caughtError!.recoverable).toBe(true);
 
       // execFileの呼び出し回数を確認: worktree試行 (3回)
       expect(mockExecFile).toHaveBeenCalledTimes(3);
@@ -345,6 +352,43 @@ describe('DockerGitService リトライロジック', () => {
       expect(timeoutCalls[1]).toBeLessThanOrEqual(3000);
 
       setTimeoutSpy.mockRestore();
+    });
+  });
+
+  describe('PAT sanitization', () => {
+    it('PAT is sanitized in error messages when retryWithBackoff throws', async () => {
+      const patErrorImpl = () => {
+        return (
+          _cmd: string,
+          _args: string[],
+          _opts: unknown,
+          cb: ExecFileCallback
+        ) => {
+          const error = new Error('fatal: Authentication failed for GIT_PAT=ghp_secret123') as Error & { stderr?: string; stdout?: string };
+          error.stderr = 'remote: Invalid credentials GIT_PAT=ghp_secret123';
+          error.stdout = 'Cloning with GIT_PAT=ghp_secret123';
+          cb(error);
+        };
+      };
+
+      mockExecFile
+        .mockImplementationOnce(successImpl()) // volume create
+        .mockImplementationOnce(patErrorImpl()) // clone: permanent error (authentication failed)
+        .mockImplementationOnce(successImpl()); // volume cleanup
+
+      let caughtError: GitOperationError | null = null;
+      try {
+        await dockerGitService.cloneRepository({
+          url: 'https://github.com/user/repo.git',
+          projectId: 'test-project-id',
+        });
+      } catch (err) {
+        caughtError = err as GitOperationError;
+      }
+
+      expect(caughtError).toBeInstanceOf(GitOperationError);
+      // Error message should not contain raw PAT
+      expect(caughtError!.message).not.toContain('ghp_secret123');
     });
   });
 });

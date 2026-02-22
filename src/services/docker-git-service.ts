@@ -22,11 +22,15 @@ const execFileAsync = promisify(execFile);
 export class DockerGitService implements GitOperations {
   private configService = getConfigService();
 
+  // Non-recoverable error patterns - these require user action, not retries
   private static readonly PERMANENT_ERROR_PATTERNS = [
     'no such file or directory',
     'permission denied',
     'repository not found',
     'authentication failed',
+    'could not resolve host',
+    'repository does not exist',
+    'access denied',
   ];
 
   private static readonly MAX_RETRY_ATTEMPTS = 3;
@@ -163,10 +167,18 @@ export class DockerGitService implements GitOperations {
    * エラーオブジェクトからPATを除去したErrorを返す
    */
   private sanitizeError(error: Error): Error {
+    const pat = /GIT_PAT=[^\s]*/g;
     const sanitized = new Error(
-      (error.message || '').replace(/GIT_PAT=[^\s]*/g, 'GIT_PAT=***')
+      (error.message || '').replace(pat, 'GIT_PAT=***')
     );
-    sanitized.stack = error.stack?.replace(/GIT_PAT=[^\s]*/g, 'GIT_PAT=***');
+    sanitized.stack = error.stack?.replace(pat, 'GIT_PAT=***');
+    const ext = error as unknown as Record<string, unknown>;
+    if (typeof ext.stderr === 'string') {
+      (sanitized as unknown as Record<string, unknown>).stderr = ext.stderr.replace(pat, 'GIT_PAT=***');
+    }
+    if (typeof ext.stdout === 'string') {
+      (sanitized as unknown as Record<string, unknown>).stdout = ext.stdout.replace(pat, 'GIT_PAT=***');
+    }
     return sanitized;
   }
 
@@ -227,7 +239,7 @@ export class DockerGitService implements GitOperations {
         }
 
         const delay = DockerGitService.BASE_DELAY_MS * Math.pow(2, attempt - 1);
-        logger.warn(`[docker] Retrying ${operationType} (attempt ${attempt + 1}/${maxAttempts}) after ${delay}ms`, {
+        logger.warn(`[docker] ${operationType} attempt ${attempt} failed, retrying (${attempt + 1}/${maxAttempts}) after ${delay}ms`, {
           error: safeMessage,
           attempt,
           delay,
@@ -466,7 +478,7 @@ export class DockerGitService implements GitOperations {
         message: `Repository cloned successfully with PAT to Docker volume: ${volumeName}`,
       };
     } catch (error) {
-      logger.error('[docker] git clone with PAT failed', { error, repoUrl: this.sanitizeUrl(repoUrl), volumeName });
+      logger.error('[docker] git clone with PAT failed', { error: this.sanitizeError(error as Error), repoUrl: this.sanitizeUrl(repoUrl), volumeName });
 
       // エラー時はボリュームを削除
       if (volumeName) {
