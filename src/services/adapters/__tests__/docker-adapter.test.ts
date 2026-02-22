@@ -1888,5 +1888,33 @@ describe('DockerAdapter', () => {
       expect(args).toContain('/data/environments/env-123-456/claude:/home/node/.claude');
       expect(args).toContain('/data/environments/env-123-456/config/claude:/home/node/.config/claude');
     });
+
+    it('不正なdockerVolumeId(コロンを含む)はエラーになる', () => {
+      expect(() => {
+        testAdapter.testBuildDockerArgs('/repo/.worktrees/session-abc', {
+          dockerVolumeId: 'evil:volume',
+        });
+      }).toThrow('Invalid dockerVolumeId format');
+    });
+
+    it('不正なdockerVolumeId(スラッシュを含む)はエラーになる', () => {
+      expect(() => {
+        testAdapter.testBuildDockerArgs('/repo/.worktrees/session-abc', {
+          dockerVolumeId: '../escape',
+        });
+      }).toThrow('Invalid dockerVolumeId format');
+    });
+
+    it('空文字のdockerVolumeIdはfalsyとして無視され、従来のホストパスマウントにフォールバックする', () => {
+      const { args } = testAdapter.testBuildDockerArgs('/repo/.worktrees/session-abc', {
+        dockerVolumeId: '',
+      });
+
+      // 従来のホストパスマウントが使用される
+      expect(args).toContain('/repo/.worktrees/session-abc:/workspace');
+      // Dockerボリュームマウントは使用されない
+      const repoMount = args.find(a => a.includes(':/repo'));
+      expect(repoMount).toBeUndefined();
+    });
   });
 });

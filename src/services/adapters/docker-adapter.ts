@@ -121,6 +121,11 @@ export class DockerAdapter extends BasePTYAdapter {
 
     // ワークスペースマウント
     if (options?.dockerVolumeId) {
+      // Dockerボリューム名は英数字・ダッシュ・アンダースコア・ドットのみ許可
+      // (Docker公式仕様: [a-zA-Z0-9][a-zA-Z0-9_.-]*)
+      if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(options.dockerVolumeId)) {
+        throw new Error(`Invalid dockerVolumeId format: ${options.dockerVolumeId}`);
+      }
       // Dockerボリューム経由: ボリューム全体をマウントし、worktreePathをCWDに設定
       args.push('-v', `${options.dockerVolumeId}:/repo`);
       args.push('-w', workingDir);
