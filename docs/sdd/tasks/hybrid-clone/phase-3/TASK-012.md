@@ -24,7 +24,8 @@
 
 ### 4. claude-ws.ts
 - セッション取得クエリでprojectの`clone_location`と`docker_volume_id`を含める
-- `clone_location === 'docker'`の場合、`docker_volume_id`（またはフォールバック値`claude-repo-<projectId>`）をdockerVolumeIdとして渡す
+- `clone_location === 'docker'`の場合、`docker_volume_id`をdockerVolumeIdとして渡す
+- `docker_volume_id`がnull/未設定の場合は`claude-repo-<projectId>`をフォールバック値として使用
 
 ## テスト
 

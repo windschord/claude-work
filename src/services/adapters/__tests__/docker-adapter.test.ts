@@ -1062,6 +1062,61 @@ describe('DockerAdapter', () => {
 
       isContainerRunningSpy.mockRestore();
     });
+
+    it('should use parent session containerWorkDir for exec CWD when dockerVolumeId is set', async () => {
+      const dvParentSessionId = 'session-dockervol-parent';
+      const dvTerminalSessionId = 'session-dockervol-parent-terminal';
+      const dvWorkingDir = '/repo/.worktrees/session-abc';
+
+      const isContainerRunningSpy = vi.spyOn(adapter as any, 'isContainerRunning').mockReturnValue(true);
+
+      // 親セッション作成（dockerVolumeId指定）
+      await adapter.createSession(dvParentSessionId, dvWorkingDir, undefined, {
+        dockerVolumeId: 'claude-repo-proj-123',
+      });
+      mockSpawn.mockClear();
+
+      // shellModeセッション作成
+      await adapter.createSession(dvTerminalSessionId, dvWorkingDir, undefined, {
+        shellMode: true,
+      });
+
+      // exec の -w 引数が /workspace ではなく、親のcontainerWorkDir（workingDir）になっていること
+      const spawnCall = mockSpawn.mock.calls[0];
+      const args = spawnCall[1] as string[];
+      const wIndex = args.indexOf('-w');
+      expect(wIndex).toBeGreaterThan(-1);
+      expect(args[wIndex + 1]).toBe(dvWorkingDir); // /repo/.worktrees/session-abc
+      expect(args[wIndex + 1]).not.toBe('/workspace');
+
+      isContainerRunningSpy.mockRestore();
+    });
+
+    it('should use /workspace for exec CWD when dockerVolumeId is not set', async () => {
+      const hvParentSessionId = 'session-hostvol-parent';
+      const hvTerminalSessionId = 'session-hostvol-parent-terminal';
+      const hvWorkingDir = '/projects/my-project';
+
+      const isContainerRunningSpy = vi.spyOn(adapter as any, 'isContainerRunning').mockReturnValue(true);
+
+      // 親セッション作成（dockerVolumeIdなし）
+      await adapter.createSession(hvParentSessionId, hvWorkingDir);
+      mockSpawn.mockClear();
+
+      // shellModeセッション作成
+      await adapter.createSession(hvTerminalSessionId, hvWorkingDir, undefined, {
+        shellMode: true,
+      });
+
+      // exec の -w 引数が /workspace であること
+      const spawnCall = mockSpawn.mock.calls[0];
+      const args = spawnCall[1] as string[];
+      const wIndex = args.indexOf('-w');
+      expect(wIndex).toBeGreaterThan(-1);
+      expect(args[wIndex + 1]).toBe('/workspace');
+
+      isContainerRunningSpy.mockRestore();
+    });
   });
 
   describe('waitForContainerReady (TASK-012)', () => {

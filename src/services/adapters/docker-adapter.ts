@@ -69,6 +69,7 @@ interface DockerSession {
   shellMode: boolean;
   lastKnownCols?: number;
   lastKnownRows?: number;
+  containerWorkDir?: string;  // コンテナ内の作業ディレクトリ（dockerVolumeId使用時はworkingDir、それ以外は'/workspace'）
 }
 
 /**
@@ -393,8 +394,11 @@ export class DockerAdapter extends BasePTYAdapter {
     rows: number
   ): Promise<void> {
     // -it オプションでインタラクティブモードとTTYを有効化
-    // -w オプションで作業ディレクトリを /workspace に設定
-    const args = ['exec', '-it', '-w', '/workspace', containerName, 'bash'];
+    // -w オプションで作業ディレクトリを設定（親セッションのcontainerWorkDirを参照）
+    const parentId = this.getParentSessionId(sessionId);
+    const parentSession = parentId ? this.sessions.get(parentId) : undefined;
+    const execCwd = parentSession?.containerWorkDir ?? '/workspace';
+    const args = ['exec', '-it', '-w', execCwd, containerName, 'bash'];
 
     logger.info('DockerAdapter: Creating exec session (attaching to existing container)', {
       sessionId,
@@ -568,6 +572,7 @@ export class DockerAdapter extends BasePTYAdapter {
         env: {},
       });
 
+      const containerWorkDir = options?.dockerVolumeId ? workingDir : '/workspace';
       this.sessions.set(sessionId, {
         ptyProcess,
         workingDir,
@@ -577,6 +582,7 @@ export class DockerAdapter extends BasePTYAdapter {
         shellMode: false,
         lastKnownCols: initialCols,
         lastKnownRows: initialRows,
+        containerWorkDir,
       });
 
       // コンテナ起動完了を待機（TASK-012）
