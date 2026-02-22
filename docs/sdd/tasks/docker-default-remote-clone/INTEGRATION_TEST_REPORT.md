@@ -11,7 +11,7 @@
 | カテゴリ | 結果 | 詳細 |
 |---------|------|------|
 | ユニットテスト | PASS (注) | 2123テスト実行: 2076通過、8失敗（ENCRYPTION_KEY未設定 - CI環境では通過）、39スキップ、168ファイル |
-| E2Eテスト | PASS | CI全通過 |
+| E2Eテスト | PASS (注) | CI全通過（remote-clone.spec.ts: 1 passed / 3 skipped） |
 | ESLint | PASS | エラー0件（警告15件、既存） |
 | TypeScript | PASS | 型エラー0件 |
 | ビルド | PASS | Next.js + TypeScript ビルド成功 |

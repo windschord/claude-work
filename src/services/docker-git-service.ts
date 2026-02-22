@@ -145,10 +145,46 @@ export class DockerGitService implements GitOperations {
    * エラーが永続的（リトライ不要）かどうかを判定
    */
   private isPermanentError(error: Error): boolean {
-    const message = (error.message || '').toLowerCase();
+    const messages: string[] = [error.message || ''];
+    const extendedError = error as unknown as Record<string, unknown>;
+    if (typeof extendedError.stderr === 'string') {
+      messages.push(extendedError.stderr);
+    }
+    if (typeof extendedError.stdout === 'string') {
+      messages.push(extendedError.stdout);
+    }
+    const combinedMessage = messages.join('\n').toLowerCase();
     return DockerGitService.PERMANENT_ERROR_PATTERNS.some(
-      (pattern) => message.includes(pattern)
+      (pattern) => combinedMessage.includes(pattern)
     );
+  }
+
+  /**
+   * エラーオブジェクトからPATを除去したErrorを返す
+   */
+  private sanitizeError(error: Error): Error {
+    const sanitized = new Error(
+      (error.message || '').replace(/GIT_PAT=[^\s]*/g, 'GIT_PAT=***')
+    );
+    sanitized.stack = error.stack?.replace(/GIT_PAT=[^\s]*/g, 'GIT_PAT=***');
+    return sanitized;
+  }
+
+  /**
+   * URLから認証情報を除去する
+   */
+  private sanitizeUrl(url: string): string {
+    try {
+      const parsed = new URL(url);
+      if (parsed.username || parsed.password) {
+        parsed.username = '***';
+        parsed.password = '***';
+        return parsed.toString();
+      }
+      return url;
+    } catch {
+      return url;
+    }
   }
 
   /**
@@ -182,7 +218,7 @@ export class DockerGitService implements GitOperations {
             'docker',
             operationType,
             false,
-            lastError
+            this.sanitizeError(lastError)
           );
         }
 
@@ -206,7 +242,7 @@ export class DockerGitService implements GitOperations {
       'docker',
       operationType,
       true,
-      lastError!
+      this.sanitizeError(lastError!)
     );
   }
 
@@ -272,7 +308,7 @@ export class DockerGitService implements GitOperations {
         'docker',
         'clone',
         true,
-        error as Error
+        this.sanitizeError(error as Error)
       );
     }
   }
@@ -326,7 +362,7 @@ export class DockerGitService implements GitOperations {
         'docker',
         'worktree',
         true,
-        error as Error
+        this.sanitizeError(error as Error)
       );
     }
   }
@@ -413,7 +449,7 @@ export class DockerGitService implements GitOperations {
         '-c', shellCommand,
       ];
 
-      logger.info('[docker] Starting git clone with PAT', { repoUrl, volumeName, timeout });
+      logger.info('[docker] Starting git clone with PAT', { repoUrl: this.sanitizeUrl(repoUrl), volumeName, timeout });
 
       // 4. git clone実行（リトライ付き）
       const startTime = Date.now();
@@ -423,14 +459,14 @@ export class DockerGitService implements GitOperations {
       );
       const duration = Date.now() - startTime;
 
-      logger.info('[docker] git clone with PAT completed', { repoUrl, volumeName, duration });
+      logger.info('[docker] git clone with PAT completed', { repoUrl: this.sanitizeUrl(repoUrl), volumeName, duration });
 
       return {
         success: true,
         message: `Repository cloned successfully with PAT to Docker volume: ${volumeName}`,
       };
     } catch (error) {
-      logger.error('[docker] git clone with PAT failed', { error, repoUrl, volumeName });
+      logger.error('[docker] git clone with PAT failed', { error, repoUrl: this.sanitizeUrl(repoUrl), volumeName });
 
       // エラー時はボリュームを削除
       if (volumeName) {
@@ -448,7 +484,7 @@ export class DockerGitService implements GitOperations {
         'docker',
         'clone',
         true,
-        error as Error
+        this.sanitizeError(error as Error)
       );
     }
   }
