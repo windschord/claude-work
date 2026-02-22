@@ -1113,27 +1113,49 @@ async function selectAdapter(session: Session): Promise<EnvironmentAdapter> {
 
 ```typescript
 // POST /api/projects/:project_id/sessions
-const { name, prompt, environment_id, dockerMode = false } = body;
+const { name, prompt, environment_id: requestEnvironmentId, dockerMode = false } = body;
 
 // 優先順位:
-// 1. environment_id が指定されていればそれを使用
-// 2. dockerMode=true かつ environment_id未指定 → レガシーDocker（警告ログ出力）
-// 3. 両方未指定 → デフォルトHOST環境
+// 1. project.environment_id（プロジェクトに環境が設定されていれば最優先）
+// 2. requestEnvironmentId（リクエストで指定された environment_id）
+// 3. clone_location に基づく自動選択（docker → デフォルトDocker環境）
+// 4. dockerMode=true（レガシー互換、警告ログ出力）
 
 let effectiveEnvironmentId: string | null = null;
 
-if (environment_id) {
-  // 新方式: environment_idを使用
-  effectiveEnvironmentId = environment_id;
-} else if (dockerMode) {
-  // レガシー方式: 警告を出力しつつ従来動作を維持
+// プロジェクトの environment_id を最優先
+if (project.environment_id) {
+  effectiveEnvironmentId = project.environment_id;
+}
+
+// リクエストの environment_id（プロジェクトに設定がない場合）
+if (!effectiveEnvironmentId && requestEnvironmentId) {
+  const env = await environmentService.findById(requestEnvironmentId);
+  if (env) {
+    effectiveEnvironmentId = requestEnvironmentId;
+  }
+}
+
+// clone_location に基づく自動選択
+if (!effectiveEnvironmentId) {
+  if (project.clone_location === 'docker') {
+    const defaultEnv = await environmentService.getDefault();
+    if (defaultEnv?.type === 'DOCKER') {
+      effectiveEnvironmentId = defaultEnv.id;
+    }
+  }
+}
+
+// レガシー dockerMode（フォールバック）
+if (!effectiveEnvironmentId && dockerMode) {
   logger.warn('dockerMode parameter is deprecated, use environment_id instead', {
     projectId: project_id,
   });
   // environment_idはnullのまま、session.docker_mode=trueで保存
-  // WebSocket接続時に既存DockerPTYAdapterが使用される
 }
 ```
+
+> **注意**: 2026-02-22の修正で `requestEnvironmentId`（リクエストの `environment_id`）が追加され、プロジェクトの `environment_id` が未設定の場合にリクエストから環境を指定できるようになった。
 
 ### HostAdapterとClaudePTYManagerの関係
 
