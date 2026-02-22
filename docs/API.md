@@ -141,17 +141,31 @@ Content-Type: application/json
 {
   "name": "session-name",
   "prompt": "initial prompt",
-  "environment_id": "docker-default",
-  "branch_name": "main"
+  "environment_id": "docker-env-id",
+  "source_branch": "main",
+  "claude_code_options": {
+    "model": "claude-opus-4-5"
+  },
+  "custom_env_vars": {
+    "MY_VAR": "value"
+  }
 }
 ```
 
 **パラメータ**:
 - `name` (optional): セッション名。未指定時は自動生成
-- `prompt` (required): 初期プロンプト
-- `environment_id` (optional): 実行環境ID。未指定時はデフォルト環境を使用
-- `branch_name` (optional): 作業ブランチ名。未指定時はデフォルトブランチ
+- `prompt` (optional): 初期プロンプト
+- `environment_id` (optional): 実行環境ID。プロジェクトに`environment_id`が設定されていない場合に有効
+- `source_branch` (optional): 作業ブランチ名。未指定時はデフォルトブランチ
+- `claude_code_options` (optional): Claude Code CLIオプション（`model`, `allowedTools`, `permissionMode`, `additionalFlags`）
+- `custom_env_vars` (optional): カスタム環境変数（キーは`^[A-Z_][A-Z0-9_]*$`形式）
 - `dockerMode` (deprecated): Docker モードで実行。`environment_id` を優先使用してください
+
+**実行環境の決定優先順位**:
+1. プロジェクトの`environment_id`（設定済みの場合は最優先）
+2. リクエストの`environment_id`（プロジェクトに設定がない場合）
+3. プロジェクトの`clone_location`に基づく自動選択（`docker`→デフォルトDocker環境）
+4. `dockerMode=true`（レガシー互換）
 
 ### セッション削除
 
