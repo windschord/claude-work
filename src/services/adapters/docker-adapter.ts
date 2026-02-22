@@ -118,8 +118,15 @@ export class DockerAdapter extends BasePTYAdapter {
     args.push('--cap-drop', 'ALL');
     args.push('--security-opt', 'no-new-privileges');
 
-    // ワークスペース（RW）
-    args.push('-v', `${workingDir}:/workspace`);
+    // ワークスペースマウント
+    if (options?.dockerVolumeId) {
+      // Dockerボリューム経由: ボリューム全体をマウントし、worktreePathをCWDに設定
+      args.push('-v', `${options.dockerVolumeId}:/repo`);
+      args.push('-w', workingDir);
+    } else {
+      // ホスト環境: 従来通りホストパスをマウント（RW）
+      args.push('-v', `${workingDir}:/workspace`);
+    }
 
     // 環境専用認証ディレクトリ（RW）
     const claudeDir = path.join(this.config.authDirPath, 'claude');

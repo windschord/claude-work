@@ -53,6 +53,7 @@ export interface SessionOptions {
   customEnvVars?: CustomEnvVars
   cols?: number
   rows?: number
+  dockerVolumeId?: string
 }
 
 /**
@@ -209,6 +210,7 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
           cols: options.cols,
           rows: options.rows,
           skipPermissions,
+          dockerVolumeId: options.dockerVolumeId,
         }
       )
 
