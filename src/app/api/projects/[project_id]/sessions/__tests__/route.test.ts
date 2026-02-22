@@ -732,5 +732,37 @@ describe('POST /api/projects/[project_id]/sessions', () => {
       // リクエストの environment_id では呼ばれない（プロジェクトのが優先されて処理が終わるため）
       expect(mockEnvironmentService.findById).not.toHaveBeenCalledWith('env-request-should-be-ignored');
     });
+
+    it('should return 400 when environment_id is not a string', async () => {
+      const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: 'Hello Claude', environment_id: 123 }),
+      });
+
+      const response = await POST(request, {
+        params: Promise.resolve({ project_id: 'project-1' }),
+      });
+
+      expect(response.status).toBe(400);
+      const body = await response.json();
+      expect(body.error).toContain('environment_id must be a non-empty string');
+    });
+
+    it('should return 400 when environment_id is an empty string', async () => {
+      const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: 'Hello Claude', environment_id: '' }),
+      });
+
+      const response = await POST(request, {
+        params: Promise.resolve({ project_id: 'project-1' }),
+      });
+
+      expect(response.status).toBe(400);
+      const body = await response.json();
+      expect(body.error).toContain('environment_id must be a non-empty string');
+    });
   });
 });
