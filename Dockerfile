@@ -28,7 +28,10 @@ RUN pnpm install --prod --frozen-lockfile --ignore-scripts
 # ネイティブモジュール（better-sqlite3, node-pty）を明示的にビルド
 # pnpm rebuild だけだとルートpackage.jsonのprepareスクリプトも実行されるため
 # パッケージ名を指定してネイティブモジュールのみビルドする
-RUN pnpm rebuild better-sqlite3 node-pty
+RUN pnpm rebuild better-sqlite3
+# node-ptyはLinux向けprebuiltがなくソースビルドが必要だが、pnpm rebuildはinstallスクリプトを
+# 実行しないため、node-ptyディレクトリで直接 npm run install（= node-gyp rebuild）を実行する
+RUN cd node_modules/.pnpm/node-pty@*/node_modules/node-pty && npm run install
 
 # =============================================================================
 # Stage 3: deps-all - 全依存関係（ビルド用）
@@ -38,7 +41,8 @@ COPY package.json pnpm-lock.yaml ./
 # --ignore-scripts でprepareスクリプト(npm run build)の実行を抑制（ソースファイル未コピーのため）
 RUN pnpm install --frozen-lockfile --ignore-scripts
 # ネイティブモジュール（better-sqlite3, node-pty）を明示的にビルド
-RUN pnpm rebuild better-sqlite3 node-pty
+RUN pnpm rebuild better-sqlite3
+RUN cd node_modules/.pnpm/node-pty@*/node_modules/node-pty && npm run install
 
 # =============================================================================
 # Stage 4: builder - アプリケーションビルド
