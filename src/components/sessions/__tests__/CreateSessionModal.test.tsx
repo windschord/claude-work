@@ -902,14 +902,16 @@ describe('CreateSessionModal', () => {
       );
 
       // プロジェクト情報取得完了後にradioボタンが表示されるのを待つ
+      // Docker環境がデフォルトのため isDockerEnvironment=true になり、
+      // 3つの環境選択ラジオ + 3つの skipPermissionsOverride ラジオ = 6 になる
       await waitFor(() => {
         const radioButtons = screen.getAllByRole('radio');
-        expect(radioButtons).toHaveLength(3);
+        expect(radioButtons).toHaveLength(6);
       });
 
       const radioButtons = screen.getAllByRole('radio');
 
-      // Docker Defaultが最初
+      // Docker Defaultが最初（インデックス0-2が環境選択ラジオ、3-5がskipPermissionsOverride）
       const firstContainer = radioButtons[0].closest('[role="radio"]');
       expect(firstContainer?.textContent).toContain('Docker Default');
 
@@ -1119,8 +1121,10 @@ describe('CreateSessionModal', () => {
         expect(screen.getByText('この環境はプロジェクト設定で変更できます')).toBeInTheDocument();
       });
 
-      // ラジオボタンは表示されない（読み取り専用表示のため）
-      expect(screen.queryAllByRole('radio')).toHaveLength(0);
+      // 環境選択ラジオボタンは表示されない（読み取り専用表示のため）
+      // ただし Docker 環境が選択されるため isDockerEnvironment=true になり
+      // skipPermissionsOverride の 3 つのラジオボタンは表示される
+      expect(screen.queryAllByRole('radio')).toHaveLength(3);
     });
 
     it('プロジェクトにenvironment_idが設定されている場合、セッション作成時にenvironment_idを送信しない', async () => {
@@ -1221,8 +1225,10 @@ describe('CreateSessionModal', () => {
         expect(screen.getByText('この環境はプロジェクト設定で変更できます')).toBeInTheDocument();
       });
 
-      // ラジオボタンは表示されない（読み取り専用表示のため）
-      expect(screen.queryAllByRole('radio')).toHaveLength(0);
+      // 環境選択ラジオボタンは表示されない（読み取り専用表示のため）
+      // ただし Docker 環境が自動選択されるため isDockerEnvironment=true になり
+      // skipPermissionsOverride の 3 つのラジオボタンは表示される
+      expect(screen.queryAllByRole('radio')).toHaveLength(3);
     });
 
     it('clone_location=dockerの場合、セッション作成時にenvironment_idを送信しない', async () => {
