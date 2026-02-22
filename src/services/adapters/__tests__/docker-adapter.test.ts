@@ -30,7 +30,8 @@ vi.mock('@/lib/db', () => ({
     select: vi.fn(() => ({ from: mockDbFrom })),
   },
   schema: {
-    sessions: { id: 'id', container_id: 'container_id' },
+    sessions: { id: 'id', container_id: 'container_id', worktree_path: 'worktree_path', project_id: 'project_id' },
+    projects: { id: 'id', clone_location: 'clone_location' },
   },
 }));
 
@@ -1115,6 +1116,81 @@ describe('DockerAdapter', () => {
       expect(wIndex).toBeGreaterThan(-1);
       expect(args[wIndex + 1]).toBe('/workspace');
 
+      isContainerRunningSpy.mockRestore();
+    });
+
+    it('should resolve exec CWD from DB when parent session is not in memory (server restart)', async () => {
+      // 親セッションがメモリにない場合（サーバー再起動後）のDB復元テスト
+      const terminalSessionId = 'session-db-restore-parent-terminal';
+      const _parentSessionId = 'session-db-restore-parent';
+      const parentWorktreePath = '/repo/.worktrees/session-db-restore';
+
+      const isContainerRunningSpy = vi.spyOn(adapter as any, 'isContainerRunning').mockReturnValue(true);
+
+      // 親セッションはメモリになく、DBからcontainer_idとworktree_path, project_idを取得
+      // DBモックのselectチェーンを上書き
+      const { db: mockDb } = await import('@/lib/db');
+      const originalSelect = mockDb.select;
+
+      let selectCallCount = 0;
+      (mockDb.select as any) = vi.fn(() => {
+        selectCallCount++;
+        // 1回目: sessions テーブルからparentの情報取得（shellModeのDB fallback）
+        if (selectCallCount === 1) {
+          return {
+            from: vi.fn(() => ({
+              where: vi.fn(() => ({
+                get: vi.fn().mockReturnValue({
+                  container_id: 'claude-env-db-restored-container',
+                }),
+              })),
+            })),
+          };
+        }
+        // 2回目: sessions テーブルからworktree_path, project_id取得（resolveExecWorkDir）
+        if (selectCallCount === 2) {
+          return {
+            from: vi.fn(() => ({
+              where: vi.fn(() => ({
+                get: vi.fn().mockReturnValue({
+                  worktree_path: parentWorktreePath,
+                  project_id: 'proj-docker-123',
+                }),
+              })),
+            })),
+          };
+        }
+        // 3回目: projects テーブルからclone_location取得（resolveExecWorkDir）
+        if (selectCallCount === 3) {
+          return {
+            from: vi.fn(() => ({
+              where: vi.fn(() => ({
+                get: vi.fn().mockReturnValue({
+                  clone_location: 'docker',
+                }),
+              })),
+            })),
+          };
+        }
+        // フォールバック
+        return { from: vi.fn(() => ({ where: vi.fn(() => ({ get: vi.fn() })) })) };
+      });
+
+      // shellModeセッション作成（親はメモリにない）
+      await adapter.createSession(terminalSessionId, parentWorktreePath, undefined, {
+        shellMode: true,
+      });
+
+      // exec の -w 引数がDBから復元されたworktree_pathになっていること
+      const spawnCall = mockSpawn.mock.calls[mockSpawn.mock.calls.length - 1];
+      const args = spawnCall[1] as string[];
+      const wIndex = args.indexOf('-w');
+      expect(wIndex).toBeGreaterThan(-1);
+      expect(args[wIndex + 1]).toBe(parentWorktreePath);
+      expect(args[wIndex + 1]).not.toBe('/workspace');
+
+      // クリーンアップ
+      (mockDb.select as any) = originalSelect;
       isContainerRunningSpy.mockRestore();
     });
   });

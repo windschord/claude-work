@@ -261,6 +261,51 @@ export class DockerAdapter extends BasePTYAdapter {
   }
 
   /**
+   * execセッションのコンテナ内作業ディレクトリを解決
+   *
+   * 1. メモリ上の親セッションからcontainerWorkDirを取得
+   * 2. メモリにない場合（サーバー再起動後等）、DBからプロジェクト情報を取得して推定
+   * 3. いずれも取得できない場合は'/workspace'にフォールバック
+   */
+  private resolveExecWorkDir(sessionId: string): string {
+    const parentId = this.getParentSessionId(sessionId);
+    if (!parentId) return '/workspace';
+
+    // 1. メモリから取得
+    const parentSession = this.sessions.get(parentId);
+    if (parentSession?.containerWorkDir) {
+      return parentSession.containerWorkDir;
+    }
+
+    // 2. DBから推定（サーバー再起動後のフォールバック）
+    try {
+      const parentRecord = db.select({
+        worktree_path: schema.sessions.worktree_path,
+        project_id: schema.sessions.project_id,
+      }).from(schema.sessions).where(eq(schema.sessions.id, parentId)).get();
+
+      if (parentRecord) {
+        const project = db.select({
+          clone_location: schema.projects.clone_location,
+        }).from(schema.projects).where(eq(schema.projects.id, parentRecord.project_id)).get();
+
+        if (project?.clone_location === 'docker') {
+          logger.info('DockerAdapter: Resolved exec CWD from DB (docker volume mode)', {
+            sessionId, parentId, workDir: parentRecord.worktree_path,
+          });
+          return parentRecord.worktree_path;
+        }
+      }
+    } catch (error) {
+      logger.warn('DockerAdapter: Failed to recover containerWorkDir from DB', {
+        sessionId, parentId, error: error instanceof Error ? error.message : 'Unknown',
+      });
+    }
+
+    return '/workspace';
+  }
+
+  /**
    * Dockerコンテナが実際に存在し、実行中かを確認
    */
   private async isContainerRunning(containerName: string): Promise<boolean> {
@@ -395,9 +440,7 @@ export class DockerAdapter extends BasePTYAdapter {
   ): Promise<void> {
     // -it オプションでインタラクティブモードとTTYを有効化
     // -w オプションで作業ディレクトリを設定（親セッションのcontainerWorkDirを参照）
-    const parentId = this.getParentSessionId(sessionId);
-    const parentSession = parentId ? this.sessions.get(parentId) : undefined;
-    const execCwd = parentSession?.containerWorkDir ?? '/workspace';
+    const execCwd = this.resolveExecWorkDir(sessionId);
     const args = ['exec', '-it', '-w', execCwd, containerName, 'bash'];
 
     logger.info('DockerAdapter: Creating exec session (attaching to existing container)', {
