@@ -13,7 +13,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     g++ \
     && rm -rf /var/lib/apt/lists/*
 # pnpmのバージョンを固定してビルドの再現性を確保
-RUN npm install -g pnpm@9.15.9
+# node-gypをグローバルインストール: node-ptyはLinux向けprebuiltがなくソースビルドが必要なため
+RUN npm install -g pnpm@9.15.9 node-gyp
 WORKDIR /app
 
 # =============================================================================
