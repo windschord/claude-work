@@ -157,7 +157,7 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
 
-    let { name, prompt = '', dockerMode = false, source_branch, claude_code_options, custom_env_vars } = body;
+    let { name, prompt = '', dockerMode = false, source_branch, claude_code_options, custom_env_vars, environment_id: requestEnvironmentId = null } = body;
 
     // claude_code_options のバリデーション（各フィールドが文字列であることを検証）
     if (claude_code_options !== undefined) {
@@ -201,9 +201,10 @@ export async function POST(
     let effectiveDockerMode = false;
 
     // パラメータ優先順位:
-    // 1. プロジェクトに environment_id が設定されていればそれを使用
-    // 2. dockerMode=true → レガシー動作（警告ログ出力）
-    // 3. 両方未設定 → プロジェクトのclone_locationに基づいて自動設定
+    // 1. プロジェクトに environment_id が設定されていればそれを使用（最高優先）
+    // 2. リクエストボディの environment_id が指定されていればそれを使用
+    // 3. dockerMode=true → レガシー動作（警告ログ出力）
+    // 4. 未設定 → プロジェクトのclone_locationに基づいて自動設定
 
     if (project.environment_id) {
       // プロジェクト単位の環境設定を使用
@@ -225,38 +226,58 @@ export async function POST(
     }
 
     if (!effectiveEnvironmentId) {
-      if (dockerMode) {
-        // レガシー方式: 警告を出力しつつ従来動作を維持
-        logger.warn('dockerMode parameter is deprecated, use project environment_id instead', {
-          project_id,
-        });
-        effectiveDockerMode = true;
-      } else {
-        // プロジェクトのclone_locationに基づいて自動設定
-        if (project.clone_location === 'docker') {
-          // Docker環境でcloneされたプロジェクト → デフォルトのDocker環境を使用
-          const defaultEnv = await environmentService.getDefault();
-          if (defaultEnv && defaultEnv.type === 'DOCKER') {
-            effectiveEnvironmentId = defaultEnv.id;
-            logger.info('Auto-selected Docker environment based on clone_location', {
-              project_id,
-              clone_location: project.clone_location,
-              environment_id: defaultEnv.id,
-            });
-          } else {
-            // デフォルトのDocker環境がない場合は警告（後方互換性のためレガシーdockerModeを使用）
-            logger.warn('No default Docker environment found, falling back to legacy dockerMode', {
-              project_id,
-              clone_location: project.clone_location,
-            });
-            effectiveDockerMode = true;
-          }
-        } else {
-          // Host環境でcloneされたプロジェクト → environment_id=null（Host環境）
-          logger.info('Using Host environment based on clone_location', {
+      if (requestEnvironmentId) {
+        // リクエストで指定された環境IDを使用
+        const env = await environmentService.findById(requestEnvironmentId);
+        if (!env) {
+          logger.warn('Request environment not found, falling back to auto-selection', {
             project_id,
-            clone_location: project.clone_location,
+            environment_id: requestEnvironmentId,
           });
+        } else {
+          effectiveEnvironmentId = requestEnvironmentId;
+          logger.info('Using request environment', {
+            project_id,
+            environment_id: requestEnvironmentId,
+            environmentType: env.type,
+          });
+        }
+      }
+
+      if (!effectiveEnvironmentId) {
+        if (dockerMode) {
+          // レガシー方式: 警告を出力しつつ従来動作を維持
+          logger.warn('dockerMode parameter is deprecated, use project environment_id instead', {
+            project_id,
+          });
+          effectiveDockerMode = true;
+        } else {
+          // プロジェクトのclone_locationに基づいて自動設定
+          if (project.clone_location === 'docker') {
+            // Docker環境でcloneされたプロジェクト → デフォルトのDocker環境を使用
+            const defaultEnv = await environmentService.getDefault();
+            if (defaultEnv && defaultEnv.type === 'DOCKER') {
+              effectiveEnvironmentId = defaultEnv.id;
+              logger.info('Auto-selected Docker environment based on clone_location', {
+                project_id,
+                clone_location: project.clone_location,
+                environment_id: defaultEnv.id,
+              });
+            } else {
+              // デフォルトのDocker環境がない場合は警告（後方互換性のためレガシーdockerModeを使用）
+              logger.warn('No default Docker environment found, falling back to legacy dockerMode', {
+                project_id,
+                clone_location: project.clone_location,
+              });
+              effectiveDockerMode = true;
+            }
+          } else {
+            // Host環境でcloneされたプロジェクト → environment_id=null（Host環境）
+            logger.info('Using Host environment based on clone_location', {
+              project_id,
+              clone_location: project.clone_location,
+            });
+          }
         }
       }
     }
