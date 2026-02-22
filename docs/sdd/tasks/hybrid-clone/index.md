@@ -15,12 +15,12 @@
 
 | フェーズ | タスク数 | 完了 | 進行中 | 未着手 | 進捗率 |
 |---------|---------|------|--------|--------|--------|
-| Phase 1 | 4 | 0 | 0 | 4 | 0% |
-| Phase 2 | 5 | 0 | 0 | 5 | 0% |
-| Phase 3 | 3 | 0 | 0 | 3 | 0% |
-| Phase 4 | 4 | 0 | 0 | 4 | 0% |
-| Phase 5 | 3 | 0 | 0 | 3 | 0% |
-| **合計** | **19** | **0** | **0** | **19** | **0%** |
+| Phase 1 | 4 | 4 | 0 | 0 | 100% |
+| Phase 2 | 5 | 5 | 0 | 0 | 100% |
+| Phase 3 | 3 | 2 | 0 | 1 | 67% |
+| Phase 4 | 4 | 4 | 0 | 0 | 100% |
+| Phase 5 | 3 | 3 | 0 | 0 | 100% |
+| **合計** | **19** | **18** | **0** | **1** | **95%** |
 
 ## フェーズ概要
 
@@ -45,45 +45,45 @@ HostGitServiceの確認、DockerGitServiceのworktree作成実装。
 
 | ID | タスク名 | ステータス | 担当 | 推定工数 | 詳細 |
 |----|---------|----------|------|----------|------|
-| TASK-001 | データベーススキーマ変更 | TODO | - | 30分 | [詳細](phase-1/TASK-001.md) @phase-1/TASK-001.md |
-| TASK-002 | ConfigService実装 | TODO | - | 40分 | [詳細](phase-1/TASK-002.md) @phase-1/TASK-002.md |
-| TASK-003 | バリデーション関数実装 | TODO | - | 30分 | [詳細](phase-1/TASK-003.md) @phase-1/TASK-003.md |
-| TASK-004 | GitOperationsインターフェース定義 | TODO | - | 20分 | [詳細](phase-1/TASK-004.md) @phase-1/TASK-004.md |
+| TASK-001 | データベーススキーマ変更 | DONE | - | 30分 | [詳細](phase-1/TASK-001.md) @phase-1/TASK-001.md |
+| TASK-002 | ConfigService実装 | DONE | - | 40分 | [詳細](phase-1/TASK-002.md) @phase-1/TASK-002.md |
+| TASK-003 | バリデーション関数実装 | DONE | - | 30分 | [詳細](phase-1/TASK-003.md) @phase-1/TASK-003.md |
+| TASK-004 | GitOperationsインターフェース定義 | DONE | - | 20分 | [詳細](phase-1/TASK-004.md) @phase-1/TASK-004.md |
 
 ### Phase 2: Docker環境実装
 
 | ID | タスク名 | ステータス | 担当 | 推定工数 | 詳細 |
 |----|---------|----------|------|----------|------|
-| TASK-005 | DockerGitService基本実装 | TODO | - | 60分 | [詳細](phase-2/TASK-005.md) @phase-2/TASK-005.md |
-| TASK-006 | Dockerボリューム管理実装 | TODO | - | 40分 | [詳細](phase-2/TASK-006.md) @phase-2/TASK-006.md |
-| TASK-007 | Docker環境でのgit clone実装 | TODO | - | 60分 | [詳細](phase-2/TASK-007.md) @phase-2/TASK-007.md |
-| TASK-008 | 認証情報マウント実装（gh認証含む） | TODO | - | 40分 | [詳細](phase-2/TASK-008.md) @phase-2/TASK-008.md |
-| TASK-009 | エラーハンドリングとクリーンアップ | TODO | - | 40分 | [詳細](phase-2/TASK-009.md) @phase-2/TASK-009.md |
+| TASK-005 | DockerGitService基本実装 | DONE | - | 60分 | [詳細](phase-2/TASK-005.md) @phase-2/TASK-005.md |
+| TASK-006 | Dockerボリューム管理実装 | DONE | - | 40分 | [詳細](phase-2/TASK-006.md) @phase-2/TASK-006.md |
+| TASK-007 | Docker環境でのgit clone実装 | DONE | - | 60分 | [詳細](phase-2/TASK-007.md) @phase-2/TASK-007.md |
+| TASK-008 | 認証情報マウント実装（gh認証含む） | DONE | - | 40分 | [詳細](phase-2/TASK-008.md) @phase-2/TASK-008.md |
+| TASK-009 | エラーハンドリングとクリーンアップ | DONE | - | 40分 | [詳細](phase-2/TASK-009.md) @phase-2/TASK-009.md |
 
 ### Phase 3: worktree実装
 
 | ID | タスク名 | ステータス | 担当 | 推定工数 | 詳細 |
 |----|---------|----------|------|----------|------|
-| TASK-010 | HostGitServiceの確認と統合 | TODO | - | 30分 | [詳細](phase-3/TASK-010.md) @phase-3/TASK-010.md |
-| TASK-011 | Docker環境でのworktree作成実装 | TODO | - | 60分 | [詳細](phase-3/TASK-011.md) @phase-3/TASK-011.md |
-| TASK-012 | セッション起動時のマウント処理 | TODO | - | 40分 | [詳細](phase-3/TASK-012.md) @phase-3/TASK-012.md |
+| TASK-010 | HostGitServiceの確認と統合 | DONE | - | 30分 | [詳細](phase-3/TASK-010.md) @phase-3/TASK-010.md |
+| TASK-011 | Docker環境でのworktree作成実装 | DONE | - | 60分 | [詳細](phase-3/TASK-011.md) @phase-3/TASK-011.md |
+| TASK-012 | セッション起動時のマウント処理 | PARTIAL | - | 40分 | [詳細](phase-3/TASK-012.md) @phase-3/TASK-012.md |
 
 ### Phase 4: UI実装
 
 | ID | タスク名 | ステータス | 担当 | 推定工数 | 詳細 |
 |----|---------|----------|------|----------|------|
-| TASK-013 | プロジェクト登録API変更 | TODO | - | 40分 | [詳細](phase-4/TASK-013.md) @phase-4/TASK-013.md |
-| TASK-014 | プロジェクト登録フォームUI実装 | TODO | - | 60分 | [詳細](phase-4/TASK-014.md) @phase-4/TASK-014.md |
-| TASK-015 | 設定画面実装（タイムアウト・デバッグモード） | TODO | - | 40分 | [詳細](phase-4/TASK-015.md) @phase-4/TASK-015.md |
-| TASK-016 | プロジェクト一覧の環境バッジ表示 | TODO | - | 30分 | [詳細](phase-4/TASK-016.md) @phase-4/TASK-016.md |
+| TASK-013 | プロジェクト登録API変更 | DONE | - | 40分 | [詳細](phase-4/TASK-013.md) @phase-4/TASK-013.md |
+| TASK-014 | プロジェクト登録フォームUI実装 | DONE | - | 60分 | [詳細](phase-4/TASK-014.md) @phase-4/TASK-014.md |
+| TASK-015 | 設定画面実装（タイムアウト・デバッグモード） | DONE | - | 40分 | [詳細](phase-4/TASK-015.md) @phase-4/TASK-015.md |
+| TASK-016 | プロジェクト一覧の環境バッジ表示 | DONE | - | 30分 | [詳細](phase-4/TASK-016.md) @phase-4/TASK-016.md |
 
 ### Phase 5: テスト・統合
 
 | ID | タスク名 | ステータス | 担当 | 推定工数 | 詳細 |
 |----|---------|----------|------|----------|------|
-| TASK-017 | ユニットテスト作成 | TODO | - | 60分 | [詳細](phase-5/TASK-017.md) @phase-5/TASK-017.md |
-| TASK-018 | E2Eテスト作成 | TODO | - | 60分 | [詳細](phase-5/TASK-018.md) @phase-5/TASK-018.md |
-| TASK-019 | 既存プロジェクトの互換性確認 | TODO | - | 30分 | [詳細](phase-5/TASK-019.md) @phase-5/TASK-019.md |
+| TASK-017 | ユニットテスト作成 | DONE | - | 60分 | [詳細](phase-5/TASK-017.md) @phase-5/TASK-017.md |
+| TASK-018 | E2Eテスト作成 | DONE | - | 60分 | [詳細](phase-5/TASK-018.md) @phase-5/TASK-018.md |
+| TASK-019 | 既存プロジェクトの互換性確認 | DONE | - | 30分 | [詳細](phase-5/TASK-019.md) @phase-5/TASK-019.md |
 
 ## 並列実行可能なタスクグループ
 

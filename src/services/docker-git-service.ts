@@ -22,6 +22,20 @@ const execFileAsync = promisify(execFile);
 export class DockerGitService implements GitOperations {
   private configService = getConfigService();
 
+  // Non-recoverable error patterns - these require user action, not retries
+  private static readonly PERMANENT_ERROR_PATTERNS = [
+    'no such file or directory',
+    'permission denied',
+    'repository not found',
+    'authentication failed',
+    'could not resolve host',
+    'repository does not exist',
+    'access denied',
+  ];
+
+  private static readonly MAX_RETRY_ATTEMPTS = 3;
+  private static readonly BASE_DELAY_MS = 1000;
+
   /**
    * Dockerボリューム名を生成
    */
@@ -132,6 +146,119 @@ export class DockerGitService implements GitOperations {
   }
 
   /**
+   * エラーが永続的（リトライ不要）かどうかを判定
+   */
+  private isPermanentError(error: Error): boolean {
+    const messages: string[] = [error.message || ''];
+    const extendedError = error as unknown as Record<string, unknown>;
+    if (typeof extendedError.stderr === 'string') {
+      messages.push(extendedError.stderr);
+    }
+    if (typeof extendedError.stdout === 'string') {
+      messages.push(extendedError.stdout);
+    }
+    const combinedMessage = messages.join('\n').toLowerCase();
+    return DockerGitService.PERMANENT_ERROR_PATTERNS.some(
+      (pattern) => combinedMessage.includes(pattern)
+    );
+  }
+
+  /**
+   * エラーオブジェクトからPATを除去したErrorを返す
+   */
+  private sanitizeError(error: Error): Error {
+    const pat = /GIT_PAT=[^\s]*/g;
+    const sanitized = new Error(
+      (error.message || '').replace(pat, 'GIT_PAT=***')
+    );
+    sanitized.stack = error.stack?.replace(pat, 'GIT_PAT=***');
+    const ext = error as unknown as Record<string, unknown>;
+    if (typeof ext.stderr === 'string') {
+      (sanitized as unknown as Record<string, unknown>).stderr = ext.stderr.replace(pat, 'GIT_PAT=***');
+    }
+    if (typeof ext.stdout === 'string') {
+      (sanitized as unknown as Record<string, unknown>).stdout = ext.stdout.replace(pat, 'GIT_PAT=***');
+    }
+    return sanitized;
+  }
+
+  /**
+   * URLから認証情報を除去する
+   */
+  private sanitizeUrl(url: string): string {
+    try {
+      const parsed = new URL(url);
+      if (parsed.username || parsed.password) {
+        parsed.username = '***';
+        parsed.password = '***';
+        return parsed.toString();
+      }
+      return url;
+    } catch {
+      return url;
+    }
+  }
+
+  /**
+   * 指定ミリ秒待機する
+   */
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * 指数バックオフ付きリトライ
+   * 一時的エラーでは最大MAX_RETRY_ATTEMPTS回リトライ、永続エラーでは即座に失敗
+   */
+  private async retryWithBackoff<T>(
+    operation: () => Promise<T>,
+    operationType: 'clone' | 'worktree' | 'volume',
+  ): Promise<T> {
+    const maxAttempts = DockerGitService.MAX_RETRY_ATTEMPTS;
+    let lastError: Error | null = null;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        return await operation();
+      } catch (error) {
+        lastError = error as Error;
+        const safeMessage = (lastError.message || '').replace(/GIT_PAT=[^\s]*/g, 'GIT_PAT=***');
+
+        if (this.isPermanentError(lastError)) {
+          throw new GitOperationError(
+            `Permanent error during ${operationType}: ${safeMessage}`,
+            'docker',
+            operationType,
+            false,
+            this.sanitizeError(lastError)
+          );
+        }
+
+        if (attempt === maxAttempts) {
+          break;
+        }
+
+        const delay = DockerGitService.BASE_DELAY_MS * Math.pow(2, attempt - 1);
+        logger.warn(`[docker] ${operationType} attempt ${attempt} failed, retrying (${attempt + 1}/${maxAttempts}) after ${delay}ms`, {
+          error: safeMessage,
+          attempt,
+          delay,
+        });
+        await this.sleep(delay);
+      }
+    }
+
+    const safeMessage = (lastError!.message || '').replace(/GIT_PAT=[^\s]*/g, 'GIT_PAT=***');
+    throw new GitOperationError(
+      `All retry attempts failed for ${operationType}: ${safeMessage}`,
+      'docker',
+      operationType,
+      true,
+      this.sanitizeError(lastError!)
+    );
+  }
+
+  /**
    * リポジトリをcloneする
    */
   async cloneRepository(options: GitCloneOptions): Promise<GitOperationResult> {
@@ -160,9 +287,12 @@ export class DockerGitService implements GitOperations {
 
       logger.info('[docker] Starting git clone', { url, volumeName, timeout });
 
-      // 4. git clone実行
+      // 4. git clone実行（リトライ付き）
       const startTime = Date.now();
-      await execFileAsync('docker', dockerArgs, { timeout });
+      await this.retryWithBackoff(
+        () => execFileAsync('docker', dockerArgs, { timeout }),
+        'clone',
+      );
       const duration = Date.now() - startTime;
 
       logger.info('[docker] git clone completed', { url, volumeName, duration });
@@ -183,12 +313,14 @@ export class DockerGitService implements GitOperations {
         }
       }
 
+      if (error instanceof GitOperationError) throw error;
+
       throw new GitOperationError(
         `Failed to clone repository in Docker environment`,
         'docker',
         'clone',
         true,
-        error as Error
+        this.sanitizeError(error as Error)
       );
     }
   }
@@ -220,7 +352,10 @@ export class DockerGitService implements GitOperations {
       logger.info('[docker] Creating worktree', { projectId, sessionName, branchName });
 
       const startTime = Date.now();
-      await execFileAsync('docker', dockerArgs, { timeout: 30000 });
+      await this.retryWithBackoff(
+        () => execFileAsync('docker', dockerArgs, { timeout: 30000 }),
+        'worktree',
+      );
       const duration = Date.now() - startTime;
 
       logger.info('[docker] worktree created', { projectId, sessionName, duration });
@@ -232,12 +367,14 @@ export class DockerGitService implements GitOperations {
     } catch (error) {
       logger.error('[docker] Failed to create worktree', { error, projectId, sessionName });
 
+      if (error instanceof GitOperationError) throw error;
+
       throw new GitOperationError(
         `Failed to create worktree in Docker environment`,
         'docker',
         'worktree',
         true,
-        error as Error
+        this.sanitizeError(error as Error)
       );
     }
   }
@@ -324,21 +461,24 @@ export class DockerGitService implements GitOperations {
         '-c', shellCommand,
       ];
 
-      logger.info('[docker] Starting git clone with PAT', { repoUrl, volumeName, timeout });
+      logger.info('[docker] Starting git clone with PAT', { repoUrl: this.sanitizeUrl(repoUrl), volumeName, timeout });
 
-      // 4. git clone実行
+      // 4. git clone実行（リトライ付き）
       const startTime = Date.now();
-      await execFileAsync('docker', dockerArgs, { timeout });
+      await this.retryWithBackoff(
+        () => execFileAsync('docker', dockerArgs, { timeout }),
+        'clone',
+      );
       const duration = Date.now() - startTime;
 
-      logger.info('[docker] git clone with PAT completed', { repoUrl, volumeName, duration });
+      logger.info('[docker] git clone with PAT completed', { repoUrl: this.sanitizeUrl(repoUrl), volumeName, duration });
 
       return {
         success: true,
         message: `Repository cloned successfully with PAT to Docker volume: ${volumeName}`,
       };
     } catch (error) {
-      logger.error('[docker] git clone with PAT failed', { error, repoUrl, volumeName });
+      logger.error('[docker] git clone with PAT failed', { error: this.sanitizeError(error as Error), repoUrl: this.sanitizeUrl(repoUrl), volumeName });
 
       // エラー時はボリュームを削除
       if (volumeName) {
@@ -349,12 +489,14 @@ export class DockerGitService implements GitOperations {
         }
       }
 
+      if (error instanceof GitOperationError) throw error;
+
       throw new GitOperationError(
         'Failed to clone repository with PAT in Docker environment',
         'docker',
         'clone',
         true,
-        error as Error
+        this.sanitizeError(error as Error)
       );
     }
   }
