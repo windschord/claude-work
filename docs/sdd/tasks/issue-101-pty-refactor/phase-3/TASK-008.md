@@ -22,11 +22,11 @@ ClaudePTYManagerファイルを削除し、依存している箇所(HostAdapter�
 
 ## 受入基準
 
-- [ ] `src/services/claude-pty-manager.ts` が削除されている
-- [ ] HostAdapterに`import { claudePtyManager }`が存在しないことを確認
-- [ ] `npm test` で全テスト通過
-- [ ] `npm run typecheck` でエラー0件
-- [ ] コミット: `refactor: ClaudePTYManager削除 [TASK-008]`
+- [x] `src/services/claude-pty-manager.ts` が削除されている
+- [x] HostAdapterに`import { claudePtyManager }`が存在しないことを確認
+- [x] `npm test` で全テスト通過
+- [x] `npm run typecheck` でエラー0件
+- [x] コミット: `refactor: ClaudePTYManager削除 [TASK-008]`
 
 ---
 

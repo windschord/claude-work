@@ -22,11 +22,11 @@ BasePTYAdapterの実装が完了し、テストが全て通過することを確
 
 ## 受入基準
 
-- [ ] `npm test -- base-adapter.test.ts` で全テスト通過
-- [ ] `npm test -- --coverage` でカバレッジ80%以上
-- [ ] `npm run lint` でエラー0件
-- [ ] `npm run typecheck` でエラー0件
-- [ ] 必要に応じてテストを追加(カバレッジ不足箇所)
+- [x] `npm test -- base-adapter.test.ts` で全テスト通過
+- [x] `npm test -- --coverage` でカバレッジ80%以上
+- [x] `npm run lint` でエラー0件
+- [x] `npm run typecheck` でエラー0件
+- [x] 必要に応じてテストを追加(カバレッジ不足箇所)
 
 ---
 

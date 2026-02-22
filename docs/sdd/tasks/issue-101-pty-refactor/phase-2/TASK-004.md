@@ -31,13 +31,13 @@ HostAdapterのリファクタリング(ClaudePTYManager依存削除、BasePTYAda
 
 ## 受入基準
 
-- [ ] createSession(Claude Codeモード)でBasePTYAdapter.spawnPTY()が呼び出されることをテスト
-- [ ] createSession(Claude Codeモード)でClaudePTYManagerが呼び出されないことをテスト
-- [ ] createSession(shellMode)で既存ロジックが維持されることをテスト
-- [ ] destroySession(Claude Codeモード)でBasePTYAdapter.cleanupPTY()が呼び出されることをテスト
-- [ ] cols/rowsがpty.spawn()に正しく渡されることをテスト
-- [ ] テスト実行で失敗確認(実装前)
-- [ ] コミット: `test: HostAdapterリファクタリングテスト追加 [TASK-004]`
+- [x] createSession(Claude Codeモード)でBasePTYAdapter.spawnPTY()が呼び出されることをテスト
+- [x] createSession(Claude Codeモード)でClaudePTYManagerが呼び出されないことをテスト
+- [x] createSession(shellMode)で既存ロジックが維持されることをテスト
+- [x] destroySession(Claude Codeモード)でBasePTYAdapter.cleanupPTY()が呼び出されることをテスト
+- [x] cols/rowsがpty.spawn()に正しく渡されることをテスト
+- [x] テスト実行で失敗確認(実装前)
+- [x] コミット: `test: HostAdapterリファクタリングテスト追加 [TASK-004]`
 
 ---
 

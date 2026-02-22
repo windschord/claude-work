@@ -22,12 +22,12 @@ DockerAdapterのリファクタリング(BasePTYAdapter継承、共通ロジッ�
 
 ## 受入基準
 
-- [ ] createSession(Claude Codeモード)でBasePTYAdapter.spawnPTY()が呼び出されることをテスト
-- [ ] createExecSession()にcols/rowsが渡されることをテスト
-- [ ] cols/rowsがハードコードされていないことをテスト
-- [ ] Docker固有ロジック(ensureContainer)は維持されることをテスト
-- [ ] テスト実行で失敗確認(実装前)
-- [ ] コミット: `test: DockerAdapterリファクタリングテスト追加 [TASK-006]`
+- [x] createSession(Claude Codeモード)でBasePTYAdapter.spawnPTY()が呼び出されることをテスト
+- [x] createExecSession()にcols/rowsが渡されることをテスト
+- [x] cols/rowsがハードコードされていないことをテスト
+- [x] Docker固有ロジック(ensureContainer)は維持されることをテスト
+- [x] テスト実行で失敗確認(実装前)
+- [x] コミット: `test: DockerAdapterリファクタリングテスト追加 [TASK-006]`
 
 ---
 

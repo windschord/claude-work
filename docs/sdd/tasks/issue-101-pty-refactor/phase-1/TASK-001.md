@@ -49,15 +49,15 @@ BasePTYAdapter抽象基底クラスの共通ロジック(spawnPTY, setupDataHand
 
 以下のすべての基準を満たしたら、このタスクは完了です:
 
-- [ ] `src/services/adapters/__tests__/base-adapter.test.ts` が作成されている
-- [ ] spawnPTY()のテストケースが3つ以上ある
-- [ ] setupDataHandlers()のテストケースが2つ以上ある
-- [ ] setupErrorHandlers()のテストケースが2つ以上ある
-- [ ] cleanupPTY()のテストケースが2つ以上ある
-- [ ] extractClaudeSessionId()のテストケースが2つ以上ある
-- [ ] `npm test` を実行してテストが失敗することを確認(実装がないため)
-- [ ] `npm run lint` でエラーが0件である
-- [ ] `npm run typecheck` でエラーが0件である
+- [x] `src/services/adapters/__tests__/base-adapter.test.ts` が作成されている
+- [x] spawnPTY()のテストケースが3つ以上ある
+- [x] setupDataHandlers()のテストケースが2つ以上ある
+- [x] setupErrorHandlers()のテストケースが2つ以上ある
+- [x] cleanupPTY()のテストケースが2つ以上ある
+- [x] extractClaudeSessionId()のテストケースが2つ以上ある
+- [x] `npm test` を実行してテストが失敗することを確認(実装がないため)
+- [x] `npm run lint` でエラーが0件である
+- [x] `npm run typecheck` でエラーが0件である
 
 ---
 

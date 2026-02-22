@@ -22,13 +22,13 @@ Circular delegation解消、destroySession無限再帰解消、cols/rows伝播�
 
 ## 受入基準
 
-- [ ] Circular delegation解消の検証テスト(REQ-001-007)
-- [ ] destroySession無限再帰解消の検証テスト(REQ-002-005)
-- [ ] HOST環境cols/rows伝播の検証テスト(REQ-003-005)
-- [ ] DOCKER環境cols/rows伝播の回帰テスト(REQ-003-007)
-- [ ] 全テスト通過
-- [ ] カバレッジ80%以上確認
-- [ ] コミット: `test: 統合テスト追加(Circular delegation解消等) [TASK-009]`
+- [x] Circular delegation解消の検証テスト(REQ-001-007)
+- [x] destroySession無限再帰解消の検証テスト(REQ-002-005)
+- [x] HOST環境cols/rows伝播の検証テスト(REQ-003-005)
+- [x] DOCKER環境cols/rows伝播の回帰テスト(REQ-003-007)
+- [x] 全テスト通過
+- [x] カバレッジ80%以上確認
+- [x] コミット: `test: 統合テスト追加(Circular delegation解消等) [TASK-009]`
 
 ---
 
