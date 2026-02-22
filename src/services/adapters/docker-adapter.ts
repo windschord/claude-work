@@ -290,10 +290,17 @@ export class DockerAdapter extends BasePTYAdapter {
         }).from(schema.projects).where(eq(schema.projects.id, parentRecord.project_id)).get();
 
         if (project?.clone_location === 'docker') {
-          logger.info('DockerAdapter: Resolved exec CWD from DB (docker volume mode)', {
-            sessionId, parentId, workDir: parentRecord.worktree_path,
+          // パストラバーサル防止: .worktrees/を含み、..を含まないことを検証
+          const wp = parentRecord.worktree_path;
+          if (wp.includes('.worktrees/') && !wp.includes('..')) {
+            logger.info('DockerAdapter: Resolved exec CWD from DB (docker volume mode)', {
+              sessionId, parentId, workDir: wp,
+            });
+            return wp;
+          }
+          logger.warn('DockerAdapter: Invalid worktree_path from DB, falling back to /workspace', {
+            sessionId, parentId, worktreePath: wp,
           });
-          return parentRecord.worktree_path;
         }
       }
     } catch (error) {

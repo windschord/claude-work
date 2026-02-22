@@ -347,7 +347,7 @@ export function setupClaudeWebSocket(
 
           // DockerボリュームIDの解決（clone_location='docker'の場合）
           const dockerVolumeId = session.project?.clone_location === 'docker'
-            ? (session.project?.docker_volume_id ?? `claude-repo-${session.project_id}`)
+            ? (session.project?.docker_volume_id || `claude-repo-${session.project_id}`)
             : undefined;
 
           // PTYSessionManager経由でセッション作成
