@@ -29,7 +29,7 @@
 
 ## テスト
 
-- `docker-adapter.test.ts`: buildDockerArgsのdockerVolumeIdサポートテスト（4件）
+- `docker-adapter.test.ts`: buildDockerArgsのdockerVolumeIdサポートテスト
 - `pty-session-manager.test.ts`: dockerVolumeId透過テスト（1件）
 
 ## 依存タスク

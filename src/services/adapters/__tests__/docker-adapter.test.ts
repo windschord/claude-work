@@ -1177,21 +1177,23 @@ describe('DockerAdapter', () => {
       });
 
       // shellModeセッション作成（親はメモリにない）
-      await adapter.createSession(terminalSessionId, parentWorktreePath, undefined, {
-        shellMode: true,
-      });
+      try {
+        await adapter.createSession(terminalSessionId, parentWorktreePath, undefined, {
+          shellMode: true,
+        });
 
-      // exec の -w 引数がDBから復元されたworktree_pathになっていること
-      const spawnCall = mockSpawn.mock.calls[mockSpawn.mock.calls.length - 1];
-      const args = spawnCall[1] as string[];
-      const wIndex = args.indexOf('-w');
-      expect(wIndex).toBeGreaterThan(-1);
-      expect(args[wIndex + 1]).toBe(parentWorktreePath);
-      expect(args[wIndex + 1]).not.toBe('/workspace');
-
-      // クリーンアップ
-      (mockDb.select as any) = originalSelect;
-      isContainerRunningSpy.mockRestore();
+        // exec の -w 引数がDBから復元されたworktree_pathになっていること
+        const spawnCall = mockSpawn.mock.calls[mockSpawn.mock.calls.length - 1];
+        const args = spawnCall[1] as string[];
+        const wIndex = args.indexOf('-w');
+        expect(wIndex).toBeGreaterThan(-1);
+        expect(args[wIndex + 1]).toBe(parentWorktreePath);
+        expect(args[wIndex + 1]).not.toBe('/workspace');
+      } finally {
+        // クリーンアップ（テスト中断時にも確実に復元）
+        (mockDb.select as any) = originalSelect;
+        isContainerRunningSpy.mockRestore();
+      }
     });
   });
 
