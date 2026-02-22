@@ -4,7 +4,7 @@
 const port = process.env.PORT || 3000;
 
 require('http')
-  .get(`http://localhost:${port}/api/health`, function (r) {
+  .get(`http://127.0.0.1:${port}/api/health`, function (r) {
     process.exit(r.statusCode === 200 ? 0 : 1);
   })
   .on('error', function () {

@@ -12,7 +12,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     make \
     g++ \
     && rm -rf /var/lib/apt/lists/*
-RUN npm install -g pnpm@9
+# pnpmのバージョンを固定してビルドの再現性を確保
+RUN npm install -g pnpm@9.15.9
 WORKDIR /app
 
 # =============================================================================
@@ -72,11 +73,14 @@ COPY --from=deps-prod /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/package.json ./package.json
-# ヘルスチェックスクリプトのコピー
+# 起動スクリプトのコピー（エントリポイントとヘルスチェック）
+COPY --from=builder /app/scripts/docker-entrypoint.sh ./scripts/docker-entrypoint.sh
 COPY --from=builder /app/scripts/healthcheck.js ./scripts/healthcheck.js
 
 # データディレクトリの準備（SQLiteデータの永続化）
-RUN mkdir -p /data && chown node:node /data
+# エントリポイントスクリプトを実行可能にする（rootで実行）
+RUN mkdir -p /data && chown node:node /data \
+    && chmod +x scripts/docker-entrypoint.sh
 
 # データを永続化するためのボリューム宣言
 VOLUME ["/data"]
@@ -90,4 +94,5 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD node scripts/healthcheck.js
 
-CMD ["node", "dist/server.js"]
+# エントリポイント: DBマイグレーション実行後にサーバーをPID 1として起動
+ENTRYPOINT ["/app/scripts/docker-entrypoint.sh"]
