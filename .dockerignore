@@ -1,0 +1,48 @@
+# Git
+.git
+.gitignore
+.gitmodules
+
+# Node.js
+node_modules
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# ビルド成果物（コンテナ内で生成）
+.next
+dist
+
+# データ・設定（ランタイムのもの）
+data
+.env
+.env.*
+
+# ワークツリー
+.worktrees
+
+# Docker（サンドボックス用Dockerfile）
+docker
+
+# ドキュメント
+docs
+
+# テスト
+**/__tests__
+*.test.ts
+*.spec.ts
+e2e
+test-screenshots
+
+# ログ
+logs
+*.log
+
+# IDE・OS
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+
+# PM2
+ecosystem.config.js
