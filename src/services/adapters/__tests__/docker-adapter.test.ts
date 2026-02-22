@@ -1699,4 +1699,63 @@ describe('DockerAdapter', () => {
       expect(customVolumeIndex).toBeGreaterThan(lastSystemVolumeIndex);
     });
   });
+
+  describe('buildDockerArgs dockerVolumeId support', () => {
+    // テスト用サブクラスでprotectedメソッドを公開
+    class TestDockerAdapter extends DockerAdapter {
+      public testBuildDockerArgs(workingDir: string, options?: import('../../environment-adapter').CreateSessionOptions) {
+        return this.buildDockerArgs(workingDir, options);
+      }
+    }
+
+    let testAdapter: TestDockerAdapter;
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+      testAdapter = new TestDockerAdapter(defaultConfig);
+    });
+
+    it('dockerVolumeIdが指定された場合、ボリュームマウントとして-vにボリュームID:/repoを使用する', () => {
+      const { args } = testAdapter.testBuildDockerArgs('/repo/.worktrees/session-abc', {
+        dockerVolumeId: 'claude-repo-proj-123',
+      });
+
+      // Dockerボリュームがマウントされている
+      expect(args).toContain('claude-repo-proj-123:/repo');
+
+      // ホストパスのマウント (/repo/.worktrees/session-abc:/workspace) がないこと
+      const workspaceMount = args.find(a => a.includes(':/workspace'));
+      expect(workspaceMount).toBeUndefined();
+    });
+
+    it('dockerVolumeIdが指定された場合、-wでworkingDirが設定される', () => {
+      const { args } = testAdapter.testBuildDockerArgs('/repo/.worktrees/session-abc', {
+        dockerVolumeId: 'claude-repo-proj-123',
+      });
+
+      const wIndex = args.indexOf('-w');
+      expect(wIndex).toBeGreaterThan(-1);
+      expect(args[wIndex + 1]).toBe('/repo/.worktrees/session-abc');
+    });
+
+    it('dockerVolumeIdが指定されていない場合、従来通りworkingDir:/workspaceをマウントする', () => {
+      const { args } = testAdapter.testBuildDockerArgs('/projects/my-project');
+
+      expect(args).toContain('/projects/my-project:/workspace');
+
+      // -w引数がないこと（従来の動作）
+      const wIndex = args.indexOf('-w');
+      expect(wIndex).toBe(-1);
+    });
+
+    it('dockerVolumeIdが指定された場合でも認証ディレクトリがマウントされる', () => {
+      const { args } = testAdapter.testBuildDockerArgs('/repo/.worktrees/session-abc', {
+        dockerVolumeId: 'claude-repo-proj-123',
+      });
+
+      // 認証ディレクトリのマウントが維持されている
+      expect(args).toContain('/data/environments/env-123-456/claude:/home/node/.claude');
+      expect(args).toContain('/data/environments/env-123-456/config/claude:/home/node/.config/claude');
+    });
+  });
 });

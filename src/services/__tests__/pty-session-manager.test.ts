@@ -288,6 +288,41 @@ describe('PTYSessionManager', () => {
         adapterFactorySpy.mockRestore()
       })
 
+      it('should pass dockerVolumeId to adapter createSession', async () => {
+        const mockAdapter = {
+          createSession: vi.fn().mockResolvedValue(undefined),
+          destroySession: vi.fn(),
+          write: vi.fn(),
+          resize: vi.fn(),
+          hasSession: vi.fn(),
+          on: vi.fn(),
+          emit: vi.fn()
+        }
+
+        const adapterFactorySpy = vi.spyOn(AdapterFactory, 'getAdapter').mockReturnValue(mockAdapter)
+
+        await manager.createSession({
+          sessionId: 'volume-session',
+          projectId: 'project1',
+          branchName: 'main',
+          worktreePath: '/path/to/worktree',
+          environmentId: 'env1',
+          dockerVolumeId: 'claude-repo-proj-123'
+        })
+
+        // adapter.createSessionが呼ばれた時のoptionsにdockerVolumeIdが含まれていること
+        expect(mockAdapter.createSession).toHaveBeenCalledWith(
+          'volume-session',
+          '/path/to/worktree',
+          undefined,
+          expect.objectContaining({
+            dockerVolumeId: 'claude-repo-proj-123',
+          })
+        )
+
+        adapterFactorySpy.mockRestore()
+      })
+
       it('should throw error if environment not found', async () => {
         // dbモックを更新
         mockDbExecutionEnvironment.findUnique.mockResolvedValue(null)
