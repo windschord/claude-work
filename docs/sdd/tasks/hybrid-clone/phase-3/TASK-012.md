@@ -4,7 +4,8 @@
 
 ## 概要
 
-`clone_location='docker'`のプロジェクトでセッションを起動する際、worktreePathがDockerボリューム内パス（例: `/repo/.worktrees/session-xxx`）になるが、`DockerAdapter.buildDockerArgs()`がこれをホストパスとして`-v /repo/.worktrees/session-xxx:/workspace`でマウントしようとするため、ホスト上にこのパスが存在せず失敗する問題を修正する。
+`clone_location='docker'`のプロジェクトでセッション起動時、worktreePathがDockerボリューム内パスになる。
+`DockerAdapter.buildDockerArgs()`がこれをホストパスとしてマウントしようとするため、ホスト上にパスが存在せず失敗する問題を修正する。
 
 ## 修正内容
 
