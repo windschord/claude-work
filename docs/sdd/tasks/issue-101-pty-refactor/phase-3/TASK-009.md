@@ -22,13 +22,13 @@ Circular delegation解消、destroySession無限再帰解消、cols/rows伝播�
 
 ## 受入基準
 
-- [ ] Circular delegation解消の検証テスト(REQ-001-007)
-- [ ] destroySession無限再帰解消の検証テスト(REQ-002-005)
-- [ ] HOST環境cols/rows伝播の検証テスト(REQ-003-005)
-- [ ] DOCKER環境cols/rows伝播の回帰テスト(REQ-003-007)
-- [ ] 全テスト通過
-- [ ] カバレッジ80%以上確認
-- [ ] コミット: `test: 統合テスト追加(Circular delegation解消等) [TASK-009]`
+- [x] Circular delegation解消の検証テスト(REQ-001-007)
+- [x] destroySession無限再帰解消の検証テスト(REQ-002-005)
+- [x] HOST環境cols/rows伝播の検証テスト(REQ-003-005)
+- [x] DOCKER環境cols/rows伝播の回帰テスト(REQ-003-007)
+- [x] 全テスト通過
+- [x] カバレッジ80%以上確認
+- [x] コミット: `test: 統合テスト追加(Circular delegation解消等) [TASK-009]`
 
 ---
 
@@ -52,3 +52,9 @@ Circular delegation解消、destroySession無限再帰解消、cols/rows伝播�
 
 ## 推定工数
 60分
+
+## ステータス
+
+`DONE`
+
+**完了サマリー**: integration.test.ts(11テスト)を作成。Circular delegation解消(REQ-001-007)、destroySession無限再帰解消(REQ-002-005)、HOST/DOCKER環境のcols/rows伝播(REQ-003-005, REQ-003-007)を検証。カバレッジ: base-adapter 80%, docker-adapter 80.33%。コミット118da90。

@@ -48,19 +48,19 @@ HOST/DOCKER環境で共通のPTYロジックを提供する抽象基底クラス
 
 以下のすべての基準を満たしたら、このタスクは完了です:
 
-- [ ] `src/services/adapters/base-adapter.ts` が作成されている
-- [ ] BasePTYAdapter抽象クラスがEnvironmentAdapterインターフェースを実装している
-- [ ] EventEmitterを継承している
-- [ ] spawnPTY()が実装されている(protected)
-- [ ] setupDataHandlers()が実装されている(protected)
-- [ ] setupErrorHandlers()が実装されている(protected)
-- [ ] cleanupPTY()が実装されている(protected)
-- [ ] extractClaudeSessionId()が実装されている(protected)
-- [ ] createSession()が抽象メソッドとして定義されている
-- [ ] destroySession()が抽象メソッドとして定義されている
-- [ ] `npm test` でTASK-001のテストが全て通過する
-- [ ] `npm run lint` でエラーが0件である
-- [ ] `npm run typecheck` でエラーが0件である
+- [x] `src/services/adapters/base-adapter.ts` が作成されている
+- [x] BasePTYAdapter抽象クラスがEnvironmentAdapterインターフェースを実装している
+- [x] EventEmitterを継承している
+- [x] spawnPTY()が実装されている(protected)
+- [x] setupDataHandlers()が実装されている(protected)
+- [x] setupErrorHandlers()が実装されている(protected)
+- [x] cleanupPTY()が実装されている(protected)
+- [x] extractClaudeSessionId()が実装されている(protected)
+- [x] createSession()が抽象メソッドとして定義されている
+- [x] destroySession()が抽象メソッドとして定義されている
+- [x] `npm test` でTASK-001のテストが全て通過する
+- [x] `npm run lint` でエラーが0件である
+- [x] `npm run typecheck` でエラーが0件である
 
 ---
 
@@ -225,3 +225,9 @@ export abstract class BasePTYAdapter extends EventEmitter implements Environment
 
 ## 推定工数
 40分
+
+## ステータス
+
+`DONE`
+
+**完了サマリー**: base-adapter.ts(269行)を実装。EventEmitter継承、EnvironmentAdapter実装の抽象クラス。spawnPTY, setupDataHandlers, setupErrorHandlers, cleanupPTY, extractClaudeSessionIdの5つのprotectedメソッドと、createSession, destroySessionの2つの抽象メソッドを定義。セキュリティ対策として引数サニタイズとCLAUDECODE環境変数除外を追加。

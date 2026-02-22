@@ -30,13 +30,13 @@ DockerAdapterをBasePTYAdapterを継承するように変更し、共通ロジ�
 
 ## 受入基準
 
-- [ ] `extends BasePTYAdapter` を追加
-- [ ] createSession()でBasePTYAdapter.spawnPTY()を使用
-- [ ] cols/rows初期化ロジック(471-489行)を削除(base-adapterへ移動済み)
-- [ ] createExecSession()のcols/rowsハードコード(329-333行)を修正
-- [ ] Docker固有ロジック(ensureContainer, cleanupContainer)は維持
-- [ ] TASK-006のテストが全て通過
-- [ ] コミット: `feat: DockerAdapterリファクタリング(共通ロジック移動) [TASK-007]`
+- [x] `extends BasePTYAdapter` を追加
+- [x] createSession()でBasePTYAdapter.spawnPTY()を使用
+- [x] cols/rows初期化ロジック(471-489行)を削除(base-adapterへ移動済み)
+- [x] createExecSession()のcols/rowsハードコード(329-333行)を修正
+- [x] Docker固有ロジック(ensureContainer, cleanupContainer)は維持
+- [x] TASK-006のテストが全て通過
+- [x] コミット: `feat: DockerAdapterリファクタリング(共通ロジック移動) [TASK-007]`
 
 ---
 
@@ -68,3 +68,9 @@ private async createExecSession(sessionId: string, containerName: string, cols: 
 
 ## 推定工数
 50分
+
+## ステータス
+
+`DONE`
+
+**完了サマリー**: DockerAdapterをBasePTYAdapter継承に変更。createSessionでspawnPTY()使用、createExecSessionのcols/rowsパラメータ化(ハードコード除去)。Docker固有ロジック(ensureContainer, cleanupContainer等)は維持。72テスト全通過。
