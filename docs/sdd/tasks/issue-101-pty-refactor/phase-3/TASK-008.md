@@ -41,3 +41,9 @@ ClaudePTYManagerファイルを削除し、依存している箇所(HostAdapter�
 
 ## 推定工数
 20分
+
+## ステータス
+
+`DONE`
+
+**完了サマリー**: claude-pty-manager.ts(352行)を削除。全ての参照箇所(import, 呼び出し)を除去。機能はBasePTYAdapterに移行済み。コミット400929f。

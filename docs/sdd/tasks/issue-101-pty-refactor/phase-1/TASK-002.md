@@ -225,3 +225,9 @@ export abstract class BasePTYAdapter extends EventEmitter implements Environment
 
 ## 推定工数
 40分
+
+## ステータス
+
+`DONE`
+
+**完了サマリー**: base-adapter.ts(269行)を実装。EventEmitter継承、EnvironmentAdapter実装の抽象クラス。spawnPTY, setupDataHandlers, setupErrorHandlers, cleanupPTY, extractClaudeSessionIdの5つのprotectedメソッドと、createSession, destroySessionの2つの抽象メソッドを定義。セキュリティ対策として引数サニタイズとCLAUDECODE環境変数除外を追加。

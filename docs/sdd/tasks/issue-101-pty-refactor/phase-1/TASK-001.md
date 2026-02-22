@@ -207,3 +207,9 @@ vi.mock('node-pty', () => ({
 
 ## 推定工数
 40分
+
+## ステータス
+
+`DONE`
+
+**完了サマリー**: base-adapter.test.tsを作成。spawnPTY(4テスト), setupDataHandlers(3テスト), setupErrorHandlers(2テスト), cleanupPTY(1テスト), extractClaudeSessionId(2テスト)の計12テストケースを実装。

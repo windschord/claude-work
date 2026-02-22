@@ -68,3 +68,9 @@ private async createExecSession(sessionId: string, containerName: string, cols: 
 
 ## 推定工数
 50分
+
+## ステータス
+
+`DONE`
+
+**完了サマリー**: DockerAdapterをBasePTYAdapter継承に変更。createSessionでspawnPTY()使用、createExecSessionのcols/rowsパラメータ化(ハードコード除去)。Docker固有ロジック(ensureContainer, cleanupContainer等)は維持。72テスト全通過。

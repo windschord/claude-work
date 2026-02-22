@@ -51,3 +51,9 @@
 
 ## 推定工数
 40分
+
+## ステータス
+
+`DONE`
+
+**完了サマリー**: IPty型エラー(removeAllListeners未定義)を修正してTypeScriptビルド通過。全95テスト通過(アダプター関連)、Lintエラー0件。コミットf47c4bb。

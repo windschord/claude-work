@@ -52,3 +52,9 @@ Circular delegation解消、destroySession無限再帰解消、cols/rows伝播�
 
 ## 推定工数
 60分
+
+## ステータス
+
+`DONE`
+
+**完了サマリー**: integration.test.ts(11テスト)を作成。Circular delegation解消(REQ-001-007)、destroySession無限再帰解消(REQ-002-005)、HOST/DOCKER環境のcols/rows伝播(REQ-003-005, REQ-003-007)を検証。カバレッジ: base-adapter 80%, docker-adapter 80.33%。コミット118da90。

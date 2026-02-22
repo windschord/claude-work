@@ -43,3 +43,9 @@ HostAdapterのリファクタリング(ClaudePTYManager依存削除、BasePTYAda
 
 ## 推定工数
 40分
+
+## ステータス
+
+`DONE`
+
+**完了サマリー**: host-adapter.test.ts(8テスト)を実装。Claude CodeモードでのspawnPTY呼び出し、ClaudePTYManager非依存、shellModeロジック維持、cols/rows伝播を検証。コミット12072caでTASK-005と同時に完了。

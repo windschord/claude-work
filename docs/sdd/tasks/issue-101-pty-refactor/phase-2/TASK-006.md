@@ -33,3 +33,9 @@ DockerAdapterのリファクタリング(BasePTYAdapter継承、共通ロジッ�
 
 ## 推定工数
 40分
+
+## ステータス
+
+`DONE`
+
+**完了サマリー**: docker-adapter.test.ts(72テスト)でBasePTYAdapter継承、createSession/createExecSessionのcols/rows伝播、Docker固有ロジック(ensureContainer等)の維持を検証。コミット85e5634でTASK-007と同時に完了。

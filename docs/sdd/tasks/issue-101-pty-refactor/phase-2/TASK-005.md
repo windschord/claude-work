@@ -89,3 +89,9 @@ export class HostAdapter extends BasePTYAdapter {
 
 ## 推定工数
 50分
+
+## ステータス
+
+`DONE`
+
+**完了サマリー**: HostAdapterからClaudePTYManager依存を完全削除。BasePTYAdapterを継承し、createSessionでspawnPTY()使用、destroySessionでcleanupPTY()使用に変更。shellModeロジックは維持。8テスト全通過。
