@@ -30,7 +30,8 @@ vi.mock('@/lib/db', () => ({
     select: vi.fn(() => ({ from: mockDbFrom })),
   },
   schema: {
-    sessions: { id: 'id', container_id: 'container_id' },
+    sessions: { id: 'id', container_id: 'container_id', worktree_path: 'worktree_path', project_id: 'project_id' },
+    projects: { id: 'id', clone_location: 'clone_location' },
   },
 }));
 
@@ -1062,6 +1063,138 @@ describe('DockerAdapter', () => {
 
       isContainerRunningSpy.mockRestore();
     });
+
+    it('should use parent session containerWorkDir for exec CWD when dockerVolumeId is set', async () => {
+      const dvParentSessionId = 'session-dockervol-parent';
+      const dvTerminalSessionId = 'session-dockervol-parent-terminal';
+      const dvWorkingDir = '/repo/.worktrees/session-abc';
+
+      const isContainerRunningSpy = vi.spyOn(adapter as any, 'isContainerRunning').mockReturnValue(true);
+
+      // 親セッション作成（dockerVolumeId指定）
+      await adapter.createSession(dvParentSessionId, dvWorkingDir, undefined, {
+        dockerVolumeId: 'claude-repo-proj-123',
+      });
+      mockSpawn.mockClear();
+
+      // shellModeセッション作成
+      await adapter.createSession(dvTerminalSessionId, dvWorkingDir, undefined, {
+        shellMode: true,
+      });
+
+      // exec の -w 引数が /workspace ではなく、親のcontainerWorkDir（workingDir）になっていること
+      const spawnCall = mockSpawn.mock.calls[0];
+      const args = spawnCall[1] as string[];
+      const wIndex = args.indexOf('-w');
+      expect(wIndex).toBeGreaterThan(-1);
+      expect(args[wIndex + 1]).toBe(dvWorkingDir); // /repo/.worktrees/session-abc
+      expect(args[wIndex + 1]).not.toBe('/workspace');
+
+      isContainerRunningSpy.mockRestore();
+    });
+
+    it('should use /workspace for exec CWD when dockerVolumeId is not set', async () => {
+      const hvParentSessionId = 'session-hostvol-parent';
+      const hvTerminalSessionId = 'session-hostvol-parent-terminal';
+      const hvWorkingDir = '/projects/my-project';
+
+      const isContainerRunningSpy = vi.spyOn(adapter as any, 'isContainerRunning').mockReturnValue(true);
+
+      // 親セッション作成（dockerVolumeIdなし）
+      await adapter.createSession(hvParentSessionId, hvWorkingDir);
+      mockSpawn.mockClear();
+
+      // shellModeセッション作成
+      await adapter.createSession(hvTerminalSessionId, hvWorkingDir, undefined, {
+        shellMode: true,
+      });
+
+      // exec の -w 引数が /workspace であること
+      const spawnCall = mockSpawn.mock.calls[0];
+      const args = spawnCall[1] as string[];
+      const wIndex = args.indexOf('-w');
+      expect(wIndex).toBeGreaterThan(-1);
+      expect(args[wIndex + 1]).toBe('/workspace');
+
+      isContainerRunningSpy.mockRestore();
+    });
+
+    it('should resolve exec CWD from DB when parent session is not in memory (server restart)', async () => {
+      // 親セッションがメモリにない場合（サーバー再起動後）のDB復元テスト
+      const terminalSessionId = 'session-db-restore-parent-terminal';
+      const _parentSessionId = 'session-db-restore-parent';
+      const parentWorktreePath = '/repo/.worktrees/session-db-restore';
+
+      const isContainerRunningSpy = vi.spyOn(adapter as any, 'isContainerRunning').mockReturnValue(true);
+
+      // 親セッションはメモリになく、DBからcontainer_idとworktree_path, project_idを取得
+      // DBモックのselectチェーンを上書き
+      const { db: mockDb } = await import('@/lib/db');
+      const originalSelect = mockDb.select;
+
+      let selectCallCount = 0;
+      (mockDb.select as any) = vi.fn(() => {
+        selectCallCount++;
+        // 1回目: sessions テーブルからparentの情報取得（shellModeのDB fallback）
+        if (selectCallCount === 1) {
+          return {
+            from: vi.fn(() => ({
+              where: vi.fn(() => ({
+                get: vi.fn().mockReturnValue({
+                  container_id: 'claude-env-db-restored-container',
+                }),
+              })),
+            })),
+          };
+        }
+        // 2回目: sessions テーブルからworktree_path, project_id取得（resolveExecWorkDir）
+        if (selectCallCount === 2) {
+          return {
+            from: vi.fn(() => ({
+              where: vi.fn(() => ({
+                get: vi.fn().mockReturnValue({
+                  worktree_path: parentWorktreePath,
+                  project_id: 'proj-docker-123',
+                }),
+              })),
+            })),
+          };
+        }
+        // 3回目: projects テーブルからclone_location取得（resolveExecWorkDir）
+        if (selectCallCount === 3) {
+          return {
+            from: vi.fn(() => ({
+              where: vi.fn(() => ({
+                get: vi.fn().mockReturnValue({
+                  clone_location: 'docker',
+                }),
+              })),
+            })),
+          };
+        }
+        // フォールバック
+        return { from: vi.fn(() => ({ where: vi.fn(() => ({ get: vi.fn() })) })) };
+      });
+
+      // shellModeセッション作成（親はメモリにない）
+      try {
+        await adapter.createSession(terminalSessionId, parentWorktreePath, undefined, {
+          shellMode: true,
+        });
+
+        // exec の -w 引数がDBから復元されたworktree_pathになっていること
+        const spawnCall = mockSpawn.mock.calls[mockSpawn.mock.calls.length - 1];
+        const args = spawnCall[1] as string[];
+        const wIndex = args.indexOf('-w');
+        expect(wIndex).toBeGreaterThan(-1);
+        expect(args[wIndex + 1]).toBe(parentWorktreePath);
+        expect(args[wIndex + 1]).not.toBe('/workspace');
+      } finally {
+        // クリーンアップ（テスト中断時にも確実に復元）
+        (mockDb.select as any) = originalSelect;
+        isContainerRunningSpy.mockRestore();
+      }
+    });
   });
 
   describe('waitForContainerReady (TASK-012)', () => {
@@ -1697,6 +1830,93 @@ describe('DockerAdapter', () => {
 
       expect(customVolumeIndex).toBeGreaterThanOrEqual(0);
       expect(customVolumeIndex).toBeGreaterThan(lastSystemVolumeIndex);
+    });
+  });
+
+  describe('buildDockerArgs dockerVolumeId support', () => {
+    // テスト用サブクラスでprotectedメソッドを公開
+    class TestDockerAdapter extends DockerAdapter {
+      public testBuildDockerArgs(workingDir: string, options?: import('../../environment-adapter').CreateSessionOptions) {
+        return this.buildDockerArgs(workingDir, options);
+      }
+    }
+
+    let testAdapter: TestDockerAdapter;
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+      testAdapter = new TestDockerAdapter(defaultConfig);
+    });
+
+    it('dockerVolumeIdが指定された場合、ボリュームマウントとして-vにボリュームID:/repoを使用する', () => {
+      const { args } = testAdapter.testBuildDockerArgs('/repo/.worktrees/session-abc', {
+        dockerVolumeId: 'claude-repo-proj-123',
+      });
+
+      // Dockerボリュームがマウントされている
+      expect(args).toContain('claude-repo-proj-123:/repo');
+
+      // ホストパスのマウント (/repo/.worktrees/session-abc:/workspace) がないこと
+      const workspaceMount = args.find(a => a.includes(':/workspace'));
+      expect(workspaceMount).toBeUndefined();
+    });
+
+    it('dockerVolumeIdが指定された場合、-wでworkingDirが設定される', () => {
+      const { args } = testAdapter.testBuildDockerArgs('/repo/.worktrees/session-abc', {
+        dockerVolumeId: 'claude-repo-proj-123',
+      });
+
+      const wIndex = args.indexOf('-w');
+      expect(wIndex).toBeGreaterThan(-1);
+      expect(args[wIndex + 1]).toBe('/repo/.worktrees/session-abc');
+    });
+
+    it('dockerVolumeIdが指定されていない場合、従来通りworkingDir:/workspaceをマウントする', () => {
+      const { args } = testAdapter.testBuildDockerArgs('/projects/my-project');
+
+      expect(args).toContain('/projects/my-project:/workspace');
+
+      // -w引数がないこと（従来の動作）
+      const wIndex = args.indexOf('-w');
+      expect(wIndex).toBe(-1);
+    });
+
+    it('dockerVolumeIdが指定された場合でも認証ディレクトリがマウントされる', () => {
+      const { args } = testAdapter.testBuildDockerArgs('/repo/.worktrees/session-abc', {
+        dockerVolumeId: 'claude-repo-proj-123',
+      });
+
+      // 認証ディレクトリのマウントが維持されている
+      expect(args).toContain('/data/environments/env-123-456/claude:/home/node/.claude');
+      expect(args).toContain('/data/environments/env-123-456/config/claude:/home/node/.config/claude');
+    });
+
+    it('不正なdockerVolumeId(コロンを含む)はエラーになる', () => {
+      expect(() => {
+        testAdapter.testBuildDockerArgs('/repo/.worktrees/session-abc', {
+          dockerVolumeId: 'evil:volume',
+        });
+      }).toThrow('Invalid dockerVolumeId format');
+    });
+
+    it('不正なdockerVolumeId(スラッシュを含む)はエラーになる', () => {
+      expect(() => {
+        testAdapter.testBuildDockerArgs('/repo/.worktrees/session-abc', {
+          dockerVolumeId: '../escape',
+        });
+      }).toThrow('Invalid dockerVolumeId format');
+    });
+
+    it('空文字のdockerVolumeIdはfalsyとして無視され、従来のホストパスマウントにフォールバックする', () => {
+      const { args } = testAdapter.testBuildDockerArgs('/repo/.worktrees/session-abc', {
+        dockerVolumeId: '',
+      });
+
+      // 従来のホストパスマウントが使用される
+      expect(args).toContain('/repo/.worktrees/session-abc:/workspace');
+      // Dockerボリュームマウントは使用されない
+      const repoMount = args.find(a => a.includes(':/repo'));
+      expect(repoMount).toBeUndefined();
     });
   });
 });

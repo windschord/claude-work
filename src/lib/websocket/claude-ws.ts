@@ -230,6 +230,8 @@ export function setupClaudeWebSocket(
           project: {
             columns: {
               environment_id: true,
+              clone_location: true,
+              docker_volume_id: true,
             },
           },
         },
@@ -343,6 +345,11 @@ export function setupClaudeWebSocket(
           // ターミナルサイズを取得
           const terminalSize: { cols: number; rows: number } = pendingResize ?? { cols: 80, rows: 24 };
 
+          // DockerボリュームIDの解決（clone_location='docker'の場合）
+          const dockerVolumeId = session.project?.clone_location === 'docker'
+            ? (session.project?.docker_volume_id || `claude-repo-${session.project_id}`)
+            : undefined;
+
           // PTYSessionManager経由でセッション作成
           await ptySessionManager.createSession({
             sessionId,
@@ -356,6 +363,7 @@ export function setupClaudeWebSocket(
             customEnvVars: hasCustomEnvVars ? mergedEnvVars : undefined,
             cols: terminalSize.cols,
             rows: terminalSize.rows,
+            dockerVolumeId,
           });
 
           logger.info('Claude PTY created for session', {

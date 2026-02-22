@@ -69,6 +69,7 @@ interface DockerSession {
   shellMode: boolean;
   lastKnownCols?: number;
   lastKnownRows?: number;
+  containerWorkDir?: string;  // コンテナ内の作業ディレクトリ（dockerVolumeId使用時はworkingDir、それ以外は'/workspace'）
 }
 
 /**
@@ -118,8 +119,20 @@ export class DockerAdapter extends BasePTYAdapter {
     args.push('--cap-drop', 'ALL');
     args.push('--security-opt', 'no-new-privileges');
 
-    // ワークスペース（RW）
-    args.push('-v', `${workingDir}:/workspace`);
+    // ワークスペースマウント
+    if (options?.dockerVolumeId) {
+      // Dockerボリューム名は英数字・ダッシュ・アンダースコア・ドットのみ許可
+      // (Docker公式仕様: [a-zA-Z0-9][a-zA-Z0-9_.-]*)
+      if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(options.dockerVolumeId)) {
+        throw new Error(`Invalid dockerVolumeId format: ${options.dockerVolumeId}`);
+      }
+      // Dockerボリューム経由: ボリューム全体をマウントし、worktreePathをCWDに設定
+      args.push('-v', `${options.dockerVolumeId}:/repo`);
+      args.push('-w', workingDir);
+    } else {
+      // ホスト環境: 従来通りホストパスをマウント（RW）
+      args.push('-v', `${workingDir}:/workspace`);
+    }
 
     // 環境専用認証ディレクトリ（RW）
     const claudeDir = path.join(this.config.authDirPath, 'claude');
@@ -250,6 +263,58 @@ export class DockerAdapter extends BasePTYAdapter {
       }
     }
     return null;
+  }
+
+  /**
+   * execセッションのコンテナ内作業ディレクトリを解決
+   *
+   * 1. メモリ上の親セッションからcontainerWorkDirを取得
+   * 2. メモリにない場合（サーバー再起動後等）、DBからプロジェクト情報を取得して推定
+   * 3. いずれも取得できない場合は'/workspace'にフォールバック
+   */
+  private resolveExecWorkDir(sessionId: string): string {
+    const parentId = this.getParentSessionId(sessionId);
+    if (!parentId) return '/workspace';
+
+    // 1. メモリから取得
+    const parentSession = this.sessions.get(parentId);
+    if (parentSession?.containerWorkDir) {
+      return parentSession.containerWorkDir;
+    }
+
+    // 2. DBから推定（サーバー再起動後のフォールバック）
+    try {
+      const parentRecord = db.select({
+        worktree_path: schema.sessions.worktree_path,
+        project_id: schema.sessions.project_id,
+      }).from(schema.sessions).where(eq(schema.sessions.id, parentId)).get();
+
+      if (parentRecord) {
+        const project = db.select({
+          clone_location: schema.projects.clone_location,
+        }).from(schema.projects).where(eq(schema.projects.id, parentRecord.project_id)).get();
+
+        if (project?.clone_location === 'docker') {
+          // パストラバーサル防止: .worktrees/を含み、..を含まないことを検証
+          const wp = parentRecord.worktree_path;
+          if (wp.includes('.worktrees/') && !wp.includes('..')) {
+            logger.info('DockerAdapter: Resolved exec CWD from DB (docker volume mode)', {
+              sessionId, parentId, workDir: wp,
+            });
+            return wp;
+          }
+          logger.warn('DockerAdapter: Invalid worktree_path from DB, falling back to /workspace', {
+            sessionId, parentId, worktreePath: wp,
+          });
+        }
+      }
+    } catch (error) {
+      logger.warn('DockerAdapter: Failed to recover containerWorkDir from DB', {
+        sessionId, parentId, error: error instanceof Error ? error.message : 'Unknown',
+      });
+    }
+
+    return '/workspace';
   }
 
   /**
@@ -386,8 +451,9 @@ export class DockerAdapter extends BasePTYAdapter {
     rows: number
   ): Promise<void> {
     // -it オプションでインタラクティブモードとTTYを有効化
-    // -w オプションで作業ディレクトリを /workspace に設定
-    const args = ['exec', '-it', '-w', '/workspace', containerName, 'bash'];
+    // -w オプションで作業ディレクトリを設定（親セッションのcontainerWorkDirを参照）
+    const execCwd = this.resolveExecWorkDir(sessionId);
+    const args = ['exec', '-it', '-w', execCwd, containerName, 'bash'];
 
     logger.info('DockerAdapter: Creating exec session (attaching to existing container)', {
       sessionId,
@@ -561,6 +627,7 @@ export class DockerAdapter extends BasePTYAdapter {
         env: {},
       });
 
+      const containerWorkDir = options?.dockerVolumeId ? workingDir : '/workspace';
       this.sessions.set(sessionId, {
         ptyProcess,
         workingDir,
@@ -570,6 +637,7 @@ export class DockerAdapter extends BasePTYAdapter {
         shellMode: false,
         lastKnownCols: initialCols,
         lastKnownRows: initialRows,
+        containerWorkDir,
       });
 
       // コンテナ起動完了を待機（TASK-012）
