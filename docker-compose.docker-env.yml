@@ -1,0 +1,16 @@
+# Docker環境機能を有効にするオーバーライド設定
+#
+# docker.sockマウントにより、コンテナからホストDockerの操作権限を委譲します。
+# 信頼できる環境でのみ使用してください。
+#
+# 使用方法:
+#   DOCKER_GID=$(stat -c '%g' /var/run/docker.sock) \
+#     docker compose -f docker-compose.yml -f docker-compose.docker-env.yml up -d
+services:
+  app:
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    group_add:
+      - "${DOCKER_GID:?DOCKER_GID must be set. Run: stat -c '%g' /var/run/docker.sock}"
+    environment:
+      - DOCKER_ENABLED=true
