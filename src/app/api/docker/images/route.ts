@@ -1,9 +1,6 @@
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import { NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
-
-const execAsync = promisify(exec);
+import { DockerClient } from '@/services/docker-client';
 
 interface DockerImage {
   repository: string;
@@ -11,6 +8,21 @@ interface DockerImage {
   id: string;
   size: string;
   created: string;
+}
+
+function formatSize(bytes: number): string {
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let i = 0;
+  while (bytes >= 1024 && i < units.length - 1) {
+    bytes /= 1024;
+    i++;
+  }
+  return `${bytes.toFixed(1)}${units[i]}`;
+}
+
+function formatDate(timestamp: number): string {
+  // Docker returns unix timestamp (seconds). JS expects milliseconds.
+  return new Date(timestamp * 1000).toISOString();
 }
 
 /**
@@ -21,32 +33,29 @@ export async function GET(): Promise<NextResponse> {
   try {
     logger.info('Fetching Docker images');
 
-    const { stdout } = await execAsync('docker images --format "{{json .}}"', {
-      timeout: 10000,
-      maxBuffer: 10 * 1024 * 1024, // 10MB バッファ（大量イメージ対応）
-    });
+    const imageInfos = await DockerClient.getInstance().listImages();
 
-    const images: DockerImage[] = stdout
-      .trim()
-      .split('\n')
-      .filter((line) => line)
-      .map((line) => {
-        try {
-          const img = JSON.parse(line);
-          return {
-            repository: img.Repository,
-            tag: img.Tag,
-            id: img.ID,
-            size: img.Size,
-            created: img.CreatedAt,
-          };
-        } catch {
-          // 不正なJSON行（ビルド中イメージの警告など）はスキップ
-          logger.debug('Skipping invalid JSON line in docker images output', { line });
-          return null;
-        }
-      })
-      .filter((img): img is DockerImage => img !== null && img.repository !== '<none>' && img.tag !== '<none>');
+    const images: DockerImage[] = [];
+    
+    for (const info of imageInfos) {
+      if (!info.RepoTags) continue;
+      
+      for (const repoTag of info.RepoTags) {
+        const lastColon = repoTag.lastIndexOf(':');
+        if (lastColon === -1) continue;
+        const repository = repoTag.substring(0, lastColon);
+        const tag = repoTag.substring(lastColon + 1);
+        if (repository === '<none>' || tag === '<none>') continue;
+        
+        images.push({
+          repository,
+          tag,
+          id: info.Id.replace('sha256:', '').substring(0, 12), // Short ID format usually expected
+          size: formatSize(info.Size),
+          created: formatDate(info.Created),
+        });
+      }
+    }
 
     logger.info(`Found ${images.length} Docker images`);
 
@@ -57,11 +66,8 @@ export async function GET(): Promise<NextResponse> {
     // エラータイプに応じたメッセージを返す
     let errorMessage = 'Docker daemon not available';
     if (error instanceof Error) {
-      if (error.message.includes('ETIMEDOUT') || error.message.includes('timeout')) {
-        errorMessage = 'Docker command timed out';
-      } else if (error.message.includes('ENOENT')) {
-        errorMessage = 'Docker command not found';
-      }
+        // dockerode errors might differ
+        errorMessage = error.message;
     }
 
     return NextResponse.json(

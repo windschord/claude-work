@@ -1,9 +1,10 @@
-import { spawn } from 'child_process';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import * as tar from 'tar-fs';
 import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
 import { getEnvironmentsDir } from '@/lib/data-dir';
+import { DockerClient } from '@/services/docker-client';
 
 // 許可されたベースディレクトリ
 const ALLOWED_BASE_DIRS = [
@@ -104,47 +105,41 @@ export async function POST(request: NextRequest) {
   });
 
   try {
-    // spawn を使用してコマンドインジェクションを防止
-    const buildResult = await new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
-      const args = ['build', '-t', fullImageName, '-f', dockerfileName, '.'];
-      const child = spawn('docker', args, {
-        cwd: dockerfileDir,
-      });
+    const tarStream = tar.pack(dockerfileDir);
+    let buildLog = '';
+    let buildError: string | null = null;
 
-      let stdout = '';
-      let stderr = '';
-
-      child.stdout.on('data', (data) => {
-        stdout += data.toString();
-      });
-
-      child.stderr.on('data', (data) => {
-        stderr += data.toString();
-      });
-
-      // タイムアウト設定 (10分)
-      const timeout = setTimeout(() => {
-        child.kill();
-        reject(new Error('Build timeout'));
-      }, 600000);
-
-      child.on('close', (code) => {
-        clearTimeout(timeout);
-        if (code === 0) {
-          resolve({ stdout, stderr });
-        } else {
-          const error = new Error(`Build failed with code ${code}`) as Error & { stdout?: string; stderr?: string };
-          error.stdout = stdout;
-          error.stderr = stderr;
-          reject(error);
+    await DockerClient.getInstance().buildImage(
+      tarStream,
+      {
+        t: fullImageName,
+        dockerfile: dockerfileName,
+      },
+      (event) => {
+        if (event.stream) {
+          buildLog += event.stream;
         }
+        if (event.error) {
+          buildError = event.error;
+        }
+      }
+    );
+
+    if (buildError) {
+      logger.error('Docker image build failed with build error', {
+        imageName: fullImageName,
+        error: buildError,
       });
 
-      child.on('error', (err) => {
-        clearTimeout(timeout);
-        reject(err);
-      });
-    });
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Build failed',
+          buildLog: buildLog + '\n' + buildError,
+        },
+        { status: 400 }
+      );
+    }
 
     logger.info('Docker image build completed', {
       imageName: fullImageName,
@@ -153,10 +148,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       imageName: fullImageName,
-      buildLog: buildResult.stdout + buildResult.stderr,
+      buildLog: buildLog,
     });
   } catch (error: unknown) {
-    const buildError = error as Error & { stdout?: string; stderr?: string };
+    const buildError = error as Error;
 
     logger.error('Docker image build failed', {
       imageName: fullImageName,
@@ -167,7 +162,7 @@ export async function POST(request: NextRequest) {
       {
         success: false,
         error: 'Build failed',
-        buildLog: (buildError.stdout || '') + (buildError.stderr || ''),
+        buildLog: buildError.message, // Log might be partial or error message
       },
       { status: 400 }
     );

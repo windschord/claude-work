@@ -1,13 +1,26 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NextRequest } from 'next/server';
-import { EventEmitter } from 'events';
 import * as path from 'path';
 import { GET, POST } from '../route';
 
 // ホイストされたモック
-const { mockSpawn, mockAccess } = vi.hoisted(() => ({
-  mockSpawn: vi.fn(),
+const { mockAccess, mockDockerClient } = vi.hoisted(() => ({
   mockAccess: vi.fn(),
+  mockDockerClient: {
+    buildImage: vi.fn(),
+  }
+}));
+
+// Mock DockerClient
+vi.mock('@/services/docker-client', () => ({
+  DockerClient: {
+    getInstance: () => mockDockerClient,
+  },
+}));
+
+// Mock tar-fs
+vi.mock('tar-fs', () => ({
+  pack: vi.fn().mockReturnValue('mock-tar-stream'),
 }));
 
 // モック
@@ -24,17 +37,6 @@ vi.mock('@/services/environment-service', () => ({
     createAuthDirectory: (id: string) => mockCreateAuthDirectory(id),
   },
 }));
-
-// child_processモジュールをモック（spawnを使用）
-vi.mock('child_process', async () => {
-  const mockExports = {
-    spawn: mockSpawn,
-  };
-  return {
-    ...mockExports,
-    default: mockExports,
-  };
-});
 
 // fs/promisesモジュールをモック
 vi.mock('fs/promises', async () => {
@@ -54,19 +56,6 @@ vi.mock('@/lib/logger', () => ({
 
 // 許可されたベースディレクトリ
 const ALLOWED_BASE_DIR = path.resolve(process.cwd(), 'data', 'environments');
-
-// モックのchild processを作成するヘルパー
-function createMockProcess() {
-  const mockProcess = new EventEmitter() as EventEmitter & {
-    stdout: EventEmitter;
-    stderr: EventEmitter;
-    kill: () => void;
-  };
-  mockProcess.stdout = new EventEmitter();
-  mockProcess.stderr = new EventEmitter();
-  mockProcess.kill = vi.fn();
-  return mockProcess;
-}
 
 describe('/api/environments', () => {
   beforeEach(() => {
@@ -402,9 +391,8 @@ describe('/api/environments', () => {
         // Dockerfile存在チェック - 成功
         mockAccess.mockResolvedValue(undefined);
 
-        // docker build 成功（spawnを使用）
-        const mockProcess = createMockProcess();
-        mockSpawn.mockReturnValue(mockProcess);
+        // docker build 成功
+        mockDockerClient.buildImage.mockResolvedValue(undefined);
 
         const newEnvironment = {
           id: 'env-docker-build',
@@ -435,24 +423,13 @@ describe('/api/environments', () => {
           headers: { 'Content-Type': 'application/json' },
         });
 
-        const responsePromise = POST(request);
-
-        // 非同期でイベントを発火
-        setImmediate(() => {
-          mockProcess.stdout.emit(
-            'data',
-            Buffer.from('Successfully built abc123\nSuccessfully tagged claude-work-env-temp:latest\n')
-          );
-          mockProcess.emit('close', 0);
-        });
-
-        const response = await responsePromise;
+        const response = await POST(request);
         const data = await response.json();
 
         expect(response.status).toBe(201);
         expect(data.environment.id).toBe('env-docker-build');
-        // spawnが呼ばれたことを確認
-        expect(mockSpawn).toHaveBeenCalled();
+        // buildImageが呼ばれたことを確認
+        expect(mockDockerClient.buildImage).toHaveBeenCalled();
         // 認証ディレクトリが作成されたことを確認
         expect(mockCreateAuthDirectory).toHaveBeenCalledWith('env-docker-build');
         // configにビルドしたイメージ名が設定されていることを確認
@@ -524,9 +501,13 @@ describe('/api/environments', () => {
         // Dockerfile存在チェック - 成功
         mockAccess.mockResolvedValue(undefined);
 
-        // docker build 失敗（spawnを使用）
-        const mockProcess = createMockProcess();
-        mockSpawn.mockReturnValue(mockProcess);
+        // docker build 失敗（onProgressでエラー）
+        mockDockerClient.buildImage.mockImplementation(async (stream, options, onProgress) => {
+          if (onProgress) {
+            onProgress({ error: 'pull access denied for invalid-image' });
+          }
+          return Promise.reject(new Error('pull access denied for invalid-image'));
+        });
 
         const request = new NextRequest('http://localhost:3000/api/environments', {
           method: 'POST',
@@ -541,16 +522,7 @@ describe('/api/environments', () => {
           headers: { 'Content-Type': 'application/json' },
         });
 
-        const responsePromise = POST(request);
-
-        // 非同期でイベントを発火（ビルド失敗）
-        setImmediate(() => {
-          mockProcess.stdout.emit('data', Buffer.from('Step 1/3 : FROM invalid-image:nonexistent\n'));
-          mockProcess.stderr.emit('data', Buffer.from('pull access denied for invalid-image\n'));
-          mockProcess.emit('close', 1); // 非ゼロの終了コード
-        });
-
-        const response = await responsePromise;
+        const response = await POST(request);
         const data = await response.json();
 
         expect(response.status).toBe(400);
@@ -619,7 +591,7 @@ describe('/api/environments', () => {
         expect(response.status).toBe(201);
         expect(data.environment.id).toBe('env-docker-existing');
         // ビルドは実行されない
-        expect(mockSpawn).not.toHaveBeenCalled();
+        expect(mockDockerClient.buildImage).not.toHaveBeenCalled();
         // 認証ディレクトリは作成される
         expect(mockCreateAuthDirectory).toHaveBeenCalledWith('env-docker-existing');
       });
