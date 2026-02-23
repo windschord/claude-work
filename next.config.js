@@ -1,8 +1,10 @@
 const webpack = require('webpack');
 
-// Server-only packages to externalize (native + runtime-only JS modules)
-// ssh2/cpu-features are transitive deps of dockerode that webpack fails to bundle
-const serverOnlyPackages = ['node-pty', 'better-sqlite3', 'dockerode', 'ssh2', 'cpu-features'];
+// Direct dependencies that must not be bundled (native modules / server-only)
+const serverOnlyPackages = ['node-pty', 'better-sqlite3', 'dockerode'];
+// Transitive native deps of dockerode that webpack fails to bundle.
+// These are resolved at runtime through dockerode's dependency tree.
+const transitiveBundleExcludes = ['ssh2', 'cpu-features'];
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -43,8 +45,9 @@ const nextConfig = {
 
     // サーバー側ビルドでネイティブモジュールを外部化
     if (isServer) {
+      const allExternals = [...serverOnlyPackages, ...transitiveBundleExcludes];
       const nativeExternals = Object.fromEntries(
-        serverOnlyPackages.map(pkg => [pkg, `commonjs ${pkg}`])
+        allExternals.map(pkg => [pkg, `commonjs ${pkg}`])
       );
       if (typeof config.externals === 'function') {
         config.externals = [config.externals, nativeExternals];

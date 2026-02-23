@@ -59,6 +59,35 @@ vi.mock('node-pty', () => ({
   spawn: vi.fn(),
 }));
 
+// Mock tar-fs to prevent real file streaming
+vi.mock('tar-fs', () => ({
+  default: {
+    pack: vi.fn().mockReturnValue({ pipe: vi.fn() }),
+  },
+  pack: vi.fn().mockReturnValue({ pipe: vi.fn() }),
+}));
+
+// Mock fs to prevent real filesystem operations
+vi.mock('fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('fs')>();
+  return {
+    ...actual,
+    existsSync: vi.fn().mockReturnValue(false),
+    writeFileSync: vi.fn(),
+    createReadStream: vi.fn(),
+  };
+});
+
+vi.mock('fs/promises', () => ({
+  mkdir: vi.fn().mockResolvedValue(undefined),
+  writeFile: vi.fn().mockResolvedValue(undefined),
+  readFile: vi.fn().mockResolvedValue(''),
+  readdir: vi.fn().mockResolvedValue([]),
+  rm: vi.fn().mockResolvedValue(undefined),
+  stat: vi.fn().mockResolvedValue({ isDirectory: () => true }),
+  access: vi.fn().mockResolvedValue(undefined),
+}));
+
 describe('DockerAdapter', () => {
   let adapter: DockerAdapter;
 
