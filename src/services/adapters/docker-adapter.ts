@@ -656,8 +656,10 @@ export class DockerAdapter extends BasePTYAdapter {
       rows: initialRows,
     });
 
+    let container: Docker.Container | undefined;
+    let ptyProcess: DockerPTYStream | undefined;
     try {
-      const container = await DockerClient.getInstance().createContainer(createOptions);
+      container = await DockerClient.getInstance().createContainer(createOptions);
 
       // Attach stream (hijack)
       const stream = await container.attach({
@@ -668,7 +670,7 @@ export class DockerAdapter extends BasePTYAdapter {
         hijack: true,
       });
 
-      const ptyProcess = new DockerPTYStream({
+      ptyProcess = new DockerPTYStream({
         cols: initialCols,
         rows: initialRows,
         isContainer: true,
@@ -802,6 +804,13 @@ export class DockerAdapter extends BasePTYAdapter {
       }
 
     } catch (error) {
+      // Cleanup on failure: remove session entry, kill PTY, remove container
+      this.sessions.delete(sessionId);
+      scrollbackBuffer.clear(sessionId);
+      try { ptyProcess?.kill(); } catch { /* ignore */ }
+      try { await container?.remove({ force: true }); } catch { /* ignore */ }
+      this.cleanupSSHKeys().catch(() => { /* ignore */ });
+
       logger.error('DockerAdapter: Failed to create session', {
         sessionId,
         error: error instanceof Error ? error.message : 'Unknown error',

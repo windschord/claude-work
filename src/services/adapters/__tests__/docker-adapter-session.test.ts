@@ -213,7 +213,7 @@ describe('DockerAdapter Sessions', () => {
       // No parent session created - orphan terminal should fail
       await expect(
         adapter.createSession('orphan-terminal', '/workspace', undefined, { shellMode: true })
-      ).rejects.toThrow();
+      ).rejects.toThrow(/Dockerコンテナが見つかりません/);
     });
   });
 });
