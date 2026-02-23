@@ -34,6 +34,24 @@ export class DockerGitService implements GitOperations {
   private static readonly MAX_RETRY_ATTEMPTS = 3;
   private static readonly BASE_DELAY_MS = 1000;
 
+  private static readonly SAFE_NAME_PATTERN = /^[a-zA-Z0-9._-]+$/;
+  private static readonly SAFE_HASH_PATTERN = /^[a-fA-F0-9]+$/;
+
+  private validateSessionName(name: string): void {
+    if (!DockerGitService.SAFE_NAME_PATTERN.test(name)) {
+      throw new Error(`Invalid session name: "${name}". Only alphanumeric characters, dots, hyphens, and underscores are allowed.`);
+    }
+    if (name === '.' || name === '..' || name.includes('..')) {
+      throw new Error(`Invalid session name: "${name}". Path traversal is not allowed.`);
+    }
+  }
+
+  private validateCommitHash(hash: string): void {
+    if (!DockerGitService.SAFE_HASH_PATTERN.test(hash)) {
+      throw new Error(`Invalid commit hash: "${hash}". Only hexadecimal characters are allowed.`);
+    }
+  }
+
   /**
    * Dockerボリューム名を生成
    */
@@ -248,7 +266,7 @@ export class DockerGitService implements GitOperations {
     image: string,
     cmd: string[],
     options: { Binds?: string[]; Env?: string[]; WorkingDir?: string; Entrypoint?: string | string[]; timeoutMs?: number }
-  ): Promise<void> {
+  ): Promise<{ stdout: string; stderr: string }> {
     let stdout = '';
     let stderr = '';
     
@@ -302,6 +320,8 @@ export class DockerGitService implements GitOperations {
         (error as any).stderr = stderr;
         throw error;
       }
+
+      return { stdout, stderr };
     } catch (error: any) {
       if (!error.stderr && stderr) {
         error.stderr = stderr;
@@ -544,6 +564,356 @@ export class DockerGitService implements GitOperations {
         success: false,
         error: error as Error,
       };
+    }
+  }
+
+  /**
+   * ファイルごとの詳細なdiff情報を取得
+   */
+  async getDiffDetails(projectId: string, sessionName: string): Promise<{
+    files: Array<{
+      path: string;
+      status: 'added' | 'modified' | 'deleted';
+      additions: number;
+      deletions: number;
+      oldContent: string;
+      newContent: string;
+    }>;
+    totalAdditions: number;
+    totalDeletions: number;
+  }> {
+    this.validateSessionName(sessionName);
+    const volumeName = this.getVolumeName(projectId);
+    const worktreePath = `/repo/.worktrees/${sessionName}`;
+    const Binds = [`${volumeName}:/repo`];
+
+    const script = `
+      git diff --name-status main...HEAD | while IFS=$'\\t' read -r status file; do
+        printf '===FILE_START===\\n'
+        printf 'PATH:%s\\n' "$file"
+        printf 'STATUS:%s\\n' "$status"
+
+        if [ "$status" != "A" ]; then
+          printf '===OLD_CONTENT_B64===\\n'
+          git show main:"$file" 2>/dev/null | base64 || true
+          printf '===OLD_CONTENT_B64_END===\\n'
+        fi
+
+        if [ "$status" != "D" ]; then
+          printf '===NEW_CONTENT_B64===\\n'
+          git show HEAD:"$file" 2>/dev/null | base64 || true
+          printf '===NEW_CONTENT_B64_END===\\n'
+        fi
+
+        printf '===NUMSTAT_START===\\n'
+        git diff --numstat main...HEAD -- "$file"
+        printf '===FILE_END===\\n'
+      done
+    `;
+
+    try {
+      const { stdout } = await this.runContainer('alpine/git', ['-c', script], {
+        Binds,
+        WorkingDir: worktreePath,
+        Entrypoint: ['/bin/sh'],
+      });
+
+      const files: Array<{
+        path: string;
+        status: 'added' | 'modified' | 'deleted';
+        additions: number;
+        deletions: number;
+        oldContent: string;
+        newContent: string;
+      }> = [];
+
+      let totalAdditions = 0;
+      let totalDeletions = 0;
+
+      const chunks = stdout.split('===FILE_START===');
+      
+      for (const chunk of chunks) {
+        if (!chunk.trim()) continue;
+
+        const pathMatch = chunk.match(/PATH:(.*)/);
+        const statusMatch = chunk.match(/STATUS:(.*)/);
+        
+        if (!pathMatch || !statusMatch) continue;
+
+        const filePath = pathMatch[1].trim();
+        const statusCode = statusMatch[1].trim();
+        let status: 'added' | 'modified' | 'deleted';
+
+        if (statusCode === 'A') status = 'added';
+        else if (statusCode === 'M') status = 'modified';
+        else if (statusCode === 'D') status = 'deleted';
+        else continue;
+
+        let oldContent = '';
+        const oldContentMatch = chunk.match(/===OLD_CONTENT_B64===\n([\s\S]*?)===OLD_CONTENT_B64_END===/);
+        if (oldContentMatch) {
+          try {
+            oldContent = Buffer.from(oldContentMatch[1].trim(), 'base64').toString('utf-8');
+          } catch { oldContent = ''; }
+        }
+
+        let newContent = '';
+        const newContentMatch = chunk.match(/===NEW_CONTENT_B64===\n([\s\S]*?)===NEW_CONTENT_B64_END===/);
+        if (newContentMatch) {
+          try {
+            newContent = Buffer.from(newContentMatch[1].trim(), 'base64').toString('utf-8');
+          } catch { newContent = ''; }
+        }
+
+        let additions = 0;
+        let deletions = 0;
+        const numstatMatch = chunk.match(/===NUMSTAT_START===\s*([\d-]+)\s+([\d-]+)/);
+        if (numstatMatch) {
+          const addStr = numstatMatch[1];
+          const delStr = numstatMatch[2];
+          additions = addStr === '-' ? 0 : parseInt(addStr, 10) || 0;
+          deletions = delStr === '-' ? 0 : parseInt(delStr, 10) || 0;
+        }
+
+        totalAdditions += additions;
+        totalDeletions += deletions;
+
+        files.push({
+          path: filePath,
+          status,
+          additions,
+          deletions,
+          oldContent,
+          newContent,
+        });
+      }
+
+      return { files, totalAdditions, totalDeletions };
+    } catch (error) {
+      logger.error('[docker] Failed to get diff details', { error, projectId, sessionName });
+      throw error;
+    }
+  }
+
+  /**
+   * mainブランチからリベースを実行
+   */
+  async rebaseFromMain(projectId: string, sessionName: string): Promise<{ success: boolean; conflicts?: string[] }> {
+    this.validateSessionName(sessionName);
+    const volumeName = this.getVolumeName(projectId);
+    const worktreePath = `/repo/.worktrees/${sessionName}`;
+    const Binds = [`${volumeName}:/repo`];
+
+    try {
+      await this.runContainer('alpine/git', ['rebase', 'main'], {
+        Binds,
+        WorkingDir: worktreePath,
+      });
+
+      return { success: true };
+    } catch (error: any) {
+      // コンフリクトの確認
+      try {
+        const { stdout: conflictFiles } = await this.runContainer('alpine/git', ['diff', '--name-only', '--diff-filter=U'], {
+          Binds,
+          WorkingDir: worktreePath,
+        });
+
+        const conflicts = conflictFiles.split('\n').filter(f => f.trim().length > 0);
+
+        // Abort rebase
+        await this.runContainer('alpine/git', ['rebase', '--abort'], {
+          Binds,
+          WorkingDir: worktreePath,
+        });
+
+        if (conflicts.length > 0) {
+          logger.warn('[docker] Rebase conflicts detected', { sessionName, conflicts });
+          return { success: false, conflicts };
+        }
+
+        // No conflicts - different error, re-throw
+        throw error;
+      } catch (innerError) {
+        if (innerError === error) throw error;
+        logger.error('[docker] Failed to handle rebase failure', { innerError, originalError: error });
+        throw error;
+      }
+    }
+  }
+
+  /**
+   * セッションブランチをmainにスカッシュマージ
+   */
+  async squashMerge(projectId: string, sessionName: string, commitMessage: string): Promise<{ success: boolean; conflicts?: string[] }> {
+    this.validateSessionName(sessionName);
+    const volumeName = this.getVolumeName(projectId);
+    const Binds = [`${volumeName}:/repo`];
+
+    // Note: We operate in /repo (main repo), not worktree
+    try {
+      // Ensure we are on main
+      await this.runContainer('alpine/git', ['checkout', 'main'], { Binds, WorkingDir: '/repo' });
+
+      // Ensure .gitignore has .worktrees/
+      const ensureGitignore = `
+        if [ -f .gitignore ]; then
+          if ! grep -q ".worktrees/" .gitignore; then
+            echo ".worktrees/" >> .gitignore
+          fi
+        else
+          echo ".worktrees/" > .gitignore
+        fi
+      `;
+      await this.runContainer('alpine/git', ['-c', ensureGitignore], {
+         Binds, 
+         WorkingDir: '/repo', 
+         Entrypoint: ['/bin/sh'] 
+      });
+
+      // Squash merge
+      // We merge the branch from the worktree: session/<sessionName>
+      // The branch ref should be available in the shared repo object.
+      await this.runContainer('alpine/git', ['merge', '--squash', `session/${sessionName}`], {
+        Binds,
+        WorkingDir: '/repo',
+      });
+
+      // Commit
+      // We must add .gitignore if it was modified.
+      await this.runContainer('alpine/git', ['add', '.gitignore'], { Binds, WorkingDir: '/repo' });
+      
+      await this.runContainer('alpine/git', ['commit', '-m', commitMessage], {
+        Binds,
+        WorkingDir: '/repo',
+      });
+
+      return { success: true };
+    } catch (error: any) {
+       // Check for conflicts
+       try {
+         const { stdout: conflictFiles } = await this.runContainer('alpine/git', ['diff', '--name-only', '--diff-filter=U'], {
+           Binds,
+           WorkingDir: '/repo',
+         });
+ 
+         const conflicts = conflictFiles.split('\n').filter(f => f.trim().length > 0);
+ 
+         if (conflicts.length > 0) {
+           // Abort merge (reset --merge)
+           await this.runContainer('alpine/git', ['reset', '--merge'], {
+             Binds,
+             WorkingDir: '/repo',
+           });
+ 
+           logger.warn('[docker] Squash merge conflicts detected', { sessionName, conflicts });
+           return { success: false, conflicts };
+         }
+         
+         throw error;
+       } catch (innerError) {
+         if (innerError === error) throw error; // If same error rethrown
+         logger.error('[docker] Failed to handle merge failure', { innerError, originalError: error });
+         throw error;
+       }
+    }
+  }
+
+  /**
+   * セッションのコミット履歴を取得
+   */
+  async getCommits(projectId: string, sessionName: string): Promise<Array<{
+    hash: string;
+    short_hash: string;
+    message: string;
+    author: string;
+    date: string;
+    files_changed: number;
+  }>> {
+    this.validateSessionName(sessionName);
+    const volumeName = this.getVolumeName(projectId);
+    const worktreePath = `/repo/.worktrees/${sessionName}`;
+    const Binds = [`${volumeName}:/repo`];
+
+    try {
+      const delimiter = '===COMMIT_DELIM===';
+      const format = `%H${delimiter}%h${delimiter}%s${delimiter}%an${delimiter}%aI`;
+      const { stdout } = await this.runContainer('alpine/git', ['log', `--pretty=format:${format}`, '--numstat', 'main..HEAD'], {
+        Binds,
+        WorkingDir: worktreePath,
+      });
+
+      const output = stdout.trim();
+      if (!output) return [];
+
+      const commits: Array<{
+        hash: string;
+        short_hash: string;
+        message: string;
+        author: string;
+        date: string;
+        files_changed: number;
+      }> = [];
+
+      const lines = output.split('\n');
+      let currentCommit: any = null;
+      let filesChanged = 0;
+
+      for (const line of lines) {
+        if (line.includes(delimiter)) {
+          if (currentCommit) {
+            currentCommit.files_changed = filesChanged;
+            commits.push(currentCommit);
+            filesChanged = 0;
+          }
+
+          const [hash, short_hash, message, author, date] = line.split(delimiter);
+          currentCommit = {
+            hash,
+            short_hash,
+            message,
+            author,
+            date,
+            files_changed: 0,
+          };
+        } else if (line.trim() && currentCommit) {
+          filesChanged++;
+        }
+      }
+
+      if (currentCommit) {
+        currentCommit.files_changed = filesChanged;
+        commits.push(currentCommit);
+      }
+
+      return commits;
+    } catch (error) {
+      logger.error('[docker] Failed to get commits', { error, projectId, sessionName });
+      return [];
+    }
+  }
+
+  /**
+   * 指定されたコミットにリセット
+   */
+  async reset(projectId: string, sessionName: string, commitHash: string): Promise<{ success: boolean; error?: string }> {
+    this.validateSessionName(sessionName);
+    this.validateCommitHash(commitHash);
+    const volumeName = this.getVolumeName(projectId);
+    const worktreePath = `/repo/.worktrees/${sessionName}`;
+    const Binds = [`${volumeName}:/repo`];
+
+    try {
+      await this.runContainer('alpine/git', ['reset', '--hard', commitHash], {
+        Binds,
+        WorkingDir: worktreePath,
+      });
+
+      return { success: true };
+    } catch (error: any) {
+      const errorMsg = error.stderr || error.message || String(error);
+      logger.error('[docker] Failed to reset', { error, projectId, sessionName, commitHash });
+      return { success: false, error: errorMsg };
     }
   }
 }

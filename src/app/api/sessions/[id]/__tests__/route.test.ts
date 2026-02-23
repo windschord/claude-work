@@ -50,7 +50,7 @@ describe('GET /api/sessions/[id]', () => {
       .insert(schema.projects)
       .values({
         name: 'Test Project',
-        path: testRepoPath,
+        path: testRepoPath, clone_location: 'host',
       })
       .returning()
       .get();
@@ -121,7 +121,7 @@ describe('DELETE /api/sessions/[id]', () => {
       .insert(schema.projects)
       .values({
         name: 'Test Project',
-        path: testRepoPath,
+        path: testRepoPath, clone_location: 'host',
       })
       .returning()
       .get();
@@ -194,7 +194,7 @@ describe('PATCH /api/sessions/[id]', () => {
       .insert(schema.projects)
       .values({
         name: 'Test Project',
-        path: testRepoPath,
+        path: testRepoPath, clone_location: 'host',
       })
       .returning()
       .get();

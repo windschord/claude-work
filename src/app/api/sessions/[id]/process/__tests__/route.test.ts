@@ -66,7 +66,7 @@ describe('GET /api/sessions/[id]/process', () => {
       .insert(schema.projects)
       .values({
         name: 'Test Project',
-        path: testRepoPath,
+        path: testRepoPath, clone_location: 'host',
       })
       .returning()
       .get();
@@ -167,7 +167,7 @@ describe('POST /api/sessions/[id]/process', () => {
       .insert(schema.projects)
       .values({
         name: 'Test Project',
-        path: testRepoPath,
+        path: testRepoPath, clone_location: 'host',
       })
       .returning()
       .get();
@@ -369,7 +369,7 @@ describe('GET /api/sessions/[id]/process with environment_id', () => {
       .insert(schema.projects)
       .values({
         name: 'Test Project',
-        path: testRepoPath,
+        path: testRepoPath, clone_location: 'host',
         environment_id: environment.id,
       })
       .returning()
@@ -516,7 +516,7 @@ describe('POST /api/sessions/[id]/process with environment_id', () => {
       .insert(schema.projects)
       .values({
         name: 'Test Project',
-        path: testRepoPath,
+        path: testRepoPath, clone_location: 'host',
         environment_id: environment.id,
       })
       .returning()

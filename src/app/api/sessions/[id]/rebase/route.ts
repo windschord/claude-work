@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db, schema } from '@/lib/db';
 import { eq } from 'drizzle-orm';
 import { GitService } from '@/services/git-service';
+import { DockerGitService } from '@/services/docker-git-service';
 import { logger } from '@/lib/logger';
 import { basename } from 'path';
 
@@ -51,8 +52,15 @@ export async function POST(
     }
 
     const sessionName = basename(targetSession.worktree_path);
-    const gitService = new GitService(targetSession.project.path, logger);
-    const result = gitService.rebaseFromMain(sessionName);
+    
+    let result;
+    if (targetSession.project.clone_location === 'docker') {
+      const dockerGitService = new DockerGitService();
+      result = await dockerGitService.rebaseFromMain(targetSession.project.id, sessionName);
+    } else {
+      const gitService = new GitService(targetSession.project.path, logger);
+      result = gitService.rebaseFromMain(sessionName);
+    }
 
     if (!result.success && result.conflicts) {
       logger.warn('Rebase failed with conflicts', { id, conflicts: result.conflicts });
