@@ -191,12 +191,17 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
 
 export const executionEnvironmentsRelations = relations(executionEnvironments, ({ many }) => ({
   projects: many(projects),
+  sessions: many(sessions),
 }));
 
 export const sessionsRelations = relations(sessions, ({ one, many }) => ({
   project: one(projects, {
     fields: [sessions.project_id],
     references: [projects.id],
+  }),
+  environment: one(executionEnvironments, {
+    fields: [sessions.environment_id],
+    references: [executionEnvironments.id],
   }),
   messages: many(messages),
 }));
