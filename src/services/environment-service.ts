@@ -5,54 +5,7 @@ import { logger } from '@/lib/logger';
 import { getEnvironmentsDir } from '@/lib/data-dir';
 import * as path from 'path';
 import * as fsPromises from 'fs/promises';
-import { spawn } from 'child_process';
-
-/**
- * spawnをPromise化するヘルパー関数（コマンドインジェクション対策）
- * 引数を配列で渡すことでシェル経由の実行を避ける
- */
-function spawnAsync(
-  command: string,
-  args: string[],
-  options: { timeout?: number } = {}
-): Promise<{ stdout: string; stderr: string }> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args);
-    let stdout = '';
-    let stderr = '';
-
-    child.stdout.on('data', (data) => {
-      stdout += data.toString();
-    });
-
-    child.stderr.on('data', (data) => {
-      stderr += data.toString();
-    });
-
-    // タイムアウト設定
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
-    if (options.timeout) {
-      timeoutId = setTimeout(() => {
-        child.kill();
-        reject(new Error('Command timeout'));
-      }, options.timeout);
-    }
-
-    child.on('close', (code) => {
-      if (timeoutId) clearTimeout(timeoutId);
-      if (code === 0) {
-        resolve({ stdout, stderr });
-      } else {
-        reject(new Error(`Command failed with code ${code}`));
-      }
-    });
-
-    child.on('error', (err) => {
-      if (timeoutId) clearTimeout(timeoutId);
-      reject(err);
-    });
-  });
-}
+import { DockerClient } from './docker-client';
 
 /**
  * 環境状態
@@ -438,11 +391,12 @@ export class EnvironmentService {
    * @returns Docker環境のステータス
    */
   private async checkDockerStatus(environment: ExecutionEnvironment): Promise<EnvironmentStatus> {
+    const dockerClient = DockerClient.getInstance();
     let imageExists = false;
 
-    // Dockerデーモンのチェック（spawnAsyncでコマンドインジェクション対策）
+    // Dockerデーモンのチェック
     try {
-      await spawnAsync('docker', ['info'], { timeout: 5000 });
+      await dockerClient.info();
     } catch {
       logger.debug('Dockerデーモンが起動していません', { environmentId: environment.id });
       return {
@@ -480,8 +434,7 @@ export class EnvironmentService {
     const fullImageName = `${imageName}:${imageTag}`;
 
     try {
-      // spawnAsyncで引数を配列で渡すことでコマンドインジェクションを防止
-      await spawnAsync('docker', ['image', 'inspect', fullImageName], { timeout: 5000 });
+      await dockerClient.inspectImage(fullImageName);
       imageExists = true;
     } catch {
       const errorMsg =

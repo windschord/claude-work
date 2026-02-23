@@ -3,6 +3,22 @@ import { PTYSessionManager } from '../pty-session-manager'
 import { ConnectionManager } from '@/lib/websocket/connection-manager'
 import { AdapterFactory } from '../adapter-factory'
 
+// Mock DockerClient
+const { mockDockerClient } = vi.hoisted(() => ({
+  mockDockerClient: {
+    inspectContainer: vi.fn(),
+    getContainer: vi.fn().mockReturnValue({
+      remove: vi.fn(),
+    }),
+  }
+}));
+
+vi.mock('../docker-client', () => ({
+  DockerClient: {
+    getInstance: () => mockDockerClient,
+  },
+}));
+
 // ConnectionManagerをモック
 vi.mock('@/lib/websocket/connection-manager', () => ({
   ConnectionManager: {

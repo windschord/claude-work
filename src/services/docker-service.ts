@@ -1,9 +1,11 @@
-import { exec, execFile, spawn } from 'child_process';
+import { exec } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as fsPromises from 'fs/promises';
 import * as os from 'os';
+import * as tar from 'tar-fs';
 import { logger } from '@/lib/logger';
+import { DockerClient } from './docker-client';
 
 /**
  * Dockerエラータイプ
@@ -157,17 +159,7 @@ export class DockerService {
    * @returns Dockerが利用可能な場合はtrue
    */
   async isDockerAvailable(): Promise<boolean> {
-    return new Promise((resolve) => {
-      exec('docker info', (error) => {
-        if (error) {
-          logger.debug('Docker is not available', { error: error.message });
-          resolve(false);
-        } else {
-          logger.debug('Docker is available');
-          resolve(true);
-        }
-      });
-    });
+    return DockerClient.getInstance().ping();
   }
 
   /**
@@ -193,13 +185,9 @@ export class DockerService {
     }
 
     // Dockerデーモンが動作しているか
-    const daemonRunning = await new Promise<boolean>((resolve) => {
-      exec('docker info', (error) => {
-        resolve(!error);
-      });
-    });
-
-    if (!daemonRunning) {
+    try {
+      await DockerClient.getInstance().info();
+    } catch {
       return new DockerError(
         'DOCKER_DAEMON_NOT_RUNNING',
         'Docker daemon is not running',
@@ -209,23 +197,18 @@ export class DockerService {
     }
 
     // 権限問題のチェック
-    const hasPermission = await new Promise<boolean>((resolve) => {
-      exec('docker ps', (error) => {
-        if (error && error.message.includes('permission denied')) {
-          resolve(false);
-        } else {
-          resolve(true);
-        }
-      });
-    });
-
-    if (!hasPermission) {
-      return new DockerError(
-        'DOCKER_PERMISSION_DENIED',
-        'Docker permission denied',
-        'Dockerの実行権限がありません',
-        'ユーザーをdockerグループに追加してください: `sudo usermod -aG docker $USER`'
-      );
+    try {
+      await DockerClient.getInstance().listContainers({ limit: 1 });
+    } catch (error: any) {
+      if (error && (error.statusCode === 403 || (error.message && error.message.includes('permission denied')))) {
+        return new DockerError(
+          'DOCKER_PERMISSION_DENIED',
+          'Docker permission denied',
+          'Dockerの実行権限がありません',
+          'ユーザーをdockerグループに追加してください: `sudo usermod -aG docker $USER`'
+        );
+      }
+      // その他のエラーはここでは無視（daemon checkで弾かれてない場合）
     }
 
     return null;
@@ -314,20 +297,12 @@ export class DockerService {
    */
   async imageExists(): Promise<boolean> {
     const fullImageName = this.getFullImageName();
-
-    return new Promise((resolve) => {
-      // execFileを使用してコマンドインジェクションを防止
-      execFile('docker', ['images', '-q', fullImageName], (error, stdout) => {
-        if (error) {
-          logger.debug('Failed to check Docker image', { error: error.message });
-          resolve(false);
-        } else {
-          const exists = stdout.trim().length > 0;
-          logger.debug('Docker image check', { image: fullImageName, exists });
-          resolve(exists);
-        }
-      });
-    });
+    try {
+      await DockerClient.getInstance().inspectImage(fullImageName);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -352,47 +327,30 @@ export class DockerService {
 
     logger.info('Starting Docker image build', { image: fullImageName, path: dockerfilePath });
 
-    return new Promise((resolve, reject) => {
-      const buildProcess = spawn('docker', ['build', '-t', fullImageName, dockerfilePath], {
-        stdio: ['ignore', 'pipe', 'pipe'],
-      });
-
-      // 標準出力を処理
-      buildProcess.stdout.on('data', (data: Buffer) => {
-        const line = data.toString();
-        logger.debug('Docker build stdout', { line: line.trim() });
-        if (onProgress) {
-          onProgress(line);
+    const tarStream = tar.pack(dockerfilePath);
+    await DockerClient.getInstance().buildImage(
+      tarStream,
+      {
+        t: fullImageName,
+      },
+      (event) => {
+        if (event.stream) {
+          const line = event.stream.trim();
+          if (line) {
+            logger.debug('Docker build stdout', { line });
+            if (onProgress) {
+              onProgress(event.stream);
+            }
+          }
         }
-      });
-
-      // 標準エラー出力を処理
-      buildProcess.stderr.on('data', (data: Buffer) => {
-        const line = data.toString();
-        logger.debug('Docker build stderr', { line: line.trim() });
-        if (onProgress) {
-          onProgress(line);
+        if (event.error) {
+          logger.error('Docker build error', { error: event.error });
+          // Note: DockerClient.buildImage will reject on error if we threw there, 
+          // but we are just logging here. The promise rejection is handled by DockerClient.
         }
-      });
-
-      // プロセス終了時の処理
-      buildProcess.on('close', (exitCode) => {
-        if (exitCode === 0) {
-          logger.info('Docker image build completed', { image: fullImageName });
-          resolve();
-        } else {
-          const error = new Error(`Docker image build failed with exit code ${exitCode}`);
-          logger.error('Docker image build failed', { image: fullImageName, exitCode });
-          reject(error);
-        }
-      });
-
-      // エラー発生時の処理
-      buildProcess.on('error', (error) => {
-        logger.error('Docker build process error', { error: error.message });
-        reject(error);
-      });
-    });
+      }
+    );
+    logger.info('Docker image build completed', { image: fullImageName });
   }
 }
 

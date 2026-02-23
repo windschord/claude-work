@@ -1,10 +1,10 @@
-import { execFile } from 'child_process';
-import { promisify } from 'util';
 import os from 'os';
 import path from 'path';
 import fs from 'fs/promises';
+import { Writable } from 'stream';
 import { logger } from '@/lib/logger';
 import { getConfigService } from './config-service';
+import { DockerClient } from './docker-client';
 import {
   GitOperations,
   GitCloneOptions,
@@ -12,8 +12,6 @@ import {
   GitOperationResult,
   GitOperationError,
 } from './git-operations';
-
-const execFileAsync = promisify(execFile);
 
 /**
  * DockerGitService
@@ -52,9 +50,7 @@ export class DockerGitService implements GitOperations {
     try {
       logger.info('[docker] Creating Docker volume', { volumeName });
 
-      await execFileAsync('docker', ['volume', 'create', volumeName], {
-        timeout: 30000, // 30秒
-      });
+      await DockerClient.getInstance().createVolume(volumeName);
 
       logger.info('[docker] Docker volume created', { volumeName });
       return volumeName;
@@ -84,9 +80,7 @@ export class DockerGitService implements GitOperations {
     try {
       logger.info('[docker] Deleting Docker volume', { volumeName });
 
-      await execFileAsync('docker', ['volume', 'rm', volumeName], {
-        timeout: 30000, // 30秒
-      });
+      await DockerClient.getInstance().removeVolume(volumeName);
 
       logger.info('[docker] Docker volume deleted', { volumeName });
     } catch (error) {
@@ -96,53 +90,42 @@ export class DockerGitService implements GitOperations {
   }
 
   /**
-   * 認証情報マウントオプションを構築
+   * 認証情報のBindsとEnv配列を構築するヘルパー
    */
-  private async buildAuthMounts(): Promise<string[]> {
-    const mounts: string[] = [];
+  private async buildAuthBindsAndEnv(): Promise<{ Binds: string[], Env: string[] }> {
+    const Binds: string[] = [];
+    const Env: string[] = [];
     const homeDir = os.homedir();
 
     // SSH鍵（読み取り専用）
     const sshDir = path.join(homeDir, '.ssh');
     try {
       await fs.access(sshDir);
-      mounts.push('-v', `${sshDir}:/root/.ssh:ro`);
-      logger.info('[docker] Mounting SSH keys');
-    } catch {
-      logger.warn('[docker] SSH directory not found, skipping');
-    }
+      Binds.push(`${sshDir}:/root/.ssh:ro`);
+    } catch {}
 
     // SSH Agent socket
     const sshAuthSock = process.env.SSH_AUTH_SOCK;
     if (sshAuthSock) {
-      mounts.push('-v', `${sshAuthSock}:/ssh-agent`);
-      mounts.push('-e', 'SSH_AUTH_SOCK=/ssh-agent');
-      logger.info('[docker] Mounting SSH Agent socket');
-    } else {
-      logger.warn('[docker] SSH_AUTH_SOCK not set, skipping');
+      Binds.push(`${sshAuthSock}:/ssh-agent`);
+      Env.push('SSH_AUTH_SOCK=/ssh-agent');
     }
 
     // Git設定（読み取り専用）
     const gitconfig = path.join(homeDir, '.gitconfig');
     try {
       await fs.access(gitconfig);
-      mounts.push('-v', `${gitconfig}:/root/.gitconfig:ro`);
-      logger.info('[docker] Mounting .gitconfig');
-    } catch {
-      logger.warn('[docker] .gitconfig not found, skipping');
-    }
+      Binds.push(`${gitconfig}:/root/.gitconfig:ro`);
+    } catch {}
 
     // gh CLI認証（読み取り専用）
     const ghConfig = path.join(homeDir, '.config', 'gh');
     try {
       await fs.access(ghConfig);
-      mounts.push('-v', `${ghConfig}:/root/.config/gh:ro`);
-      logger.info('[docker] Mounting gh CLI authentication');
-    } catch {
-      logger.warn('[docker] gh CLI authentication not found (optional), skipping');
-    }
+      Binds.push(`${ghConfig}:/root/.config/gh:ro`);
+    } catch {}
 
-    return mounts;
+    return { Binds, Env };
   }
 
   /**
@@ -259,6 +242,64 @@ export class DockerGitService implements GitOperations {
   }
 
   /**
+   * コンテナを実行して終了を待つヘルパー
+   */
+  private async runContainer(
+    image: string,
+    cmd: string[],
+    options: { Binds?: string[]; Env?: string[]; WorkingDir?: string; Entrypoint?: string | string[] }
+  ): Promise<void> {
+    let stdout = '';
+    let stderr = '';
+    
+    const stdoutStream = new Writable({
+      write(chunk, encoding, callback) {
+        stdout += chunk.toString();
+        callback();
+      }
+    });
+    
+    const stderrStream = new Writable({
+      write(chunk, encoding, callback) {
+        stderr += chunk.toString();
+        callback();
+      }
+    });
+
+    try {
+      const data = await DockerClient.getInstance().run(
+        image,
+        cmd,
+        [stdoutStream, stderrStream] as any,
+        {
+          HostConfig: {
+            Binds: options.Binds,
+            AutoRemove: true,
+          },
+          Env: options.Env,
+          WorkingDir: options.WorkingDir,
+          Entrypoint: options.Entrypoint,
+        }
+      );
+      
+      if (data.StatusCode !== 0) {
+        const error = new Error(`Command failed with code ${data.StatusCode}`);
+        (error as any).stdout = stdout;
+        (error as any).stderr = stderr;
+        throw error;
+      }
+    } catch (error: any) {
+        if (!error.stderr && stderr) {
+            error.stderr = stderr;
+        }
+        if (!error.stdout && stdout) {
+            error.stdout = stdout;
+        }
+        throw error;
+    }
+  }
+
+  /**
    * リポジトリをcloneする
    */
   async cloneRepository(options: GitCloneOptions): Promise<GitOperationResult> {
@@ -271,26 +312,16 @@ export class DockerGitService implements GitOperations {
       volumeName = await this.createVolume(projectId);
 
       // 2. 認証情報マウントオプション構築
-      const authMounts = await this.buildAuthMounts();
-
-      // 3. Dockerコマンド構築
-      const dockerArgs = [
-        'run',
-        '--rm',
-        '-v', `${volumeName}:/repo`,
-        ...authMounts,
-        'alpine/git',
-        'clone',
-        url,
-        '/repo',
-      ];
+      const auth = await this.buildAuthBindsAndEnv();
+      const Binds = [`${volumeName}:/repo`, ...auth.Binds];
+      const Env = [...auth.Env];
 
       logger.info('[docker] Starting git clone', { url, volumeName, timeout });
 
       // 4. git clone実行（リトライ付き）
       const startTime = Date.now();
       await this.retryWithBackoff(
-        () => execFileAsync('docker', dockerArgs, { timeout }),
+        () => this.runContainer('alpine/git', ['clone', url, '/repo'], { Binds, Env }),
         'clone',
       );
       const duration = Date.now() - startTime;
@@ -333,27 +364,17 @@ export class DockerGitService implements GitOperations {
     const volumeName = this.getVolumeName(projectId);
 
     try {
-      // 認証情報マウントオプション構築
-      const authMounts = await this.buildAuthMounts();
+      const auth = await this.buildAuthBindsAndEnv();
+      const Binds = [`${volumeName}:/repo`, ...auth.Binds];
+      const Env = [...auth.Env];
 
-      // Dockerコマンド構築
-      const dockerArgs = [
-        'run',
-        '--rm',
-        '-v', `${volumeName}:/repo`,
-        ...authMounts,
-        'alpine/git',
-        '-C', '/repo',
-        'worktree', 'add',
-        `/repo/.worktrees/${sessionName}`,
-        '-b', branchName,
-      ];
+      const cmd = ['-C', '/repo', 'worktree', 'add', `/repo/.worktrees/${sessionName}`, '-b', branchName];
 
       logger.info('[docker] Creating worktree', { projectId, sessionName, branchName });
 
       const startTime = Date.now();
       await this.retryWithBackoff(
-        () => execFileAsync('docker', dockerArgs, { timeout: 30000 }),
+        () => this.runContainer('alpine/git', cmd, { Binds, Env }),
         'worktree',
       );
       const duration = Date.now() - startTime;
@@ -386,19 +407,12 @@ export class DockerGitService implements GitOperations {
     const volumeName = this.getVolumeName(projectId);
 
     try {
-      const dockerArgs = [
-        'run',
-        '--rm',
-        '-v', `${volumeName}:/repo`,
-        'alpine/git',
-        '-C', '/repo',
-        'worktree', 'remove',
-        `.worktrees/${sessionName}`,
-      ];
+      const Binds = [`${volumeName}:/repo`];
+      const cmd = ['-C', '/repo', 'worktree', 'remove', `.worktrees/${sessionName}`];
 
       logger.info('[docker] Deleting worktree', { projectId, sessionName });
 
-      await execFileAsync('docker', dockerArgs, { timeout: 30000 });
+      await this.runContainer('alpine/git', cmd, { Binds });
 
       logger.info('[docker] worktree deleted', { projectId, sessionName });
 
@@ -443,30 +457,24 @@ export class DockerGitService implements GitOperations {
       volumeName = await this.createVolume(projectId);
 
       // 2. credential helper設定 + git cloneを実行するシェルコマンド
-      // repoUrlをシェル変数として安全に渡す（コマンドインジェクション対策）
       const shellCommand = [
         'git config --global credential.helper \'!f() { echo "username=x-access-token"; echo "password=$GIT_PAT"; }; f\'',
         'git clone "$REPO_URL" /repo',
       ].join(' && ');
 
-      // 3. Dockerコマンド構築
-      const dockerArgs = [
-        'run',
-        '--rm',
-        '-v', `${volumeName}:/repo`,
-        '-e', `GIT_PAT=${pat}`,
-        '-e', `REPO_URL=${repoUrl}`,
-        '--entrypoint', 'sh',
-        'alpine/git',
-        '-c', shellCommand,
-      ];
+      const Binds = [`${volumeName}:/repo`];
+      const Env = [`GIT_PAT=${pat}`, `REPO_URL=${repoUrl}`];
 
       logger.info('[docker] Starting git clone with PAT', { repoUrl: this.sanitizeUrl(repoUrl), volumeName, timeout });
 
       // 4. git clone実行（リトライ付き）
       const startTime = Date.now();
       await this.retryWithBackoff(
-        () => execFileAsync('docker', dockerArgs, { timeout }),
+        () => this.runContainer('alpine/git', ['-c', shellCommand], { 
+            Binds, 
+            Env, 
+            Entrypoint: 'sh' 
+        }),
         'clone',
       );
       const duration = Date.now() - startTime;

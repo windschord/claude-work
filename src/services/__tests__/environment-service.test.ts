@@ -14,7 +14,7 @@ const {
   mockRm,
   mockAccess,
   mockLogger,
-  mockSpawn,
+  mockDockerClient,
 } = vi.hoisted(() => ({
   mockDbSelectGet: vi.fn(),
   mockDbSelectAll: vi.fn(),
@@ -32,7 +32,10 @@ const {
     error: vi.fn(),
     debug: vi.fn(),
   },
-  mockSpawn: vi.fn(),
+  mockDockerClient: {
+    info: vi.fn(),
+    inspectImage: vi.fn(),
+  },
 }));
 
 // Drizzle DBのモック
@@ -131,16 +134,12 @@ vi.mock('fs/promises', () => ({
   },
 }));
 
-// child_processのモック
-vi.mock('child_process', () => {
-  const mockExports = {
-    spawn: mockSpawn,
-  };
-  return {
-    ...mockExports,
-    default: mockExports,
-  };
-});
+// DockerClientのモック
+vi.mock('../docker-client', () => ({
+  DockerClient: {
+    getInstance: () => mockDockerClient,
+  },
+}));
 
 import {
   EnvironmentService,
@@ -592,24 +591,10 @@ describe('EnvironmentService', () => {
     });
 
     it('DOCKER環境の場合は基本状態を返す（詳細チェックは後で実装）', async () => {
-      // spawnのモック設定
-      mockSpawn.mockImplementation(() => {
-        const mockProcess = new EventEmitter() as EventEmitter & {
-          stdout: EventEmitter;
-          stderr: EventEmitter;
-          kill: () => void;
-        };
-        mockProcess.stdout = new EventEmitter();
-        mockProcess.stderr = new EventEmitter();
-        mockProcess.kill = vi.fn();
-
-        setTimeout(() => {
-          mockProcess.stdout.emit('data', '');
-          mockProcess.emit('close', 0);
-        }, 0);
-
-        return mockProcess;
-      });
+      // info check success
+      mockDockerClient.info.mockResolvedValue({});
+      // inspectImage success
+      mockDockerClient.inspectImage.mockResolvedValue({});
 
       mockDbSelectGet.mockReturnValue({
         id: 'docker-env',
@@ -745,49 +730,11 @@ describe('EnvironmentService', () => {
   });
 
   describe('checkDockerStatus - imageSource handling', () => {
-    // spawnをイベント形式でモック
-    const setupSpawnMock = (
-      dockerInfoSuccess: boolean,
-      imageInspectSuccess: boolean
-    ) => {
-      mockSpawn.mockImplementation((command: string, args: string[]) => {
-        const mockProcess = new EventEmitter() as EventEmitter & {
-          stdout: EventEmitter;
-          stderr: EventEmitter;
-          kill: () => void;
-        };
-        mockProcess.stdout = new EventEmitter();
-        mockProcess.stderr = new EventEmitter();
-        mockProcess.kill = vi.fn();
-
-        // 非同期でイベントを発火
-        setTimeout(() => {
-          if (command === 'docker' && args[0] === 'info') {
-            if (dockerInfoSuccess) {
-              mockProcess.stdout.emit('data', 'Docker info output');
-              mockProcess.emit('close', 0);
-            } else {
-              mockProcess.emit('close', 1);
-            }
-          } else if (command === 'docker' && args[0] === 'image' && args[1] === 'inspect') {
-            if (imageInspectSuccess) {
-              mockProcess.stdout.emit('data', '[]');
-              mockProcess.emit('close', 0);
-            } else {
-              mockProcess.emit('close', 1);
-            }
-          } else {
-            mockProcess.emit('close', 0);
-          }
-        }, 0);
-
-        return mockProcess;
-      });
-    };
-
+    
     it('should check built image for dockerfile source', async () => {
       // Dockerデーモンが起動している、イメージも存在する場合
-      setupSpawnMock(true, true);
+      mockDockerClient.info.mockResolvedValue({});
+      mockDockerClient.inspectImage.mockResolvedValue({});
 
       mockDbSelectGet.mockReturnValue({
         id: 'docker-env',
@@ -811,15 +758,13 @@ describe('EnvironmentService', () => {
       expect(status.authenticated).toBe(true);
       expect(status.details?.imageExists).toBe(true);
       // buildImageNameが優先して使用されることを確認
-      expect(mockSpawn).toHaveBeenCalledWith(
-        'docker',
-        ['image', 'inspect', 'my-custom-image:latest']
-      );
+      expect(mockDockerClient.inspectImage).toHaveBeenCalledWith('my-custom-image:latest');
     });
 
     it('should show appropriate error message for dockerfile source when image not found', async () => {
       // Dockerデーモンは起動しているが、イメージが見つからない
-      setupSpawnMock(true, false);
+      mockDockerClient.info.mockResolvedValue({});
+      mockDockerClient.inspectImage.mockRejectedValue(new Error('No such image'));
 
       mockDbSelectGet.mockReturnValue({
         id: 'docker-env',
@@ -848,7 +793,8 @@ describe('EnvironmentService', () => {
 
     it('should show appropriate error message for existing source when image not found', async () => {
       // Dockerデーモンは起動しているが、イメージが見つからない（既存イメージ指定）
-      setupSpawnMock(true, false);
+      mockDockerClient.info.mockResolvedValue({});
+      mockDockerClient.inspectImage.mockRejectedValue(new Error('No such image'));
 
       mockDbSelectGet.mockReturnValue({
         id: 'docker-env',
@@ -878,7 +824,8 @@ describe('EnvironmentService', () => {
 
     it('should use default values when imageSource is not specified', async () => {
       // imageSourceが指定されていない場合（既存イメージとして扱う）
-      setupSpawnMock(true, false);
+      mockDockerClient.info.mockResolvedValue({});
+      mockDockerClient.inspectImage.mockRejectedValue(new Error('No such image'));
 
       mockDbSelectGet.mockReturnValue({
         id: 'docker-env',
@@ -901,7 +848,8 @@ describe('EnvironmentService', () => {
     });
 
     it('should use imageName as fallback for dockerfile source when buildImageName is not set', async () => {
-      setupSpawnMock(true, true);
+      mockDockerClient.info.mockResolvedValue({});
+      mockDockerClient.inspectImage.mockResolvedValue({});
 
       mockDbSelectGet.mockReturnValue({
         id: 'docker-env',
@@ -923,10 +871,7 @@ describe('EnvironmentService', () => {
 
       expect(status.available).toBe(true);
       // imageNameがフォールバックとして使用される
-      expect(mockSpawn).toHaveBeenCalledWith(
-        'docker',
-        ['image', 'inspect', 'fallback-image:latest']
-      );
+      expect(mockDockerClient.inspectImage).toHaveBeenCalledWith('fallback-image:latest');
     });
   });
 });
