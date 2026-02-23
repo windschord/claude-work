@@ -99,16 +99,17 @@ export class DockerAdapter extends BasePTYAdapter {
   constructor(config: DockerAdapterConfig) {
     super();
 
-    // Validate that authDirPath is consistent with environmentId
+    // Validate authDirPath: must be an absolute path containing environmentId
     // to prevent accidental cross-environment auth directory usage
     if (!config.authDirPath || !path.isAbsolute(config.authDirPath)) {
       throw new Error(`DockerAdapter: authDirPath must be an absolute path, got: ${config.authDirPath}`);
     }
-    if (!config.authDirPath.includes(config.environmentId)) {
-      logger.warn('DockerAdapter: authDirPath does not contain environmentId - verify configuration', {
-        environmentId: config.environmentId,
-        authDirPath: config.authDirPath,
-      });
+    const normalizedAuthPath = path.resolve(config.authDirPath);
+    if (!normalizedAuthPath.includes(config.environmentId)) {
+      throw new Error(
+        `DockerAdapter: authDirPath must contain environmentId for isolation. ` +
+        `Expected path containing '${config.environmentId}', got: ${normalizedAuthPath}`
+      );
     }
 
     this.config = config;

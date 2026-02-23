@@ -30,6 +30,7 @@ export class DockerPTYStream extends EventEmitter implements IPty {
   private _isContainer: boolean;
   private _container?: Docker.Container;
   private _exec?: Docker.Exec;
+  private _exitHandled = false;
 
   constructor(options: DockerPTYStreamOptions) {
     super();
@@ -59,8 +60,10 @@ export class DockerPTYStream extends EventEmitter implements IPty {
     };
     stream.on('data', dataListener);
     
-    // Handle end/close
+    // Handle end/close - guard against duplicate exit events
     const endListener = () => {
+      if (this._exitHandled) return;
+      this._exitHandled = true;
       logger.info('DockerPTYStream: Stream ended');
       this.checkExit();
     };
@@ -69,6 +72,8 @@ export class DockerPTYStream extends EventEmitter implements IPty {
 
     // Error handling - emit exit event so consumers are notified
     stream.on('error', (err) => {
+      if (this._exitHandled) return;
+      this._exitHandled = true;
       logger.error('DockerPTYStream: Stream error', { error: err });
       this.emit('exit', { exitCode: 1, signal: 0 });
     });

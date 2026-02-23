@@ -158,7 +158,7 @@ describe('DockerAdapter Sessions', () => {
       environmentId: 'env-1',
       imageName: 'test-image',
       imageTag: 'latest',
-      authDirPath: '/auth',
+      authDirPath: '/data/environments/env-1',
     });
   });
 

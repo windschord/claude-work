@@ -156,7 +156,7 @@ describe('統合テスト: Issue #101 PTY Architecture Refactor', () => {
           environmentId: 'test-env',
           imageName: 'test-image',
           imageTag: 'latest',
-          authDirPath: '/tmp/test-auth',
+          authDirPath: '/tmp/test-auth/test-env',
         };
         const dockerAdapter = new DockerAdapter(config);
 
@@ -169,7 +169,7 @@ describe('統合テスト: Issue #101 PTY Architecture Refactor', () => {
           environmentId: 'test-env',
           imageName: 'test-image',
           imageTag: 'latest',
-          authDirPath: '/tmp/test-auth',
+          authDirPath: '/tmp/test-auth/test-env',
         };
         const dockerAdapter = new DockerAdapter(config);
 
@@ -199,7 +199,7 @@ describe('統合テスト: Issue #101 PTY Architecture Refactor', () => {
         environmentId: 'test-env',
         imageName: 'test-image',
         imageTag: 'latest',
-        authDirPath: '/tmp/test-auth',
+        authDirPath: '/tmp/test-auth/test-env',
       };
       const dockerAdapter = new DockerAdapter(config);
 
