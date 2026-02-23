@@ -98,6 +98,19 @@ export class DockerAdapter extends BasePTYAdapter {
 
   constructor(config: DockerAdapterConfig) {
     super();
+
+    // Validate that authDirPath is consistent with environmentId
+    // to prevent accidental cross-environment auth directory usage
+    if (!config.authDirPath || !path.isAbsolute(config.authDirPath)) {
+      throw new Error(`DockerAdapter: authDirPath must be an absolute path, got: ${config.authDirPath}`);
+    }
+    if (!config.authDirPath.includes(config.environmentId)) {
+      logger.warn('DockerAdapter: authDirPath does not contain environmentId - verify configuration', {
+        environmentId: config.environmentId,
+        authDirPath: config.authDirPath,
+      });
+    }
+
     this.config = config;
     this.developerSettingsService = new DeveloperSettingsService();
     this.encryptionService = new EncryptionService();
@@ -124,19 +137,19 @@ export class DockerAdapter extends BasePTYAdapter {
     let Entrypoint: string | string[] = [];
 
     // Workspace mount
+    // workingDirConfig is the path used as WorkingDir inside the container.
+    // - With dockerVolumeId: The named volume is mounted at /repo, and workingDir
+    //   is an absolute path within that volume (e.g., /repo/.worktrees/session-name/).
+    //   The container's WorkingDir is set to this path directly.
+    // - Without dockerVolumeId: The host workingDir is bind-mounted at /workspace,
+    //   and the container's WorkingDir is set to /workspace.
     let workingDirConfig = workingDir;
     if (options?.dockerVolumeId) {
-       // Validate volume ID
+       // Validate volume ID (Docker spec: [a-zA-Z0-9][a-zA-Z0-9_.-]*)
        if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(options.dockerVolumeId)) {
         throw new Error(`Invalid dockerVolumeId format: ${options.dockerVolumeId}`);
       }
       Binds.push(`${options.dockerVolumeId}:/repo`);
-      // workingDir is used as CWD
-      // Note: If workingDir is relative, it might be relative to /repo if we set WorkingDir?
-      // But typically we set WorkingDir to absolute path.
-      // If client sends relative path, we might have issues?
-      // Assuming workingDir is passed as absolute or relative to volume root.
-      // We will assume it is what we want to set as WorkingDir.
     } else {
       Binds.push(`${workingDir}:/workspace`);
       workingDirConfig = '/workspace';
@@ -184,12 +197,17 @@ export class DockerAdapter extends BasePTYAdapter {
       }
     }
 
-    // ANTHROPIC_API_KEY
+    // ANTHROPIC_API_KEY - passed via Docker API (standard practice).
+    // Note: API keys in environment variables are visible via `docker inspect`.
+    // This is acceptable as Docker API access implies host-level trust.
     if (process.env.ANTHROPIC_API_KEY) {
       Env.push(`ANTHROPIC_API_KEY=${process.env.ANTHROPIC_API_KEY}`);
     }
 
     // Custom Env Vars
+    // Note: Sensitive variable filtering is intentionally not implemented here.
+    // Custom env vars are user-configured and passed through Docker API,
+    // which is standard Docker practice. Log output only includes key names.
     if (!options?.shellMode && options?.customEnvVars) {
       for (const [key, value] of Object.entries(options.customEnvVars)) {
         if (ClaudeOptionsService.validateEnvVarKey(key) && typeof value === 'string') {
@@ -248,148 +266,16 @@ export class DockerAdapter extends BasePTYAdapter {
         PortBindings,
         CapDrop: ['ALL'],
         SecurityOpt: ['no-new-privileges'],
+        // AutoRemove: container is automatically removed after exit.
+        // Note: This means container logs are unavailable after exit and
+        // container.wait() may fail if the container is already removed.
+        // The stopContainer() method handles 404 errors for this case.
         AutoRemove: true,
       },
       ExposedPorts,
     };
 
     return { createOptions, containerName };
-  }
-
-  /**
-   * Docker実行引数を構築（環境専用認証ディレクトリを使用）
-   */
-  protected buildDockerArgs(workingDir: string, options?: CreateSessionOptions): { args: string[]; containerName: string; envFilePath?: string } {
-    const args: string[] = ['run', '-it', '--rm'];
-
-    // コンテナ名（環境ID + タイムスタンプで一意に）
-    const containerName = `claude-env-${this.config.environmentId.substring(0, 8)}-${Date.now()}`;
-    args.push('--name', containerName);
-
-    // セキュリティ
-    args.push('--cap-drop', 'ALL');
-    args.push('--security-opt', 'no-new-privileges');
-
-    // ワークスペースマウント
-    if (options?.dockerVolumeId) {
-      // Dockerボリューム名は英数字・ダッシュ・アンダースコア・ドットのみ許可
-      // (Docker公式仕様: [a-zA-Z0-9][a-zA-Z0-9_.-]*)
-      if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(options.dockerVolumeId)) {
-        throw new Error(`Invalid dockerVolumeId format: ${options.dockerVolumeId}`);
-      }
-      // Dockerボリューム経由: ボリューム全体をマウントし、worktreePathをCWDに設定
-      args.push('-v', `${options.dockerVolumeId}:/repo`);
-      args.push('-w', workingDir);
-    } else {
-      // ホスト環境: 従来通りホストパスをマウント（RW）
-      args.push('-v', `${workingDir}:/workspace`);
-    }
-
-    // 環境専用認証ディレクトリ（RW）
-    const claudeDir = path.join(this.config.authDirPath, 'claude');
-    const claudeConfigDir = path.join(this.config.authDirPath, 'config', 'claude');
-
-    args.push('-v', `${claudeDir}:/home/node/.claude`);
-    args.push('-v', `${claudeConfigDir}:/home/node/.config/claude`);
-
-    // Git認証情報（RO）- ホストから共有
-    const homeDir = os.homedir();
-    const sshDir = path.join(homeDir, '.ssh');
-    if (fs.existsSync(sshDir)) {
-      args.push('-v', `${sshDir}:/home/node/.ssh:ro`);
-    }
-    const gitconfigPath = path.join(homeDir, '.gitconfig');
-    if (fs.existsSync(gitconfigPath)) {
-      args.push('-v', `${gitconfigPath}:/home/node/.gitconfig:ro`);
-    }
-
-    // SSH Agent転送
-    const sshAuthSock = process.env.SSH_AUTH_SOCK;
-    if (sshAuthSock) {
-      args.push('-v', `${sshAuthSock}:/ssh-agent`);
-      args.push('-e', 'SSH_AUTH_SOCK=/ssh-agent');
-    }
-
-    // ポートマッピング（カスタム）
-    if (this.config.portMappings && this.config.portMappings.length > 0) {
-      for (const pm of this.config.portMappings) {
-        const protocol = String(pm.protocol ?? 'tcp').toLowerCase();
-        args.push('-p', `${pm.hostPort}:${pm.containerPort}/${protocol}`);
-      }
-    }
-
-    // カスタムボリュームマウント（システムボリュームの後に追加）
-    if (this.config.volumeMounts && this.config.volumeMounts.length > 0) {
-      for (const vm of this.config.volumeMounts) {
-        const volumeArg = vm.accessMode === 'ro'
-          ? `${vm.hostPath}:${vm.containerPath}:ro`
-          : `${vm.hostPath}:${vm.containerPath}`;
-        args.push('-v', volumeArg);
-      }
-    }
-
-    // ANTHROPIC_API_KEY転送（キー名のみ指定でホスト環境変数から継承）
-    if (process.env.ANTHROPIC_API_KEY) {
-      args.push('-e', 'ANTHROPIC_API_KEY');
-    }
-
-    // カスタム環境変数を一時envファイル経由で渡す（値をプロセス引数に載せない）
-    let envFilePath: string | undefined;
-    if (!options?.shellMode && options?.customEnvVars) {
-      const lines: string[] = [];
-      for (const [key, value] of Object.entries(options.customEnvVars)) {
-        if (ClaudeOptionsService.validateEnvVarKey(key) && typeof value === 'string') {
-          lines.push(`${key}=${value}`);
-        }
-      }
-      if (lines.length > 0) {
-        envFilePath = path.join(os.tmpdir(), `claude-env-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
-        fs.writeFileSync(envFilePath, lines.join('\n'), { mode: 0o600 });
-        args.push('--env-file', envFilePath);
-        // ログには環境変数のKEYのみ出力、VALUEは出力しない
-        logger.info('DockerAdapter: Custom environment variables applied', {
-          keys: Object.keys(options.customEnvVars),
-        });
-      }
-    }
-
-    // シェルモードの場合は/bin/sh、それ以外はclaude
-    const entrypoint = options?.shellMode ? '/bin/sh' : 'claude';
-    args.push('--entrypoint', entrypoint);
-
-    // イメージ
-    args.push(`${this.config.imageName}:${this.config.imageTag}`);
-
-    // --dangerously-skip-permissions（shellModeではスキップ）
-    if (!options?.shellMode && options?.skipPermissions) {
-      args.push('--dangerously-skip-permissions');
-      logger.info('DockerAdapter: --dangerously-skip-permissions enabled');
-    }
-
-    // claudeコマンドの引数（--entrypoint使用時はイメージ名の後に引数を指定）
-    // シェルモードでは--resumeフラグは不要
-    if (!options?.shellMode && options?.resumeSessionId) {
-      args.push('--resume', options.resumeSessionId);
-    }
-
-    // カスタムCLIオプション（シェルモードではスキップ）
-    if (!options?.shellMode && options?.claudeCodeOptions) {
-      const customArgs = ClaudeOptionsService.buildCliArgs(options.claudeCodeOptions);
-      args.push(...customArgs);
-      // ログにはフラグ名のみを出力し、値は出力しない（機密情報対策）
-      // --flag value 形式: フラグは残し、値は[REDACTED]に
-      // --flag=value 形式: =以降を[REDACTED]に
-      const safeArgs = customArgs.map((arg) => {
-        if (!arg.startsWith('-')) return '[REDACTED]';
-        const eqIndex = arg.indexOf('=');
-        return eqIndex === -1 ? arg : `${arg.slice(0, eqIndex)}=[REDACTED]`;
-      });
-      logger.info('DockerAdapter: Custom CLI options applied', {
-        args: safeArgs,
-      });
-    }
-
-    return { args, containerName, envFilePath };
   }
 
   /**
@@ -787,9 +673,13 @@ export class DockerAdapter extends BasePTYAdapter {
         isContainer: true,
         container: container,
       });
+
+      // IMPORTANT: setStream() must be called before container.start() to avoid
+      // missing early output. setStream() synchronously registers listeners on the
+      // already-attached stream, so no data is lost between attach and start.
       ptyProcess.setStream(stream);
 
-      // Start container
+      // Start container after stream listeners are registered
       await container.start();
 
       const containerWorkDir = options?.dockerVolumeId ? workingDir : '/workspace';

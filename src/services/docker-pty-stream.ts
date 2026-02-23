@@ -30,7 +30,6 @@ export class DockerPTYStream extends EventEmitter implements IPty {
   private _isContainer: boolean;
   private _container?: Docker.Container;
   private _exec?: Docker.Exec;
-  private _disposables: (() => void)[] = [];
 
   constructor(options: DockerPTYStreamOptions) {
     super();
@@ -66,12 +65,12 @@ export class DockerPTYStream extends EventEmitter implements IPty {
       this.checkExit();
     };
     stream.on('end', endListener);
-    // stream.on('close', endListener); // 'close' might be emitted too
+    stream.on('close', endListener);
 
-    // Error handling
+    // Error handling - emit exit event so consumers are notified
     stream.on('error', (err) => {
       logger.error('DockerPTYStream: Stream error', { error: err });
-      // Emit exit with error code if possible, or just log
+      this.emit('exit', { exitCode: 1, signal: 0 });
     });
   }
 
@@ -83,11 +82,8 @@ export class DockerPTYStream extends EventEmitter implements IPty {
       if (this._isContainer && this._container) {
         // For container, inspect to get exit code
         const data = await this._container.inspect();
-        const exitCode = data.State.ExitCode;
-        // const signal = 0; // Docker doesn't easily give signal in inspect?
-        // Check if it was killed by signal?
-        // State.Error might contain error message
-        
+        const exitCode = data.State.ExitCode ?? 0;
+
         this.emit('exit', { exitCode, signal: 0 });
       } else if (!this._isContainer && this._exec) {
         // For exec, inspect exec instance
@@ -136,21 +132,23 @@ export class DockerPTYStream extends EventEmitter implements IPty {
     // If it's a container, we can stop/kill it.
     // If it's an exec, we can't really kill the process easily from outside without another exec,
     // but usually closing the stream is enough or the process handles it.
-    
+
     if (this._isContainer && this._container) {
+       // Kill container first, then clean up stream.
+       // This order ensures the container is stopped even if stream cleanup fails.
        // signal is usually a string like 'SIGTERM', Dockerode expects specific signals or just kill
-       // IPty kill takes signal string.
        this._container.kill({ signal: signal ?? 'SIGKILL' }).catch(err => {
          // Ignore if container is already stopped/gone
          logger.debug('DockerPTYStream: Failed to kill container (may be already stopped)', { error: err });
        });
     }
-    
-    // For exec, we can't kill directly via exec object.
-    // We can destroy the stream to close connection.
+
+    // Clean up stream after container kill to avoid orphaned containers.
+    // For exec instances, closing the stream is the only way to terminate.
     if (this._stream) {
+      // Remove all listeners to prevent stale callbacks after kill
+      this._stream.removeAllListeners();
       this._stream.end();
-      // destroying stream might be needed
       if (typeof (this._stream as any).destroy === 'function') {
         (this._stream as any).destroy();
       }

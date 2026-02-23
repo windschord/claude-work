@@ -134,8 +134,79 @@ describe('DockerPTYStream', () => {
       isContainer: true,
       container: mockContainer as any,
     });
-    
+
     stream.kill('SIGTERM');
     expect(mockContainer.kill).toHaveBeenCalledWith({ signal: 'SIGTERM' });
+  });
+
+  it('should warn when write() is called before setStream()', () => {
+    stream = new DockerPTYStream({
+      cols: 80,
+      rows: 24,
+      isContainer: true,
+      container: mockContainer as any,
+    });
+
+    // write() before setStream() should not throw
+    expect(() => stream.write('test')).not.toThrow();
+    // mockStream.write should not be called since stream is not set
+    expect(mockStream.write).not.toHaveBeenCalled();
+  });
+
+  it('should emit exit event on stream error', async () => {
+    stream = new DockerPTYStream({
+      cols: 80,
+      rows: 24,
+      isContainer: true,
+      container: mockContainer as any,
+    });
+
+    stream.setStream(mockStream);
+
+    const exitSpy = vi.fn();
+    stream.on('exit', exitSpy);
+
+    mockStream.emit('error', new Error('connection lost'));
+
+    expect(exitSpy).toHaveBeenCalledWith({ exitCode: 1, signal: 0 });
+  });
+
+  it('should remove stream listeners on kill()', () => {
+    stream = new DockerPTYStream({
+      cols: 80,
+      rows: 24,
+      isContainer: true,
+      container: mockContainer as any,
+    });
+
+    stream.setStream(mockStream);
+
+    const removeAllListenersSpy = vi.spyOn(mockStream, 'removeAllListeners');
+    stream.kill();
+
+    expect(removeAllListenersSpy).toHaveBeenCalled();
+    removeAllListenersSpy.mockRestore();
+  });
+
+  it('should handle close event same as end event', async () => {
+    stream = new DockerPTYStream({
+      cols: 80,
+      rows: 24,
+      isContainer: true,
+      container: mockContainer as any,
+    });
+
+    stream.setStream(mockStream);
+
+    const exitSpy = vi.fn();
+    stream.on('exit', exitSpy);
+
+    mockStream.emit('close');
+
+    // Allow async checkExit to run
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    expect(mockContainer.inspect).toHaveBeenCalled();
+    expect(exitSpy).toHaveBeenCalledWith({ exitCode: 0, signal: 0 });
   });
 });

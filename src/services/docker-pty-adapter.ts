@@ -207,8 +207,14 @@ export class DockerPTYAdapter extends EventEmitter {
     }
 
     // Custom Env Vars
+    // Filter out TERM/COLORTERM to avoid duplicating the values already set above
     if (options?.customEnvVars) {
+      const reservedKeys = new Set(['TERM', 'COLORTERM']);
       for (const [key, value] of Object.entries(options.customEnvVars)) {
+        if (reservedKeys.has(key)) {
+          logger.debug('DockerPTYAdapter: Skipping reserved env var from customEnvVars', { key });
+          continue;
+        }
         if (ClaudeOptionsService.validateEnvVarKey(key) && typeof value === 'string') {
           Env.push(`${key}=${value}`);
         }
