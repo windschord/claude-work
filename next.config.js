@@ -1,6 +1,7 @@
 const webpack = require('webpack');
 
-// Native modules that must be excluded from bundling (shared between serverExternalPackages and webpack externals)
+// Server-only packages to externalize (native + runtime-only JS modules)
+// ssh2/cpu-features are transitive deps of dockerode that webpack fails to bundle
 const serverOnlyPackages = ['node-pty', 'better-sqlite3', 'dockerode', 'ssh2', 'cpu-features'];
 
 /** @type {import('next').NextConfig} */
