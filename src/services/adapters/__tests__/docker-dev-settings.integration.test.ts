@@ -82,9 +82,9 @@ vi.mock('node-pty', () => ({
 // Mock tar-fs to prevent real file streaming race conditions
 vi.mock('tar-fs', () => ({
   default: {
-    pack: vi.fn().mockReturnValue({ pipe: vi.fn() }),
+    pack: vi.fn().mockReturnValue({ pipe: vi.fn(), destroy: vi.fn() }),
   },
-  pack: vi.fn().mockReturnValue({ pipe: vi.fn() }),
+  pack: vi.fn().mockReturnValue({ pipe: vi.fn(), destroy: vi.fn() }),
 }));
 
 /**
