@@ -1,8 +1,12 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 
 // ホイストされたモックを作成
-const { mockExecFile, mockLogger } = vi.hoisted(() => ({
-  mockExecFile: vi.fn(),
+const { mockDockerClient, mockLogger } = vi.hoisted(() => ({
+  mockDockerClient: {
+    createVolume: vi.fn(),
+    removeVolume: vi.fn(),
+    run: vi.fn(),
+  },
   mockLogger: {
     info: vi.fn(),
     error: vi.fn(),
@@ -11,19 +15,12 @@ const { mockExecFile, mockLogger } = vi.hoisted(() => ({
   },
 }));
 
-// child_processモジュールをモック
-vi.mock('child_process', async () => {
-  const mockExports = {
-    execFile: mockExecFile,
-    exec: vi.fn(),
-    spawn: vi.fn(),
-    fork: vi.fn(),
-  };
-  return {
-    ...mockExports,
-    default: mockExports,
-  };
-});
+// DockerClientモジュールをモック
+vi.mock('../docker-client', () => ({
+  DockerClient: {
+    getInstance: () => mockDockerClient,
+  },
+}));
 
 // fs/promisesをモック（SSH/gitconfig等のアクセスチェックは全て失敗させる）
 vi.mock('fs/promises', async () => {
@@ -66,47 +63,15 @@ import { GitOperationError } from '../git-operations';
 describe('DockerGitService リトライロジック', () => {
   let dockerGitService: DockerGitService;
 
-  // execFileのcallback型ヘルパー
-  type ExecFileCallback = (
-    err: Error | null,
-    result?: { stdout: string; stderr: string }
-  ) => void;
-
-  /**
-   * execFileの成功レスポンスを返すモック実装を生成
-   */
-  const successImpl = () => {
-    return (
-      _cmd: string,
-      _args: string[],
-      _opts: unknown,
-      cb: ExecFileCallback
-    ) => {
-      cb(null, { stdout: '', stderr: '' });
-    };
-  };
-
-  /**
-   * execFileのエラーレスポンスを返すモック実装を生成
-   */
-  const failureImpl = (message: string) => {
-    return (
-      _cmd: string,
-      _args: string[],
-      _opts: unknown,
-      cb: ExecFileCallback
-    ) => {
-      cb(new Error(message));
-    };
-  };
-
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers({ shouldAdvanceTime: true });
     dockerGitService = new DockerGitService();
 
     // デフォルト: 全て成功
-    mockExecFile.mockImplementation(successImpl());
+    mockDockerClient.createVolume.mockResolvedValue({});
+    mockDockerClient.removeVolume.mockResolvedValue({});
+    mockDockerClient.run.mockResolvedValue({ StatusCode: 0 });
   });
 
   afterEach(() => {
@@ -115,15 +80,13 @@ describe('DockerGitService リトライロジック', () => {
 
   describe('cloneRepository', () => {
     it('一時的なエラーで最大3回までリトライして成功する', async () => {
-      // 1回目: volume create成功
-      // 2回目: docker run (clone) 失敗 - 一時的エラー
-      // 3回目: docker run (clone) 失敗 - 一時的エラー
-      // 4回目: docker run (clone) 成功
-      mockExecFile
-        .mockImplementationOnce(successImpl()) // volume create
-        .mockImplementationOnce(failureImpl('Connection timed out')) // clone 1回目: 失敗
-        .mockImplementationOnce(failureImpl('Connection reset by peer')) // clone 2回目: 失敗
-        .mockImplementationOnce(successImpl()); // clone 3回目: 成功
+      // clone 1回目: 一時的エラー（reject）
+      // clone 2回目: 一時的エラー（reject）
+      // clone 3回目: 成功
+      mockDockerClient.run
+        .mockRejectedValueOnce(new Error('Connection timed out'))
+        .mockRejectedValueOnce(new Error('Connection reset by peer'))
+        .mockResolvedValueOnce({ StatusCode: 0 });
 
       const result = await dockerGitService.cloneRepository({
         url: 'git@github.com:user/repo.git',
@@ -132,17 +95,16 @@ describe('DockerGitService リトライロジック', () => {
 
       expect(result.success).toBe(true);
 
-      // execFileの呼び出し回数を確認: volume create (1) + clone試行 (3) = 4回
-      expect(mockExecFile).toHaveBeenCalledTimes(4);
+      // createVolume 1回 + run (clone試行) 3回
+      expect(mockDockerClient.createVolume).toHaveBeenCalledTimes(1);
+      expect(mockDockerClient.run).toHaveBeenCalledTimes(3);
     });
 
     it('永続的なエラー（No such file or directory）ではリトライしない', async () => {
-      // 1回目: volume create成功
-      // 2回目: docker run (clone) 失敗 - 永続的エラー
-      mockExecFile
-        .mockImplementationOnce(successImpl()) // volume create
-        .mockImplementationOnce(failureImpl('No such file or directory')) // clone: 永続エラー
-        .mockImplementationOnce(successImpl()); // volume cleanup
+      // clone: 永続エラー（reject）
+      const error = new Error('No such file or directory');
+      (error as any).stderr = 'fatal: No such file or directory';
+      mockDockerClient.run.mockRejectedValueOnce(error);
 
       await expect(
         dockerGitService.cloneRepository({
@@ -151,24 +113,19 @@ describe('DockerGitService リトライロジック', () => {
         })
       ).rejects.toThrow(GitOperationError);
 
-      // execFileの呼び出し回数を確認: volume create (1) + clone試行 (1) + volume cleanup (1) = 3回
-      // リトライしていないことを検証（clone試行が1回のみ）
-      const cloneCalls = mockExecFile.mock.calls.filter(
-        (call: unknown[]) => {
-          const args = call[1] as string[];
-          return args.includes('clone');
-        }
-      );
-      // volume createのdocker volume createコールを除く
-      // docker run (clone)が1回のみ呼ばれるべき
-      expect(cloneCalls.length).toBe(1);
+      // createVolume 1回 + run (clone試行) 1回のみ（リトライなし）
+      expect(mockDockerClient.createVolume).toHaveBeenCalledTimes(1);
+      expect(mockDockerClient.run).toHaveBeenCalledTimes(1);
+
+      // エラー後にボリュームがクリーンアップされること
+      expect(mockDockerClient.removeVolume).toHaveBeenCalledTimes(1);
     });
 
     it('リトライ時にログが出力される', async () => {
-      mockExecFile
-        .mockImplementationOnce(successImpl()) // volume create
-        .mockImplementationOnce(failureImpl('Connection timed out')) // clone 1回目: 失敗
-        .mockImplementationOnce(successImpl()); // clone 2回目: 成功
+      // clone 1回目: 一時的エラー → clone 2回目: 成功
+      mockDockerClient.run
+        .mockRejectedValueOnce(new Error('Connection timed out'))
+        .mockResolvedValueOnce({ StatusCode: 0 });
 
       await dockerGitService.cloneRepository({
         url: 'git@github.com:user/repo.git',
@@ -195,11 +152,10 @@ describe('DockerGitService リトライロジック', () => {
 
   describe('createWorktree', () => {
     it('一時的なエラーで1回リトライして成功する', async () => {
-      // 1回目: docker run (worktree) 失敗 - 一時的エラー
-      // 2回目: docker run (worktree) 成功
-      mockExecFile
-        .mockImplementationOnce(failureImpl('Connection timed out')) // worktree 1回目: 失敗
-        .mockImplementationOnce(successImpl()); // worktree 2回目: 成功
+      // worktree 1回目: 一時的エラー → worktree 2回目: 成功
+      mockDockerClient.run
+        .mockRejectedValueOnce(new Error('Connection timed out'))
+        .mockResolvedValueOnce({ StatusCode: 0 });
 
       const result = await dockerGitService.createWorktree({
         projectId: 'test-project-id',
@@ -209,13 +165,13 @@ describe('DockerGitService リトライロジック', () => {
 
       expect(result.success).toBe(true);
 
-      // execFileの呼び出し回数を確認: worktree試行 (2回)
-      expect(mockExecFile).toHaveBeenCalledTimes(2);
+      // run (worktree試行) 2回
+      expect(mockDockerClient.run).toHaveBeenCalledTimes(2);
     });
 
     it('最大リトライ回数(3回)後に諦めてエラーをスローする', async () => {
       // 全て失敗
-      mockExecFile.mockImplementation(failureImpl('Connection timed out'));
+      mockDockerClient.run.mockRejectedValue(new Error('Connection timed out'));
 
       let caughtError: GitOperationError | null = null;
       try {
@@ -232,14 +188,14 @@ describe('DockerGitService リトライロジック', () => {
       // 一時的エラーの最大リトライ失敗後もrecoverable=true
       expect(caughtError!.recoverable).toBe(true);
 
-      // execFileの呼び出し回数を確認: worktree試行 (3回)
-      expect(mockExecFile).toHaveBeenCalledTimes(3);
+      // run (worktree試行) 3回
+      expect(mockDockerClient.run).toHaveBeenCalledTimes(3);
     });
 
     it('永続的なエラーではリトライしない', async () => {
-      mockExecFile.mockImplementation(
-        failureImpl('fatal: No such file or directory')
-      );
+      const error = new Error('fatal: No such file or directory');
+      (error as any).stderr = 'fatal: No such file or directory';
+      mockDockerClient.run.mockRejectedValueOnce(error);
 
       let caughtError: GitOperationError | null = null;
       try {
@@ -255,23 +211,19 @@ describe('DockerGitService リトライロジック', () => {
       expect(caughtError).toBeInstanceOf(GitOperationError);
 
       // 1回だけ試行されたことを確認
-      expect(mockExecFile).toHaveBeenCalledTimes(1);
+      expect(mockDockerClient.run).toHaveBeenCalledTimes(1);
 
       // 永続エラーの場合、recoverable=falseでマークされるべき
-      // (リトライロジック実装時に永続エラーを検出してrecoverable=falseを設定する)
       expect(caughtError!.recoverable).toBe(false);
     });
   });
 
   describe('cloneRepositoryWithPAT', () => {
     it('一時的なエラーでリトライして成功する', async () => {
-      // 1回目: volume create成功
-      // 2回目: docker run (PAT clone) 失敗 - 一時的エラー
-      // 3回目: docker run (PAT clone) 成功
-      mockExecFile
-        .mockImplementationOnce(successImpl()) // volume create
-        .mockImplementationOnce(failureImpl('Connection timed out')) // PAT clone 1回目: 失敗
-        .mockImplementationOnce(successImpl()); // PAT clone 2回目: 成功
+      // clone 1回目: 一時的エラー → clone 2回目: 成功
+      mockDockerClient.run
+        .mockRejectedValueOnce(new Error('Connection timed out'))
+        .mockResolvedValueOnce({ StatusCode: 0 });
 
       const result = await dockerGitService.cloneRepositoryWithPAT(
         'https://github.com/user/private-repo.git',
@@ -281,17 +233,14 @@ describe('DockerGitService リトライロジック', () => {
 
       expect(result.success).toBe(true);
 
-      // execFileの呼び出し回数を確認: volume create (1) + PAT clone試行 (2) = 3回
-      expect(mockExecFile).toHaveBeenCalledTimes(3);
+      // createVolume 1回 + run (PAT clone試行) 2回
+      expect(mockDockerClient.createVolume).toHaveBeenCalledTimes(1);
+      expect(mockDockerClient.run).toHaveBeenCalledTimes(2);
     });
 
     it('最大リトライ回数後にエラーをスローしボリュームをクリーンアップする', async () => {
-      mockExecFile
-        .mockImplementationOnce(successImpl()) // volume create
-        .mockImplementationOnce(failureImpl('Connection timed out')) // PAT clone 1回目: 失敗
-        .mockImplementationOnce(failureImpl('Connection timed out')) // PAT clone 2回目: 失敗
-        .mockImplementationOnce(failureImpl('Connection timed out')) // PAT clone 3回目: 失敗
-        .mockImplementationOnce(successImpl()); // volume cleanup
+      // 全てのclone試行が失敗
+      mockDockerClient.run.mockRejectedValue(new Error('Connection timed out'));
 
       await expect(
         dockerGitService.cloneRepositoryWithPAT(
@@ -301,15 +250,13 @@ describe('DockerGitService リトライロジック', () => {
         )
       ).rejects.toThrow(GitOperationError);
 
-      // execFileの呼び出し回数を確認: volume create (1) + PAT clone試行 (3) + volume cleanup (1) = 5回
-      // リトライロジックにより3回試行された後にクリーンアップされることを検証
-      expect(mockExecFile).toHaveBeenCalledTimes(5);
+      // createVolume 1回 + run (PAT clone試行) 3回
+      expect(mockDockerClient.createVolume).toHaveBeenCalledTimes(1);
+      expect(mockDockerClient.run).toHaveBeenCalledTimes(3);
 
-      // volume cleanupが呼ばれたことを確認
-      const lastCall = mockExecFile.mock.calls[mockExecFile.mock.calls.length - 1];
-      const lastArgs = lastCall[1] as string[];
-      expect(lastArgs).toContain('volume');
-      expect(lastArgs.some((a: string) => a === 'rm')).toBe(true);
+      // ボリュームクリーンアップが呼ばれたことを確認
+      expect(mockDockerClient.removeVolume).toHaveBeenCalledTimes(1);
+      expect(mockDockerClient.removeVolume).toHaveBeenCalledWith('claude-repo-test-project-id');
     });
   });
 
@@ -319,12 +266,7 @@ describe('DockerGitService リトライロジック', () => {
       const setTimeoutSpy = vi.spyOn(global, 'setTimeout');
 
       // 全てのclone試行が失敗するケース（3回試行後に失敗）
-      mockExecFile
-        .mockImplementationOnce(successImpl()) // volume create
-        .mockImplementationOnce(failureImpl('Connection timed out')) // clone 1回目: 失敗
-        .mockImplementationOnce(failureImpl('Connection timed out')) // clone 2回目: 失敗
-        .mockImplementationOnce(failureImpl('Connection timed out')) // clone 3回目: 失敗
-        .mockImplementationOnce(successImpl()); // volume cleanup
+      mockDockerClient.run.mockRejectedValue(new Error('Connection timed out'));
 
       await expect(
         dockerGitService.cloneRepository({
@@ -357,24 +299,11 @@ describe('DockerGitService リトライロジック', () => {
 
   describe('PAT sanitization', () => {
     it('PAT is sanitized in error messages when retryWithBackoff throws', async () => {
-      const patErrorImpl = () => {
-        return (
-          _cmd: string,
-          _args: string[],
-          _opts: unknown,
-          cb: ExecFileCallback
-        ) => {
-          const error = new Error('fatal: Authentication failed for GIT_PAT=ghp_secret123') as Error & { stderr?: string; stdout?: string };
-          error.stderr = 'remote: Invalid credentials GIT_PAT=ghp_secret123';
-          error.stdout = 'Cloning with GIT_PAT=ghp_secret123';
-          cb(error);
-        };
-      };
-
-      mockExecFile
-        .mockImplementationOnce(successImpl()) // volume create
-        .mockImplementationOnce(patErrorImpl()) // clone: permanent error (authentication failed)
-        .mockImplementationOnce(successImpl()); // volume cleanup
+      // 永続的エラーにPATが含まれるケース
+      const error = new Error('fatal: Authentication failed for GIT_PAT=ghp_secret123');
+      (error as any).stderr = 'remote: Invalid credentials GIT_PAT=ghp_secret123';
+      (error as any).stdout = 'Cloning with GIT_PAT=ghp_secret123';
+      mockDockerClient.run.mockRejectedValueOnce(error);
 
       let caughtError: GitOperationError | null = null;
       try {
