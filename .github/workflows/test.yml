@@ -49,9 +49,9 @@ jobs:
       uses: ./.github/actions/setup
 
     - name: Run backend tests
-      # Note: Vitest is NOT run in pre-commit (lint-staged) due to a structural conflict:
+      # Note: Vitest is NOT run in pre-commit (lint-staged "*.{ts,tsx}") due to a structural conflict:
       # ClaudeWork uses git worktrees internally, which causes `.git/index` errors when
-      # lint-staged runs git stash during pre-commit. CI is the primary quality gate for tests.
+      # lint-staged runs git stash during pre-commit. This CI job is the quality gate for tests.
       # Note: Some tests are excluded due to node-pty native module issues in CI environment.
       # Integration tests and PTY-related tests should be run locally.
       # See: https://github.com/windschord/claude-work/pull/96
@@ -79,6 +79,9 @@ jobs:
       uses: ./.github/actions/setup
 
     - name: Run frontend tests
+      # Note: Vitest is NOT run in pre-commit (lint-staged "*.{ts,tsx}") due to a structural conflict:
+      # ClaudeWork uses git worktrees internally, which causes `.git/index` errors when
+      # lint-staged runs git stash during pre-commit. This CI job is the quality gate for tests.
       run: |
         # Run vitest with a 5-minute timeout - if it hangs after tests pass, timeout will kill it
         set +e
