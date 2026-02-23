@@ -14,6 +14,8 @@ import { BasePTYAdapter } from './base-adapter';
 import { DeveloperSettingsService } from '@/services/developer-settings-service';
 import { EncryptionService } from '@/services/encryption-service';
 import { DockerClient } from '../docker-client';
+import { DockerPTYStream } from '../docker-pty-stream';
+import Docker from 'dockerode';
 import * as fsPromises from 'fs/promises';
 import type { PortMapping, VolumeMount } from '@/types/environment';
 
@@ -104,6 +106,154 @@ export class DockerAdapter extends BasePTYAdapter {
       imageName: config.imageName,
       imageTag: config.imageTag,
     });
+  }
+
+  /**
+   * Constructs Dockerode container options from session parameters.
+   */
+  protected buildContainerOptions(workingDir: string, options?: CreateSessionOptions): {
+    createOptions: Docker.ContainerCreateOptions;
+    containerName: string;
+  } {
+    const containerName = `claude-env-${this.config.environmentId.substring(0, 8)}-${Date.now()}`;
+    const Binds: string[] = [];
+    const Env: string[] = [];
+    const PortBindings: any = {};
+    const ExposedPorts: any = {};
+    const Cmd: string[] = [];
+    let Entrypoint: string | string[] = [];
+
+    // Workspace mount
+    let workingDirConfig = workingDir;
+    if (options?.dockerVolumeId) {
+       // Validate volume ID
+       if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(options.dockerVolumeId)) {
+        throw new Error(`Invalid dockerVolumeId format: ${options.dockerVolumeId}`);
+      }
+      Binds.push(`${options.dockerVolumeId}:/repo`);
+      // workingDir is used as CWD
+      // Note: If workingDir is relative, it might be relative to /repo if we set WorkingDir?
+      // But typically we set WorkingDir to absolute path.
+      // If client sends relative path, we might have issues?
+      // Assuming workingDir is passed as absolute or relative to volume root.
+      // We will assume it is what we want to set as WorkingDir.
+    } else {
+      Binds.push(`${workingDir}:/workspace`);
+      workingDirConfig = '/workspace';
+    }
+
+    // Auth dirs
+    const claudeDir = path.join(this.config.authDirPath, 'claude');
+    const claudeConfigDir = path.join(this.config.authDirPath, 'config', 'claude');
+    Binds.push(`${claudeDir}:/home/node/.claude`);
+    Binds.push(`${claudeConfigDir}:/home/node/.config/claude`);
+
+    // Git auth (RO)
+    const homeDir = os.homedir();
+    const sshDir = path.join(homeDir, '.ssh');
+    if (fs.existsSync(sshDir)) {
+      Binds.push(`${sshDir}:/home/node/.ssh:ro`);
+    }
+    const gitconfigPath = path.join(homeDir, '.gitconfig');
+    if (fs.existsSync(gitconfigPath)) {
+      Binds.push(`${gitconfigPath}:/home/node/.gitconfig:ro`);
+    }
+
+    // SSH Agent
+    const sshAuthSock = process.env.SSH_AUTH_SOCK;
+    if (sshAuthSock) {
+      Binds.push(`${sshAuthSock}:/ssh-agent`);
+      Env.push('SSH_AUTH_SOCK=/ssh-agent');
+    }
+
+    // Port Mappings
+    if (this.config.portMappings) {
+      for (const pm of this.config.portMappings) {
+        const protocol = String(pm.protocol ?? 'tcp').toLowerCase();
+        const containerPortKey = `${pm.containerPort}/${protocol}`;
+        PortBindings[containerPortKey] = [{ HostPort: String(pm.hostPort) }];
+        ExposedPorts[containerPortKey] = {};
+      }
+    }
+
+    // Custom Volume Mounts
+    if (this.config.volumeMounts) {
+      for (const vm of this.config.volumeMounts) {
+        const mode = vm.accessMode === 'ro' ? ':ro' : '';
+        Binds.push(`${vm.hostPath}:${vm.containerPath}${mode}`);
+      }
+    }
+
+    // ANTHROPIC_API_KEY
+    if (process.env.ANTHROPIC_API_KEY) {
+      Env.push(`ANTHROPIC_API_KEY=${process.env.ANTHROPIC_API_KEY}`);
+    }
+
+    // Custom Env Vars
+    if (!options?.shellMode && options?.customEnvVars) {
+      for (const [key, value] of Object.entries(options.customEnvVars)) {
+        if (ClaudeOptionsService.validateEnvVarKey(key) && typeof value === 'string') {
+          Env.push(`${key}=${value}`);
+        }
+      }
+      logger.info('DockerAdapter: Custom environment variables applied', {
+        keys: Object.keys(options.customEnvVars),
+      });
+    }
+
+    // Entrypoint
+    Entrypoint = options?.shellMode ? '/bin/sh' : 'claude';
+    
+    // Arguments
+    if (!options?.shellMode) {
+       if (options?.skipPermissions) {
+         Cmd.push('--dangerously-skip-permissions');
+         logger.info('DockerAdapter: --dangerously-skip-permissions enabled');
+       }
+
+       if (options?.resumeSessionId) {
+         Cmd.push('--resume', options.resumeSessionId);
+       }
+
+       if (options?.claudeCodeOptions) {
+         const customArgs = ClaudeOptionsService.buildCliArgs(options.claudeCodeOptions);
+         Cmd.push(...customArgs);
+         
+         const safeArgs = customArgs.map((arg) => {
+            if (!arg.startsWith('-')) return '[REDACTED]';
+            const eqIndex = arg.indexOf('=');
+            return eqIndex === -1 ? arg : `${arg.slice(0, eqIndex)}=[REDACTED]`;
+          });
+          logger.info('DockerAdapter: Custom CLI options applied', {
+            args: safeArgs,
+          });
+       }
+    }
+
+    const createOptions: Docker.ContainerCreateOptions = {
+      name: containerName,
+      Image: `${this.config.imageName}:${this.config.imageTag}`,
+      Tty: true,
+      OpenStdin: true,
+      StdinOnce: false,
+      AttachStdin: true,
+      AttachStdout: true,
+      AttachStderr: true,
+      Env,
+      Cmd: Cmd.length > 0 ? Cmd : undefined,
+      Entrypoint,
+      WorkingDir: workingDirConfig,
+      HostConfig: {
+        Binds,
+        PortBindings,
+        CapDrop: ['ALL'],
+        SecurityOpt: ['no-new-privileges'],
+        AutoRemove: true,
+      },
+      ExposedPorts,
+    };
+
+    return { createOptions, containerName };
   }
 
   /**
@@ -434,10 +584,7 @@ export class DockerAdapter extends BasePTYAdapter {
     cols: number,
     rows: number
   ): Promise<void> {
-    // -it オプションでインタラクティブモードとTTYを有効化
-    // -w オプションで作業ディレクトリを設定（親セッションのcontainerWorkDirを参照）
     const execCwd = this.resolveExecWorkDir(sessionId);
-    const args = ['exec', '-it', '-w', execCwd, containerName, 'bash'];
 
     logger.info('DockerAdapter: Creating exec session (attaching to existing container)', {
       sessionId,
@@ -448,11 +595,30 @@ export class DockerAdapter extends BasePTYAdapter {
     });
 
     try {
-      const ptyProcess = this.spawnPTY('docker', args, {
+      const container = DockerClient.getInstance().getContainer(containerName);
+
+      const exec = await container.exec({
+        Cmd: ['bash'],
+        AttachStdin: true,
+        AttachStdout: true,
+        AttachStderr: true,
+        Tty: true,
+        WorkingDir: execCwd,
+      });
+
+      const stream = await exec.start({
+        hijack: true,
+        stdin: true,
+        Tty: true,
+      });
+
+      const ptyProcess = new DockerPTYStream({
         cols,
         rows,
-        env: {},
+        isContainer: false,
+        exec: exec,
       });
+      ptyProcess.setStream(stream);
 
       this.sessions.set(sessionId, {
         ptyProcess,
@@ -588,7 +754,7 @@ export class DockerAdapter extends BasePTYAdapter {
       throw error;
     }
 
-    const { args, containerName, envFilePath } = this.buildDockerArgs(workingDir, options);
+    const { createOptions, containerName } = this.buildContainerOptions(workingDir, options);
 
     // クライアントから渡されたターミナルサイズを使用（未指定時はデフォルト80x24）
     const initialCols = options?.cols ?? 80;
@@ -604,12 +770,27 @@ export class DockerAdapter extends BasePTYAdapter {
     });
 
     try {
-      const ptyProcess = this.spawnPTY('docker', args, {
+      const container = await DockerClient.getInstance().createContainer(createOptions);
+
+      // Attach stream (hijack)
+      const stream = await container.attach({
+        stream: true,
+        stdin: true,
+        stdout: true,
+        stderr: true,
+        hijack: true,
+      });
+
+      const ptyProcess = new DockerPTYStream({
         cols: initialCols,
         rows: initialRows,
-        cwd: undefined,
-        env: {},
+        isContainer: true,
+        container: container,
       });
+      ptyProcess.setStream(stream);
+
+      // Start container
+      await container.start();
 
       const containerWorkDir = options?.dockerVolumeId ? workingDir : '/workspace';
       this.sessions.set(sessionId, {
@@ -644,8 +825,6 @@ export class DockerAdapter extends BasePTYAdapter {
             // Docker環境ではコンテナ起動のオーバーヘッドにより、クライアントからの
             // resize()がコンテナ起動完了前に到着し効果がない。初回出力後に
             // 保存済みのクライアントサイズでリサイズを再適用する。
-            // 注意: lastKnownCols/Rowsはこの時点で未設定の場合がある
-            // （WebSocketメッセージ競合やrestart時）。チェックはコールバック内で行う。
             if (!session.shellMode) {
               setTimeout(() => {
                 const s = this.sessions.get(sessionId);
@@ -677,11 +856,6 @@ export class DockerAdapter extends BasePTYAdapter {
 
       ptyProcess.onExit(async ({ exitCode, signal }) => {
         logger.info('DockerAdapter: Session exited', { sessionId, exitCode, signal });
-
-        // 一時envファイルのクリーンアップ
-        if (envFilePath) {
-          try { fs.unlinkSync(envFilePath); } catch { /* ignore */ }
-        }
 
         // restartSession()で新セッションが作成された後に旧PTYのonExitが遅延発火した場合、
         // 新セッションを消さないようにptyProcess同一性チェックを行う
@@ -736,25 +910,7 @@ export class DockerAdapter extends BasePTYAdapter {
         }, 3000);
       }
 
-      // 一時envファイルのクリーンアップ（成功時）
-      if (envFilePath) {
-        try {
-          fs.unlinkSync(envFilePath);
-        } catch {
-          // 削除失敗は無視
-        }
-      }
-
     } catch (error) {
-      // 一時envファイルのクリーンアップ
-      if (envFilePath) {
-        try {
-          fs.unlinkSync(envFilePath);
-        } catch {
-          // 削除失敗は無視
-        }
-      }
-
       logger.error('DockerAdapter: Failed to create session', {
         sessionId,
         error: error instanceof Error ? error.message : 'Unknown error',
