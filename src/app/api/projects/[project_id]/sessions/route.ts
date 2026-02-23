@@ -439,6 +439,7 @@ export async function POST(
       worktree_path: worktreePath,
       branch_name: branchName,
       docker_mode: effectiveDockerMode,
+      environment_id: effectiveEnvironmentId,
       claude_code_options: claude_code_options ? JSON.stringify(claude_code_options) : null,
       custom_env_vars: custom_env_vars ? JSON.stringify(custom_env_vars) : null,
     }).returning().get();

@@ -69,6 +69,7 @@ export const sessions = sqliteTable('Session', {
   pr_updated_at: integer('pr_updated_at', { mode: 'timestamp' }),
   docker_mode: integer('docker_mode', { mode: 'boolean' }).notNull().default(false),
   container_id: text('container_id'),
+  environment_id: text('environment_id').references(() => executionEnvironments.id, { onDelete: 'set null' }),
   claude_code_options: text('claude_code_options'),
   custom_env_vars: text('custom_env_vars'),
 
@@ -190,12 +191,17 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
 
 export const executionEnvironmentsRelations = relations(executionEnvironments, ({ many }) => ({
   projects: many(projects),
+  sessions: many(sessions),
 }));
 
 export const sessionsRelations = relations(sessions, ({ one, many }) => ({
   project: one(projects, {
     fields: [sessions.project_id],
     references: [projects.id],
+  }),
+  environment: one(executionEnvironments, {
+    fields: [sessions.environment_id],
+    references: [executionEnvironments.id],
   }),
   messages: many(messages),
 }));

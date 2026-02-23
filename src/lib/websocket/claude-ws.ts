@@ -331,14 +331,20 @@ export function setupClaudeWebSocket(
             });
           }
 
-          // 環境IDを取得（プロジェクトから、未指定の場合はデフォルト環境）
-          let environmentId = session.project?.environment_id;
+          // 環境IDを取得（セッション → プロジェクト → デフォルト環境の優先順位）
+          let environmentId = session.environment_id || session.project?.environment_id;
           if (!environmentId) {
             const defaultEnv = await environmentService.getDefault();
             environmentId = defaultEnv.id;
             logger.info('Claude WebSocket: Using default environment', {
               sessionId,
               environmentId,
+            });
+          } else {
+            logger.info('Claude WebSocket: Using session/project environment', {
+              sessionId,
+              environmentId,
+              source: session.environment_id ? 'session' : 'project',
             });
           }
 
