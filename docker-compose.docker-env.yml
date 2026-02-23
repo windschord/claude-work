@@ -4,8 +4,12 @@
 # 信頼できる環境でのみ使用してください。
 #
 # 使用方法:
-#   DOCKER_GID=$(stat -c '%g' /var/run/docker.sock) \
-#     docker compose -f docker-compose.yml -f docker-compose.docker-env.yml up -d
+#   Linux:
+#     DOCKER_GID=$(stat -c '%g' /var/run/docker.sock) \
+#       docker compose -f docker-compose.yml -f docker-compose.docker-env.yml up -d
+#   macOS:
+#     DOCKER_GID=$(stat -f '%g' /var/run/docker.sock) \
+#       docker compose -f docker-compose.yml -f docker-compose.docker-env.yml up -d
 services:
   app:
     volumes:
