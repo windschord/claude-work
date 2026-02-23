@@ -41,6 +41,7 @@ vi.mock('drizzle-orm', () => ({
   eq: vi.fn((col, val) => ({ column: col, value: val })),
   and: vi.fn((...args) => ({ and: args })),
   isNull: vi.fn((col) => ({ isNull: col })),
+  isNotNull: vi.fn((col) => ({ isNotNull: col })),
 }));
 
 // scrollbackBufferのモック
