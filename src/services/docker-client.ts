@@ -132,7 +132,7 @@ export class DockerClient {
       await new Promise<void>((resolve, reject) => {
         this.docker.modem.followProgress(
           buildStream,
-          (err: Error | null, res: any[]) => {
+          (err: Error | null, _res: any[]) => {
             if (err) return reject(err);
             resolve();
           },
@@ -152,11 +152,11 @@ export class DockerClient {
   public async pull(repoTag: string, onProgress?: (event: any) => void): Promise<void> {
     try {
       const stream = await this.docker.pull(repoTag);
-      
+
       await new Promise<void>((resolve, reject) => {
         this.docker.modem.followProgress(
           stream,
-          (err: Error | null, res: any[]) => {
+          (err: Error | null, _res: any[]) => {
             if (err) return reject(err);
             resolve();
           },
