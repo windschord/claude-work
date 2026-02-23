@@ -1,6 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { DockerAdapter } from '../docker-adapter';
-import { DockerClient } from '../../docker-client';
 
 // Mock DockerClient
 const { mockDockerClient } = vi.hoisted(() => ({

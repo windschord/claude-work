@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NextRequest } from 'next/server';
-import { EventEmitter } from 'events';
 import * as path from 'path';
 import { GET, POST } from '../route';
 

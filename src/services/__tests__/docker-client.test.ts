@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { DockerClient } from '../docker-client';
-import Docker from 'dockerode';
 
 // Mock dockerode
 const { mockDockerConstructor } = vi.hoisted(() => {
@@ -39,7 +38,7 @@ describe('DockerClient', () => {
       getVolume: vi.fn().mockReturnValue({ remove: vi.fn() }),
       run: vi.fn(),
       modem: {
-        followProgress: vi.fn((stream, onFinished, onProgress) => {
+        followProgress: vi.fn((stream, onFinished, _onProgress) => {
           onFinished(null, []);
         })
       }
