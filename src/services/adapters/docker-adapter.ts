@@ -795,10 +795,11 @@ export class DockerAdapter extends BasePTYAdapter {
       });
 
       // 初期プロンプト（シェルモードでは送信しない）
-      if (initialPrompt && !shellMode) {
+      if (initialPrompt && !shellMode && ptyProcess) {
+        const pty = ptyProcess;
         setTimeout(() => {
           if (this.sessions.has(sessionId)) {
-            ptyProcess.write(initialPrompt + '\n');
+            pty.write(initialPrompt + '\n');
           }
         }, 3000);
       }
