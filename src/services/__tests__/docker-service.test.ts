@@ -22,16 +22,6 @@ vi.mock('tar-fs', () => ({
   pack: vi.fn().mockReturnValue('mock-tar-stream'),
 }));
 
-// Mock child_process for 'which docker'
-const { mockExec } = vi.hoisted(() => ({
-  mockExec: vi.fn(),
-}));
-
-vi.mock('child_process', () => ({
-  exec: mockExec,
-  default: { exec: mockExec },
-}));
-
 // Mock fs/promises and os
 const { mockAccess, mockHomedir } = vi.hoisted(() => ({
   mockAccess: vi.fn(),
@@ -258,19 +248,9 @@ describe('DockerService', () => {
   });
 
   describe('diagnoseDockerError', () => {
-    it('Dockerがインストールされていない場合はDOCKER_NOT_INSTALLEDエラーを返す', async () => {
-      mockExec.mockImplementation(
-        (
-          cmd: string,
-          callback: (error: Error | null, stdout: string, stderr: string) => void
-        ) => {
-          if (cmd === 'which docker') {
-            const error = new Error('command not found');
-            callback(error, '', '');
-          }
-          return {} as ReturnType<typeof mockExec>;
-        }
-      );
+    it('Dockerソケットが存在しない場合はDOCKER_NOT_INSTALLEDエラーを返す', async () => {
+      // ソケットパスへのアクセスを失敗させる
+      mockAccess.mockRejectedValue(new Error('ENOENT: no such file or directory'));
 
       const result = await dockerService.diagnoseDockerError();
 
@@ -280,18 +260,9 @@ describe('DockerService', () => {
     });
 
     it('Dockerデーモンが停止している場合はDOCKER_DAEMON_NOT_RUNNINGエラーを返す', async () => {
-      mockExec.mockImplementation(
-        (
-          cmd: string,
-          callback: (error: Error | null, stdout: string, stderr: string) => void
-        ) => {
-          if (cmd === 'which docker') {
-            callback(null, '/usr/bin/docker', '');
-          }
-          return {} as ReturnType<typeof mockExec>;
-        }
-      );
-      
+      // ソケットは存在する
+      mockAccess.mockResolvedValue(undefined);
+
       mockDockerClient.info.mockRejectedValue(new Error('Cannot connect to Docker daemon'));
 
       const result = await dockerService.diagnoseDockerError();
@@ -302,18 +273,9 @@ describe('DockerService', () => {
     });
 
     it('権限エラーの場合はDOCKER_PERMISSION_DENIEDエラーを返す', async () => {
-      mockExec.mockImplementation(
-        (
-          cmd: string,
-          callback: (error: Error | null, stdout: string, stderr: string) => void
-        ) => {
-          if (cmd === 'which docker') {
-            callback(null, '/usr/bin/docker', '');
-          }
-          return {} as ReturnType<typeof mockExec>;
-        }
-      );
-      
+      // ソケットは存在する
+      mockAccess.mockResolvedValue(undefined);
+
       mockDockerClient.info.mockResolvedValue({});
       mockDockerClient.listContainers.mockRejectedValue({ statusCode: 403, message: 'permission denied' });
 
@@ -325,15 +287,8 @@ describe('DockerService', () => {
     });
 
     it('問題がない場合はnullを返す', async () => {
-      mockExec.mockImplementation(
-        (
-          cmd: string,
-          callback: (error: Error | null, stdout: string, stderr: string) => void
-        ) => {
-          callback(null, 'success', '');
-          return {} as ReturnType<typeof mockExec>;
-        }
-      );
+      // ソケットは存在する
+      mockAccess.mockResolvedValue(undefined);
 
       mockDockerClient.info.mockResolvedValue({});
       mockDockerClient.listContainers.mockResolvedValue([]);

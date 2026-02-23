@@ -1,9 +1,12 @@
 const webpack = require('webpack');
 
+// Native modules that must be excluded from bundling (shared between serverExternalPackages and webpack externals)
+const serverOnlyPackages = ['node-pty', 'better-sqlite3', 'dockerode', 'ssh2', 'cpu-features'];
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Server-side only packages (native modules that can't be bundled)
-  serverExternalPackages: ['node-pty', 'better-sqlite3', 'dockerode', 'ssh2', 'cpu-features'],
+  serverExternalPackages: serverOnlyPackages,
   // Exclude frontend directory from build (used by Syncthing sync)
   typescript: {
     // Ignore build errors in excluded directories
@@ -39,13 +42,9 @@ const nextConfig = {
 
     // サーバー側ビルドでネイティブモジュールを外部化
     if (isServer) {
-      const nativeExternals = {
-        'node-pty': 'commonjs node-pty',
-        'better-sqlite3': 'commonjs better-sqlite3',
-        'dockerode': 'commonjs dockerode',
-        'ssh2': 'commonjs ssh2',
-        'cpu-features': 'commonjs cpu-features',
-      };
+      const nativeExternals = Object.fromEntries(
+        serverOnlyPackages.map(pkg => [pkg, `commonjs ${pkg}`])
+      );
       if (typeof config.externals === 'function') {
         config.externals = [config.externals, nativeExternals];
       } else if (Array.isArray(config.externals)) {

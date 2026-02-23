@@ -1,4 +1,3 @@
-import { exec } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as fsPromises from 'fs/promises';
@@ -168,17 +167,18 @@ export class DockerService {
    * @returns DockerErrorまたはnull（問題がない場合）
    */
   async diagnoseDockerError(): Promise<DockerError | null> {
-    // Dockerコマンドが存在するか
-    const dockerInstalled = await new Promise<boolean>((resolve) => {
-      exec('which docker', (error) => {
-        resolve(!error);
-      });
+    // Dockerソケットが存在するかチェック（Dockerode経由のため、CLIではなくソケットで判定）
+    const socketPath = '/var/run/docker.sock';
+    const socketExists = await new Promise<boolean>((resolve) => {
+      fsPromises.access(socketPath, fs.constants.F_OK)
+        .then(() => resolve(true))
+        .catch(() => resolve(false));
     });
 
-    if (!dockerInstalled) {
+    if (!socketExists) {
       return new DockerError(
         'DOCKER_NOT_INSTALLED',
-        'Docker command not found',
+        'Docker socket not found at /var/run/docker.sock',
         'Dockerがインストールされていません',
         'https://docs.docker.com/get-docker/ からDockerをインストールしてください'
       );
@@ -199,8 +199,9 @@ export class DockerService {
     // 権限問題のチェック
     try {
       await DockerClient.getInstance().listContainers({ limit: 1 });
-    } catch (error: any) {
-      if (error && (error.statusCode === 403 || (error.message && error.message.includes('permission denied')))) {
+    } catch (error: unknown) {
+      const err = error as { statusCode?: number; message?: string };
+      if (err && (err.statusCode === 403 || (err.message && err.message.includes('permission denied')))) {
         return new DockerError(
           'DOCKER_PERMISSION_DENIED',
           'Docker permission denied',

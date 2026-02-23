@@ -2,7 +2,7 @@ import Docker from 'dockerode';
 import { logger } from '@/lib/logger';
 
 export class DockerClient {
-  private static instance: DockerClient;
+  private static instance: DockerClient | undefined;
   private docker: Docker;
 
   private constructor() {
@@ -17,7 +17,7 @@ export class DockerClient {
   }
 
   public static resetForTesting(): void {
-    DockerClient.instance = undefined as any;
+    DockerClient.instance = undefined;
   }
 
   public getDockerInstance(): Docker {
@@ -180,11 +180,7 @@ export class DockerClient {
     stream: NodeJS.WritableStream | NodeJS.WritableStream[],
     options: Docker.ContainerCreateOptions = {}
   ): Promise<{ StatusCode: number }> {
-    return new Promise((resolve, reject) => {
-      (this.docker.run as Function)(image, cmd, stream, options, (err: Error | null, data: { StatusCode: number }) => {
-        if (err) return reject(err);
-        resolve(data);
-      });
-    });
+    const result = await this.docker.run(image, cmd, stream, options);
+    return result as { StatusCode: number };
   }
 }

@@ -41,7 +41,10 @@ export async function GET(): Promise<NextResponse> {
       if (!info.RepoTags) continue;
       
       for (const repoTag of info.RepoTags) {
-        const [repository, tag] = repoTag.split(':');
+        const lastColon = repoTag.lastIndexOf(':');
+        if (lastColon === -1) continue;
+        const repository = repoTag.substring(0, lastColon);
+        const tag = repoTag.substring(lastColon + 1);
         if (repository === '<none>' || tag === '<none>') continue;
         
         images.push({

@@ -171,7 +171,8 @@ export async function POST(request: NextRequest) {
 
       try {
         const tarStream = tar.pack(dockerfileDir);
-        
+        let buildError: string | null = null;
+
         await DockerClient.getInstance().buildImage(
           tarStream,
           {
@@ -180,10 +181,25 @@ export async function POST(request: NextRequest) {
           },
           (event) => {
             if (event.error) {
-               throw new Error(event.error);
+              buildError = event.error;
             }
           }
         );
+
+        if (buildError) {
+          logger.error('Docker image build failed with build error', {
+            imageName: buildImageName,
+            error: buildError,
+          });
+
+          return NextResponse.json(
+            {
+              error: 'Docker build failed',
+              details: buildError,
+            },
+            { status: 400 }
+          );
+        }
 
         logger.info('Docker image build completed', {
           imageName: `${buildImageName}:latest`,
@@ -193,17 +209,17 @@ export async function POST(request: NextRequest) {
         config.imageName = buildImageName;
         config.imageTag = 'latest';
       } catch (error: unknown) {
-        const buildError = error as Error;
+        const caughtError = error as Error;
 
         logger.error('Docker image build failed for environment', {
           imageName: buildImageName,
-          error: buildError.message,
+          error: caughtError.message,
         });
 
         return NextResponse.json(
           {
             error: 'Docker build failed',
-            details: buildError.message,
+            details: caughtError.message,
           },
           { status: 400 }
         );
