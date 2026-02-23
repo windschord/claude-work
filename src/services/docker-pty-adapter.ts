@@ -1,4 +1,4 @@
-import * as pty from 'node-pty';
+import type * as pty from 'node-pty';
 import { EventEmitter } from 'events';
 import * as path from 'path';
 import * as fs from 'fs';

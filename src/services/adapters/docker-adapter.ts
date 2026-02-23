@@ -105,10 +105,12 @@ export class DockerAdapter extends BasePTYAdapter {
       throw new Error(`DockerAdapter: authDirPath must be an absolute path, got: ${config.authDirPath}`);
     }
     const normalizedAuthPath = path.resolve(config.authDirPath);
-    if (!normalizedAuthPath.includes(config.environmentId)) {
+    // Use path separator boundaries to prevent false positives (e.g., env-1 matching env-10)
+    const pathSegments = normalizedAuthPath.split(path.sep);
+    if (!pathSegments.includes(config.environmentId)) {
       throw new Error(
         `DockerAdapter: authDirPath must contain environmentId for isolation. ` +
-        `Expected path containing '${config.environmentId}', got: ${normalizedAuthPath}`
+        `Expected path segment '${config.environmentId}', got: ${normalizedAuthPath}`
       );
     }
 
