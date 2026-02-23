@@ -107,6 +107,9 @@ export function setupTerminalWebSocket(
       // セッション情報を取得してアダプター選択
       db.query.sessions.findFirst({
         where: eq(schema.sessions.id, originalSessionId),
+        columns: {
+          environment_id: true,
+        },
         with: {
           project: {
             columns: {
@@ -127,9 +130,11 @@ export function setupTerminalWebSocket(
         const exitHandler = connectionManager.hasHandler(terminalSessionId, 'exit');
         const errorHandler = connectionManager.hasHandler(terminalSessionId, 'error');
 
-        if (session.project?.environment_id) {
+        // セッション固有のenvironment_idを優先、次にプロジェクトのenvironment_id
+        const effectiveEnvId = session.environment_id || session.project?.environment_id;
+        if (effectiveEnvId) {
           // 新方式: AdapterFactory経由
-          environmentService.findById(session.project.environment_id).then(async (environment) => {
+          environmentService.findById(effectiveEnvId).then(async (environment) => {
             if (environment) {
               const adapter = AdapterFactory.getAdapter(environment);
 
@@ -225,6 +230,11 @@ export function setupTerminalWebSocket(
     try {
       const session = await db.query.sessions.findFirst({
         where: eq(schema.sessions.id, sessionId),
+        columns: {
+          id: true,
+          environment_id: true,
+          worktree_path: true,
+        },
         with: {
           project: {
             columns: {
@@ -250,17 +260,19 @@ export function setupTerminalWebSocket(
       let adapter: EnvironmentAdapter | null = null;
       let useLegacyPtyManager = true;
 
-      if (session.project?.environment_id) {
-        // 新方式: プロジェクトのenvironment_id で環境を取得
-        const environment = await environmentService.findById(session.project.environment_id);
+      // 環境IDを取得（セッション → プロジェクト → レガシー の優先順位）
+      const effectiveEnvId = session.environment_id || session.project?.environment_id;
+      if (effectiveEnvId) {
+        // 新方式: environment_id で環境を取得
+        const environment = await environmentService.findById(effectiveEnvId);
         if (!environment) {
           logger.error('Terminal WebSocket: Environment not found', {
             sessionId,
-            environmentId: session.project.environment_id,
+            environmentId: effectiveEnvId,
           });
           const errorMsg: TerminalErrorMessage = {
             type: 'error',
-            message: `Environment not found: ${session.project.environment_id}`,
+            message: `Environment not found: ${effectiveEnvId}`,
           };
           ws.send(JSON.stringify(errorMsg));
           ws.close(1008, 'Environment not found');
@@ -268,10 +280,11 @@ export function setupTerminalWebSocket(
         }
         adapter = AdapterFactory.getAdapter(environment);
         useLegacyPtyManager = false;
-        logger.info('Terminal WebSocket: Using adapter for environment', {
+        logger.info('Terminal WebSocket: Using session/project environment', {
           sessionId,
           environmentId: environment.id,
           environmentType: environment.type,
+          source: session.environment_id ? 'session' : 'project',
         });
       } else {
         // 従来方式: ptyManagerを直接使用
