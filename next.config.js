@@ -3,7 +3,7 @@ const webpack = require('webpack');
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Server-side only packages (native modules that can't be bundled)
-  serverExternalPackages: ['node-pty', 'better-sqlite3'],
+  serverExternalPackages: ['node-pty', 'better-sqlite3', 'dockerode', 'ssh2', 'cpu-features'],
   // Exclude frontend directory from build (used by Syncthing sync)
   typescript: {
     // Ignore build errors in excluded directories
@@ -42,6 +42,9 @@ const nextConfig = {
       const nativeExternals = {
         'node-pty': 'commonjs node-pty',
         'better-sqlite3': 'commonjs better-sqlite3',
+        'dockerode': 'commonjs dockerode',
+        'ssh2': 'commonjs ssh2',
+        'cpu-features': 'commonjs cpu-features',
       };
       if (typeof config.externals === 'function') {
         config.externals = [config.externals, nativeExternals];

@@ -19,12 +19,6 @@ importers:
       '@types/bcryptjs':
         specifier: ^2.4.6
         version: 2.4.6
-      '@types/dockerode':
-        specifier: ^4.0.1
-        version: 4.0.1
-      '@types/tar-fs':
-        specifier: ^2.0.4
-        version: 2.0.4
       '@xterm/addon-fit':
         specifier: ^0.10.0
         version: 0.10.0(@xterm/xterm@5.5.0)
@@ -119,6 +113,9 @@ importers:
       '@types/better-sqlite3':
         specifier: ^7.6.13
         version: 7.6.13
+      '@types/dockerode':
+        specifier: ^4.0.1
+        version: 4.0.1
       '@types/node':
         specifier: ^20
         version: 20.19.27
@@ -131,6 +128,9 @@ importers:
       '@types/react-syntax-highlighter':
         specifier: ^15.5.13
         version: 15.5.13
+      '@types/tar-fs':
+        specifier: ^2.0.4
+        version: 2.0.4
       '@types/ws':
         specifier: ^8.18.1
         version: 8.18.1
