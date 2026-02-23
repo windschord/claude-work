@@ -69,7 +69,7 @@ describe('DockerAdapter Git Operations', () => {
       environmentId: 'test-env',
       imageName: 'node',
       imageTag: '20-alpine',
-      authDirPath: '/tmp/test-auth',
+      authDirPath: '/tmp/test-auth/test-env',
     });
   });
 

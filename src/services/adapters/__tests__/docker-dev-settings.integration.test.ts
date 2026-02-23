@@ -103,7 +103,7 @@ describe('DockerAdapter - Developer Settings Integration', () => {
     environmentId: 'test-env-dev-settings',
     imageName: 'claude-code-sandboxed',
     imageTag: 'latest',
-    authDirPath: '/tmp/claude-test-dev-settings-' + process.pid,
+    authDirPath: '/tmp/claude-test-dev-settings-' + process.pid + '/test-env-dev-settings',
   };
 
   // Helper to create mock container with exec support
@@ -403,7 +403,7 @@ describe('DockerAdapter - Developer Settings Integration', () => {
       // Arrange: Adapter with non-existent directory
       const nonExistentConfig: DockerAdapterConfig = {
         ...defaultConfig,
-        authDirPath: '/tmp/non-existent-dir-' + Date.now(),
+        authDirPath: '/tmp/non-existent-dir-' + Date.now() + '/test-env-dev-settings',
       };
       const adapterNonExistent = new DockerAdapter(nonExistentConfig);
 
