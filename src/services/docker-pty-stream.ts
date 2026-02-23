@@ -49,9 +49,14 @@ export class DockerPTYStream extends EventEmitter implements IPty {
   }
 
   /**
-   * Sets the underlying stream from Dockerode
+   * Sets the underlying stream from Dockerode.
+   * If a stream is already set, removes its listeners before replacing it.
    */
   public setStream(stream: NodeJS.ReadWriteStream): void {
+    // Guard against multiple calls: clean up existing stream listeners
+    if (this._stream) {
+      this._stream.removeAllListeners();
+    }
     this._stream = stream;
     
     // Handle data
@@ -106,9 +111,12 @@ export class DockerPTYStream extends EventEmitter implements IPty {
   public resize(cols: number, rows: number): void {
     this.cols = cols;
     this.rows = rows;
-    
+
     const resizeOpts = { w: cols, h: rows };
-    
+
+    // Outer try-catch guards against synchronous exceptions (e.g., accessing
+    // a property on a destroyed container/exec object). The inner .catch()
+    // handles the asynchronous Promise rejection from the resize API call.
     try {
       if (this._isContainer && this._container) {
         this._container.resize(resizeOpts).catch(err => {
@@ -120,7 +128,8 @@ export class DockerPTYStream extends EventEmitter implements IPty {
         });
       }
     } catch (error) {
-      logger.warn('DockerPTYStream: Error calling resize', { error });
+      // Synchronous error (e.g., container/exec object already invalidated)
+      logger.warn('DockerPTYStream: Synchronous error calling resize', { error });
     }
   }
 
@@ -139,16 +148,17 @@ export class DockerPTYStream extends EventEmitter implements IPty {
     // but usually closing the stream is enough or the process handles it.
 
     if (this._isContainer && this._container) {
-       // Kill container first, then clean up stream.
-       // This order ensures the container is stopped even if stream cleanup fails.
-       // signal is usually a string like 'SIGTERM', Dockerode expects specific signals or just kill
+       // container.kill() is async but we intentionally do not await it here
+       // because kill() is a synchronous void method (IPty interface).
+       // The container stop is fire-and-forget; stream cleanup proceeds
+       // immediately without waiting for the container to fully terminate.
        this._container.kill({ signal: signal ?? 'SIGKILL' }).catch(err => {
          // Ignore if container is already stopped/gone
          logger.debug('DockerPTYStream: Failed to kill container (may be already stopped)', { error: err });
        });
     }
 
-    // Clean up stream after container kill to avoid orphaned containers.
+    // Clean up stream after initiating container kill.
     // For exec instances, closing the stream is the only way to terminate.
     if (this._stream) {
       // Remove all listeners to prevent stale callbacks after kill

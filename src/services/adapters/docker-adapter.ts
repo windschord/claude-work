@@ -156,11 +156,15 @@ export class DockerAdapter extends BasePTYAdapter {
       workingDirConfig = '/workspace';
     }
 
-    // Auth dirs
+    // Auth dirs (only mount if they exist, matching DockerPTYAdapter pattern)
     const claudeDir = path.join(this.config.authDirPath, 'claude');
     const claudeConfigDir = path.join(this.config.authDirPath, 'config', 'claude');
-    Binds.push(`${claudeDir}:/home/node/.claude`);
-    Binds.push(`${claudeConfigDir}:/home/node/.config/claude`);
+    if (fs.existsSync(claudeDir)) {
+      Binds.push(`${claudeDir}:/home/node/.claude`);
+    }
+    if (fs.existsSync(claudeConfigDir)) {
+      Binds.push(`${claudeConfigDir}:/home/node/.config/claude`);
+    }
 
     // Git auth (RO)
     const homeDir = os.homedir();

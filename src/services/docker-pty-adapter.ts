@@ -296,6 +296,8 @@ export class DockerPTYAdapter extends EventEmitter {
       throw new Error(`workingDir is not a directory: ${resolvedCwd}`);
     }
 
+    let container: Docker.Container | undefined;
+    let ptyProcess: DockerPTYStream | undefined;
     try {
       const { createOptions, containerName } = this.buildContainerOptions(resolvedCwd, options);
 
@@ -307,7 +309,7 @@ export class DockerPTYAdapter extends EventEmitter {
         resumeSessionId: options?.resumeSessionId,
       });
 
-      const container = await DockerClient.getInstance().createContainer(createOptions);
+      container = await DockerClient.getInstance().createContainer(createOptions);
 
       const stream = await container.attach({
         stream: true,
@@ -317,7 +319,7 @@ export class DockerPTYAdapter extends EventEmitter {
         hijack: true,
       });
 
-      const ptyProcess = new DockerPTYStream({
+      ptyProcess = new DockerPTYStream({
         cols: 80,
         rows: 24,
         isContainer: true,
@@ -408,13 +410,14 @@ export class DockerPTYAdapter extends EventEmitter {
           sessionId,
           promptLength: initialPrompt.length,
         });
+        const ptyRef = ptyProcess;
         setTimeout(() => {
           if (this.sessions.has(sessionId)) {
             logger.info('Sending initial prompt to Docker Claude Code', {
               sessionId,
               promptPreview: initialPrompt.substring(0, 100),
             });
-            ptyProcess.write(initialPrompt + '\n');
+            ptyRef.write(initialPrompt + '\n');
           } else {
             logger.warn('Docker session no longer exists, skipping initial prompt', { sessionId });
           }
@@ -423,7 +426,11 @@ export class DockerPTYAdapter extends EventEmitter {
 
       logger.info('Docker PTY session created', { sessionId });
     } catch (error) {
+      // Cleanup on failure: remove session entry, kill PTY, remove container
+      this.sessions.delete(sessionId);
       this.creating.delete(sessionId);
+      try { ptyProcess?.kill(); } catch { /* ignore */ }
+      try { await container?.remove({ force: true }); } catch { /* ignore */ }
 
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       logger.error('Failed to create Docker PTY session', { sessionId, error: errorMessage });
@@ -469,15 +476,15 @@ export class DockerPTYAdapter extends EventEmitter {
   /**
    * セッションを再起動
    */
-  restartSession(sessionId: string): void {
+  async restartSession(sessionId: string): Promise<void> {
     const session = this.sessions.get(sessionId);
     if (session) {
       const { workingDir, initialPrompt } = session;
       logger.info('Restarting Docker PTY session', { sessionId });
       this.destroySession(sessionId);
-      setTimeout(() => {
-        this.createSession(sessionId, workingDir, initialPrompt);
-      }, 500);
+      // Wait briefly for container cleanup before recreating
+      await new Promise(resolve => setTimeout(resolve, 500));
+      await this.createSession(sessionId, workingDir, initialPrompt);
     }
   }
 
