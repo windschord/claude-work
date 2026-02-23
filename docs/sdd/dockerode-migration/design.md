@@ -39,22 +39,29 @@ Dockerode インスタンスをシングルトンで管理するラッパー。
 ```typescript
 import Docker from 'dockerode';
 
-let instance: Docker | null = null;
+export class DockerClient {
+  private static instance: DockerClient | undefined;
+  private docker: Docker;
 
-export function getDockerClient(): Docker {
-  if (!instance) {
-    instance = new Docker({ socketPath: '/var/run/docker.sock' });
+  private constructor() {
+    this.docker = new Docker({ socketPath: '/var/run/docker.sock' });
   }
-  return instance;
-}
 
-// テスト用
-export function resetDockerClient(): void {
-  instance = null;
-}
+  public static getInstance(): DockerClient {
+    if (!DockerClient.instance) {
+      DockerClient.instance = new DockerClient();
+    }
+    return DockerClient.instance;
+  }
 
-export function setDockerClient(client: Docker): void {
-  instance = client;
+  // テスト用
+  public static resetForTesting(): void {
+    DockerClient.instance = undefined;
+  }
+
+  public getDockerInstance(): Docker {
+    return this.docker;
+  }
 }
 ```
 
@@ -179,31 +186,26 @@ export class DockerPTYStream extends EventEmitter implements IDockerPTY {
 |-------------|---------------|
 | `createVolume()` | `docker.createVolume({ Name })` |
 | `removeVolume()` | `docker.getVolume(name).remove()` |
-| Git操作（clone等） | `docker.createContainer()` + `container.start()` + `container.wait()` + stdout/stderr取得 |
+| Git操作（clone等） | `DockerClient.run()` (Dockerode の high-level API `docker.run()`) |
 
 Git操作の一時コンテナ実行パターン:
 
 ```typescript
-const container = await docker.createContainer({
-  Image: 'alpine/git',
-  Cmd: ['clone', url, '/repo'],
-  HostConfig: {
-    Binds: [`${volumeName}:/repo`],
-    AutoRemove: true,
-  },
-});
+const stdoutStream = new Writable({ write(chunk, encoding, callback) { stdout += chunk.toString(); callback(); } });
+const stderrStream = new Writable({ write(chunk, encoding, callback) { stderr += chunk.toString(); callback(); } });
 
-const stream = await container.attach({ stream: true, stdout: true, stderr: true });
-await container.start();
-
-// stdout/stderrの収集
-const output = await new Promise((resolve) => {
-  let data = '';
-  stream.on('data', (chunk) => { data += chunk.toString(); });
-  stream.on('end', () => resolve(data));
-});
-
-const result = await container.wait();
+const data = await DockerClient.getInstance().run(
+  'alpine/git',
+  ['clone', url, '/repo'],
+  [stdoutStream, stderrStream],
+  {
+    HostConfig: {
+      Binds: [`${volumeName}:/repo`],
+      AutoRemove: true,
+    },
+  }
+);
+// data.StatusCode === 0 で成功判定
 ```
 
 ### 6. API Routes 移行設計

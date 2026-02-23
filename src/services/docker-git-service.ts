@@ -286,6 +286,9 @@ export class DockerGitService implements GitOperations {
 
       if (options.timeoutMs && options.timeoutMs > 0) {
         const timeoutPromise = new Promise<never>((_resolve, reject) => {
+          // Note: On timeout, the container process continues running in the background.
+          // However, AutoRemove: true is set on the container, so it will be automatically
+          // cleaned up by Docker when the container process eventually exits.
           setTimeout(() => reject(new Error(`Container operation timed out after ${options.timeoutMs}ms`)), options.timeoutMs);
         });
         data = await Promise.race([runPromise, timeoutPromise]);

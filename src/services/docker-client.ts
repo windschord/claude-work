@@ -189,6 +189,19 @@ export class DockerClient {
     options: Docker.ContainerCreateOptions = {}
   ): Promise<{ StatusCode: number }> {
     const result = await this.docker.run(image, cmd, stream, options);
+
+    // docker.run() returns Promise<any> in Dockerode types.
+    // Validate that the result contains the expected StatusCode property.
+    if (
+      result == null ||
+      typeof result !== 'object' ||
+      typeof (result as Record<string, unknown>).StatusCode !== 'number'
+    ) {
+      throw new Error(
+        `Unexpected docker.run() result: expected object with numeric StatusCode, got ${JSON.stringify(result)}`
+      );
+    }
+
     return result as { StatusCode: number };
   }
 }

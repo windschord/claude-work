@@ -21,7 +21,7 @@
 - **受入基準**:
   - [ ] `dockerode` と `@types/dockerode` が devDependencies/dependencies に追加されている
   - [ ] DockerClient シングルトンが `/var/run/docker.sock` に接続する
-  - [ ] テスト用の `resetDockerClient()` / `setDockerClient()` が動作する
+  - [ ] テスト用の `DockerClient.resetForTesting()` が動作する
   - [ ] テストが通過する
 - **TDD手順**:
   1. docker-client.test.ts を作成し、シングルトン動作とリセットをテスト
@@ -87,7 +87,7 @@
 - **受入基準**:
   - [ ] `docker volume create` → `docker.createVolume()` に置き換わっている
   - [ ] `docker volume rm` → `volume.remove()` に置き換わっている
-  - [ ] Git操作用 `docker run` → `container.create()` + `start()` + `wait()` に置き換わっている
+  - [ ] Git操作用 `docker run` → `DockerClient.run()` (Dockerode の high-level API) に置き換わっている
   - [ ] リトライロジックが Dockerode エラー形式で正常動作する
   - [ ] 既存テストがDockerodeモックで通過する
 

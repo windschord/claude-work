@@ -113,4 +113,48 @@ describe('DockerClient', () => {
     expect(mockDockerInstance.getVolume).toHaveBeenCalledWith('vol1');
     expect(mockVolume.remove).toHaveBeenCalled();
   });
+
+  describe('run', () => {
+    it('should return StatusCode on successful run', async () => {
+      const { Writable } = await import('stream');
+      const stream = new Writable({ write(_chunk, _encoding, cb) { cb(); } });
+      mockDockerInstance.run.mockResolvedValue({ StatusCode: 0 });
+
+      const result = await dockerClient.run('alpine/git', ['clone', 'url'], stream);
+      expect(result).toEqual({ StatusCode: 0 });
+      expect(mockDockerInstance.run).toHaveBeenCalledWith(
+        'alpine/git', ['clone', 'url'], stream, {}
+      );
+    });
+
+    it('should throw when result is null', async () => {
+      const { Writable } = await import('stream');
+      const stream = new Writable({ write(_chunk, _encoding, cb) { cb(); } });
+      mockDockerInstance.run.mockResolvedValue(null);
+
+      await expect(dockerClient.run('alpine/git', ['ls'], stream)).rejects.toThrow(
+        'Unexpected docker.run() result'
+      );
+    });
+
+    it('should throw when result lacks StatusCode', async () => {
+      const { Writable } = await import('stream');
+      const stream = new Writable({ write(_chunk, _encoding, cb) { cb(); } });
+      mockDockerInstance.run.mockResolvedValue({ someOther: 'value' });
+
+      await expect(dockerClient.run('alpine/git', ['ls'], stream)).rejects.toThrow(
+        'Unexpected docker.run() result'
+      );
+    });
+
+    it('should throw when StatusCode is not a number', async () => {
+      const { Writable } = await import('stream');
+      const stream = new Writable({ write(_chunk, _encoding, cb) { cb(); } });
+      mockDockerInstance.run.mockResolvedValue({ StatusCode: 'zero' });
+
+      await expect(dockerClient.run('alpine/git', ['ls'], stream)).rejects.toThrow(
+        'Unexpected docker.run() result'
+      );
+    });
+  });
 });
