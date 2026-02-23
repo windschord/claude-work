@@ -5,18 +5,22 @@ services:
       dockerfile: Dockerfile
     container_name: claudework
     ports:
-      - "3001:3000"
+      - "${PORT:-3000}:3000"
     volumes:
       - ./data:/data
+      # Docker環境機能を使う場合はdocker.sockのマウントが必要。
+      # コンテナにホストDockerの操作権限を委譲するため、信頼できる環境でのみ使用すること。
       - /var/run/docker.sock:/var/run/docker.sock
+    # docker.sockへのアクセスに必要。ホストのdockerグループGIDを指定する。
+    # 確認方法: stat -c '%g' /var/run/docker.sock
     group_add:
-      - "${DOCKER_GID:-984}"
+      - "${DOCKER_GID:?DOCKER_GID must be set. Run: stat -c '%g' /var/run/docker.sock}"
     environment:
       - NODE_ENV=production
       - DATABASE_URL=file:/data/claudework.db
       - PORT=${PORT:-3000}
-      - LOG_LEVEL=${LOG_LEVEL:-debug}
-      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-*}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
       - ALLOWED_PROJECT_DIRS=${ALLOWED_PROJECT_DIRS:-}
       - DOCKER_ENABLED=true
     restart: unless-stopped

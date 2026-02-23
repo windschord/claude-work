@@ -200,8 +200,9 @@ export class DockerClient {
       typeof data !== 'object' ||
       typeof (data as Record<string, unknown>).StatusCode !== 'number'
     ) {
+      const resultStr = (() => { try { return JSON.stringify(result); } catch { return String(result); } })();
       throw new Error(
-        `Unexpected docker.run() result: expected object with numeric StatusCode, got ${JSON.stringify(result)}`
+        `Unexpected docker.run() result: expected object with numeric StatusCode, got ${resultStr}`
       );
     }
 
