@@ -182,6 +182,7 @@ export class DockerClient {
   }
 
   // Wrapper for running a command in a new container (like docker run)
+  // Dockerode's docker.run() returns [data, container] array where data has StatusCode.
   public async run(
     image: string,
     cmd: string[],
@@ -190,18 +191,20 @@ export class DockerClient {
   ): Promise<{ StatusCode: number }> {
     const result = await this.docker.run(image, cmd, stream, options);
 
-    // docker.run() returns Promise<any> in Dockerode types.
-    // Validate that the result contains the expected StatusCode property.
+    // docker.run() returns [{ StatusCode: number }, Container] array.
+    // Extract the status data from the first element.
+    const data = Array.isArray(result) ? result[0] : result;
+
     if (
-      result == null ||
-      typeof result !== 'object' ||
-      typeof (result as Record<string, unknown>).StatusCode !== 'number'
+      data == null ||
+      typeof data !== 'object' ||
+      typeof (data as Record<string, unknown>).StatusCode !== 'number'
     ) {
       throw new Error(
         `Unexpected docker.run() result: expected object with numeric StatusCode, got ${JSON.stringify(result)}`
       );
     }
 
-    return result as { StatusCode: number };
+    return data as { StatusCode: number };
   }
 }
