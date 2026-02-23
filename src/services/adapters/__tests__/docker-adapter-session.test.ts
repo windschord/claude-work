@@ -2,6 +2,36 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { DockerAdapter } from '../docker-adapter';
 import { EventEmitter } from 'events';
 
+// Mock node-pty (native module)
+vi.mock('node-pty', () => ({
+  spawn: vi.fn(),
+}));
+
+// Mock drizzle-orm
+vi.mock('drizzle-orm', () => ({
+  eq: vi.fn((col, val) => ({ column: col, value: val })),
+  and: vi.fn((...args: unknown[]) => ({ and: args })),
+  isNull: vi.fn((col) => ({ isNull: col })),
+}));
+
+// Mock scrollback-buffer
+vi.mock('@/services/scrollback-buffer', () => ({
+  scrollbackBuffer: {
+    append: vi.fn(),
+    clear: vi.fn(),
+  },
+}));
+
+// Mock logger
+vi.mock('@/lib/logger', () => ({
+  logger: {
+    info: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+    warn: vi.fn(),
+  },
+}));
+
 // Mocks
 const mockDockerClient = {
   createContainer: vi.fn(),
