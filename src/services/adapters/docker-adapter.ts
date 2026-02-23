@@ -8,7 +8,7 @@ import type { CreateSessionOptions, PTYExitInfo } from '../environment-adapter';
 import { ClaudeOptionsService } from '../claude-options-service';
 import { scrollbackBuffer } from '../scrollback-buffer';
 import { db, schema } from '@/lib/db';
-import { eq } from 'drizzle-orm';
+import { eq, isNotNull } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
 import { BasePTYAdapter } from './base-adapter';
 import { DeveloperSettingsService } from '@/services/developer-settings-service';
@@ -969,11 +969,8 @@ export class DockerAdapter extends BasePTYAdapter {
           container_id: schema.sessions.container_id,
         })
         .from(schema.sessions)
-        .where(
-          eq(schema.sessions.container_id, schema.sessions.container_id)
-        )
-        .all()
-        .filter((s) => s.container_id !== null);
+        .where(isNotNull(schema.sessions.container_id))
+        .all();
 
       for (const session of sessions) {
         if (!session.container_id) continue;
@@ -1395,10 +1392,14 @@ export class DockerAdapter extends BasePTYAdapter {
       // tarストリームを作成してコンテナにコピー (putArchive)
       // sshDirの内容を /home/node/.ssh に展開
       const tarStream = tar.pack(sshDir);
-      await container.putArchive(tarStream, {
-        path: '/home/node/.ssh',
-        noOverwriteDirNonDir: false, 
-      });
+      try {
+        await container.putArchive(tarStream, {
+          path: '/home/node/.ssh',
+          noOverwriteDirNonDir: false,
+        });
+      } finally {
+        tarStream.destroy();
+      }
       
       // 所有権の修正（putArchiveはrootで展開される可能性があるため）
       const execChown = await container.exec({

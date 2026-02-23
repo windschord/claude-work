@@ -47,7 +47,6 @@ const mockContainer = {
   stop: vi.fn(),
   kill: vi.fn(),
   wait: vi.fn(),
-  State: { Running: true }
 };
 
 const mockExec = {
@@ -193,25 +192,28 @@ describe('DockerAdapter Sessions', () => {
 
   describe('createExecSession (Shell Mode)', () => {
     it('should attach to existing container in shell mode', async () => {
-      // Mock getParentContainerName via DB or internal logic mock?
-      // Adapter's getParentContainerName checks sessions map.
-      // So we need a parent session first.
-      
-      // Create parent session
+      // Create parent session first (getParentContainerName checks sessions map)
       await adapter.createSession('parent-session', '/workspace');
-      
-      // Now create exec session (must end with -terminal to be linked to parent-session)
+
+      // Create exec session (must end with -terminal to be linked to parent-session)
       await adapter.createSession('parent-session-terminal', '/workspace', undefined, { shellMode: true });
 
       expect(mockContainer.exec).toHaveBeenCalledWith(expect.objectContaining({
         Cmd: ['bash'],
         Tty: true,
       }));
-      
+
       expect(mockExec.start).toHaveBeenCalledWith(expect.objectContaining({
         hijack: true,
         Tty: true,
       }));
+    });
+
+    it('should throw error when parent container not found in shell mode', async () => {
+      // No parent session created - orphan terminal should fail
+      await expect(
+        adapter.createSession('orphan-terminal', '/workspace', undefined, { shellMode: true })
+      ).rejects.toThrow();
     });
   });
 });
