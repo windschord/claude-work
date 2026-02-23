@@ -77,36 +77,6 @@ vi.mock('fs/promises', () => ({
   rm: vi.fn().mockResolvedValue(undefined),
 }));
 
-// child_processのモック
-const { mockExecFile, mockSpawn } = vi.hoisted(() => {
-  const mockExecFileImpl = vi.fn((cmd, args, opts, callback) => {
-    if (!callback) return;
-    process.nextTick(() => {
-      if (args[0] === 'inspect') {
-        callback(null, 'true\n', '');
-      } else if (args[0] === 'exec') {
-        // docker exec のモック（git config, chmod等）
-        callback(null, '', '');
-      } else {
-        callback(null, '', '');
-      }
-    });
-  });
-
-  return {
-    mockExecFile: mockExecFileImpl,
-    mockSpawn: vi.fn(),
-  };
-});
-
-vi.mock('child_process', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('child_process')>();
-  return {
-    ...actual,
-    execFile: mockExecFile,
-    spawn: mockSpawn,
-  };
-});
 
 // ==================== テストスイート ====================
 

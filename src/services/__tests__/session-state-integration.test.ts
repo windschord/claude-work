@@ -113,25 +113,6 @@ vi.mock('fs', async () => {
   }
 })
 
-// child_processモジュールをモック（execAsyncで使用）
-// Docker container検証をスキップするため、execは常に失敗するようにする
-vi.mock('child_process', async () => {
-  const actual = await vi.importActual<typeof import('child_process')>('child_process')
-  const mockExec = vi.fn((cmd, callback) => {
-    // Docker container検証は常に失敗
-    if (callback) {
-      callback(new Error('Command failed'), '', 'Error')
-    }
-  })
-  return {
-    default: {
-      ...actual,
-      exec: mockExec
-    },
-    ...actual,
-    exec: mockExec
-  }
-})
 
 describe('TASK-019: State Management Integration Tests', () => {
   let manager: PTYSessionManager
