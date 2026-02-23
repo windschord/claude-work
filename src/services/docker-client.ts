@@ -138,7 +138,11 @@ export class DockerClient {
           },
           (event: any) => {
             if (onProgress) {
-              onProgress(event);
+              try {
+                onProgress(event);
+              } catch (callbackError) {
+                logger.error('onProgress callback threw an exception', { callbackError });
+              }
             }
           }
         );
@@ -162,7 +166,11 @@ export class DockerClient {
           },
           (event: any) => {
             if (onProgress) {
-              onProgress(event);
+              try {
+                onProgress(event);
+              } catch (callbackError) {
+                logger.error('onProgress callback threw an exception', { callbackError });
+              }
             }
           }
         );

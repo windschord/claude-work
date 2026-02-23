@@ -281,7 +281,7 @@ describe('DockerGitService リトライロジック', () => {
       // CI環境のタイマー精度のばらつきを考慮して広めの範囲で検証
       const timeoutCalls = setTimeoutSpy.mock.calls
         .map((call) => call[1] as number)
-        .filter((ms) => ms >= 500); // 短いタイムアウトをフィルタリング
+        .filter((ms) => ms >= 500 && ms <= 10000); // バックオフ遅延のみ抽出（短いタイムアウトとコンテナタイムアウトを除外）
 
       expect(timeoutCalls.length).toBeGreaterThanOrEqual(2);
 

@@ -247,7 +247,7 @@ export class DockerGitService implements GitOperations {
   private async runContainer(
     image: string,
     cmd: string[],
-    options: { Binds?: string[]; Env?: string[]; WorkingDir?: string; Entrypoint?: string | string[] }
+    options: { Binds?: string[]; Env?: string[]; WorkingDir?: string; Entrypoint?: string | string[]; timeoutMs?: number }
   ): Promise<void> {
     let stdout = '';
     let stderr = '';
@@ -266,22 +266,33 @@ export class DockerGitService implements GitOperations {
       }
     });
 
+    const runPromise = DockerClient.getInstance().run(
+      image,
+      cmd,
+      [stdoutStream, stderrStream] as any,
+      {
+        HostConfig: {
+          Binds: options.Binds,
+          AutoRemove: true,
+        },
+        Env: options.Env,
+        WorkingDir: options.WorkingDir,
+        Entrypoint: options.Entrypoint,
+      }
+    );
+
     try {
-      const data = await DockerClient.getInstance().run(
-        image,
-        cmd,
-        [stdoutStream, stderrStream] as any,
-        {
-          HostConfig: {
-            Binds: options.Binds,
-            AutoRemove: true,
-          },
-          Env: options.Env,
-          WorkingDir: options.WorkingDir,
-          Entrypoint: options.Entrypoint,
-        }
-      );
-      
+      let data: { StatusCode: number };
+
+      if (options.timeoutMs && options.timeoutMs > 0) {
+        const timeoutPromise = new Promise<never>((_resolve, reject) => {
+          setTimeout(() => reject(new Error(`Container operation timed out after ${options.timeoutMs}ms`)), options.timeoutMs);
+        });
+        data = await Promise.race([runPromise, timeoutPromise]);
+      } else {
+        data = await runPromise;
+      }
+
       if (data.StatusCode !== 0) {
         const error = new Error(`Command failed with code ${data.StatusCode}`);
         (error as any).stdout = stdout;
@@ -289,13 +300,13 @@ export class DockerGitService implements GitOperations {
         throw error;
       }
     } catch (error: any) {
-        if (!error.stderr && stderr) {
-            error.stderr = stderr;
-        }
-        if (!error.stdout && stdout) {
-            error.stdout = stdout;
-        }
-        throw error;
+      if (!error.stderr && stderr) {
+        error.stderr = stderr;
+      }
+      if (!error.stdout && stdout) {
+        error.stdout = stdout;
+      }
+      throw error;
     }
   }
 
@@ -321,7 +332,7 @@ export class DockerGitService implements GitOperations {
       // 4. git clone実行（リトライ付き）
       const startTime = Date.now();
       await this.retryWithBackoff(
-        () => this.runContainer('alpine/git', ['clone', url, '/repo'], { Binds, Env }),
+        () => this.runContainer('alpine/git', ['clone', url, '/repo'], { Binds, Env, timeoutMs: timeout }),
         'clone',
       );
       const duration = Date.now() - startTime;
@@ -470,10 +481,11 @@ export class DockerGitService implements GitOperations {
       // 4. git clone実行（リトライ付き）
       const startTime = Date.now();
       await this.retryWithBackoff(
-        () => this.runContainer('alpine/git', ['-c', shellCommand], { 
-            Binds, 
-            Env, 
-            Entrypoint: 'sh' 
+        () => this.runContainer('alpine/git', ['-c', shellCommand], {
+            Binds,
+            Env,
+            Entrypoint: 'sh',
+            timeoutMs: timeout,
         }),
         'clone',
       );

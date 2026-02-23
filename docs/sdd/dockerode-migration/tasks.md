@@ -13,7 +13,7 @@
 
 ### TASK-001: Dockerode 依存追加と DockerClient 作成
 
-- **ステータス**: 未着手
+- **ステータス**: 完了
 - **対象ファイル**:
   - `package.json`: dockerode, @types/dockerode 追加
   - `src/services/docker-client.ts`: 新規作成
@@ -31,7 +31,7 @@
 
 ### TASK-002: EnvironmentService の Dockerode 移行
 
-- **ステータス**: 未着手
+- **ステータス**: 完了
 - **依存**: TASK-001
 - **対象ファイル**:
   - `src/services/environment-service.ts`: `spawnAsync('docker', ['info'])` → `docker.info()` 等
@@ -48,7 +48,7 @@
 
 ### TASK-003: DockerService の状態確認メソッド Dockerode 移行
 
-- **ステータス**: 未着手
+- **ステータス**: 完了
 - **依存**: TASK-001
 - **対象ファイル**:
   - `src/services/docker-service.ts`: isDockerAvailable, isDockerRunning, hasDockerPermission, imageExists
@@ -61,7 +61,7 @@
 
 ### TASK-004: DockerAdapter 非PTY操作の Dockerode 移行
 
-- **ステータス**: 未着手
+- **ステータス**: 完了
 - **依存**: TASK-001
 - **対象ファイル**:
   - `src/services/adapters/docker-adapter.ts`: inspect, stop, kill, wait, cp, exec(非PTY)
@@ -78,7 +78,7 @@
 
 ### TASK-005: DockerGitService の Dockerode 移行
 
-- **ステータス**: 未着手
+- **ステータス**: 完了
 - **依存**: TASK-001
 - **対象ファイル**:
   - `src/services/docker-git-service.ts`: volume create/rm, docker run
@@ -93,7 +93,7 @@
 
 ### TASK-006: pty-session-manager の Dockerode 移行
 
-- **ステータス**: 未着手
+- **ステータス**: 完了
 - **依存**: TASK-001
 - **対象ファイル**:
   - `src/services/pty-session-manager.ts`: docker inspect, docker rm
@@ -103,7 +103,7 @@
 
 ### TASK-007: エラーハンドリング共通モジュール作成
 
-- **ステータス**: 未着手
+- **ステータス**: 完了（DockerClient内でエラーハンドリング実装済み、独立モジュールは不要と判断）
 - **依存**: TASK-001
 - **対象ファイル**:
   - `src/services/docker-error-handler.ts`: 新規作成
@@ -116,7 +116,7 @@
 
 ### TASK-008: DockerService の buildImage Dockerode 移行
 
-- **ステータス**: 未着手
+- **ステータス**: 完了
 - **依存**: TASK-003
 - **対象ファイル**:
   - `src/services/docker-service.ts`: buildImage メソッド
@@ -128,7 +128,7 @@
 
 ### TASK-009: docker/images API の Dockerode 移行
 
-- **ステータス**: 未着手
+- **ステータス**: 完了
 - **依存**: TASK-001
 - **対象ファイル**:
   - `src/app/api/docker/images/route.ts`
@@ -138,7 +138,7 @@
 
 ### TASK-010: docker/image-build API の Dockerode 移行
 
-- **ステータス**: 未着手
+- **ステータス**: 完了
 - **依存**: TASK-008
 - **対象ファイル**:
   - `src/app/api/docker/image-build/route.ts`
@@ -148,7 +148,7 @@
 
 ### TASK-011: environments API のビルド処理 Dockerode 移行
 
-- **ステータス**: 未着手
+- **ステータス**: 完了
 - **依存**: TASK-008
 - **対象ファイル**:
   - `src/app/api/environments/route.ts`
