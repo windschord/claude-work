@@ -5,13 +5,13 @@ services:
       dockerfile: Dockerfile
     container_name: claudework
     ports:
-      - "${PORT:-3000}:3000"
+      - "${HOST_PORT:-3000}:3000"
     volumes:
       - ./data:/data
     environment:
       - NODE_ENV=production
       - DATABASE_URL=file:/data/claudework.db
-      - PORT=${PORT:-3000}
+      - PORT=3000
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
       - ALLOWED_PROJECT_DIRS=${ALLOWED_PROJECT_DIRS:-}
