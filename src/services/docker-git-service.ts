@@ -592,6 +592,7 @@ export class DockerGitService implements GitOperations {
     const script = `
       git diff --name-status main...HEAD | while IFS=$'\\t' read -r status file1 file2; do
         file="$file1"
+        oldfile="$file1"
         case "$status" in
           R*|C*) file="$file2" ;;
         esac
@@ -601,7 +602,7 @@ export class DockerGitService implements GitOperations {
 
         if [ "$status" != "A" ]; then
           printf '===OLD_CONTENT_B64===\\n'
-          git show main:"$file" 2>/dev/null | base64 || true
+          git show main:"$oldfile" 2>/dev/null | base64 || true
           printf '===OLD_CONTENT_B64_END===\\n'
         fi
 

@@ -4,8 +4,9 @@ import { db, schema } from '@/lib/db';
 import { NextRequest } from 'next/server';
 import type { Project, Session } from '@/lib/db';
 
-const { mockRebaseFromMain } = vi.hoisted(() => ({
+const { mockRebaseFromMain, mockDockerRebaseFromMain } = vi.hoisted(() => ({
   mockRebaseFromMain: vi.fn(),
+  mockDockerRebaseFromMain: vi.fn(),
 }));
 
 vi.mock('@/services/git-service', () => ({
@@ -16,7 +17,7 @@ vi.mock('@/services/git-service', () => ({
 
 vi.mock('@/services/docker-git-service', () => ({
   DockerGitService: class MockDockerGitService {
-    rebaseFromMain = vi.fn();
+    rebaseFromMain = mockDockerRebaseFromMain;
   },
 }));
 
@@ -90,6 +91,41 @@ describe('POST /api/sessions/[id]/rebase', () => {
     const data = await response.json();
     expect(data.success).toBe(false);
     expect(data.conflicts).toContain('README.md');
+  });
+
+  it('should use DockerGitService when clone_location is docker', async () => {
+    const dockerProject = db
+      .insert(schema.projects)
+      .values({
+        name: 'Docker Project',
+        path: '/tmp/docker-repo', clone_location: 'docker',
+      })
+      .returning()
+      .get();
+
+    const dockerSession = db
+      .insert(schema.sessions)
+      .values({
+        project_id: dockerProject.id,
+        name: 'Docker Session',
+        status: 'running',
+        worktree_path: '/tmp/docker-repo/.worktrees/docker-session',
+        branch_name: 'docker-branch',
+      })
+      .returning()
+      .get();
+
+    mockDockerRebaseFromMain.mockResolvedValue({ success: true });
+
+    const request = new NextRequest(
+      `http://localhost:3000/api/sessions/${dockerSession.id}/rebase`,
+      { method: 'POST' }
+    );
+
+    const response = await POST(request, { params: Promise.resolve({ id: dockerSession.id }) });
+    expect(response.status).toBe(200);
+    expect(mockDockerRebaseFromMain).toHaveBeenCalledWith(dockerProject.id, 'docker-session');
+    expect(mockRebaseFromMain).not.toHaveBeenCalled();
   });
 
   it('should return 404 for non-existent session', async () => {
