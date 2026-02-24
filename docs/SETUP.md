@@ -21,7 +21,7 @@ cp .env.example .env
 
 # 3. (Linux のみ) docker.sock のアクセス権を設定
 #    macOS / Docker Desktop では不要（docker.sock のパーミッションが異なるため）
-echo "DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)" >> .env
+grep -q '^DOCKER_GID=' .env && sed -i "s/^DOCKER_GID=.*/DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)/" .env || echo "DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)" >> .env
 
 # 4. 起動
 docker compose up -d
