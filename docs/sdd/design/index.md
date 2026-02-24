@@ -28,14 +28,14 @@
 | [Git操作](git-operations/design.md) | Gitワークツリー操作機能 |
 | [Issue #101 PTYリファクタリング](issue-101-pty-refactor/index.md) | PTYマネージャーのアーキテクチャ改善 |
 | [通知機能](notifications/design.md) | システム通知機能 |
-| [npx GitHub統合](npx-github/design.md) | GitHub Actionsでのnpx実行対応（廃止: Docker Compose移行済み） |
-| [npx Prisma修正](npx-prisma-fix/design.md) | Prisma実行時のnpx問題修正（廃止: Docker Compose移行済み） |
+| [npx GitHub統合](../archive/design-npx-github/design.md) | GitHub Actionsでのnpx実行対応（廃止: Docker Compose移行済み） |
+| [npx Prisma修正](../archive/design-npx-prisma-fix/design.md) | Prisma実行時のnpx問題修正（廃止: Docker Compose移行済み） |
 | [永続データ](persistent-data/design.md) | データ永続化設計 |
 | [Prisma 7アップグレード](prisma-7-upgrade/design.md) | Prisma v7へのアップグレード |
 | [レスポンシブUI](responsive/design.md) | レスポンシブデザイン対応 |
 | [設定UI改善](settings-ui/index.md) | 設定ページのナビゲーション改善 |
 | [サイドバーUI](sidebar-ui/design.md) | サイドバーUIの実装 |
-| [systemdセットアップ](systemd-setup/design.md) | systemdによるサービス化（廃止: Docker Compose移行済み） |
+| [systemdセットアップ](../archive/design-systemd-setup/design.md) | systemdによるサービス化（廃止: Docker Compose移行済み） |
 | [ターミナル機能](terminal/design.md) | ターミナル機能の実装 |
 
 ## ドキュメント構造

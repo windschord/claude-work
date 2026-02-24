@@ -30,13 +30,13 @@
 | [Git操作](git-operations/requirements.md) | Gitワークツリー操作機能 |
 | [Issue #101 PTYリファクタリング](issue-101-pty-refactor/index.md) | PTYマネージャーのアーキテクチャ改善 |
 | [通知機能](notifications/requirements.md) | システム通知機能 |
-| [npx GitHub統合](npx-github/requirements.md) | GitHub Actionsでのnpx実行対応（廃止: Docker Compose移行済み） |
-| [npx Prisma修正](npx-prisma-fix/requirements.md) | Prisma実行時のnpx問題修正（廃止: Docker Compose移行済み） |
+| [npx GitHub統合](../archive/requirements-npx-github/requirements.md) | GitHub Actionsでのnpx実行対応（廃止: Docker Compose移行済み） |
+| [npx Prisma修正](../archive/requirements-npx-prisma-fix/requirements.md) | Prisma実行時のnpx問題修正（廃止: Docker Compose移行済み） |
 | [Prisma 7アップグレード](prisma-7-upgrade/requirements.md) | Prisma v7へのアップグレード |
 | [レスポンシブUI](responsive/requirements.md) | レスポンシブデザイン対応 |
 | [設定UI改善](settings-ui/index.md) | 設定ページのナビゲーション改善 |
 | [サイドバーUI](sidebar-ui/requirements.md) | サイドバーUIの実装 |
-| [systemdセットアップ](systemd-setup/requirements.md) | systemdによるサービス化（廃止: Docker Compose移行済み） |
+| [systemdセットアップ](../archive/requirements-systemd-setup/requirements.md) | systemdによるサービス化（廃止: Docker Compose移行済み） |
 | [ターミナル機能](terminal/requirements.md) | ターミナル機能の実装 |
 
 ## ドキュメント構造
