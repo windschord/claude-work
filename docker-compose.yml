@@ -8,6 +8,10 @@ services:
       - "${HOST_PORT:-3000}:3000"
     volumes:
       - ./data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    env_file:
+      - path: .env
+        required: false
     environment:
       - NODE_ENV=production
       - DATABASE_URL=file:/data/claudework.db
@@ -15,6 +19,7 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
       - ALLOWED_PROJECT_DIRS=${ALLOWED_PROJECT_DIRS:-}
+      - GIT_REPOS_PATH=${GIT_REPOS_PATH:-}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "node", "scripts/healthcheck.js"]

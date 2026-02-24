@@ -8,9 +8,9 @@ ClaudeWork は、Claude Code セッションをブラウザから管理するた
 
 - **OS**: macOS, Linux
   - Windows は現在サポートされていません
-- **Node.js**: 18.x 以上
-- **Claude Code CLI**: インストール済みであること
-- **Docker Engine**: インストール済みであること（デフォルト実行環境として必須）
+- **Docker Engine + Docker Compose**: インストール済みであること（推奨デプロイ方法）
+- **Node.js**: 18.x 以上（npxで起動する場合）
+- **Claude Code CLI**: インストール済みであること（npxで起動する場合）
 
 ## 主な機能
 
@@ -36,17 +36,36 @@ ClaudeWork は、Claude Code セッションをブラウザから管理するた
 
 詳細は [SETUP.md](docs/SETUP.md) を参照してください。
 
-### クイックスタート
+### クイックスタート（Docker Compose: 推奨）
+
+```bash
+git clone https://github.com/windschord/claude-work.git
+cd claude-work
+docker compose up -d    # バックグラウンドで起動
+```
+
+ブラウザで `http://localhost:3000` を開きます。
+
+```bash
+docker compose logs -f   # ログ表示
+docker compose down      # 停止
+docker compose up -d --build  # 再ビルドして起動
+```
+
+ポートを変更する場合:
+
+```bash
+HOST_PORT=3001 docker compose up -d
+```
+
+### 代替: npxによる起動
+
+Docker Composeを使わない場合は、npxで直接起動できます。Node.js 18以上とClaude Code CLIが必要です。
 
 ```bash
 npx claude-work start   # バックグラウンドで起動
 npx claude-work stop    # 停止
-```
-
-または、フォアグラウンドで起動:
-
-```bash
-npx claude-work         # Ctrl+C で停止
+npx claude-work         # フォアグラウンドで起動（Ctrl+C で停止）
 ```
 
 #### GitHub リポジトリから直接実行
@@ -61,41 +80,23 @@ npx github:windschord/claude-work start
 npx github:windschord/claude-work#feature-branch start
 ```
 
-初回実行時は以下が自動的にセットアップされます:
-
-| ステップ | 処理内容 |
-|---------|---------|
-| 1. 環境設定 | `.env` がなければ `.env.example` からコピー |
-| 2. データベース | スキーマを自動適用 |
-| 3. データベース | DBがなければ自動作成 |
-| 4. ビルド | `.next` がなければ自動ビルド |
-| 5. 起動 | サーバー起動 (`http://localhost:3000`) |
-
-### CLI コマンド
-
-```bash
-npx claude-work          # フォアグラウンドで起動
-npx claude-work start    # バックグラウンドで起動（pm2経由）
-npx claude-work stop     # 停止
-npx claude-work restart  # 再起動
-npx claude-work status   # 状態確認
-npx claude-work logs     # ログ表示
-npx claude-work help     # ヘルプ
-```
-
 ### 環境変数のカスタマイズ
 
-デフォルト設定で動作しますが、必要に応じて `.env` ファイルを編集できます:
+Docker Compose環境では `.env` ファイルを作成して設定を変更できます:
 
 ```bash
-# データベースURL（変更不要）
-DATABASE_URL=file:../data/claudework.db
+# ホスト側ポート（Docker Compose用）
+HOST_PORT=3001
 
-# サーバーポート（オプション）
-PORT=3000
+# ログレベル
+LOG_LEVEL=info
 ```
 
-ブラウザで `http://localhost:3000` を開きます。
+npx環境では:
+
+```bash
+PORT=3001 npx claude-work
+```
 
 ## 環境変数
 

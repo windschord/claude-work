@@ -170,28 +170,30 @@ Configuration in `ecosystem.config.js` defines:
 
 ## Environment Setup
 
-### Running the Application
+### Running the Application (Production)
 
-**必ず `npx` を使用してください。** `npm run start` ではなく `npx claude-work` を使います。
+**Docker Compose（推奨）:**
 
 ```bash
-# バックグラウンドで起動（推奨）
-npx claude-work start
+docker compose up -d           # バックグラウンドで起動
+docker compose down            # 停止
+docker compose up -d --build   # 再ビルドして起動
+docker compose logs -f         # ログ表示
+```
 
-# 停止
-npx claude-work stop
+**npx（開発・代替）:**
 
-# その他のコマンド
-npx claude-work restart  # 再起動
-npx claude-work status   # 状態確認
-npx claude-work logs     # ログ表示
-npx claude-work help     # ヘルプ
-npx claude-work          # フォアグラウンドで起動（Ctrl+C で停止）
+```bash
+npx claude-work start   # バックグラウンドで起動
+npx claude-work stop    # 停止
+npx claude-work         # フォアグラウンドで起動（Ctrl+C で停止）
 ```
 
 ### Required Environment Variables
 
-Create `.env` file with:
+Docker Compose: `docker-compose.yml` で `DATABASE_URL` は自動設定される。`.env` ファイルでカスタマイズ可能。
+
+npx: Create `.env` file with:
 
 ```bash
 DATABASE_URL=file:../data/claudework.db
@@ -199,6 +201,7 @@ DATABASE_URL=file:../data/claudework.db
 
 ### Optional Variables
 
+- `HOST_PORT`: Host port for Docker Compose (default: 3000)
 - `PORT`: Server port (default: 3000)
 - `NODE_ENV`: development/production
 - `LOG_LEVEL`: winston log level (default: info)

@@ -1,4 +1,6 @@
-# systemd による ClaudeWork の自動起動設定
+# systemd による ClaudeWork の自動起動設定（代替デプロイ方法）
+
+> **推奨**: ClaudeWorkのデプロイには [Docker Compose](../README.md#クイックスタートdocker-compose-推奨) を推奨します。systemdによるデプロイはDocker Composeが利用できない環境向けの代替方法です。
 
 このドキュメントでは、Ubuntu で ClaudeWork を systemd サービスとして設定し、システム起動時に自動起動させる方法を説明します。
 

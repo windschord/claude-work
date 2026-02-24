@@ -13,6 +13,56 @@
 
 ---
 
+## Docker Compose によるデプロイ
+
+ClaudeWork自体をDocker Composeで起動する場合の注意事項です。
+
+### アーキテクチャ
+
+Docker Composeで起動すると、ClaudeWorkはコンテナ内で動作します。ホストの `/var/run/docker.sock` をマウントすることで、コンテナ内からホストのDockerデーモンを操作し、サンドボックスコンテナ（Claude Code実行用）を起動します。
+
+```text
+Host
++-- Docker Engine
+|   +-- claudework (アプリコンテナ)
+|   |   +-- Next.js Server
+|   |   +-- SQLite DB (/data/claudework.db)
+|   |   +-- Docker CLI -> /var/run/docker.sock
+|   |
+|   +-- claude-sandbox-xxx (サンドボックスコンテナ)
+|   +-- claude-sandbox-yyy (サンドボックスコンテナ)
+|
++-- /var/run/docker.sock (共有)
++-- ./data/ (バインドマウント)
+```
+
+### docker.sock マウントについて
+
+`/var/run/docker.sock` のマウントにより、ClaudeWorkコンテナはホストのDockerデーモンにアクセスできます。これはサンドボックスコンテナの起動・停止・管理に必要です。
+
+セキュリティ上の注意:
+- docker.sockへのアクセスはホストのroot権限に相当する操作が可能です
+- 信頼できる環境でのみ使用してください
+- 外部からClaudeWorkへのアクセスを制限する場合は `ALLOWED_ORIGINS` を設定してください
+
+### データ永続化
+
+`./data:/data` ボリュームマウントにより、以下のデータがホスト側に永続化されます:
+
+| パス | 内容 |
+|------|------|
+| `data/claudework.db` | SQLiteデータベース（プロジェクト、セッション等） |
+| `data/environments/` | Docker環境の認証情報 |
+| `data/repos/` | クローンしたリポジトリ |
+
+コンテナを再作成（`docker compose down && docker compose up -d`）してもデータは保持されます。
+
+### DBマイグレーション
+
+Docker Compose起動時、`docker-entrypoint.sh` がDBマイグレーションを自動実行します。バージョンが古いDBファイルがある場合も自動的に最新スキーマに更新されます。
+
+---
+
 ## Docker環境とは
 
 ClaudeWorkはDocker実行環境をデフォルトとして使用します。Docker環境では、Claude Codeが独立したコンテナ内で動作するため、以下のメリットがあります。
