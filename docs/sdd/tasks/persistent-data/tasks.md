@@ -145,5 +145,5 @@
 
 **受入基準:**
 - [ ] ENV_VARS.mdにDATA_DIRの説明がある
-- [ ] SYSTEMD_SETUP.md (削除済み) にDATA_DIR設定の説明がある
+- ~~[ ] SYSTEMD_SETUP.md にDATA_DIR設定の説明がある~~ (ファイル削除により不要)
 - [ ] textlintがパスする

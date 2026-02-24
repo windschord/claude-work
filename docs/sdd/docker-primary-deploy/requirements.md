@@ -33,7 +33,7 @@ ClaudeWorkのデプロイ方法として Docker Compose をプライマリ（推
 
 - REQ-007: README.md のクイックスタートセクションで、Docker Composeによるデプロイ方法が最初に記載されなければならない
 - REQ-008: SETUP.md で Docker Compose によるセットアップが最初のセクションとして記載されなければならない
-- REQ-009: SYSTEMD_SETUP.md の冒頭に「代替デプロイ方法」であることを明記しなければならない
+- REQ-009: ~~SYSTEMD_SETUP.md の冒頭に「代替デプロイ方法」であることを明記しなければならない~~ (systemdサポート廃止によりファイル削除済み)
 - REQ-010: CLAUDE.md のデプロイ手順において Docker Compose が最初に記載されなければならない
 - REQ-011: ENV_VARS.md に Docker Compose 環境固有の設定（ボリューム、ソケット等）の説明が含まれなければならない
 - REQ-012: DOCKER_ENVIRONMENT.md に Docker Compose 運用時の注意事項（docker.sockマウント、データ永続化等）が記載されなければならない
@@ -41,7 +41,7 @@ ClaudeWorkのデプロイ方法として Docker Compose をプライマリ（推
 ## 非機能要件
 
 - NFR-001: Docker Compose による起動は、`docker compose up -d` 実行後 60 秒以内にヘルスチェック（/api/health）が正常応答しなければならない
-- NFR-002: ドキュメントの更新において、既存のsystemdデプロイ方法の手順が失われてはならない（セカンドオプションとして残す）。npxによるデプロイは廃止済みのため対象外とする
+- NFR-002: ~~ドキュメントの更新において、既存のsystemdデプロイ方法の手順が失われてはならない（セカンドオプションとして残す）~~ systemd/npxサポートは廃止済み。Docker Composeが唯一のデプロイ方法として残る
 
 ## 影響範囲
 
@@ -55,7 +55,7 @@ ClaudeWorkのデプロイ方法として Docker Compose をプライマリ（推
 #### ドキュメント
 - `README.md`: クイックスタートのDocker優先化
 - `docs/SETUP.md`: セットアップ手順のDocker優先化
-- `docs/SYSTEMD_SETUP.md`: セカンドオプション表記への変更
+- ~~`docs/SYSTEMD_SETUP.md`: セカンドオプション表記への変更~~ (削除済み)
 - `CLAUDE.md`: デプロイ手順の優先順位更新
 - `docs/ENV_VARS.md`: Docker Compose環境変数の追記
 - `docs/DOCKER_ENVIRONMENT.md`: Docker Compose運用の注意事項追加
