@@ -167,13 +167,13 @@ describe('DockerGitService', () => {
 
   describe('getCommits', () => {
     it('コミット履歴をパースして返す', async () => {
-      const delimiter = '===COMMIT_DELIM===';
+      const NUL = '\0';
       const gitOutput = [
-        `abc123full${delimiter}abc123${delimiter}Initial commit${delimiter}Author${delimiter}2026-01-01T00:00:00+00:00`,
+        `abc123full${NUL}abc123${NUL}Initial commit${NUL}Author${NUL}2026-01-01T00:00:00+00:00`,
         ' 1\t0\tfile1.ts',
         ' 2\t1\tfile2.ts',
         '',
-        `def456full${delimiter}def456${delimiter}Second commit${delimiter}Author${delimiter}2026-01-02T00:00:00+00:00`,
+        `def456full${NUL}def456${NUL}Second commit${NUL}Author${NUL}2026-01-02T00:00:00+00:00`,
         ' 3\t0\tfile3.ts',
       ].join('\n');
 

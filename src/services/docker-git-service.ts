@@ -850,8 +850,8 @@ export class DockerGitService implements GitOperations {
     const Binds = [`${volumeName}:/repo`];
 
     try {
-      const delimiter = '===COMMIT_DELIM===';
-      const format = `%H${delimiter}%h${delimiter}%s${delimiter}%an${delimiter}%aI`;
+      // NUL character as delimiter to avoid collision with commit message content
+      const format = '%H%x00%h%x00%s%x00%an%x00%aI';
       const { stdout } = await this.runContainer('alpine/git', ['log', `--pretty=format:${format}`, '--numstat', 'main..HEAD'], {
         Binds,
         WorkingDir: worktreePath,
@@ -874,14 +874,16 @@ export class DockerGitService implements GitOperations {
       let filesChanged = 0;
 
       for (const line of lines) {
-        if (line.includes(delimiter)) {
+        if (line.includes('\0')) {
           if (currentCommit) {
             currentCommit.files_changed = filesChanged;
             commits.push(currentCommit);
             filesChanged = 0;
           }
 
-          const [hash, short_hash, message, author, date] = line.split(delimiter);
+          const parts = line.split('\0');
+          if (parts.length < 5) continue;
+          const [hash, short_hash, message, author, date] = parts;
           currentCommit = {
             hash,
             short_hash,
