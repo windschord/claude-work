@@ -63,6 +63,9 @@ if (version < 5) {
   migrateV4ToV5(db!);
   version = 5;
 }
+
+// バージョン番号を永続化（トランザクション末尾で実行）
+db!.exec(`PRAGMA user_version = ${version}`);
 ```
 
 ### 3.5 createInitialTables のバージョンコメント更新
@@ -96,6 +99,16 @@ if (version < 5) {
 | スキップテスト | "already at latest version (4)" → "(5)"に変更 |
 | べき等性テスト | user_version期待値を4→5に変更 |
 | データ保持テスト | user_version期待値の暗黙的更新（migrateDatabase結果がv5） |
+
+### 4.3 Docker Compose統合テスト（手動）
+
+Docker Compose環境での動作確認は手動テストで実施する。
+
+| テスト | 手順 | 期待結果 |
+|-------|------|---------|
+| 既存v4バグDBでの起動 | 1. Session.environment_id欠落のv4 DBを配置 2. `docker compose up` | マイグレーションが自動実行され、サーバーが正常起動する |
+| 新規DBでの起動 | 1. DBファイルを削除 2. `docker compose up` | v0→v5マイグレーションが実行され、サーバーが正常起動する |
+| マイグレーション済みDBでの再起動 | 1. v5 DBが存在する状態で `docker compose restart` | マイグレーションがスキップされ、サーバーが正常起動する |
 
 ## 5. べき等性の保証
 
