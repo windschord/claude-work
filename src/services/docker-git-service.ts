@@ -35,7 +35,8 @@ export class DockerGitService implements GitOperations {
   private static readonly BASE_DELAY_MS = 1000;
 
   private static readonly SAFE_NAME_PATTERN = /^[a-zA-Z0-9._-]+$/;
-  private static readonly SAFE_HASH_PATTERN = /^[a-fA-F0-9]+$/;
+  // SHA-1 short refs (4+) to full hash (40), with margin for SHA-256 (64)
+  private static readonly SAFE_HASH_PATTERN = /^[a-fA-F0-9]{4,64}$/;
 
   private validateSessionName(name: string): void {
     if (!DockerGitService.SAFE_NAME_PATTERN.test(name)) {
@@ -720,32 +721,35 @@ export class DockerGitService implements GitOperations {
       return { success: true };
     } catch (error: any) {
       // コンフリクトの確認
+      let conflicts: string[] = [];
       try {
         const { stdout: conflictFiles } = await this.runContainer('alpine/git', ['diff', '--name-only', '--diff-filter=U'], {
           Binds,
           WorkingDir: worktreePath,
         });
+        conflicts = conflictFiles.split('\n').filter(f => f.trim().length > 0);
+      } catch (conflictCheckError) {
+        logger.error('[docker] Failed to check rebase conflicts', { conflictCheckError, originalError: error });
+        throw error;
+      }
 
-        const conflicts = conflictFiles.split('\n').filter(f => f.trim().length > 0);
-
-        // Abort rebase
+      // Abort rebase in separate try/catch to preserve conflicts
+      try {
         await this.runContainer('alpine/git', ['rebase', '--abort'], {
           Binds,
           WorkingDir: worktreePath,
         });
-
-        if (conflicts.length > 0) {
-          logger.warn('[docker] Rebase conflicts detected', { sessionName, conflicts });
-          return { success: false, conflicts };
-        }
-
-        // No conflicts - different error, re-throw
-        throw error;
-      } catch (innerError) {
-        if (innerError === error) throw error;
-        logger.error('[docker] Failed to handle rebase failure', { innerError, originalError: error });
-        throw error;
+      } catch (abortError) {
+        logger.error('[docker] Failed to abort rebase', { abortError, sessionName });
       }
+
+      if (conflicts.length > 0) {
+        logger.warn('[docker] Rebase conflicts detected', { sessionName, conflicts });
+        return { success: false, conflicts };
+      }
+
+      // No conflicts - different error, re-throw
+      throw error;
     }
   }
 
@@ -797,32 +801,35 @@ export class DockerGitService implements GitOperations {
 
       return { success: true };
     } catch (error: any) {
-       // Check for conflicts
-       try {
-         const { stdout: conflictFiles } = await this.runContainer('alpine/git', ['diff', '--name-only', '--diff-filter=U'], {
-           Binds,
-           WorkingDir: '/repo',
-         });
- 
-         const conflicts = conflictFiles.split('\n').filter(f => f.trim().length > 0);
- 
-         if (conflicts.length > 0) {
-           // Abort merge (reset --merge)
-           await this.runContainer('alpine/git', ['reset', '--merge'], {
-             Binds,
-             WorkingDir: '/repo',
-           });
- 
-           logger.warn('[docker] Squash merge conflicts detected', { sessionName, conflicts });
-           return { success: false, conflicts };
-         }
-         
-         throw error;
-       } catch (innerError) {
-         if (innerError === error) throw error; // If same error rethrown
-         logger.error('[docker] Failed to handle merge failure', { innerError, originalError: error });
-         throw error;
-       }
+      // Check for conflicts
+      let conflicts: string[] = [];
+      try {
+        const { stdout: conflictFiles } = await this.runContainer('alpine/git', ['diff', '--name-only', '--diff-filter=U'], {
+          Binds,
+          WorkingDir: '/repo',
+        });
+        conflicts = conflictFiles.split('\n').filter(f => f.trim().length > 0);
+      } catch (conflictCheckError) {
+        logger.error('[docker] Failed to check merge conflicts', { conflictCheckError, originalError: error });
+        throw error;
+      }
+
+      // Abort merge in separate try/catch to preserve conflicts
+      if (conflicts.length > 0) {
+        try {
+          await this.runContainer('alpine/git', ['reset', '--merge'], {
+            Binds,
+            WorkingDir: '/repo',
+          });
+        } catch (resetError) {
+          logger.error('[docker] Failed to reset merge', { resetError, sessionName });
+        }
+
+        logger.warn('[docker] Squash merge conflicts detected', { sessionName, conflicts });
+        return { success: false, conflicts };
+      }
+
+      throw error;
     }
   }
 
@@ -896,7 +903,7 @@ export class DockerGitService implements GitOperations {
       return commits;
     } catch (error) {
       logger.error('[docker] Failed to get commits', { error, projectId, sessionName });
-      return [];
+      throw error;
     }
   }
 
