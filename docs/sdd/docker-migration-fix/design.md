@@ -5,7 +5,7 @@
 既存のマイグレーションフレームワーク（`PRAGMA user_version` + `safeAddColumn`）を拡張し、
 v4→v5マイグレーションを追加する。docker-entrypoint.shは変更不要（既に`migrateDatabase()`を呼び出している）。
 
-```
+```text
 docker-entrypoint.sh (変更なし)
   └─ node -e "cliUtils.migrateDatabase(dbPath)"
        └─ PRAGMA user_version チェック
