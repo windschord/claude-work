@@ -150,7 +150,7 @@ export function formatValidationError(result: SchemaValidationResult): string {
     }
   }
 
-  lines.push('', '修復方法:', '  $ docker compose restart (自動でdrizzle-kit pushが実行されます)', '');
+  lines.push('', '修復方法:', '  $ docker compose restart app (docker-entrypoint.shが自動でmigrateDatabase()を実行します)', '');
   return lines.join('\n');
 }
 ```

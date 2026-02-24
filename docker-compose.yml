@@ -23,6 +23,8 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
       - ALLOWED_PROJECT_DIRS=${ALLOWED_PROJECT_DIRS:-}
+      # docker.sockマウント環境ではDocker機能を有効化（レガシーUI互換）
+      - DOCKER_ENABLED=true
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "node", "scripts/healthcheck.js"]

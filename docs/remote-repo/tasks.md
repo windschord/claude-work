@@ -24,15 +24,17 @@
 
 ### フェーズ1: データベースとサービス層
 
-#### タスク1.1: Prismaスキーマ拡張
+#### タスク1.1: データベーススキーマ拡張
+
+> **注**: 本プロジェクトはDrizzle ORMに移行済みです。以下のPrisma参照は作成時のもので、実装時は`src/db/schema.ts`を使用してください。
 
 **説明**:
-- 対象ファイル: `prisma/schema.prisma`
+- 対象ファイル: `src/db/schema.ts`（~~`prisma/schema.prisma`~~ Drizzle ORM移行済み）
 - Projectモデルに`remote_url`フィールドを追加
 - マイグレーション実行
 
 **技術的文脈**:
-- Prismaを使用したSQLiteデータベース
+- Drizzle ORMを使用したSQLiteデータベース（~~Prisma~~ 移行済み）
 - `npm run db:push`でスキーマ適用
 
 **受入基準**:

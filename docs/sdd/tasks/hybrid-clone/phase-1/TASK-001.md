@@ -2,18 +2,19 @@
 
 ## 概要
 
+> **注**: 本タスクは完了済み。記載されているPrisma手順は作成時のもので、実装はDrizzle ORMで行われました。現在のスキーマは`src/db/schema.ts`を参照してください。
+
 **目的**: Projectテーブルに、cloneLocationとdockerVolumeIdフィールドを追加し、ハイブリッド設計を実現する基盤を整備する。
 
 **対象ファイル**:
-- `prisma/schema.prisma`
-- `src/db/schema.ts` (Drizzle ORMの場合)
+- ~~`prisma/schema.prisma`~~ → `src/db/schema.ts`（Drizzle ORM移行済み）
 
 **推定工数**: 30分
 
 ## 技術的文脈
 
-- **データベース**: SQLite (Prisma ORM使用)
-- **既存スキーマ**: `prisma/schema.prisma`に定義
+- **データベース**: SQLite（Drizzle ORM使用。以下のPrisma手順は履歴として残存）
+- **既存スキーマ**: ~~`prisma/schema.prisma`~~ → `src/db/schema.ts`に定義
 - **マイグレーション方針**: `npx drizzle-kit push` を使用（開発環境向け）
 - **既存プロジェクトの扱い**: cloneLocationが未定義の場合、'host'として扱う（アプリケーションレイヤーでフォールバック）
 
