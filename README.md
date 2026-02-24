@@ -8,9 +8,7 @@ ClaudeWork は、Claude Code セッションをブラウザから管理するた
 
 - **OS**: macOS, Linux
   - Windows は現在サポートされていません
-- **Docker Engine + Docker Compose**: インストール済みであること（推奨デプロイ方法）
-- **Node.js**: 18.x 以上（npxで起動する場合）
-- **Claude Code CLI**: インストール済みであること（npxで起動する場合）
+- **Docker Engine + Docker Compose**: インストール済みであること
 
 ## 主な機能
 
@@ -36,7 +34,7 @@ ClaudeWork は、Claude Code セッションをブラウザから管理するた
 
 詳細は [SETUP.md](docs/SETUP.md) を参照してください。
 
-### クイックスタート（Docker Compose: 推奨）
+### クイックスタート
 
 ```bash
 git clone https://github.com/windschord/claude-work.git
@@ -58,44 +56,16 @@ docker compose up -d --build  # 再ビルドして起動
 HOST_PORT=3001 docker compose up -d
 ```
 
-### 代替: npxによる起動
-
-Docker Composeを使わない場合は、npxで直接起動できます。Node.js 18以上とClaude Code CLIが必要です。
-
-```bash
-npx claude-work start   # バックグラウンドで起動
-npx claude-work stop    # 停止
-npx claude-work         # フォアグラウンドで起動（Ctrl+C で停止）
-```
-
-#### GitHub リポジトリから直接実行
-
-npm registry に公開前のバージョンや、特定のブランチを試す場合:
-
-```bash
-# main ブランチから実行
-npx github:windschord/claude-work start
-
-# 特定のブランチから実行
-npx github:windschord/claude-work#feature-branch start
-```
-
 ### 環境変数のカスタマイズ
 
-Docker Compose環境では `.env` ファイルを作成して設定を変更できます:
+`.env` ファイルを作成して設定を変更できます:
 
 ```bash
-# ホスト側ポート（Docker Compose用）
+# ホスト側ポート
 HOST_PORT=3001
 
 # ログレベル
 LOG_LEVEL=info
-```
-
-npx環境では:
-
-```bash
-PORT=3001 npx claude-work
 ```
 
 ## 環境変数
@@ -261,7 +231,6 @@ Apache License 2.0 - 詳細は [LICENSE](LICENSE) を参照してください。
 - **[API仕様](docs/API.md)** - REST API / WebSocket API仕様
 - **[GitHub PAT設定ガイド](docs/GITHUB_PAT.md)** - Docker環境でのHTTPS認証設定
 - **[Docker環境詳細設定ガイド](docs/DOCKER_ENVIRONMENT.md)** - 権限スキップ・ポートマッピング・ボリュームマウントの設定
-- **[Systemdセットアップ](docs/SYSTEMD_SETUP.md)** - systemdによるサービス化
 
 ### 開発者向けドキュメント
 - **[Software Design Documents](docs/sdd/)** - ソフトウェア設計ドキュメント

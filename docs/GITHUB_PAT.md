@@ -82,7 +82,7 @@ ClaudeWorkの全機能（リポジトリクローン、PR作成、GitHub Actions
 
 ## ClaudeWorkでの設定
 
-1. ClaudeWorkを起動: `npx claude-work start`
+1. ClaudeWorkを起動: `docker compose up -d`
 2. ブラウザで http://localhost:3000 を開く
 3. Settings → GitHub PAT に移動
 4. "新しいPATを追加" をクリック

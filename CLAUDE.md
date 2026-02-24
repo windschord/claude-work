@@ -172,8 +172,6 @@ Configuration in `ecosystem.config.js` defines:
 
 ### Running the Application (Production)
 
-**Docker Compose（推奨）:**
-
 ```bash
 docker compose up -d           # バックグラウンドで起動
 docker compose down            # 停止
@@ -181,23 +179,9 @@ docker compose up -d --build   # 再ビルドして起動
 docker compose logs -f         # ログ表示
 ```
 
-**npx（開発・代替）:**
-
-```bash
-npx claude-work start   # バックグラウンドで起動
-npx claude-work stop    # 停止
-npx claude-work         # フォアグラウンドで起動（Ctrl+C で停止）
-```
-
 ### Required Environment Variables
 
-Docker Compose: `docker-compose.yml` で `DATABASE_URL` は自動設定される。`.env` ファイルでカスタマイズ可能。
-
-npx: Create `.env` file with:
-
-```bash
-DATABASE_URL=file:../data/claudework.db
-```
+`docker-compose.yml` で `DATABASE_URL` は自動設定される。`.env` ファイルでカスタマイズ可能。
 
 ### Optional Variables
 
@@ -347,7 +331,6 @@ For detailed troubleshooting information, see `docs/sdd/troubleshooting/`.
 │   ├── SETUP.md
 │   ├── ENV_VARS.md
 │   ├── API.md
-│   ├── SYSTEMD_SETUP.md
 │   ├── GITHUB_PAT.md
 │   ├── design.md
 │   ├── requirements.md

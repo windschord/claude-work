@@ -79,7 +79,7 @@ Docker環境は Settings → Environments から管理します。
 
 ### 新しいDocker環境を作成する
 
-1. ClaudeWorkを起動: `npx claude-work start`
+1. ClaudeWorkを起動: `docker compose up -d`
 2. ブラウザで http://localhost:3000 を開く
 3. Settings → Environments に移動
 4. "新しい環境を作成" をクリック
