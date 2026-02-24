@@ -16,11 +16,14 @@ Docker Composeを使用すると、環境構築なしで起動できます。
 git clone https://github.com/windschord/claude-work.git
 cd claude-work
 
-# 2. (Linux のみ) docker.sock のアクセス権を設定
-#    macOS / Docker Desktop では不要（docker.sock のパーミッションが異なるため）
-echo "DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)" > .env
+# 2. .env を作成
+cp .env.example .env
 
-# 3. 起動
+# 3. (Linux のみ) docker.sock のアクセス権を設定
+#    macOS / Docker Desktop では不要（docker.sock のパーミッションが異なるため）
+echo "DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)" >> .env
+
+# 4. 起動
 docker compose up -d
 ```
 
@@ -28,13 +31,7 @@ docker compose up -d
 
 ### 設定のカスタマイズ
 
-`.env.example` を参考に `.env` を編集して設定を変更できます:
-
-```bash
-# .env が未作成の場合はコピーして作成
-cp -n .env.example .env
-# 必要に応じて編集（DOCKER_GID が設定済みの場合は上書きしないこと）
-```
+セットアップ手順で作成した `.env` を編集して設定を変更できます（`.env.example` を参考）:
 
 主な設定:
 
@@ -161,8 +158,8 @@ stat -c '%g' /var/run/docker.sock
 # .env に DOCKER_GID を設定
 echo "DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)" >> .env
 
-# コンテナを再起動
-docker compose up -d
+# コンテナを再作成して反映
+docker compose up -d --force-recreate
 ```
 
 `docker-compose.yml` の `group_add` がこの GID を使用して、`node` ユーザーに docker.sock へのアクセス権を付与します。

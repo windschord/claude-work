@@ -323,8 +323,8 @@ describe('syncSchema', () => {
 > **注**: 現在はDocker Composeが唯一のデプロイ方法です。以下にDocker Composeおよび歴史的参考としてSystemdでのログ確認方法を示します。
 
 ```bash
-# Docker Composeログでスキーマ同期を確認
-docker compose logs -f claude-work | grep "スキーマ同期"
+# Docker Composeログでスキーマ同期を確認（サービス名: app）
+docker compose logs -f app | grep "スキーマ同期"
 
 # 歴史的参考（Systemd環境）:
 # journalctl -u claude-work -f | grep "スキーマ同期"
