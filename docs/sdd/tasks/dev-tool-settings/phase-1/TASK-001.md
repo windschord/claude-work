@@ -53,9 +53,7 @@
 - [x] `prisma/schema.prisma` に `SettingScope` enum が追加されている
 - [x] `@@unique([scope, project_id])` 制約が DeveloperSettings に設定されている
 - [x] `name` フィールドに `@unique` 制約が SshKey に設定されている
-- [x] スキーマのフォーマットエラーが0件である
-- [x] スキーマのバリデーションエラーが0件である
-- [x] `npm run db:push` でスキーマがデータベースに適用できる
+- [x] `npm run db:push` でスキーマがデータベースに適用できる（フォーマット・バリデーションエラーなし）
 - [x] スキーマ定義が正しく反映されている
 
 ---
@@ -69,8 +67,7 @@
    - `SettingScope` enum
    - `DeveloperSettings` モデル
    - `SshKey` モデル
-3. フォーマット確認
-4. バリデーション確認
+3. `npm run db:push` でスキーマの構文・整合性を確認
 
 ### ステップ2: データベースに反映
 
@@ -142,15 +139,11 @@ model SshKey {
 
 ## テスト方法
 
-### スキーマバリデーション
+### スキーマ適用とバリデーション
 ```bash
 npm run db:push
 ```
-
-### データベース適用確認
-```bash
-npm run db:push
-```
+上記コマンドでスキーマの構文チェック・バリデーション・データベース適用がまとめて実行される。
 
 ---
 

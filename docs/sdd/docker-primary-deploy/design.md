@@ -89,6 +89,8 @@ FROM node:20-slim AS runner
 # Docker CLI のインストール（暫定: Dockerode移行で削除予定）
 # コンテナからホストのDockerデーモンを操作するために必要
 # NOTE: docker.sockへのアクセス権限はdocker-compose.ymlのgroup_addで付与する
+# DockerfileではなくCompose側で対応する理由: ホストのdockerグループGIDは環境ごとに異なるため、
+# ビルド時に固定できない。group_addによるランタイム指定が適切。
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
        ca-certificates \
