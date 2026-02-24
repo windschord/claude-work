@@ -151,6 +151,18 @@ describe('DockerGitService', () => {
         dockerGitService.getCommits('proj-1', '..')
       ).rejects.toThrow('Invalid session name');
     });
+
+    it('不正なセッション名でcreateWorktreeがエラーになる', async () => {
+      await expect(
+        dockerGitService.createWorktree({ projectId: 'proj-1', sessionName: '../escape', branchName: 'test' })
+      ).rejects.toThrow('Invalid session name');
+    });
+
+    it('不正なセッション名でdeleteWorktreeがエラーになる', async () => {
+      await expect(
+        dockerGitService.deleteWorktree('proj-1', 'session;rm -rf /')
+      ).rejects.toThrow('Invalid session name');
+    });
   });
 
   describe('getCommits', () => {
@@ -276,6 +288,31 @@ describe('DockerGitService', () => {
       expect(result.files[0].deletions).toBe(2);
       expect(result.totalAdditions).toBe(5);
       expect(result.totalDeletions).toBe(2);
+    });
+
+    it('rename/copyステータスのファイルをmodifiedとしてパースする', async () => {
+      const newContentB64 = Buffer.from('renamed content').toString('base64');
+      const gitOutput = [
+        '===FILE_START===',
+        'PATH:src/new-name.ts',
+        'STATUS:R100',
+        '===OLD_CONTENT_B64===',
+        Buffer.from('original content').toString('base64'),
+        '===OLD_CONTENT_B64_END===',
+        '===NEW_CONTENT_B64===',
+        newContentB64,
+        '===NEW_CONTENT_B64_END===',
+        '===NUMSTAT_START===',
+        '0\t0\tsrc/new-name.ts',
+        '===FILE_END===',
+      ].join('\n');
+
+      mockDockerClient.run = mockRunWithStdout(gitOutput);
+
+      const result = await dockerGitService.getDiffDetails('proj-1', 'test-session');
+      expect(result.files).toHaveLength(1);
+      expect(result.files[0].path).toBe('src/new-name.ts');
+      expect(result.files[0].status).toBe('modified');
     });
   });
 

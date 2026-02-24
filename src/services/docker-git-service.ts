@@ -395,6 +395,7 @@ export class DockerGitService implements GitOperations {
    */
   async createWorktree(options: GitWorktreeOptions): Promise<GitOperationResult> {
     const { projectId, sessionName, branchName } = options;
+    this.validateSessionName(sessionName);
     const volumeName = this.getVolumeName(projectId);
 
     try {
@@ -438,6 +439,7 @@ export class DockerGitService implements GitOperations {
    * worktreeを削除する
    */
   async deleteWorktree(projectId: string, sessionName: string): Promise<GitOperationResult> {
+    this.validateSessionName(sessionName);
     const volumeName = this.getVolumeName(projectId);
 
     try {
@@ -588,7 +590,11 @@ export class DockerGitService implements GitOperations {
     const Binds = [`${volumeName}:/repo`];
 
     const script = `
-      git diff --name-status main...HEAD | while IFS=$'\\t' read -r status file; do
+      git diff --name-status main...HEAD | while IFS=$'\\t' read -r status file1 file2; do
+        file="$file1"
+        case "$status" in
+          R*|C*) file="$file2" ;;
+        esac
         printf '===FILE_START===\\n'
         printf 'PATH:%s\\n' "$file"
         printf 'STATUS:%s\\n' "$status"
@@ -645,7 +651,7 @@ export class DockerGitService implements GitOperations {
         let status: 'added' | 'modified' | 'deleted';
 
         if (statusCode === 'A') status = 'added';
-        else if (statusCode === 'M') status = 'modified';
+        else if (statusCode === 'M' || statusCode.startsWith('R') || statusCode.startsWith('C')) status = 'modified';
         else if (statusCode === 'D') status = 'deleted';
         else continue;
 
