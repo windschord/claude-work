@@ -198,7 +198,7 @@ const CURRENT_DB_VERSION = 3;
 
 - **目標**: 30秒以内に完了
 - **実測値**: drizzle-kit pushは通常5-10秒程度（7テーブル程度の場合）
-- **監視**: spawnSyncにタイムアウトは設定しない（Systemdのタイムアウト90秒で十分）
+- **監視**: spawnSyncにタイムアウトは設定しない（Docker Composeのコンテナ起動タイムアウトで十分）
 
 ### 保守性要件（NFR-002）
 
@@ -318,11 +318,16 @@ describe('syncSchema', () => {
 | INFO | `✅ スキーマ同期完了` | 成功時 |
 | ERROR | `❌ スキーマ同期失敗: ${error}` | 失敗時 |
 
-### Systemdログ統合
+### ログ確認
+
+> **注**: 現在はDocker Composeが唯一のデプロイ方法です。以下にDocker Composeおよび歴史的参考としてSystemdでのログ確認方法を示します。
 
 ```bash
-# Systemdログでスキーマ同期を確認
-journalctl -u claude-work -f | grep "スキーマ同期"
+# Docker Composeログでスキーマ同期を確認
+docker compose logs -f claude-work | grep "スキーマ同期"
+
+# 歴史的参考（Systemd環境）:
+# journalctl -u claude-work -f | grep "スキーマ同期"
 ```
 
 ## 参照

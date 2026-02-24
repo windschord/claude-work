@@ -4,7 +4,7 @@
 
 **関連要件**: [US-003: システムヘルスチェックの提供](../../../requirements/migration-error-prevention/stories/US-003.md) @../../../requirements/migration-error-prevention/stories/US-003.md
 
-`/api/health`エンドポイントは、外部監視ツールやSystemdの`ExecStartPost`から呼び出され、データベーススキーマの整合性を含むシステムのヘルスステータスを返します。
+`/api/health`エンドポイントは、外部監視ツールやDocker Composeのヘルスチェック機能から呼び出され、データベーススキーマの整合性を含むシステムのヘルスステータスを返します。
 
 ## エンドポイント仕様
 
@@ -211,7 +211,13 @@ export async function GET() {
 
 ## 統合ポイント
 
-### Systemd ExecStartPost
+### Docker Compose ヘルスチェック
+
+> **注**: 現在はDocker Composeが唯一のデプロイ方法です。以下のsystemd記述は歴史的な参考情報として残しています。
+
+Docker Composeでは`docker-entrypoint.sh`内でマイグレーションが自動実行されます。ヘルスチェックはDocker Composeの`healthcheck`ディレクティブで設定できます。
+
+**歴史的参考（Systemd ExecStartPost）**:
 
 **ファイル**: `/etc/systemd/system/claude-work.service`
 
