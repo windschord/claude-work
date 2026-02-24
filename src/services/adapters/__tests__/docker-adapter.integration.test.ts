@@ -24,7 +24,7 @@ describe('DockerAdapter Integration Tests', () => {
     environmentId: 'test-env-integration',
     imageName: 'node',
     imageTag: 'alpine',
-    authDirPath: '/tmp/claude-test-integration',
+    authDirPath: '/tmp/claude-test-integration/test-env-integration',
   };
 
   beforeAll(async () => {

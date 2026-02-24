@@ -115,16 +115,26 @@ describe('DockerClient', () => {
   });
 
   describe('run', () => {
-    it('should return StatusCode on successful run', async () => {
+    it('should return StatusCode from array result (Dockerode format)', async () => {
       const { Writable } = await import('stream');
       const stream = new Writable({ write(_chunk, _encoding, cb) { cb(); } });
-      mockDockerInstance.run.mockResolvedValue({ StatusCode: 0 });
+      // Dockerode returns [{ StatusCode }, container] array
+      mockDockerInstance.run.mockResolvedValue([{ StatusCode: 0 }, { id: 'container-id' }]);
 
       const result = await dockerClient.run('alpine/git', ['clone', 'url'], stream);
       expect(result).toEqual({ StatusCode: 0 });
       expect(mockDockerInstance.run).toHaveBeenCalledWith(
         'alpine/git', ['clone', 'url'], stream, {}
       );
+    });
+
+    it('should return StatusCode from plain object result', async () => {
+      const { Writable } = await import('stream');
+      const stream = new Writable({ write(_chunk, _encoding, cb) { cb(); } });
+      mockDockerInstance.run.mockResolvedValue({ StatusCode: 0 });
+
+      const result = await dockerClient.run('alpine/git', ['clone', 'url'], stream);
+      expect(result).toEqual({ StatusCode: 0 });
     });
 
     it('should throw when result is null', async () => {
@@ -151,6 +161,16 @@ describe('DockerClient', () => {
       const { Writable } = await import('stream');
       const stream = new Writable({ write(_chunk, _encoding, cb) { cb(); } });
       mockDockerInstance.run.mockResolvedValue({ StatusCode: 'zero' });
+
+      await expect(dockerClient.run('alpine/git', ['ls'], stream)).rejects.toThrow(
+        'Unexpected docker.run() result'
+      );
+    });
+
+    it('should throw when array result first element lacks StatusCode', async () => {
+      const { Writable } = await import('stream');
+      const stream = new Writable({ write(_chunk, _encoding, cb) { cb(); } });
+      mockDockerInstance.run.mockResolvedValue([{ other: 'data' }, { id: 'container' }]);
 
       await expect(dockerClient.run('alpine/git', ['ls'], stream)).rejects.toThrow(
         'Unexpected docker.run() result'

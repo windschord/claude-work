@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db, schema } from '@/lib/db';
 import { eq } from 'drizzle-orm';
 import { GitService } from '@/services/git-service';
+import { DockerGitService } from '@/services/docker-git-service';
 import { logger } from '@/lib/logger';
 import { basename } from 'path';
 
@@ -58,8 +59,15 @@ export async function GET(
     }
 
     const sessionName = basename(targetSession.worktree_path);
-    const gitService = new GitService(targetSession.project.path, logger);
-    const diff = gitService.getDiffDetails(sessionName);
+
+    let diff;
+    if (targetSession.project.clone_location === 'docker') {
+      const dockerGitService = new DockerGitService();
+      diff = await dockerGitService.getDiffDetails(targetSession.project.id, sessionName);
+    } else {
+      const gitService = new GitService(targetSession.project.path, logger);
+      diff = gitService.getDiffDetails(sessionName);
+    }
 
     logger.info('Got diff for session', { id });
     return NextResponse.json({ diff });

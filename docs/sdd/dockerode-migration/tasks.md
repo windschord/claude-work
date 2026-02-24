@@ -159,7 +159,7 @@
 
 ### TASK-012: DockerPTYStream アダプタ実装
 
-- **ステータス**: 未着手
+- **ステータス**: 完了（PR #147）
 - **依存**: TASK-001
 - **対象ファイル**:
   - `src/services/docker-pty-stream.ts`: 新規作成
@@ -173,7 +173,7 @@
 
 ### TASK-013: DockerAdapter の docker run -it 移行
 
-- **ステータス**: 未着手
+- **ステータス**: 完了（PR #147）
 - **依存**: TASK-012, TASK-004
 - **対象ファイル**:
   - `src/services/adapters/docker-adapter.ts`: spawnClaudePTY メソッド
@@ -186,7 +186,7 @@
 
 ### TASK-014: DockerAdapter の docker exec -it 移行
 
-- **ステータス**: 未着手
+- **ステータス**: 完了（PR #147）
 - **依存**: TASK-012, TASK-004
 - **対象ファイル**:
   - `src/services/adapters/docker-adapter.ts`: spawnShellPTY メソッド
@@ -196,7 +196,7 @@
 
 ### TASK-015: DockerPTYAdapter の Dockerode 移行
 
-- **ステータス**: 未着手
+- **ステータス**: 完了（PR #147）
 - **依存**: TASK-012
 - **対象ファイル**:
   - `src/services/docker-pty-adapter.ts`
@@ -207,7 +207,7 @@
 
 ### TASK-016: PTY統合テスト（XTerm.js互換性検証）
 
-- **ステータス**: 未着手
+- **ステータス**: 完了（PR #147のCIで検証済み）
 - **依存**: TASK-013, TASK-014, TASK-015
 - **対象ファイル**:
   - インテグレーションテスト
@@ -221,7 +221,7 @@
 
 ### TASK-017: Docker CLI 関連ユーティリティ削除
 
-- **ステータス**: 未着手
+- **ステータス**: 完了（PR #148）
 - **依存**: TASK-016
 - **対象ファイル**:
   - 各サービスファイルから未使用の child_process import 削除
@@ -232,7 +232,7 @@
 
 ### TASK-018: Dockerfile から Docker CLI インストール削除
 
-- **ステータス**: 未着手
+- **ステータス**: 完了（Dockerfileにdocker-ce-cliは元々インストールされていない）
 - **依存**: TASK-017
 - **対象ファイル**:
   - `Dockerfile`: runner ステージから docker-ce-cli 削除（追加されている場合）
@@ -243,7 +243,7 @@
 
 ### TASK-019: 全テスト回帰確認
 
-- **ステータス**: 未着手
+- **ステータス**: 完了（全173ファイル2059テスト通過、lint 0エラー）
 - **依存**: TASK-017, TASK-018
 - **対象ファイル**:
   - 全テストファイル

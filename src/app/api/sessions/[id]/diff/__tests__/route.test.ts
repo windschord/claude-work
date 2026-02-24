@@ -32,6 +32,7 @@ describe('GET /api/sessions/[id]/diff', () => {
       .values({
         name: 'Test Project',
         path: testRepoPath,
+        clone_location: 'host',
       })
       .returning()
       .get();

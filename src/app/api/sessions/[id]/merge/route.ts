@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db, schema } from '@/lib/db';
 import { eq } from 'drizzle-orm';
 import { GitService } from '@/services/git-service';
+import { DockerGitService } from '@/services/docker-git-service';
 import { logger } from '@/lib/logger';
 import { basename } from 'path';
 
@@ -82,9 +83,15 @@ export async function POST(
     }
 
     const sessionName = basename(targetSession.worktree_path);
-    const gitService = new GitService(targetSession.project.path, logger);
 
-    const result = gitService.squashMerge(sessionName, sanitizedMessage);
+    let result;
+    if (targetSession.project.clone_location === 'docker') {
+      const dockerGitService = new DockerGitService();
+      result = await dockerGitService.squashMerge(targetSession.project.id, sessionName, sanitizedMessage);
+    } else {
+      const gitService = new GitService(targetSession.project.path, logger);
+      result = gitService.squashMerge(sessionName, sanitizedMessage);
+    }
 
     if (!result.success && result.conflicts) {
       logger.warn('Merge failed with conflicts', { id, conflicts: result.conflicts });

@@ -1,4 +1,4 @@
-import * as pty from 'node-pty';
+import type * as pty from 'node-pty';
 import { EventEmitter } from 'events';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -7,6 +7,9 @@ import { logger } from '@/lib/logger';
 import { DockerError } from './docker-service';
 import { ClaudeOptionsService } from './claude-options-service';
 import type { ClaudeCodeOptions, CustomEnvVars } from './claude-options-service';
+import { DockerClient } from './docker-client';
+import { DockerPTYStream } from './docker-pty-stream';
+import Docker from 'dockerode';
 
 /**
  * Dockerコンテナ起動エラーを解析してDockerErrorを生成
@@ -108,17 +111,6 @@ export interface DockerPTYExitInfo {
 }
 
 /**
- * Docker PTY用の環境変数を構築
- */
-function buildDockerPtyEnv(): Record<string, string> {
-  const out: Record<string, string> = {};
-  // 最小限の環境変数のみ渡す
-  out['TERM'] = 'xterm-256color';
-  out['COLORTERM'] = 'truecolor';
-  return out;
-}
-
-/**
  * DockerPTYAdapter
  *
  * Docker内でClaude Codeを実行するためのPTYアダプター。
@@ -164,94 +156,103 @@ export class DockerPTYAdapter extends EventEmitter {
   }
 
   /**
-   * Docker実行引数を構築
-   *
-   * @param workingDir - ホストの作業ディレクトリ
-   * @param options - セッションオプション
-   * @returns docker run コマンドの引数配列とコンテナ名
+   * Constructs Dockerode container options from session parameters.
    */
-  private buildDockerArgs(
+  private buildContainerOptions(
     workingDir: string,
     options?: CreateDockerPTYSessionOptions
-  ): { args: string[]; containerName: string; envFilePath?: string } {
-    const args: string[] = ['run', '-it', '--rm'];
-
-    // コンテナ名を一意に設定
+  ): {
+    createOptions: Docker.ContainerCreateOptions;
+    containerName: string;
+  } {
     const containerName = `claude-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-    args.push('--name', containerName);
+    const Binds: string[] = [];
+    const Env: string[] = ['TERM=xterm-256color', 'COLORTERM=truecolor'];
+    const Cmd: string[] = ['claude'];
 
-    // セキュリティオプション
-    args.push('--cap-drop', 'ALL');
-    args.push('--security-opt', 'no-new-privileges');
+    // Workspace mount
+    Binds.push(`${workingDir}:/workspace`);
 
-    // ワークスペースマウント（RW）
-    args.push('-v', `${workingDir}:/workspace`);
-
-    // Claude認証情報マウント（RW - Claude Codeがdebug/に書き込むため）
+    // Claude auth dirs
     const homeDir = os.homedir();
     const claudeDir = path.join(homeDir, '.claude');
     if (fs.existsSync(claudeDir)) {
-      args.push('-v', `${claudeDir}:/home/node/.claude`);
+      Binds.push(`${claudeDir}:/home/node/.claude`);
     }
     const claudeConfigDir = path.join(homeDir, '.config', 'claude');
     if (fs.existsSync(claudeConfigDir)) {
-      args.push('-v', `${claudeConfigDir}:/home/node/.config/claude`);
+      Binds.push(`${claudeConfigDir}:/home/node/.config/claude`);
     }
 
-    // Git認証情報マウント（RO）
+    // Git auth (RO)
     const sshDir = path.join(homeDir, '.ssh');
     if (fs.existsSync(sshDir)) {
-      args.push('-v', `${sshDir}:/home/node/.ssh:ro`);
+      Binds.push(`${sshDir}:/home/node/.ssh:ro`);
     }
     const gitconfigPath = path.join(homeDir, '.gitconfig');
     if (fs.existsSync(gitconfigPath)) {
-      args.push('-v', `${gitconfigPath}:/home/node/.gitconfig:ro`);
+      Binds.push(`${gitconfigPath}:/home/node/.gitconfig:ro`);
     }
 
-    // SSH Agent転送（macOS/Linux）
+    // SSH Agent
     const sshAuthSock = process.env.SSH_AUTH_SOCK;
     if (sshAuthSock) {
-      args.push('-v', `${sshAuthSock}:/ssh-agent`);
-      args.push('-e', 'SSH_AUTH_SOCK=/ssh-agent');
+      Binds.push(`${sshAuthSock}:/ssh-agent`);
+      Env.push('SSH_AUTH_SOCK=/ssh-agent');
     }
 
-    // ANTHROPIC_API_KEY転送（キー名のみ指定でホスト環境変数から継承、プロセスリストに値が表示されない）
+    // ANTHROPIC_API_KEY
     if (process.env.ANTHROPIC_API_KEY) {
-      args.push('-e', 'ANTHROPIC_API_KEY');
+      Env.push(`ANTHROPIC_API_KEY=${process.env.ANTHROPIC_API_KEY}`);
     }
 
-    // カスタム環境変数を一時envファイル経由で渡す（値をプロセス引数に載せない）
-    let envFilePath: string | undefined;
+    // Custom Env Vars
+    // Filter out TERM/COLORTERM to avoid duplicating the values already set above
     if (options?.customEnvVars) {
-      const lines: string[] = [];
+      const reservedKeys = new Set(['TERM', 'COLORTERM']);
       for (const [key, value] of Object.entries(options.customEnvVars)) {
+        if (reservedKeys.has(key)) {
+          logger.debug('DockerPTYAdapter: Skipping reserved env var from customEnvVars', { key });
+          continue;
+        }
         if (ClaudeOptionsService.validateEnvVarKey(key) && typeof value === 'string') {
-          lines.push(`${key}=${value}`);
+          Env.push(`${key}=${value}`);
         }
       }
-      if (lines.length > 0) {
-        envFilePath = path.join(os.tmpdir(), `claude-env-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
-        fs.writeFileSync(envFilePath, lines.join('\n'), { mode: 0o600 });
-        args.push('--env-file', envFilePath);
-      }
     }
 
-    // イメージ名
-    args.push(this.getFullImageName());
-
-    // claudeコマンドと引数
-    args.push('claude');
+    // Arguments
     if (options?.resumeSessionId) {
-      args.push('--resume', options.resumeSessionId);
+      Cmd.push('--resume', options.resumeSessionId);
     }
 
-    // カスタムCLIオプション
+    // Custom CLI options
     if (options?.claudeCodeOptions) {
       const customArgs = ClaudeOptionsService.buildCliArgs(options.claudeCodeOptions);
-      args.push(...customArgs);
+      Cmd.push(...customArgs);
     }
 
-    return { args, containerName, envFilePath };
+    const createOptions: Docker.ContainerCreateOptions = {
+      name: containerName,
+      Image: this.getFullImageName(),
+      Tty: true,
+      OpenStdin: true,
+      StdinOnce: false,
+      AttachStdin: true,
+      AttachStdout: true,
+      AttachStderr: true,
+      Env,
+      Cmd,
+      WorkingDir: '/workspace',
+      HostConfig: {
+        Binds,
+        CapDrop: ['ALL'],
+        SecurityOpt: ['no-new-privileges'],
+        AutoRemove: true,
+      },
+    };
+
+    return { createOptions, containerName };
   }
 
   /**
@@ -262,12 +263,12 @@ export class DockerPTYAdapter extends EventEmitter {
    * @param initialPrompt - 初期プロンプト（任意）
    * @param options - 追加オプション（resumeSessionIdなど）
    */
-  createSession(
+  async createSession(
     sessionId: string,
     workingDir: string,
     initialPrompt?: string,
     options?: CreateDockerPTYSessionOptions
-  ): void {
+  ): Promise<void> {
     // 作成中のセッションがある場合はエラー
     if (this.creating.has(sessionId)) {
       throw new Error(`Docker PTY creation already in progress for session ${sessionId}`);
@@ -295,8 +296,10 @@ export class DockerPTYAdapter extends EventEmitter {
       throw new Error(`workingDir is not a directory: ${resolvedCwd}`);
     }
 
+    let container: Docker.Container | undefined;
+    let ptyProcess: DockerPTYStream | undefined;
     try {
-      const { args: dockerArgs, containerName, envFilePath } = this.buildDockerArgs(resolvedCwd, options);
+      const { createOptions, containerName } = this.buildContainerOptions(resolvedCwd, options);
 
       logger.info('Creating Docker PTY session', {
         sessionId,
@@ -306,13 +309,25 @@ export class DockerPTYAdapter extends EventEmitter {
         resumeSessionId: options?.resumeSessionId,
       });
 
-      // Docker runをPTYで起動
-      const ptyProcess = pty.spawn('docker', dockerArgs, {
-        name: 'xterm-256color',
+      container = await DockerClient.getInstance().createContainer(createOptions);
+
+      const stream = await container.attach({
+        stream: true,
+        stdin: true,
+        stdout: true,
+        stderr: true,
+        hijack: true,
+      });
+
+      ptyProcess = new DockerPTYStream({
         cols: 80,
         rows: 24,
-        env: buildDockerPtyEnv(),
+        isContainer: true,
+        container: container,
       });
+      ptyProcess.setStream(stream);
+
+      await container.start();
 
       // セッションを登録
       this.sessions.set(sessionId, {
@@ -363,11 +378,6 @@ export class DockerPTYAdapter extends EventEmitter {
         const session = this.sessions.get(sessionId);
         logger.info('Docker PTY exited', { sessionId, exitCode, signal });
 
-        // 一時envファイルのクリーンアップ
-        if (envFilePath) {
-          try { fs.unlinkSync(envFilePath); } catch { /* ignore */ }
-        }
-
         // 異常終了時にエラー解析
         if (exitCode !== 0 && session) {
           const dockerError = parseContainerStartError(session.errorBuffer);
@@ -400,13 +410,14 @@ export class DockerPTYAdapter extends EventEmitter {
           sessionId,
           promptLength: initialPrompt.length,
         });
+        const ptyRef = ptyProcess;
         setTimeout(() => {
           if (this.sessions.has(sessionId)) {
             logger.info('Sending initial prompt to Docker Claude Code', {
               sessionId,
               promptPreview: initialPrompt.substring(0, 100),
             });
-            ptyProcess.write(initialPrompt + '\n');
+            ptyRef.write(initialPrompt + '\n');
           } else {
             logger.warn('Docker session no longer exists, skipping initial prompt', { sessionId });
           }
@@ -415,7 +426,11 @@ export class DockerPTYAdapter extends EventEmitter {
 
       logger.info('Docker PTY session created', { sessionId });
     } catch (error) {
+      // Cleanup on failure: remove session entry, kill PTY, remove container
+      this.sessions.delete(sessionId);
       this.creating.delete(sessionId);
+      try { ptyProcess?.kill(); } catch { /* ignore */ }
+      try { await container?.remove({ force: true }); } catch { /* ignore */ }
 
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       logger.error('Failed to create Docker PTY session', { sessionId, error: errorMessage });
@@ -461,15 +476,15 @@ export class DockerPTYAdapter extends EventEmitter {
   /**
    * セッションを再起動
    */
-  restartSession(sessionId: string): void {
+  async restartSession(sessionId: string): Promise<void> {
     const session = this.sessions.get(sessionId);
     if (session) {
       const { workingDir, initialPrompt } = session;
       logger.info('Restarting Docker PTY session', { sessionId });
       this.destroySession(sessionId);
-      setTimeout(() => {
-        this.createSession(sessionId, workingDir, initialPrompt);
-      }, 500);
+      // Wait briefly for container cleanup before recreating
+      await new Promise(resolve => setTimeout(resolve, 500));
+      await this.createSession(sessionId, workingDir, initialPrompt);
     }
   }
 

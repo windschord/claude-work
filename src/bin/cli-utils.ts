@@ -19,8 +19,9 @@ import Database from 'better-sqlite3';
  * - v4: Projectに clone_location, docker_volume_id, environment_id を追加
  *       Sessionに active_connections, destroy_at, session_state を追加
  *       Sessionインデックス (session_state, destroy_at, last_activity_at) を追加
+ * - v5: Session.environment_id 欠落修復（v4マイグレーションでの漏れを修正）
  */
-const CURRENT_DB_VERSION = 4;
+const CURRENT_DB_VERSION = 5;
 
 /**
  * Next.jsビルドが存在し、完全かどうかを確認
@@ -173,6 +174,12 @@ export function migrateDatabase(dbPath: string): boolean {
         version = 4;
       }
 
+      // バージョン 4 → 5: Session.environment_id 欠落修復
+      if (version < 5) {
+        migrateV4ToV5(db!);
+        version = 5;
+      }
+
       // バージョン番号を更新
       db!.exec(`PRAGMA user_version = ${version}`);
     });
@@ -199,7 +206,7 @@ export function migrateDatabase(dbPath: string): boolean {
  * 初期テーブルを作成（v0 → v1）
  *
  * 最新スキーマの全カラム・全インデックスを含む完全版。
- * 新規DBはv0からv1→v2→v3→v4と段階的にマイグレーションされるが、
+ * 新規DBはv0からv1→v2→v3→v4→v5と段階的にマイグレーションされるが、
  * v1で全カラムを作成しておくことで後続マイグレーションはスキップされる。
  */
 function createInitialTables(db: InstanceType<typeof Database>): void {
@@ -370,11 +377,24 @@ function migrateV3ToV4(db: InstanceType<typeof Database>): void {
   safeAddColumn(db, 'Session', 'active_connections', 'INTEGER NOT NULL DEFAULT 0');
   safeAddColumn(db, 'Session', 'destroy_at', 'INTEGER');
   safeAddColumn(db, 'Session', 'session_state', "TEXT NOT NULL DEFAULT 'ACTIVE'");
+  safeAddColumn(db, 'Session', 'environment_id', 'TEXT');
 
   // インデックスを追加（存在しない場合のみ）
   db.exec(`CREATE INDEX IF NOT EXISTS "sessions_session_state_idx" ON "Session" ("session_state");`);
   db.exec(`CREATE INDEX IF NOT EXISTS "sessions_destroy_at_idx" ON "Session" ("destroy_at");`);
   db.exec(`CREATE INDEX IF NOT EXISTS "sessions_last_activity_at_idx" ON "Session" ("last_activity_at");`);
+}
+
+/**
+ * Session.environment_id 欠落を修復（v4 → v5）
+ *
+ * v3→v4マイグレーションでSession.environment_idの追加が漏れていたため、
+ * 既にv4にマイグレーション済みのDBではカラムが欠落している。
+ * safeAddColumnを使用するため、カラムが既に存在する場合はスキップされる。
+ */
+function migrateV4ToV5(db: InstanceType<typeof Database>): void {
+  console.log('Migrating to v5: Fixing missing Session.environment_id...');
+  safeAddColumn(db, 'Session', 'environment_id', 'TEXT');
 }
 
 /**
