@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db, schema } from '@/lib/db';
 import { eq } from 'drizzle-orm';
 import { GitService } from '@/services/git-service';
+import { DockerGitService } from '@/services/docker-git-service';
 import { logger } from '@/lib/logger';
 import { basename } from 'path';
 
@@ -63,8 +64,15 @@ export async function POST(
     }
 
     const sessionName = basename(targetSession.worktree_path);
-    const gitService = new GitService(targetSession.project.path, logger);
-    const result = gitService.reset(sessionName, trimmedCommitHash);
+    
+    let result;
+    if (targetSession.project.clone_location === 'docker') {
+      const dockerGitService = new DockerGitService();
+      result = await dockerGitService.reset(targetSession.project.id, sessionName, trimmedCommitHash);
+    } else {
+      const gitService = new GitService(targetSession.project.path, logger);
+      result = gitService.reset(sessionName, trimmedCommitHash);
+    }
 
     if (!result.success) {
       logger.warn('Reset failed', { id, commit_hash, error: result.error });

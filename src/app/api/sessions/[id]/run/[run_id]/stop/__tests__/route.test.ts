@@ -1,11 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { POST } from '../route';
 import { db, schema } from '@/lib/db';
 import { NextRequest } from 'next/server';
-import { mkdtempSync, rmSync, writeFileSync } from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'path';
-import { execSync } from 'child_process';
 import type { Project, Session } from '@/lib/db';
 
 const { mockStop, mockGetStatus } = vi.hoisted(() => ({
@@ -24,7 +20,6 @@ vi.mock('@/services/run-script-manager', () => ({
 }));
 
 describe('POST /api/sessions/[id]/run/[run_id]/stop', () => {
-  let testRepoPath: string;
   let project: Project;
   let session: Session;
 
@@ -34,34 +29,22 @@ describe('POST /api/sessions/[id]/run/[run_id]/stop', () => {
     db.delete(schema.sessions).run();
     db.delete(schema.projects).run();
 
-    testRepoPath = mkdtempSync(join(tmpdir(), 'run-script-stop-test-'));
-    execSync('git init', { cwd: testRepoPath });
-    execSync('git config user.name "Test"', { cwd: testRepoPath });
-    execSync('git config user.email "test@example.com"', { cwd: testRepoPath });
-    writeFileSync(join(testRepoPath, 'README.md'), 'test');
-    execSync('git add . && git commit -m "initial"', {
-      cwd: testRepoPath,
-      shell: true,
-    });
-    execSync('git branch -M main', { cwd: testRepoPath });
-
     project = db
       .insert(schema.projects)
       .values({
         name: 'Test Project',
-        path: testRepoPath,
+        path: '/tmp/fake-repo-path', clone_location: 'host',
       })
       .returning()
       .get();
 
-    const worktreePath = join(testRepoPath, '.worktrees', 'test-session');
     session = db
       .insert(schema.sessions)
       .values({
         project_id: project.id,
         name: 'Test Session',
         status: 'running',
-        worktree_path: worktreePath,
+        worktree_path: '/tmp/fake-repo-path/.worktrees/test-session',
         branch_name: 'test-branch',
       })
       .returning()
@@ -75,14 +58,6 @@ describe('POST /api/sessions/[id]/run/[run_id]/stop', () => {
       pid: 12345,
       status: 'running',
     });
-  });
-
-  afterEach(async () => {
-    db.delete(schema.sessions).run();
-    db.delete(schema.projects).run();
-    if (testRepoPath) {
-      rmSync(testRepoPath, { recursive: true, force: true });
-    }
   });
 
   it('should stop running script and return 200', async () => {

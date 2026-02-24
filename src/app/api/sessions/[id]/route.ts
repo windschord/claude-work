@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db, schema } from '@/lib/db';
 import { eq } from 'drizzle-orm';
 import { GitService } from '@/services/git-service';
+import { DockerGitService } from '@/services/docker-git-service';
 import { ProcessManager } from '@/services/process-manager';
 import { logger } from '@/lib/logger';
 
@@ -131,9 +132,19 @@ export async function DELETE(
 
     // Remove worktree
     try {
-      const gitService = new GitService(targetSession.project.path, logger);
       const sessionName = targetSession.worktree_path.split('/').pop() || '';
-      gitService.deleteWorktree(sessionName);
+      
+      if (targetSession.project.clone_location === 'docker') {
+        const dockerGitService = new DockerGitService();
+        const result = await dockerGitService.deleteWorktree(targetSession.project.id, sessionName);
+        if (!result.success) {
+          throw result.error || new Error('Failed to delete docker worktree');
+        }
+      } else {
+        const gitService = new GitService(targetSession.project.path, logger);
+        gitService.deleteWorktree(sessionName);
+      }
+
       logger.debug('Worktree removed', { worktree_path: targetSession.worktree_path });
     } catch (error) {
       logger.warn('Failed to remove worktree', {
