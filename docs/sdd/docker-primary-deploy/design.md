@@ -52,7 +52,7 @@ services:
     # ホストのdockerグループGIDを指定し、nodeユーザーがdocker.sockにアクセス可能にする
     # DOCKER_GID は stat -c '%g' /var/run/docker.sock で確認し .env に設定する
     group_add:
-      - "${DOCKER_GID}"
+      - "${DOCKER_GID:-0}"
     env_file:
       - path: .env
         required: false

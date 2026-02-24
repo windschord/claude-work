@@ -17,23 +17,23 @@ git clone https://github.com/windschord/claude-work.git
 cd claude-work
 
 # 2. (Linux のみ) docker.sock のアクセス権を設定
-echo "DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)" >> .env
+#    macOS / Docker Desktop では不要（docker.sock のパーミッションが異なるため）
+echo "DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)" > .env
 
 # 3. 起動
 docker compose up -d
 ```
 
-> **macOS / Docker Desktop**: 手順2は不要です（docker.sock のパーミッションが異なるため）。
-
 ブラウザで `http://localhost:3000`（`HOST_PORT` を変更した場合は該当ポート）を開きます。
 
 ### 設定のカスタマイズ
 
-`.env` ファイルを作成して設定を変更できます（`.env.example` を参考）:
+`.env.example` を参考に `.env` を編集して設定を変更できます:
 
 ```bash
-cp .env.example .env
-# 必要に応じて編集
+# .env が未作成の場合はコピーして作成
+cp -n .env.example .env
+# 必要に応じて編集（DOCKER_GID が設定済みの場合は上書きしないこと）
 ```
 
 主な設定:
