@@ -107,6 +107,7 @@ Docker Compose環境での動作確認は手動テストで実施する。
 | テスト | 手順 | 期待結果 |
 |-------|------|---------|
 | 既存v4バグDBでの起動 | 1. Session.environment_id欠落のv4 DBを配置 2. `docker compose up` | マイグレーションが自動実行され、サーバーが正常起動する |
+| 既存v4正常DBでの起動 | 1. Session.environment_id存在のv4 DBを配置 2. `docker compose up` | マイグレーションが実行されてもエラーなくサーバーが正常起動する |
 | 新規DBでの起動 | 1. DBファイルを削除 2. `docker compose up` | v0→v5マイグレーションが実行され、サーバーが正常起動する |
 | マイグレーション済みDBでの再起動 | 1. v5 DBが存在する状態で `docker compose restart` | マイグレーションがスキップされ、サーバーが正常起動する |
 
