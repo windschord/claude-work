@@ -101,7 +101,7 @@ export function initializeDatabase(dbPath: string): boolean {
 ### 3.1 起動時のマイグレーションフロー
 
 ```
-1. npx claude-work 実行
+1. アプリケーション起動
 2. cli.ts が実行される
 3. setupDatabase() が呼ばれる
    └─ initializeDatabase() を呼び出し
@@ -121,7 +121,7 @@ export function initializeDatabase(dbPath: string): boolean {
 ### 3.2 マイグレーション不要時のフロー
 
 ```
-1. npx claude-work 実行
+1. アプリケーション起動
 2. cli.ts が実行される
 3. migrateDatabase() の処理:
    a. PRAGMA user_version を取得
@@ -245,7 +245,7 @@ try {
 | テストケース | 確認内容 |
 |--------------|----------|
 | 既存DBのマイグレーション | 本番相当のDBでマイグレーションが成功する |
-| npx経由での実行 | npx環境で正常に動作する |
+| Docker Compose環境での実行 | Docker Compose環境で正常に動作する |
 
 ## 7. 技術的決定事項
 
@@ -260,13 +260,13 @@ try {
 
 ### 7.2 コード内マイグレーションの選択理由
 
-| 方式 | npx適合性 | 実装の手間 | 安全性 |
-|------|-----------|------------|--------|
+| 方式 | Docker適合性 | 実装の手間 | 安全性 |
+|------|-------------|------------|--------|
 | 外部.sqlファイル | 低（パス問題） | 低 | 高 |
 | drizzle-kit | 低（複雑） | 低 | 高 |
 | **コード内** | 高 | 中 | 高 |
 
-→ npx環境での確実な動作を優先し、コード内マイグレーションを採用
+→ Docker環境での確実な動作を優先し、コード内マイグレーションを採用
 
 ### 7.3 トランザクション使用の理由
 

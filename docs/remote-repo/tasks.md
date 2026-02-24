@@ -33,12 +33,12 @@
 
 **技術的文脈**:
 - Prismaを使用したSQLiteデータベース
-- `npx prisma db push`でスキーマ適用
+- `npm run db:push`でスキーマ適用
 
 **受入基準**:
 - [ ] Projectモデルに`remote_url String?`フィールドが追加されている
-- [ ] `npx prisma db push`が成功する
-- [ ] `npx prisma generate`が成功する
+- [ ] `npm run db:push`が成功する
+- [ ] スキーマ変更が反映されている
 
 **依存関係**: なし
 **ステータス**: `TODO`

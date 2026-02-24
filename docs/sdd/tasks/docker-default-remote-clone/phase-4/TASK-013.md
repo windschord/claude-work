@@ -79,7 +79,7 @@ ClaudeWork uses Docker as the default execution environment for security and iso
 - SSH keys configured in `~/.ssh/` (for private repository access)
 
 ### Initial Setup
-1. Start ClaudeWork: `npx claude-work start`
+1. Start ClaudeWork: `docker compose up -d`
 2. A default Docker environment is automatically created
 3. SSH keys are mounted read-only from `~/.ssh/`
 ```

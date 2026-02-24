@@ -22,7 +22,7 @@ Claude WorkアプリケーションはPR#108でDocker上での動作が確認さ
 ### 対象外
 - 既存の `docker/Dockerfile`（Claudeが動くサンドボックス用）
 - 既存の `.github/workflows/docker-publish.yml`（サンドボックス用）
-- npm publishおよびnpxによる配布（別タスク）
+- npm publishによる配布（npxによるデプロイは廃止済み）
 
 ## ユーザーストーリー
 

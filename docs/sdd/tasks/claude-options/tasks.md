@@ -8,7 +8,7 @@
 ### 作業内容
 1. `src/db/schema.ts` の `projects` テーブルに `claude_code_options` (TEXT, default '{}'), `custom_env_vars` (TEXT, default '{}') を追加
 2. `src/db/schema.ts` の `sessions` テーブルに `claude_code_options` (TEXT, nullable), `custom_env_vars` (TEXT, nullable) を追加
-3. `npx prisma db push` でスキーマ反映（drizzleの場合は `drizzle-kit push`）
+3. `npm run db:push` でスキーマ反映
 
 ### 完了条件
 - カラムが追加され、既存データに影響がないこと

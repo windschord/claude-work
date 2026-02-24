@@ -14,7 +14,7 @@
 
 - **データベース**: SQLite (Prisma ORM使用)
 - **既存スキーマ**: `prisma/schema.prisma`に定義
-- **マイグレーション方針**: `npx prisma db push` を使用（開発環境向け）
+- **マイグレーション方針**: `npx drizzle-kit push` を使用（開発環境向け）
 - **既存プロジェクトの扱い**: cloneLocationが未定義の場合、'host'として扱う（アプリケーションレイヤーでフォールバック）
 
 ## 情報の明確性
@@ -114,8 +114,7 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
 - [ ] `prisma/schema.prisma`にcloneLocationフィールドが追加されている
 - [ ] `prisma/schema.prisma`にdockerVolumeIdフィールドが追加されている
 - [ ] `cloneLocation`のデフォルト値が"docker"である
-- [ ] `npx prisma generate`が成功する
-- [ ] `npx prisma db push`が成功する
+- [ ] `npm run db:push`が成功する（Drizzle ORM移行後）
 - [ ] データベースに新しいフィールドが追加されている
 - [ ] 既存のプロジェクトデータが破壊されていない
 - [ ] スキーマ変更がコミットされている

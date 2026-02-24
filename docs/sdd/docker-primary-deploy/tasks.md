@@ -55,7 +55,6 @@
 
 **受入基準**:
 - クイックスタートセクションでDocker Compose方法が最初に記載されている
-- npx方式が「代替方法」として残っている
 - Docker Compose手順: `git clone` → `.env` 編集 → `docker compose up -d`
 - 動作保証環境にDocker Composeが明記されている
 
@@ -67,7 +66,6 @@
 
 **受入基準**:
 - 最初のセクションが「Docker Compose（推奨）」になっている
-- npx方式が「代替: npxによるセットアップ」セクションに移動している
 - Docker Compose特有のトラブルシューティングが追加されている
 
 ### TASK-005: docs/SYSTEMD_SETUP.md更新
@@ -87,8 +85,7 @@
 **対象ファイル**: `CLAUDE.md`
 
 **受入基準**:
-- Running the ApplicationセクションでDocker Composeが最初に記載されている
-- npx方式は開発向けとして記載されている
+- Running the ApplicationセクションでDocker Composeが記載されている
 
 ### TASK-007: docs/ENV_VARS.md更新
 

@@ -69,7 +69,7 @@ npm run build
 ### 3. 統合動作確認
 
 **シナリオ1: リモートリポジトリクローン（Docker環境）**
-1. アプリ起動: `npx claude-work start`
+1. アプリ起動: `docker compose up -d`
 2. プロジェクト追加 → リモートタブ
 3. GitHubリポジトリURLを入力
 4. Clone先: Docker（デフォルト）

@@ -109,7 +109,7 @@ Docker Compose向けの設定例を既存の `.env.example` に追加する。
 
 | ドキュメント | 方針 |
 |------------|------|
-| README.md | クイックスタートをDocker Compose → npxの順に書き換え |
+| README.md | クイックスタートをDocker Composeに書き換え |
 | SETUP.md | 「Docker Compose（推奨）」セクションを最初に配置 |
 | SYSTEMD_SETUP.md | 冒頭に注記を追加 |
 | CLAUDE.md | Environment SetupをDocker Compose優先に |

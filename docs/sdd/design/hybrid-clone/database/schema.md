@@ -90,14 +90,9 @@ function normalizeProject(project: Project): ProjectWithDefaults {
    # cloneLocation, dockerVolumeId フィールドを追加
    ```
 
-2. **Prisma Client生成**:
+2. **データベース変更適用**:
    ```bash
-   npx prisma generate
-   ```
-
-3. **データベース変更適用**:
-   ```bash
-   npx prisma db push
+   npm run db:push
    ```
 
 4. **アプリケーションレイヤーのフォールバック処理実装**:
@@ -225,7 +220,7 @@ const dockerProjects = await prisma.project.findMany({
 
 2. **データベース変更適用**:
    ```bash
-   npx prisma db push
+   npm run db:push
    ```
 
 3. **影響**: 既存のデータは保持されるが、cloneLocationとdockerVolumeIdフィールドは削除される

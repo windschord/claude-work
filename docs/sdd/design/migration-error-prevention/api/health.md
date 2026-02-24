@@ -217,7 +217,7 @@ export async function GET() {
 
 ```ini
 [Service]
-ExecStart=/usr/bin/npx claude-work
+ExecStart=/usr/bin/docker compose up
 ExecStartPost=/usr/bin/curl -sf http://localhost:3000/api/health || exit 1
 ```
 

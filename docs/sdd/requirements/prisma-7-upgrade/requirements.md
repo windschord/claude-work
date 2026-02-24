@@ -40,7 +40,7 @@ Prisma ORM を 5.22.0 から 7.x にアップグレードする。Prisma 7 は R
 
 - **NFR-001**: アップグレードは既存のデータベースファイル（`data/claudework.db`）に影響を与えてはならない
 - **NFR-002**: 既存のAPIエンドポイントの動作は変更されてはならない
-- **NFR-003**: 開発環境（`pnpm run dev`）と本番環境（`npx claude-work`）の両方で動作しなければならない
+- **NFR-003**: 開発環境（`pnpm run dev`）と本番環境（`docker compose up -d`）の両方で動作しなければならない
 
 ### 最小要件
 

@@ -4,7 +4,7 @@
 
 **関連要件**: [US-001: スキーママイグレーションの自動化](../../../requirements/migration-error-prevention/stories/US-001.md) @../../../requirements/migration-error-prevention/stories/US-001.md
 
-`syncSchema()`関数は、`npx claude-work`起動時に`drizzle-kit push`を自動実行し、`src/db/schema.ts`の定義に基づいてデータベーススキーマを最新状態に同期します。
+`syncSchema()`関数は、アプリケーション起動時に`drizzle-kit push`を自動実行し、`src/db/schema.ts`の定義に基づいてデータベーススキーマを最新状態に同期します。
 
 ## 責務
 
@@ -274,12 +274,12 @@ describe('syncSchema', () => {
 
 1. **正常系**: スキーマ変更後の起動
    - schema.tsに新規テーブルを追加
-   - `npx claude-work`を実行
+   - `docker compose up -d`を実行
    - データベースに新規テーブルが作成されることを確認
 
 2. **異常系**: drizzle-kit pushの失敗
    - drizzle.config.tsを無効化
-   - `npx claude-work`を実行
+   - `docker compose up -d`を実行
    - エラーメッセージが表示され、起動が中断されることを確認
 
 ## 既知の制約

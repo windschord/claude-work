@@ -223,8 +223,8 @@ export function formatValidationError(
   lines.push('  1. 次のコマンドを実行してスキーマを同期:');
   lines.push('     $ npx drizzle-kit push');
   lines.push('');
-  lines.push('  2. または、自動マイグレーションを有効にして再起動:');
-  lines.push('     $ npx claude-work');
+  lines.push('  2. または、コンテナを再起動して自動マイグレーションを実行:');
+  lines.push('     $ docker compose restart');
   lines.push('');
 
   return lines.join('\n');

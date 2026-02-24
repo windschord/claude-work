@@ -150,7 +150,7 @@ export function formatValidationError(result: SchemaValidationResult): string {
     }
   }
 
-  lines.push('', '修復方法:', '  $ npx drizzle-kit push', '');
+  lines.push('', '修復方法:', '  $ docker compose restart (自動でdrizzle-kit pushが実行されます)', '');
   return lines.join('\n');
 }
 ```
