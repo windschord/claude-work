@@ -9,6 +9,10 @@ services:
     volumes:
       - ./data:/data
       - /var/run/docker.sock:/var/run/docker.sock
+    # nodeユーザーがdocker.sockにアクセスするため、ホストのdockerグループGIDを追加
+    # DOCKER_GID の取得: DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)
+    group_add:
+      - "${DOCKER_GID:-0}"
     env_file:
       - path: .env
         required: false
@@ -19,6 +23,7 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
       - ALLOWED_PROJECT_DIRS=${ALLOWED_PROJECT_DIRS:-}
+      # GIT_REPOS_PATH は将来の拡張用（現在はDATA_DIR/reposが使用される）
       - GIT_REPOS_PATH=${GIT_REPOS_PATH:-}
     restart: unless-stopped
     healthcheck:

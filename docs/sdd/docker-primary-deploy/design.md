@@ -2,7 +2,7 @@
 
 ## 1. アーキテクチャ概要
 
-Docker Composeをプライマリデプロイ方法に昇格させる。ClaudeWorkコンテナ（アプリ本体）がホストのDockerデーモンを介してサンドボックスコンテナ（Claude Code実行用）を管理するDinD（Docker-in-Docker）アーキテクチャを採用する。
+Docker Composeをプライマリデプロイ方法に昇格させる。ClaudeWorkコンテナ（アプリ本体）がホストのDockerデーモンを介してサンドボックスコンテナ（Claude Code実行用）を管理するDooD（Docker-out-of-Docker）アーキテクチャを採用する。
 
 ```text
 Host
@@ -49,6 +49,10 @@ services:
     volumes:
       - ./data:/data
       - /var/run/docker.sock:/var/run/docker.sock
+    # ホストのdockerグループGIDを指定し、nodeユーザーがdocker.sockにアクセス可能にする
+    # DOCKER_GID は stat -c '%g' /var/run/docker.sock で確認し .env に設定する
+    group_add:
+      - "${DOCKER_GID}"
     env_file:
       - path: .env
         required: false
@@ -59,6 +63,7 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
       - ALLOWED_PROJECT_DIRS=${ALLOWED_PROJECT_DIRS:-}
+      # GIT_REPOS_PATH: 将来のGitリポジトリ外部保存機能用（現時点では未使用）
       - GIT_REPOS_PATH=${GIT_REPOS_PATH:-}
     restart: unless-stopped
     healthcheck:
@@ -71,8 +76,9 @@ services:
 
 変更点:
 - `/var/run/docker.sock:/var/run/docker.sock` マウント追加
+- `group_add` でホストのdockerグループGIDを指定（`DOCKER_GID` 環境変数経由）
 - `env_file` ディレクティブ追加（`required: false` でファイル不在時もエラーにならない）
-- `GIT_REPOS_PATH` をオプション環境変数として追加
+- `GIT_REPOS_PATH` をオプション環境変数として追加（将来用、現時点では未使用）
 
 ### 3.2 Dockerfile runnerステージ
 
@@ -82,6 +88,7 @@ FROM node:20-slim AS runner
 
 # Docker CLI のインストール（暫定: Dockerode移行で削除予定）
 # コンテナからホストのDockerデーモンを操作するために必要
+# NOTE: docker.sockへのアクセス権限はdocker-compose.ymlのgroup_addで付与する
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
        ca-certificates \
@@ -120,7 +127,24 @@ Docker Compose向けの設定例を既存の `.env.example` に追加する。
 
 - docker.sockマウントによりコンテナからホストのDockerデーモンを操作可能になる
 - ClaudeWorkはこれを利用してサンドボックスコンテナを起動・管理する
-- nodeユーザーがdocker.sockにアクセスできるよう、ホスト側のsocketパーミッションに依存する
+- コンテナ内のnodeユーザーがdocker.sockにアクセスするには、ホスト側のdockerグループGIDとコンテナ内のグループを一致させる必要がある
+
+### 4.1 docker.sockアクセスの設定手順
+
+1. ホスト側のdockerグループGIDを確認する:
+
+```bash
+stat -c '%g' /var/run/docker.sock
+# 例: 999
+```
+
+2. `.env` ファイルに `DOCKER_GID` を設定する:
+
+```bash
+DOCKER_GID=999  # 上記コマンドの出力値を設定
+```
+
+3. `docker-compose.yml` の `group_add` でホストのdockerグループGIDを指定する（3.1節のYAML例を参照）。これにより、コンテナ内のnodeユーザーがdocker.sockに対する読み書き権限を得る。
 
 ## 5. テスト方針
 

@@ -68,6 +68,8 @@ WORKDIR /app
 
 # Docker CLI のインストール（暫定: Dockerode移行 #144 で削除予定）
 # コンテナからホストのDockerデーモンを操作してサンドボックスコンテナを管理するために必要
+# NOTE: nodeユーザーがdocker.sockにアクセスするには、docker-compose.ymlの
+# group_add でホストのdockerグループGIDを指定する必要がある
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
        ca-certificates \

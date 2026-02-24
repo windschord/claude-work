@@ -181,7 +181,7 @@ docker compose logs -f         # ログ表示
 
 ### Required Environment Variables
 
-`docker-compose.yml` で `DATABASE_URL` は自動設定される。`.env` ファイルでカスタマイズ可能。
+`docker-compose.yml` の `environment` セクションで `DATABASE_URL=file:/data/claudework.db` が固定設定される。`.env` の `DATABASE_URL` では上書きできない（`environment` が `env_file` より優先）。変更するには `docker-compose.yml` を直接編集する。
 
 ### Optional Variables
 

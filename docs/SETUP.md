@@ -20,7 +20,7 @@ cd claude-work
 docker compose up -d
 ```
 
-ブラウザで `http://localhost:3000` を開きます。
+ブラウザで `http://localhost:3000`（`HOST_PORT` を変更した場合は該当ポート）を開きます。
 
 ### 設定のカスタマイズ
 
@@ -144,6 +144,23 @@ docker compose up -d
 rm -f data/claudework.db*
 docker compose up -d
 ```
+
+#### docker.sock の権限エラー
+
+コンテナ内から Docker 操作ができない場合（`permission denied` エラーや `/api/health` で `dockerEnabled=false`）:
+
+```bash
+# ホストの docker グループ GID を確認
+stat -c '%g' /var/run/docker.sock
+
+# .env に DOCKER_GID を設定
+echo "DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)" >> .env
+
+# コンテナを再起動
+docker compose up -d
+```
+
+`docker-compose.yml` の `group_add` がこの GID を使用して、`node` ユーザーに docker.sock へのアクセス権を付与します。
 
 ### Docker実行環境のトラブルシューティング
 

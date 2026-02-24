@@ -117,4 +117,5 @@
 - `docker compose config` がエラーなく成功
 - `docker compose build` がビルド成功
 - `docker compose up -d` で起動し、ヘルスチェック正常
+- Linux Docker Engine環境で `node` ユーザーが docker.sock にアクセスできることを確認（`group_add` 設定後）
 - ブラウザでアプリケーションが正常表示される
