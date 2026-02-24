@@ -1,5 +1,7 @@
 # タスク: npx 実行時の依存バージョン不整合修正
 
+> **廃止**: Drizzle ORM移行（PR #132）により、Prisma関連のタスクはすべて不要になりました。
+> CLIでのデータベース操作はdrizzle-kit pushに置き換え済みです。
 > このドキュメントはAIエージェント（Claude Code等）が実装を行うことを前提としています。
 
 ## 実装計画
@@ -134,9 +136,9 @@ const pm2Cmd = path.join(binDir, process.platform === 'win32' ? 'pm2.cmd' : 'pm2
 - [ ] `stop` コマンドが動作する（PR マージ後に検証）
 
 **依存関係**: タスク3.1
-**ステータス**: `IN_PROGRESS`
+**ステータス**: `OBSOLETE`
 
-**備考**: ローカルでの CLI 実行は確認済み。実際の `npx github:...` 実行は PR マージ後に検証。
+**備考**: Drizzle ORM移行により不要。CLIはdrizzle-kit pushを使用するため、Prismaコマンドの検証は対象外。
 
 ---
 
@@ -145,3 +147,4 @@ const pm2Cmd = path.join(binDir, process.platform === 'win32' ? 'pm2.cmd' : 'pm2
 - `TODO` - 未着手
 - `IN_PROGRESS` - 作業中
 - `DONE` - 完了
+- `OBSOLETE` - 廃止（別の方法で解決済み）

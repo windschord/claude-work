@@ -5,15 +5,13 @@ import { EnvironmentAdapter, PTYExitInfo } from './environment-adapter'
 import { db } from '@/lib/db'
 import { logger } from '@/lib/logger'
 import { ScrollbackBuffer } from './scrollback-buffer'
+import { ClaudeOptionsService } from './claude-options-service'
 import type { ClaudeCodeOptions, CustomEnvVars } from './claude-options-service'
 import type WebSocket from 'ws'
 import { sessions } from '@/db/schema'
 import { eq, inArray } from 'drizzle-orm'
 import { promises as fs } from 'fs'
-import { exec } from 'child_process'
-import { promisify } from 'util'
-
-const execAsync = promisify(exec)
+import { DockerClient } from './docker-client'
 
 /**
  * PTYセッション情報
@@ -52,6 +50,7 @@ export interface SessionOptions {
   customEnvVars?: CustomEnvVars
   cols?: number
   rows?: number
+  dockerVolumeId?: string
 }
 
 /**
@@ -189,11 +188,11 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
           ?? (envConfig.skipPermissions === true)
       }
 
-      // claudeCodeOptionsからdangerouslySkipPermissionsを除去
-      // （skipPermissionsとして解決済み。DockerAdapter.buildDockerArgs()で追加するため二重追加防止）
-      const adapterClaudeOptions = claudeCodeOptions ? { ...claudeCodeOptions } : undefined
-      if (adapterClaudeOptions) {
-        delete adapterClaudeOptions.dangerouslySkipPermissions
+      // dangerouslySkipPermissionsの除去 + skipPermissions有効時の矛盾オプション除去
+      const { result: adapterClaudeOptions, warnings } =
+        ClaudeOptionsService.stripConflictingOptions(claudeCodeOptions, skipPermissions)
+      for (const warning of warnings) {
+        logger.warn(warning)
       }
 
       // アダプター経由でセッション作成
@@ -208,6 +207,7 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
           cols: options.cols,
           rows: options.rows,
           skipPermissions,
+          dockerVolumeId: options.dockerVolumeId,
         }
       )
 
@@ -737,9 +737,8 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
    */
   private async checkDockerContainerExists(containerId: string): Promise<boolean> {
     try {
-      const { stdout } = await execAsync(`docker inspect ${containerId}`)
-      const containers = JSON.parse(stdout)
-      return containers.length > 0 && containers[0].State.Running
+      const container = await DockerClient.getInstance().inspectContainer(containerId)
+      return container.State.Running
     } catch {
       return false
     }
@@ -755,7 +754,7 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
       // Dockerコンテナを削除（該当する場合）
       if (session.container_id) {
         try {
-          await execAsync(`docker rm -f ${session.container_id}`)
+          await DockerClient.getInstance().getContainer(session.container_id).remove({ force: true })
           logger.info(`Removed Docker container for orphaned session ${session.id}`)
         } catch (error) {
           logger.error(`Failed to remove container ${session.container_id}:`, error)

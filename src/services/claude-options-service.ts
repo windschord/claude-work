@@ -289,4 +289,38 @@ export class ClaudeOptionsService {
       return {};
     }
   }
+
+  /**
+   * skipPermissions有効時に矛盾するオプションを除去
+   *
+   * --dangerously-skip-permissions は全パーミッション確認をスキップするため、
+   * --permission-mode と --allowedTools は意味をなさない。
+   * dangerouslySkipPermissions自体も常に除去する（DockerAdapter.buildDockerArgs()で別途追加するため）。
+   *
+   * @returns 除去後のオプションと、除去されたフィールドの警告メッセージ
+   */
+  static stripConflictingOptions(
+    claudeCodeOptions: ClaudeCodeOptions | undefined,
+    skipPermissions: boolean
+  ): { result: ClaudeCodeOptions | undefined; warnings: string[] } {
+    const warnings: string[] = [];
+    const sanitized = claudeCodeOptions ? { ...claudeCodeOptions } : undefined;
+
+    if (sanitized) {
+      delete sanitized.dangerouslySkipPermissions;
+    }
+
+    if (skipPermissions && sanitized) {
+      if (sanitized.permissionMode) {
+        warnings.push(`ignoring permissionMode: ${sanitized.permissionMode}`);
+        delete sanitized.permissionMode;
+      }
+      if (sanitized.allowedTools) {
+        warnings.push(`ignoring allowedTools: ${sanitized.allowedTools}`);
+        delete sanitized.allowedTools;
+      }
+    }
+
+    return { result: sanitized, warnings };
+  }
 }

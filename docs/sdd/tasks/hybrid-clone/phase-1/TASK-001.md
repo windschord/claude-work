@@ -187,6 +187,12 @@ npx prisma studio
    lsof data/claudework.db
    ```
 
+## ステータス
+
+`DONE`
+
+**完了サマリー**: Drizzle ORM移行済み（本文のPrisma手順は履歴として参照）。src/db/schema.tsのprojectsテーブルにclone_location(text, default 'docker')とdocker_volume_id(text)フィールドが定義済み。既存プロジェクトはnull時'host'として扱う後方互換性あり。
+
 ## 関連ドキュメント
 
 - [データベーススキーマ設計](../../design/database/schema.md) @../../design/database/schema.md

@@ -144,4 +144,6 @@ TASK-001
 
 ## ステータス
 
-TODO
+`DONE`
+
+**完了サマリー**: DockerGitServiceにretryWithBackoff（指数バックオフ、最大3回リトライ、永続エラー検出）を実装。PTYSessionManagerは既にPTY作成失敗時のセッションステータス更新（error）とクリーンアップを実装済み。Commits APIも存在チェックで無限ループを防止済み。テスト17件（既存8+リトライ9）全通過。

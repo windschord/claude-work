@@ -1,49 +1,146 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, schema } from '@/lib/db';
-import { EncryptionService } from '@/services/encryption-service';
+import {
+  SshKeyService,
+  DuplicateSshKeyNameError,
+  InvalidSshKeyError,
+  SshKeyEncryptionError,
+} from '@/services/ssh-key-service';
+import type { SshKeySummary } from '@/services/ssh-key-service';
 import { logger } from '@/lib/logger';
-import { eq } from 'drizzle-orm';
 
-const encryptionService = new EncryptionService();
+const service = new SshKeyService();
 
-// SSH鍵名のバリデーション
-function isValidKeyName(name: string): boolean {
-  // 1-100文字、英数字、ハイフン、アンダースコアのみ
-  return /^[a-zA-Z0-9_-]{1,100}$/.test(name);
+const NAME_PATTERN = /^[a-zA-Z0-9_-]{1,100}$/;
+
+function toApiResponse(key: SshKeySummary) {
+  return {
+    id: key.id,
+    name: key.name,
+    public_key: key.publicKey,
+    has_passphrase: key.hasPassphrase,
+    created_at: key.createdAt,
+    updated_at: key.updatedAt,
+  };
 }
 
-// SSH公開鍵のバリデーション
-function isValidPublicKey(key: string): boolean {
-  // ssh-rsa, ssh-ed25519, ecdsa-sha2-nistp256 などで始まることを確認
-  return /^(ssh-rsa|ssh-ed25519|ecdsa-sha2-nistp256|ecdsa-sha2-nistp384|ecdsa-sha2-nistp521)\s+[A-Za-z0-9+/]+=*(\s+.+)?$/.test(key);
-}
+function validateRegisterInput(body: unknown): {
+  valid: boolean;
+  error?: { code: string; message: string; details?: { field: string; value: unknown } };
+  data?: { name: string; privateKey: string; publicKey: string; hasPassphrase: boolean };
+} {
+  if (body === null || typeof body !== 'object' || Array.isArray(body)) {
+    return {
+      valid: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'リクエストボディが不正です',
+      },
+    };
+  }
 
-// SSH秘密鍵のバリデーション
-function isValidPrivateKey(key: string): boolean {
-  // -----BEGIN で始まり -----END で終わることを確認
-  return key.includes('-----BEGIN') && key.includes('-----END');
+  const { name, private_key, public_key, passphrase } = body as Record<string, unknown>;
+
+  if (!name || typeof name !== 'string' || name.trim().length === 0) {
+    return {
+      valid: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'name は必須です',
+        details: { field: 'name', value: name },
+      },
+    };
+  }
+
+  if (!NAME_PATTERN.test(name as string)) {
+    return {
+      valid: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'name は1〜100文字の英数字、ハイフン、アンダースコアで指定してください',
+        details: { field: 'name', value: name },
+      },
+    };
+  }
+
+  if (!private_key || typeof private_key !== 'string' || private_key.trim().length === 0) {
+    return {
+      valid: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'private_key は必須です',
+        details: { field: 'private_key', value: private_key },
+      },
+    };
+  }
+
+  if (public_key !== undefined && typeof public_key !== 'string') {
+    return {
+      valid: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'public_key は文字列である必要があります',
+        details: { field: 'public_key', value: public_key },
+      },
+    };
+  }
+
+  if (typeof public_key === 'string' && public_key.trim().length === 0) {
+    return {
+      valid: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'public_key を指定する場合は空文字にできません',
+        details: { field: 'public_key', value: public_key },
+      },
+    };
+  }
+
+  if (passphrase !== undefined && typeof passphrase !== 'string') {
+    return {
+      valid: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'passphrase は文字列である必要があります',
+        details: { field: 'passphrase', value: passphrase },
+      },
+    };
+  }
+
+  if (typeof passphrase === 'string' && passphrase.trim().length === 0) {
+    return {
+      valid: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'passphrase を指定する場合は空文字にできません',
+        details: { field: 'passphrase', value: passphrase },
+      },
+    };
+  }
+
+  return {
+    valid: true,
+    data: {
+      name: (name as string).trim(),
+      privateKey: private_key as string,
+      publicKey: typeof public_key === 'string' ? public_key : '',
+      hasPassphrase: !!passphrase,
+    },
+  };
 }
 
 /**
- * GET /api/ssh-keys - すべてのSSH鍵を取得（公開鍵のみ）
+ * GET /api/ssh-keys - SSH鍵一覧を取得
  */
 export async function GET(_request: NextRequest) {
   try {
-    const keys = db
-      .select({
-        id: schema.sshKeys.id,
-        name: schema.sshKeys.name,
-        public_key: schema.sshKeys.public_key,
-        has_passphrase: schema.sshKeys.has_passphrase,
-        created_at: schema.sshKeys.created_at,
-        updated_at: schema.sshKeys.updated_at,
-      })
-      .from(schema.sshKeys)
-      .all();
+    const keys = await service.getAllKeys();
 
-    return NextResponse.json({ keys }, { status: 200 });
+    return NextResponse.json(
+      { keys: keys.map(toApiResponse) },
+      { status: 200 }
+    );
   } catch (error) {
-    logger.error('Failed to fetch SSH keys', { error });
+    logger.error('Failed to get SSH keys', { error });
     return NextResponse.json(
       {
         error: {
@@ -57,7 +154,7 @@ export async function GET(_request: NextRequest) {
 }
 
 /**
- * POST /api/ssh-keys - 新しいSSH鍵を登録
+ * POST /api/ssh-keys - SSH鍵を登録
  */
 export async function POST(request: NextRequest) {
   try {
@@ -76,132 +173,55 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { name, private_key, public_key, passphrase } = body;
-
-    // 必須フィールドのバリデーション
-    if (!name || typeof name !== 'string') {
-      return NextResponse.json(
-        {
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'SSH鍵名は必須です',
-            details: { field: 'name', value: name },
-          },
-        },
-        { status: 400 }
-      );
+    const validation = validateRegisterInput(body);
+    if (!validation.valid) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
     }
 
-    if (!isValidKeyName(name)) {
-      return NextResponse.json(
-        {
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'SSH鍵名は英数字、ハイフン、アンダースコアのみ使用可能です（1-100文字）',
-            details: { field: 'name', value: name },
-          },
-        },
-        { status: 400 }
-      );
-    }
+    const key = await service.registerKey(validation.data!);
 
-    if (!private_key || typeof private_key !== 'string') {
-      return NextResponse.json(
-        {
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'SSH秘密鍵は必須です',
-            details: { field: 'private_key' },
-          },
-        },
-        { status: 400 }
-      );
-    }
-
-    if (!isValidPrivateKey(private_key)) {
-      return NextResponse.json(
-        {
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'SSH秘密鍵の形式が正しくありません',
-            details: { field: 'private_key' },
-          },
-        },
-        { status: 400 }
-      );
-    }
-
-    // 公開鍵のバリデーション（オプショナル）
-    if (public_key !== undefined && public_key !== null) {
-      if (typeof public_key !== 'string' || !isValidPublicKey(public_key)) {
-        return NextResponse.json(
-          {
-            error: {
-              code: 'VALIDATION_ERROR',
-              message: 'SSH公開鍵の形式が正しくありません',
-              details: { field: 'public_key' },
-            },
-          },
-          { status: 400 }
-        );
-      }
-    }
-
-    // 名前の重複チェック
-    const existingKey = db
-      .select()
-      .from(schema.sshKeys)
-      .where(eq(schema.sshKeys.name, name))
-      .get();
-
-    if (existingKey) {
+    return NextResponse.json(
+      { key: toApiResponse(key) },
+      { status: 201 }
+    );
+  } catch (error) {
+    if (error instanceof DuplicateSshKeyNameError) {
       return NextResponse.json(
         {
           error: {
             code: 'DUPLICATE_SSH_KEY_NAME',
-            message: 'この名前のSSH鍵は既に登録されています',
-            details: { field: 'name', value: name },
+            message: '同名のSSH鍵が既に登録されています',
           },
         },
         { status: 409 }
       );
     }
 
-    // 公開鍵が提供されていない場合、秘密鍵から生成
-    // （実際には、クライアント側で生成されることを期待）
-    const finalPublicKey = public_key || `Generated from private key for ${name}`;
+    if (error instanceof InvalidSshKeyError) {
+      return NextResponse.json(
+        {
+          error: {
+            code: 'INVALID_SSH_KEY',
+            message: 'SSH秘密鍵の形式が不正です',
+          },
+        },
+        { status: 400 }
+      );
+    }
 
-    // 秘密鍵を暗号化
-    // EncryptionServiceはiv:authTag:encryptedの形式で返す
-    const encryptedData = await encryptionService.encrypt(private_key);
-    const [iv, authTag] = encryptedData.split(':');
+    if (error instanceof SshKeyEncryptionError) {
+      logger.error('SSH key encryption error', { error });
+      return NextResponse.json(
+        {
+          error: {
+            code: 'ENCRYPTION_ERROR',
+            message: 'SSH鍵の暗号化に失敗しました',
+          },
+        },
+        { status: 500 }
+      );
+    }
 
-    // データベースに保存
-    // private_key_encryptedには完全な暗号化データ（iv:authTag:encrypted）を保存
-    // encryption_ivには参照用にiv:authTagを保存
-    const newKey = db
-      .insert(schema.sshKeys)
-      .values({
-        name,
-        public_key: finalPublicKey,
-        private_key_encrypted: encryptedData,
-        encryption_iv: `${iv}:${authTag}`,
-        has_passphrase: !!passphrase,
-      })
-      .returning({
-        id: schema.sshKeys.id,
-        name: schema.sshKeys.name,
-        public_key: schema.sshKeys.public_key,
-        has_passphrase: schema.sshKeys.has_passphrase,
-        created_at: schema.sshKeys.created_at,
-        updated_at: schema.sshKeys.updated_at,
-      })
-      .get();
-
-    logger.info('SSH key registered', { keyId: newKey.id, keyName: newKey.name });
-
-    return NextResponse.json({ key: newKey }, { status: 201 });
-  } catch (error) {
     logger.error('Failed to register SSH key', { error });
     return NextResponse.json(
       {

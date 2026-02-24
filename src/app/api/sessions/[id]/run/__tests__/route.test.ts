@@ -49,7 +49,7 @@ describe('POST /api/sessions/[id]/run', () => {
       .insert(schema.projects)
       .values({
         name: 'Test Project',
-        path: testRepoPath,
+        path: testRepoPath, clone_location: 'host',
       })
       .returning()
       .get();

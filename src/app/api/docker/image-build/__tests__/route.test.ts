@@ -1,30 +1,34 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { EventEmitter } from 'events';
 import * as path from 'path';
 
-// ホイストされたモックを作成
-const { mockSpawn, mockAccess } = vi.hoisted(() => ({
-  mockSpawn: vi.fn(),
+// DockerClientモックを作成
+const { mockDockerClient } = vi.hoisted(() => ({
+  mockDockerClient: {
+    buildImage: vi.fn(),
+  },
+}));
+
+vi.mock('@/services/docker-client', () => ({
+  DockerClient: {
+    getInstance: () => mockDockerClient,
+  },
+}));
+
+// fs/promisesモジュールをモック
+const { mockAccess } = vi.hoisted(() => ({
   mockAccess: vi.fn(),
 }));
 
-// child_processモジュールをモック（spawnを使用するように変更）
-vi.mock('child_process', async () => {
-  const mockExports = {
-    spawn: mockSpawn,
-  };
-  return {
-    ...mockExports,
-    default: mockExports,
-  };
-});
-
-// fs/promisesモジュールをモック
 vi.mock('fs/promises', async () => {
   return {
     access: mockAccess,
   };
 });
+
+// tar-fsモジュールをモック
+vi.mock('tar-fs', () => ({
+  pack: vi.fn(() => 'mock-tar-stream'),
+}));
 
 vi.mock('@/lib/logger', () => ({
   logger: {
@@ -52,19 +56,6 @@ function createRequest(body: Record<string, unknown>): NextRequest {
   });
 }
 
-// モックのchild processを作成するヘルパー
-function createMockProcess() {
-  const mockProcess = new EventEmitter() as EventEmitter & {
-    stdout: EventEmitter;
-    stderr: EventEmitter;
-    kill: () => void;
-  };
-  mockProcess.stdout = new EventEmitter();
-  mockProcess.stderr = new EventEmitter();
-  mockProcess.kill = vi.fn();
-  return mockProcess;
-}
-
 describe('/api/docker/image-build', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -82,9 +73,18 @@ describe('/api/docker/image-build', () => {
       // Dockerfile存在チェック - 成功
       mockAccess.mockResolvedValue(undefined);
 
-      // docker build 成功（spawnを使用）
-      const mockProcess = createMockProcess();
-      mockSpawn.mockReturnValue(mockProcess);
+      // buildImage成功: onProgressコールバックでストリームイベントを送信
+      mockDockerClient.buildImage.mockImplementation(
+        async (_stream: unknown, _options: unknown, onProgress?: (event: any) => void) => {
+          if (onProgress) {
+            onProgress({ stream: 'Step 1/3 : FROM node:18-alpine\n' });
+            onProgress({ stream: 'Step 2/3 : WORKDIR /app\n' });
+            onProgress({ stream: 'Step 3/3 : CMD ["node"]\n' });
+            onProgress({ stream: 'Successfully built abc123\n' });
+            onProgress({ stream: 'Successfully tagged test-image:latest\n' });
+          }
+        }
+      );
 
       const request = createRequest({
         dockerfilePath,
@@ -92,20 +92,7 @@ describe('/api/docker/image-build', () => {
         imageTag: 'latest',
       });
 
-      const responsePromise = POST(request);
-
-      // 非同期でイベントを発火
-      setImmediate(() => {
-        mockProcess.stdout.emit(
-          'data',
-          Buffer.from(
-            'Step 1/3 : FROM node:18-alpine\nStep 2/3 : WORKDIR /app\nStep 3/3 : CMD ["node"]\nSuccessfully built abc123\nSuccessfully tagged test-image:latest\n'
-          )
-        );
-        mockProcess.emit('close', 0);
-      });
-
-      const response = await responsePromise;
+      const response = await POST(request);
       const data = await response.json();
 
       expect(response.status).toBe(200);
@@ -156,9 +143,15 @@ describe('/api/docker/image-build', () => {
       // Dockerfile存在チェック - 成功
       mockAccess.mockResolvedValue(undefined);
 
-      // docker build 失敗（spawnを使用）
-      const mockProcess = createMockProcess();
-      mockSpawn.mockReturnValue(mockProcess);
+      // buildImage: onProgressでエラーイベントを送信
+      mockDockerClient.buildImage.mockImplementation(
+        async (_stream: unknown, _options: unknown, onProgress?: (event: any) => void) => {
+          if (onProgress) {
+            onProgress({ stream: 'Step 1/3 : FROM invalid-image:nonexistent\n' });
+            onProgress({ error: 'pull access denied for invalid-image' });
+          }
+        }
+      );
 
       const request = createRequest({
         dockerfilePath,
@@ -166,16 +159,7 @@ describe('/api/docker/image-build', () => {
         imageTag: 'latest',
       });
 
-      const responsePromise = POST(request);
-
-      // 非同期でイベントを発火（ビルド失敗）
-      setImmediate(() => {
-        mockProcess.stdout.emit('data', Buffer.from('Step 1/3 : FROM invalid-image:nonexistent\n'));
-        mockProcess.stderr.emit('data', Buffer.from('pull access denied for invalid-image\n'));
-        mockProcess.emit('close', 1); // 非ゼロの終了コード
-      });
-
-      const response = await responsePromise;
+      const response = await POST(request);
       const data = await response.json();
 
       expect(response.status).toBe(400);
@@ -244,9 +228,14 @@ describe('/api/docker/image-build', () => {
       // Dockerfile存在チェック - 成功
       mockAccess.mockResolvedValue(undefined);
 
-      // docker build 成功（spawnを使用）
-      const mockProcess = createMockProcess();
-      mockSpawn.mockReturnValue(mockProcess);
+      // buildImage成功
+      mockDockerClient.buildImage.mockImplementation(
+        async (_stream: unknown, _options: unknown, onProgress?: (event: any) => void) => {
+          if (onProgress) {
+            onProgress({ stream: 'Successfully built abc123\n' });
+          }
+        }
+      );
 
       const request = createRequest({
         dockerfilePath,
@@ -254,26 +243,20 @@ describe('/api/docker/image-build', () => {
         // imageTag省略
       });
 
-      const responsePromise = POST(request);
-
-      // spawnが呼ばれた引数を確認
-      setImmediate(() => {
-        // spawnの引数を確認
-        expect(mockSpawn).toHaveBeenCalledWith(
-          'docker',
-          ['build', '-t', 'test-image:latest', '-f', 'Dockerfile', '.'],
-          expect.any(Object)
-        );
-
-        mockProcess.stdout.emit('data', Buffer.from('Successfully built abc123\n'));
-        mockProcess.emit('close', 0);
-      });
-
-      const response = await responsePromise;
+      const response = await POST(request);
       const data = await response.json();
 
       expect(response.status).toBe(200);
       expect(data.imageName).toBe('test-image:latest');
+
+      // buildImageが正しいオプションで呼ばれたか確認
+      expect(mockDockerClient.buildImage).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          t: 'test-image:latest',
+        }),
+        expect.any(Function)
+      );
     });
   });
 });

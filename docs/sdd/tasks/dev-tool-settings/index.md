@@ -29,10 +29,10 @@
 |---------|------|--------|--------|----------|-----------|
 | Phase 1: データベース・基盤 | 4 | 0 | 0 | 0 | [詳細](phase-1/) @phase-1/ |
 | Phase 2: API実装 | 2 | 0 | 0 | 0 | [詳細](phase-2/) @phase-2/ |
-| Phase 3: Docker統合 | 2 | 0 | 1 | 0 | [詳細](phase-3/) @phase-3/ |
-| Phase 4: UI実装 | 0 | 0 | 3 | 0 | [詳細](phase-4/) @phase-4/ |
+| Phase 3: Docker統合 | 3 | 0 | 0 | 0 | [詳細](phase-3/) @phase-3/ |
+| Phase 4: UI実装 | 3 | 0 | 0 | 0 | [詳細](phase-4/) @phase-4/ |
 
-**全体進捗**: 8/12タスク完了（67%）
+**全体進捗**: 12/12タスク完了（100%）
 
 ---
 
@@ -72,10 +72,10 @@ Phase 3完了後、UI実装の一部を並列実行可能：
 
 | タスクID | タイトル | ステータス | 依存 | 見積 | 詳細リンク |
 |----------|---------|-----------|------|------|-----------|
-| TASK-001 | Drizzleスキーマ追加（DeveloperSettings, SshKey） | TODO | - | 20min | [詳細](phase-1/TASK-001.md) @phase-1/TASK-001.md |
-| TASK-002 | EncryptionService実装（TDD） | TODO | TASK-001 | 40min | [詳細](phase-1/TASK-002.md) @phase-1/TASK-002.md |
-| TASK-003 | DeveloperSettingsService実装（TDD） | TODO | TASK-001 | 40min | [詳細](phase-1/TASK-003.md) @phase-1/TASK-003.md |
-| TASK-004 | SshKeyService実装（TDD） | TODO | TASK-001 | 40min | [詳細](phase-1/TASK-004.md) @phase-1/TASK-004.md |
+| TASK-001 | Drizzleスキーマ追加（DeveloperSettings, SshKey） | DONE | - | 20min | [詳細](phase-1/TASK-001.md) @phase-1/TASK-001.md |
+| TASK-002 | EncryptionService実装（TDD） | DONE | TASK-001 | 40min | [詳細](phase-1/TASK-002.md) @phase-1/TASK-002.md |
+| TASK-003 | DeveloperSettingsService実装（TDD） | DONE | TASK-001 | 40min | [詳細](phase-1/TASK-003.md) @phase-1/TASK-003.md |
+| TASK-004 | SshKeyService実装（TDD） | DONE | TASK-001 | 40min | [詳細](phase-1/TASK-004.md) @phase-1/TASK-004.md |
 
 **並列実行**: TASK-002, TASK-003, TASK-004 は TASK-001 完了後に並列実行可能
 
@@ -84,8 +84,8 @@ Phase 3完了後、UI実装の一部を並列実行可能：
 
 | タスクID | タイトル | ステータス | 依存 | 見積 | 詳細リンク |
 |----------|---------|-----------|------|------|-----------|
-| TASK-005 | /api/developer-settings/* エンドポイント実装（TDD） | TODO | Phase 1 | 35min | [詳細](phase-2/TASK-005.md) @phase-2/TASK-005.md |
-| TASK-006 | /api/ssh-keys エンドポイント実装（TDD） | TODO | Phase 1 | 35min | [詳細](phase-2/TASK-006.md) @phase-2/TASK-006.md |
+| TASK-005 | /api/developer-settings/* エンドポイント実装（TDD） | DONE | Phase 1 | 35min | [詳細](phase-2/TASK-005.md) @phase-2/TASK-005.md |
+| TASK-006 | /api/ssh-keys エンドポイント実装（TDD） | DONE | Phase 1 | 35min | [詳細](phase-2/TASK-006.md) @phase-2/TASK-006.md |
 
 **並列実行**: TASK-005, TASK-006 は並列実行可能
 
@@ -95,7 +95,7 @@ Phase 3完了後、UI実装の一部を並列実行可能：
 | タスクID | タスクタイトル | ステータス | 依存 | 見積 | 詳細リンク |
 |----------|-------------|-----------|------|------|-----------|
 | TASK-007 | DockerAdapter拡張（injectDeveloperSettings）実装（TDD） | DONE | Phase 2 | 50min | [詳細](phase-3/TASK-007.md) @phase-3/TASK-007.md |
-| TASK-008 | SSH鍵一時ファイル管理とクリーンアップ実装 | TODO | TASK-007 | 30min | [詳細](phase-3/TASK-008.md) @phase-3/TASK-008.md |
+| TASK-008 | SSH鍵一時ファイル管理とクリーンアップ実装 | DONE | TASK-007 | 30min | [詳細](phase-3/TASK-008.md) @phase-3/TASK-008.md |
 | TASK-009 | Docker統合テスト | DONE | TASK-008 | 30min | [詳細](phase-3/TASK-009.md) @phase-3/TASK-009.md |
 
 ### Phase 4: UI実装
@@ -103,9 +103,9 @@ Phase 3完了後、UI実装の一部を並列実行可能：
 
 | タスクID | タイトル | ステータス | 依存 | 見積 | 詳細リンク |
 |----------|---------|-----------|------|------|-----------|
-| TASK-010 | DeveloperSettingsPage UI実装 | TODO | Phase 3 | 50min | [詳細](phase-4/TASK-010.md) @phase-4/TASK-010.md |
-| TASK-011 | Zustand Store実装 | TODO | Phase 3 | 30min | [詳細](phase-4/TASK-011.md) @phase-4/TASK-011.md |
-| TASK-012 | E2Eテスト（Playwright） | TODO | TASK-010, TASK-011 | 30min | [詳細](phase-4/TASK-012.md) @phase-4/TASK-012.md |
+| TASK-010 | DeveloperSettingsPage UI実装 | DONE | Phase 3 | 50min | [詳細](phase-4/TASK-010.md) @phase-4/TASK-010.md |
+| TASK-011 | Zustand Store実装 | DONE | Phase 3 | 30min | [詳細](phase-4/TASK-011.md) @phase-4/TASK-011.md |
+| TASK-012 | E2Eテスト（Playwright） | DONE | TASK-010, TASK-011 | 30min | [詳細](phase-4/TASK-012.md) @phase-4/TASK-012.md |
 
 **並列実行**: TASK-010, TASK-011 は並列実行可能
 

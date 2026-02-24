@@ -146,4 +146,6 @@ describe('DockerAdapter', () => {
 
 ## ステータス
 
-TODO
+`DONE`
+
+**完了サマリー**: DockerAdapterは既にsrc/services/adapters/docker-adapter.ts（1,372行）に完全実装済み。EnvironmentAdapterインターフェースを実装し、spawnPTY、createSession、write、resize、destroySession等のメソッドが動作。AdapterFactoryもDOCKER環境タイプに対応済み。

@@ -30,9 +30,9 @@
 
 | フェーズ | 完了 | 進行中 | 未着手 | ブロック | 詳細リンク |
 |---------|------|--------|--------|----------|-----------|
-| Phase 1: 基盤構築 | 0 | 0 | 3 | 0 | [詳細](phase-1/) @phase-1/ |
-| Phase 2: アダプター変更 | 0 | 0 | 4 | 0 | [詳細](phase-2/) @phase-2/ |
-| Phase 3: クリーンアップ・統合 | 0 | 0 | 3 | 0 | [詳細](phase-3/) @phase-3/ |
+| Phase 1: 基盤構築 | 3 | 0 | 0 | 0 | [詳細](phase-1/) @phase-1/ |
+| Phase 2: アダプター変更 | 4 | 0 | 0 | 0 | [詳細](phase-2/) @phase-2/ |
+| Phase 3: クリーンアップ・統合 | 3 | 0 | 0 | 0 | [詳細](phase-3/) @phase-3/ |
 
 **合計推定工数**: 420分(AIエージェント作業時間)
 **並列実行時推定**: 360分(Phase 2で60分短縮)
@@ -80,19 +80,19 @@
 
 | タスクID | タイトル | ステータス | 依存 | 見積 | 詳細リンク |
 |----------|---------|-----------|------|------|-----------|
-| TASK-001 | BasePTYAdapterユニットテスト作成 | TODO | - | 40min | [詳細](phase-1/TASK-001.md) @phase-1/TASK-001.md |
-| TASK-002 | BasePTYAdapter実装 | TODO | TASK-001 | 40min | [詳細](phase-1/TASK-002.md) @phase-1/TASK-002.md |
-| TASK-003 | BasePTYAdapter統合確認 | TODO | TASK-002 | 20min | [詳細](phase-1/TASK-003.md) @phase-1/TASK-003.md |
+| TASK-001 | BasePTYAdapterユニットテスト作成 | DONE | - | 40min | [詳細](phase-1/TASK-001.md) @phase-1/TASK-001.md |
+| TASK-002 | BasePTYAdapter実装 | DONE | TASK-001 | 40min | [詳細](phase-1/TASK-002.md) @phase-1/TASK-002.md |
+| TASK-003 | BasePTYAdapter統合確認 | DONE | TASK-002 | 20min | [詳細](phase-1/TASK-003.md) @phase-1/TASK-003.md |
 
 ### Phase 2: アダプター変更
 *推定期間: 180分（順次実行）/ 120分（並列実行）*
 
 | タスクID | タイトル | ステータス | 依存 | 見積 | 詳細リンク |
 |----------|---------|-----------|------|------|-----------|
-| TASK-004 | HostAdapterテスト作成 | TODO | TASK-003 | 40min | [詳細](phase-2/TASK-004.md) @phase-2/TASK-004.md |
-| TASK-005 | HostAdapter実装(ClaudePTYManager依存削除) | TODO | TASK-004 | 50min | [詳細](phase-2/TASK-005.md) @phase-2/TASK-005.md |
-| TASK-006 | DockerAdapterテスト作成 | TODO | TASK-003 | 40min | [詳細](phase-2/TASK-006.md) @phase-2/TASK-006.md |
-| TASK-007 | DockerAdapter実装(共通ロジック移動) | TODO | TASK-006 | 50min | [詳細](phase-2/TASK-007.md) @phase-2/TASK-007.md |
+| TASK-004 | HostAdapterテスト作成 | DONE | TASK-003 | 40min | [詳細](phase-2/TASK-004.md) @phase-2/TASK-004.md |
+| TASK-005 | HostAdapter実装(ClaudePTYManager依存削除) | DONE | TASK-004 | 50min | [詳細](phase-2/TASK-005.md) @phase-2/TASK-005.md |
+| TASK-006 | DockerAdapterテスト作成 | DONE | TASK-003 | 40min | [詳細](phase-2/TASK-006.md) @phase-2/TASK-006.md |
+| TASK-007 | DockerAdapter実装(共通ロジック移動) | DONE | TASK-006 | 50min | [詳細](phase-2/TASK-007.md) @phase-2/TASK-007.md |
 
 **並列実行**: TASK-004とTASK-006を並列実行可能(60分短縮)
 
@@ -101,9 +101,9 @@
 
 | タスクID | タイトル | ステータス | 依存 | 見積 | 詳細リンク |
 |----------|---------|-----------|------|------|-----------|
-| TASK-008 | ClaudePTYManager削除 | TODO | Phase 2 | 20min | [詳細](phase-3/TASK-008.md) @phase-3/TASK-008.md |
-| TASK-009 | 統合テスト作成・実行 | TODO | TASK-008 | 60min | [詳細](phase-3/TASK-009.md) @phase-3/TASK-009.md |
-| TASK-010 | GitHub Actions確認・修正対応 | TODO | TASK-009 | 40min | [詳細](phase-3/TASK-010.md) @phase-3/TASK-010.md |
+| TASK-008 | ClaudePTYManager削除 | DONE | Phase 2 | 20min | [詳細](phase-3/TASK-008.md) @phase-3/TASK-008.md |
+| TASK-009 | 統合テスト作成・実行 | DONE | TASK-008 | 60min | [詳細](phase-3/TASK-009.md) @phase-3/TASK-009.md |
+| TASK-010 | GitHub Actions確認・修正対応 | DONE | TASK-009 | 40min | [詳細](phase-3/TASK-010.md) @phase-3/TASK-010.md |
 
 ---
 

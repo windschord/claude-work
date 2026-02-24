@@ -12,7 +12,7 @@
 - [x] フレームワーク: Next.js App Router, Tailwind CSS, Headless UI
 - [x] データベース: SQLite（Drizzle経由）
 - [x] 外部サービス連携: なし
-- [x] セキュリティ要件: AES-256-CBC暗号化、パーミッション0600、read-onlyマウント
+- [x] セキュリティ要件: AES-256-GCM暗号化、パーミッション0600、read-onlyマウント
 - [x] パフォーマンス要件: 設定読み込み100ms以内、保存500ms以内
 
 ### 不明/要確認の情報
@@ -21,7 +21,7 @@
 |------|-----------|----------|
 | 暗号化ライブラリ | Node.js標準cryptoを使用 | [x] 確認済み（DEC-001で決定） |
 | SSH鍵一時保存場所 | data/environments/<env-id>/ssh/ | [x] 確認済み（DEC-002で決定） |
-| マスターキー管理 | 環境変数 ENCRYPTION_MASTER_KEY | [x] 確認済み |
+| マスターキー管理 | 環境変数 ENCRYPTION_KEY（Base64エンコード32バイト鍵） | [x] 確認済み（DEC-001で決定） |
 
 ### 確認が必要な質問リスト
 
@@ -117,8 +117,8 @@ graph TB
 ## セキュリティ考慮事項
 
 ### 暗号化
-- **SSH秘密鍵の暗号化**: AES-256-CBC アルゴリズム
-- **暗号化マスターキー**: 環境変数 `ENCRYPTION_MASTER_KEY` から取得
+- **SSH秘密鍵の暗号化**: AES-256-GCM アルゴリズム
+- **暗号化鍵**: 環境変数 `ENCRYPTION_KEY`（Base64エンコードされた32バイト鍵）から直接取得
 - **初期化ベクトル（IV）**: 鍵ごとにランダム生成し、データベースに保存
 
 ### アクセス制御
@@ -215,7 +215,7 @@ graph TB
 ### デプロイメント
 
 - マイグレーション: `npm run db:push` で自動適用
-- 環境変数チェック: `ENCRYPTION_MASTER_KEY` が未設定の場合は警告
+- 環境変数チェック: `ENCRYPTION_KEY` が未設定の場合は警告
 
 ---
 

@@ -230,6 +230,8 @@ export function setupClaudeWebSocket(
           project: {
             columns: {
               environment_id: true,
+              clone_location: true,
+              docker_volume_id: true,
             },
           },
         },
@@ -329,8 +331,8 @@ export function setupClaudeWebSocket(
             });
           }
 
-          // 環境IDを取得（プロジェクトから、未指定の場合はデフォルト環境）
-          let environmentId = session.project?.environment_id;
+          // 環境IDを取得（セッション → プロジェクト → デフォルト環境の優先順位）
+          let environmentId = session.environment_id || session.project?.environment_id;
           if (!environmentId) {
             const defaultEnv = await environmentService.getDefault();
             environmentId = defaultEnv.id;
@@ -338,10 +340,21 @@ export function setupClaudeWebSocket(
               sessionId,
               environmentId,
             });
+          } else {
+            logger.info('Claude WebSocket: Using session/project environment', {
+              sessionId,
+              environmentId,
+              source: session.environment_id ? 'session' : 'project',
+            });
           }
 
           // ターミナルサイズを取得
           const terminalSize: { cols: number; rows: number } = pendingResize ?? { cols: 80, rows: 24 };
+
+          // DockerボリュームIDの解決（clone_location='docker'の場合）
+          const dockerVolumeId = session.project?.clone_location === 'docker'
+            ? (session.project?.docker_volume_id || `claude-repo-${session.project_id}`)
+            : undefined;
 
           // PTYSessionManager経由でセッション作成
           await ptySessionManager.createSession({
@@ -356,6 +369,7 @@ export function setupClaudeWebSocket(
             customEnvVars: hasCustomEnvVars ? mergedEnvVars : undefined,
             cols: terminalSize.cols,
             rows: terminalSize.rows,
+            dockerVolumeId,
           });
 
           logger.info('Claude PTY created for session', {

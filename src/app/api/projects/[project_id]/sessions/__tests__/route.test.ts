@@ -594,5 +594,175 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         expect.any(Object)
       );
     });
+
+    it('should use requestEnvironmentId when project has no environment_id', async () => {
+      const mockEnvironment = {
+        id: 'env-docker-req',
+        name: 'Request Docker Env',
+        type: 'DOCKER',
+        description: null,
+        config: '{}',
+        auth_dir_path: '/data/environments/env-docker-req',
+        is_default: false,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      // プロジェクトに environment_id なし
+      mockDb._mockSelectGet.mockReturnValue({
+        id: 'project-1',
+        name: 'Test Project',
+        path: '/path/to/project',
+        environment_id: null,
+      });
+
+      mockEnvironmentService.findById.mockResolvedValue(mockEnvironment);
+      mockDb._mockInsertGet.mockReturnValue({
+        id: 'session-1',
+        project_id: 'project-1',
+        name: 'happy-panda',
+        status: 'initializing',
+        worktree_path: '/path/to/worktree',
+        branch_name: 'session/session-123',
+        docker_mode: false,
+        container_id: null,
+      });
+
+      const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: 'Hello Claude', environment_id: 'env-docker-req' }),
+      });
+
+      const response = await POST(request, {
+        params: Promise.resolve({ project_id: 'project-1' }),
+      });
+
+      expect(response.status).toBe(201);
+      expect(mockEnvironmentService.findById).toHaveBeenCalledWith('env-docker-req');
+      // Dockerの診断は呼ばれない（environment_idが使われるため）
+      expect(mockDockerService.diagnoseDockerError).not.toHaveBeenCalled();
+    });
+
+    it('should fall back to auto-selection when requestEnvironmentId references non-existent environment', async () => {
+      // プロジェクトに environment_id なし
+      mockDb._mockSelectGet.mockReturnValue({
+        id: 'project-1',
+        name: 'Test Project',
+        path: '/path/to/project',
+        environment_id: null,
+        clone_location: null,
+      });
+
+      // リクエストの environment_id が存在しない
+      mockEnvironmentService.findById.mockResolvedValue(null);
+      mockDb._mockInsertGet.mockReturnValue({
+        id: 'session-1',
+        project_id: 'project-1',
+        name: 'happy-panda',
+        status: 'initializing',
+        worktree_path: '/path/to/worktree',
+        branch_name: 'session/session-123',
+        docker_mode: false,
+        container_id: null,
+      });
+
+      const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: 'Hello Claude', environment_id: 'non-existent-req' }),
+      });
+
+      const response = await POST(request, {
+        params: Promise.resolve({ project_id: 'project-1' }),
+      });
+
+      // フォールバックして201で成功する
+      expect(response.status).toBe(201);
+      expect(mockEnvironmentService.findById).toHaveBeenCalledWith('non-existent-req');
+    });
+
+    it('project environment_id takes priority over requestEnvironmentId', async () => {
+      const projectEnvironment = {
+        id: 'env-project',
+        name: 'Project Env',
+        type: 'HOST',
+        description: null,
+        config: '{}',
+        auth_dir_path: null,
+        is_default: false,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      // プロジェクトに environment_id を設定
+      mockDb._mockSelectGet.mockReturnValue({
+        id: 'project-1',
+        name: 'Test Project',
+        path: '/path/to/project',
+        environment_id: 'env-project',
+      });
+
+      mockEnvironmentService.findById.mockResolvedValue(projectEnvironment);
+      mockDb._mockInsertGet.mockReturnValue({
+        id: 'session-1',
+        project_id: 'project-1',
+        name: 'happy-panda',
+        status: 'initializing',
+        worktree_path: '/path/to/worktree',
+        branch_name: 'session/session-123',
+        docker_mode: false,
+        container_id: null,
+      });
+
+      // リクエストにも environment_id を指定するが、プロジェクトの方が優先される
+      const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: 'Hello Claude', environment_id: 'env-request-should-be-ignored' }),
+      });
+
+      const response = await POST(request, {
+        params: Promise.resolve({ project_id: 'project-1' }),
+      });
+
+      expect(response.status).toBe(201);
+      // プロジェクトの environment_id で findById が呼ばれる
+      expect(mockEnvironmentService.findById).toHaveBeenCalledWith('env-project');
+      // リクエストの environment_id では呼ばれない（プロジェクトのが優先されて処理が終わるため）
+      expect(mockEnvironmentService.findById).not.toHaveBeenCalledWith('env-request-should-be-ignored');
+    });
+
+    it('should return 400 when environment_id is not a string', async () => {
+      const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: 'Hello Claude', environment_id: 123 }),
+      });
+
+      const response = await POST(request, {
+        params: Promise.resolve({ project_id: 'project-1' }),
+      });
+
+      expect(response.status).toBe(400);
+      const body = await response.json();
+      expect(body.error).toContain('environment_id must be a non-empty string');
+    });
+
+    it('should return 400 when environment_id is an empty string', async () => {
+      const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: 'Hello Claude', environment_id: '' }),
+      });
+
+      const response = await POST(request, {
+        params: Promise.resolve({ project_id: 'project-1' }),
+      });
+
+      expect(response.status).toBe(400);
+      const body = await response.json();
+      expect(body.error).toContain('environment_id must be a non-empty string');
+    });
   });
 });

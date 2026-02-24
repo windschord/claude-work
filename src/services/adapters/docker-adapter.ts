@@ -2,24 +2,30 @@ import type { IPty } from 'node-pty';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
-import * as childProcess from 'child_process';
-import { promisify } from 'util';
+import * as tar from 'tar-fs';
+import { Writable } from 'stream';
 import type { CreateSessionOptions, PTYExitInfo } from '../environment-adapter';
 import { ClaudeOptionsService } from '../claude-options-service';
 import { scrollbackBuffer } from '../scrollback-buffer';
 import { db, schema } from '@/lib/db';
-import { eq } from 'drizzle-orm';
+import { eq, isNotNull } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
 import { BasePTYAdapter } from './base-adapter';
 import { DeveloperSettingsService } from '@/services/developer-settings-service';
 import { EncryptionService } from '@/services/encryption-service';
+import { DockerClient } from '../docker-client';
+import { DockerPTYStream } from '../docker-pty-stream';
+import Docker from 'dockerode';
 import * as fsPromises from 'fs/promises';
+import type { PortMapping, VolumeMount } from '@/types/environment';
 
 export interface DockerAdapterConfig {
   environmentId: string;
   imageName: string;
   imageTag: string;
   authDirPath: string; // 環境専用認証ディレクトリ（絶対パス）
+  portMappings?: PortMapping[];    // カスタムポートマッピング
+  volumeMounts?: VolumeMount[];    // カスタムボリュームマウント
 }
 
 export interface GitCloneOptions {
@@ -66,6 +72,7 @@ interface DockerSession {
   shellMode: boolean;
   lastKnownCols?: number;
   lastKnownRows?: number;
+  containerWorkDir?: string;  // コンテナ内の作業ディレクトリ（dockerVolumeId使用時はworkingDir、それ以外は'/workspace'）
 }
 
 /**
@@ -91,6 +98,22 @@ export class DockerAdapter extends BasePTYAdapter {
 
   constructor(config: DockerAdapterConfig) {
     super();
+
+    // Validate authDirPath: must be an absolute path containing environmentId
+    // to prevent accidental cross-environment auth directory usage
+    if (!config.authDirPath || !path.isAbsolute(config.authDirPath)) {
+      throw new Error(`DockerAdapter: authDirPath must be an absolute path, got: ${config.authDirPath}`);
+    }
+    const normalizedAuthPath = path.resolve(config.authDirPath);
+    // Use path separator boundaries to prevent false positives (e.g., env-1 matching env-10)
+    const pathSegments = normalizedAuthPath.split(path.sep);
+    if (!pathSegments.includes(config.environmentId)) {
+      throw new Error(
+        `DockerAdapter: authDirPath must contain environmentId for isolation. ` +
+        `Expected path segment '${config.environmentId}', got: ${normalizedAuthPath}`
+      );
+    }
+
     this.config = config;
     this.developerSettingsService = new DeveloperSettingsService();
     this.encryptionService = new EncryptionService();
@@ -102,109 +125,164 @@ export class DockerAdapter extends BasePTYAdapter {
   }
 
   /**
-   * Docker実行引数を構築（環境専用認証ディレクトリを使用）
+   * Constructs Dockerode container options from session parameters.
    */
-  protected buildDockerArgs(workingDir: string, options?: CreateSessionOptions): { args: string[]; containerName: string; envFilePath?: string } {
-    const args: string[] = ['run', '-it', '--rm'];
-
-    // コンテナ名（環境ID + タイムスタンプで一意に）
+  protected buildContainerOptions(workingDir: string, options?: CreateSessionOptions): {
+    createOptions: Docker.ContainerCreateOptions;
+    containerName: string;
+  } {
     const containerName = `claude-env-${this.config.environmentId.substring(0, 8)}-${Date.now()}`;
-    args.push('--name', containerName);
+    const Binds: string[] = [];
+    const Env: string[] = [];
+    const PortBindings: any = {};
+    const ExposedPorts: any = {};
+    const Cmd: string[] = [];
+    let Entrypoint: string | string[] = [];
 
-    // セキュリティ
-    args.push('--cap-drop', 'ALL');
-    args.push('--security-opt', 'no-new-privileges');
+    // Workspace mount
+    // workingDirConfig is the path used as WorkingDir inside the container.
+    // - With dockerVolumeId: The named volume is mounted at /repo, and workingDir
+    //   is an absolute path within that volume (e.g., /repo/.worktrees/session-name/).
+    //   The container's WorkingDir is set to this path directly.
+    // - Without dockerVolumeId: The host workingDir is bind-mounted at /workspace,
+    //   and the container's WorkingDir is set to /workspace.
+    let workingDirConfig = workingDir;
+    if (options?.dockerVolumeId) {
+       // Validate volume ID (Docker spec: [a-zA-Z0-9][a-zA-Z0-9_.-]*)
+       if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(options.dockerVolumeId)) {
+        throw new Error(`Invalid dockerVolumeId format: ${options.dockerVolumeId}`);
+      }
+      Binds.push(`${options.dockerVolumeId}:/repo`);
+    } else {
+      Binds.push(`${workingDir}:/workspace`);
+      workingDirConfig = '/workspace';
+    }
 
-    // ワークスペース（RW）
-    args.push('-v', `${workingDir}:/workspace`);
-
-    // 環境専用認証ディレクトリ（RW）
+    // Auth dirs (only mount if they exist, matching DockerPTYAdapter pattern)
     const claudeDir = path.join(this.config.authDirPath, 'claude');
     const claudeConfigDir = path.join(this.config.authDirPath, 'config', 'claude');
+    if (fs.existsSync(claudeDir)) {
+      Binds.push(`${claudeDir}:/home/node/.claude`);
+    }
+    if (fs.existsSync(claudeConfigDir)) {
+      Binds.push(`${claudeConfigDir}:/home/node/.config/claude`);
+    }
 
-    args.push('-v', `${claudeDir}:/home/node/.claude`);
-    args.push('-v', `${claudeConfigDir}:/home/node/.config/claude`);
-
-    // Git認証情報（RO）- ホストから共有
+    // Git auth (RO)
     const homeDir = os.homedir();
     const sshDir = path.join(homeDir, '.ssh');
     if (fs.existsSync(sshDir)) {
-      args.push('-v', `${sshDir}:/home/node/.ssh:ro`);
+      Binds.push(`${sshDir}:/home/node/.ssh:ro`);
     }
     const gitconfigPath = path.join(homeDir, '.gitconfig');
     if (fs.existsSync(gitconfigPath)) {
-      args.push('-v', `${gitconfigPath}:/home/node/.gitconfig:ro`);
+      Binds.push(`${gitconfigPath}:/home/node/.gitconfig:ro`);
     }
 
-    // SSH Agent転送
+    // SSH Agent
     const sshAuthSock = process.env.SSH_AUTH_SOCK;
     if (sshAuthSock) {
-      args.push('-v', `${sshAuthSock}:/ssh-agent`);
-      args.push('-e', 'SSH_AUTH_SOCK=/ssh-agent');
+      Binds.push(`${sshAuthSock}:/ssh-agent`);
+      Env.push('SSH_AUTH_SOCK=/ssh-agent');
     }
 
-    // ANTHROPIC_API_KEY転送（キー名のみ指定でホスト環境変数から継承）
+    // Port Mappings
+    if (this.config.portMappings) {
+      for (const pm of this.config.portMappings) {
+        const protocol = String(pm.protocol ?? 'tcp').toLowerCase();
+        const containerPortKey = `${pm.containerPort}/${protocol}`;
+        PortBindings[containerPortKey] = [{ HostPort: String(pm.hostPort) }];
+        ExposedPorts[containerPortKey] = {};
+      }
+    }
+
+    // Custom Volume Mounts
+    if (this.config.volumeMounts) {
+      for (const vm of this.config.volumeMounts) {
+        const mode = vm.accessMode === 'ro' ? ':ro' : '';
+        Binds.push(`${vm.hostPath}:${vm.containerPath}${mode}`);
+      }
+    }
+
+    // ANTHROPIC_API_KEY - passed via Docker API (standard practice).
+    // Note: API keys in environment variables are visible via `docker inspect`.
+    // This is acceptable as Docker API access implies host-level trust.
     if (process.env.ANTHROPIC_API_KEY) {
-      args.push('-e', 'ANTHROPIC_API_KEY');
+      Env.push(`ANTHROPIC_API_KEY=${process.env.ANTHROPIC_API_KEY}`);
     }
 
-    // カスタム環境変数を一時envファイル経由で渡す（値をプロセス引数に載せない）
-    let envFilePath: string | undefined;
+    // Custom Env Vars
+    // Note: Sensitive variable filtering is intentionally not implemented here.
+    // Custom env vars are user-configured and passed through Docker API,
+    // which is standard Docker practice. Log output only includes key names.
     if (!options?.shellMode && options?.customEnvVars) {
-      const lines: string[] = [];
       for (const [key, value] of Object.entries(options.customEnvVars)) {
         if (ClaudeOptionsService.validateEnvVarKey(key) && typeof value === 'string') {
-          lines.push(`${key}=${value}`);
+          Env.push(`${key}=${value}`);
         }
       }
-      if (lines.length > 0) {
-        envFilePath = path.join(os.tmpdir(), `claude-env-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
-        fs.writeFileSync(envFilePath, lines.join('\n'), { mode: 0o600 });
-        args.push('--env-file', envFilePath);
-        // ログには環境変数のKEYのみ出力、VALUEは出力しない
-        logger.info('DockerAdapter: Custom environment variables applied', {
-          keys: Object.keys(options.customEnvVars),
-        });
-      }
-    }
-
-    // シェルモードの場合は/bin/sh、それ以外はclaude
-    const entrypoint = options?.shellMode ? '/bin/sh' : 'claude';
-    args.push('--entrypoint', entrypoint);
-
-    // イメージ
-    args.push(`${this.config.imageName}:${this.config.imageTag}`);
-
-    // --dangerously-skip-permissions（shellModeではスキップ）
-    if (!options?.shellMode && options?.skipPermissions) {
-      args.push('--dangerously-skip-permissions');
-      logger.info('DockerAdapter: --dangerously-skip-permissions enabled');
-    }
-
-    // claudeコマンドの引数（--entrypoint使用時はイメージ名の後に引数を指定）
-    // シェルモードでは--resumeフラグは不要
-    if (!options?.shellMode && options?.resumeSessionId) {
-      args.push('--resume', options.resumeSessionId);
-    }
-
-    // カスタムCLIオプション（シェルモードではスキップ）
-    if (!options?.shellMode && options?.claudeCodeOptions) {
-      const customArgs = ClaudeOptionsService.buildCliArgs(options.claudeCodeOptions);
-      args.push(...customArgs);
-      // ログにはフラグ名のみを出力し、値は出力しない（機密情報対策）
-      // --flag value 形式: フラグは残し、値は[REDACTED]に
-      // --flag=value 形式: =以降を[REDACTED]に
-      const safeArgs = customArgs.map((arg) => {
-        if (!arg.startsWith('-')) return '[REDACTED]';
-        const eqIndex = arg.indexOf('=');
-        return eqIndex === -1 ? arg : `${arg.slice(0, eqIndex)}=[REDACTED]`;
-      });
-      logger.info('DockerAdapter: Custom CLI options applied', {
-        args: safeArgs,
+      logger.info('DockerAdapter: Custom environment variables applied', {
+        keys: Object.keys(options.customEnvVars),
       });
     }
 
-    return { args, containerName, envFilePath };
+    // Entrypoint
+    Entrypoint = options?.shellMode ? '/bin/sh' : 'claude';
+    
+    // Arguments
+    if (!options?.shellMode) {
+       if (options?.skipPermissions) {
+         Cmd.push('--dangerously-skip-permissions');
+         logger.info('DockerAdapter: --dangerously-skip-permissions enabled');
+       }
+
+       if (options?.resumeSessionId) {
+         Cmd.push('--resume', options.resumeSessionId);
+       }
+
+       if (options?.claudeCodeOptions) {
+         const customArgs = ClaudeOptionsService.buildCliArgs(options.claudeCodeOptions);
+         Cmd.push(...customArgs);
+         
+         const safeArgs = customArgs.map((arg) => {
+            if (!arg.startsWith('-')) return '[REDACTED]';
+            const eqIndex = arg.indexOf('=');
+            return eqIndex === -1 ? arg : `${arg.slice(0, eqIndex)}=[REDACTED]`;
+          });
+          logger.info('DockerAdapter: Custom CLI options applied', {
+            args: safeArgs,
+          });
+       }
+    }
+
+    const createOptions: Docker.ContainerCreateOptions = {
+      name: containerName,
+      Image: `${this.config.imageName}:${this.config.imageTag}`,
+      Tty: true,
+      OpenStdin: true,
+      StdinOnce: false,
+      AttachStdin: true,
+      AttachStdout: true,
+      AttachStderr: true,
+      Env,
+      Cmd: Cmd.length > 0 ? Cmd : undefined,
+      Entrypoint,
+      WorkingDir: workingDirConfig,
+      HostConfig: {
+        Binds,
+        PortBindings,
+        CapDrop: ['ALL'],
+        SecurityOpt: ['no-new-privileges'],
+        // AutoRemove: container is automatically removed after exit.
+        // Note: This means container logs are unavailable after exit and
+        // container.wait() may fail if the container is already removed.
+        // The stopContainer() method handles 404 errors for this case.
+        AutoRemove: true,
+      },
+      ExposedPorts,
+    };
+
+    return { createOptions, containerName };
   }
 
   /**
@@ -232,15 +310,64 @@ export class DockerAdapter extends BasePTYAdapter {
   }
 
   /**
+   * execセッションのコンテナ内作業ディレクトリを解決
+   *
+   * 1. メモリ上の親セッションからcontainerWorkDirを取得
+   * 2. メモリにない場合（サーバー再起動後等）、DBからプロジェクト情報を取得して推定
+   * 3. いずれも取得できない場合は'/workspace'にフォールバック
+   */
+  private resolveExecWorkDir(sessionId: string): string {
+    const parentId = this.getParentSessionId(sessionId);
+    if (!parentId) return '/workspace';
+
+    // 1. メモリから取得
+    const parentSession = this.sessions.get(parentId);
+    if (parentSession?.containerWorkDir) {
+      return parentSession.containerWorkDir;
+    }
+
+    // 2. DBから推定（サーバー再起動後のフォールバック）
+    try {
+      const parentRecord = db.select({
+        worktree_path: schema.sessions.worktree_path,
+        project_id: schema.sessions.project_id,
+      }).from(schema.sessions).where(eq(schema.sessions.id, parentId)).get();
+
+      if (parentRecord) {
+        const project = db.select({
+          clone_location: schema.projects.clone_location,
+        }).from(schema.projects).where(eq(schema.projects.id, parentRecord.project_id)).get();
+
+        if (project?.clone_location === 'docker') {
+          // パストラバーサル防止: .worktrees/を含み、..を含まないことを検証
+          const wp = parentRecord.worktree_path;
+          if (wp.includes('.worktrees/') && !wp.includes('..')) {
+            logger.info('DockerAdapter: Resolved exec CWD from DB (docker volume mode)', {
+              sessionId, parentId, workDir: wp,
+            });
+            return wp;
+          }
+          logger.warn('DockerAdapter: Invalid worktree_path from DB, falling back to /workspace', {
+            sessionId, parentId, worktreePath: wp,
+          });
+        }
+      }
+    } catch (error) {
+      logger.warn('DockerAdapter: Failed to recover containerWorkDir from DB', {
+        sessionId, parentId, error: error instanceof Error ? error.message : 'Unknown',
+      });
+    }
+
+    return '/workspace';
+  }
+
+  /**
    * Dockerコンテナが実際に存在し、実行中かを確認
    */
   private async isContainerRunning(containerName: string): Promise<boolean> {
-    const execFileAsync = promisify(childProcess.execFile);
     try {
-      const { stdout } = await execFileAsync('docker', ['inspect', '--format', '{{.State.Running}}', containerName], {
-        timeout: 5000,
-      });
-      return stdout.trim() === 'true';
+      const container = await DockerClient.getInstance().inspectContainer(containerName);
+      return container.State.Running;
     } catch {
       return false;
     }
@@ -250,7 +377,6 @@ export class DockerAdapter extends BasePTYAdapter {
    * Dockerコンテナが完全に起動するまで待機
    */
   private async waitForContainerReady(containerId: string): Promise<void> {
-    const execFileAsync = promisify(childProcess.execFile);
     const maxRetries = 30;
     const retryInterval = 1000; // 1秒
     const timeout = 30000; // 30秒
@@ -267,22 +393,18 @@ export class DockerAdapter extends BasePTYAdapter {
 
       try {
         // コンテナの状態を確認
-        const { stdout } = await execFileAsync(
-          'docker',
-          ['inspect', '--format', '{{.State.Running}}', containerId],
-          { timeout: 5000 }
-        );
-
-        const isRunning = stdout.trim() === 'true';
+        const container = await DockerClient.getInstance().inspectContainer(containerId);
+        const isRunning = container.State.Running;
 
         if (isRunning) {
           // 追加のヘルスチェック（コンテナ内でコマンドを実行）
           try {
-            await execFileAsync(
-              'docker',
-              ['exec', containerId, 'echo', 'health-check'],
-              { timeout: 2000 }
-            );
+            // exec wrapper
+            const exec = await DockerClient.getInstance().getContainer(containerId).exec({
+              Cmd: ['echo', 'health-check'],
+              AttachStdout: true,
+            });
+            await exec.start({});
 
             logger.info(`Container ${containerId} is ready after ${attempt} attempts`);
             return;
@@ -302,27 +424,21 @@ export class DockerAdapter extends BasePTYAdapter {
   }
 
   /**
-   * Dockerコンテナを停止する（Promise化、エラーハンドリング強化）
+   * Dockerコンテナを停止する
    */
   private async stopContainer(containerName: string): Promise<void> {
-    const execFileAsync = promisify(childProcess.execFile);
     logger.info(`Stopping container ${containerName}`);
 
     try {
-      // 10秒のタイムアウトで停止を試行
-      await execFileAsync('docker', ['stop', '-t', '10', containerName], {
-        timeout: 15000, // 15秒（猶予を含む）
-      });
+      const container = DockerClient.getInstance().getContainer(containerName);
+      // 10秒のタイムアウトで停止
+      await container.stop({ t: 10 });
 
       logger.info(`Container ${containerName} stopped successfully`);
     } catch (error: any) {
-      // コンテナが既に停止している場合はエラーを無視
-      if (
-        error.message &&
-        (error.message.includes('No such container') ||
-          error.message.includes('is not running'))
-      ) {
-        logger.debug(`Container ${containerName} already stopped`);
+      // コンテナが既に停止している、または存在しない場合はエラーを無視
+      if (error.statusCode === 304 || error.statusCode === 404 || (error.message && error.message.includes('No such container'))) {
+        logger.debug(`Container ${containerName} already stopped or not found`);
         return;
       }
 
@@ -330,28 +446,25 @@ export class DockerAdapter extends BasePTYAdapter {
 
       // 強制停止を試行
       try {
-        await execFileAsync('docker', ['kill', containerName], {
-          timeout: 5000,
-        });
+        const container = DockerClient.getInstance().getContainer(containerName);
+        await container.kill();
         logger.warn(`Container ${containerName} force-killed`);
       } catch (killError) {
         logger.error(`Failed to force-kill container ${containerName}:`, killError);
       }
-
-      // エラーをログに記録するが、スローはしない（後続処理を継続）
     }
   }
 
   /**
    * コンテナ停止を待つPromiseを返す
    */
-  private waitForContainer(containerName: string): Promise<void> {
-    return new Promise<void>((resolve) => {
-      childProcess.execFile('docker', ['wait', containerName], { timeout: 5000 }, () => {
-        // タイムアウトやエラーでも続行
-        resolve();
-      });
-    });
+  private async waitForContainer(containerName: string): Promise<void> {
+    try {
+      const container = DockerClient.getInstance().getContainer(containerName);
+      await container.wait();
+    } catch (error) {
+      logger.warn(`Failed to wait for container ${containerName}`, { error });
+    }
   }
 
   /**
@@ -364,9 +477,7 @@ export class DockerAdapter extends BasePTYAdapter {
     cols: number,
     rows: number
   ): Promise<void> {
-    // -it オプションでインタラクティブモードとTTYを有効化
-    // -w オプションで作業ディレクトリを /workspace に設定
-    const args = ['exec', '-it', '-w', '/workspace', containerName, 'bash'];
+    const execCwd = this.resolveExecWorkDir(sessionId);
 
     logger.info('DockerAdapter: Creating exec session (attaching to existing container)', {
       sessionId,
@@ -377,11 +488,30 @@ export class DockerAdapter extends BasePTYAdapter {
     });
 
     try {
-      const ptyProcess = this.spawnPTY('docker', args, {
+      const container = DockerClient.getInstance().getContainer(containerName);
+
+      const exec = await container.exec({
+        Cmd: ['bash'],
+        AttachStdin: true,
+        AttachStdout: true,
+        AttachStderr: true,
+        Tty: true,
+        WorkingDir: execCwd,
+      });
+
+      const stream = await exec.start({
+        hijack: true,
+        stdin: true,
+        Tty: true,
+      });
+
+      const ptyProcess = new DockerPTYStream({
         cols,
         rows,
-        env: {},
+        isContainer: false,
+        exec: exec,
       });
+      ptyProcess.setStream(stream);
 
       this.sessions.set(sessionId, {
         ptyProcess,
@@ -517,7 +647,7 @@ export class DockerAdapter extends BasePTYAdapter {
       throw error;
     }
 
-    const { args, containerName, envFilePath } = this.buildDockerArgs(workingDir, options);
+    const { createOptions, containerName } = this.buildContainerOptions(workingDir, options);
 
     // クライアントから渡されたターミナルサイズを使用（未指定時はデフォルト80x24）
     const initialCols = options?.cols ?? 80;
@@ -532,14 +662,36 @@ export class DockerAdapter extends BasePTYAdapter {
       rows: initialRows,
     });
 
+    let container: Docker.Container | undefined;
+    let ptyProcess: DockerPTYStream | undefined;
     try {
-      const ptyProcess = this.spawnPTY('docker', args, {
-        cols: initialCols,
-        rows: initialRows,
-        cwd: undefined,
-        env: {},
+      container = await DockerClient.getInstance().createContainer(createOptions);
+
+      // Attach stream (hijack)
+      const stream = await container.attach({
+        stream: true,
+        stdin: true,
+        stdout: true,
+        stderr: true,
+        hijack: true,
       });
 
+      ptyProcess = new DockerPTYStream({
+        cols: initialCols,
+        rows: initialRows,
+        isContainer: true,
+        container: container,
+      });
+
+      // IMPORTANT: setStream() must be called before container.start() to avoid
+      // missing early output. setStream() synchronously registers listeners on the
+      // already-attached stream, so no data is lost between attach and start.
+      ptyProcess.setStream(stream);
+
+      // Start container after stream listeners are registered
+      await container.start();
+
+      const containerWorkDir = options?.dockerVolumeId ? workingDir : '/workspace';
       this.sessions.set(sessionId, {
         ptyProcess,
         workingDir,
@@ -549,6 +701,7 @@ export class DockerAdapter extends BasePTYAdapter {
         shellMode: false,
         lastKnownCols: initialCols,
         lastKnownRows: initialRows,
+        containerWorkDir,
       });
 
       // コンテナ起動完了を待機（TASK-012）
@@ -571,8 +724,6 @@ export class DockerAdapter extends BasePTYAdapter {
             // Docker環境ではコンテナ起動のオーバーヘッドにより、クライアントからの
             // resize()がコンテナ起動完了前に到着し効果がない。初回出力後に
             // 保存済みのクライアントサイズでリサイズを再適用する。
-            // 注意: lastKnownCols/Rowsはこの時点で未設定の場合がある
-            // （WebSocketメッセージ競合やrestart時）。チェックはコールバック内で行う。
             if (!session.shellMode) {
               setTimeout(() => {
                 const s = this.sessions.get(sessionId);
@@ -604,11 +755,6 @@ export class DockerAdapter extends BasePTYAdapter {
 
       ptyProcess.onExit(async ({ exitCode, signal }) => {
         logger.info('DockerAdapter: Session exited', { sessionId, exitCode, signal });
-
-        // 一時envファイルのクリーンアップ
-        if (envFilePath) {
-          try { fs.unlinkSync(envFilePath); } catch { /* ignore */ }
-        }
 
         // restartSession()で新セッションが作成された後に旧PTYのonExitが遅延発火した場合、
         // 新セッションを消さないようにptyProcess同一性チェックを行う
@@ -655,32 +801,22 @@ export class DockerAdapter extends BasePTYAdapter {
       });
 
       // 初期プロンプト（シェルモードでは送信しない）
-      if (initialPrompt && !shellMode) {
+      if (initialPrompt && !shellMode && ptyProcess) {
+        const pty = ptyProcess;
         setTimeout(() => {
           if (this.sessions.has(sessionId)) {
-            ptyProcess.write(initialPrompt + '\n');
+            pty.write(initialPrompt + '\n');
           }
         }, 3000);
       }
 
-      // 一時envファイルのクリーンアップ（成功時）
-      if (envFilePath) {
-        try {
-          fs.unlinkSync(envFilePath);
-        } catch {
-          // 削除失敗は無視
-        }
-      }
-
     } catch (error) {
-      // 一時envファイルのクリーンアップ
-      if (envFilePath) {
-        try {
-          fs.unlinkSync(envFilePath);
-        } catch {
-          // 削除失敗は無視
-        }
-      }
+      // Cleanup on failure: remove session entry, kill PTY, remove container
+      this.sessions.delete(sessionId);
+      scrollbackBuffer.clear(sessionId);
+      try { ptyProcess?.kill(); } catch { /* ignore */ }
+      try { await container?.remove({ force: true }); } catch { /* ignore */ }
+      this.cleanupSSHKeys().catch(() => { /* ignore */ });
 
       logger.error('DockerAdapter: Failed to create session', {
         sessionId,
@@ -838,37 +974,27 @@ export class DockerAdapter extends BasePTYAdapter {
   /**
    * 孤立したDockerコンテナをクリーンアップする（サーバー起動時に実行）
    */
-  static async cleanupOrphanedContainers(prismaClient: typeof db): Promise<void> {
+  static async cleanupOrphanedContainers(dbClient: typeof db): Promise<void> {
     logger.info('Checking for orphaned Docker containers');
-    const execFileAsync = promisify(childProcess.execFile);
 
     try {
       // データベースから全セッションのコンテナIDを取得
-      const sessions = prismaClient
+      const sessions = dbClient
         .select({
           id: schema.sessions.id,
           container_id: schema.sessions.container_id,
         })
         .from(schema.sessions)
-        .where(
-          eq(schema.sessions.container_id, schema.sessions.container_id)
-        )
-        .all()
-        .filter((s) => s.container_id !== null);
+        .where(isNotNull(schema.sessions.container_id))
+        .all();
 
       for (const session of sessions) {
         if (!session.container_id) continue;
 
         try {
           // コンテナが実行中か確認
-          const { stdout } = await execFileAsync('docker', [
-            'inspect',
-            '--format',
-            '{{.State.Running}}',
-            session.container_id,
-          ]);
-
-          const isRunning = stdout.trim() === 'true';
+          const container = await DockerClient.getInstance().inspectContainer(session.container_id);
+          const isRunning = container.State.Running;
 
           if (!isRunning) {
             logger.warn(
@@ -876,7 +1002,7 @@ export class DockerAdapter extends BasePTYAdapter {
             );
 
             // セッション状態をERRORに更新
-            prismaClient
+            dbClient
               .update(schema.sessions)
               .set({
                 status: 'ERROR',
@@ -888,7 +1014,8 @@ export class DockerAdapter extends BasePTYAdapter {
 
             // コンテナが存在すれば削除
             try {
-              await execFileAsync('docker', ['rm', '-f', session.container_id]);
+              const containerInstance = DockerClient.getInstance().getContainer(session.container_id);
+              await containerInstance.remove({ force: true });
               logger.info(`Removed orphaned container ${session.container_id}`);
             } catch (rmError) {
               logger.error(`Failed to remove orphaned container:`, rmError);
@@ -901,7 +1028,7 @@ export class DockerAdapter extends BasePTYAdapter {
           );
 
           // コンテナが存在しない場合も孤立とみなす
-          prismaClient
+          dbClient
             .update(schema.sessions)
             .set({
               status: 'ERROR',
@@ -925,27 +1052,22 @@ export class DockerAdapter extends BasePTYAdapter {
   async gitClone(options: GitCloneOptions): Promise<GitCloneResult> {
     const { url, targetPath } = options;
 
+    const cmd = ['git', 'clone', url, '/workspace/target'];
+    const Binds = [`${targetPath}:/workspace/target`];
+    const Env = ['GIT_TERMINAL_PROMPT=0'];
+
+    const sshDir = `${os.homedir()}/.ssh`;
+    if (fs.existsSync(sshDir)) {
+      Binds.push(`${sshDir}:/home/node/.ssh:ro`);
+    }
+
+    if (process.env.SSH_AUTH_SOCK) {
+      Binds.push(`${process.env.SSH_AUTH_SOCK}:/ssh-agent`);
+      Env.push('SSH_AUTH_SOCK=/ssh-agent');
+    }
+
     try {
-      const args = [
-        'run', '--rm',
-        '-v', `${targetPath}:/workspace/target`,
-      ];
-
-      const sshDir = `${os.homedir()}/.ssh`;
-      if (fs.existsSync(sshDir)) {
-        args.push('-v', `${sshDir}:/home/node/.ssh:ro`);
-      }
-
-      if (process.env.SSH_AUTH_SOCK) {
-        args.push('-v', `${process.env.SSH_AUTH_SOCK}:/ssh-agent`);
-        args.push('-e', 'SSH_AUTH_SOCK=/ssh-agent');
-      }
-
-      args.push('-e', 'GIT_TERMINAL_PROMPT=0');
-      args.push(this.config.imageName + ':' + this.config.imageTag);
-      args.push('git', 'clone', url, '/workspace/target');
-
-      const result = await this.executeDockerCommand(args);
+      const result = await this.runEphemeralContainer(cmd, { Binds, Env });
 
       if (result.code === 0) {
         return { success: true, path: targetPath };
@@ -964,28 +1086,23 @@ export class DockerAdapter extends BasePTYAdapter {
    * Docker内でリポジトリを更新（fast-forward only）
    */
   async gitPull(repoPath: string): Promise<GitPullResult> {
+    const cmd = ['git', 'pull', '--ff-only'];
+    const Binds = [`${repoPath}:/workspace/repo`];
+    const Env = ['GIT_TERMINAL_PROMPT=0'];
+    const WorkingDir = '/workspace/repo';
+
+    const sshDir = `${os.homedir()}/.ssh`;
+    if (fs.existsSync(sshDir)) {
+      Binds.push(`${sshDir}:/home/node/.ssh:ro`);
+    }
+
+    if (process.env.SSH_AUTH_SOCK) {
+      Binds.push(`${process.env.SSH_AUTH_SOCK}:/ssh-agent`);
+      Env.push('SSH_AUTH_SOCK=/ssh-agent');
+    }
+
     try {
-      const args = [
-        'run', '--rm',
-        '-v', `${repoPath}:/workspace/repo`,
-      ];
-
-      const sshDir = `${os.homedir()}/.ssh`;
-      if (fs.existsSync(sshDir)) {
-        args.push('-v', `${sshDir}:/home/node/.ssh:ro`);
-      }
-
-      if (process.env.SSH_AUTH_SOCK) {
-        args.push('-v', `${process.env.SSH_AUTH_SOCK}:/ssh-agent`);
-        args.push('-e', 'SSH_AUTH_SOCK=/ssh-agent');
-      }
-
-      args.push('-e', 'GIT_TERMINAL_PROMPT=0');
-      args.push('-w', '/workspace/repo');
-      args.push(this.config.imageName + ':' + this.config.imageTag);
-      args.push('git', 'pull', '--ff-only');
-
-      const result = await this.executeDockerCommand(args);
+      const result = await this.runEphemeralContainer(cmd, { Binds, Env, WorkingDir });
 
       if (result.code === 0) {
         const updated = !result.stdout.includes('Already up to date');
@@ -1070,54 +1187,65 @@ export class DockerAdapter extends BasePTYAdapter {
     repoPath: string,
     gitArgs: string[]
   ): Promise<{ code: number; stdout: string; stderr: string }> {
-    const args = [
-      'run', '--rm',
-      '-v', `${repoPath}:/workspace/repo`,
-    ];
+    const cmd = ['git', ...gitArgs];
+    const Binds = [`${repoPath}:/workspace/repo`];
+    const Env = ['GIT_TERMINAL_PROMPT=0'];
+    const WorkingDir = '/workspace/repo';
 
     const sshDir = `${os.homedir()}/.ssh`;
     if (fs.existsSync(sshDir)) {
-      args.push('-v', `${sshDir}:/home/node/.ssh:ro`);
+      Binds.push(`${sshDir}:/home/node/.ssh:ro`);
     }
 
     if (process.env.SSH_AUTH_SOCK) {
-      args.push('-v', `${process.env.SSH_AUTH_SOCK}:/ssh-agent`);
-      args.push('-e', 'SSH_AUTH_SOCK=/ssh-agent');
+      Binds.push(`${process.env.SSH_AUTH_SOCK}:/ssh-agent`);
+      Env.push('SSH_AUTH_SOCK=/ssh-agent');
     }
 
-    args.push('-e', 'GIT_TERMINAL_PROMPT=0');
-    args.push('-w', '/workspace/repo');
-    args.push(this.config.imageName + ':' + this.config.imageTag);
-    args.push('git', ...gitArgs);
-
-    return this.executeDockerCommand(args);
+    return this.runEphemeralContainer(cmd, { Binds, Env, WorkingDir });
   }
 
-  private async executeDockerCommand(
-    args: string[]
+  private async runEphemeralContainer(
+    cmd: string[],
+    options: { Binds?: string[]; Env?: string[]; WorkingDir?: string }
   ): Promise<{ code: number; stdout: string; stderr: string }> {
-    return new Promise((resolve) => {
-      const proc = childProcess.spawn('docker', args);
-      let stdout = '';
-      let stderr = '';
+    let stdout = '';
+    let stderr = '';
 
-      proc.stdout?.on('data', (data) => {
-        stdout += data.toString();
-      });
-
-      proc.stderr?.on('data', (data) => {
-        stderr += data.toString();
-      });
-
-      proc.on('close', (code) => {
-        resolve({ code: code ?? 1, stdout, stderr });
-      });
-
-      proc.on('error', (error) => {
-        logger.warn('Docker command execution error', { args: args.slice(0, 3), error: error.message });
-        resolve({ code: 1, stdout, stderr: error.message });
-      });
+    const stdoutStream = new Writable({
+      write(chunk, encoding, callback) {
+        stdout += chunk.toString();
+        callback();
+      }
     });
+
+    const stderrStream = new Writable({
+      write(chunk, encoding, callback) {
+        stderr += chunk.toString();
+        callback();
+      }
+    });
+
+    try {
+      const data = await DockerClient.getInstance().run(
+        `${this.config.imageName}:${this.config.imageTag}`,
+        cmd,
+        [stdoutStream, stderrStream] as any,
+        {
+          HostConfig: {
+            Binds: options.Binds,
+            AutoRemove: true,
+          },
+          Env: options.Env,
+          WorkingDir: options.WorkingDir,
+        }
+      );
+
+      return { code: data.StatusCode, stdout, stderr };
+    } catch (error: any) {
+      logger.error('Failed to run ephemeral container', { error: error.message });
+      return { code: 1, stdout, stderr: error.message };
+    }
   }
 
   private parseLocalBranches(output: string): string[] {
@@ -1171,37 +1299,24 @@ export class DockerAdapter extends BasePTYAdapter {
         return;
       }
 
-      const execFileAsync = promisify(childProcess.execFile);
+      const container = DockerClient.getInstance().getContainer(containerId);
 
       // コンテナの実行ユーザーと同じコンテキストでgit configを実行
-      // デフォルトではrootで実行されるため、--user nodeを指定
       if (settings.git_username) {
-        await execFileAsync('docker', [
-          'exec',
-          '--user',
-          'node',
-          containerId,
-          'git',
-          'config',
-          '--global',
-          'user.name',
-          settings.git_username,
-        ]);
+        const exec = await container.exec({
+          Cmd: ['git', 'config', '--global', 'user.name', settings.git_username],
+          User: 'node',
+        });
+        await exec.start({});
         logger.debug('Applied git user.name', { username: settings.git_username });
       }
 
       if (settings.git_email) {
-        await execFileAsync('docker', [
-          'exec',
-          '--user',
-          'node',
-          containerId,
-          'git',
-          'config',
-          '--global',
-          'user.email',
-          settings.git_email,
-        ]);
+        const exec = await container.exec({
+          Cmd: ['git', 'config', '--global', 'user.email', settings.git_email],
+          User: 'node',
+        });
+        await exec.start({});
         logger.debug('Applied git user.email', { email: settings.git_email });
       }
 
@@ -1234,6 +1349,7 @@ export class DockerAdapter extends BasePTYAdapter {
       await fsPromises.mkdir(sshDir, { recursive: true });
 
       const keyPaths: string[] = [];
+      const successfulKeyNames: string[] = [];
 
       for (const key of keys) {
         try {
@@ -1241,10 +1357,7 @@ export class DockerAdapter extends BasePTYAdapter {
           const privateKey = await this.encryptionService.decrypt(key.private_key_encrypted);
 
           // パストラバーサル対策: 安全なファイル名に変換
-          // 英数字、ハイフン、アンダースコアのみを許可
           const safeKeyName = key.name.replace(/[^a-zA-Z0-9_-]/g, '_');
-
-          // さらにpath.basenameで確実にディレクトリ脱出を防止
           const safeName = path.basename(safeKeyName);
 
           // ファイルパス
@@ -1256,6 +1369,7 @@ export class DockerAdapter extends BasePTYAdapter {
           await fsPromises.writeFile(publicKeyPath, key.public_key, { mode: 0o644 });
 
           keyPaths.push(privateKeyPath);
+          successfulKeyNames.push(safeName);
 
           logger.debug('SSH key files created', { keyName: key.name });
         } catch (error) {
@@ -1263,7 +1377,6 @@ export class DockerAdapter extends BasePTYAdapter {
             keyName: key.name,
             error: error instanceof Error ? error.message : 'Unknown error',
           });
-          // 一つの鍵の処理に失敗しても他の鍵は処理を続行
         }
       }
 
@@ -1272,26 +1385,44 @@ export class DockerAdapter extends BasePTYAdapter {
         return;
       }
 
-      // SSH config を生成してコンテナにコピー
-      const sshConfig = this.generateSSHConfig(keys);
+      // SSH config を生成
+      const sshConfig = this.generateSSHConfig(successfulKeyNames);
       const sshConfigPath = path.join(sshDir, 'config');
       await fsPromises.writeFile(sshConfigPath, sshConfig, { mode: 0o644 });
 
+      const container = DockerClient.getInstance().getContainer(containerId);
+
       // コンテナ内の /home/node/.ssh/ ディレクトリを作成
-      // git configと同じnodeユーザーで実行
-      const execFileAsync = promisify(childProcess.execFile);
-      await execFileAsync('docker', ['exec', '--user', 'node', containerId, 'mkdir', '-p', '/home/node/.ssh']);
-      await execFileAsync('docker', ['exec', '--user', 'node', containerId, 'chmod', '700', '/home/node/.ssh']);
+      const execMkdir = await container.exec({
+        Cmd: ['mkdir', '-p', '/home/node/.ssh'],
+        User: 'node',
+      });
+      await execMkdir.start({});
 
-      // SSH鍵ファイルをコンテナにコピー
-      for (const keyPath of keyPaths) {
-        const fileName = path.basename(keyPath);
-        await execFileAsync('docker', ['cp', keyPath, `${containerId}:/home/node/.ssh/${fileName}`]);
-        await execFileAsync('docker', ['cp', `${keyPath}.pub`, `${containerId}:/home/node/.ssh/${fileName}.pub`]);
+      const execChmod = await container.exec({
+        Cmd: ['chmod', '700', '/home/node/.ssh'],
+        User: 'node',
+      });
+      await execChmod.start({});
+
+      // tarストリームを作成してコンテナにコピー (putArchive)
+      // sshDirの内容を /home/node/.ssh に展開
+      const tarStream = tar.pack(sshDir);
+      try {
+        await container.putArchive(tarStream, {
+          path: '/home/node/.ssh',
+          noOverwriteDirNonDir: false,
+        });
+      } finally {
+        tarStream.destroy();
       }
-
-      // SSH config をコンテナにコピー
-      await execFileAsync('docker', ['cp', sshConfigPath, `${containerId}:/home/node/.ssh/config`]);
+      
+      // 所有権の修正（putArchiveはrootで展開される可能性があるため）
+      const execChown = await container.exec({
+        Cmd: ['chown', '-R', 'node:node', '/home/node/.ssh'],
+        User: 'root', // rootで実行して所有権変更
+      });
+      await execChown.start({});
 
       logger.info('SSH keys applied successfully', { keyCount: keyPaths.length });
     } catch (error) {
@@ -1305,8 +1436,8 @@ export class DockerAdapter extends BasePTYAdapter {
   /**
    * SSH config ファイルの内容を生成
    */
-  private generateSSHConfig(keys: SshKey[]): string {
-    const identityFiles = keys.map(key => `  IdentityFile /home/node/.ssh/id_${key.name}`).join('\n');
+  private generateSSHConfig(keyNames: string[]): string {
+    const identityFiles = keyNames.map(name => `  IdentityFile /home/node/.ssh/id_${name}`).join('\n');
 
     return `Host *
   StrictHostKeyChecking accept-new

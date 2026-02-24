@@ -10,6 +10,7 @@
 |-------------|------|-----|-----------|
 | [Drizzle ORM移行](drizzle-migration/index.md) | Prisma → Drizzle ORM への完全移行 | 28/31 タスク完了 | 進行中 |
 | [ハイブリッド設計](hybrid-clone/index.md) | ホスト環境/Docker環境でのプロジェクトclone | 0/19 タスク未着手 | 計画中 |
+| [Dockerポート・ボリューム設定](docker-port-volume/tasks.md) | Docker環境のポートマッピング・ボリュームマウント設定機能 | 15/15 タスク完了 | 完了 |
 
 ### 完了済み機能
 

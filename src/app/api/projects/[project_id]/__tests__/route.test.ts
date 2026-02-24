@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { GET, PUT, DELETE } from '../route';
+import { GET, PUT, DELETE, PATCH } from '../route';
 import { db, schema } from '@/lib/db';
 import { eq } from 'drizzle-orm';
 import { NextRequest } from 'next/server';
@@ -480,6 +480,341 @@ describe('PUT /api/projects/[project_id]', () => {
       expect(data.project.path).toBe(newRepoPath);
       expect(data.project.scripts).toHaveLength(1);
     });
+  });
+});
+
+describe('PATCH /api/projects/[project_id]', () => {
+  let testRepoPath: string;
+  let project: Project;
+  let testEnvId: string;
+
+  beforeEach(async () => {
+    db.delete(schema.runScripts).run();
+    db.delete(schema.projects).run();
+
+    // PATCHはpathを使わないためダミーパスで十分
+    testRepoPath = '/tmp/dummy-project-patch-path';
+
+    // テスト用の実行環境を作成
+    const testEnv = db.insert(schema.executionEnvironments).values({
+      name: 'Test Env',
+      type: 'DOCKER',
+      config: '{}',
+      is_default: false,
+    }).returning().get();
+    testEnvId = testEnv.id;
+
+    project = db.insert(schema.projects).values({
+      name: 'Test Project',
+      path: testRepoPath,
+      environment_id: testEnvId,
+    }).returning().get();
+  });
+
+  afterEach(async () => {
+    // FK制約を尊重した削除順: projects(参照元) → executionEnvironments(参照先)
+    db.delete(schema.runScripts).run();
+    db.delete(schema.projects).run();
+    db.delete(schema.executionEnvironments).where(eq(schema.executionEnvironments.id, testEnvId)).run();
+  });
+
+  it('environment_idが送信されても無視される', async () => {
+    const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ environment_id: 'new-env-456' }),
+    });
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ project_id: project.id }),
+    });
+
+    expect(response.status).toBe(200);
+
+    const updated = db
+      .select()
+      .from(schema.projects)
+      .where(eq(schema.projects.id, project.id))
+      .get();
+    expect(updated?.environment_id).toBe(testEnvId);
+  });
+
+  it('claude_code_optionsを正しく更新する', async () => {
+    const options = { model: 'claude-sonnet-4-5-20250929', additionalFlags: '--verbose' };
+    const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ claude_code_options: options }),
+    });
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ project_id: project.id }),
+    });
+
+    expect(response.status).toBe(200);
+
+    const updated = db
+      .select()
+      .from(schema.projects)
+      .where(eq(schema.projects.id, project.id))
+      .get();
+    expect(JSON.parse(updated?.claude_code_options || '{}')).toEqual(options);
+  });
+
+  it('custom_env_varsを正しく更新する', async () => {
+    const envVars = { MY_VAR: 'value1', OTHER_VAR: 'value2' };
+    const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ custom_env_vars: envVars }),
+    });
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ project_id: project.id }),
+    });
+
+    expect(response.status).toBe(200);
+
+    const updated = db
+      .select()
+      .from(schema.projects)
+      .where(eq(schema.projects.id, project.id))
+      .get();
+    expect(JSON.parse(updated?.custom_env_vars || '{}')).toEqual(envVars);
+  });
+
+  it('claude_code_optionsとcustom_env_varsを同時に更新できる', async () => {
+    const options = { model: 'claude-sonnet-4-5-20250929' };
+    const envVars = { API_KEY: 'test-key' };
+    const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        claude_code_options: options,
+        custom_env_vars: envVars,
+      }),
+    });
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ project_id: project.id }),
+    });
+
+    expect(response.status).toBe(200);
+
+    const updated = db
+      .select()
+      .from(schema.projects)
+      .where(eq(schema.projects.id, project.id))
+      .get();
+    expect(JSON.parse(updated?.claude_code_options || '{}')).toEqual(options);
+    expect(JSON.parse(updated?.custom_env_vars || '{}')).toEqual(envVars);
+  });
+
+  it('claude_code_optionsがオブジェクトでない場合は400エラー', async () => {
+    const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ claude_code_options: 'invalid' }),
+    });
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ project_id: project.id }),
+    });
+
+    expect(response.status).toBe(400);
+  });
+
+  it('custom_env_varsのキーが不正な形式の場合は400エラー', async () => {
+    const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ custom_env_vars: { 'invalid-key': 'value' } }),
+    });
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ project_id: project.id }),
+    });
+
+    expect(response.status).toBe(400);
+  });
+
+  it('不正なJSONボディの場合は400エラー', async () => {
+    const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: 'invalid json',
+    });
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ project_id: project.id }),
+    });
+
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error).toBe('Invalid JSON in request body');
+  });
+
+  it('存在しないプロジェクトの場合は404エラー', async () => {
+    const request = new NextRequest('http://localhost:3000/api/projects/nonexistent', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ claude_code_options: {} }),
+    });
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ project_id: 'nonexistent' }),
+    });
+
+    expect(response.status).toBe(404);
+  });
+
+  it('空のボディでもエラーにならない', async () => {
+    const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ project_id: project.id }),
+    });
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.message).toBe('No fields to update');
+  });
+
+  it('claude_code_optionsに未知のキーが含まれる場合は400エラーと具体的なメッセージ', async () => {
+    const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ claude_code_options: { unknownKey: 'value' } }),
+    });
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ project_id: project.id }),
+    });
+
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error).toContain('Invalid keys in claude_code_options: unknownKey');
+  });
+
+  it('dangerouslySkipPermissionsがbooleanとして受け入れられる', async () => {
+    const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ claude_code_options: { dangerouslySkipPermissions: true } }),
+    });
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ project_id: project.id }),
+    });
+
+    expect(response.status).toBe(200);
+
+    const updated = db
+      .select()
+      .from(schema.projects)
+      .where(eq(schema.projects.id, project.id))
+      .get();
+    expect(JSON.parse(updated?.claude_code_options || '{}')).toEqual({ dangerouslySkipPermissions: true });
+  });
+
+  it('claude_code_optionsに非文字列値が含まれる場合は400エラー', async () => {
+    const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ claude_code_options: { model: 123 } }),
+    });
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ project_id: project.id }),
+    });
+
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error).toBe('claude_code_options must be a plain object with valid fields');
+  });
+
+  it('custom_env_varsに非文字列値が含まれる場合は400エラー', async () => {
+    const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ custom_env_vars: { MY_VAR: 456 } }),
+    });
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ project_id: project.id }),
+    });
+
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error).toBe('custom_env_vars must be a plain object with keys matching ^[A-Z_][A-Z0-9_]*$ and string values');
+  });
+
+  it('claude_code_optionsがnullの場合は400エラー', async () => {
+    const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ claude_code_options: null }),
+    });
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ project_id: project.id }),
+    });
+
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error).toBe('claude_code_options must be a plain object with valid fields');
+  });
+
+  it('claude_code_optionsが配列の場合は400エラー', async () => {
+    const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ claude_code_options: ['a', 'b'] }),
+    });
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ project_id: project.id }),
+    });
+
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error).toBe('claude_code_options must be a plain object with valid fields');
+  });
+
+  it('custom_env_varsがnullの場合は400エラー', async () => {
+    const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ custom_env_vars: null }),
+    });
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ project_id: project.id }),
+    });
+
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error).toBe('custom_env_vars must be a plain object with keys matching ^[A-Z_][A-Z0-9_]*$ and string values');
+  });
+
+  it('custom_env_varsが配列の場合は400エラー', async () => {
+    const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ custom_env_vars: ['a', 'b'] }),
+    });
+
+    const response = await PATCH(request, {
+      params: Promise.resolve({ project_id: project.id }),
+    });
+
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error).toBe('custom_env_vars must be a plain object with keys matching ^[A-Z_][A-Z0-9_]*$ and string values');
   });
 });
 

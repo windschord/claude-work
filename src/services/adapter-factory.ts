@@ -3,11 +3,7 @@ import { HostAdapter } from './adapters/host-adapter';
 import { DockerAdapter, DockerAdapterConfig } from './adapters/docker-adapter';
 import type { ExecutionEnvironment } from '@/lib/db';
 import { logger } from '@/lib/logger';
-
-interface DockerEnvironmentConfig {
-  imageName?: string;
-  imageTag?: string;
-}
+import type { DockerEnvironmentConfig } from '@/types/environment';
 
 /**
  * AdapterFactory
@@ -81,12 +77,16 @@ export class AdapterFactory {
       imageName: configData.imageName || 'claude-code-sandboxed',
       imageTag: configData.imageTag || 'latest',
       authDirPath: environment.auth_dir_path,
+      portMappings: configData.portMappings,
+      volumeMounts: configData.volumeMounts,
     };
 
     logger.info('AdapterFactory: Creating DockerAdapter', {
       environmentId: environment.id,
       imageName: config.imageName,
       imageTag: config.imageTag,
+      portMappings: config.portMappings?.length ?? 0,
+      volumeMounts: config.volumeMounts?.length ?? 0,
     });
 
     const adapter = new DockerAdapter(config);

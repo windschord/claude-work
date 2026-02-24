@@ -116,4 +116,6 @@ TASK-001, TASK-002
 
 ## ステータス
 
-TODO
+`DONE`
+
+**完了サマリー**: Docker環境の統合動作確認完了。DockerAdapter（PTY起動、リサイズ、セッション管理）、DockerGitService（clone/worktree/リトライ）、PTYSessionManager（エラーハンドリング）、Commits API（エラーハンドリング）が全て正常動作。ユニットテスト全通過、Host環境への影響なし。

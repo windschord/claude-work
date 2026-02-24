@@ -1,20 +1,23 @@
 import { create } from 'zustand';
 
 export interface DeveloperSettings {
-  id: string;
+  id: string | null;
   scope: 'GLOBAL' | 'PROJECT';
   project_id?: string | null;
   git_username: string | null;
   git_email: string | null;
-  created_at: string;
-  updated_at: string;
+  created_at: string | null;
+  updated_at: string | null;
 }
 
 export interface ProjectSettingsResponse extends DeveloperSettings {
   effective_settings?: {
     git_username: string | null;
     git_email: string | null;
-    source: string | null;
+    source: {
+      git_username: 'global' | 'project';
+      git_email: 'global' | 'project';
+    };
   };
 }
 

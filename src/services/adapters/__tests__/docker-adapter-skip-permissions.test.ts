@@ -71,10 +71,10 @@ vi.mock('os', () => ({
 import { DockerAdapter, DockerAdapterConfig } from '../docker-adapter';
 import type { CreateSessionOptions } from '../../environment-adapter';
 
-// buildDockerArgsをテストするためのサブクラス
+// buildContainerOptionsをテストするためのサブクラス
 class TestableDockerAdapter extends DockerAdapter {
-  public testBuildDockerArgs(workingDir: string, options?: CreateSessionOptions) {
-    return this.buildDockerArgs(workingDir, options);
+  public testBuildContainerOptions(workingDir: string, options?: CreateSessionOptions) {
+    return this.buildContainerOptions(workingDir, options);
   }
 }
 
@@ -84,7 +84,7 @@ describe('DockerAdapter skipPermissions', () => {
     environmentId: 'test-env-id',
     imageName: 'test-image',
     imageTag: 'latest',
-    authDirPath: '/tmp/test-auth',
+    authDirPath: '/tmp/test-auth/test-env-id',
   };
 
   beforeEach(() => {
@@ -96,55 +96,54 @@ describe('DockerAdapter skipPermissions', () => {
   });
 
   it('should add --dangerously-skip-permissions when skipPermissions is true', () => {
-    const { args } = adapter.testBuildDockerArgs('/workspace', {
+    const { createOptions } = adapter.testBuildContainerOptions('/workspace', {
       skipPermissions: true,
     });
-    expect(args).toContain('--dangerously-skip-permissions');
+    expect(createOptions.Cmd).toContain('--dangerously-skip-permissions');
   });
 
   it('should not add flag when skipPermissions is false', () => {
-    const { args } = adapter.testBuildDockerArgs('/workspace', {
+    const { createOptions } = adapter.testBuildContainerOptions('/workspace', {
       skipPermissions: false,
     });
-    expect(args).not.toContain('--dangerously-skip-permissions');
+    expect(createOptions.Cmd ?? []).not.toContain('--dangerously-skip-permissions');
   });
 
   it('should not add flag when skipPermissions is undefined', () => {
-    const { args } = adapter.testBuildDockerArgs('/workspace', {});
-    expect(args).not.toContain('--dangerously-skip-permissions');
+    const { createOptions } = adapter.testBuildContainerOptions('/workspace', {});
+    expect(createOptions.Cmd ?? []).not.toContain('--dangerously-skip-permissions');
   });
 
   it('should not add flag when options is undefined', () => {
-    const { args } = adapter.testBuildDockerArgs('/workspace');
-    expect(args).not.toContain('--dangerously-skip-permissions');
+    const { createOptions } = adapter.testBuildContainerOptions('/workspace');
+    expect(createOptions.Cmd ?? []).not.toContain('--dangerously-skip-permissions');
   });
 
   it('should not add flag in shellMode even when skipPermissions is true', () => {
-    const { args } = adapter.testBuildDockerArgs('/workspace', {
+    const { createOptions } = adapter.testBuildContainerOptions('/workspace', {
       shellMode: true,
       skipPermissions: true,
     });
-    expect(args).not.toContain('--dangerously-skip-permissions');
+    expect(createOptions.Cmd ?? []).not.toContain('--dangerously-skip-permissions');
   });
 
-  it('should place flag after image name', () => {
-    const { args } = adapter.testBuildDockerArgs('/workspace', {
+  it('should include flag in Cmd array', () => {
+    const { createOptions } = adapter.testBuildContainerOptions('/workspace', {
       skipPermissions: true,
     });
-    const imageIndex = args.indexOf('test-image:latest');
-    const flagIndex = args.indexOf('--dangerously-skip-permissions');
-    expect(imageIndex).toBeGreaterThan(-1);
-    expect(flagIndex).toBeGreaterThan(imageIndex);
+    const cmd = createOptions.Cmd ?? [];
+    expect(cmd).toContain('--dangerously-skip-permissions');
   });
 
   it('should not duplicate flag when claudeCodeOptions also has dangerouslySkipPermissions', () => {
-    const { args } = adapter.testBuildDockerArgs('/workspace', {
+    const { createOptions } = adapter.testBuildContainerOptions('/workspace', {
       skipPermissions: true,
       claudeCodeOptions: {
         dangerouslySkipPermissions: true,
       },
     });
-    const flagCount = args.filter(a => a === '--dangerously-skip-permissions').length;
+    const cmd = createOptions.Cmd ?? [];
+    const flagCount = cmd.filter(a => a === '--dangerously-skip-permissions').length;
     // buildCliArgsからは追加されないので1回のみ
     expect(flagCount).toBe(1);
   });

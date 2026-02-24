@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { spawn } from 'child_process';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import * as tar from 'tar-fs';
 import { environmentService } from '@/services/environment-service';
 import { logger } from '@/lib/logger';
 import { getEnvironmentsDir } from '@/lib/data-dir';
+import { validatePortMappings, validateVolumeMounts } from '@/lib/docker-config-validator';
+import { DockerClient } from '@/services/docker-client';
 
 // 許可されたベースディレクトリ
 const ALLOWED_BASE_DIRS = [
@@ -168,68 +170,56 @@ export async function POST(request: NextRequest) {
       });
 
       try {
-        // spawn を使用してコマンドインジェクションを防止
-        const buildResult = await new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
-          const args = ['build', '-t', `${buildImageName}:latest`, '-f', dockerfileName, '.'];
-          const child = spawn('docker', args, {
-            cwd: dockerfileDir,
-          });
+        const tarStream = tar.pack(dockerfileDir);
+        let buildError: string | null = null;
 
-          let stdout = '';
-          let stderr = '';
-
-          child.stdout.on('data', (data) => {
-            stdout += data.toString();
-          });
-
-          child.stderr.on('data', (data) => {
-            stderr += data.toString();
-          });
-
-          // タイムアウト設定 (10分)
-          const timeout = setTimeout(() => {
-            child.kill();
-            reject(new Error('Build timeout'));
-          }, 600000);
-
-          child.on('close', (code) => {
-            clearTimeout(timeout);
-            if (code === 0) {
-              resolve({ stdout, stderr });
-            } else {
-              const error = new Error(`Build failed with code ${code}`) as Error & { stdout?: string; stderr?: string };
-              error.stdout = stdout;
-              error.stderr = stderr;
-              reject(error);
+        await DockerClient.getInstance().buildImage(
+          tarStream,
+          {
+            t: `${buildImageName}:latest`,
+            dockerfile: dockerfileName,
+          },
+          (event) => {
+            if (event.error) {
+              buildError = event.error;
             }
+          }
+        );
+
+        if (buildError) {
+          logger.error('Docker image build failed with build error', {
+            imageName: buildImageName,
+            error: buildError,
           });
 
-          child.on('error', (err) => {
-            clearTimeout(timeout);
-            reject(err);
-          });
-        });
+          return NextResponse.json(
+            {
+              error: 'Docker build failed',
+              details: buildError,
+            },
+            { status: 400 }
+          );
+        }
 
         logger.info('Docker image build completed', {
           imageName: `${buildImageName}:latest`,
-          buildLog: (buildResult.stdout + buildResult.stderr).slice(0, 500), // ログは500文字まで
         });
 
         // 成功: configを更新
         config.imageName = buildImageName;
         config.imageTag = 'latest';
       } catch (error: unknown) {
-        const buildError = error as Error & { stdout?: string; stderr?: string };
+        const caughtError = error as Error;
 
         logger.error('Docker image build failed for environment', {
           imageName: buildImageName,
-          error: buildError.message,
+          error: caughtError.message,
         });
 
         return NextResponse.json(
           {
             error: 'Docker build failed',
-            details: (buildError.stdout || '') + (buildError.stderr || ''),
+            details: caughtError.message,
           },
           { status: 400 }
         );
@@ -249,6 +239,39 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // portMappings のバリデーション
+    if (config?.portMappings !== undefined) {
+      if (!Array.isArray(config.portMappings)) {
+        return NextResponse.json(
+          { error: 'config.portMappings must be an array' },
+          { status: 400 }
+        );
+      }
+      const portResult = validatePortMappings(config.portMappings);
+      if (!portResult.valid) {
+        return NextResponse.json(
+          { error: portResult.errors.join('; ') },
+          { status: 400 }
+        );
+      }
+    }
+
+    // volumeMounts のバリデーション
+    if (config?.volumeMounts !== undefined) {
+      if (!Array.isArray(config.volumeMounts)) {
+        return NextResponse.json(
+          { error: 'config.volumeMounts must be an array' },
+          { status: 400 }
+        );
+      }
+      const volumeResult = validateVolumeMounts(config.volumeMounts);
+      if (!volumeResult.valid) {
+        return NextResponse.json(
+          { error: volumeResult.errors.join('; ') },
+          { status: 400 }
+        );
+      }
+    }
     // 環境を作成
     const environment = await environmentService.create({
       name: name.trim(),

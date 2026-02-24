@@ -30,14 +30,14 @@ HostAdapterをBasePTYAdapterを継承するように変更し、ClaudePTYManager
 
 ## 受入基準
 
-- [ ] `import { claudePtyManager } from '../claude-pty-manager';` を削除
-- [ ] `extends BasePTYAdapter` を追加
-- [ ] createSession(Claude Codeモード)でBasePTYAdapter.spawnPTY()を使用
-- [ ] createSession(Claude Codeモード)でoptions.cols/rowsを渡す
-- [ ] destroySession(Claude Codeモード)でBasePTYAdapter.cleanupPTY()を使用
-- [ ] shellModeロジックは維持
-- [ ] TASK-004のテストが全て通過
-- [ ] コミット: `feat: HostAdapterリファクタリング(ClaudePTYManager依存削除) [TASK-005]`
+- [x] `import { claudePtyManager } from '../claude-pty-manager';` を削除
+- [x] `extends BasePTYAdapter` を追加
+- [x] createSession(Claude Codeモード)でBasePTYAdapter.spawnPTY()を使用
+- [x] createSession(Claude Codeモード)でoptions.cols/rowsを渡す
+- [x] destroySession(Claude Codeモード)でBasePTYAdapter.cleanupPTY()を使用
+- [x] shellModeロジックは維持
+- [x] TASK-004のテストが全て通過
+- [x] コミット: `feat: HostAdapterリファクタリング(ClaudePTYManager依存削除) [TASK-005]`
 
 ---
 
@@ -89,3 +89,9 @@ export class HostAdapter extends BasePTYAdapter {
 
 ## 推定工数
 50分
+
+## ステータス
+
+`DONE`
+
+**完了サマリー**: HostAdapterからClaudePTYManager依存を完全削除。BasePTYAdapterを継承し、createSessionでspawnPTY()使用、destroySessionでcleanupPTY()使用に変更。shellModeロジックは維持。8テスト全通過。

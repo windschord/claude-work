@@ -41,6 +41,7 @@ vi.mock('drizzle-orm', () => ({
   eq: vi.fn((col, val) => ({ column: col, value: val })),
   and: vi.fn((...args) => ({ and: args })),
   isNull: vi.fn((col) => ({ isNull: col })),
+  isNotNull: vi.fn((col) => ({ isNotNull: col })),
 }));
 
 // scrollbackBufferのモック
@@ -76,36 +77,6 @@ vi.mock('fs/promises', () => ({
   rm: vi.fn().mockResolvedValue(undefined),
 }));
 
-// child_processのモック
-const { mockExecFile, mockSpawn } = vi.hoisted(() => {
-  const mockExecFileImpl = vi.fn((cmd, args, opts, callback) => {
-    if (!callback) return;
-    process.nextTick(() => {
-      if (args[0] === 'inspect') {
-        callback(null, 'true\n', '');
-      } else if (args[0] === 'exec') {
-        // docker exec のモック（git config, chmod等）
-        callback(null, '', '');
-      } else {
-        callback(null, '', '');
-      }
-    });
-  });
-
-  return {
-    mockExecFile: mockExecFileImpl,
-    mockSpawn: vi.fn(),
-  };
-});
-
-vi.mock('child_process', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('child_process')>();
-  return {
-    ...actual,
-    execFile: mockExecFile,
-    spawn: mockSpawn,
-  };
-});
 
 // ==================== テストスイート ====================
 
@@ -117,7 +88,7 @@ describe('DockerAdapter - injectDeveloperSettings', () => {
     environmentId: 'test-env-id',
     imageName: 'claude-code',
     imageTag: 'latest',
-    authDirPath: '/tmp/test-auth',
+    authDirPath: '/tmp/test-auth/test-env-id',
   };
 
   const mockProjectId = 'test-project-id';
@@ -246,12 +217,12 @@ describe('DockerAdapter - injectDeveloperSettings', () => {
       await adapter.cleanupSSHKeys();
 
       // Assert
-      expect(fsPromises.readdir).toHaveBeenCalledWith('/tmp/test-auth/ssh');
+      expect(fsPromises.readdir).toHaveBeenCalledWith('/tmp/test-auth/test-env-id/ssh');
       expect(fsPromises.unlink).toHaveBeenCalledTimes(4);
-      expect(fsPromises.unlink).toHaveBeenCalledWith('/tmp/test-auth/ssh/id_rsa');
-      expect(fsPromises.unlink).toHaveBeenCalledWith('/tmp/test-auth/ssh/id_rsa.pub');
-      expect(fsPromises.unlink).toHaveBeenCalledWith('/tmp/test-auth/ssh/id_ed25519');
-      expect(fsPromises.unlink).toHaveBeenCalledWith('/tmp/test-auth/ssh/id_ed25519.pub');
+      expect(fsPromises.unlink).toHaveBeenCalledWith('/tmp/test-auth/test-env-id/ssh/id_rsa');
+      expect(fsPromises.unlink).toHaveBeenCalledWith('/tmp/test-auth/test-env-id/ssh/id_rsa.pub');
+      expect(fsPromises.unlink).toHaveBeenCalledWith('/tmp/test-auth/test-env-id/ssh/id_ed25519');
+      expect(fsPromises.unlink).toHaveBeenCalledWith('/tmp/test-auth/test-env-id/ssh/id_ed25519.pub');
     });
 
     it('ディレクトリ自体は削除しない', async () => {

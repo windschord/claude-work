@@ -19,6 +19,9 @@ ClaudeWork は、Claude Code セッションをブラウザから管理するた
 - **リモートリポジトリクローン**: GitHub/GitLab からプロジェクトを直接クローン
 - **Docker実行環境**: 安全で隔離された実行環境（デフォルト）
 - **環境管理**: Docker、Host、SSH 実行環境の切り替え
+- **権限スキップオプション**: Docker環境での `--dangerously-skip-permissions` 設定（環境レベル・セッション単位で制御可能）
+- **ポートマッピング**: Docker環境でコンテナ内サービスのポートをホストに公開
+- **ボリュームマウント**: Docker環境でホストのディレクトリをコンテナにマウント
 - **リアルタイム通信**: WebSocket によるリアルタイム出力表示
 - **Diff 表示**: Git diff をビジュアルに表示
 - **Git 操作**: rebase、squash merge などの Git 操作をブラウザから実行
@@ -63,7 +66,7 @@ npx github:windschord/claude-work#feature-branch start
 | ステップ | 処理内容 |
 |---------|---------|
 | 1. 環境設定 | `.env` がなければ `.env.example` からコピー |
-| 2. Prisma | クライアントがなければ自動生成 |
+| 2. データベース | スキーマを自動適用 |
 | 3. データベース | DBがなければ自動作成 |
 | 4. ビルド | `.next` がなければ自動ビルド |
 | 5. 起動 | サーバー起動 (`http://localhost:3000`) |
@@ -246,7 +249,7 @@ Apache License 2.0 - 詳細は [LICENSE](LICENSE) を参照してください。
 ## 技術スタック
 
 - **フロントエンド**: Next.js 15.1, React 19, TypeScript, Tailwind CSS, Zustand
-- **バックエンド**: Next.js API Routes, Prisma, SQLite, WebSocket (ws)
+- **バックエンド**: Next.js API Routes, Drizzle ORM, SQLite, WebSocket (ws)
 - **その他**: XTerm.js, react-diff-viewer-continued, Headless UI, next-themes
 
 ## ドキュメント
@@ -256,6 +259,7 @@ Apache License 2.0 - 詳細は [LICENSE](LICENSE) を参照してください。
 - **[環境変数リファレンス](docs/ENV_VARS.md)** - 設定可能な環境変数一覧
 - **[API仕様](docs/API.md)** - REST API / WebSocket API仕様
 - **[GitHub PAT設定ガイド](docs/GITHUB_PAT.md)** - Docker環境でのHTTPS認証設定
+- **[Docker環境詳細設定ガイド](docs/DOCKER_ENVIRONMENT.md)** - 権限スキップ・ポートマッピング・ボリュームマウントの設定
 - **[Systemdセットアップ](docs/SYSTEMD_SETUP.md)** - systemdによるサービス化
 
 ### 開発者向けドキュメント

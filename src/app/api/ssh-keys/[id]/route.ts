@@ -1,25 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, schema } from '@/lib/db';
-import { eq } from 'drizzle-orm';
+import { SshKeyService, SshKeyNotFoundError } from '@/services/ssh-key-service';
 import { logger } from '@/lib/logger';
 
-type RouteContext = { params: Promise<{ id: string }> };
+const service = new SshKeyService();
 
 /**
  * DELETE /api/ssh-keys/:id - SSH鍵を削除
  */
-export async function DELETE(_request: NextRequest, context: RouteContext) {
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
-    const { id } = await context.params;
+    const { id } = await params;
 
-    // SSH鍵の存在確認
-    const existingKey = db
-      .select()
-      .from(schema.sshKeys)
-      .where(eq(schema.sshKeys.id, id))
-      .get();
+    if (!id || typeof id !== 'string' || id.trim().length === 0) {
+      return NextResponse.json(
+        {
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'id は必須です',
+          },
+        },
+        { status: 400 }
+      );
+    }
 
-    if (!existingKey) {
+    await service.deleteKey(id);
+
+    return new NextResponse(null, { status: 204 });
+  } catch (error) {
+    if (error instanceof SshKeyNotFoundError) {
       return NextResponse.json(
         {
           error: {
@@ -31,13 +42,6 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
       );
     }
 
-    // 削除
-    db.delete(schema.sshKeys).where(eq(schema.sshKeys.id, id)).run();
-
-    logger.info('SSH key deleted', { keyId: id, keyName: existingKey.name });
-
-    return new NextResponse(null, { status: 204 });
-  } catch (error) {
     logger.error('Failed to delete SSH key', { error });
     return NextResponse.json(
       {

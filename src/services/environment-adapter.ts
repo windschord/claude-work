@@ -18,6 +18,8 @@ export interface CreateSessionOptions {
   rows?: number;
   /** パーミッション確認スキップ（Docker環境のみ、解決済みの値） */
   skipPermissions?: boolean;
+  /** Dockerボリューム経由のworktreeマウント用（clone_location='docker'の場合） */
+  dockerVolumeId?: string;
 }
 
 /**
