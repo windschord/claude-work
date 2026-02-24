@@ -16,9 +16,14 @@ Docker Composeを使用すると、環境構築なしで起動できます。
 git clone https://github.com/windschord/claude-work.git
 cd claude-work
 
-# 2. 起動
+# 2. (Linux のみ) docker.sock のアクセス権を設定
+echo "DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)" >> .env
+
+# 3. 起動
 docker compose up -d
 ```
+
+> **macOS / Docker Desktop**: 手順2は不要です（docker.sock のパーミッションが異なるため）。
 
 ブラウザで `http://localhost:3000`（`HOST_PORT` を変更した場合は該当ポート）を開きます。
 

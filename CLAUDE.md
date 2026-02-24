@@ -192,8 +192,7 @@ docker compose logs -f         # ログ表示
 - `CLAUDE_CODE_PATH`: Path to claude CLI (default: 'claude')
 - `ALLOWED_ORIGINS`: CORS origins (comma-separated)
 - `ALLOWED_PROJECT_DIRS`: Restrict project directories
-- `DOCKER_GID`: Docker group GID for docker.sock access
-- `GIT_REPOS_PATH`: Reserved for future use (currently repos path is derived from DATA_DIR)
+- `DOCKER_GID`: Docker group GID for docker.sock access (Linux only)
 
 See `docs/ENV_VARS.md` for complete reference.
 

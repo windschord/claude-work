@@ -17,7 +17,7 @@ ClaudeWorkのデプロイ方法として Docker Compose をプライマリ（推
 #### 受入基準（EARS記法）
 
 - REQ-001: docker-compose.ymlに `/var/run/docker.sock` のボリュームマウントが含まれなければならない
-- REQ-002: docker-compose.ymlの GIT_REPOS_PATH はオプション（任意設定）でなければならない
+- ~~REQ-002: docker-compose.ymlの GIT_REPOS_PATH はオプション（任意設定）でなければならない~~ （GIT_REPOS_PATHはコードで未使用のため、docker-compose.ymlから除外）
 - REQ-003: docker-compose.ymlに SSH鍵や Claude認証情報（~/.claude）のホストマウントを含めてはならない
 - REQ-004: `docker compose up -d` の実行で、ClaudeWorkが起動し http://localhost:${HOST_PORT:-3000} でアクセス可能にならなければならない（デフォルト: 3000）
 - REQ-005: コンテナ内からホストのDockerデーモンを経由してサンドボックスコンテナ（Claude Code実行用）を起動できなければならない
@@ -48,7 +48,7 @@ ClaudeWorkのデプロイ方法として Docker Compose をプライマリ（推
 ### 変更が必要なファイル
 
 #### Docker Compose / Dockerfile
-- `docker-compose.yml`: ソケットマウント追加、GIT_REPOS_PATHオプション化
+- `docker-compose.yml`: ソケットマウント追加、group_add追加、env_file追加
 - `Dockerfile`: runner ステージに Docker CLI 追加（暫定）
 - `.env.example`: Docker Compose向け設定例の追加
 

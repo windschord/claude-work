@@ -70,6 +70,7 @@ WORKDIR /app
 # コンテナからホストのDockerデーモンを操作してサンドボックスコンテナを管理するために必要
 # NOTE: nodeユーザーがdocker.sockにアクセスするには、docker-compose.ymlの
 # group_add でホストのdockerグループGIDを指定する必要がある
+# NOTE: バージョン未固定は意図的（暫定依存のため。Dockerode移行後に削除される）
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
        ca-certificates \

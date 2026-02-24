@@ -23,8 +23,6 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
       - ALLOWED_PROJECT_DIRS=${ALLOWED_PROJECT_DIRS:-}
-      # GIT_REPOS_PATH は将来の拡張用（現在はDATA_DIR/reposが使用される）
-      - GIT_REPOS_PATH=${GIT_REPOS_PATH:-}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "node", "scripts/healthcheck.js"]

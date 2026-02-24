@@ -47,6 +47,11 @@ Host
 - 外部からのアクセスを制限したい場合は、`CLAUDE_WORK_TOKEN` を設定し、必要に応じてリバースプロキシやファイアウォールでアクセス元を制御してください
 - コンテナは `node` ユーザーで実行されるため、`docker-compose.yml` の `group_add` でホストの docker グループ GID を指定する必要があります（詳細は [セットアップガイド](SETUP.md) を参照）
 
+docker.sockマウントのリスク緩和策:
+- [Rootless Docker](https://docs.docker.com/engine/security/rootless/): Dockerデーモン自体を非root権限で実行し、ソケット経由の権限昇格リスクを軽減
+- [Docker Socket Proxy](https://github.com/Tecnativa/docker-socket-proxy): APIエンドポイントを制限したプロキシ経由でアクセスし、不要な操作を遮断
+- ファイアウォール / ネットワークセグメンテーション: ClaudeWorkへのアクセス元を制限
+
 ### データ永続化
 
 `./data:/data` ボリュームマウントにより、以下のデータがホスト側に永続化されます:

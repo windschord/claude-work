@@ -25,15 +25,14 @@
 **受入基準**:
 - docker-compose.ymlに `/var/run/docker.sock:/var/run/docker.sock` マウントが追加されている
 - docker-compose.ymlに `env_file` ディレクティブが追加されている
-- docker-compose.ymlに `GIT_REPOS_PATH` 環境変数がオプションとして追加されている
+- ~~docker-compose.ymlに `GIT_REPOS_PATH` 環境変数がオプションとして追加されている~~ （コードで未使用のため除外）
 - Dockerfileのrunnerステージに `docker-ce-cli` パッケージがインストールされている
 - `docker compose config` がエラーなく成功する
 
 **実装手順**:
 1. `docker-compose.yml` に volumes セクションで docker.sock マウントを追加
 2. `env_file` ディレクティブ追加（`required: false`）
-3. `GIT_REPOS_PATH` 環境変数を追加
-4. `Dockerfile` の runner ステージに Docker CLI インストール手順を追加
+3. `Dockerfile` の runner ステージに Docker CLI インストール手順を追加
 5. `docker compose config` で構文確認
 
 ### TASK-002: .env.example更新

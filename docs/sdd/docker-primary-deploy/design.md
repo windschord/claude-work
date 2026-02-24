@@ -23,7 +23,7 @@ Host
 
 | ファイル | 変更内容 |
 |---------|---------|
-| `docker-compose.yml` | docker.sockマウント、env_file追加、環境変数整理 |
+| `docker-compose.yml` | docker.sockマウント、group_add追加、env_file追加 |
 | `Dockerfile` | runnerステージにDocker CLI追加 |
 | `.env.example` | Docker Compose向け設定例追加 |
 | `README.md` | クイックスタートをDocker Compose優先に |
@@ -63,8 +63,6 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
       - ALLOWED_PROJECT_DIRS=${ALLOWED_PROJECT_DIRS:-}
-      # GIT_REPOS_PATH: 将来のGitリポジトリ外部保存機能用（現時点では未使用）
-      - GIT_REPOS_PATH=${GIT_REPOS_PATH:-}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "node", "scripts/healthcheck.js"]
@@ -78,7 +76,6 @@ services:
 - `/var/run/docker.sock:/var/run/docker.sock` マウント追加
 - `group_add` でホストのdockerグループGIDを指定（`DOCKER_GID` 環境変数経由）
 - `env_file` ディレクティブ追加（`required: false` でファイル不在時もエラーにならない）
-- `GIT_REPOS_PATH` をオプション環境変数として追加（将来用、現時点では未使用）
 
 ### 3.2 Dockerfile runnerステージ
 
