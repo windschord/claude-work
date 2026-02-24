@@ -8,7 +8,7 @@
 | TASK-002 | .env.example更新 | DONE | TASK-001 |
 | TASK-003 | README.md更新 | DONE | TASK-001 |
 | TASK-004 | docs/SETUP.md更新 | DONE | TASK-001 |
-| TASK-005 | docs/SYSTEMD_SETUP.md更新 | DONE | - |
+| TASK-005 | docs/SYSTEMD_SETUP.md更新 (ファイル削除済み) | DONE | - |
 | TASK-006 | CLAUDE.md更新 | DONE | TASK-001 |
 | TASK-007 | docs/ENV_VARS.md更新 | DONE | TASK-001 |
 | TASK-008 | docs/DOCKER_ENVIRONMENT.md更新 | DONE | TASK-001 |
@@ -68,11 +68,11 @@
 - 最初のセクションが「Docker Compose（推奨）」になっている
 - Docker Compose特有のトラブルシューティングが追加されている
 
-### TASK-005: docs/SYSTEMD_SETUP.md更新
+### TASK-005: docs/SYSTEMD_SETUP.md更新 (ファイル削除済み)
 
 **説明**: systemdセットアップが代替方法であることを明記する。
 
-**対象ファイル**: `docs/SYSTEMD_SETUP.md`
+**対象ファイル**: `docs/SYSTEMD_SETUP.md` (npx移行に伴い削除済み)
 
 **受入基準**:
 - タイトルまたは冒頭に「代替デプロイ方法」であることが明記されている

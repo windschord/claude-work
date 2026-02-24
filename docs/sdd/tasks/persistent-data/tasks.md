@@ -132,18 +132,18 @@
 ### T-006: ドキュメント更新
 
 **状態:** DONE
-**完了サマリー:** ENV_VARS.mdにDATA_DIRの説明を追加。SYSTEMD_SETUP.mdにDATA_DIR推奨設定と解説を追加。
+**完了サマリー:** ENV_VARS.mdにDATA_DIRの説明を追加。SYSTEMD_SETUP.md (削除済み) にDATA_DIR推奨設定と解説を追加。
 **要件:** REQ-005, REQ-006
-**ファイル:** `docs/ENV_VARS.md`, `docs/SYSTEMD_SETUP.md`
+**ファイル:** `docs/ENV_VARS.md`, `docs/SYSTEMD_SETUP.md` (削除済み)
 **依存:** T-001
 
 **実装内容:**
 
 1. `docs/ENV_VARS.md` に DATA_DIR 環境変数の説明を追加
-2. `docs/SYSTEMD_SETUP.md` に DATA_DIR の推奨設定を追加
+2. `docs/SYSTEMD_SETUP.md` (削除済み) に DATA_DIR の推奨設定を追加
 3. `src/components/projects/RemoteRepoForm.tsx` のプレースホルダーテキストを確認（変更不要の可能性）
 
 **受入基準:**
 - [ ] ENV_VARS.mdにDATA_DIRの説明がある
-- [ ] SYSTEMD_SETUP.mdにDATA_DIR設定の説明がある
+- [ ] SYSTEMD_SETUP.md (削除済み) にDATA_DIR設定の説明がある
 - [ ] textlintがパスする

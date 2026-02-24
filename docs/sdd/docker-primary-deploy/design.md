@@ -28,7 +28,7 @@ Host
 | `.env.example` | Docker Compose向け設定例追加 |
 | `README.md` | クイックスタートをDocker Compose優先に |
 | `docs/SETUP.md` | Docker Compose（推奨）セクション追加 |
-| `docs/SYSTEMD_SETUP.md` | 代替方法であることを明記 |
+| `docs/SYSTEMD_SETUP.md` (削除済み) | 代替方法であることを明記 |
 | `CLAUDE.md` | Environment SetupをDocker Compose優先に |
 | `docs/ENV_VARS.md` | Docker Compose設定セクション追加 |
 | `docs/DOCKER_ENVIRONMENT.md` | Docker Compose運用注意事項追加 |
@@ -111,7 +111,7 @@ Docker Compose向けの設定例を既存の `.env.example` に追加する。
 |------------|------|
 | README.md | クイックスタートをDocker Composeに書き換え |
 | SETUP.md | 「Docker Compose（推奨）」セクションを最初に配置 |
-| SYSTEMD_SETUP.md | 冒頭に注記を追加 |
+| SYSTEMD_SETUP.md (削除済み) | 冒頭に注記を追加 |
 | CLAUDE.md | Environment SetupをDocker Compose優先に |
 | ENV_VARS.md | Docker Compose セクション追加 |
 | DOCKER_ENVIRONMENT.md | Docker Compose運用セクション追加 |

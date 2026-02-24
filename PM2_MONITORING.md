@@ -46,11 +46,10 @@ npm run prod:start
 npm run pm2:status
 npm run prod:stop
 
-# 5. CLI コマンドの動作確認
-npx claude-work help
-npx claude-work status
-npx claude-work start
-npx claude-work stop
+# 5. Docker Compose での動作確認
+docker compose up -d --build
+docker compose ps
+docker compose down
 
 # 6. セキュリティ監査で修正を確認
 npm audit
