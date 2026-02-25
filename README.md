@@ -80,7 +80,7 @@ LOG_LEVEL=info
 | `HOST_PORT` | ホスト側公開ポート（Docker Compose） | 3000 |
 | `DATABASE_URL` | SQLite データベースパス | なし（必須） |
 | `PORT` | サーバーポート（Docker Compose では固定） | 3000 |
-| `NODE_ENV` | 実行環境（Docker Compose では固定） | development |
+| `NODE_ENV` | 実行環境（Docker Compose では production に固定） | production |
 | `LOG_LEVEL` | ログレベル | info |
 | `ALLOWED_ORIGINS` | CORS許可オリジン | なし |
 | `ALLOWED_PROJECT_DIRS` | 許可するプロジェクトディレクトリ | なし（すべてのディレクトリを許可） |
