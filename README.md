@@ -45,7 +45,7 @@ docker compose up -d    # バックグラウンドで起動
 
 ブラウザで `http://localhost:3000` を開きます。
 
-> **Linux環境の場合**: docker.sock の権限エラーが発生する場合は、`.env` に `DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)` を設定してください。詳細は [セットアップガイド](docs/SETUP.md) を参照してください。
+> **Linux環境の場合**: docker.sock の権限エラーが発生する場合は、`stat -c '%g' /var/run/docker.sock` の実行結果（数値）を `.env` の `DOCKER_GID` に設定してください（例: `DOCKER_GID=999`）。詳細は [セットアップガイド](docs/SETUP.md) を参照してください。
 
 ```bash
 docker compose logs -f   # ログ表示
