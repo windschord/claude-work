@@ -8,6 +8,14 @@ services:
       - "${HOST_PORT:-3000}:3000"
     volumes:
       - ./data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    # nodeユーザーがdocker.sockにアクセスするため、ホストのdockerグループGIDを追加
+    # DOCKER_GID の取得: DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)
+    group_add:
+      - "${DOCKER_GID:-0}"
+    env_file:
+      - path: .env
+        required: false
     environment:
       - NODE_ENV=production
       - DATABASE_URL=file:/data/claudework.db
@@ -15,6 +23,10 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
       - ALLOWED_PROJECT_DIRS=${ALLOWED_PROJECT_DIRS:-}
+      # ボリュームマウント先と一致させる（Dockerfile ENVでも設定済み）
+      - DATA_DIR=/data
+      # docker.sockマウント環境ではDocker機能を有効化（レガシーUI互換）
+      - DOCKER_ENABLED=true
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "node", "scripts/healthcheck.js"]

@@ -13,6 +13,63 @@
 
 ---
 
+## Docker Compose によるデプロイ
+
+ClaudeWork自体をDocker Composeで起動する場合の注意事項です。
+
+### アーキテクチャ
+
+Docker Composeで起動すると、ClaudeWorkはコンテナ内で動作します。ホストの `/var/run/docker.sock` をマウントすることで、コンテナ内からホストのDockerデーモンを操作し、サンドボックスコンテナ（Claude Code実行用）を起動します。
+
+```text
+Host
++-- Docker Engine
+|   +-- claudework (アプリコンテナ)
+|   |   +-- Next.js Server
+|   |   +-- SQLite DB (/data/claudework.db)
+|   |   +-- Docker CLI -> /var/run/docker.sock
+|   |
+|   +-- claude-sandbox-xxx (サンドボックスコンテナ)
+|   +-- claude-sandbox-yyy (サンドボックスコンテナ)
+|
++-- /var/run/docker.sock (共有)
++-- ./data/ (バインドマウント)
+```
+
+### docker.sock マウントについて
+
+`/var/run/docker.sock` のマウントにより、ClaudeWorkコンテナはホストのDockerデーモンにアクセスできます。これはサンドボックスコンテナの起動・停止・管理に必要です。
+
+セキュリティ上の注意:
+- docker.sockへのアクセスはホストのroot権限に相当する操作が可能です
+- 信頼できる環境でのみ使用してください
+- ブラウザからのクロスオリジンアクセス制御には `ALLOWED_ORIGINS` を利用できますが、ネットワークレベルのアクセス制限にはなりません
+- 外部からのアクセスを制限したい場合は、`CLAUDE_WORK_TOKEN` を設定し、必要に応じてリバースプロキシやファイアウォールでアクセス元を制御してください
+- コンテナは `node` ユーザーで実行されるため、`docker-compose.yml` の `group_add` でホストの docker グループ GID を指定する必要があります（詳細は [セットアップガイド](SETUP.md) を参照）
+
+docker.sockマウントのリスク緩和策:
+- [Rootless Docker](https://docs.docker.com/engine/security/rootless/): Dockerデーモン自体を非root権限で実行し、ソケット経由の権限昇格リスクを軽減
+- [Docker Socket Proxy](https://github.com/Tecnativa/docker-socket-proxy): APIエンドポイントを制限したプロキシ経由でアクセスし、不要な操作を遮断
+- ファイアウォール / ネットワークセグメンテーション: ClaudeWorkへのアクセス元を制限
+
+### データ永続化
+
+`./data:/data` ボリュームマウントにより、以下のデータがホスト側に永続化されます:
+
+| パス | 内容 |
+|------|------|
+| `data/claudework.db` | SQLiteデータベース（プロジェクト、セッション等） |
+| `data/environments/` | Docker環境の認証情報 |
+| `data/repos/` | クローンしたリポジトリ |
+
+コンテナを再作成（`docker compose down && docker compose up -d`）してもデータは保持されます。
+
+### DBマイグレーション
+
+Docker Compose起動時、`docker-entrypoint.sh` がDBマイグレーションを自動実行します。バージョンが古いDBファイルがある場合も自動的に最新スキーマに更新されます。
+
+---
+
 ## Docker環境とは
 
 ClaudeWorkはDocker実行環境をデフォルトとして使用します。Docker環境では、Claude Codeが独立したコンテナ内で動作するため、以下のメリットがあります。
@@ -29,7 +86,7 @@ Docker環境は Settings → Environments から管理します。
 
 ### 新しいDocker環境を作成する
 
-1. ClaudeWorkを起動: `npx claude-work start`
+1. ClaudeWorkを起動: `docker compose up -d`
 2. ブラウザで http://localhost:3000 を開く
 3. Settings → Environments に移動
 4. "新しい環境を作成" をクリック

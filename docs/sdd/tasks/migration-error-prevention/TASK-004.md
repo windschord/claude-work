@@ -16,7 +16,7 @@
 ```bash
 # 1. クリーンなデータベースで起動
 rm -f data/claudework.db
-npx claude-work
+docker compose up -d --force-recreate
 
 # 期待:
 # - スキーマ同期が実行される
@@ -31,7 +31,7 @@ npx claude-work
 sqlite3 data/claudework.db "ALTER TABLE Session DROP COLUMN active_connections"
 
 # 2. 起動試行
-npx claude-work
+docker compose up -d --force-recreate
 
 # 期待:
 # - スキーマ整合性チェックで不一致検出
@@ -44,7 +44,7 @@ npx claude-work
 
 ```bash
 # 1. サーバー起動
-npx claude-work
+docker compose up -d
 
 # 2. ヘルスチェック実行
 curl -i http://localhost:3000/api/health
@@ -61,7 +61,7 @@ curl -i http://localhost:3000/api/health
 # 例: sessions テーブルに test_column を追加
 
 # 2. 起動
-npx claude-work
+docker compose up -d
 
 # 期待:
 # - drizzle-kit push が新規カラムを追加

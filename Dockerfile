@@ -66,6 +66,27 @@ LABEL org.opencontainers.image.source="https://github.com/windschord/claude-work
 
 WORKDIR /app
 
+# Docker CLI のインストール（暫定: Dockerode移行 #144 で削除予定）
+# コンテナからホストのDockerデーモンを操作してサンドボックスコンテナを管理するために必要
+# NOTE: nodeユーザーがdocker.sockにアクセスするには、docker-compose.ymlの
+# group_add でホストのdockerグループGIDを指定する必要がある
+# NOTE: Dockerode移行(#144)で全体が削除されるため、バージョン固定は省略
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+       ca-certificates \
+       curl \
+       gnupg \
+    && install -m 0755 -d /etc/apt/keyrings \
+    && curl -fsSL https://download.docker.com/linux/debian/gpg \
+       | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \
+    && chmod a+r /etc/apt/keyrings/docker.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+       https://download.docker.com/linux/debian $(. /etc/os-release && echo $VERSION_CODENAME) stable" \
+       > /etc/apt/sources.list.d/docker.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends docker-ce-cli \
+    && rm -rf /var/lib/apt/lists/*
+
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOST=0.0.0.0

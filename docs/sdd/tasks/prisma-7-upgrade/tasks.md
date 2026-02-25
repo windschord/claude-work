@@ -201,7 +201,7 @@ export const prisma = new PrismaClient({ adapter });
 - 必要に応じてパスや引数を調整
 
 **受入基準**:
-- ~~`npx claude-work` で Prisma クライアント生成が成功する~~ (Drizzle移行により不要)
+- ~~`docker compose up -d` で Prisma クライアント生成が成功する~~ (Drizzle移行により不要)
 - ~~データベースセットアップが正常に動作する~~ (Drizzle移行により不要)
 
 **依存関係**: タスク3.2
@@ -248,7 +248,7 @@ export const prisma = new PrismaClient({ adapter });
 
 **説明**:
 - `npm run build` でビルド
-- `npx claude-work help` で CLI 動作確認
+- `docker compose ps` で動作確認
 
 **受入基準**:
 - [x] ビルドが成功する

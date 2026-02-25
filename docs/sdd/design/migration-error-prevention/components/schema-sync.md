@@ -4,11 +4,11 @@
 
 **関連要件**: [US-001: スキーママイグレーションの自動化](../../../requirements/migration-error-prevention/stories/US-001.md) @../../../requirements/migration-error-prevention/stories/US-001.md
 
-`syncSchema()`関数は、`npx claude-work`起動時に`drizzle-kit push`を自動実行し、`src/db/schema.ts`の定義に基づいてデータベーススキーマを最新状態に同期します。
+`syncSchema()`関数は、アプリケーション起動時に`drizzle-kit push`を自動実行し、`src/db/schema.ts`の定義に基づいてデータベーススキーマを最新状態に同期します。
 
 ## 責務
 
-- CLI起動時のスキーマ同期処理の実行
+- アプリケーション起動時のスキーマ同期処理の実行
 - drizzle-kit pushコマンドの呼び出しとエラーハンドリング
 - 同期成功/失敗のログ出力
 - 既存の手動マイグレーション機構の完全置換
@@ -198,7 +198,7 @@ const CURRENT_DB_VERSION = 3;
 
 - **目標**: 30秒以内に完了
 - **実測値**: drizzle-kit pushは通常5-10秒程度（7テーブル程度の場合）
-- **監視**: spawnSyncにタイムアウトは設定しない（Systemdのタイムアウト90秒で十分）
+- **監視**: spawnSyncにタイムアウトは設定しない（spawnSync自体が同期実行のため、プロセス完了まで待機する）
 
 ### 保守性要件（NFR-002）
 
@@ -274,12 +274,12 @@ describe('syncSchema', () => {
 
 1. **正常系**: スキーマ変更後の起動
    - schema.tsに新規テーブルを追加
-   - `npx claude-work`を実行
+   - `docker compose up -d`を実行
    - データベースに新規テーブルが作成されることを確認
 
 2. **異常系**: drizzle-kit pushの失敗
    - drizzle.config.tsを無効化
-   - `npx claude-work`を実行
+   - `docker compose up -d`を実行
    - エラーメッセージが表示され、起動が中断されることを確認
 
 ## 既知の制約
@@ -318,11 +318,16 @@ describe('syncSchema', () => {
 | INFO | `✅ スキーマ同期完了` | 成功時 |
 | ERROR | `❌ スキーマ同期失敗: ${error}` | 失敗時 |
 
-### Systemdログ統合
+### ログ確認
+
+> **注**: 現在はDocker Composeが唯一のデプロイ方法です。以下にDocker Composeおよび歴史的参考としてSystemdでのログ確認方法を示します。
 
 ```bash
-# Systemdログでスキーマ同期を確認
-journalctl -u claude-work -f | grep "スキーマ同期"
+# Docker Composeログでスキーマ同期を確認（サービス名: app）
+docker compose logs -f app | grep "スキーマ同期"
+
+# 歴史的参考（Systemd環境）:
+# journalctl -u claude-work -f | grep "スキーマ同期"
 ```
 
 ## 参照

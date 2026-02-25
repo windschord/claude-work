@@ -4,7 +4,7 @@
 
 **関連要件**: [US-003: システムヘルスチェックの提供](../../../requirements/migration-error-prevention/stories/US-003.md) @../../../requirements/migration-error-prevention/stories/US-003.md
 
-`/api/health`エンドポイントは、外部監視ツールやSystemdの`ExecStartPost`から呼び出され、データベーススキーマの整合性を含むシステムのヘルスステータスを返します。
+`/api/health`エンドポイントは、外部監視ツールやDocker Composeのヘルスチェック機能から呼び出され、データベーススキーマの整合性を含むシステムのヘルスステータスを返します。
 
 ## エンドポイント仕様
 
@@ -211,19 +211,15 @@ export async function GET() {
 
 ## 統合ポイント
 
-### Systemd ExecStartPost
+### Docker Compose ヘルスチェック
 
-**ファイル**: `/etc/systemd/system/claude-work.service`
+> **注**: 現在はDocker Composeが唯一のデプロイ方法です。以下のsystemd記述は歴史的な参考情報として残しています。
 
-```ini
-[Service]
-ExecStart=/usr/bin/npx claude-work
-ExecStartPost=/usr/bin/curl -sf http://localhost:3000/api/health || exit 1
-```
+Docker Composeでは`docker-entrypoint.sh`内でマイグレーションが自動実行されます。ヘルスチェックはDocker Composeの`healthcheck`ディレクティブで設定できます。
 
-- `-s`: サイレントモード（進捗非表示）
-- `-f`: 失敗時に非ゼロで終了（HTTP 4xx/5xxの場合）
-- `|| exit 1`: ヘルスチェック失敗時はSystemdにエラーを通知
+**歴史的参考（Systemd ExecStartPost）**:
+
+Systemdサービスとしてデプロイしていた当時は、`ExecStartPost`でヘルスチェックを呼び出す構成でした。現在はDocker Composeの`healthcheck`ディレクティブに置き換えられています。
 
 ### Prometheus監視
 

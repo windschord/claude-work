@@ -53,10 +53,8 @@
 - [x] `prisma/schema.prisma` に `SettingScope` enum が追加されている
 - [x] `@@unique([scope, project_id])` 制約が DeveloperSettings に設定されている
 - [x] `name` フィールドに `@unique` 制約が SshKey に設定されている
-- [x] `npx prisma format` でフォーマットエラーが0件である
-- [x] `npx prisma validate` でバリデーションエラーが0件である
-- [x] `npx prisma db push` でスキーマがデータベースに適用できる
-- [x] `npx prisma generate` で Drizzle Client が生成できる
+- [x] `npm run db:push` でスキーマがデータベースに適用できる（フォーマット・バリデーションエラーなし）
+- [x] スキーマ定義が正しく反映されている
 
 ---
 
@@ -69,13 +67,12 @@
    - `SettingScope` enum
    - `DeveloperSettings` モデル
    - `SshKey` モデル
-3. フォーマット: `npx prisma format`
-4. バリデーション: `npx prisma validate`
+3. `npm run db:push` でスキーマの構文・整合性を確認
 
 ### ステップ2: データベースに反映
 
-1. スキーマをデータベースに適用: `npx prisma db push`
-2. Drizzle Client を再生成: `npx prisma generate`
+1. スキーマをデータベースに適用: `npm run db:push`
+2. スキーマ変更の反映を確認
 
 ### ステップ3: コミットして完了
 
@@ -142,21 +139,11 @@ model SshKey {
 
 ## テスト方法
 
-### スキーマバリデーション
+### スキーマ適用とバリデーション
 ```bash
-npx prisma format
-npx prisma validate
+npm run db:push
 ```
-
-### データベース適用
-```bash
-npx prisma db push
-```
-
-### Drizzle Client 生成確認
-```bash
-npx prisma generate
-```
+上記コマンドでスキーマの構文チェック・バリデーション・データベース適用がまとめて実行される。
 
 ---
 

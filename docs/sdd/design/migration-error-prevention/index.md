@@ -160,7 +160,7 @@
 
 ### 外部依存
 
-- drizzle-kit: v0.x系（npx経由で実行、バージョン固定不要）
+- drizzle-kit: v0.x系（バージョン固定不要）
 - better-sqlite3: 既存依存
 - Node.js: v18以降（spawnSync使用）
 

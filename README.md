@@ -8,9 +8,8 @@ ClaudeWork は、Claude Code セッションをブラウザから管理するた
 
 - **OS**: macOS, Linux
   - Windows は現在サポートされていません
-- **Node.js**: 18.x 以上
-- **Claude Code CLI**: インストール済みであること
-- **Docker Engine**: インストール済みであること（デフォルト実行環境として必須）
+- **Docker Engine + Docker Compose V2.24+**: インストール済みであること
+- **Node.js 20+**: 開発・ローカル実行（`npm run dev` 等）を行う場合のみ必要
 
 ## 主な機能
 
@@ -38,64 +37,40 @@ ClaudeWork は、Claude Code セッションをブラウザから管理するた
 
 ### クイックスタート
 
+> **Linux環境の場合**: 起動前に `stat -c '%g' /var/run/docker.sock` の実行結果（数値）を `.env` の `DOCKER_GID` に設定してください（例: `DOCKER_GID=999`）。詳細は [セットアップガイド](docs/SETUP.md) を参照してください。
+
 ```bash
-npx claude-work start   # バックグラウンドで起動
-npx claude-work stop    # 停止
+git clone https://github.com/windschord/claude-work.git
+cd claude-work
+cp .env.example .env    # 環境変数ファイルを作成
+docker compose up -d    # バックグラウンドで起動
 ```
 
-または、フォアグラウンドで起動:
+ブラウザで `http://localhost:3000` を開きます。
 
 ```bash
-npx claude-work         # Ctrl+C で停止
+docker compose logs -f   # ログ表示
+docker compose down      # 停止
+docker compose up -d --build  # 再ビルドして起動
 ```
 
-#### GitHub リポジトリから直接実行
-
-npm registry に公開前のバージョンや、特定のブランチを試す場合:
+ポートを変更する場合:
 
 ```bash
-# main ブランチから実行
-npx github:windschord/claude-work start
-
-# 特定のブランチから実行
-npx github:windschord/claude-work#feature-branch start
-```
-
-初回実行時は以下が自動的にセットアップされます:
-
-| ステップ | 処理内容 |
-|---------|---------|
-| 1. 環境設定 | `.env` がなければ `.env.example` からコピー |
-| 2. データベース | スキーマを自動適用 |
-| 3. データベース | DBがなければ自動作成 |
-| 4. ビルド | `.next` がなければ自動ビルド |
-| 5. 起動 | サーバー起動 (`http://localhost:3000`) |
-
-### CLI コマンド
-
-```bash
-npx claude-work          # フォアグラウンドで起動
-npx claude-work start    # バックグラウンドで起動（pm2経由）
-npx claude-work stop     # 停止
-npx claude-work restart  # 再起動
-npx claude-work status   # 状態確認
-npx claude-work logs     # ログ表示
-npx claude-work help     # ヘルプ
+HOST_PORT=3001 docker compose up -d
 ```
 
 ### 環境変数のカスタマイズ
 
-デフォルト設定で動作しますが、必要に応じて `.env` ファイルを編集できます:
+`.env` ファイルを作成して設定を変更できます:
 
 ```bash
-# データベースURL（変更不要）
-DATABASE_URL=file:../data/claudework.db
+# ホスト側ポート
+HOST_PORT=3001
 
-# サーバーポート（オプション）
-PORT=3000
+# ログレベル
+LOG_LEVEL=info
 ```
-
-ブラウザで `http://localhost:3000` を開きます。
 
 ## 環境変数
 
@@ -103,9 +78,10 @@ PORT=3000
 
 | 変数名 | 説明 | デフォルト |
 |--------|------|-----------|
+| `HOST_PORT` | ホスト側公開ポート（Docker Compose） | 3000 |
 | `DATABASE_URL` | SQLite データベースパス | なし（必須） |
-| `PORT` | サーバーポート | 3000 |
-| `NODE_ENV` | 実行環境 | development |
+| `PORT` | サーバーポート（Docker Compose では固定） | 3000 |
+| `NODE_ENV` | 実行環境（Docker Compose では production に固定） | production |
 | `LOG_LEVEL` | ログレベル | info |
 | `ALLOWED_ORIGINS` | CORS許可オリジン | なし |
 | `ALLOWED_PROJECT_DIRS` | 許可するプロジェクトディレクトリ | なし（すべてのディレクトリを許可） |
@@ -260,7 +236,6 @@ Apache License 2.0 - 詳細は [LICENSE](LICENSE) を参照してください。
 - **[API仕様](docs/API.md)** - REST API / WebSocket API仕様
 - **[GitHub PAT設定ガイド](docs/GITHUB_PAT.md)** - Docker環境でのHTTPS認証設定
 - **[Docker環境詳細設定ガイド](docs/DOCKER_ENVIRONMENT.md)** - 権限スキップ・ポートマッピング・ボリュームマウントの設定
-- **[Systemdセットアップ](docs/SYSTEMD_SETUP.md)** - systemdによるサービス化
 
 ### 開発者向けドキュメント
 - **[Software Design Documents](docs/sdd/)** - ソフトウェア設計ドキュメント

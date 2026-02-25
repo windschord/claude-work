@@ -234,5 +234,5 @@ prisma/generated/
 ### 動作確認
 
 1. `pnpm run dev` で開発サーバー起動
-2. `npx claude-work` で本番ビルド・起動
+2. `docker compose up -d` で本番ビルド・起動
 3. セッション作成・削除の動作確認

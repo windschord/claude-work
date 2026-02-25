@@ -170,41 +170,29 @@ Configuration in `ecosystem.config.js` defines:
 
 ## Environment Setup
 
-### Running the Application
-
-**必ず `npx` を使用してください。** `npm run start` ではなく `npx claude-work` を使います。
+### Running the Application (Production)
 
 ```bash
-# バックグラウンドで起動（推奨）
-npx claude-work start
-
-# 停止
-npx claude-work stop
-
-# その他のコマンド
-npx claude-work restart  # 再起動
-npx claude-work status   # 状態確認
-npx claude-work logs     # ログ表示
-npx claude-work help     # ヘルプ
-npx claude-work          # フォアグラウンドで起動（Ctrl+C で停止）
+docker compose up -d           # バックグラウンドで起動
+docker compose down            # 停止
+docker compose up -d --build   # 再ビルドして起動
+docker compose logs -f         # ログ表示
 ```
 
 ### Required Environment Variables
 
-Create `.env` file with:
-
-```bash
-DATABASE_URL=file:../data/claudework.db
-```
+`docker-compose.yml` の `environment` セクションで `DATABASE_URL=file:/data/claudework.db` が固定設定される。`.env` の `DATABASE_URL` では上書きできない（`environment` が `env_file` より優先）。変更するには `docker-compose.yml` を直接編集する。
 
 ### Optional Variables
 
-- `PORT`: Server port (default: 3000)
-- `NODE_ENV`: development/production
+- `HOST_PORT`: Host port for Docker Compose (default: 3000)
+- `PORT`: Server port (default: 3000, Docker Compose では固定)
+- `NODE_ENV`: development/production (Docker Compose では production に固定)
 - `LOG_LEVEL`: winston log level (default: info)
 - `CLAUDE_CODE_PATH`: Path to claude CLI (default: 'claude')
 - `ALLOWED_ORIGINS`: CORS origins (comma-separated)
 - `ALLOWED_PROJECT_DIRS`: Restrict project directories
+- `DOCKER_GID`: Docker group GID for docker.sock access (Linux only)
 
 See `docs/ENV_VARS.md` for complete reference.
 
@@ -344,7 +332,6 @@ For detailed troubleshooting information, see `docs/sdd/troubleshooting/`.
 │   ├── SETUP.md
 │   ├── ENV_VARS.md
 │   ├── API.md
-│   ├── SYSTEMD_SETUP.md
 │   ├── GITHUB_PAT.md
 │   ├── design.md
 │   ├── requirements.md

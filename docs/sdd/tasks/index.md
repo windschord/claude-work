@@ -24,12 +24,12 @@
 | [Dockerターミナル](docker-terminal/tasks.md) | Docker環境でのターミナル機能 |
 | [Docker Worktree修正](docker-worktree-fix/index.md) | Docker環境でのWorktreeパス問題の修正 |
 | [Issue #101 PTYリファクタリング](issue-101-pty-refactor/index.md) | PTYマネージャーのアーキテクチャ改善 |
-| [npx GitHub統合](npx-github/tasks.md) | GitHub Actionsでのnpx実行対応 |
-| [npx Prisma修正](npx-prisma-fix/tasks.md) | Prisma実行時のnpx問題修正 |
+| [npx GitHub統合](../archive/tasks-npx-github/tasks.md) | GitHub Actionsでのnpx実行対応（廃止: Docker Compose移行済み） |
+| [npx Prisma修正](../archive/tasks-npx-prisma-fix/tasks.md) | Prisma実行時のnpx問題修正（廃止: Docker Compose移行済み） |
 | [永続データ](persistent-data/tasks.md) | データ永続化設計 |
 | [Prisma 7アップグレード](prisma-7-upgrade/tasks.md) | Prisma v7へのアップグレード |
 | [設定UI改善](settings-ui/index.md) | 設定ページのナビゲーション改善 |
-| [systemdセットアップ](systemd-setup/tasks.md) | systemdによるサービス化 |
+| [systemdセットアップ](../archive/tasks-systemd-setup/tasks.md) | systemdによるサービス化（廃止: Docker Compose移行済み） |
 
 ## タスク管理
 
