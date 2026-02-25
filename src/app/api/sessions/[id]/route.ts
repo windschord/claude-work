@@ -4,7 +4,6 @@ import { eq } from 'drizzle-orm';
 import { GitService } from '@/services/git-service';
 import { DockerGitService } from '@/services/docker-git-service';
 import { ProcessManager } from '@/services/process-manager';
-import { ClaudeOptionsService } from '@/services/claude-options-service';
 import { logger } from '@/lib/logger';
 
 const processManager = ProcessManager.getInstance();
@@ -131,11 +130,8 @@ export async function DELETE(
       }
     }
 
-    // worktreeオプション判定（worktree削除スキップ判定）
-    const projectOptions = ClaudeOptionsService.parseOptions(targetSession.project.claude_code_options);
-    const sessionOptions = ClaudeOptionsService.parseOptions(targetSession.claude_code_options);
-    const mergedOptions = ClaudeOptionsService.mergeOptions(projectOptions, sessionOptions);
-    const useClaudeWorktree = ClaudeOptionsService.hasWorktreeOption(mergedOptions);
+    // --worktreeモード判定: branch_nameが空の場合はClaude Codeがworktreeを管理している
+    const useClaudeWorktree = targetSession.branch_name === '';
 
     if (useClaudeWorktree) {
       logger.info('Skipping worktree deletion (managed by Claude Code --worktree)', {

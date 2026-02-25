@@ -112,8 +112,7 @@ export function ClaudeOptionsForm({
     if (checked) {
       onOptionsChange({ ...options, worktree: true });
     } else {
-      const { worktree: _, ...rest } = options;
-      onOptionsChange(rest);
+      onOptionsChange({ ...options, worktree: false });
     }
   };
 

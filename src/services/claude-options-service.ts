@@ -30,6 +30,13 @@ const ENV_VAR_KEY_PATTERN = /^[A-Z_][A-Z0-9_]*$/;
 const CONTROL_CHARS_REGEX = new RegExp('[\\x00-\\x1f\\x7f]', 'g');
 
 /**
+ * Worktree名のバリデーション正規表現
+ * 英字・数字・ハイフン・アンダースコア・ドットのみ許可
+ * パストラバーサル（../）やスラッシュ（/）を防止
+ */
+const WORKTREE_NAME_PATTERN = /^[A-Za-z0-9._-]+$/;
+
+/**
  * Claude Code実行オプションのマージ・ビルドサービス
  */
 export class ClaudeOptionsService {
@@ -125,8 +132,14 @@ export class ClaudeOptionsService {
 
     if (options.worktree === true) {
       args.push('--worktree');
-    } else if (typeof options.worktree === 'string' && options.worktree.length > 0) {
-      args.push('--worktree', options.worktree);
+    } else if (typeof options.worktree === 'string') {
+      const trimmed = options.worktree.trim();
+      if (trimmed.length > 0 && WORKTREE_NAME_PATTERN.test(trimmed)) {
+        args.push('--worktree', trimmed);
+      } else if (trimmed.length > 0) {
+        // 不正な名前は無視してbooleanとして扱う
+        args.push('--worktree');
+      }
     }
 
     return args;
@@ -212,8 +225,14 @@ export class ClaudeOptionsService {
       if (typeof fieldValue !== 'boolean' && typeof fieldValue !== 'string' && fieldValue !== undefined) {
         return null; // boolean/string以外は失敗
       }
-      if (typeof fieldValue === 'boolean' || typeof fieldValue === 'string') {
+      if (typeof fieldValue === 'boolean') {
         result.worktree = fieldValue;
+      } else if (typeof fieldValue === 'string') {
+        const trimmed = fieldValue.trim();
+        if (trimmed.length > 0 && !WORKTREE_NAME_PATTERN.test(trimmed)) {
+          return null; // パストラバーサル等の不正な名前は失敗
+        }
+        result.worktree = trimmed || fieldValue;
       }
     }
 
@@ -361,7 +380,15 @@ export class ClaudeOptionsService {
    * worktreeオプションが有効かどうかを判定
    */
   static hasWorktreeOption(options: ClaudeCodeOptions): boolean {
-    if (typeof options.worktree === 'string') return options.worktree.length > 0;
+    if (typeof options.worktree === 'string') return options.worktree.trim().length > 0;
     return options.worktree === true;
+  }
+
+  /**
+   * Worktree名のバリデーション
+   * 英字・数字・ハイフン・アンダースコア・ドットのみ許可
+   */
+  static validateWorktreeName(name: string): boolean {
+    return WORKTREE_NAME_PATTERN.test(name.trim());
   }
 }

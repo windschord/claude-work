@@ -171,46 +171,13 @@ describe('DELETE /api/sessions/[id]', () => {
     expect(response.status).toBe(404);
   });
 
-  it('should skip worktree deletion when session has worktree option', async () => {
-    // worktreeオプション付きのセッションを作成
+  it('should skip worktree deletion when branch_name is empty (--worktree mode)', async () => {
+    // --worktreeモード: branch_nameが空文字列のセッション
     const worktreeSession = db
       .insert(schema.sessions)
       .values({
         project_id: project.id,
         name: 'Worktree Session',
-        status: 'stopped',
-        worktree_path: testRepoPath,
-        branch_name: '',
-        claude_code_options: '{"worktree":true}',
-      })
-      .returning()
-      .get();
-
-    const deleteWorktreeSpy = vi.spyOn(GitService.prototype, 'deleteWorktree');
-
-    const request = new NextRequest(`http://localhost:3000/api/sessions/${worktreeSession.id}`, {
-      method: 'DELETE',
-    });
-
-    const response = await DELETE(request, { params: Promise.resolve({ id: worktreeSession.id }) });
-    expect(response.status).toBe(204);
-    expect(deleteWorktreeSpy).not.toHaveBeenCalled();
-
-    deleteWorktreeSpy.mockRestore();
-  });
-
-  it('should skip worktree deletion when project has worktree option', async () => {
-    // プロジェクトにworktreeオプションを設定
-    db.update(schema.projects)
-      .set({ claude_code_options: '{"worktree":true}' })
-      .where(eq(schema.projects.id, project.id))
-      .run();
-
-    const worktreeSession = db
-      .insert(schema.sessions)
-      .values({
-        project_id: project.id,
-        name: 'Worktree Session 2',
         status: 'stopped',
         worktree_path: testRepoPath,
         branch_name: '',

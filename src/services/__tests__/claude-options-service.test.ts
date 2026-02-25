@@ -548,6 +548,77 @@ describe('ClaudeOptionsService', () => {
       it('should return false when worktree is empty string', () => {
         expect(ClaudeOptionsService.hasWorktreeOption({ worktree: '' })).toBe(false);
       });
+
+      it('should return false when worktree is whitespace-only string', () => {
+        expect(ClaudeOptionsService.hasWorktreeOption({ worktree: '   ' })).toBe(false);
+      });
+    });
+
+    describe('worktree name validation (path traversal prevention)', () => {
+      it('should reject path traversal in validateClaudeCodeOptions', () => {
+        expect(ClaudeOptionsService.validateClaudeCodeOptions({ worktree: '../escape' })).toBeNull();
+        expect(ClaudeOptionsService.validateClaudeCodeOptions({ worktree: '../../etc/passwd' })).toBeNull();
+      });
+
+      it('should reject absolute path in validateClaudeCodeOptions', () => {
+        expect(ClaudeOptionsService.validateClaudeCodeOptions({ worktree: '/absolute/path' })).toBeNull();
+      });
+
+      it('should reject names with slashes in validateClaudeCodeOptions', () => {
+        expect(ClaudeOptionsService.validateClaudeCodeOptions({ worktree: 'path/to/name' })).toBeNull();
+      });
+
+      it('should accept valid worktree names with dots, hyphens, underscores', () => {
+        const result = ClaudeOptionsService.validateClaudeCodeOptions({ worktree: 'my-feature_v1.0' });
+        expect(result).toEqual({ worktree: 'my-feature_v1.0' });
+      });
+
+      it('should fall back to boolean --worktree for invalid names in buildCliArgs', () => {
+        const options: ClaudeCodeOptions = { worktree: 'invalid/name' };
+        expect(ClaudeOptionsService.buildCliArgs(options)).toEqual(['--worktree']);
+      });
+
+      it('should pass valid names through in buildCliArgs', () => {
+        const options: ClaudeCodeOptions = { worktree: 'valid-name.1' };
+        expect(ClaudeOptionsService.buildCliArgs(options)).toEqual(['--worktree', 'valid-name.1']);
+      });
+
+      it('should trim whitespace from worktree name in buildCliArgs', () => {
+        const options: ClaudeCodeOptions = { worktree: '  valid-name  ' };
+        expect(ClaudeOptionsService.buildCliArgs(options)).toEqual(['--worktree', 'valid-name']);
+      });
+
+      it('should treat whitespace-only worktree name as empty in buildCliArgs', () => {
+        const options: ClaudeCodeOptions = { worktree: '   ' };
+        expect(ClaudeOptionsService.buildCliArgs(options)).toEqual([]);
+      });
+    });
+
+    describe('validateWorktreeName', () => {
+      it('should accept valid names', () => {
+        expect(ClaudeOptionsService.validateWorktreeName('my-feature')).toBe(true);
+        expect(ClaudeOptionsService.validateWorktreeName('v1.0')).toBe(true);
+        expect(ClaudeOptionsService.validateWorktreeName('feature_branch')).toBe(true);
+        expect(ClaudeOptionsService.validateWorktreeName('Test123')).toBe(true);
+      });
+
+      it('should reject path traversal attempts', () => {
+        expect(ClaudeOptionsService.validateWorktreeName('../escape')).toBe(false);
+        expect(ClaudeOptionsService.validateWorktreeName('../../etc')).toBe(false);
+      });
+
+      it('should reject names with slashes', () => {
+        expect(ClaudeOptionsService.validateWorktreeName('path/name')).toBe(false);
+        expect(ClaudeOptionsService.validateWorktreeName('/absolute')).toBe(false);
+      });
+
+      it('should reject names with spaces', () => {
+        expect(ClaudeOptionsService.validateWorktreeName('has space')).toBe(false);
+      });
+
+      it('should reject empty names', () => {
+        expect(ClaudeOptionsService.validateWorktreeName('')).toBe(false);
+      });
     });
   });
 });
