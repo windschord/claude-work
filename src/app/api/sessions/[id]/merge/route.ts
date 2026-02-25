@@ -82,6 +82,14 @@ export async function POST(
       );
     }
 
+    // --worktreeモードのセッションではbranch_nameが空のためマージ不可
+    if (!targetSession.branch_name) {
+      return NextResponse.json(
+        { error: 'Cannot merge sessions using Claude Code --worktree mode. The branch is managed by Claude Code.' },
+        { status: 400 }
+      );
+    }
+
     const sessionName = basename(targetSession.worktree_path);
 
     let result;

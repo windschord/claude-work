@@ -130,6 +130,38 @@ describe('POST /api/sessions/[id]/merge', () => {
     expect(Array.isArray(data.conflicts)).toBe(true);
   });
 
+  it('should return 400 for --worktree mode sessions with empty branch_name', async () => {
+    // Create a session with empty branch_name (worktree mode)
+    const worktreeSession = db
+      .insert(schema.sessions)
+      .values({
+        project_id: project.id,
+        name: 'Worktree Session',
+        status: 'running',
+        worktree_path: testRepoPath,
+        branch_name: '',
+      })
+      .returning()
+      .get();
+
+    const request = new NextRequest(
+      `http://localhost:3000/api/sessions/${worktreeSession.id}/merge`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ commitMessage: 'Test merge commit' }),
+      }
+    );
+
+    const response = await POST(request, { params: Promise.resolve({ id: worktreeSession.id }) });
+    expect(response.status).toBe(400);
+
+    const data = await response.json();
+    expect(data.error).toContain('--worktree mode');
+  });
+
   it('should return 400 if commitMessage is missing', async () => {
     const request = new NextRequest(
       `http://localhost:3000/api/sessions/${session.id}/merge`,

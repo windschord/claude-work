@@ -130,27 +130,36 @@ export async function DELETE(
       }
     }
 
-    // Remove worktree
-    try {
-      const sessionName = targetSession.worktree_path.split('/').pop() || '';
-      
-      if (targetSession.project.clone_location === 'docker') {
-        const dockerGitService = new DockerGitService();
-        const result = await dockerGitService.deleteWorktree(targetSession.project.id, sessionName);
-        if (!result.success) {
-          throw result.error || new Error('Failed to delete docker worktree');
-        }
-      } else {
-        const gitService = new GitService(targetSession.project.path, logger);
-        gitService.deleteWorktree(sessionName);
-      }
+    // --worktreeモード判定: branch_nameが空の場合はClaude Codeがworktreeを管理している
+    const useClaudeWorktree = targetSession.branch_name === '';
 
-      logger.debug('Worktree removed', { worktree_path: targetSession.worktree_path });
-    } catch (error) {
-      logger.warn('Failed to remove worktree', {
-        error,
-        worktree_path: targetSession.worktree_path,
+    if (useClaudeWorktree) {
+      logger.info('Skipping worktree deletion (managed by Claude Code --worktree)', {
+        session_id: targetSession.id,
       });
+    } else {
+      // Remove worktree
+      try {
+        const sessionName = targetSession.worktree_path.split('/').pop() || '';
+
+        if (targetSession.project.clone_location === 'docker') {
+          const dockerGitService = new DockerGitService();
+          const result = await dockerGitService.deleteWorktree(targetSession.project.id, sessionName);
+          if (!result.success) {
+            throw result.error || new Error('Failed to delete docker worktree');
+          }
+        } else {
+          const gitService = new GitService(targetSession.project.path, logger);
+          gitService.deleteWorktree(sessionName);
+        }
+
+        logger.debug('Worktree removed', { worktree_path: targetSession.worktree_path });
+      } catch (error) {
+        logger.warn('Failed to remove worktree', {
+          error,
+          worktree_path: targetSession.worktree_path,
+        });
+      }
     }
 
     // Delete session from database

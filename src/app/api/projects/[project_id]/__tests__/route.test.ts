@@ -734,7 +734,7 @@ describe('PATCH /api/projects/[project_id]', () => {
 
     expect(response.status).toBe(400);
     const data = await response.json();
-    expect(data.error).toBe('claude_code_options must be a plain object with valid fields');
+    expect(data.error).toBe('claude_code_options must be a plain object with valid fields (model, allowedTools, permissionMode, additionalFlags, dangerouslySkipPermissions, worktree)');
   });
 
   it('custom_env_varsに非文字列値が含まれる場合は400エラー', async () => {
@@ -766,7 +766,7 @@ describe('PATCH /api/projects/[project_id]', () => {
 
     expect(response.status).toBe(400);
     const data = await response.json();
-    expect(data.error).toBe('claude_code_options must be a plain object with valid fields');
+    expect(data.error).toBe('claude_code_options must be a plain object with valid fields (model, allowedTools, permissionMode, additionalFlags, dangerouslySkipPermissions, worktree)');
   });
 
   it('claude_code_optionsが配列の場合は400エラー', async () => {
@@ -782,7 +782,7 @@ describe('PATCH /api/projects/[project_id]', () => {
 
     expect(response.status).toBe(400);
     const data = await response.json();
-    expect(data.error).toBe('claude_code_options must be a plain object with valid fields');
+    expect(data.error).toBe('claude_code_options must be a plain object with valid fields (model, allowedTools, permissionMode, additionalFlags, dangerouslySkipPermissions, worktree)');
   });
 
   it('custom_env_varsがnullの場合は400エラー', async () => {

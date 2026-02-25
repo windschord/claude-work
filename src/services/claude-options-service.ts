@@ -7,6 +7,7 @@ export interface ClaudeCodeOptions {
   permissionMode?: string;  // --permission-mode <value>
   additionalFlags?: string; // その他フラグ（スペース区切り文字列）
   dangerouslySkipPermissions?: boolean; // --dangerously-skip-permissions（Docker環境のみ）
+  worktree?: boolean | string; // --worktree [name]
 }
 
 /**
@@ -27,6 +28,13 @@ const ENV_VAR_KEY_PATTERN = /^[A-Z_][A-Z0-9_]*$/;
  * \x00-\x1f: C0制御文字, \x7f: DEL
  */
 const CONTROL_CHARS_REGEX = new RegExp('[\\x00-\\x1f\\x7f]', 'g');
+
+/**
+ * Worktree名のバリデーション正規表現
+ * 英字・数字・ハイフン・アンダースコア・ドットのみ許可
+ * パストラバーサル（../）やスラッシュ（/）を防止
+ */
+const WORKTREE_NAME_PATTERN = /^[A-Za-z0-9._-]+$/;
 
 /**
  * Claude Code実行オプションのマージ・ビルドサービス
@@ -64,6 +72,15 @@ export class ClaudeOptionsService {
       merged.dangerouslySkipPermissions = sessionOptions.dangerouslySkipPermissions;
     } else if (projectOptions.dangerouslySkipPermissions !== undefined) {
       merged.dangerouslySkipPermissions = projectOptions.dangerouslySkipPermissions;
+    }
+
+    // worktreeフィールドのマージ（boolean | string、空文字列はクリア）
+    if (sessionOptions.worktree !== undefined) {
+      if (sessionOptions.worktree !== '') {
+        merged.worktree = sessionOptions.worktree;
+      }
+    } else if (projectOptions.worktree !== undefined && projectOptions.worktree !== '') {
+      merged.worktree = projectOptions.worktree;
     }
 
     return merged;
@@ -113,6 +130,18 @@ export class ClaudeOptionsService {
     // Docker環境種別やシェルモードに応じた条件付けが必要なため、
     // DockerAdapter.buildDockerArgs() で直接処理する。
 
+    if (options.worktree === true) {
+      args.push('--worktree');
+    } else if (typeof options.worktree === 'string') {
+      const trimmed = options.worktree.trim();
+      if (trimmed.length > 0 && WORKTREE_NAME_PATTERN.test(trimmed)) {
+        args.push('--worktree', trimmed);
+      } else if (trimmed.length > 0) {
+        // 不正な名前は無視してbooleanとして扱う
+        args.push('--worktree');
+      }
+    }
+
     return args;
   }
 
@@ -155,7 +184,7 @@ export class ClaudeOptionsService {
     }
 
     const obj = value as Record<string, unknown>;
-    const allowedKeys = new Set(['model', 'allowedTools', 'permissionMode', 'additionalFlags', 'dangerouslySkipPermissions']);
+    const allowedKeys = new Set(['model', 'allowedTools', 'permissionMode', 'additionalFlags', 'dangerouslySkipPermissions', 'worktree']);
 
     // 未知のキーをチェック
     for (const key of Object.keys(obj)) {
@@ -190,6 +219,23 @@ export class ClaudeOptionsService {
       }
     }
 
+    // worktreeフィールドのバリデーション（boolean | string）
+    if ('worktree' in obj) {
+      const fieldValue = obj.worktree;
+      if (typeof fieldValue !== 'boolean' && typeof fieldValue !== 'string' && fieldValue !== undefined) {
+        return null; // boolean/string以外は失敗
+      }
+      if (typeof fieldValue === 'boolean') {
+        result.worktree = fieldValue;
+      } else if (typeof fieldValue === 'string') {
+        const trimmed = fieldValue.trim();
+        if (trimmed.length > 0 && !WORKTREE_NAME_PATTERN.test(trimmed)) {
+          return null; // パストラバーサル等の不正な名前は失敗
+        }
+        result.worktree = trimmed;
+      }
+    }
+
     return result;
   }
 
@@ -203,7 +249,7 @@ export class ClaudeOptionsService {
     }
 
     const obj = value as Record<string, unknown>;
-    const allowedKeys = new Set(['model', 'allowedTools', 'permissionMode', 'additionalFlags', 'dangerouslySkipPermissions']);
+    const allowedKeys = new Set(['model', 'allowedTools', 'permissionMode', 'additionalFlags', 'dangerouslySkipPermissions', 'worktree']);
 
     return Object.keys(obj).filter(key => !allowedKeys.has(key));
   }
@@ -258,6 +304,12 @@ export class ClaudeOptionsService {
       // booleanフィールド
       if ('dangerouslySkipPermissions' in parsed && typeof parsed.dangerouslySkipPermissions === 'boolean') {
         result.dangerouslySkipPermissions = parsed.dangerouslySkipPermissions;
+      }
+      // worktreeフィールド（boolean | string）
+      if ('worktree' in parsed) {
+        if (typeof parsed.worktree === 'boolean' || typeof parsed.worktree === 'string') {
+          result.worktree = parsed.worktree;
+        }
       }
       return result;
     } catch {
@@ -322,5 +374,21 @@ export class ClaudeOptionsService {
     }
 
     return { result: sanitized, warnings };
+  }
+
+  /**
+   * worktreeオプションが有効かどうかを判定
+   */
+  static hasWorktreeOption(options: ClaudeCodeOptions): boolean {
+    if (typeof options.worktree === 'string') return options.worktree.trim().length > 0;
+    return options.worktree === true;
+  }
+
+  /**
+   * Worktree名のバリデーション
+   * 英字・数字・ハイフン・アンダースコア・ドットのみ許可
+   */
+  static validateWorktreeName(name: string): boolean {
+    return WORKTREE_NAME_PATTERN.test(name.trim());
   }
 }

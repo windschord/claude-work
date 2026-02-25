@@ -388,4 +388,264 @@ describe('ClaudeOptionsService', () => {
       expect(ClaudeOptionsService.getUnknownKeys('string')).toEqual([]);
     });
   });
+
+  describe('worktree option', () => {
+    describe('buildCliArgs', () => {
+      it('should add --worktree when worktree is true', () => {
+        const options: ClaudeCodeOptions = { worktree: true };
+        expect(ClaudeOptionsService.buildCliArgs(options)).toEqual(['--worktree']);
+      });
+
+      it('should add --worktree with name when worktree is a string', () => {
+        const options: ClaudeCodeOptions = { worktree: 'my-feature' };
+        expect(ClaudeOptionsService.buildCliArgs(options)).toEqual(['--worktree', 'my-feature']);
+      });
+
+      it('should not add --worktree when worktree is false', () => {
+        const options: ClaudeCodeOptions = { worktree: false };
+        expect(ClaudeOptionsService.buildCliArgs(options)).toEqual([]);
+      });
+
+      it('should not add --worktree when worktree is undefined', () => {
+        const options: ClaudeCodeOptions = { model: 'test' };
+        expect(ClaudeOptionsService.buildCliArgs(options)).toEqual(['--model', 'test']);
+      });
+
+      it('should not add --worktree when worktree is empty string', () => {
+        const options: ClaudeCodeOptions = { worktree: '' };
+        expect(ClaudeOptionsService.buildCliArgs(options)).toEqual([]);
+      });
+
+      it('should combine worktree with other options', () => {
+        const options: ClaudeCodeOptions = { model: 'claude-sonnet-4-5-20250929', worktree: true };
+        expect(ClaudeOptionsService.buildCliArgs(options)).toEqual([
+          '--model', 'claude-sonnet-4-5-20250929',
+          '--worktree',
+        ]);
+      });
+    });
+
+    describe('mergeOptions', () => {
+      it('should preserve project worktree when session is null', () => {
+        const project: ClaudeCodeOptions = { worktree: true };
+        expect(ClaudeOptionsService.mergeOptions(project, null)).toEqual({ worktree: true });
+      });
+
+      it('should override project worktree with session worktree', () => {
+        const project: ClaudeCodeOptions = { worktree: true };
+        const session: ClaudeCodeOptions = { worktree: false };
+        expect(ClaudeOptionsService.mergeOptions(project, session)).toEqual({ worktree: false });
+      });
+
+      it('should override project worktree with session string value', () => {
+        const project: ClaudeCodeOptions = { worktree: true };
+        const session: ClaudeCodeOptions = { worktree: 'custom-name' };
+        expect(ClaudeOptionsService.mergeOptions(project, session)).toEqual({ worktree: 'custom-name' });
+      });
+
+      it('should keep project worktree when session does not specify', () => {
+        const project: ClaudeCodeOptions = { model: 'test', worktree: true };
+        const session: ClaudeCodeOptions = { model: 'override' };
+        expect(ClaudeOptionsService.mergeOptions(project, session)).toEqual({
+          model: 'override',
+          worktree: true,
+        });
+      });
+
+      it('should clear worktree when session sets empty string', () => {
+        const project: ClaudeCodeOptions = { worktree: 'name' };
+        const session: ClaudeCodeOptions = { worktree: '' };
+        expect(ClaudeOptionsService.mergeOptions(project, session)).toEqual({});
+      });
+    });
+
+    describe('validateClaudeCodeOptions', () => {
+      it('should accept boolean worktree true', () => {
+        const result = ClaudeOptionsService.validateClaudeCodeOptions({ worktree: true });
+        expect(result).toEqual({ worktree: true });
+      });
+
+      it('should accept boolean worktree false', () => {
+        const result = ClaudeOptionsService.validateClaudeCodeOptions({ worktree: false });
+        expect(result).toEqual({ worktree: false });
+      });
+
+      it('should accept string worktree', () => {
+        const result = ClaudeOptionsService.validateClaudeCodeOptions({ worktree: 'my-feature' });
+        expect(result).toEqual({ worktree: 'my-feature' });
+      });
+
+      it('should reject number worktree', () => {
+        const result = ClaudeOptionsService.validateClaudeCodeOptions({ worktree: 123 });
+        expect(result).toBeNull();
+      });
+
+      it('should reject object worktree', () => {
+        const result = ClaudeOptionsService.validateClaudeCodeOptions({ worktree: { name: 'test' } });
+        expect(result).toBeNull();
+      });
+
+      it('should accept worktree with other fields', () => {
+        const result = ClaudeOptionsService.validateClaudeCodeOptions({
+          model: 'test',
+          worktree: true,
+        });
+        expect(result).toEqual({ model: 'test', worktree: true });
+      });
+    });
+
+    describe('getUnknownKeys', () => {
+      it('should not report worktree as unknown', () => {
+        const unknownKeys = ClaudeOptionsService.getUnknownKeys({ worktree: true });
+        expect(unknownKeys).toEqual([]);
+      });
+    });
+
+    describe('parseOptions', () => {
+      it('should parse boolean worktree true from JSON', () => {
+        const result = ClaudeOptionsService.parseOptions('{"worktree":true}');
+        expect(result).toEqual({ worktree: true });
+      });
+
+      it('should parse boolean worktree false from JSON', () => {
+        const result = ClaudeOptionsService.parseOptions('{"worktree":false}');
+        expect(result).toEqual({ worktree: false });
+      });
+
+      it('should parse string worktree from JSON', () => {
+        const result = ClaudeOptionsService.parseOptions('{"worktree":"my-branch"}');
+        expect(result).toEqual({ worktree: 'my-branch' });
+      });
+
+      it('should ignore number worktree in JSON', () => {
+        const result = ClaudeOptionsService.parseOptions('{"worktree":123}');
+        expect(result).toEqual({});
+      });
+
+      it('should parse worktree with other fields from JSON', () => {
+        const result = ClaudeOptionsService.parseOptions('{"model":"test","worktree":true}');
+        expect(result).toEqual({ model: 'test', worktree: true });
+      });
+    });
+
+    describe('hasWorktreeOption', () => {
+      it('should return true when worktree is true', () => {
+        expect(ClaudeOptionsService.hasWorktreeOption({ worktree: true })).toBe(true);
+      });
+
+      it('should return true when worktree is a non-empty string', () => {
+        expect(ClaudeOptionsService.hasWorktreeOption({ worktree: 'name' })).toBe(true);
+      });
+
+      it('should return false when worktree is false', () => {
+        expect(ClaudeOptionsService.hasWorktreeOption({ worktree: false })).toBe(false);
+      });
+
+      it('should return false when worktree is undefined', () => {
+        expect(ClaudeOptionsService.hasWorktreeOption({})).toBe(false);
+      });
+
+      it('should return false when worktree is empty string', () => {
+        expect(ClaudeOptionsService.hasWorktreeOption({ worktree: '' })).toBe(false);
+      });
+
+      it('should return false when worktree is whitespace-only string', () => {
+        expect(ClaudeOptionsService.hasWorktreeOption({ worktree: '   ' })).toBe(false);
+      });
+    });
+
+    describe('worktree name validation (path traversal prevention)', () => {
+      it('should reject path traversal in validateClaudeCodeOptions', () => {
+        expect(ClaudeOptionsService.validateClaudeCodeOptions({ worktree: '../escape' })).toBeNull();
+        expect(ClaudeOptionsService.validateClaudeCodeOptions({ worktree: '../../etc/passwd' })).toBeNull();
+      });
+
+      it('should reject absolute path in validateClaudeCodeOptions', () => {
+        expect(ClaudeOptionsService.validateClaudeCodeOptions({ worktree: '/absolute/path' })).toBeNull();
+      });
+
+      it('should reject names with slashes in validateClaudeCodeOptions', () => {
+        expect(ClaudeOptionsService.validateClaudeCodeOptions({ worktree: 'path/to/name' })).toBeNull();
+      });
+
+      it('should accept valid worktree names with dots, hyphens, underscores', () => {
+        const result = ClaudeOptionsService.validateClaudeCodeOptions({ worktree: 'my-feature_v1.0' });
+        expect(result).toEqual({ worktree: 'my-feature_v1.0' });
+      });
+
+      it('should fall back to boolean --worktree for invalid names in buildCliArgs', () => {
+        const options: ClaudeCodeOptions = { worktree: 'invalid/name' };
+        expect(ClaudeOptionsService.buildCliArgs(options)).toEqual(['--worktree']);
+      });
+
+      it('should pass valid names through in buildCliArgs', () => {
+        const options: ClaudeCodeOptions = { worktree: 'valid-name.1' };
+        expect(ClaudeOptionsService.buildCliArgs(options)).toEqual(['--worktree', 'valid-name.1']);
+      });
+
+      it('should trim whitespace from worktree name in buildCliArgs', () => {
+        const options: ClaudeCodeOptions = { worktree: '  valid-name  ' };
+        expect(ClaudeOptionsService.buildCliArgs(options)).toEqual(['--worktree', 'valid-name']);
+      });
+
+      it('should treat whitespace-only worktree name as empty in buildCliArgs', () => {
+        const options: ClaudeCodeOptions = { worktree: '   ' };
+        expect(ClaudeOptionsService.buildCliArgs(options)).toEqual([]);
+      });
+    });
+
+    describe('whitespace and boundary worktree names in validateClaudeCodeOptions', () => {
+      it('should normalize whitespace-only worktree name to empty string', () => {
+        const result = ClaudeOptionsService.validateClaudeCodeOptions({ worktree: '   ' });
+        expect(result).toEqual({ worktree: '' });
+      });
+
+      it('should trim leading/trailing whitespace from worktree name', () => {
+        const result = ClaudeOptionsService.validateClaudeCodeOptions({ worktree: '  my-feature  ' });
+        expect(result).toEqual({ worktree: 'my-feature' });
+      });
+
+      it('should accept empty string worktree', () => {
+        const result = ClaudeOptionsService.validateClaudeCodeOptions({ worktree: '' });
+        expect(result).toEqual({ worktree: '' });
+      });
+
+      it('should reject names with backslashes', () => {
+        expect(ClaudeOptionsService.validateClaudeCodeOptions({ worktree: 'path\\name' })).toBeNull();
+      });
+
+      it('should reject names with special characters', () => {
+        expect(ClaudeOptionsService.validateClaudeCodeOptions({ worktree: 'name;cmd' })).toBeNull();
+        expect(ClaudeOptionsService.validateClaudeCodeOptions({ worktree: 'name$(cmd)' })).toBeNull();
+        expect(ClaudeOptionsService.validateClaudeCodeOptions({ worktree: 'name`cmd`' })).toBeNull();
+      });
+    });
+
+    describe('validateWorktreeName', () => {
+      it('should accept valid names', () => {
+        expect(ClaudeOptionsService.validateWorktreeName('my-feature')).toBe(true);
+        expect(ClaudeOptionsService.validateWorktreeName('v1.0')).toBe(true);
+        expect(ClaudeOptionsService.validateWorktreeName('feature_branch')).toBe(true);
+        expect(ClaudeOptionsService.validateWorktreeName('Test123')).toBe(true);
+      });
+
+      it('should reject path traversal attempts', () => {
+        expect(ClaudeOptionsService.validateWorktreeName('../escape')).toBe(false);
+        expect(ClaudeOptionsService.validateWorktreeName('../../etc')).toBe(false);
+      });
+
+      it('should reject names with slashes', () => {
+        expect(ClaudeOptionsService.validateWorktreeName('path/name')).toBe(false);
+        expect(ClaudeOptionsService.validateWorktreeName('/absolute')).toBe(false);
+      });
+
+      it('should reject names with spaces', () => {
+        expect(ClaudeOptionsService.validateWorktreeName('has space')).toBe(false);
+      });
+
+      it('should reject empty names', () => {
+        expect(ClaudeOptionsService.validateWorktreeName('')).toBe(false);
+      });
+    });
+  });
 });

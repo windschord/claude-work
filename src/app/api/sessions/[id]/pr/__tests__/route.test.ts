@@ -175,6 +175,32 @@ describe('PR API Route', () => {
       expect(response.status).toBe(503);
     });
 
+    it('--worktreeモードのセッション（branch_name空）ではPR作成不可で400を返す', async () => {
+      mockDb.query.sessions.findFirst.mockResolvedValue({
+        ...mockSession,
+        branch_name: '',
+      });
+
+      const request = new NextRequest(
+        'http://localhost:3000/api/sessions/session-123/pr',
+        {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            title: 'Test PR',
+          }),
+        }
+      );
+
+      const response = await POST(request, { params: Promise.resolve({ id: 'session-123' }) });
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toContain('--worktree mode');
+    });
+
     it('既にPRが存在する場合は409を返す', async () => {
       mockDb.query.sessions.findFirst.mockResolvedValue({
         ...mockSession,

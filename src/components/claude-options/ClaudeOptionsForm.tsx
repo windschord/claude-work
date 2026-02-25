@@ -108,11 +108,26 @@ export function ClaudeOptionsForm({
     onEnvVarsChange(merged);
   };
 
+  const handleWorktreeToggle = (checked: boolean) => {
+    if (checked) {
+      onOptionsChange({ ...options, worktree: true });
+    } else {
+      onOptionsChange({ ...options, worktree: false });
+    }
+  };
+
+  const handleWorktreeNameChange = (value: string) => {
+    onOptionsChange({ ...options, worktree: value || true });
+  };
+
+  const worktreeEnabled = options.worktree === true || (typeof options.worktree === 'string' && options.worktree.trim().length > 0);
+
   const hasAnySettings = !!(
     options.model ||
     options.allowedTools ||
     options.permissionMode ||
     options.additionalFlags ||
+    options.worktree !== undefined ||
     envEntries.length > 0
   );
 
@@ -184,6 +199,36 @@ export function ClaudeOptionsForm({
                     パーミッション確認スキップが有効なため、この設定は無視されます
                   </p>
                 )}
+              </div>
+
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <input
+                    type="checkbox"
+                    id="worktree-toggle"
+                    checked={worktreeEnabled}
+                    onChange={(e) => handleWorktreeToggle(e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
+                    disabled={disabled}
+                  />
+                  <label htmlFor="worktree-toggle" className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                    Claude Codeにworktree管理を委任する
+                  </label>
+                </div>
+                {worktreeEnabled && (
+                  <input
+                    type="text"
+                    value={typeof options.worktree === 'string' ? options.worktree : ''}
+                    onChange={(e) => handleWorktreeNameChange(e.target.value)}
+                    placeholder="Worktree名（省略時は自動生成）"
+                    aria-label="Worktree名"
+                    className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+                    disabled={disabled}
+                  />
+                )}
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                  有効にすると、Claude Codeの--worktreeオプションでworktreeが管理されます
+                </p>
               </div>
 
               <div>
