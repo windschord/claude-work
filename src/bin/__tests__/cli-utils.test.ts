@@ -106,6 +106,8 @@ describe('cli-utils', () => {
       expect(tableNames).toContain('Message');
       expect(tableNames).toContain('Prompt');
       expect(tableNames).toContain('RunScript');
+      expect(tableNames).toContain('DeveloperSettings');
+      expect(tableNames).toContain('SshKey');
       db.close();
     });
 
@@ -363,6 +365,91 @@ describe('cli-utils', () => {
       db.close();
     });
 
+    it('should create DeveloperSettings table with correct columns and indexes', () => {
+      const dbPath = join(testDir, 'test.db');
+      initializeDatabase(dbPath);
+
+      const Database = require('better-sqlite3');
+      const db = new Database(dbPath);
+
+      // テーブルが存在することを確認
+      const tables = db.prepare(
+        "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+      ).all() as { name: string }[];
+      const tableNames = tables.map((t: { name: string }) => t.name);
+      expect(tableNames).toContain('DeveloperSettings');
+
+      // カラム確認
+      const columns = db.prepare("PRAGMA table_info('DeveloperSettings')").all() as {
+        name: string; type: string; notnull: number; dflt_value: string | null;
+      }[];
+      const columnNames = columns.map((c) => c.name);
+      expect(columnNames).toEqual([
+        'id', 'scope', 'project_id', 'git_username', 'git_email',
+        'created_at', 'updated_at',
+      ]);
+
+      // NOT NULL 制約
+      const scopeCol = columns.find((c) => c.name === 'scope');
+      expect(scopeCol?.notnull).toBe(1);
+
+      const gitUsernameCol = columns.find((c) => c.name === 'git_username');
+      expect(gitUsernameCol?.notnull).toBe(0);
+
+      // インデックス確認
+      const indexes = db.prepare(
+        "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='DeveloperSettings'"
+      ).all() as { name: string }[];
+      const indexNames = indexes.map((i) => i.name);
+      expect(indexNames).toContain('developer_settings_scope_project_id_idx');
+      expect(indexNames).toContain('developer_settings_global_unique');
+      expect(indexNames).toContain('developer_settings_project_unique');
+
+      db.close();
+    });
+
+    it('should create SshKey table with correct columns', () => {
+      const dbPath = join(testDir, 'test.db');
+      initializeDatabase(dbPath);
+
+      const Database = require('better-sqlite3');
+      const db = new Database(dbPath);
+
+      // テーブルが存在することを確認
+      const tables = db.prepare(
+        "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+      ).all() as { name: string }[];
+      const tableNames = tables.map((t: { name: string }) => t.name);
+      expect(tableNames).toContain('SshKey');
+
+      // カラム確認
+      const columns = db.prepare("PRAGMA table_info('SshKey')").all() as {
+        name: string; type: string; notnull: number; dflt_value: string | null;
+      }[];
+      const columnNames = columns.map((c) => c.name);
+      expect(columnNames).toEqual([
+        'id', 'name', 'public_key', 'private_key_encrypted',
+        'encryption_iv', 'has_passphrase', 'created_at', 'updated_at',
+      ]);
+
+      // NOT NULL 制約
+      const nameCol = columns.find((c) => c.name === 'name');
+      expect(nameCol?.notnull).toBe(1);
+
+      const hasPassphraseCol = columns.find((c) => c.name === 'has_passphrase');
+      expect(hasPassphraseCol?.notnull).toBe(1);
+      expect(hasPassphraseCol?.dflt_value).toBe('0');
+
+      // UNIQUE制約（nameカラム）
+      const indexes = db.prepare(
+        "SELECT * FROM sqlite_master WHERE type='index' AND tbl_name='SshKey'"
+      ).all() as { name: string; sql: string | null }[];
+      const uniqueIndex = indexes.find((idx) => idx.sql && idx.sql.includes('name'));
+      expect(uniqueIndex).toBeDefined();
+
+      db.close();
+    });
+
     it('should not fail when called twice (IF NOT EXISTS)', () => {
       const dbPath = join(testDir, 'test.db');
       const result1 = initializeDatabase(dbPath);
@@ -400,7 +487,7 @@ describe('cli-utils', () => {
   });
 
   describe('migrateDatabase', () => {
-    it('should migrate new DB to CURRENT_DB_VERSION (5)', () => {
+    it('should migrate new DB to CURRENT_DB_VERSION (6)', () => {
       const dbPath = join(testDir, 'migrate-test.db');
       const result = migrateDatabase(dbPath);
       expect(result).toBe(true);
@@ -409,9 +496,9 @@ describe('cli-utils', () => {
       const Database = require('better-sqlite3');
       const db = new Database(dbPath, { readonly: true });
 
-      // user_versionが5になっていることを確認
+      // user_versionが6になっていることを確認
       const row = db.prepare('PRAGMA user_version').get() as { user_version: number };
-      expect(row.user_version).toBe(5);
+      expect(row.user_version).toBe(6);
 
       // 全テーブルが存在することを確認
       const tables = db.prepare(
@@ -448,7 +535,7 @@ describe('cli-utils', () => {
       db.close();
     });
 
-    it('should migrate v1 DB to v5', () => {
+    it('should migrate v1 DB to v6', () => {
       const dbPath = join(testDir, 'v1-db.db');
 
       // v1のDBを手動で作成（user_version = 1、新カラムなし）
@@ -492,9 +579,9 @@ describe('cli-utils', () => {
       // 確認
       const db2 = new Database(dbPath, { readonly: true });
 
-      // user_versionが5になっていることを確認
+      // user_versionが6になっていることを確認
       const row = db2.prepare('PRAGMA user_version').get() as { user_version: number };
-      expect(row.user_version).toBe(5);
+      expect(row.user_version).toBe(6);
 
       // v2で追加されたカラムが存在することを確認
       const projectColumns = db2.prepare("PRAGMA table_info('Project')").all() as { name: string }[];
@@ -528,7 +615,7 @@ describe('cli-utils', () => {
       db2.close();
     });
 
-    it('should migrate v3 DB to v5', () => {
+    it('should migrate v3 DB to v6', () => {
       const dbPath = join(testDir, 'v3-db.db');
 
       // v3のDBを作成
@@ -605,7 +692,7 @@ describe('cli-utils', () => {
       // 確認
       const db2 = new Database(dbPath, { readonly: true });
       const row = db2.prepare('PRAGMA user_version').get() as { user_version: number };
-      expect(row.user_version).toBe(5);
+      expect(row.user_version).toBe(6);
 
       // v4で追加されたカラムが存在することを確認
       const projectColumns = db2.prepare("PRAGMA table_info('Project')").all() as { name: string }[];
@@ -632,7 +719,7 @@ describe('cli-utils', () => {
       db2.close();
     });
 
-    it('should skip migration when DB is already at latest version (5)', () => {
+    it('should skip migration when DB is already at latest version (6)', () => {
       const dbPath = join(testDir, 'latest-db.db');
 
       // 最新バージョンのDBを作成
@@ -642,7 +729,7 @@ describe('cli-utils', () => {
       const Database = require('better-sqlite3');
       const db = new Database(dbPath, { readonly: true });
       const rowBefore = db.prepare('PRAGMA user_version').get() as { user_version: number };
-      expect(rowBefore.user_version).toBe(5);
+      expect(rowBefore.user_version).toBe(6);
       db.close();
 
       // 再度マイグレーション実行（スキップされるはず）
@@ -652,7 +739,7 @@ describe('cli-utils', () => {
       // バージョンが変わっていないことを確認
       const db2 = new Database(dbPath, { readonly: true });
       const rowAfter = db2.prepare('PRAGMA user_version').get() as { user_version: number };
-      expect(rowAfter.user_version).toBe(5);
+      expect(rowAfter.user_version).toBe(6);
       db2.close();
     });
 
@@ -672,7 +759,7 @@ describe('cli-utils', () => {
       const Database = require('better-sqlite3');
       const db = new Database(dbPath, { readonly: true });
       const row = db.prepare('PRAGMA user_version').get() as { user_version: number };
-      expect(row.user_version).toBe(5);
+      expect(row.user_version).toBe(6);
       db.close();
     });
 
@@ -744,7 +831,7 @@ describe('cli-utils', () => {
       db2.close();
     });
 
-    it('should migrate v4 bug DB (missing Session.environment_id) to v5', () => {
+    it('should migrate v4 bug DB (missing Session.environment_id) to v6', () => {
       const dbPath = join(testDir, 'v4-bug-db.db');
 
       // v4バグDB: Session.environment_idが欠落した状態
@@ -830,9 +917,9 @@ describe('cli-utils', () => {
       // 確認
       const db2 = new Database(dbPath, { readonly: true });
 
-      // user_versionが5になっていることを確認
+      // user_versionが6になっていることを確認
       const row = db2.prepare('PRAGMA user_version').get() as { user_version: number };
-      expect(row.user_version).toBe(5);
+      expect(row.user_version).toBe(6);
 
       // Session.environment_idが追加されていることを確認
       const sessionColumns = db2.prepare("PRAGMA table_info('Session')").all() as { name: string }[];
@@ -842,7 +929,7 @@ describe('cli-utils', () => {
       db2.close();
     });
 
-    it('should migrate v4 normal DB (Session.environment_id exists) to v5', () => {
+    it('should migrate v4 normal DB (Session.environment_id exists) to v6', () => {
       const dbPath = join(testDir, 'v4-normal-db.db');
 
       // v4正常DB: Session.environment_idが既に存在する
@@ -929,14 +1016,142 @@ describe('cli-utils', () => {
       // 確認
       const db2 = new Database(dbPath, { readonly: true });
 
-      // user_versionが5になっていることを確認
+      // user_versionが6になっていることを確認
       const row = db2.prepare('PRAGMA user_version').get() as { user_version: number };
-      expect(row.user_version).toBe(5);
+      expect(row.user_version).toBe(6);
 
       // Session.environment_idが引き続き存在することを確認
       const sessionColumns = db2.prepare("PRAGMA table_info('Session')").all() as { name: string }[];
       const sessionColumnNames = sessionColumns.map((c) => c.name);
       expect(sessionColumnNames).toContain('environment_id');
+
+      db2.close();
+    });
+
+    it('should migrate v5 DB to v6', () => {
+      const dbPath = join(testDir, 'v5-db.db');
+
+      // v5のDBを作成（DeveloperSettings/SshKeyなし）
+      const Database = require('better-sqlite3');
+      const db = new Database(dbPath);
+      db.pragma('journal_mode = WAL');
+
+      // 既存のv5テーブルを作成（Project, ExecutionEnvironment, Session, GitHubPAT等の最低限）
+      db.exec(`
+        CREATE TABLE "Project" (
+          "id" text PRIMARY KEY NOT NULL,
+          "name" text NOT NULL,
+          "path" text NOT NULL,
+          "remote_url" text,
+          "claude_code_options" text NOT NULL DEFAULT '{}',
+          "custom_env_vars" text NOT NULL DEFAULT '{}',
+          "clone_location" text DEFAULT 'docker',
+          "docker_volume_id" text,
+          "environment_id" text,
+          "created_at" integer NOT NULL,
+          "updated_at" integer NOT NULL
+        );
+      `);
+      db.exec(`
+        CREATE TABLE "ExecutionEnvironment" (
+          "id" text PRIMARY KEY NOT NULL,
+          "name" text NOT NULL,
+          "type" text NOT NULL,
+          "description" text,
+          "config" text NOT NULL,
+          "auth_dir_path" text,
+          "is_default" integer NOT NULL DEFAULT 0,
+          "created_at" integer NOT NULL,
+          "updated_at" integer NOT NULL
+        );
+      `);
+      db.exec(`
+        CREATE TABLE "Session" (
+          "id" text PRIMARY KEY NOT NULL,
+          "project_id" text NOT NULL REFERENCES "Project"("id") ON DELETE CASCADE,
+          "name" text NOT NULL,
+          "status" text NOT NULL,
+          "worktree_path" text NOT NULL,
+          "branch_name" text NOT NULL,
+          "resume_session_id" text,
+          "last_activity_at" integer,
+          "pr_url" text,
+          "pr_number" integer,
+          "pr_status" text,
+          "pr_updated_at" integer,
+          "docker_mode" integer NOT NULL DEFAULT 0,
+          "container_id" text,
+          "claude_code_options" text,
+          "custom_env_vars" text,
+          "environment_id" text REFERENCES "ExecutionEnvironment"("id") ON DELETE SET NULL,
+          "active_connections" integer NOT NULL DEFAULT 0,
+          "destroy_at" integer,
+          "session_state" text NOT NULL DEFAULT 'ACTIVE',
+          "created_at" integer NOT NULL,
+          "updated_at" integer NOT NULL
+        );
+      `);
+      db.exec(`CREATE INDEX IF NOT EXISTS "sessions_session_state_idx" ON "Session" ("session_state");`);
+      db.exec(`CREATE INDEX IF NOT EXISTS "sessions_destroy_at_idx" ON "Session" ("destroy_at");`);
+      db.exec(`CREATE INDEX IF NOT EXISTS "sessions_last_activity_at_idx" ON "Session" ("last_activity_at");`);
+      db.exec(`
+        CREATE TABLE "GitHubPAT" (
+          "id" text PRIMARY KEY NOT NULL,
+          "name" text NOT NULL,
+          "description" text,
+          "encrypted_token" text NOT NULL,
+          "is_active" integer NOT NULL DEFAULT 1,
+          "created_at" integer NOT NULL,
+          "updated_at" integer NOT NULL
+        );
+      `);
+      db.exec('PRAGMA user_version = 5');
+      db.close();
+
+      // マイグレーション実行
+      const result = migrateDatabase(dbPath);
+      expect(result).toBe(true);
+
+      // 確認
+      const db2 = new Database(dbPath, { readonly: true });
+
+      // user_versionが6になっていることを確認
+      const row = db2.prepare('PRAGMA user_version').get() as { user_version: number };
+      expect(row.user_version).toBe(6);
+
+      // DeveloperSettingsテーブルが存在することを確認
+      const tables = db2.prepare(
+        "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+      ).all() as { name: string }[];
+      const tableNames = tables.map((t: { name: string }) => t.name);
+      expect(tableNames).toContain('DeveloperSettings');
+      expect(tableNames).toContain('SshKey');
+
+      // DeveloperSettingsのカラム確認
+      const devColumns = db2.prepare("PRAGMA table_info('DeveloperSettings')").all() as { name: string }[];
+      const devColumnNames = devColumns.map((c) => c.name);
+      expect(devColumnNames).toContain('scope');
+      expect(devColumnNames).toContain('project_id');
+      expect(devColumnNames).toContain('git_username');
+      expect(devColumnNames).toContain('git_email');
+
+      // DeveloperSettingsのインデックス確認
+      const devIndexes = db2.prepare(
+        "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='DeveloperSettings'"
+      ).all() as { name: string }[];
+      const devIndexNames = devIndexes.map((i) => i.name);
+      expect(devIndexNames).toContain('developer_settings_scope_project_id_idx');
+      expect(devIndexNames).toContain('developer_settings_global_unique');
+      expect(devIndexNames).toContain('developer_settings_project_unique');
+
+      // SshKeyのカラム確認
+      const sshColumns = db2.prepare("PRAGMA table_info('SshKey')").all() as { name: string }[];
+      const sshColumnNames = sshColumns.map((c) => c.name);
+      expect(sshColumnNames).toContain('name');
+      expect(sshColumnNames).toContain('public_key');
+      expect(sshColumnNames).toContain('private_key_encrypted');
+      expect(sshColumnNames).toContain('encryption_iv');
+      expect(sshColumnNames).toContain('has_passphrase');
 
       db2.close();
     });

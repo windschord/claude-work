@@ -20,8 +20,9 @@ import Database from 'better-sqlite3';
  *       Sessionに active_connections, destroy_at, session_state を追加
  *       Sessionインデックス (session_state, destroy_at, last_activity_at) を追加
  * - v5: Session.environment_id 欠落修復（v4マイグレーションでの漏れを修正）
+ * - v6: DeveloperSettingsテーブル、SshKeyテーブル作成
  */
-const CURRENT_DB_VERSION = 5;
+const CURRENT_DB_VERSION = 6;
 
 /**
  * Next.jsビルドが存在し、完全かどうかを確認
@@ -180,6 +181,12 @@ export function migrateDatabase(dbPath: string): boolean {
         version = 5;
       }
 
+      // バージョン 5 → 6: DeveloperSettings・SshKeyテーブル作成
+      if (version < 6) {
+        migrateV5ToV6(db!);
+        version = 6;
+      }
+
       // バージョン番号を更新
       db!.exec(`PRAGMA user_version = ${version}`);
     });
@@ -322,6 +329,39 @@ function createInitialTables(db: InstanceType<typeof Database>): void {
   db.exec(`
     CREATE INDEX IF NOT EXISTS "run_scripts_project_id_idx" ON "RunScript" ("project_id");
   `);
+
+  // DeveloperSettings テーブル
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS "DeveloperSettings" (
+      "id" text PRIMARY KEY NOT NULL,
+      "scope" text NOT NULL,
+      "project_id" text REFERENCES "Project"("id") ON DELETE CASCADE,
+      "git_username" text,
+      "git_email" text,
+      "created_at" integer NOT NULL,
+      "updated_at" integer NOT NULL
+    );
+  `);
+
+  db.exec(`CREATE INDEX IF NOT EXISTS "developer_settings_scope_project_id_idx" ON "DeveloperSettings" ("scope", "project_id");`);
+  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS "developer_settings_global_unique" ON "DeveloperSettings" ("scope") WHERE scope = 'GLOBAL';`);
+  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS "developer_settings_project_unique" ON "DeveloperSettings" ("project_id") WHERE scope = 'PROJECT' AND project_id IS NOT NULL;`);
+
+  // SshKey テーブル
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS "SshKey" (
+      "id" text PRIMARY KEY NOT NULL,
+      "name" text NOT NULL,
+      "public_key" text NOT NULL,
+      "private_key_encrypted" text NOT NULL,
+      "encryption_iv" text NOT NULL,
+      "has_passphrase" integer NOT NULL DEFAULT 0,
+      "created_at" integer NOT NULL,
+      "updated_at" integer NOT NULL
+    );
+  `);
+
+  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS "ssh_key_name_unique" ON "SshKey" ("name");`);
 }
 
 /**
@@ -395,6 +435,44 @@ function migrateV3ToV4(db: InstanceType<typeof Database>): void {
 function migrateV4ToV5(db: InstanceType<typeof Database>): void {
   console.log('Migrating to v5: Fixing missing Session.environment_id...');
   safeAddColumn(db, 'Session', 'environment_id', 'TEXT');
+}
+
+/**
+ * DeveloperSettings・SshKeyテーブルを作成（v5 → v6）
+ */
+function migrateV5ToV6(db: InstanceType<typeof Database>): void {
+  console.log('Migrating to v6: Creating DeveloperSettings and SshKey tables...');
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS "DeveloperSettings" (
+      "id" text PRIMARY KEY NOT NULL,
+      "scope" text NOT NULL,
+      "project_id" text REFERENCES "Project"("id") ON DELETE CASCADE,
+      "git_username" text,
+      "git_email" text,
+      "created_at" integer NOT NULL,
+      "updated_at" integer NOT NULL
+    );
+  `);
+
+  db.exec(`CREATE INDEX IF NOT EXISTS "developer_settings_scope_project_id_idx" ON "DeveloperSettings" ("scope", "project_id");`);
+  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS "developer_settings_global_unique" ON "DeveloperSettings" ("scope") WHERE scope = 'GLOBAL';`);
+  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS "developer_settings_project_unique" ON "DeveloperSettings" ("project_id") WHERE scope = 'PROJECT' AND project_id IS NOT NULL;`);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS "SshKey" (
+      "id" text PRIMARY KEY NOT NULL,
+      "name" text NOT NULL,
+      "public_key" text NOT NULL,
+      "private_key_encrypted" text NOT NULL,
+      "encryption_iv" text NOT NULL,
+      "has_passphrase" integer NOT NULL DEFAULT 0,
+      "created_at" integer NOT NULL,
+      "updated_at" integer NOT NULL
+    );
+  `);
+
+  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS "ssh_key_name_unique" ON "SshKey" ("name");`);
 }
 
 /**
