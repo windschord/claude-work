@@ -198,7 +198,7 @@ const CURRENT_DB_VERSION = 3;
 
 - **目標**: 30秒以内に完了
 - **実測値**: drizzle-kit pushは通常5-10秒程度（7テーブル程度の場合）
-- **監視**: spawnSyncにタイムアウトは設定しない（Docker Composeのコンテナ起動タイムアウトで十分）
+- **監視**: spawnSyncにタイムアウトは設定しない（spawnSync自体が同期実行のため、プロセス完了まで待機する）
 
 ### 保守性要件（NFR-002）
 

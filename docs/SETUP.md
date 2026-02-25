@@ -148,7 +148,7 @@ docker compose up -d
 ```bash
 # DBを削除して再起動（データは失われます）
 rm -f data/claudework.db*
-docker compose up -d
+docker compose down && docker compose up -d
 ```
 
 #### docker.sock の権限エラー

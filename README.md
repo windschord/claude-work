@@ -42,6 +42,7 @@ ClaudeWork は、Claude Code セッションをブラウザから管理するた
 ```bash
 git clone https://github.com/windschord/claude-work.git
 cd claude-work
+cp .env.example .env    # 環境変数ファイルを作成
 docker compose up -d    # バックグラウンドで起動
 ```
 

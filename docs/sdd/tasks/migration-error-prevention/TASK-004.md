@@ -16,7 +16,7 @@
 ```bash
 # 1. クリーンなデータベースで起動
 rm -f data/claudework.db
-docker compose up -d
+docker compose up -d --force-recreate
 
 # 期待:
 # - スキーマ同期が実行される
@@ -31,7 +31,7 @@ docker compose up -d
 sqlite3 data/claudework.db "ALTER TABLE Session DROP COLUMN active_connections"
 
 # 2. 起動試行
-docker compose up -d
+docker compose up -d --force-recreate
 
 # 期待:
 # - スキーマ整合性チェックで不一致検出
