@@ -186,8 +186,8 @@ docker compose logs -f         # ログ表示
 ### Optional Variables
 
 - `HOST_PORT`: Host port for Docker Compose (default: 3000)
-- `PORT`: Server port (default: 3000)
-- `NODE_ENV`: development/production
+- `PORT`: Server port (default: 3000, Docker Compose では固定)
+- `NODE_ENV`: development/production (Docker Compose では production に固定)
 - `LOG_LEVEL`: winston log level (default: info)
 - `CLAUDE_CODE_PATH`: Path to claude CLI (default: 'claude')
 - `ALLOWED_ORIGINS`: CORS origins (comma-separated)

@@ -37,6 +37,8 @@ ClaudeWork は、Claude Code セッションをブラウザから管理するた
 
 ### クイックスタート
 
+> **Linux環境の場合**: 起動前に `stat -c '%g' /var/run/docker.sock` の実行結果（数値）を `.env` の `DOCKER_GID` に設定してください（例: `DOCKER_GID=999`）。詳細は [セットアップガイド](docs/SETUP.md) を参照してください。
+
 ```bash
 git clone https://github.com/windschord/claude-work.git
 cd claude-work
@@ -44,8 +46,6 @@ docker compose up -d    # バックグラウンドで起動
 ```
 
 ブラウザで `http://localhost:3000` を開きます。
-
-> **Linux環境の場合**: docker.sock の権限エラーが発生する場合は、`stat -c '%g' /var/run/docker.sock` の実行結果（数値）を `.env` の `DOCKER_GID` に設定してください（例: `DOCKER_GID=999`）。詳細は [セットアップガイド](docs/SETUP.md) を参照してください。
 
 ```bash
 docker compose logs -f   # ログ表示
@@ -77,9 +77,10 @@ LOG_LEVEL=info
 
 | 変数名 | 説明 | デフォルト |
 |--------|------|-----------|
+| `HOST_PORT` | ホスト側公開ポート（Docker Compose） | 3000 |
 | `DATABASE_URL` | SQLite データベースパス | なし（必須） |
-| `PORT` | サーバーポート | 3000 |
-| `NODE_ENV` | 実行環境 | development |
+| `PORT` | サーバーポート（Docker Compose では固定） | 3000 |
+| `NODE_ENV` | 実行環境（Docker Compose では固定） | development |
 | `LOG_LEVEL` | ログレベル | info |
 | `ALLOWED_ORIGINS` | CORS許可オリジン | なし |
 | `ALLOWED_PROJECT_DIRS` | 許可するプロジェクトディレクトリ | なし（すべてのディレクトリを許可） |
