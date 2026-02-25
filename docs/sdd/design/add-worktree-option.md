@@ -177,8 +177,11 @@ static hasWorktreeOption(options: ClaudeCodeOptions): boolean {
 
 worktree作成ロジック（行383-433）を条件付きに変更:
 
+**注意:** 現在の実装では、CLIオプションの本マージはWebSocketハンドラー（claude-ws.ts）で行われている。
+ここでのマージはworktree判定のためだけに行う簡易マージであり、CLIオプションの最終的なマージとは別の処理。
+
 ```typescript
-// マージ済みオプションでworktree有効判定
+// マージ済みオプションでworktree有効判定（worktreeスキップ判定のための簡易マージ）
 const projectOptions = ClaudeOptionsService.parseOptions(project.claude_code_options);
 const sessionWorktreeOptions = claude_code_options || {};
 const mergedForWorktreeCheck = ClaudeOptionsService.mergeOptions(projectOptions, sessionWorktreeOptions);
@@ -336,7 +339,12 @@ const hasAnySettings = !!(
 `--worktree`モードでは、Claude Codeが`.claude/worktrees/<name>/`にworktreeを作成する。ClaudeWork側ではセッションの`worktree_path`としてプロジェクトルートパスを保存する。これはClaude Code起動時の`cwd`として使用される。
 
 ### TD-003: branch_nameの扱い
-`--worktree`モードでは、Claude Codeがworktree用のブランチを自動作成する。ClaudeWork側の`branch_name`は空文字列を保存する。Git差分表示やマージ機能でbranch_nameを参照する箇所は、空文字列の場合をハンドリングする。
+`--worktree`モードでは、Claude Codeがworktree用のブランチを自動作成する。ClaudeWork側の`branch_name`は空文字列を保存する。
+
+**影響を受ける既存機能（空文字列ハンドリングが必要）:**
+- `src/app/api/sessions/[id]/pr/route.ts`: PR作成時に`branch_name`を`--head`引数として使用 → 空文字列の場合はPR作成不可としてエラーを返す
+- `src/services/git-service.ts`: squashマージ時にブランチ名を参照 → 空文字列の場合はマージ不可としてエラーを返す
+- `src/services/pty-session-manager.ts`: メタデータとして保存（参照のみ、動作には影響なし）
 
 ### TD-004: Docker環境でのworktreeサポート
 Docker環境（`clone_location='docker'`）でも`--worktree`オプションを利用可能とする。Docker環境ではClaude Codeがコンテナ内部でworktreeを作成するため、ClaudeWorkの`worktree_path`は`/repo`（Dockerボリュームのマウントポイント）を保存する。

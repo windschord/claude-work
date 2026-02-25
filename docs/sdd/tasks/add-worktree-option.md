@@ -130,10 +130,35 @@
 **実装手順:**
 1. バリデーションエラーメッセージ（行182）のAllowed keys一覧に`worktree`を追加:
    ```
-   Allowed keys: model, allowedTools, permissionMode, additionalFlags, worktree
+   Allowed keys: model, allowedTools, permissionMode, additionalFlags, dangerouslySkipPermissions, worktree
    ```
+   ※ 既存の不整合: 現在のメッセージには`dangerouslySkipPermissions`も欠落しているため、同時に修正する
 2. テスト実行で既存テストへの影響を確認
 
 **受入基準:**
-- エラーメッセージにworktreeが含まれる
+- エラーメッセージにworktreeとdangerouslySkipPermissionsが含まれる
 - 既存テストが壊れていない
+
+---
+
+### TASK-006: `--worktree`モード時のbranch_name空文字列ハンドリング
+
+**ステータス:** pending
+**依存:** TASK-002
+**対応要件:** TD-003
+**対象ファイル:**
+- `src/app/api/sessions/[id]/pr/route.ts`
+- `src/services/git-service.ts`（squashMerge関連）
+
+**実装手順:**
+1. `src/app/api/sessions/[id]/pr/route.ts`:
+   - PR作成前に`dbSession.branch_name`が空文字列でないことを確認
+   - 空文字列の場合は400エラー（「--worktreeモードのセッションではPR作成はサポートされていません」）
+2. `src/services/git-service.ts`:
+   - squashMerge等のブランチ名を使う操作で空文字列チェックを追加
+   - 空文字列の場合はエラーをスロー
+
+**受入基準:**
+- `--worktree`モードのセッションでPR作成を試みた場合、適切なエラーが返される
+- `--worktree`モードのセッションでsquashマージを試みた場合、適切なエラーが返される
+- 従来モードのセッションは影響を受けない
