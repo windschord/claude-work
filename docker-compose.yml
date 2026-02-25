@@ -12,7 +12,7 @@ services:
     # nodeユーザーがdocker.sockにアクセスするため、ホストのdockerグループGIDを追加
     # DOCKER_GID の取得: DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)
     group_add:
-      - "${DOCKER_GID:-0}"
+      - "${DOCKER_GID:-984}"
     env_file:
       - path: .env
         required: false
