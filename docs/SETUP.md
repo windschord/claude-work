@@ -2,6 +2,7 @@
 
 ## 必要要件
 
+- Git（リポジトリのクローンに使用）
 - Docker Engine 20.10 以上
 - Docker Compose V2
 

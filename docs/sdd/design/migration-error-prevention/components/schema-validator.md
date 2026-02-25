@@ -224,7 +224,7 @@ export function formatValidationError(
   lines.push('     $ npx drizzle-kit push');
   lines.push('');
   lines.push('  2. または、コンテナを再起動して自動マイグレーションを実行:');
-  lines.push('     $ docker compose restart');
+  lines.push('     $ docker compose restart app');
   lines.push('');
 
   return lines.join('\n');
