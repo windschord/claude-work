@@ -7,6 +7,7 @@ export interface ClaudeCodeOptions {
   permissionMode?: string;  // --permission-mode <value>
   additionalFlags?: string; // その他フラグ（スペース区切り文字列）
   dangerouslySkipPermissions?: boolean; // --dangerously-skip-permissions（Docker環境のみ）
+  worktree?: boolean | string; // --worktree [name]
 }
 
 /**
@@ -66,6 +67,15 @@ export class ClaudeOptionsService {
       merged.dangerouslySkipPermissions = projectOptions.dangerouslySkipPermissions;
     }
 
+    // worktreeフィールドのマージ（boolean | string、空文字列はクリア）
+    if (sessionOptions.worktree !== undefined) {
+      if (sessionOptions.worktree !== '') {
+        merged.worktree = sessionOptions.worktree;
+      }
+    } else if (projectOptions.worktree !== undefined && projectOptions.worktree !== '') {
+      merged.worktree = projectOptions.worktree;
+    }
+
     return merged;
   }
 
@@ -113,6 +123,12 @@ export class ClaudeOptionsService {
     // Docker環境種別やシェルモードに応じた条件付けが必要なため、
     // DockerAdapter.buildDockerArgs() で直接処理する。
 
+    if (options.worktree === true) {
+      args.push('--worktree');
+    } else if (typeof options.worktree === 'string' && options.worktree.length > 0) {
+      args.push('--worktree', options.worktree);
+    }
+
     return args;
   }
 
@@ -155,7 +171,7 @@ export class ClaudeOptionsService {
     }
 
     const obj = value as Record<string, unknown>;
-    const allowedKeys = new Set(['model', 'allowedTools', 'permissionMode', 'additionalFlags', 'dangerouslySkipPermissions']);
+    const allowedKeys = new Set(['model', 'allowedTools', 'permissionMode', 'additionalFlags', 'dangerouslySkipPermissions', 'worktree']);
 
     // 未知のキーをチェック
     for (const key of Object.keys(obj)) {
@@ -190,6 +206,17 @@ export class ClaudeOptionsService {
       }
     }
 
+    // worktreeフィールドのバリデーション（boolean | string）
+    if ('worktree' in obj) {
+      const fieldValue = obj.worktree;
+      if (typeof fieldValue !== 'boolean' && typeof fieldValue !== 'string' && fieldValue !== undefined) {
+        return null; // boolean/string以外は失敗
+      }
+      if (typeof fieldValue === 'boolean' || typeof fieldValue === 'string') {
+        result.worktree = fieldValue;
+      }
+    }
+
     return result;
   }
 
@@ -203,7 +230,7 @@ export class ClaudeOptionsService {
     }
 
     const obj = value as Record<string, unknown>;
-    const allowedKeys = new Set(['model', 'allowedTools', 'permissionMode', 'additionalFlags', 'dangerouslySkipPermissions']);
+    const allowedKeys = new Set(['model', 'allowedTools', 'permissionMode', 'additionalFlags', 'dangerouslySkipPermissions', 'worktree']);
 
     return Object.keys(obj).filter(key => !allowedKeys.has(key));
   }
@@ -258,6 +285,12 @@ export class ClaudeOptionsService {
       // booleanフィールド
       if ('dangerouslySkipPermissions' in parsed && typeof parsed.dangerouslySkipPermissions === 'boolean') {
         result.dangerouslySkipPermissions = parsed.dangerouslySkipPermissions;
+      }
+      // worktreeフィールド（boolean | string）
+      if ('worktree' in parsed) {
+        if (typeof parsed.worktree === 'boolean' || typeof parsed.worktree === 'string') {
+          result.worktree = parsed.worktree;
+        }
       }
       return result;
     } catch {
@@ -322,5 +355,13 @@ export class ClaudeOptionsService {
     }
 
     return { result: sanitized, warnings };
+  }
+
+  /**
+   * worktreeオプションが有効かどうかを判定
+   */
+  static hasWorktreeOption(options: ClaudeCodeOptions): boolean {
+    if (typeof options.worktree === 'string') return options.worktree.length > 0;
+    return options.worktree === true;
   }
 }

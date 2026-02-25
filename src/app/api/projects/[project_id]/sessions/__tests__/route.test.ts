@@ -765,4 +765,127 @@ describe('POST /api/projects/[project_id]/sessions', () => {
       expect(body.error).toContain('environment_id must be a non-empty string');
     });
   });
+
+  describe('worktree option', () => {
+    it('should skip worktree creation when session claude_code_options has worktree: true', async () => {
+      mockDb._mockSelectGet.mockReturnValue({
+        id: 'project-1',
+        name: 'Test Project',
+        path: '/path/to/project',
+        claude_code_options: '{}',
+      });
+
+      mockDb._mockInsertGet.mockReturnValue({
+        id: 'session-1',
+        project_id: 'project-1',
+        name: 'happy-panda',
+        status: 'initializing',
+        worktree_path: '/path/to/project',
+        branch_name: '',
+      });
+
+      const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: 'Hello Claude',
+          claude_code_options: { worktree: true },
+        }),
+      });
+
+      const response = await POST(request, {
+        params: Promise.resolve({ project_id: 'project-1' }),
+      });
+
+      expect(response.status).toBe(201);
+      expect(mockGitService.createWorktree).not.toHaveBeenCalled();
+    });
+
+    it('should skip worktree creation when project claude_code_options has worktree: true', async () => {
+      mockDb._mockSelectGet.mockReturnValue({
+        id: 'project-1',
+        name: 'Test Project',
+        path: '/path/to/project',
+        claude_code_options: '{"worktree":true}',
+      });
+
+      mockDb._mockInsertGet.mockReturnValue({
+        id: 'session-1',
+        project_id: 'project-1',
+        name: 'happy-panda',
+        status: 'initializing',
+        worktree_path: '/path/to/project',
+        branch_name: '',
+      });
+
+      const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: 'Hello Claude' }),
+      });
+
+      const response = await POST(request, {
+        params: Promise.resolve({ project_id: 'project-1' }),
+      });
+
+      expect(response.status).toBe(201);
+      expect(mockGitService.createWorktree).not.toHaveBeenCalled();
+    });
+
+    it('should set worktree_path to project path when session worktree option is string', async () => {
+      mockDb._mockSelectGet.mockReturnValue({
+        id: 'project-1',
+        name: 'Test Project',
+        path: '/path/to/project',
+        claude_code_options: '{}',
+      });
+
+      mockDb._mockInsertGet.mockReturnValue({
+        id: 'session-1',
+        project_id: 'project-1',
+        name: 'happy-panda',
+        status: 'initializing',
+        worktree_path: '/path/to/project',
+        branch_name: '',
+      });
+
+      const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: 'Hello Claude',
+          claude_code_options: { worktree: 'my-feature' },
+        }),
+      });
+
+      const response = await POST(request, {
+        params: Promise.resolve({ project_id: 'project-1' }),
+      });
+
+      expect(response.status).toBe(201);
+      expect(mockGitService.createWorktree).not.toHaveBeenCalled();
+    });
+
+    it('should create worktree normally when worktree option is not set', async () => {
+      mockDb._mockSelectGet.mockReturnValue({
+        id: 'project-1',
+        name: 'Test Project',
+        path: '/path/to/project',
+        claude_code_options: '{}',
+      });
+
+      const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: 'Hello Claude' }),
+      });
+
+      const response = await POST(request, {
+        params: Promise.resolve({ project_id: 'project-1' }),
+      });
+
+      expect(response.status).toBe(201);
+      expect(mockGitService.createWorktree).toHaveBeenCalled();
+    });
+  });
 });

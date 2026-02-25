@@ -8,6 +8,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { execSync } from 'child_process';
 import type { Project, Session } from '@/lib/db';
+import { GitService } from '@/services/git-service';
 
 vi.mock('@/services/process-manager', () => ({
   ProcessManager: {
@@ -168,6 +169,80 @@ describe('DELETE /api/sessions/[id]', () => {
 
     const response = await DELETE(request, { params: Promise.resolve({ id: 'non-existent' }) });
     expect(response.status).toBe(404);
+  });
+
+  it('should skip worktree deletion when session has worktree option', async () => {
+    // worktreeオプション付きのセッションを作成
+    const worktreeSession = db
+      .insert(schema.sessions)
+      .values({
+        project_id: project.id,
+        name: 'Worktree Session',
+        status: 'stopped',
+        worktree_path: testRepoPath,
+        branch_name: '',
+        claude_code_options: '{"worktree":true}',
+      })
+      .returning()
+      .get();
+
+    const deleteWorktreeSpy = vi.spyOn(GitService.prototype, 'deleteWorktree');
+
+    const request = new NextRequest(`http://localhost:3000/api/sessions/${worktreeSession.id}`, {
+      method: 'DELETE',
+    });
+
+    const response = await DELETE(request, { params: Promise.resolve({ id: worktreeSession.id }) });
+    expect(response.status).toBe(204);
+    expect(deleteWorktreeSpy).not.toHaveBeenCalled();
+
+    deleteWorktreeSpy.mockRestore();
+  });
+
+  it('should skip worktree deletion when project has worktree option', async () => {
+    // プロジェクトにworktreeオプションを設定
+    db.update(schema.projects)
+      .set({ claude_code_options: '{"worktree":true}' })
+      .where(eq(schema.projects.id, project.id))
+      .run();
+
+    const worktreeSession = db
+      .insert(schema.sessions)
+      .values({
+        project_id: project.id,
+        name: 'Worktree Session 2',
+        status: 'stopped',
+        worktree_path: testRepoPath,
+        branch_name: '',
+      })
+      .returning()
+      .get();
+
+    const deleteWorktreeSpy = vi.spyOn(GitService.prototype, 'deleteWorktree');
+
+    const request = new NextRequest(`http://localhost:3000/api/sessions/${worktreeSession.id}`, {
+      method: 'DELETE',
+    });
+
+    const response = await DELETE(request, { params: Promise.resolve({ id: worktreeSession.id }) });
+    expect(response.status).toBe(204);
+    expect(deleteWorktreeSpy).not.toHaveBeenCalled();
+
+    deleteWorktreeSpy.mockRestore();
+  });
+
+  it('should delete worktree normally when worktree option is not set', async () => {
+    const deleteWorktreeSpy = vi.spyOn(GitService.prototype, 'deleteWorktree').mockImplementation(() => {});
+
+    const request = new NextRequest(`http://localhost:3000/api/sessions/${session.id}`, {
+      method: 'DELETE',
+    });
+
+    const response = await DELETE(request, { params: Promise.resolve({ id: session.id }) });
+    expect(response.status).toBe(204);
+    expect(deleteWorktreeSpy).toHaveBeenCalled();
+
+    deleteWorktreeSpy.mockRestore();
   });
 });
 

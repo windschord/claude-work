@@ -44,6 +44,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    // --worktreeモードのセッションではbranch_nameが空のためPR作成不可
+    if (!dbSession.branch_name) {
+      return NextResponse.json(
+        { error: 'Cannot create PR for sessions using Claude Code --worktree mode. The branch is managed by Claude Code.' },
+        { status: 400 }
+      );
+    }
+
     // gh CLI でPRを作成
     let prUrl: string;
     try {

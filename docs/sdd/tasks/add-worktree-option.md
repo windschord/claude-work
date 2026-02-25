@@ -8,7 +8,7 @@
 
 ### TASK-001: ClaudeCodeOptionsインターフェースとClaudeOptionsServiceの拡張
 
-**ステータス:** pending
+**ステータス:** done
 **対応要件:** REQ-001, REQ-003, REQ-004
 **対象ファイル:** `src/services/claude-options-service.ts`
 
@@ -42,7 +42,7 @@
 
 ### TASK-002: セッション作成APIのworktreeスキップ対応
 
-**ステータス:** pending
+**ステータス:** done
 **依存:** TASK-001
 **対応要件:** REQ-002, REQ-007
 **対象ファイル:** `src/app/api/projects/[project_id]/sessions/route.ts`
@@ -72,7 +72,7 @@
 
 ### TASK-003: セッション削除APIのworktree削除スキップ対応
 
-**ステータス:** pending
+**ステータス:** done
 **依存:** TASK-001
 **対応要件:** REQ-006
 **対象ファイル:** `src/app/api/sessions/[id]/route.ts`
@@ -96,7 +96,7 @@
 
 ### TASK-004: UIフォームにWorktreeモードUIを追加
 
-**ステータス:** pending
+**ステータス:** done
 **依存:** TASK-001
 **対応要件:** REQ-005
 **対象ファイル:** `src/components/claude-options/ClaudeOptionsForm.tsx`
@@ -122,7 +122,7 @@
 
 ### TASK-005: セッション作成APIのバリデーションエラーメッセージ更新
 
-**ステータス:** pending
+**ステータス:** done
 **依存:** TASK-001
 **対応要件:** REQ-004
 **対象ファイル:** `src/app/api/projects/[project_id]/sessions/route.ts`
@@ -143,7 +143,7 @@
 
 ### TASK-006: `--worktree`モード時のbranch_name空文字列ハンドリング
 
-**ステータス:** pending
+**ステータス:** done
 **依存:** TASK-002
 **対応要件:** TD-003
 **対象ファイル:**

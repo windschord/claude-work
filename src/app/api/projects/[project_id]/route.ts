@@ -74,8 +74,8 @@ export async function PATCH(
       if (validatedOptions === null) {
         const unknownKeys = ClaudeOptionsService.getUnknownKeys(claude_code_options);
         const errorMessage = unknownKeys.length > 0
-          ? `Invalid keys in claude_code_options: ${unknownKeys.join(', ')}. Allowed keys: model, allowedTools, permissionMode, additionalFlags, dangerouslySkipPermissions`
-          : 'claude_code_options must be a plain object with valid fields';
+          ? `Invalid keys in claude_code_options: ${unknownKeys.join(', ')}. Allowed keys: model, allowedTools, permissionMode, additionalFlags, dangerouslySkipPermissions, worktree`
+          : 'claude_code_options must be a plain object with valid fields (model, allowedTools, permissionMode, additionalFlags, dangerouslySkipPermissions, worktree)';
         return NextResponse.json({ error: errorMessage }, { status: 400 });
       }
       claude_code_options = validatedOptions;
@@ -155,8 +155,8 @@ export async function PUT(
       if (validatedOptions === null) {
         const unknownKeys = ClaudeOptionsService.getUnknownKeys(claude_code_options);
         const errorMessage = unknownKeys.length > 0
-          ? `Invalid keys in claude_code_options: ${unknownKeys.join(', ')}. Allowed keys: model, allowedTools, permissionMode, additionalFlags, dangerouslySkipPermissions`
-          : 'claude_code_options must be a plain object with valid fields';
+          ? `Invalid keys in claude_code_options: ${unknownKeys.join(', ')}. Allowed keys: model, allowedTools, permissionMode, additionalFlags, dangerouslySkipPermissions, worktree`
+          : 'claude_code_options must be a plain object with valid fields (model, allowedTools, permissionMode, additionalFlags, dangerouslySkipPermissions, worktree)';
         return NextResponse.json({ error: errorMessage }, { status: 400 });
       }
       claude_code_options = validatedOptions;
