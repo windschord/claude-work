@@ -150,7 +150,16 @@ export function formatValidationError(result: SchemaValidationResult): string {
     }
   }
 
-  lines.push('', '修復方法:', '  $ docker compose restart app (docker-entrypoint.shが自動でmigrateDatabase()を実行します)', '');
+  lines.push(
+    '',
+    '修復方法:',
+    '  スキーマを同期するには次のコマンドを実行してください:',
+    '     $ npx drizzle-kit push',
+    '',
+    '  または自動マイグレーションを有効にして再起動:',
+    '     $ npx claude-work',
+    ''
+  );
   return lines.join('\n');
 }
 ```
