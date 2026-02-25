@@ -46,7 +46,7 @@ ClaudeWork で使用可能な環境変数の一覧です。
 - **形式**: 絶対パスまたは相対パス
 - **例**: `DATA_DIR=/opt/claude-work/data`
 - **デフォルト**: `<process.cwd()>/data`（未設定時はカレントディレクトリ配下の `data/`）
-- **備考**: Docker Compose環境では `/data` がデフォルトのデータディレクトリとして使用されます
+- **備考**: Docker Compose環境では `docker-compose.yml` の `environment` および Dockerfile の `ENV` で `DATA_DIR=/data` が設定されており、ボリュームマウント `./data:/data` と一致します
 
 ### NODE_ENV
 

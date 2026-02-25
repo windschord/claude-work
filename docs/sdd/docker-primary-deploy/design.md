@@ -63,6 +63,7 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
       - ALLOWED_PROJECT_DIRS=${ALLOWED_PROJECT_DIRS:-}
+      - DATA_DIR=/data
       - DOCKER_ENABLED=true
     restart: unless-stopped
     healthcheck:

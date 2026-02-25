@@ -23,6 +23,8 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
       - ALLOWED_PROJECT_DIRS=${ALLOWED_PROJECT_DIRS:-}
+      # ボリュームマウント先と一致させる（Dockerfile ENVでも設定済み）
+      - DATA_DIR=/data
       # docker.sockマウント環境ではDocker機能を有効化（レガシーUI互換）
       - DOCKER_ENABLED=true
     restart: unless-stopped
