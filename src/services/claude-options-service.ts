@@ -232,7 +232,7 @@ export class ClaudeOptionsService {
         if (trimmed.length > 0 && !WORKTREE_NAME_PATTERN.test(trimmed)) {
           return null; // パストラバーサル等の不正な名前は失敗
         }
-        result.worktree = trimmed || fieldValue;
+        result.worktree = trimmed;
       }
     }
 

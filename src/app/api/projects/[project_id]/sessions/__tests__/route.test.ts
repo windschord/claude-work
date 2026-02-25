@@ -32,6 +32,7 @@ vi.mock('@/lib/db', () => {
   const mockSelectAll = vi.fn();
   const mockInsertGet = vi.fn();
   const mockInsertRun = vi.fn();
+  const mockInsertValues = vi.fn();
   const mockUpdateRun = vi.fn();
 
   return {
@@ -45,7 +46,7 @@ vi.mock('@/lib/db', () => {
         })),
       })),
       insert: vi.fn(() => ({
-        values: vi.fn(() => ({
+        values: mockInsertValues.mockImplementation(() => ({
           returning: vi.fn(() => ({
             get: mockInsertGet,
           })),
@@ -71,6 +72,7 @@ vi.mock('@/lib/db', () => {
       _mockSelectAll: mockSelectAll,
       _mockInsertGet: mockInsertGet,
       _mockInsertRun: mockInsertRun,
+      _mockInsertValues: mockInsertValues,
       _mockUpdateRun: mockUpdateRun,
     },
     schema: {
@@ -140,6 +142,7 @@ const mockDb = db as typeof db & {
   _mockSelectAll: ReturnType<typeof vi.fn>;
   _mockInsertGet: ReturnType<typeof vi.fn>;
   _mockInsertRun: ReturnType<typeof vi.fn>;
+  _mockInsertValues: ReturnType<typeof vi.fn>;
   _mockUpdateRun: ReturnType<typeof vi.fn>;
 };
 
@@ -830,6 +833,78 @@ describe('POST /api/projects/[project_id]/sessions', () => {
 
       expect(response.status).toBe(201);
       expect(mockGitService.createWorktree).not.toHaveBeenCalled();
+    });
+
+    it('should insert session with project path as worktree_path and empty branch_name when worktree is true', async () => {
+      mockDb._mockSelectGet.mockReturnValue({
+        id: 'project-1',
+        name: 'Test Project',
+        path: '/path/to/project',
+        claude_code_options: '{}',
+      });
+
+      mockDb._mockInsertGet.mockReturnValue({
+        id: 'session-1',
+        project_id: 'project-1',
+        name: 'happy-panda',
+        status: 'initializing',
+        worktree_path: '/path/to/project',
+        branch_name: '',
+      });
+
+      const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: 'Hello Claude',
+          claude_code_options: { worktree: true },
+        }),
+      });
+
+      const response = await POST(request, {
+        params: Promise.resolve({ project_id: 'project-1' }),
+      });
+
+      expect(response.status).toBe(201);
+      const insertPayload = mockDb._mockInsertValues.mock.calls[0][0];
+      expect(insertPayload.worktree_path).toBe('/path/to/project');
+      expect(insertPayload.branch_name).toBe('');
+    });
+
+    it('should insert session with project path as worktree_path and empty branch_name when worktree is string', async () => {
+      mockDb._mockSelectGet.mockReturnValue({
+        id: 'project-1',
+        name: 'Test Project',
+        path: '/path/to/project',
+        claude_code_options: '{}',
+      });
+
+      mockDb._mockInsertGet.mockReturnValue({
+        id: 'session-1',
+        project_id: 'project-1',
+        name: 'happy-panda',
+        status: 'initializing',
+        worktree_path: '/path/to/project',
+        branch_name: '',
+      });
+
+      const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: 'Hello Claude',
+          claude_code_options: { worktree: 'my-feature' },
+        }),
+      });
+
+      const response = await POST(request, {
+        params: Promise.resolve({ project_id: 'project-1' }),
+      });
+
+      expect(response.status).toBe(201);
+      const insertPayload = mockDb._mockInsertValues.mock.calls[0][0];
+      expect(insertPayload.worktree_path).toBe('/path/to/project');
+      expect(insertPayload.branch_name).toBe('');
     });
 
     it('should set worktree_path to project path when session worktree option is string', async () => {

@@ -594,6 +594,33 @@ describe('ClaudeOptionsService', () => {
       });
     });
 
+    describe('whitespace and boundary worktree names in validateClaudeCodeOptions', () => {
+      it('should normalize whitespace-only worktree name to empty string', () => {
+        const result = ClaudeOptionsService.validateClaudeCodeOptions({ worktree: '   ' });
+        expect(result).toEqual({ worktree: '' });
+      });
+
+      it('should trim leading/trailing whitespace from worktree name', () => {
+        const result = ClaudeOptionsService.validateClaudeCodeOptions({ worktree: '  my-feature  ' });
+        expect(result).toEqual({ worktree: 'my-feature' });
+      });
+
+      it('should accept empty string worktree', () => {
+        const result = ClaudeOptionsService.validateClaudeCodeOptions({ worktree: '' });
+        expect(result).toEqual({ worktree: '' });
+      });
+
+      it('should reject names with backslashes', () => {
+        expect(ClaudeOptionsService.validateClaudeCodeOptions({ worktree: 'path\\name' })).toBeNull();
+      });
+
+      it('should reject names with special characters', () => {
+        expect(ClaudeOptionsService.validateClaudeCodeOptions({ worktree: 'name;cmd' })).toBeNull();
+        expect(ClaudeOptionsService.validateClaudeCodeOptions({ worktree: 'name$(cmd)' })).toBeNull();
+        expect(ClaudeOptionsService.validateClaudeCodeOptions({ worktree: 'name`cmd`' })).toBeNull();
+      });
+    });
+
     describe('validateWorktreeName', () => {
       it('should accept valid names', () => {
         expect(ClaudeOptionsService.validateWorktreeName('my-feature')).toBe(true);

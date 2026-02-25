@@ -129,7 +129,7 @@
 
 **実装手順:**
 1. バリデーションエラーメッセージ（行182）のAllowed keys一覧に`worktree`を追加:
-   ```
+   ```text
    Allowed keys: model, allowedTools, permissionMode, additionalFlags, dangerouslySkipPermissions, worktree
    ```
    ※ 既存の不整合: 現在のメッセージには`dangerouslySkipPermissions`も欠落しているため、同時に修正する

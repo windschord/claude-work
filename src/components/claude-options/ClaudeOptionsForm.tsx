@@ -120,14 +120,14 @@ export function ClaudeOptionsForm({
     onOptionsChange({ ...options, worktree: value || true });
   };
 
-  const worktreeEnabled = options.worktree === true || (typeof options.worktree === 'string' && options.worktree.length > 0);
+  const worktreeEnabled = options.worktree === true || (typeof options.worktree === 'string' && options.worktree.trim().length > 0);
 
   const hasAnySettings = !!(
     options.model ||
     options.allowedTools ||
     options.permissionMode ||
     options.additionalFlags ||
-    options.worktree ||
+    options.worktree !== undefined ||
     envEntries.length > 0
   );
 
@@ -221,6 +221,7 @@ export function ClaudeOptionsForm({
                     value={typeof options.worktree === 'string' ? options.worktree : ''}
                     onChange={(e) => handleWorktreeNameChange(e.target.value)}
                     placeholder="Worktree名（省略時は自動生成）"
+                    aria-label="Worktree名"
                     className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                     disabled={disabled}
                   />
