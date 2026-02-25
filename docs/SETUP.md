@@ -42,6 +42,7 @@ docker compose up -d
 | `LOG_LEVEL` | ログレベル | `info` |
 | `ALLOWED_ORIGINS` | CORS許可オリジン | なし |
 | `ALLOWED_PROJECT_DIRS` | 許可するプロジェクトディレクトリ | なし（全て許可） |
+| `DOCKER_GID` | ホストの docker.sock グループ GID（Linux のみ） | なし |
 
 ### Docker Compose コマンド
 
@@ -58,6 +59,8 @@ docker compose ps              # 状態確認
 ```bash
 HOST_PORT=3001 docker compose up -d
 ```
+
+永続的に変更するには `.env` の `HOST_PORT` を直接編集してください。
 
 ## 使い方
 
