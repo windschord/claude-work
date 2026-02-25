@@ -19,6 +19,7 @@
 - `DeveloperSettings` テーブルを `CREATE TABLE IF NOT EXISTS` で作成
 - インデックス3つを作成
 - `SshKey` テーブルを `CREATE TABLE IF NOT EXISTS` で作成
+- `SshKey.name` に UNIQUE インデックス (`ssh_key_name_unique`) を作成
 
 ### 4. migrateDatabase() の runMigration トランザクションに v5->v6 ステップを追加
 
