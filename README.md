@@ -8,7 +8,8 @@ ClaudeWork は、Claude Code セッションをブラウザから管理するた
 
 - **OS**: macOS, Linux
   - Windows は現在サポートされていません
-- **Docker Engine + Docker Compose**: インストール済みであること
+- **Docker Engine + Docker Compose V2.24+**: インストール済みであること
+- **Node.js 20+**: 開発・ローカル実行（`npm run dev` 等）を行う場合のみ必要
 
 ## 主な機能
 

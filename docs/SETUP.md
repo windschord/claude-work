@@ -4,7 +4,7 @@
 
 - Git（リポジトリのクローンに使用）
 - Docker Engine 20.10 以上
-- Docker Compose V2
+- Docker Compose V2.24 以上
 
 ## セットアップ
 
