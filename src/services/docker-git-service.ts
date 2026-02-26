@@ -510,7 +510,7 @@ export class DockerGitService implements GitOperations {
         () => this.runContainer('alpine/git', ['-c', shellCommand], {
             Binds,
             Env,
-            Entrypoint: ['sh'],
+            Entrypoint: ['/bin/sh'],
             timeoutMs: timeout,
         }),
         'clone',
