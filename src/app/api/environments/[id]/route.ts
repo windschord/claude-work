@@ -32,11 +32,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     // HOST環境の無効化フラグを付与
     const hostAllowed = isHostEnvironmentAllowed();
-    const envWithDisabled = environment.type === 'HOST' && !hostAllowed
+    const hostDisabled = environment.type === 'HOST' && !hostAllowed;
+    const envWithDisabled = hostDisabled
       ? { ...environment, disabled: true }
       : environment;
 
-    if (includeStatus) {
+    if (includeStatus && !hostDisabled) {
       const status = await environmentService.checkStatus(id);
       return NextResponse.json({
         environment: { ...envWithDisabled, status },
