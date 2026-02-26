@@ -7,6 +7,7 @@ import { generateUniqueSessionName } from '@/lib/session-name-generator';
 import { dockerService, DockerError } from '@/services/docker-service';
 import { environmentService } from '@/services/environment-service';
 import { ClaudeOptionsService } from '@/services/claude-options-service';
+import { isHostEnvironmentAllowed } from '@/lib/environment-detect';
 
 /**
  * GET /api/projects/[project_id]/sessions - プロジェクトのセッション一覧取得
@@ -293,6 +294,23 @@ export async function POST(
         });
         effectiveDockerMode = true;
       }
+    }
+
+    // HOST環境の利用制限チェック
+    if (effectiveEnvironmentId) {
+      const environment = await environmentService.findById(effectiveEnvironmentId);
+      if (environment && environment.type === 'HOST' && !isHostEnvironmentAllowed()) {
+        return NextResponse.json(
+          { error: 'Docker環境内ではHOST環境でのセッション作成はできません' },
+          { status: 403 }
+        );
+      }
+    } else if (!effectiveDockerMode && !isHostEnvironmentAllowed()) {
+      // effectiveEnvironmentId未設定かつDockerモードでない場合はHOST環境として動作する
+      return NextResponse.json(
+        { error: 'Docker環境内ではHOST環境でのセッション作成はできません' },
+        { status: 403 }
+      );
     }
 
     // Dockerモードの場合（レガシー方式）、Docker可用性と認証情報をチェック

@@ -13,6 +13,7 @@
 | [Docker主体＋リモートリポジトリ対応](docker-default-remote-clone/index.md) | Docker環境のデフォルト化とリモートリポジトリクローン機能 | 計画中 |
 | [Drizzle ORM移行](drizzle-migration/index.md) | Prisma → Drizzle ORM への完全移行 | 進行中 |
 | [ハイブリッド設計](hybrid-clone/index.md) | ホスト環境/Docker環境でのプロジェクトclone | 計画中 |
+| [Docker環境でのHOST機能無効化](disable-host-in-docker/index.md) | Docker内動作時のHOST環境自動無効化と環境変数による有効化 | 進行中 |
 | [Dockerポート・ボリューム設定](docker-port-volume/index.md) | Docker環境のポートマッピング・ボリュームマウント設定機能 | 完了 |
 
 ### 完了済み機能
