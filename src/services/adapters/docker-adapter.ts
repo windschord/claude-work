@@ -137,7 +137,7 @@ export class DockerAdapter extends BasePTYAdapter {
     const PortBindings: any = {};
     const ExposedPorts: any = {};
     const Cmd: string[] = [];
-    let Entrypoint: string | string[] = [];
+    let Entrypoint: string[] = [];
 
     // Workspace mount
     // workingDirConfig is the path used as WorkingDir inside the container.
@@ -227,7 +227,7 @@ export class DockerAdapter extends BasePTYAdapter {
     }
 
     // Entrypoint
-    Entrypoint = options?.shellMode ? '/bin/sh' : 'claude';
+    Entrypoint = options?.shellMode ? ['/bin/sh'] : ['claude'];
     
     // Arguments
     if (!options?.shellMode) {
