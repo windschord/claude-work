@@ -19,6 +19,7 @@ import { DockerAdapter } from './src/services/adapters/docker-adapter';
 import { db } from './src/lib/db';
 import { ptySessionManager } from './src/services/pty-session-manager';
 import { validateSchemaIntegrity, formatValidationError } from './src/lib/schema-check';
+import { ensureEncryptionKey } from './src/lib/encryption-key-init';
 
 // 環境変数を.envファイルから明示的にロード（PM2で設定されている場合はそちらを優先）
 const dotenvResult = dotenv.config();
@@ -52,6 +53,18 @@ try {
   console.error('\nFailed to initialize data directories:\n');
   console.error(`  DATA_DIR: ${process.env.DATA_DIR || 'NOT SET (using default)'}`);
   console.error(`  Resolved path: ${dataDir}`);
+  if (error instanceof Error) {
+    console.error(`  Error: ${error.message}`);
+  }
+  process.exit(1);
+}
+
+// 暗号化キーの初期化（GitHub PAT暗号化用）
+try {
+  const keySource = ensureEncryptionKey();
+  logger.info('Encryption key initialized', { source: keySource });
+} catch (error) {
+  console.error('\nFailed to initialize encryption key:\n');
   if (error instanceof Error) {
     console.error(`  Error: ${error.message}`);
   }

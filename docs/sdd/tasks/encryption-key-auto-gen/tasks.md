@@ -89,7 +89,8 @@
 
 **依存関係**: タスク1.2
 **推定工数**: 5分
-**ステータス**: TODO
+**ステータス**: DONE
+**完了サマリー**: server.tsのensureDataDirs()直後にensureEncryptionKey()を追加。戻り値でキーソース(env/file/generated)をログ出力。
 **要件対応**: FR-001, FR-002, FR-003, FR-004
 
 #### タスク2.2: 動作確認
