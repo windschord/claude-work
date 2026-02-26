@@ -14,7 +14,7 @@
 ```mermaid
 graph TD
     subgraph "サーバー起動時"
-        A[server.ts] -->|起動| B[detectRunningInDocker]
+        A[server.ts] -->|起動| B[initializeEnvironmentDetection]
         B -->|キャッシュ| C[isHostEnvironmentAllowed]
     end
 

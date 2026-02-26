@@ -23,18 +23,17 @@ vi.mock('fs', () => {
 });
 
 describe('Docker環境検出ユーティリティ', () => {
-  const originalEnv = process.env;
-
   beforeEach(() => {
     _resetForTesting();
-    process.env = { ...originalEnv };
+    vi.stubEnv('RUNNING_IN_DOCKER', '');
+    vi.stubEnv('ALLOW_HOST_ENVIRONMENT', '');
     delete process.env.RUNNING_IN_DOCKER;
     delete process.env.ALLOW_HOST_ENVIRONMENT;
     vi.clearAllMocks();
   });
 
   afterEach(() => {
-    process.env = originalEnv;
+    vi.unstubAllEnvs();
   });
 
   describe('isRunningInDocker', () => {

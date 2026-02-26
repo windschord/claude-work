@@ -19,7 +19,7 @@ import { DockerAdapter } from './src/services/adapters/docker-adapter';
 import { db } from './src/lib/db';
 import { ptySessionManager } from './src/services/pty-session-manager';
 import { validateSchemaIntegrity, formatValidationError } from './src/lib/schema-check';
-import { initializeEnvironmentDetection, isRunningInDocker, isHostEnvironmentAllowed } from '@/lib/environment-detect';
+import { initializeEnvironmentDetection, isRunningInDocker, isHostEnvironmentAllowed } from './src/lib/environment-detect';
 
 // 環境変数を.envファイルから明示的にロード（PM2で設定されている場合はそちらを優先）
 const dotenvResult = dotenv.config();

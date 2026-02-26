@@ -416,7 +416,7 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode, 
 
   const handleClose = () => {
     setName('');
-    setType('HOST');
+    setType(hostEnvironmentDisabled ? 'DOCKER' : 'HOST');
     setDescription('');
     setError('');
     setImageSource('existing');
