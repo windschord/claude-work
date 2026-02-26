@@ -10,10 +10,11 @@ const KEY_FILE_NAME = 'encryption.key';
  * 1. 環境変数が設定済みならそのまま使用
  * 2. キーファイルが存在すれば読み込み
  * 3. どちらもなければ新規生成してファイルに保存
+ * @returns キーのソース ('env' | 'file' | 'generated')
  */
-export function ensureEncryptionKey(): void {
+export function ensureEncryptionKey(): 'env' | 'file' | 'generated' {
   if (process.env.ENCRYPTION_KEY) {
-    return;
+    return 'env';
   }
 
   const keyFilePath = path.join(getDataDir(), KEY_FILE_NAME);
@@ -21,10 +22,11 @@ export function ensureEncryptionKey(): void {
   if (fs.existsSync(keyFilePath)) {
     const key = fs.readFileSync(keyFilePath, 'utf-8');
     process.env.ENCRYPTION_KEY = key;
-    return;
+    return 'file';
   }
 
   const key = randomBytes(32).toString('base64');
   fs.writeFileSync(keyFilePath, key, { mode: 0o600 });
   process.env.ENCRYPTION_KEY = key;
+  return 'generated';
 }

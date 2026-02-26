@@ -15,6 +15,7 @@ interface EnvironmentListProps {
   onUpdateEnvironment: (id: string, input: UpdateEnvironmentInput) => Promise<Environment>;
   onDeleteEnvironment: (id: string) => Promise<void>;
   onRefresh: () => Promise<void>;
+  hostEnvironmentDisabled?: boolean;
 }
 
 /**
@@ -34,6 +35,7 @@ export function EnvironmentList({
   onUpdateEnvironment,
   onDeleteEnvironment,
   onRefresh,
+  hostEnvironmentDisabled,
 }: EnvironmentListProps) {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -173,6 +175,7 @@ export function EnvironmentList({
         onClose={() => setIsAddModalOpen(false)}
         onSubmit={handleCreate}
         mode="create"
+        hostEnvironmentDisabled={hostEnvironmentDisabled}
       />
 
       <EnvironmentForm
@@ -181,6 +184,7 @@ export function EnvironmentList({
         onSubmit={handleUpdate}
         environment={environmentToEdit}
         mode="edit"
+        hostEnvironmentDisabled={hostEnvironmentDisabled}
       />
 
       <DeleteEnvironmentDialog

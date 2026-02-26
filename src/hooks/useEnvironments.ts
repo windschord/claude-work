@@ -22,6 +22,7 @@ export interface Environment {
   created_at: string;
   updated_at: string;
   status?: EnvironmentStatus;
+  disabled?: boolean;
 }
 
 /**
@@ -55,6 +56,7 @@ export interface UseEnvironmentsReturn {
   updateEnvironment: (id: string, input: UpdateEnvironmentInput) => Promise<Environment>;
   deleteEnvironment: (id: string) => Promise<void>;
   refreshEnvironment: (id: string) => Promise<Environment | null>;
+  hostEnvironmentDisabled: boolean;
 }
 
 /**
@@ -73,6 +75,7 @@ export function useEnvironments(): UseEnvironmentsReturn {
   const [environments, setEnvironments] = useState<Environment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [hostEnvironmentDisabled, setHostEnvironmentDisabled] = useState(false);
 
   /**
    * 環境一覧を取得する
@@ -90,6 +93,7 @@ export function useEnvironments(): UseEnvironmentsReturn {
       }
 
       setEnvironments(data.environments);
+      setHostEnvironmentDisabled(data.meta?.hostEnvironmentDisabled ?? false);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : '環境の取得に失敗しました';
       setError(errorMessage);
@@ -197,5 +201,6 @@ export function useEnvironments(): UseEnvironmentsReturn {
     updateEnvironment,
     deleteEnvironment,
     refreshEnvironment,
+    hostEnvironmentDisabled,
   };
 }

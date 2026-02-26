@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { environmentService } from '@/services/environment-service';
 import { logger } from '@/lib/logger';
 import { validatePortMappings, validateVolumeMounts } from '@/lib/docker-config-validator';
+import { isHostEnvironmentAllowed } from '@/lib/environment-detect';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -29,12 +30,25 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Environment not found' }, { status: 404 });
     }
 
+    // HOST環境の無効化フラグを付与
+    const hostAllowed = isHostEnvironmentAllowed();
+    const hostDisabled = environment.type === 'HOST' && !hostAllowed;
+    const envWithDisabled = hostDisabled
+      ? { ...environment, disabled: true }
+      : environment;
+
     if (includeStatus) {
       const status = await environmentService.checkStatus(id);
-      return NextResponse.json({ environment: { ...environment, status } });
+      return NextResponse.json({
+        environment: { ...envWithDisabled, status },
+        meta: { hostEnvironmentDisabled: !hostAllowed },
+      });
     }
 
-    return NextResponse.json({ environment });
+    return NextResponse.json({
+      environment: envWithDisabled,
+      meta: { hostEnvironmentDisabled: !hostAllowed },
+    });
   } catch (error) {
     const { id } = await params;
     logger.error('Failed to get environment', { error, id });

@@ -4,11 +4,17 @@ import * as path from 'path';
 import { GET, POST } from '../route';
 
 // ホイストされたモック
-const { mockAccess, mockDockerClient } = vi.hoisted(() => ({
+const { mockAccess, mockDockerClient, mockIsHostEnvironmentAllowed } = vi.hoisted(() => ({
   mockAccess: vi.fn(),
   mockDockerClient: {
     buildImage: vi.fn(),
-  }
+  },
+  mockIsHostEnvironmentAllowed: vi.fn(() => true),
+}));
+
+// Mock environment-detect
+vi.mock('@/lib/environment-detect', () => ({
+  isHostEnvironmentAllowed: mockIsHostEnvironmentAllowed,
 }));
 
 // Mock DockerClient
@@ -202,6 +208,113 @@ describe('/api/environments', () => {
       expect(response.status).toBe(200);
       expect(data.environments).toHaveLength(0);
     });
+
+    it('HOST不許可時にHOST環境にdisabled=trueが付与され、meta.hostEnvironmentDisabled=trueが返る', async () => {
+      mockIsHostEnvironmentAllowed.mockReturnValue(false);
+
+      const environments = [
+        {
+          id: 'env-1',
+          name: 'Local Host',
+          type: 'HOST',
+          description: 'Default host',
+          config: '{}',
+          auth_dir_path: null,
+          is_default: true,
+          created_at: new Date(),
+          updated_at: new Date(),
+        },
+        {
+          id: 'env-2',
+          name: 'Docker Env',
+          type: 'DOCKER',
+          description: 'Docker environment',
+          config: '{"imageName":"my-image"}',
+          auth_dir_path: '/data/environments/env-2',
+          is_default: false,
+          created_at: new Date(),
+          updated_at: new Date(),
+        },
+      ];
+
+      mockFindAll.mockResolvedValue(environments);
+
+      const request = new NextRequest('http://localhost:3000/api/environments');
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.environments).toHaveLength(2);
+      // HOST環境にdisabledフラグが付与される
+      expect(data.environments[0].disabled).toBe(true);
+      // DOCKER環境にはdisabledフラグなし
+      expect(data.environments[1].disabled).toBeUndefined();
+      // metaにhostEnvironmentDisabledが含まれる
+      expect(data.meta).toBeDefined();
+      expect(data.meta.hostEnvironmentDisabled).toBe(true);
+    });
+
+    it('HOST不許可時にincludeStatus=trueでもdisabledとmetaが返る', async () => {
+      mockIsHostEnvironmentAllowed.mockReturnValue(false);
+
+      const environments = [
+        {
+          id: 'env-1',
+          name: 'Local Host',
+          type: 'HOST',
+          description: 'Default host',
+          config: '{}',
+          auth_dir_path: null,
+          is_default: true,
+          created_at: new Date(),
+          updated_at: new Date(),
+        },
+      ];
+
+      mockFindAll.mockResolvedValue(environments);
+      mockCheckStatus.mockResolvedValue({
+        available: true,
+        authenticated: true,
+      });
+
+      const request = new NextRequest('http://localhost:3000/api/environments?includeStatus=true');
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.environments[0].disabled).toBe(true);
+      expect(data.environments[0].status).toBeDefined();
+      expect(data.meta.hostEnvironmentDisabled).toBe(true);
+    });
+
+    it('HOST許可時にはdisabledフラグなし、meta.hostEnvironmentDisabled=false', async () => {
+      mockIsHostEnvironmentAllowed.mockReturnValue(true);
+
+      const environments = [
+        {
+          id: 'env-1',
+          name: 'Local Host',
+          type: 'HOST',
+          description: 'Default host',
+          config: '{}',
+          auth_dir_path: null,
+          is_default: true,
+          created_at: new Date(),
+          updated_at: new Date(),
+        },
+      ];
+
+      mockFindAll.mockResolvedValue(environments);
+
+      const request = new NextRequest('http://localhost:3000/api/environments');
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.environments[0].disabled).toBeUndefined();
+      expect(data.meta).toBeDefined();
+      expect(data.meta.hostEnvironmentDisabled).toBe(false);
+    });
   });
 
   describe('POST /api/environments', () => {
@@ -382,6 +495,64 @@ describe('/api/environments', () => {
       expect(data.environment.type).toBe('SSH');
       // SSH環境でも認証ディレクトリは作成されない（現時点では）
       expect(mockCreateAuthDirectory).not.toHaveBeenCalled();
+    });
+
+    it('HOST不許可時にHOST環境作成で403エラー', async () => {
+      mockIsHostEnvironmentAllowed.mockReturnValue(false);
+
+      const request = new NextRequest('http://localhost:3000/api/environments', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: 'New Host',
+          type: 'HOST',
+          description: 'New host environment',
+          config: {},
+        }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(403);
+      expect(data.error).toContain('HOST');
+      expect(mockCreate).not.toHaveBeenCalled();
+    });
+
+    it('HOST許可時にHOST環境作成は正常(201)', async () => {
+      mockIsHostEnvironmentAllowed.mockReturnValue(true);
+
+      const newEnvironment = {
+        id: 'env-host-ok',
+        name: 'New Host',
+        type: 'HOST',
+        description: 'New host environment',
+        config: '{}',
+        auth_dir_path: null,
+        is_default: false,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      mockCreate.mockResolvedValue(newEnvironment);
+
+      const request = new NextRequest('http://localhost:3000/api/environments', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: 'New Host',
+          type: 'HOST',
+          description: 'New host environment',
+          config: {},
+        }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(201);
+      expect(data.environment.id).toBe('env-host-ok');
+      expect(mockCreate).toHaveBeenCalledTimes(1);
     });
 
     describe('Dockerfile自動ビルド（imageSource=dockerfile）', () => {

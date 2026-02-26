@@ -14,6 +14,7 @@ const {
   mockAccess,
   mockLogger,
   mockDockerClient,
+  mockIsHostEnvironmentAllowed,
 } = vi.hoisted(() => ({
   mockDbSelectGet: vi.fn(),
   mockDbSelectAll: vi.fn(),
@@ -35,6 +36,7 @@ const {
     info: vi.fn(),
     inspectImage: vi.fn(),
   },
+  mockIsHostEnvironmentAllowed: vi.fn(() => true),
 }));
 
 // Drizzle DBのモック
@@ -138,6 +140,12 @@ vi.mock('../docker-client', () => ({
   DockerClient: {
     getInstance: () => mockDockerClient,
   },
+}));
+
+// environment-detectのモック
+vi.mock('@/lib/environment-detect', () => ({
+  isHostEnvironmentAllowed: mockIsHostEnvironmentAllowed,
+  isRunningInDocker: vi.fn(() => false),
 }));
 
 import {
@@ -871,6 +879,133 @@ describe('EnvironmentService', () => {
       expect(status.available).toBe(true);
       // imageNameがフォールバックとして使用される
       expect(mockDockerClient.inspectImage).toHaveBeenCalledWith('fallback-image:latest');
+    });
+  });
+
+  describe('HOST環境制限', () => {
+    describe('create() - HOST制限', () => {
+      it('HOST環境が不許可の場合、HOST環境の作成でエラーをスローする', async () => {
+        mockIsHostEnvironmentAllowed.mockReturnValue(false);
+
+        const input: CreateEnvironmentInput = {
+          name: 'Test Host',
+          type: 'HOST',
+          config: {},
+        };
+
+        await expect(service.create(input)).rejects.toThrow(
+          'HOST環境はこの環境では作成できません'
+        );
+
+        expect(mockDbInsertGet).not.toHaveBeenCalled();
+      });
+
+      it('HOST環境が許可の場合、HOST環境を正常に作成できる', async () => {
+        mockIsHostEnvironmentAllowed.mockReturnValue(true);
+
+        const input: CreateEnvironmentInput = {
+          name: 'Test Host',
+          type: 'HOST',
+          config: {},
+        };
+
+        const expectedResult = {
+          id: 'host-id',
+          name: 'Test Host',
+          type: 'HOST',
+          description: null,
+          config: '{}',
+          auth_dir_path: null,
+          is_default: false,
+          created_at: new Date(),
+          updated_at: new Date(),
+        };
+
+        mockDbInsertGet.mockReturnValue(expectedResult);
+
+        const result = await service.create(input);
+
+        expect(result).toEqual(expectedResult);
+      });
+
+      it('DOCKER環境はHOST制限に関係なく作成できる', async () => {
+        mockIsHostEnvironmentAllowed.mockReturnValue(false);
+
+        const input: CreateEnvironmentInput = {
+          name: 'Test Docker',
+          type: 'DOCKER',
+          config: { imageName: 'test-image' },
+        };
+
+        const expectedResult = {
+          id: 'docker-id',
+          name: 'Test Docker',
+          type: 'DOCKER',
+          description: null,
+          config: JSON.stringify({ imageName: 'test-image' }),
+          auth_dir_path: null,
+          is_default: false,
+          created_at: new Date(),
+          updated_at: new Date(),
+        };
+
+        mockDbInsertGet.mockReturnValue(expectedResult);
+
+        const result = await service.create(input);
+
+        expect(result).toEqual(expectedResult);
+      });
+    });
+
+    describe('checkStatus() - HOST制限', () => {
+      it('HOST環境が不許可の場合、available=falseを返す', async () => {
+        mockIsHostEnvironmentAllowed.mockReturnValue(false);
+
+        mockDbSelectGet.mockReturnValue({
+          id: 'host-default',
+          name: 'Local Host',
+          type: 'HOST',
+          description: null,
+          config: '{}',
+          auth_dir_path: null,
+          is_default: true,
+          created_at: new Date(),
+          updated_at: new Date(),
+        });
+
+        const status = await service.checkStatus('host-default');
+
+        expect(status.available).toBe(false);
+        expect(status.authenticated).toBe(false);
+        expect(status.error).toBe('Docker環境内ではHOST環境は利用できません');
+      });
+    });
+
+    describe('ensureDefaultExists() - HOST制限', () => {
+      it('HOST環境が不許可の場合、ensureDefaultEnvironment()が呼ばれる', async () => {
+        mockIsHostEnvironmentAllowed.mockReturnValue(false);
+
+        // ensureDefaultEnvironment内で既にDocker環境が存在する場合
+        const existingDockerEnv = {
+          id: 'docker-default',
+          name: 'Default Docker',
+          type: 'DOCKER',
+          description: 'デフォルトのDocker環境',
+          config: JSON.stringify({ imageName: 'claude-code-sandboxed', imageTag: 'latest' }),
+          auth_dir_path: null,
+          is_default: true,
+          created_at: new Date(),
+          updated_at: new Date(),
+        };
+
+        mockDbSelectGet.mockReturnValue(existingDockerEnv);
+
+        await service.ensureDefaultExists();
+
+        // ensureDefaultEnvironment内でDocker環境の検索が行われたことを確認
+        // HOST環境のinsertは呼ばれないこと
+        expect(mockDbInsertRun).not.toHaveBeenCalled();
+      });
     });
   });
 });

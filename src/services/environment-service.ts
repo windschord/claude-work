@@ -3,6 +3,7 @@ import type { ExecutionEnvironment } from '@/lib/db';
 import { eq, asc, count, sql, and } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
 import { getEnvironmentsDir } from '@/lib/data-dir';
+import { isHostEnvironmentAllowed } from '@/lib/environment-detect';
 import * as path from 'path';
 import * as fsPromises from 'fs/promises';
 import { DockerClient } from './docker-client';
@@ -84,6 +85,10 @@ export class EnvironmentService {
    * @returns 作成された環境
    */
   async create(input: CreateEnvironmentInput): Promise<ExecutionEnvironment> {
+    if (input.type === 'HOST' && !isHostEnvironmentAllowed()) {
+      throw new Error('HOST環境はこの環境では作成できません');
+    }
+
     const configJson = JSON.stringify(input.config);
 
     logger.info('環境を作成中', { name: input.name, type: input.type });
@@ -278,6 +283,12 @@ export class EnvironmentService {
    * デフォルト環境が存在しない場合に作成する
    */
   async ensureDefaultExists(): Promise<void> {
+    if (!isHostEnvironmentAllowed()) {
+      // Docker内動作: デフォルトDocker環境を作成
+      await this.ensureDefaultEnvironment();
+      return;
+    }
+
     const existing = db.select().from(schema.executionEnvironments)
       .where(eq(schema.executionEnvironments.is_default, true))
       .get();
@@ -362,7 +373,13 @@ export class EnvironmentService {
 
     switch (environment.type) {
       case 'HOST':
-        // HOSTは常に利用可能
+        if (!isHostEnvironmentAllowed()) {
+          return {
+            available: false,
+            authenticated: false,
+            error: 'Docker環境内ではHOST環境は利用できません',
+          };
+        }
         return {
           available: true,
           authenticated: true,
