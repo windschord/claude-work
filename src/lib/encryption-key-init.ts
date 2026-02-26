@@ -4,6 +4,7 @@ import path from 'path';
 import { getDataDir } from './data-dir';
 
 const KEY_FILE_NAME = 'encryption.key';
+const REQUIRED_MODE = 0o600;
 
 /**
  * Base64エンコードされた暗号化キーを検証する
@@ -28,6 +29,18 @@ function validateKey(raw: string, source: 'env' | 'file'): string {
 }
 
 /**
+ * キーファイルのパーミッションが0600であることを確認し、異なれば補正する (NFR-001)
+ * @param keyFilePath キーファイルのパス
+ */
+function ensureKeyFilePermissions(keyFilePath: string): void {
+  const stat = fs.statSync(keyFilePath);
+  const currentMode = stat.mode & 0o777;
+  if (currentMode !== REQUIRED_MODE) {
+    fs.chmodSync(keyFilePath, REQUIRED_MODE);
+  }
+}
+
+/**
  * ENCRYPTION_KEYを確保する
  * 1. 環境変数が設定済みならそのまま使用
  * 2. キーファイルが存在すれば読み込み
@@ -45,6 +58,7 @@ export function ensureEncryptionKey(): 'env' | 'file' | 'generated' {
 
   try {
     const key = validateKey(fs.readFileSync(keyFilePath, 'utf-8'), 'file');
+    ensureKeyFilePermissions(keyFilePath);
     process.env.ENCRYPTION_KEY = key;
     return 'file';
   } catch (error) {
@@ -59,6 +73,7 @@ export function ensureEncryptionKey(): 'env' | 'file' | 'generated' {
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
     const existingKey = validateKey(fs.readFileSync(keyFilePath, 'utf-8'), 'file');
+    ensureKeyFilePermissions(keyFilePath);
     process.env.ENCRYPTION_KEY = existingKey;
     return 'file';
   }

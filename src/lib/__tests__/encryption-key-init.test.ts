@@ -2,10 +2,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import path from 'path';
 
 // Hoisted mocks
-const { mockReadFileSync, mockWriteFileSync, mockRandomBytes } = vi.hoisted(() => ({
+const { mockReadFileSync, mockWriteFileSync, mockRandomBytes, mockStatSync, mockChmodSync } = vi.hoisted(() => ({
   mockReadFileSync: vi.fn(),
   mockWriteFileSync: vi.fn(),
   mockRandomBytes: vi.fn(),
+  mockStatSync: vi.fn(),
+  mockChmodSync: vi.fn(),
 }));
 
 // fsをモック
@@ -13,6 +15,8 @@ vi.mock('fs', () => {
   const mockExports = {
     readFileSync: mockReadFileSync,
     writeFileSync: mockWriteFileSync,
+    statSync: mockStatSync,
+    chmodSync: mockChmodSync,
   };
   return {
     ...mockExports,
@@ -49,6 +53,8 @@ describe('ensureEncryptionKey', () => {
     process.env = { ...originalEnv };
     delete process.env.ENCRYPTION_KEY;
     vi.clearAllMocks();
+    // デフォルトではパーミッションは正しい（0o600）
+    mockStatSync.mockReturnValue({ mode: 0o100600 });
   });
 
   afterEach(() => {
@@ -114,6 +120,30 @@ describe('ensureEncryptionKey', () => {
       mockReadFileSync.mockReturnValue('invalid-key');
 
       expect(() => ensureEncryptionKey()).toThrow('Invalid ENCRYPTION_KEY from file');
+    });
+
+    it('パーミッションが0600でない場合、chmodSyncで補正される', () => {
+      mockReadFileSync.mockReturnValue(VALID_KEY);
+      // パーミッションが0o644（不正）
+      mockStatSync.mockReturnValue({ mode: 0o100644 });
+
+      const result = ensureEncryptionKey();
+
+      expect(result).toBe('file');
+      expect(mockStatSync).toHaveBeenCalledWith(expectedKeyFilePath);
+      expect(mockChmodSync).toHaveBeenCalledWith(expectedKeyFilePath, 0o600);
+      expect(process.env.ENCRYPTION_KEY).toBe(VALID_KEY);
+    });
+
+    it('パーミッションが0600の場合、chmodSyncは呼ばれない', () => {
+      mockReadFileSync.mockReturnValue(VALID_KEY);
+      mockStatSync.mockReturnValue({ mode: 0o100600 });
+
+      const result = ensureEncryptionKey();
+
+      expect(result).toBe('file');
+      expect(mockStatSync).toHaveBeenCalledWith(expectedKeyFilePath);
+      expect(mockChmodSync).not.toHaveBeenCalled();
     });
   });
 
@@ -191,6 +221,32 @@ describe('ensureEncryptionKey', () => {
       const result = ensureEncryptionKey();
 
       expect(result).toBe('file');
+      expect(process.env.ENCRYPTION_KEY).toBe(VALID_KEY);
+    });
+
+    it('EEXISTフォールバック時にパーミッションが不正な場合、chmodSyncで補正される', () => {
+      // 最初のreadFileSync: ENOENT
+      const enoentError = new Error('ENOENT') as NodeJS.ErrnoException;
+      enoentError.code = 'ENOENT';
+      mockReadFileSync.mockImplementationOnce(() => { throw enoentError; });
+
+      // writeFileSync: EEXIST
+      const eexistError = new Error('EEXIST') as NodeJS.ErrnoException;
+      eexistError.code = 'EEXIST';
+      mockWriteFileSync.mockImplementationOnce(() => { throw eexistError; });
+
+      // 2回目のreadFileSync: 別プロセスが書き込んだキーを読み込み
+      mockReadFileSync.mockReturnValueOnce(VALID_KEY);
+      mockRandomBytes.mockReturnValue(Buffer.alloc(32, 'a'));
+
+      // パーミッションが0o666（不正）
+      mockStatSync.mockReturnValue({ mode: 0o100666 });
+
+      const result = ensureEncryptionKey();
+
+      expect(result).toBe('file');
+      expect(mockStatSync).toHaveBeenCalledWith(expectedKeyFilePath);
+      expect(mockChmodSync).toHaveBeenCalledWith(expectedKeyFilePath, 0o600);
       expect(process.env.ENCRYPTION_KEY).toBe(VALID_KEY);
     });
   });
