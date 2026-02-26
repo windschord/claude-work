@@ -29,8 +29,11 @@ export function isHostEnvironmentAllowed(): boolean {
   return _isHostAllowed!;
 }
 
-// テスト用: キャッシュをリセット
+// テスト用: キャッシュをリセット（テスト環境でのみ有効）
 export function _resetForTesting(): void {
+  if (process.env.NODE_ENV !== 'test') {
+    return;
+  }
   _isRunningInDocker = null;
   _isHostAllowed = null;
 }
