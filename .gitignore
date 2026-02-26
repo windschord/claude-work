@@ -274,3 +274,6 @@ logs/
 
 # Test data
 data/repos/
+
+# Encryption key (auto-generated, must not be committed)
+data/encryption.key
