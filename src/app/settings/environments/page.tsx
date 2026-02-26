@@ -21,6 +21,7 @@ export default function EnvironmentsSettingsPage() {
     createEnvironment,
     updateEnvironment,
     deleteEnvironment,
+    hostEnvironmentDisabled,
   } = useEnvironments();
 
   return (
@@ -38,6 +39,7 @@ export default function EnvironmentsSettingsPage() {
         onUpdateEnvironment={updateEnvironment}
         onDeleteEnvironment={deleteEnvironment}
         onRefresh={fetchEnvironments}
+        hostEnvironmentDisabled={hostEnvironmentDisabled}
       />
     </div>
   );

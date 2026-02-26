@@ -19,6 +19,7 @@ import { DockerAdapter } from './src/services/adapters/docker-adapter';
 import { db } from './src/lib/db';
 import { ptySessionManager } from './src/services/pty-session-manager';
 import { validateSchemaIntegrity, formatValidationError } from './src/lib/schema-check';
+import { initializeEnvironmentDetection, isRunningInDocker, isHostEnvironmentAllowed } from './src/lib/environment-detect';
 
 // 環境変数を.envファイルから明示的にロード（PM2で設定されている場合はそちらを優先）
 const dotenvResult = dotenv.config();
@@ -250,6 +251,13 @@ app.prepare().then(() => {
       environment: dev ? 'development' : 'production',
     });
     console.log(`> Ready on http://${hostname}:${port}`);
+
+    // 環境検出の初期化
+    initializeEnvironmentDetection();
+    logger.info('Environment detection initialized', {
+      runningInDocker: isRunningInDocker(),
+      hostEnvironmentAllowed: isHostEnvironmentAllowed(),
+    });
 
     // デフォルト環境の初期化（TASK-EE-016）
     try {

@@ -28,6 +28,10 @@ services:
       - DATA_DIR=/data
       # docker.sockマウント環境ではDocker機能を有効化（レガシーUI互換）
       - DOCKER_ENABLED=true
+      # アプリがDockerコンテナ内で動作していることを示すフラグ
+      - RUNNING_IN_DOCKER=true
+      # Docker環境内でもHOST環境を使用する場合はコメントを外す
+      # - ALLOW_HOST_ENVIRONMENT=true
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "node", "scripts/healthcheck.js"]

@@ -15,6 +15,7 @@ interface EnvironmentFormProps {
   onSubmit: (input: CreateEnvironmentInput | UpdateEnvironmentInput) => Promise<Environment | void>;
   environment?: Environment | null;
   mode: 'create' | 'edit';
+  hostEnvironmentDisabled?: boolean;
 }
 
 interface DockerImage {
@@ -55,7 +56,7 @@ const DEFAULT_DOCKER_IMAGE = process.env.NEXT_PUBLIC_DEFAULT_DOCKER_IMAGE || 'gh
  * @param props.mode - 'create' または 'edit'
  * @returns 環境フォームモーダルのJSX要素
  */
-export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }: EnvironmentFormProps) {
+export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode, hostEnvironmentDisabled }: EnvironmentFormProps) {
   const [name, setName] = useState('');
   const [type, setType] = useState<EnvironmentType>('HOST');
   const [description, setDescription] = useState('');
@@ -142,7 +143,7 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
       }
     } else if (mode === 'create') {
       setName('');
-      setType('HOST');
+      setType(hostEnvironmentDisabled ? 'DOCKER' : 'HOST');
       setDescription('');
       setImageSource('existing');
       setSelectedImage(CUSTOM_IMAGE_VALUE);
@@ -153,7 +154,7 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
       setPortMappings([]);
       setVolumeMounts([]);
     }
-  }, [mode, environment, isOpen]);
+  }, [mode, environment, isOpen, hostEnvironmentDisabled]);
 
   // タイプがDOCKERに変わった時にイメージ一覧を取得
   useEffect(() => {
@@ -415,7 +416,7 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
 
   const handleClose = () => {
     setName('');
-    setType('HOST');
+    setType(hostEnvironmentDisabled ? 'DOCKER' : 'HOST');
     setDescription('');
     setError('');
     setImageSource('existing');
@@ -542,7 +543,10 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
                                     }`
                                   }
                                   value={typeOption.value}
-                                  disabled={typeOption.value === 'SSH'}
+                                  disabled={
+                                    typeOption.value === 'SSH' ||
+                                    (typeOption.value === 'HOST' && !!hostEnvironmentDisabled)
+                                  }
                                 >
                                   {({ selected }) => (
                                     <>
@@ -550,12 +554,22 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
                                         <span
                                           className={`block truncate ${
                                             selected ? 'font-medium' : 'font-normal'
-                                          } ${typeOption.value === 'SSH' ? 'opacity-50' : ''}`}
+                                          } ${
+                                            typeOption.value === 'SSH' ||
+                                            (typeOption.value === 'HOST' && hostEnvironmentDisabled)
+                                              ? 'opacity-50' : ''
+                                          }`}
                                         >
                                           {typeOption.label}
                                         </span>
-                                        <span className={`block text-xs text-gray-500 dark:text-gray-400 ${typeOption.value === 'SSH' ? 'opacity-50' : ''}`}>
-                                          {typeOption.description}
+                                        <span className={`block text-xs text-gray-500 dark:text-gray-400 ${
+                                          typeOption.value === 'SSH' ||
+                                          (typeOption.value === 'HOST' && hostEnvironmentDisabled)
+                                            ? 'opacity-50' : ''
+                                        }`}>
+                                          {typeOption.value === 'HOST' && hostEnvironmentDisabled
+                                            ? 'Docker環境内では利用不可'
+                                            : typeOption.description}
                                         </span>
                                       </div>
                                       {selected && (
