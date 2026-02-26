@@ -35,6 +35,10 @@ describe('AddProjectModal - キャンセルボタン', () => {
       />
     );
 
+    // ローカルタブをクリック（デフォルトはリモートタブ）
+    const localTab = screen.getByRole('tab', { name: 'ローカル' });
+    fireEvent.click(localTab);
+
     // フォームに入力
     const pathInput = screen.getByLabelText(/Gitリポジトリのパス/i);
     fireEvent.change(pathInput, { target: { value: '/test/path' } });
