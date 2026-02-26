@@ -266,7 +266,7 @@ export class DockerGitService implements GitOperations {
   private async runContainer(
     image: string,
     cmd: string[],
-    options: { Binds?: string[]; Env?: string[]; WorkingDir?: string; Entrypoint?: string | string[]; timeoutMs?: number }
+    options: { Binds?: string[]; Env?: string[]; WorkingDir?: string; Entrypoint?: string[]; timeoutMs?: number }
   ): Promise<{ stdout: string; stderr: string }> {
     let stdout = '';
     let stderr = '';
@@ -510,7 +510,7 @@ export class DockerGitService implements GitOperations {
         () => this.runContainer('alpine/git', ['-c', shellCommand], {
             Binds,
             Env,
-            Entrypoint: 'sh',
+            Entrypoint: ['/bin/sh'],
             timeoutMs: timeout,
         }),
         'clone',
