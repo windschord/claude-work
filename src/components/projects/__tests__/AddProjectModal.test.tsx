@@ -301,9 +301,9 @@ describe('AddProjectModal', () => {
     it('リモートタブのキャンセルボタンでモーダルが閉じる', () => {
       render(<AddProjectModal isOpen={true} onClose={mockOnClose} />);
 
-      const cancelButtons = screen.getAllByRole('button', { name: 'キャンセル' });
-      // リモートタブのキャンセルボタンをクリック（2番目のキャンセルボタン）
-      fireEvent.click(cancelButtons[cancelButtons.length - 1]);
+      // リモートタブのキャンセルボタンをクリック
+      const cancelButton = screen.getByRole('button', { name: 'キャンセル' });
+      fireEvent.click(cancelButton);
 
       expect(mockOnClose).toHaveBeenCalled();
     });
