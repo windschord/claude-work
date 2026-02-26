@@ -252,12 +252,12 @@ describe('AddProjectModal', () => {
       const urlInput = screen.getByPlaceholderText('https://github.com/user/repo.git');
       const cloneButton = screen.getByRole('button', { name: 'Clone' });
 
-      fireEvent.change(urlInput, { target: { value: 'git@github.com:test/repo.git' } });
+      fireEvent.change(urlInput, { target: { value: 'https://github.com/test/repo.git' } });
       fireEvent.click(cloneButton);
 
       await waitFor(() => {
         expect(mockCloneProject).toHaveBeenCalledWith(
-          'git@github.com:test/repo.git',
+          'https://github.com/test/repo.git',
           undefined,
           'docker',
           undefined
@@ -274,7 +274,7 @@ describe('AddProjectModal', () => {
       const urlInput = screen.getByPlaceholderText('https://github.com/user/repo.git');
       const cloneButton = screen.getByRole('button', { name: 'Clone' });
 
-      fireEvent.change(urlInput, { target: { value: 'git@github.com:test/repo.git' } });
+      fireEvent.change(urlInput, { target: { value: 'https://github.com/test/repo.git' } });
       fireEvent.click(cloneButton);
 
       await waitFor(() => {
@@ -290,7 +290,7 @@ describe('AddProjectModal', () => {
       const urlInput = screen.getByPlaceholderText('https://github.com/user/repo.git');
       const cloneButton = screen.getByRole('button', { name: 'Clone' });
 
-      fireEvent.change(urlInput, { target: { value: 'git@github.com:test/repo.git' } });
+      fireEvent.change(urlInput, { target: { value: 'https://github.com/test/repo.git' } });
       fireEvent.click(cloneButton);
 
       await waitFor(() => {
