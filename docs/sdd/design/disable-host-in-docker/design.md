@@ -456,6 +456,93 @@ HOSTがdisabledの場合のデフォルト選択をDOCKERに変更。
 | `docker-compose.yml` | 変更 | RUNNING_IN_DOCKER追加 |
 | `docs/ENV_VARS.md` | 変更 | 新環境変数のドキュメント |
 
+### 7. UI完全非表示対応 (FR-013〜FR-016)
+
+PR#161でバックエンドの制限は完了しているが、UIレイヤーにグレーアウト表示が残っている。
+Docker環境でHOST環境が無効の場合、UIからHOST関連の要素を完全に除外する。
+
+#### 7.1 CreateSessionModal 変更 (`src/components/sessions/CreateSessionModal.tsx`)
+
+**対応要件:** FR-013
+
+disabled=trueのHOST環境をRadioGroupの選択肢から除外する。
+
+```typescript
+// sortedEnvironmentsからdisabled環境を除外
+const availableEnvironments = useMemo(() => {
+  return sortedEnvironments.filter(env => !env.disabled);
+}, [sortedEnvironments]);
+```
+
+RadioGroup内で `sortedEnvironments` の代わりに `availableEnvironments` を使用する。
+初期選択ロジックも `availableEnvironments` を参照するように変更する。
+
+#### 7.2 ProjectEnvironmentSettings 変更 (`src/components/settings/ProjectEnvironmentSettings.tsx`)
+
+**対応要件:** FR-014
+
+`hostEnvironmentDisabled` フラグをAPIから取得し、HOST表示をDocker表示に変更する。
+
+```typescript
+// useEnvironments hookを追加import
+import { useEnvironments } from '@/hooks/useEnvironments';
+
+// コンポーネント内でhookを使用
+const { hostEnvironmentDisabled } = useEnvironments();
+
+// getEnvironmentDisplay()の修正
+const getEnvironmentDisplay = () => {
+  // ...既存ロジック
+  const cloneLocation = projectEnv.clone_location || 'host';
+  if (cloneLocation === 'docker') {
+    return { label: 'Docker (自動選択)', type: 'DOCKER' };
+  }
+  // Docker環境でHOSTが無効な場合はDOCKER表示にフォールバック
+  if (hostEnvironmentDisabled) {
+    return { label: 'Docker (自動選択)', type: 'DOCKER' };
+  }
+  return { label: 'Host (自動選択)', type: 'HOST' };
+};
+```
+
+#### 7.3 EnvironmentList 変更 (`src/components/environments/EnvironmentList.tsx`)
+
+**対応要件:** FR-015
+
+disabled=trueの環境を環境カード一覧から除外する。
+
+```typescript
+// 環境一覧のレンダリング時にフィルタリング
+const visibleEnvironments = environments.filter(env => !env.disabled);
+
+// mapでvisibleEnvironmentsを使用
+{visibleEnvironments.map((environment) => (
+  <EnvironmentCard ... />
+))}
+```
+
+#### 7.4 EnvironmentForm 変更 (`src/components/environments/EnvironmentForm.tsx`)
+
+**対応要件:** FR-016
+
+HOSTオプションをドロップダウンからフィルタリングで完全除外する。
+
+```typescript
+// ENVIRONMENT_TYPESからフィルタリング
+const availableTypes = hostEnvironmentDisabled
+  ? ENVIRONMENT_TYPES.filter(t => t.value !== 'HOST')
+  : ENVIRONMENT_TYPES;
+```
+
+### 変更ファイル一覧（追加分）
+
+| ファイル | 変更種別 | 説明 |
+|---------|---------|------|
+| `src/components/sessions/CreateSessionModal.tsx` | 変更 | disabled環境をRadioGroupから除外 |
+| `src/components/settings/ProjectEnvironmentSettings.tsx` | 変更 | hostEnvironmentDisabled時のHOST表示をDocker表示に変更 |
+| `src/components/environments/EnvironmentList.tsx` | 変更 | disabled環境カードを非表示 |
+| `src/components/environments/EnvironmentForm.tsx` | 変更 | HOSTオプションをドロップダウンから除外 |
+
 ## 要件との整合性チェック
 
 | 要件ID | 設計要素 | 対応状況 |
@@ -475,3 +562,7 @@ HOSTがdisabledの場合のデフォルト選択をDOCKERに変更。
 | NFR-001 | initializeEnvironmentDetection() + キャッシュ | 対応済 |
 | NFR-002 | API/サービスレベルでの強制 | 対応済 |
 | NFR-003 | isHostEnvironmentAllowed() 非Docker時true | 対応済 |
+| FR-013 | CreateSessionModal disabled環境除外 | 対応済 |
+| FR-014 | ProjectEnvironmentSettings HOST->Docker表示 | 対応済 |
+| FR-015 | EnvironmentList disabled環境カード非表示 | 対応済 |
+| FR-016 | EnvironmentForm HOSTオプション除外 | 対応済 |
