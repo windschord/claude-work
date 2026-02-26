@@ -50,9 +50,13 @@
  * 2. キーファイルが存在すれば読み込み
  * 3. どちらもなければ新規生成してファイルに保存
  *
- * @throws Error キーファイルの読み書きに失敗した場合
+ * @returns 'env' | 'file' | 'generated'
+ *   - 'env'       : 既存のprocess.env.ENCRYPTION_KEYをそのまま使用した場合
+ *   - 'file'      : 既存のキーファイルから読み込み、process.envに設定した場合
+ *   - 'generated' : 新規にキーを生成し、キーファイルへ保存してからprocess.envに設定した場合
+ * @throws Error キーファイルの読み書きに失敗した場合、またはキーが不正な場合
  */
-export function ensureEncryptionKey(): void
+export function ensureEncryptionKey(): 'env' | 'file' | 'generated'
 ```
 
 **実装詳細**:
