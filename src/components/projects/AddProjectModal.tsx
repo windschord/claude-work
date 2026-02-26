@@ -112,7 +112,7 @@ export function AddProjectModal({ isOpen, onClose }: AddProjectModalProps) {
                   プロジェクトを追加
                 </Dialog.Title>
 
-                <Tab.Group>
+                <Tab.Group defaultIndex={1}>
                   <Tab.List className="flex space-x-1 rounded-xl bg-gray-100 dark:bg-gray-800 p-1 mb-4">
                     <Tab
                       className={({ selected }) =>

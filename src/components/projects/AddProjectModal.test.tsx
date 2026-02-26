@@ -25,7 +25,7 @@ describe('AddProjectModal - キャンセルボタン', () => {
     }, { timeout: 1000 }); // 1秒以内に呼ばれるべき
   });
 
-  it('キャンセルボタンをクリックするとフォームがリセットされる', async () => {
+  it('キャンセルボタンをクリックするとonCloseが呼ばれる（ローカルタブ）', async () => {
     const onClose = vi.fn();
 
     render(
@@ -34,6 +34,10 @@ describe('AddProjectModal - キャンセルボタン', () => {
         onClose={onClose}
       />
     );
+
+    // ローカルタブをクリック（デフォルトはリモートタブ）
+    const localTab = screen.getByRole('tab', { name: 'ローカル' });
+    fireEvent.click(localTab);
 
     // フォームに入力
     const pathInput = screen.getByLabelText(/Gitリポジトリのパス/i);

@@ -35,7 +35,7 @@ describe('RemoteRepoForm', () => {
 
       const urlInput = screen.getByLabelText('リポジトリURL');
       expect(urlInput).toBeInTheDocument();
-      expect(urlInput).toHaveAttribute('placeholder', 'git@github.com:user/repo.git');
+      expect(urlInput).toHaveAttribute('placeholder', 'https://github.com/user/repo.git');
     });
 
     it('保存場所選択が表示される', () => {
