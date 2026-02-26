@@ -37,7 +37,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       ? { ...environment, disabled: true }
       : environment;
 
-    if (includeStatus && !hostDisabled) {
+    if (includeStatus) {
       const status = await environmentService.checkStatus(id);
       return NextResponse.json({
         environment: { ...envWithDisabled, status },
