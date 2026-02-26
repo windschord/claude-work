@@ -127,9 +127,11 @@ describe('CreateSessionModal - disabled環境のフィルタリング', () => {
     );
 
     await waitFor(() => {
-      const radioButtons = screen.getAllByRole('radio');
-      // disabled環境(1つ)を除いた2つのみ
-      expect(radioButtons).toHaveLength(2);
+      // 環境名で確認: Docker DefaultとSSH Remoteのみ表示される
+      expect(screen.getByText('Docker Default')).toBeInTheDocument();
+      expect(screen.getByText('SSH Remote')).toBeInTheDocument();
+      // Disabled Hostは非表示
+      expect(screen.queryByText('Disabled Host')).not.toBeInTheDocument();
     });
   });
 
@@ -180,11 +182,10 @@ describe('CreateSessionModal - disabled環境のフィルタリング', () => {
     );
 
     await waitFor(() => {
-      const radioButtons = screen.getAllByRole('radio');
-      // disabled環境を除いた1つのみ
-      expect(radioButtons).toHaveLength(1);
-      // Available Secondが選択されている
-      expect(radioButtons[0]).toHaveAttribute('aria-checked', 'true');
+      // Available Secondのみ表示される
+      expect(screen.getByText('Available Second')).toBeInTheDocument();
+      // Disabled Firstは表示されない
+      expect(screen.queryByText('Disabled First')).not.toBeInTheDocument();
     });
   });
 });

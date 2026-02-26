@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { EnvironmentBadge } from '@/components/common/EnvironmentBadge';
+import { useEnvironments } from '@/hooks/useEnvironments';
 
 interface ProjectEnvironmentSettingsProps {
   projectId: string;
@@ -24,6 +25,7 @@ interface ProjectEnvironmentInfo {
  * 実行環境はプロジェクト作成時に決定され、変更できません。
  */
 export function ProjectEnvironmentSettings({ projectId }: ProjectEnvironmentSettingsProps) {
+  const { hostEnvironmentDisabled } = useEnvironments();
   const [projectEnv, setProjectEnv] = useState<ProjectEnvironmentInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +72,7 @@ export function ProjectEnvironmentSettings({ projectId }: ProjectEnvironmentSett
     }
 
     const cloneLocation = projectEnv.clone_location || 'host';
-    if (cloneLocation === 'docker') {
+    if (cloneLocation === 'docker' || hostEnvironmentDisabled) {
       return { label: 'Docker (自動選択)', type: 'DOCKER' };
     }
     return { label: 'Host (自動選択)', type: 'HOST' };

@@ -45,12 +45,15 @@ describe('EnvironmentForm - HOST環境無効化時の動作', () => {
     const typeButton = screen.getByRole('button', { name: /Docker/ });
     fireEvent.click(typeButton);
 
-    // DOCKERは表示される
-    expect(screen.getByText('Docker')).toBeInTheDocument();
-    // HOSTは表示されない
-    expect(screen.queryByText('ホスト')).not.toBeInTheDocument();
-    // SSHは表示される（未実装だが選択肢としては存在する）
-    expect(screen.getByText('SSH')).toBeInTheDocument();
+    // Listboxのオプション一覧を取得
+    const options = screen.getAllByRole('option');
+    const optionTexts = options.map(opt => opt.textContent);
+
+    // DOCKERとSSHのみが選択肢に含まれる
+    expect(optionTexts.some(t => t?.includes('Docker'))).toBe(true);
+    expect(optionTexts.some(t => t?.includes('SSH'))).toBe(true);
+    // HOSTは選択肢に含まれない
+    expect(optionTexts.some(t => t?.includes('ホスト'))).toBe(false);
   });
 
   it('hostEnvironmentDisabled=falseの場合、全タイプが選択肢に含まれる', () => {
@@ -64,10 +67,14 @@ describe('EnvironmentForm - HOST環境無効化時の動作', () => {
     const typeButton = screen.getByRole('button', { name: /ホスト/ });
     fireEvent.click(typeButton);
 
-    // 全タイプが表示される
-    expect(screen.getByText('ホスト')).toBeInTheDocument();
-    expect(screen.getByText('Docker')).toBeInTheDocument();
-    expect(screen.getByText('SSH')).toBeInTheDocument();
+    // Listboxのオプション一覧を取得
+    const options = screen.getAllByRole('option');
+    const optionTexts = options.map(opt => opt.textContent);
+
+    // 全タイプが選択肢に含まれる
+    expect(optionTexts.some(t => t?.includes('ホスト'))).toBe(true);
+    expect(optionTexts.some(t => t?.includes('Docker'))).toBe(true);
+    expect(optionTexts.some(t => t?.includes('SSH'))).toBe(true);
   });
 
   it('hostEnvironmentDisabled=trueの場合、デフォルトタイプがDOCKERになる', () => {

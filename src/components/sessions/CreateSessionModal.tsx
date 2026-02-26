@@ -85,6 +85,11 @@ export function CreateSessionModal({
     });
   }, [environments]);
 
+  // disabled=trueの環境を除外した利用可能な環境リスト（UI表示用）
+  const availableEnvironments = useMemo(() => {
+    return sortedEnvironments.filter(env => !env.disabled);
+  }, [sortedEnvironments]);
+
   // clone_location=dockerだがDocker環境が存在しない場合のフォールバック検出
   const isDockerFallback = useMemo(() => {
     return cloneLocation === 'docker' && !environments.some((env) => env.type === 'DOCKER');
@@ -178,7 +183,7 @@ export function CreateSessionModal({
           // このフォールバック選択はUI検証（作成ボタンの有効化）のためのみ使用される
           // サーバー側がclone_locationに基づいてDocker環境を自動選択する
           const defaultEnv = sortedEnvironments.find((env) => env.is_default);
-          setSelectedEnvironmentId(defaultEnv?.id || sortedEnvironments[0].id);
+          setSelectedEnvironmentId(defaultEnv?.id || availableEnvironments[0]?.id || sortedEnvironments[0].id);
         }
       } else {
         // 設定されていない場合はデフォルト環境を優先選択
@@ -188,11 +193,11 @@ export function CreateSessionModal({
         } else {
           // デフォルトがない場合は最初のDocker環境を選択
           const dockerEnv = sortedEnvironments.find((env) => env.type === 'DOCKER');
-          setSelectedEnvironmentId(dockerEnv?.id || sortedEnvironments[0].id);
+          setSelectedEnvironmentId(dockerEnv?.id || availableEnvironments[0]?.id || sortedEnvironments[0].id);
         }
       }
     }
-  }, [sortedEnvironments, isEnvironmentsLoading, projectEnvironmentId, cloneLocation, isProjectFetched]);
+  }, [sortedEnvironments, availableEnvironments, isEnvironmentsLoading, projectEnvironmentId, cloneLocation, isProjectFetched]);
 
   // モーダルが閉じられた時に状態をリセット
   useEffect(() => {
@@ -335,7 +340,7 @@ export function CreateSessionModal({
                     <div className="flex items-center justify-center py-4 text-gray-500 dark:text-gray-400">
                       環境を読み込み中...
                     </div>
-                  ) : sortedEnvironments.length === 0 ? (
+                  ) : availableEnvironments.length === 0 ? (
                     <div className="text-gray-500 dark:text-gray-400 py-4">
                       利用可能な環境がありません
                     </div>
@@ -408,7 +413,7 @@ export function CreateSessionModal({
                       disabled={isCreating || !isProjectFetched}
                     >
                       <div className="space-y-2">
-                        {sortedEnvironments.map((env: Environment) => (
+                        {availableEnvironments.map((env: Environment) => (
                           <RadioGroup.Option
                             key={env.id}
                             value={env.id}
@@ -616,7 +621,7 @@ export function CreateSessionModal({
                     disabled={
                       isCreating ||
                       isEnvironmentsLoading ||
-                      sortedEnvironments.length === 0 ||
+                      availableEnvironments.length === 0 ||
                       !selectedEnvironmentId
                     }
                   >
