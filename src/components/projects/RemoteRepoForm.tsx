@@ -1,9 +1,8 @@
 'use client';
 
 import { useState, useEffect, Fragment } from 'react';
-import { ChevronDown, ChevronUp, Loader2, HelpCircle, ExternalLink } from 'lucide-react';
+import { ChevronDown, ChevronUp, Loader2, HelpCircle, ExternalLink, ChevronsUpDown, Check } from 'lucide-react';
 import { Listbox, Transition } from '@headlessui/react';
-import { ChevronsUpDown, Check } from 'lucide-react';
 import { useGitHubPATs } from '@/hooks/useGitHubPATs';
 import { useEnvironments } from '@/hooks/useEnvironments';
 

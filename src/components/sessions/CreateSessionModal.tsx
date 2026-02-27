@@ -53,7 +53,6 @@ export function CreateSessionModal({
   projectId,
   onSuccess,
 }: CreateSessionModalProps) {
-  const [_selectedEnvironmentId, setSelectedEnvironmentId] = useState<string>('');
   const [projectEnvironmentType, setProjectEnvironmentType] = useState<string | null>(null);
   const [projectEnvironmentName, setProjectEnvironmentName] = useState<string | null>(null);
   const [projectEnvironmentConfig, setProjectEnvironmentConfig] = useState<string>('{}');
@@ -103,7 +102,6 @@ export function CreateSessionModal({
     setProjectEnvironmentType(null);
     setProjectEnvironmentName(null);
     setProjectEnvironmentConfig('{}');
-    setSelectedEnvironmentId('');
 
     const controller = new AbortController();
 
@@ -119,7 +117,6 @@ export function CreateSessionModal({
             setProjectEnvironmentType(env.type || null);
             setProjectEnvironmentName(env.name || null);
             setProjectEnvironmentConfig(env.config || '{}');
-            setSelectedEnvironmentId(env.id || '');
           } else {
             setProjectEnvironmentType(null);
             setProjectEnvironmentName(null);
@@ -151,7 +148,6 @@ export function CreateSessionModal({
       setClaudeOptions({});
       setCustomEnvVars({});
       setSkipPermissionsOverride('default');
-      setSelectedEnvironmentId('');
       setIsProjectFetched(false);
       setProjectEnvironmentType(null);
       setProjectEnvironmentName(null);

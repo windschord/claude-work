@@ -24,6 +24,7 @@ export async function GET(
             id: true,
             name: true,
             type: true,
+            config: true,
           },
         },
       },

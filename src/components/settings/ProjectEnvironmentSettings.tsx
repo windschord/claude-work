@@ -80,17 +80,25 @@ export function ProjectEnvironmentSettings({ projectId, hostEnvironmentDisabled 
 
   // セッション数を取得
   useEffect(() => {
+    const controller = new AbortController();
+    setSessionCount(null);
+
     const fetchSessionCount = async () => {
       try {
-        const res = await fetch(`/api/projects/${projectId}/sessions`);
+        const res = await fetch(`/api/projects/${projectId}/sessions`, {
+          signal: controller.signal,
+        });
         if (!res.ok) return;
         const data = await res.json();
-        setSessionCount(data.sessions?.filter((s: { status: string }) => s.status !== 'deleted').length ?? 0);
+        if (!controller.signal.aborted) {
+          setSessionCount(data.sessions?.filter((s: { status: string }) => s.status !== 'deleted').length ?? 0);
+        }
       } catch {
-        // セッション数取得失敗は無視
+        // セッション数取得失敗は無視（AbortErrorも含む）
       }
     };
     fetchSessionCount();
+    return () => controller.abort();
   }, [projectId]);
 
   const getEnvironmentDisplay = () => {
