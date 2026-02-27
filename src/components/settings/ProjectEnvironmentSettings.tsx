@@ -35,6 +35,10 @@ export function ProjectEnvironmentSettings({ projectId, hostEnvironmentDisabled 
 
   useEffect(() => {
     const controller = new AbortController();
+    setIsProjectLoading(true);
+    setError(null);
+    setProjectEnv(null);
+
     const fetchProject = async () => {
       try {
         const res = await fetch(`/api/projects/${projectId}`, { signal: controller.signal });
@@ -53,7 +57,9 @@ export function ProjectEnvironmentSettings({ projectId, hostEnvironmentDisabled 
         console.error('Failed to fetch project', err);
         setError('Failed to fetch project');
       } finally {
-        setIsProjectLoading(false);
+        if (!controller.signal.aborted) {
+          setIsProjectLoading(false);
+        }
       }
     };
     fetchProject();

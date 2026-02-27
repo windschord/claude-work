@@ -169,9 +169,16 @@ export function CreateSessionModal({
   // プロジェクトのenvironment_idが正しく反映される（レースコンディション防止）
   useEffect(() => {
     if (!isEnvironmentsLoading && availableEnvironments.length > 0 && isProjectFetched) {
-      // プロジェクトに環境が設定されている場合はそれを使用
+      // プロジェクトに環境が設定されている場合はそれを使用（利用可能な環境に存在する場合のみ）
       if (projectEnvironmentId) {
-        setSelectedEnvironmentId(projectEnvironmentId);
+        const projectEnv = availableEnvironments.find((env) => env.id === projectEnvironmentId);
+        if (projectEnv) {
+          setSelectedEnvironmentId(projectEnvironmentId);
+        } else {
+          // プロジェクト環境がdisabledの場合、Docker環境またはデフォルトにフォールバック
+          const dockerEnv = availableEnvironments.find((env) => env.type === 'DOCKER');
+          setSelectedEnvironmentId(dockerEnv?.id || availableEnvironments[0]?.id || '');
+        }
       } else if (cloneLocation === 'docker') {
         // clone_location=dockerの場合は最初のDocker環境を自動選択
         // サーバー側でもclone_locationに基づいてDocker環境が強制されるため、UIでも同じ挙動にする
