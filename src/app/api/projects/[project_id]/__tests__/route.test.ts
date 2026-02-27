@@ -518,25 +518,53 @@ describe('PATCH /api/projects/[project_id]', () => {
     db.delete(schema.executionEnvironments).where(eq(schema.executionEnvironments.id, testEnvId)).run();
   });
 
-  it('environment_idが送信されても無視される', async () => {
+  it('存在しないenvironment_idを指定すると400エラーになる', async () => {
     const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ environment_id: 'new-env-456' }),
+      body: JSON.stringify({ environment_id: 'non-existent-env' }),
     });
 
     const response = await PATCH(request, {
       params: Promise.resolve({ project_id: project.id }),
     });
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error).toContain('指定された実行環境が見つかりません');
+  });
 
-    const updated = db
-      .select()
-      .from(schema.projects)
-      .where(eq(schema.projects.id, project.id))
-      .get();
-    expect(updated?.environment_id).toBe(testEnvId);
+  it('environment_idをセッションなしで変更できる', async () => {
+    // 別の環境を作成
+    const newEnv = db.insert(schema.executionEnvironments).values({
+      name: 'New Test Env',
+      type: 'DOCKER',
+      config: '{}',
+      is_default: false,
+    }).returning().get()!;
+
+    try {
+      const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ environment_id: newEnv.id }),
+      });
+
+      const response = await PATCH(request, {
+        params: Promise.resolve({ project_id: project.id }),
+      });
+
+      expect(response.status).toBe(200);
+
+      const updated = db
+        .select()
+        .from(schema.projects)
+        .where(eq(schema.projects.id, project.id))
+        .get();
+      expect(updated?.environment_id).toBe(newEnv.id);
+    } finally {
+      db.delete(schema.executionEnvironments).where(eq(schema.executionEnvironments.id, newEnv.id)).run();
+    }
   });
 
   it('claude_code_optionsを正しく更新する', async () => {

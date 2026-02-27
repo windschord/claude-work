@@ -210,7 +210,14 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     logger.info('Deleting environment', { id, name: environment.name });
 
-    await environmentService.delete(id);
+    try {
+      await environmentService.delete(id);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('使用中')) {
+        return NextResponse.json({ error: error.message }, { status: 409 });
+      }
+      throw error;
+    }
 
     logger.info('Environment deleted', { id });
     return NextResponse.json({ success: true });

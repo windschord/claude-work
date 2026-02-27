@@ -381,9 +381,7 @@ describe('/api/environments/[id]', () => {
       expect(data.error).toBe('Environment not found');
     });
 
-    it('使用中セッションがある場合は警告付きで削除（409ではなく成功）', async () => {
-      // 注: タスク定義では409を返すとあるが、設計上は警告ログのみで削除は許可
-      // environmentService.deleteが内部で警告を出力して削除する
+    it('使用中のプロジェクトがある場合は409を返す', async () => {
       const environment = {
         id: 'env-in-use',
         name: 'In Use',
@@ -397,7 +395,9 @@ describe('/api/environments/[id]', () => {
       };
 
       mockFindById.mockResolvedValue(environment);
-      mockDelete.mockResolvedValue(undefined);
+      mockDelete.mockRejectedValue(
+        new Error('この環境は以下のプロジェクトで使用中のため削除できません: Project A')
+      );
 
       const request = new NextRequest('http://localhost:3000/api/environments/env-in-use', {
         method: 'DELETE',
@@ -406,8 +406,8 @@ describe('/api/environments/[id]', () => {
       const response = await DELETE(request, { params: Promise.resolve({ id: 'env-in-use' }) });
       const data = await response.json();
 
-      expect(response.status).toBe(200);
-      expect(data.success).toBe(true);
+      expect(response.status).toBe(409);
+      expect(data.error).toContain('使用中');
     });
 
     it('削除エラーを処理する', async () => {

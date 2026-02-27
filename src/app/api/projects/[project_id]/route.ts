@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, schema } from '@/lib/db';
-import { eq } from 'drizzle-orm';
+import { eq, count } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
 import { existsSync } from 'fs';
 import { spawnSync } from 'child_process';
@@ -41,9 +41,9 @@ export async function GET(
 }
 
 /**
- * PATCH /api/projects/[project_id] - プロジェクト設定更新（claude_code_options, custom_env_vars）
+ * PATCH /api/projects/[project_id] - プロジェクト設定更新（claude_code_options, custom_env_vars, environment_id）
  *
- * environment_idはプロジェクト作成後に変更不可のため、このAPIでは受け付けない。
+ * environment_idはセッションが0件の場合のみ変更可能。
  */
 export async function PATCH(
   request: NextRequest,
@@ -60,12 +60,35 @@ export async function PATCH(
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
 
-    let { claude_code_options, custom_env_vars } = body;
+    let { claude_code_options, custom_env_vars, environment_id } = body;
 
     // プロジェクトの存在確認
     const project = db.select().from(schema.projects).where(eq(schema.projects.id, project_id)).get();
     if (!project) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    }
+
+    // environment_id の変更処理
+    if (environment_id !== undefined) {
+      // 環境の存在確認
+      const { environmentService } = await import('@/services/environment-service');
+      const env = await environmentService.findById(environment_id);
+      if (!env) {
+        return NextResponse.json({ error: '指定された実行環境が見つかりません' }, { status: 400 });
+      }
+
+      // セッション0件チェック
+      const sessionCount = db.select({ count: count() })
+        .from(schema.sessions)
+        .where(eq(schema.sessions.project_id, project_id))
+        .get();
+
+      if (sessionCount && sessionCount.count > 0) {
+        return NextResponse.json(
+          { error: 'セッションが存在するため実行環境を変更できません。すべてのセッションを削除してから変更してください。' },
+          { status: 409 }
+        );
+      }
     }
 
     // claude_code_options のバリデーション
@@ -97,6 +120,7 @@ export async function PATCH(
     const updateData: Record<string, unknown> = { updated_at: new Date() };
     if (claude_code_options !== undefined) updateData.claude_code_options = JSON.stringify(claude_code_options);
     if (custom_env_vars !== undefined) updateData.custom_env_vars = JSON.stringify(custom_env_vars);
+    if (environment_id !== undefined) updateData.environment_id = environment_id;
 
     // 空更新の早期リターン（updated_atのみの場合）
     if (Object.keys(updateData).length === 1) {

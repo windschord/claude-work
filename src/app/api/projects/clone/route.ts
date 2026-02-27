@@ -39,10 +39,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
 
-    const { url, targetDir, name, cloneLocation, githubPatId } = body;
+    const { url, targetDir, name, cloneLocation, githubPatId, environment_id } = body;
 
     if (!url) {
       return NextResponse.json({ error: 'URLは必須です' }, { status: 400 });
+    }
+
+    if (!environment_id) {
+      return NextResponse.json({ error: '実行環境の指定は必須です' }, { status: 400 });
     }
 
     // URL検証
@@ -77,6 +81,7 @@ export async function POST(request: NextRequest) {
           path: `temp-${Date.now()}`, // 一時的なユニーク値（UNIQUE制約対策）
           remote_url: url,
           clone_location: 'docker',
+          environment_id,
         }).returning().get();
 
         if (!project) {
@@ -263,6 +268,7 @@ export async function POST(request: NextRequest) {
         path: cloneResult.path,
         remote_url: url,
         clone_location: 'host',
+        environment_id,
       }).returning().get();
 
       if (!project) {

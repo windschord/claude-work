@@ -111,10 +111,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
 
-    const { path: projectPath } = body;
+    const { path: projectPath, environment_id } = body;
 
     if (!projectPath) {
       return NextResponse.json({ error: 'Path is required' }, { status: 400 });
+    }
+
+    if (!environment_id) {
+      return NextResponse.json({ error: '実行環境の指定は必須です' }, { status: 400 });
     }
 
     // パストラバーサル攻撃を防ぐため、絶対パスに正規化
@@ -172,6 +176,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Gitリポジトリではありません' }, { status: 400 });
     }
 
+    // 環境の存在確認
+    const { environmentService } = await import('@/services/environment-service');
+    const env = await environmentService.findById(environment_id);
+    if (!env) {
+      return NextResponse.json({ error: '指定された実行環境が見つかりません' }, { status: 400 });
+    }
+
     const name = basename(absolutePath);
 
     try {
@@ -179,6 +190,7 @@ export async function POST(request: NextRequest) {
         name,
         path: absolutePath,
         clone_location: 'host', // ローカルプロジェクトはHost環境
+        environment_id,
       }).returning().get();
 
       if (!project) {
