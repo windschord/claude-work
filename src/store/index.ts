@@ -180,7 +180,7 @@ export interface AppState {
   /** プロジェクトを追加 */
   addProject: (path: string, environmentId: string) => Promise<void>;
   /** リモートリポジトリをcloneしてプロジェクトを追加 */
-  cloneProject: (url: string, targetDir?: string, cloneLocation?: 'host' | 'docker', githubPatId?: string, environmentId: string) => Promise<void>;
+  cloneProject: (url: string, environmentId: string, targetDir?: string, cloneLocation?: 'host' | 'docker', githubPatId?: string) => Promise<void>;
   /** リモートリポジトリをpull */
   pullProject: (projectId: string) => Promise<{ updated: boolean; message: string }>;
   /** プロジェクトを更新 */
@@ -374,7 +374,7 @@ export const useAppStore = create<AppState>((set) => ({
     }
   },
 
-  cloneProject: async (url: string, targetDir?: string, cloneLocation?: 'host' | 'docker', githubPatId?: string, environmentId?: string) => {
+  cloneProject: async (url: string, environmentId: string, targetDir?: string, cloneLocation?: 'host' | 'docker', githubPatId?: string) => {
     try {
       const response = await fetch('/api/projects/clone', {
         method: 'POST',

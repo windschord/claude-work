@@ -217,10 +217,10 @@ describe('RemoteRepoForm', () => {
       await waitFor(() => {
         expect(mockOnSubmit).toHaveBeenCalledWith(
           'git@github.com:user/repo.git',
+          'env-1',
           undefined,
           'docker',
-          undefined,
-          'env-1'
+          undefined
         );
       });
     });
@@ -246,10 +246,10 @@ describe('RemoteRepoForm', () => {
       await waitFor(() => {
         expect(mockOnSubmit).toHaveBeenCalledWith(
           'https://github.com/user/repo.git',
+          'env-1',
           undefined,
           'docker',
-          'pat-1',
-          'env-1'
+          'pat-1'
         );
       });
     });
@@ -274,10 +274,10 @@ describe('RemoteRepoForm', () => {
       await waitFor(() => {
         expect(mockOnSubmit).toHaveBeenCalledWith(
           'git@github.com:user/repo.git',
+          'env-1',
           undefined,
           'host',
-          undefined,
-          'env-1'
+          undefined
         );
       });
     });
@@ -307,10 +307,10 @@ describe('RemoteRepoForm', () => {
       await waitFor(() => {
         expect(mockOnSubmit).toHaveBeenCalledWith(
           'git@github.com:user/repo.git',
+          'env-1',
           '/custom/path',
           'docker',
-          undefined,
-          'env-1'
+          undefined
         );
       });
     });

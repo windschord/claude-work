@@ -8,7 +8,7 @@ import { useGitHubPATs } from '@/hooks/useGitHubPATs';
 import { useEnvironments } from '@/hooks/useEnvironments';
 
 interface RemoteRepoFormProps {
-  onSubmit: (url: string, targetDir?: string, cloneLocation?: 'host' | 'docker', githubPatId?: string, environmentId: string) => Promise<void>;
+  onSubmit: (url: string, environmentId: string, targetDir?: string, cloneLocation?: 'host' | 'docker', githubPatId?: string) => Promise<void>;
   onCancel: () => void;
   isLoading: boolean;
   error?: string;
@@ -63,7 +63,7 @@ export function RemoteRepoForm({
     }
 
     const patId = showPATSelector && githubPatId ? githubPatId : undefined;
-    await onSubmit(url.trim(), targetDir.trim() || undefined, cloneLocation, patId, selectedEnvironmentId);
+    await onSubmit(url.trim(), selectedEnvironmentId, targetDir.trim() || undefined, cloneLocation, patId);
   };
 
   return (

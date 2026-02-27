@@ -254,10 +254,10 @@ describe('AddProjectModal', () => {
       await waitFor(() => {
         expect(mockCloneProject).toHaveBeenCalledWith(
           'https://github.com/test/repo.git',
+          'env-1',
           undefined,
           'docker',
-          undefined,
-          'env-1'
+          undefined
         );
         expect(mockOnClose).toHaveBeenCalled();
       });

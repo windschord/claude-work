@@ -71,12 +71,12 @@ export function AddProjectModal({ isOpen, onClose }: AddProjectModalProps) {
     }
   };
 
-  const handleRemoteSubmit = async (url: string, targetDir?: string, cloneLocation?: 'host' | 'docker', githubPatId?: string, environmentId: string) => {
+  const handleRemoteSubmit = async (url: string, environmentId: string, targetDir?: string, cloneLocation?: 'host' | 'docker', githubPatId?: string) => {
     setError('');
     setIsLoading(true);
 
     try {
-      await cloneProject(url, targetDir, cloneLocation, githubPatId, environmentId);
+      await cloneProject(url, environmentId, targetDir, cloneLocation, githubPatId);
       await fetchProjects();
       toast.success('リポジトリをcloneしました');
       onClose();
