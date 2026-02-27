@@ -101,6 +101,32 @@ describe('ProjectEnvironmentSettings', () => {
     });
   });
 
+  it('isEnvironmentsLoading=trueの場合、プロジェクトAPI完了後もローディング表示が続く', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        project: {
+          id: 'project-1',
+          name: 'Test Project',
+          clone_location: null,
+          environment_id: null,
+          environment: null,
+        },
+      }),
+    });
+
+    render(<ProjectEnvironmentSettings projectId="project-1" hostEnvironmentDisabled={true} isEnvironmentsLoading={true} />);
+
+    // プロジェクトAPIが完了しても、環境APIがロード中なのでローディング表示
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalled();
+    });
+
+    expect(screen.getByText('読み込み中...')).toBeInTheDocument();
+    expect(screen.queryByText('Docker (自動選択)')).not.toBeInTheDocument();
+    expect(screen.queryByText('Host (自動選択)')).not.toBeInTheDocument();
+  });
+
   it('clone_location=dockerかつhostEnvironmentDisabled=trueの場合、Docker (自動選択) と表示される', async () => {
     mockFetch.mockResolvedValue({
       ok: true,

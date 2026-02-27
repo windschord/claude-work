@@ -168,32 +168,33 @@ export function CreateSessionModal({
   // isProjectFetchedを待つことで、環境リストが先に読み込まれた場合でも
   // プロジェクトのenvironment_idが正しく反映される（レースコンディション防止）
   useEffect(() => {
-    if (!isEnvironmentsLoading && sortedEnvironments.length > 0 && isProjectFetched) {
+    if (!isEnvironmentsLoading && availableEnvironments.length > 0 && isProjectFetched) {
       // プロジェクトに環境が設定されている場合はそれを使用
       if (projectEnvironmentId) {
         setSelectedEnvironmentId(projectEnvironmentId);
       } else if (cloneLocation === 'docker') {
         // clone_location=dockerの場合は最初のDocker環境を自動選択
         // サーバー側でもclone_locationに基づいてDocker環境が強制されるため、UIでも同じ挙動にする
-        const dockerEnv = sortedEnvironments.find((env) => env.type === 'DOCKER');
+        const dockerEnv = availableEnvironments.find((env) => env.type === 'DOCKER');
         if (dockerEnv) {
           setSelectedEnvironmentId(dockerEnv.id);
         } else {
           // Docker環境が存在しない場合はデフォルト環境または先頭の環境をフォールバック
           // このフォールバック選択はUI検証（作成ボタンの有効化）のためのみ使用される
           // サーバー側がclone_locationに基づいてDocker環境を自動選択する
-          const defaultEnv = sortedEnvironments.find((env) => env.is_default);
-          setSelectedEnvironmentId(defaultEnv?.id || availableEnvironments[0]?.id || sortedEnvironments[0].id);
+          const defaultEnv = availableEnvironments.find((env) => env.is_default);
+          setSelectedEnvironmentId(defaultEnv?.id || availableEnvironments[0]?.id || '');
         }
       } else {
         // 設定されていない場合はデフォルト環境を優先選択
-        const defaultEnv = sortedEnvironments.find((env) => env.is_default);
+        // availableEnvironmentsから選ぶことで、disabled環境が初期選択されることを防ぐ
+        const defaultEnv = availableEnvironments.find((env) => env.is_default);
         if (defaultEnv) {
           setSelectedEnvironmentId(defaultEnv.id);
         } else {
           // デフォルトがない場合は最初のDocker環境を選択
-          const dockerEnv = sortedEnvironments.find((env) => env.type === 'DOCKER');
-          setSelectedEnvironmentId(dockerEnv?.id || availableEnvironments[0]?.id || sortedEnvironments[0].id);
+          const dockerEnv = availableEnvironments.find((env) => env.type === 'DOCKER');
+          setSelectedEnvironmentId(dockerEnv?.id || availableEnvironments[0]?.id || '');
         }
       }
     }

@@ -6,6 +6,7 @@ import { EnvironmentBadge } from '@/components/common/EnvironmentBadge';
 interface ProjectEnvironmentSettingsProps {
   projectId: string;
   hostEnvironmentDisabled?: boolean;
+  isEnvironmentsLoading?: boolean;
 }
 
 interface ProjectEnvironmentInfo {
@@ -24,10 +25,13 @@ interface ProjectEnvironmentInfo {
  * プロジェクトの実行環境を読み取り専用で表示します。
  * 実行環境はプロジェクト作成時に決定され、変更できません。
  */
-export function ProjectEnvironmentSettings({ projectId, hostEnvironmentDisabled = false }: ProjectEnvironmentSettingsProps) {
+export function ProjectEnvironmentSettings({ projectId, hostEnvironmentDisabled = false, isEnvironmentsLoading = false }: ProjectEnvironmentSettingsProps) {
   const [projectEnv, setProjectEnv] = useState<ProjectEnvironmentInfo | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isProjectLoading, setIsProjectLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // プロジェクトAPI・環境APIの両方が取得完了するまでローディング表示
+  const isLoading = isProjectLoading || isEnvironmentsLoading;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -49,7 +53,7 @@ export function ProjectEnvironmentSettings({ projectId, hostEnvironmentDisabled 
         console.error('Failed to fetch project', err);
         setError('Failed to fetch project');
       } finally {
-        setIsLoading(false);
+        setIsProjectLoading(false);
       }
     };
     fetchProject();
