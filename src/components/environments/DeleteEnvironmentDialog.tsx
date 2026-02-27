@@ -103,6 +103,13 @@ export function DeleteEnvironmentDialog({
                       関連する認証ディレクトリも削除されます。
                     </p>
                   )}
+                  {environment.project_count !== undefined && environment.project_count > 0 && (
+                    <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-md">
+                      <p className="text-sm text-amber-700 dark:text-amber-300">
+                        この環境は {environment.project_count} 個のプロジェクトで使用中です。削除するとそれらのプロジェクトで環境が未設定になります。
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {error && (

@@ -178,9 +178,9 @@ export interface AppState {
   /** プロジェクト一覧を設定 */
   setProjects: (projects: Project[]) => void;
   /** プロジェクトを追加 */
-  addProject: (path: string) => Promise<void>;
+  addProject: (path: string, environmentId?: string) => Promise<void>;
   /** リモートリポジトリをcloneしてプロジェクトを追加 */
-  cloneProject: (url: string, targetDir?: string, cloneLocation?: 'host' | 'docker', githubPatId?: string) => Promise<void>;
+  cloneProject: (url: string, targetDir?: string, cloneLocation?: 'host' | 'docker', githubPatId?: string, environmentId?: string) => Promise<void>;
   /** リモートリポジトリをpull */
   pullProject: (projectId: string) => Promise<{ updated: boolean; message: string }>;
   /** プロジェクトを更新 */
@@ -320,14 +320,14 @@ export const useAppStore = create<AppState>((set) => ({
     }
   },
 
-  addProject: async (path: string) => {
+  addProject: async (path: string, environmentId?: string) => {
     try {
       const response = await fetch('/api/projects', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ path }),
+        body: JSON.stringify({ path, environment_id: environmentId }),
       });
 
       if (!response.ok) {
@@ -374,14 +374,14 @@ export const useAppStore = create<AppState>((set) => ({
     }
   },
 
-  cloneProject: async (url: string, targetDir?: string, cloneLocation?: 'host' | 'docker', githubPatId?: string) => {
+  cloneProject: async (url: string, targetDir?: string, cloneLocation?: 'host' | 'docker', githubPatId?: string, environmentId?: string) => {
     try {
       const response = await fetch('/api/projects/clone', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ url, targetDir, cloneLocation, githubPatId }),
+        body: JSON.stringify({ url, targetDir, cloneLocation, githubPatId, environment_id: environmentId }),
       });
 
       if (!response.ok) {

@@ -1,9 +1,8 @@
 'use client';
 
 import { useState, useEffect, Fragment, useMemo } from 'react';
-import { Dialog, Transition, RadioGroup, Listbox } from '@headlessui/react';
+import { Dialog, Transition, Listbox } from '@headlessui/react';
 import { Check, ChevronsUpDown, GitBranch } from 'lucide-react';
-import { useEnvironments, Environment } from '@/hooks/useEnvironments';
 import { ClaudeOptionsForm } from '@/components/claude-options/ClaudeOptionsForm';
 import type { ClaudeCodeOptions, CustomEnvVars } from '@/components/claude-options/ClaudeOptionsForm';
 
@@ -54,10 +53,10 @@ export function CreateSessionModal({
   projectId,
   onSuccess,
 }: CreateSessionModalProps) {
-  const { environments, isLoading: isEnvironmentsLoading } = useEnvironments();
   const [selectedEnvironmentId, setSelectedEnvironmentId] = useState<string>('');
-  const [projectEnvironmentId, setProjectEnvironmentId] = useState<string | null>(null);
-  const [cloneLocation, setCloneLocation] = useState<'host' | 'docker' | null>(null);
+  const [projectEnvironmentType, setProjectEnvironmentType] = useState<string | null>(null);
+  const [projectEnvironmentName, setProjectEnvironmentName] = useState<string | null>(null);
+  const [projectEnvironmentConfig, setProjectEnvironmentConfig] = useState<string>('{}');
   const [isProjectFetched, setIsProjectFetched] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string>('');
@@ -68,59 +67,23 @@ export function CreateSessionModal({
   const [customEnvVars, setCustomEnvVars] = useState<CustomEnvVars>({});
   const [skipPermissionsOverride, setSkipPermissionsOverride] = useState<'default' | 'enable' | 'disable'>('default');
 
-  // 環境をDocker→Host→SSHの順にソート
-  const sortedEnvironments = useMemo(() => {
-    const typeOrder: Record<string, number> = { DOCKER: 1, HOST: 2, SSH: 3 };
-
-    return [...environments].sort((a, b) => {
-      // タイプ順でソート
-      const typeCompare = (typeOrder[a.type] || 99) - (typeOrder[b.type] || 99);
-      if (typeCompare !== 0) return typeCompare;
-
-      // 同じタイプ内ではis_default=trueを優先
-      if (a.is_default && !b.is_default) return -1;
-      if (!a.is_default && b.is_default) return 1;
-
-      return 0;
-    });
-  }, [environments]);
-
-  // disabled=trueの環境を除外した利用可能な環境リスト（UI表示用）
-  const availableEnvironments = useMemo(() => {
-    return sortedEnvironments.filter(env => !env.disabled);
-  }, [sortedEnvironments]);
-
-  // useEffect依存配列用のプリミティブ値（ガイドライン: useEffectの依存配列にはプリミティブ値のみを使用）
-  // id, type, is_defaultを含めることで、環境の属性変更時にも初期選択ロジックが再実行される
-  const availableEnvironmentIds = useMemo(() => {
-    return availableEnvironments.map(env => `${env.id}:${env.type}:${env.is_default}`).join(',');
-  }, [availableEnvironments]);
-
-  // clone_location=dockerだがDocker環境が存在しない場合のフォールバック検出
-  const isDockerFallback = useMemo(() => {
-    return cloneLocation === 'docker' && !availableEnvironments.some((env) => env.type === 'DOCKER');
-  }, [cloneLocation, availableEnvironments]);
-
-  // 選択された環境のタイプとskipPermissionsデフォルト値を取得
-  const selectedEnvironment = useMemo(() => {
-    return availableEnvironments.find((env) => env.id === selectedEnvironmentId);
-  }, [availableEnvironments, selectedEnvironmentId]);
-
+  // プロジェクトの環境タイプからDocker環境かどうかを判定
   const isDockerEnvironment = useMemo(() => {
-    return selectedEnvironment?.type === 'DOCKER';
-  }, [selectedEnvironment]);
+    return projectEnvironmentType === 'DOCKER';
+  }, [projectEnvironmentType]);
 
+  // 環境設定からskipPermissionsのデフォルト値を取得
   const envSkipPermissionsDefault = useMemo(() => {
-    if (!selectedEnvironment || selectedEnvironment.type !== 'DOCKER') return false;
+    if (!isDockerEnvironment) return false;
     try {
-      const config = typeof selectedEnvironment.config === 'string'
-        ? JSON.parse(selectedEnvironment.config)
-        : selectedEnvironment.config;
+      const config = typeof projectEnvironmentConfig === 'string'
+        ? JSON.parse(projectEnvironmentConfig)
+        : projectEnvironmentConfig;
       return config?.skipPermissions === true;
     } catch {
       return false;
     }
-  }, [selectedEnvironment]);
+  }, [isDockerEnvironment, projectEnvironmentConfig]);
 
   // skipPermissionsの実効的な有効/無効状態
   const effectiveSkipPermissions = useMemo(() => {
@@ -130,14 +93,16 @@ export function CreateSessionModal({
     return envSkipPermissionsDefault;
   }, [isDockerEnvironment, skipPermissionsOverride, envSkipPermissionsDefault]);
 
-  // プロジェクトのenvironment_idを取得
+  // プロジェクトのenvironment情報を取得
   useEffect(() => {
     if (!isOpen || !projectId) {
       return;
     }
 
     setIsProjectFetched(false);
-    setProjectEnvironmentId(null);
+    setProjectEnvironmentType(null);
+    setProjectEnvironmentName(null);
+    setProjectEnvironmentConfig('{}');
     setSelectedEnvironmentId('');
 
     const controller = new AbortController();
@@ -149,16 +114,25 @@ export function CreateSessionModal({
         });
         if (response.ok) {
           const data = await response.json();
-          setProjectEnvironmentId(data.project?.environment_id || null);
-          setCloneLocation((data.project?.clone_location as 'host' | 'docker') || null);
+          const env = data.project?.environment;
+          if (env) {
+            setProjectEnvironmentType(env.type || null);
+            setProjectEnvironmentName(env.name || null);
+            setProjectEnvironmentConfig(env.config || '{}');
+            setSelectedEnvironmentId(env.id || '');
+          } else {
+            setProjectEnvironmentType(null);
+            setProjectEnvironmentName(null);
+            setProjectEnvironmentConfig('{}');
+          }
         } else {
-          setProjectEnvironmentId(null);
-          setCloneLocation(null);
+          setProjectEnvironmentType(null);
+          setProjectEnvironmentName(null);
         }
       } catch (err) {
         if ((err as DOMException).name === 'AbortError') return;
-        setProjectEnvironmentId(null);
-        setCloneLocation(null);
+        setProjectEnvironmentType(null);
+        setProjectEnvironmentName(null);
       } finally {
         if (!controller.signal.aborted) {
           setIsProjectFetched(true);
@@ -170,53 +144,6 @@ export function CreateSessionModal({
     return () => controller.abort();
   }, [isOpen, projectId]);
 
-  // プロジェクトの環境設定またはデフォルト環境を初期選択
-  // isProjectFetchedを待つことで、環境リストが先に読み込まれた場合でも
-  // プロジェクトのenvironment_idが正しく反映される（レースコンディション防止）
-  useEffect(() => {
-    if (!isEnvironmentsLoading && availableEnvironments.length > 0 && isProjectFetched) {
-      // プロジェクトに環境が設定されている場合はそれを使用（利用可能な環境に存在する場合のみ）
-      if (projectEnvironmentId) {
-        const projectEnv = availableEnvironments.find((env) => env.id === projectEnvironmentId);
-        if (projectEnv) {
-          setSelectedEnvironmentId(projectEnvironmentId);
-        } else {
-          // プロジェクト環境がdisabledの場合、Docker環境→デフォルト環境→先頭の環境にフォールバック
-          const dockerEnv = availableEnvironments.find((env) => env.type === 'DOCKER');
-          const defaultEnv = availableEnvironments.find((env) => env.is_default);
-          setSelectedEnvironmentId(dockerEnv?.id || defaultEnv?.id || availableEnvironments[0]?.id || '');
-        }
-      } else if (cloneLocation === 'docker') {
-        // clone_location=dockerの場合は最初のDocker環境を自動選択
-        // サーバー側でもclone_locationに基づいてDocker環境が強制されるため、UIでも同じ挙動にする
-        const dockerEnv = availableEnvironments.find((env) => env.type === 'DOCKER');
-        if (dockerEnv) {
-          setSelectedEnvironmentId(dockerEnv.id);
-        } else {
-          // Docker環境が存在しない場合はデフォルト環境または先頭の環境をフォールバック
-          // このフォールバック選択はUI検証（作成ボタンの有効化）のためのみ使用される
-          // サーバー側がclone_locationに基づいてDocker環境を自動選択する
-          const defaultEnv = availableEnvironments.find((env) => env.is_default);
-          setSelectedEnvironmentId(defaultEnv?.id || availableEnvironments[0]?.id || '');
-        }
-      } else {
-        // 設定されていない場合はデフォルト環境を優先選択
-        // availableEnvironmentsから選ぶことで、disabled環境が初期選択されることを防ぐ
-        const defaultEnv = availableEnvironments.find((env) => env.is_default);
-        if (defaultEnv) {
-          setSelectedEnvironmentId(defaultEnv.id);
-        } else {
-          // デフォルトがない場合は最初のDocker環境を選択
-          const dockerEnv = availableEnvironments.find((env) => env.type === 'DOCKER');
-          setSelectedEnvironmentId(dockerEnv?.id || availableEnvironments[0]?.id || '');
-        }
-      }
-    }
-  // availableEnvironmentIdsはプリミティブ文字列を返すuseMemoで、環境構成の変化を追跡する。
-  // availableEnvironmentsはeffect内で参照するが、availableEnvironmentIdsの変化で同期的に再計算されるため安全。
-  // eslint-disable-next-line react-hooks/exhaustive-deps, local/no-useeffect-with-callback-deps
-  }, [availableEnvironmentIds, isEnvironmentsLoading, projectEnvironmentId, cloneLocation, isProjectFetched]);
-
   // モーダルが閉じられた時に状態をリセット
   useEffect(() => {
     if (!isOpen) {
@@ -226,8 +153,9 @@ export function CreateSessionModal({
       setSkipPermissionsOverride('default');
       setSelectedEnvironmentId('');
       setIsProjectFetched(false);
-      setProjectEnvironmentId(null);
-      setCloneLocation(null);
+      setProjectEnvironmentType(null);
+      setProjectEnvironmentName(null);
+      setProjectEnvironmentConfig('{}');
     }
   }, [isOpen]);
 
@@ -264,27 +192,16 @@ export function CreateSessionModal({
   }, [isOpen, projectId]);
 
   const handleSubmit = async () => {
-    if (!selectedEnvironmentId) {
-      return;
-    }
-
     setIsCreating(true);
     setError('');
 
     try {
-      // プロジェクト環境が利用可能、またはclone_location=dockerの場合はサーバー側で環境を決定
-      // プロジェクト環境がdisabledの場合はフォールバック先のselectedEnvironmentIdを送信する
-      const shouldOmitEnvironmentId =
-        (projectEnvironmentId && availableEnvironments.some(env => env.id === projectEnvironmentId)) ||
-        cloneLocation === 'docker';
-
       const response = await fetch(`/api/projects/${projectId}/sessions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          ...(shouldOmitEnvironmentId ? {} : { environment_id: selectedEnvironmentId }),
           source_branch: selectedBranch || undefined,
           claude_code_options: (() => {
             const opts = { ...claudeOptions };
@@ -358,139 +275,34 @@ export function CreateSessionModal({
                     実行環境
                   </label>
 
-                  {isEnvironmentsLoading ? (
-                    <div className="flex items-center justify-center py-4 text-gray-500 dark:text-gray-400">
-                      環境を読み込み中...
-                    </div>
-                  ) : availableEnvironments.length === 0 ? (
-                    <div className="text-gray-500 dark:text-gray-400 py-4">
-                      利用可能な環境がありません
-                    </div>
-                  ) : !isProjectFetched ? (
+                  {!isProjectFetched ? (
                     <div className="flex items-center justify-center py-4 text-gray-500 dark:text-gray-400">
                       プロジェクト情報を読み込み中...
                     </div>
-                  ) : (projectEnvironmentId || cloneLocation === 'docker') && !selectedEnvironmentId ? (
-                    // 環境IDが確定するまでローディング表示（useEffectによるsetSelectedEnvironmentId待ち）
-                    <div className="flex items-center justify-center py-4 text-gray-500 dark:text-gray-400">
-                      環境を設定中...
-                    </div>
-                  ) : isDockerFallback ? (
-                    // clone_location=dockerだがDocker環境が未登録の場合
-                    // フォールバック環境の詳細は表示せず、サーバー側Docker決定の通知のみ表示
-                    <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg px-4 py-3">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={`px-2 py-0.5 text-xs font-medium rounded ${getTypeBadgeColor('DOCKER')}`}>
-                          DOCKER
-                        </span>
-                      </div>
-                      <p className="text-sm text-amber-700 dark:text-amber-300">
-                        Docker環境が登録されていないため、サーバー側でDocker環境が自動選択されます
-                      </p>
-                    </div>
-                  ) : (projectEnvironmentId || cloneLocation === 'docker') ? (
-                    // プロジェクトに環境が設定されている、またはclone_location=dockerの場合は表示のみ（変更不可）
+                  ) : (
                     <div className="bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg px-4 py-3">
-                      {(() => {
-                        const env = availableEnvironments.find((e) => e.id === selectedEnvironmentId);
-                        return env ? (
-                          <div className="flex w-full items-center justify-between">
-                            <div className="flex items-center">
-                              <div className="text-sm">
-                                <p className="font-medium text-gray-900 dark:text-gray-100">
-                                  {env.name}
-                                </p>
-                                {env.description && (
-                                  <span className="text-xs text-gray-500 dark:text-gray-400">
-                                    {env.description}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span
-                                className={`px-2 py-0.5 text-xs font-medium rounded ${getTypeBadgeColor(
-                                  env.type
-                                )}`}
-                              >
-                                {env.type}
-                              </span>
-                            </div>
+                      {projectEnvironmentName && projectEnvironmentType ? (
+                        <div className="flex w-full items-center justify-between">
+                          <div className="text-sm">
+                            <p className="font-medium text-gray-900 dark:text-gray-100">
+                              {projectEnvironmentName}
+                            </p>
                           </div>
-                        ) : (
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            プロジェクトに設定された環境が見つかりません
-                          </p>
-                        );
-                      })()}
+                          <span
+                            className={`px-2 py-0.5 text-xs font-medium rounded ${getTypeBadgeColor(projectEnvironmentType)}`}
+                          >
+                            {projectEnvironmentType}
+                          </span>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          プロジェクトに設定された環境が見つかりません
+                        </p>
+                      )}
                       <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
                         この環境はプロジェクト設定で変更できます
                       </p>
                     </div>
-                  ) : (
-                    // プロジェクトに環境が設定されていない場合は選択可能
-                    <RadioGroup
-                      value={selectedEnvironmentId}
-                      onChange={setSelectedEnvironmentId}
-                      disabled={isCreating || !isProjectFetched}
-                    >
-                      <div className="space-y-2">
-                        {availableEnvironments.map((env: Environment) => (
-                          <RadioGroup.Option
-                            key={env.id}
-                            value={env.id}
-                            className={({ checked }) =>
-                              `relative flex cursor-pointer rounded-lg px-4 py-3 focus:outline-none ${
-                                checked
-                                  ? 'bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700'
-                                  : 'bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600'
-                              } ${isCreating ? 'opacity-50 cursor-not-allowed' : ''}`
-                            }
-                          >
-                            {({ checked }) => (
-                              <div className="flex w-full items-center justify-between">
-                                <div className="flex items-center">
-                                  <div className="text-sm">
-                                    <RadioGroup.Label
-                                      as="p"
-                                      className={`font-medium ${
-                                        checked
-                                          ? 'text-blue-900 dark:text-blue-100'
-                                          : 'text-gray-900 dark:text-gray-100'
-                                      }`}
-                                    >
-                                      {env.name}
-                                    </RadioGroup.Label>
-                                    {env.description && (
-                                      <RadioGroup.Description
-                                        as="span"
-                                        className="text-xs text-gray-500 dark:text-gray-400"
-                                      >
-                                        {env.description}
-                                      </RadioGroup.Description>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <span
-                                    className={`px-2 py-0.5 text-xs font-medium rounded ${getTypeBadgeColor(
-                                      env.type
-                                    )}`}
-                                  >
-                                    {env.type}
-                                  </span>
-                                  {checked && (
-                                    <div className="shrink-0 text-blue-600 dark:text-blue-400">
-                                      <Check className="h-5 w-5" />
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                          </RadioGroup.Option>
-                        ))}
-                      </div>
-                    </RadioGroup>
                   )}
                 </div>
 
@@ -640,12 +452,7 @@ export function CreateSessionModal({
                     type="button"
                     onClick={handleSubmit}
                     className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={
-                      isCreating ||
-                      isEnvironmentsLoading ||
-                      availableEnvironments.length === 0 ||
-                      !selectedEnvironmentId
-                    }
+                    disabled={isCreating || !isProjectFetched}
                   >
                     {isCreating ? '作成中...' : '作成'}
                   </button>
