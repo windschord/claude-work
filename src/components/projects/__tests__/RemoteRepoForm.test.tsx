@@ -14,6 +14,17 @@ vi.mock('@/hooks/useGitHubPATs', () => ({
   })),
 }));
 
+// useEnvironments hookのモック
+vi.mock('@/hooks/useEnvironments', () => ({
+  useEnvironments: () => ({
+    environments: [
+      { id: 'env-1', name: 'Default Docker', type: 'DOCKER', is_default: true, description: 'Test env', config: '{}' },
+    ],
+    isLoading: false,
+    error: null,
+  }),
+}));
+
 describe('RemoteRepoForm', () => {
   const mockOnSubmit = vi.fn();
   const mockOnCancel = vi.fn();
@@ -208,7 +219,8 @@ describe('RemoteRepoForm', () => {
           'git@github.com:user/repo.git',
           undefined,
           'docker',
-          undefined
+          undefined,
+          'env-1'
         );
       });
     });
@@ -236,7 +248,8 @@ describe('RemoteRepoForm', () => {
           'https://github.com/user/repo.git',
           undefined,
           'docker',
-          'pat-1'
+          'pat-1',
+          'env-1'
         );
       });
     });
@@ -263,7 +276,8 @@ describe('RemoteRepoForm', () => {
           'git@github.com:user/repo.git',
           undefined,
           'host',
-          undefined
+          undefined,
+          'env-1'
         );
       });
     });
@@ -295,7 +309,8 @@ describe('RemoteRepoForm', () => {
           'git@github.com:user/repo.git',
           '/custom/path',
           'docker',
-          undefined
+          undefined,
+          'env-1'
         );
       });
     });
