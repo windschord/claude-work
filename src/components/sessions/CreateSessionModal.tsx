@@ -197,7 +197,7 @@ export function CreateSessionModal({
         }
       }
     }
-  }, [sortedEnvironments, availableEnvironments, isEnvironmentsLoading, projectEnvironmentId, cloneLocation, isProjectFetched]);
+  }, [environments, isEnvironmentsLoading, projectEnvironmentId, cloneLocation, isProjectFetched]);
 
   // モーダルが閉じられた時に状態をリセット
   useEffect(() => {

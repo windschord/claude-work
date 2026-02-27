@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { EnvironmentBadge } from '@/components/common/EnvironmentBadge';
-import { useEnvironments } from '@/hooks/useEnvironments';
 
 interface ProjectEnvironmentSettingsProps {
   projectId: string;
+  hostEnvironmentDisabled?: boolean;
 }
 
 interface ProjectEnvironmentInfo {
@@ -24,8 +24,7 @@ interface ProjectEnvironmentInfo {
  * プロジェクトの実行環境を読み取り専用で表示します。
  * 実行環境はプロジェクト作成時に決定され、変更できません。
  */
-export function ProjectEnvironmentSettings({ projectId }: ProjectEnvironmentSettingsProps) {
-  const { hostEnvironmentDisabled } = useEnvironments();
+export function ProjectEnvironmentSettings({ projectId, hostEnvironmentDisabled = false }: ProjectEnvironmentSettingsProps) {
   const [projectEnv, setProjectEnv] = useState<ProjectEnvironmentInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

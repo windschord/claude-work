@@ -2,21 +2,6 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ProjectEnvironmentSettings } from '../ProjectEnvironmentSettings';
 
-// useEnvironments hookのモック
-vi.mock('@/hooks/useEnvironments', () => ({
-  useEnvironments: vi.fn(() => ({
-    environments: [],
-    isLoading: false,
-    error: null,
-    fetchEnvironments: vi.fn(),
-    createEnvironment: vi.fn(),
-    updateEnvironment: vi.fn(),
-    deleteEnvironment: vi.fn(),
-    refreshEnvironment: vi.fn(),
-    hostEnvironmentDisabled: false,
-  })),
-}));
-
 // fetchのモック
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
@@ -27,19 +12,6 @@ describe('ProjectEnvironmentSettings', () => {
   });
 
   it('clone_location=nullかつhostEnvironmentDisabled=trueの場合、Docker (自動選択) と表示される', async () => {
-    const { useEnvironments } = await import('@/hooks/useEnvironments');
-    vi.mocked(useEnvironments).mockReturnValue({
-      environments: [],
-      isLoading: false,
-      error: null,
-      fetchEnvironments: vi.fn(),
-      createEnvironment: vi.fn(),
-      updateEnvironment: vi.fn(),
-      deleteEnvironment: vi.fn(),
-      refreshEnvironment: vi.fn(),
-      hostEnvironmentDisabled: true,
-    });
-
     mockFetch.mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -53,7 +25,7 @@ describe('ProjectEnvironmentSettings', () => {
       }),
     });
 
-    render(<ProjectEnvironmentSettings projectId="project-1" />);
+    render(<ProjectEnvironmentSettings projectId="project-1" hostEnvironmentDisabled={true} />);
 
     await waitFor(() => {
       expect(screen.getByText('Docker (自動選択)')).toBeInTheDocument();
@@ -67,19 +39,6 @@ describe('ProjectEnvironmentSettings', () => {
   });
 
   it('clone_location=hostかつhostEnvironmentDisabled=trueの場合、Docker (自動選択) と表示される', async () => {
-    const { useEnvironments } = await import('@/hooks/useEnvironments');
-    vi.mocked(useEnvironments).mockReturnValue({
-      environments: [],
-      isLoading: false,
-      error: null,
-      fetchEnvironments: vi.fn(),
-      createEnvironment: vi.fn(),
-      updateEnvironment: vi.fn(),
-      deleteEnvironment: vi.fn(),
-      refreshEnvironment: vi.fn(),
-      hostEnvironmentDisabled: true,
-    });
-
     mockFetch.mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -93,7 +52,7 @@ describe('ProjectEnvironmentSettings', () => {
       }),
     });
 
-    render(<ProjectEnvironmentSettings projectId="project-1" />);
+    render(<ProjectEnvironmentSettings projectId="project-1" hostEnvironmentDisabled={true} />);
 
     await waitFor(() => {
       expect(screen.getByText('Docker (自動選択)')).toBeInTheDocument();
@@ -101,19 +60,6 @@ describe('ProjectEnvironmentSettings', () => {
   });
 
   it('clone_location=nullかつhostEnvironmentDisabled=falseの場合、Host (自動選択) と表示される', async () => {
-    const { useEnvironments } = await import('@/hooks/useEnvironments');
-    vi.mocked(useEnvironments).mockReturnValue({
-      environments: [],
-      isLoading: false,
-      error: null,
-      fetchEnvironments: vi.fn(),
-      createEnvironment: vi.fn(),
-      updateEnvironment: vi.fn(),
-      deleteEnvironment: vi.fn(),
-      refreshEnvironment: vi.fn(),
-      hostEnvironmentDisabled: false,
-    });
-
     mockFetch.mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -127,7 +73,7 @@ describe('ProjectEnvironmentSettings', () => {
       }),
     });
 
-    render(<ProjectEnvironmentSettings projectId="project-1" />);
+    render(<ProjectEnvironmentSettings projectId="project-1" hostEnvironmentDisabled={false} />);
 
     await waitFor(() => {
       expect(screen.getByText('Host (自動選択)')).toBeInTheDocument();
@@ -153,5 +99,29 @@ describe('ProjectEnvironmentSettings', () => {
     await waitFor(() => {
       expect(screen.getByText('Docker (自動選択)')).toBeInTheDocument();
     });
+  });
+
+  it('clone_location=dockerかつhostEnvironmentDisabled=trueの場合、Docker (自動選択) と表示される', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        project: {
+          id: 'project-1',
+          name: 'Test Project',
+          clone_location: 'docker',
+          environment_id: null,
+          environment: null,
+        },
+      }),
+    });
+
+    render(<ProjectEnvironmentSettings projectId="project-1" hostEnvironmentDisabled={true} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Docker (自動選択)')).toBeInTheDocument();
+    });
+
+    // DOCKER バッジが表示される
+    expect(screen.getByText('DOCKER')).toBeInTheDocument();
   });
 });

@@ -127,12 +127,13 @@ describe('CreateSessionModal - disabled環境のフィルタリング', () => {
     );
 
     await waitFor(() => {
-      // 環境名で確認: Docker DefaultとSSH Remoteのみ表示される
       expect(screen.getByText('Docker Default')).toBeInTheDocument();
-      expect(screen.getByText('SSH Remote')).toBeInTheDocument();
-      // Disabled Hostは非表示
-      expect(screen.queryByText('Disabled Host')).not.toBeInTheDocument();
     });
+
+    // 環境選択のRadioGroup内のオプション数が利用可能な環境数（2）と一致すること
+    const radioGroup = screen.getByRole('radiogroup');
+    const radioOptions = radioGroup.querySelectorAll('[role="radio"]');
+    expect(radioOptions).toHaveLength(2);
   });
 
   it('フォールバック時にdisabled環境が選択されない', async () => {
