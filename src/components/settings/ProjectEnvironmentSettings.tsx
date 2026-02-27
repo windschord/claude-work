@@ -104,7 +104,7 @@ export function ProjectEnvironmentSettings({ projectId, hostEnvironmentDisabled 
             <EnvironmentBadge type={envDisplay.type} name={envDisplay.label} />
           </div>
           <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-            クローン場所（{projectEnv?.clone_location || 'host'}）の設定に基づいて自動的に決定されます。プロジェクト作成後に変更することはできません。
+            クローン場所（{hostEnvironmentDisabled ? 'docker' : (projectEnv?.clone_location || 'host')}）の設定に基づいて自動的に決定されます。プロジェクト作成後に変更することはできません。
           </p>
         </div>
       )}

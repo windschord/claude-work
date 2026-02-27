@@ -97,8 +97,8 @@ export function CreateSessionModal({
 
   // 選択された環境のタイプとskipPermissionsデフォルト値を取得
   const selectedEnvironment = useMemo(() => {
-    return sortedEnvironments.find((env) => env.id === selectedEnvironmentId);
-  }, [sortedEnvironments, selectedEnvironmentId]);
+    return availableEnvironments.find((env) => env.id === selectedEnvironmentId);
+  }, [availableEnvironments, selectedEnvironmentId]);
 
   const isDockerEnvironment = useMemo(() => {
     return selectedEnvironment?.type === 'DOCKER';
@@ -371,7 +371,7 @@ export function CreateSessionModal({
                     // プロジェクトに環境が設定されている、またはclone_location=dockerの場合は表示のみ（変更不可）
                     <div className="bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg px-4 py-3">
                       {(() => {
-                        const env = sortedEnvironments.find((e) => e.id === selectedEnvironmentId);
+                        const env = availableEnvironments.find((e) => e.id === selectedEnvironmentId);
                         return env ? (
                           <div className="flex w-full items-center justify-between">
                             <div className="flex items-center">
