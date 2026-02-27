@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, Fragment } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { ChevronDown, ChevronUp, Loader2, HelpCircle, ExternalLink } from 'lucide-react';
 import { Listbox, Transition } from '@headlessui/react';
 import { ChevronsUpDown, Check } from 'lucide-react';
@@ -41,11 +41,13 @@ export function RemoteRepoForm({
   const availableEnvironments = environments.filter((env) => !env.disabled);
 
   // 初期選択: is_default=true の環境
-  if (!selectedEnvironmentId && availableEnvironments.length > 0) {
-    const defaultEnv = availableEnvironments.find((env) => env.is_default);
-    const initialId = defaultEnv?.id || availableEnvironments[0].id;
-    setSelectedEnvironmentId(initialId);
-  }
+  useEffect(() => {
+    if (!selectedEnvironmentId && availableEnvironments.length > 0) {
+      const defaultEnv = availableEnvironments.find((env) => env.is_default);
+      const initialId = defaultEnv?.id || availableEnvironments[0].id;
+      setSelectedEnvironmentId(initialId);
+    }
+  }, [availableEnvironments, selectedEnvironmentId]);
 
   const selectedEnvironment = availableEnvironments.find((env) => env.id === selectedEnvironmentId);
 

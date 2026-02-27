@@ -8,7 +8,7 @@ import { getEnvironmentsDir } from '@/lib/data-dir';
 import { validatePortMappings, validateVolumeMounts } from '@/lib/docker-config-validator';
 import { DockerClient } from '@/services/docker-client';
 import { isHostEnvironmentAllowed } from '@/lib/environment-detect';
-import db from '@/lib/db';
+import { db } from '@/lib/db';
 import * as schema from '@/db/schema';
 import { count, sql } from 'drizzle-orm';
 
