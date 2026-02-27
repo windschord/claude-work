@@ -271,16 +271,19 @@ export function CreateSessionModal({
     setError('');
 
     try {
+      // プロジェクト環境が利用可能、またはclone_location=dockerの場合はサーバー側で環境を決定
+      // プロジェクト環境がdisabledの場合はフォールバック先のselectedEnvironmentIdを送信する
+      const shouldOmitEnvironmentId =
+        (projectEnvironmentId && availableEnvironments.some(env => env.id === projectEnvironmentId)) ||
+        cloneLocation === 'docker';
+
       const response = await fetch(`/api/projects/${projectId}/sessions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          // プロジェクトに環境が設定されていてかつ利用可能な場合、またはclone_location=dockerの場合はenvironment_idを送信しない
-          // （サーバー側でproject.environment_idまたはclone_locationに基づいて環境を決定）
-          // ただし、プロジェクト環境がdisabledの場合はフォールバック先のselectedEnvironmentIdを送信する
-          ...((projectEnvironmentId && availableEnvironments.some(env => env.id === projectEnvironmentId)) || cloneLocation === 'docker' ? {} : { environment_id: selectedEnvironmentId }),
+          ...(shouldOmitEnvironmentId ? {} : { environment_id: selectedEnvironmentId }),
           source_branch: selectedBranch || undefined,
           claude_code_options: (() => {
             const opts = { ...claudeOptions };
