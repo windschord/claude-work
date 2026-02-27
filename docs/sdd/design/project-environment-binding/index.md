@@ -159,6 +159,11 @@ const effectiveEnvironmentId = body.environment_id ?? project.default_environmen
 // 変更後: プロジェクトの environment_id を直接使用
 const environmentId = project.environment_id;
 if (!environmentId) {
+  // レガシーフォールバック（後方互換性）:
+  // environment_id未設定の既存プロジェクトはclone_locationに基づいて環境を自動選択
+  // - clone_location === 'docker': デフォルトのDocker環境を使用
+  // - dockerMode=true（非推奨パラメータ）: レガシーDockerモードで動作
+  // 新規プロジェクトはすべてenvironment_idが必須のため、このパスは既存データのみ
   return NextResponse.json(
     { error: 'プロジェクトに環境が設定されていません' },
     { status: 400 }
@@ -258,8 +263,8 @@ if (!envId) {
 
 ```tsx
 <Button
-  disabled={environment.usedByProjectCount > 0}
-  title={environment.usedByProjectCount > 0 ? '使用中のプロジェクトがあるため削除できません' : ''}
+  disabled={environment.project_count > 0}
+  title={environment.project_count > 0 ? '使用中のプロジェクトがあるため削除できません' : ''}
   onClick={() => handleDelete(environment.id)}
 >
   削除
@@ -277,7 +282,7 @@ if (!envId) {
       "id": "env-uuid",
       "name": "Default Docker",
       "type": "DOCKER",
-      "usedByProjectCount": 3
+      "project_count": 3
     }
   ]
 }
@@ -297,6 +302,6 @@ if (!envId) {
 | `src/components/projects/RemoteRepoForm.tsx` | 変更 | 環境選択パラメータ追加 |
 | `src/components/sessions/CreateSessionModal.tsx` | 変更 | 環境選択UI削除、環境名表示 |
 | `src/components/settings/ProjectEnvironmentSettings.tsx` | 変更 | 条件付き変更ボタン追加 |
-| `src/components/environments/EnvironmentList.tsx` | 変更 | usedByProjectCount取得・パススルー |
+| `src/components/environments/EnvironmentList.tsx` | 変更 | project_count取得・パススルー |
 | `src/components/environments/EnvironmentCard.tsx` | 変更 | 使用中削除ボタン無効化 |
-| `src/hooks/useEnvironments.ts` | 変更 | usedByProjectCountフィールド追加 |
+| `src/hooks/useEnvironments.ts` | 変更 | project_countフィールド追加 |

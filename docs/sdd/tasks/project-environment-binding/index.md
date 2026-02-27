@@ -57,7 +57,7 @@
 ### TASK-PEB-003: プロジェクト設定API - environment_id変更サポート
 
 **説明**:
-- 対象ファイル: `src/app/api/projects/[id]/route.ts`
+- 対象ファイル: `src/app/api/projects/[project_id]/route.ts`
 - PATCH時に `environment_id` の変更をサポート
 - アクティブセッションが存在する場合は409を返す
 
@@ -200,8 +200,8 @@
 - 使用中プロジェクトが存在する環境の削除ボタンを無効化
 
 **実装内容**:
-- `GET /api/environments` レスポンスに `usedByProjectCount` を追加（バックエンド対応含む）
-- 環境カードで `usedByProjectCount > 0` の場合に削除ボタンをdisabled
+- `GET /api/environments` レスポンスに `project_count` を追加（バックエンド対応含む）
+- 環境カードで `project_count > 0` の場合に削除ボタンをdisabled
 - ツールチップで無効理由を表示
 
 **受入基準**:
@@ -211,7 +211,7 @@
 
 **依存関係**: TASK-PEB-001
 **ステータス**: `DONE`
-**完了サマリー**: EnvironmentCard/Listに使用中チェックを追加。usedByProjectCountフィールドを利用して削除ボタンを制御。
+**完了サマリー**: EnvironmentCard/Listに使用中チェックを追加。project_countフィールドを利用して削除ボタンを制御。
 
 ---
 
