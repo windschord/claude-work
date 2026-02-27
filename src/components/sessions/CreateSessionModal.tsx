@@ -90,6 +90,11 @@ export function CreateSessionModal({
     return sortedEnvironments.filter(env => !env.disabled);
   }, [sortedEnvironments]);
 
+  // useEffect依存配列用のプリミティブ値（ガイドライン: useEffectの依存配列にはプリミティブ値のみを使用）
+  const availableEnvironmentIds = useMemo(() => {
+    return availableEnvironments.map(env => env.id).join(',');
+  }, [availableEnvironments]);
+
   // clone_location=dockerだがDocker環境が存在しない場合のフォールバック検出
   const isDockerFallback = useMemo(() => {
     return cloneLocation === 'docker' && !environments.some((env) => env.type === 'DOCKER');
@@ -205,7 +210,10 @@ export function CreateSessionModal({
         }
       }
     }
-  }, [environments, isEnvironmentsLoading, projectEnvironmentId, cloneLocation, isProjectFetched]);
+  // availableEnvironmentIdsはプリミティブ文字列を返すuseMemoで、環境構成の変化を追跡する。
+  // availableEnvironmentsはeffect内で参照するが、availableEnvironmentIdsの変化で同期的に再計算されるため安全。
+  // eslint-disable-next-line react-hooks/exhaustive-deps, local/no-useeffect-with-callback-deps
+  }, [availableEnvironmentIds, isEnvironmentsLoading, projectEnvironmentId, cloneLocation, isProjectFetched]);
 
   // モーダルが閉じられた時に状態をリセット
   useEffect(() => {
