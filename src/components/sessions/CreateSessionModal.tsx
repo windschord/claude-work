@@ -180,9 +180,10 @@ export function CreateSessionModal({
         if (projectEnv) {
           setSelectedEnvironmentId(projectEnvironmentId);
         } else {
-          // プロジェクト環境がdisabledの場合、Docker環境またはデフォルトにフォールバック
+          // プロジェクト環境がdisabledの場合、Docker環境→デフォルト環境→先頭の環境にフォールバック
           const dockerEnv = availableEnvironments.find((env) => env.type === 'DOCKER');
-          setSelectedEnvironmentId(dockerEnv?.id || availableEnvironments[0]?.id || '');
+          const defaultEnv = availableEnvironments.find((env) => env.is_default);
+          setSelectedEnvironmentId(dockerEnv?.id || defaultEnv?.id || availableEnvironments[0]?.id || '');
         }
       } else if (cloneLocation === 'docker') {
         // clone_location=dockerの場合は最初のDocker環境を自動選択
