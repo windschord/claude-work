@@ -147,6 +147,22 @@ ClaudeWork で使用可能な環境変数の一覧です。
 - **デフォルト**: `false`（未設定時。Docker Compose環境では`docker-compose.yml`で`true`に設定済み）
 - **備考**: `true`に設定すると、セッション作成UIにレガシーDockerモードオプションが表示されます。新しい実行環境機能では、環境ごとにDocker利用の有無を設定できます。
 
+### RUNNING_IN_DOCKER
+
+- **説明**: アプリケーションがDockerコンテナ内で動作していることを明示的に指定。`true` に設定するとDocker内動作と判定される。`/.dockerenv` ファイルの存在でも自動検出される
+- **形式**: `true` | 未設定
+- **例**: `RUNNING_IN_DOCKER=true`
+- **デフォルト**: 未設定
+- **備考**: `docker-compose.yml` で自動設定済み（`true`）。未設定の場合でも `/.dockerenv` ファイルが存在すればDocker内と判定される
+
+### ALLOW_HOST_ENVIRONMENT
+
+- **説明**: Dockerコンテナ内でもHOST環境の作成・利用を許可する。`true` に設定するとHOST環境が利用可能になる。Docker-in-Dockerやホストネットワークモードなど特殊な構成向け
+- **形式**: `true` | 未設定
+- **例**: `ALLOW_HOST_ENVIRONMENT=true`
+- **デフォルト**: 未設定（Docker内ではHOST環境無効）
+- **備考**: `docker-compose.yml` にコメントアウト状態で記載。通常のDocker Compose環境では設定不要
+
 ## 実行環境関連
 
 ### 概要
@@ -222,3 +238,4 @@ ALLOWED_PROJECT_DIRS=/data/repos
 ```bash
 HOST_PORT=3001 docker compose up -d
 ```
+

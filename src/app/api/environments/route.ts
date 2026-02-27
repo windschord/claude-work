@@ -7,6 +7,7 @@ import { logger } from '@/lib/logger';
 import { getEnvironmentsDir } from '@/lib/data-dir';
 import { validatePortMappings, validateVolumeMounts } from '@/lib/docker-config-validator';
 import { DockerClient } from '@/services/docker-client';
+import { isHostEnvironmentAllowed } from '@/lib/environment-detect';
 
 // 許可されたベースディレクトリ
 const ALLOWED_BASE_DIRS = [
@@ -49,6 +50,7 @@ const VALID_ENVIRONMENT_TYPES = ['HOST', 'DOCKER', 'SSH'] as const;
  */
 export async function GET(request: NextRequest) {
   try {
+    const hostAllowed = isHostEnvironmentAllowed();
     const includeStatus = request.nextUrl.searchParams.get('includeStatus') === 'true';
 
     const environments = await environmentService.findAll();
@@ -59,15 +61,27 @@ export async function GET(request: NextRequest) {
         environments.map(async (env) => ({
           ...env,
           status: await environmentService.checkStatus(env.id),
+          ...(env.type === 'HOST' && !hostAllowed ? { disabled: true } : {}),
         }))
       );
 
       logger.debug('Environments retrieved with status', { count: envWithStatus.length });
-      return NextResponse.json({ environments: envWithStatus });
+      return NextResponse.json({
+        environments: envWithStatus,
+        meta: { hostEnvironmentDisabled: !hostAllowed },
+      });
     }
 
-    logger.debug('Environments retrieved', { count: environments.length });
-    return NextResponse.json({ environments });
+    const envData = environments.map(env => ({
+      ...env,
+      ...(env.type === 'HOST' && !hostAllowed ? { disabled: true } : {}),
+    }));
+
+    logger.debug('Environments retrieved', { count: envData.length });
+    return NextResponse.json({
+      environments: envData,
+      meta: { hostEnvironmentDisabled: !hostAllowed },
+    });
   } catch (error) {
     logger.error('Failed to get environments', { error });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -111,6 +125,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: `type must be one of: ${VALID_ENVIRONMENT_TYPES.join(', ')}` },
         { status: 400 }
+      );
+    }
+
+    // HOST環境の作成制限チェック
+    if (type === 'HOST' && !isHostEnvironmentAllowed()) {
+      return NextResponse.json(
+        { error: 'Docker環境内ではHOST環境は作成できません' },
+        { status: 403 }
       );
     }
 

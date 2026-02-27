@@ -7,6 +7,7 @@ import { generateUniqueSessionName } from '@/lib/session-name-generator';
 import { dockerService, DockerError } from '@/services/docker-service';
 import { environmentService } from '@/services/environment-service';
 import { ClaudeOptionsService } from '@/services/claude-options-service';
+import { isHostEnvironmentAllowed } from '@/lib/environment-detect';
 
 /**
  * GET /api/projects/[project_id]/sessions - プロジェクトのセッション一覧取得
@@ -219,6 +220,8 @@ export async function POST(
     // 3. プロジェクトのclone_locationに基づいて自動設定（docker→デフォルトDocker環境）
     // 4. dockerMode=true → レガシー動作（警告ログ出力）
 
+    let effectiveEnvironmentType: string | null = null;
+
     if (project.environment_id) {
       // プロジェクト単位の環境設定を使用
       const env = await environmentService.findById(project.environment_id);
@@ -230,6 +233,7 @@ export async function POST(
         // フォールバック処理は下のelse節で実施
       } else {
         effectiveEnvironmentId = project.environment_id;
+        effectiveEnvironmentType = env.type;
         logger.info('Using project environment', {
           project_id,
           environment_id: project.environment_id,
@@ -249,6 +253,7 @@ export async function POST(
           });
         } else {
           effectiveEnvironmentId = requestEnvironmentId;
+          effectiveEnvironmentType = env.type;
           logger.info('Using request environment', {
             project_id,
             environment_id: requestEnvironmentId,
@@ -264,6 +269,7 @@ export async function POST(
           const defaultEnv = await environmentService.getDefault();
           if (defaultEnv && defaultEnv.type === 'DOCKER') {
             effectiveEnvironmentId = defaultEnv.id;
+            effectiveEnvironmentType = defaultEnv.type;
             logger.info('Auto-selected Docker environment based on clone_location', {
               project_id,
               clone_location: project.clone_location,
@@ -292,6 +298,24 @@ export async function POST(
           project_id,
         });
         effectiveDockerMode = true;
+      }
+    }
+
+    // HOST環境の利用制限チェック（キャッシュ済みのtypeを使用してDB再クエリを回避）
+    if (!isHostEnvironmentAllowed()) {
+      if (effectiveEnvironmentId) {
+        if (effectiveEnvironmentType === 'HOST') {
+          return NextResponse.json(
+            { error: 'Docker環境内ではHOST環境でのセッション作成はできません' },
+            { status: 403 }
+          );
+        }
+      } else if (!effectiveDockerMode) {
+        // effectiveEnvironmentId未設定かつDockerモードでない場合はHOST環境として動作する
+        return NextResponse.json(
+          { error: 'Docker環境内ではHOST環境でのセッション作成はできません' },
+          { status: 403 }
+        );
       }
     }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, Fragment, useEffect, useCallback, useRef } from 'react';
+import { useState, Fragment, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Dialog, Transition, Listbox, RadioGroup } from '@headlessui/react';
 import { ChevronDown, Check, Loader2, Upload, X, FileText } from 'lucide-react';
 import { Environment, EnvironmentType, CreateEnvironmentInput, UpdateEnvironmentInput } from '@/hooks/useEnvironments';
@@ -15,6 +15,7 @@ interface EnvironmentFormProps {
   onSubmit: (input: CreateEnvironmentInput | UpdateEnvironmentInput) => Promise<Environment | void>;
   environment?: Environment | null;
   mode: 'create' | 'edit';
+  hostEnvironmentDisabled?: boolean;
 }
 
 interface DockerImage {
@@ -55,7 +56,7 @@ const DEFAULT_DOCKER_IMAGE = process.env.NEXT_PUBLIC_DEFAULT_DOCKER_IMAGE || 'gh
  * @param props.mode - 'create' または 'edit'
  * @returns 環境フォームモーダルのJSX要素
  */
-export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }: EnvironmentFormProps) {
+export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode, hostEnvironmentDisabled }: EnvironmentFormProps) {
   const [name, setName] = useState('');
   const [type, setType] = useState<EnvironmentType>('HOST');
   const [description, setDescription] = useState('');
@@ -142,7 +143,7 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
       }
     } else if (mode === 'create') {
       setName('');
-      setType('HOST');
+      setType(hostEnvironmentDisabled ? 'DOCKER' : 'HOST');
       setDescription('');
       setImageSource('existing');
       setSelectedImage(CUSTOM_IMAGE_VALUE);
@@ -153,7 +154,7 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
       setPortMappings([]);
       setVolumeMounts([]);
     }
-  }, [mode, environment, isOpen]);
+  }, [mode, environment, isOpen, hostEnvironmentDisabled]);
 
   // タイプがDOCKERに変わった時にイメージ一覧を取得
   useEffect(() => {
@@ -415,7 +416,7 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
 
   const handleClose = () => {
     setName('');
-    setType('HOST');
+    setType(hostEnvironmentDisabled ? 'DOCKER' : 'HOST');
     setDescription('');
     setError('');
     setImageSource('existing');
@@ -431,7 +432,15 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
     onClose();
   };
 
-  const selectedTypeOption = ENVIRONMENT_TYPES.find((t) => t.value === type);
+  // hostEnvironmentDisabledがtrueの場合、HOSTタイプを選択肢から除外
+  const availableTypes = useMemo(() => {
+    if (hostEnvironmentDisabled) {
+      return ENVIRONMENT_TYPES.filter(t => t.value !== 'HOST');
+    }
+    return ENVIRONMENT_TYPES;
+  }, [hostEnvironmentDisabled]);
+
+  const selectedTypeOption = availableTypes.find((t) => t.value === type) || ENVIRONMENT_TYPES.find((t) => t.value === type);
 
   // イメージ選択用のオプションを構築
   const imageOptions = [
@@ -531,7 +540,7 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
                             leaveTo="opacity-0"
                           >
                             <Listbox.Options className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white dark:bg-gray-700 py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
-                              {ENVIRONMENT_TYPES.map((typeOption) => (
+                              {availableTypes.map((typeOption) => (
                                 <Listbox.Option
                                   key={typeOption.value}
                                   className={({ active }) =>
@@ -550,11 +559,17 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode }
                                         <span
                                           className={`block truncate ${
                                             selected ? 'font-medium' : 'font-normal'
-                                          } ${typeOption.value === 'SSH' ? 'opacity-50' : ''}`}
+                                          } ${
+                                            typeOption.value === 'SSH'
+                                              ? 'opacity-50' : ''
+                                          }`}
                                         >
                                           {typeOption.label}
                                         </span>
-                                        <span className={`block text-xs text-gray-500 dark:text-gray-400 ${typeOption.value === 'SSH' ? 'opacity-50' : ''}`}>
+                                        <span className={`block text-xs text-gray-500 dark:text-gray-400 ${
+                                          typeOption.value === 'SSH'
+                                            ? 'opacity-50' : ''
+                                        }`}>
                                           {typeOption.description}
                                         </span>
                                       </div>
