@@ -9,6 +9,7 @@ import { logger } from '@/lib/logger';
 import { DockerGitService } from '@/services/docker-git-service';
 import { GitHubPATService } from '@/services/github-pat-service';
 import { validateCloneLocation, validateProjectName } from '@/lib/validation';
+import { environmentService } from '@/services/environment-service';
 
 /**
  * POST /api/projects/clone - リモートリポジトリをcloneしてプロジェクト登録
@@ -52,7 +53,6 @@ export async function POST(request: NextRequest) {
     const normalizedEnvironmentId = environment_id.trim();
 
     // environment_id の存在確認
-    const { environmentService } = await import('@/services/environment-service');
     const env = await environmentService.findById(normalizedEnvironmentId);
     if (!env) {
       return NextResponse.json({ error: '指定された実行環境が見つかりません' }, { status: 400 });

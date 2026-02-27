@@ -161,30 +161,40 @@ export function CreateSessionModal({
       return;
     }
 
+    const controller = new AbortController();
+
     const fetchBranches = async () => {
       setIsBranchesLoading(true);
       try {
-        const response = await fetch(`/api/projects/${projectId}/branches`);
+        const response = await fetch(`/api/projects/${projectId}/branches`, { signal: controller.signal });
         if (response.ok) {
           const data = await response.json();
-          setBranches(data.branches || []);
-          // デフォルトブランチを初期選択
-          const defaultBranch = data.branches?.find((b: Branch) => b.isDefault);
-          if (defaultBranch) {
-            setSelectedBranch(defaultBranch.name);
-          } else if (data.branches?.length > 0) {
-            setSelectedBranch(data.branches[0].name);
+          if (!controller.signal.aborted) {
+            setBranches(data.branches || []);
+            // デフォルトブランチを初期選択
+            const defaultBranch = data.branches?.find((b: Branch) => b.isDefault);
+            if (defaultBranch) {
+              setSelectedBranch(defaultBranch.name);
+            } else if (data.branches?.length > 0) {
+              setSelectedBranch(data.branches[0].name);
+            }
           }
         }
-      } catch {
+      } catch (err) {
+        if (err instanceof DOMException && err.name === 'AbortError') return;
         // ブランチ取得失敗は無視（ローカルプロジェクトでは失敗する場合がある）
-        setBranches([]);
+        if (!controller.signal.aborted) {
+          setBranches([]);
+        }
       } finally {
-        setIsBranchesLoading(false);
+        if (!controller.signal.aborted) {
+          setIsBranchesLoading(false);
+        }
       }
     };
 
     fetchBranches();
+    return () => controller.abort();
   }, [isOpen, projectId]);
 
   const handleSubmit = async () => {

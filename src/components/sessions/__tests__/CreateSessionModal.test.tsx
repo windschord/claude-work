@@ -561,7 +561,7 @@ describe('CreateSessionModal', () => {
       );
 
       await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledWith('/api/projects/project-1/branches');
+        expect(mockFetch).toHaveBeenCalledWith('/api/projects/project-1/branches', expect.objectContaining({ signal: expect.any(AbortSignal) }));
       });
     });
 

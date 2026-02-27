@@ -35,14 +35,17 @@ export function AddProjectModal({ isOpen, onClose }: AddProjectModalProps) {
   const { environments, isLoading: isEnvironmentsLoading } = useEnvironments();
   const availableEnvironments = environments.filter((env) => !env.disabled);
 
-  // 初期選択: is_default=true の環境
+  const availableEnvironmentIds = availableEnvironments.map((e) => e.id).join(',');
+  const defaultEnvironmentId = availableEnvironments.find((e) => e.is_default)?.id ?? availableEnvironments[0]?.id ?? '';
+
+  // 初期選択: is_default=true の環境、または選択中の環境がリストから削除された場合にリセット
   useEffect(() => {
-    if (!selectedEnvironmentId && availableEnvironments.length > 0) {
-      const defaultEnv = availableEnvironments.find((env) => env.is_default);
-      const initialId = defaultEnv?.id || availableEnvironments[0].id;
-      setSelectedEnvironmentId(initialId);
+    if (!selectedEnvironmentId && defaultEnvironmentId) {
+      setSelectedEnvironmentId(defaultEnvironmentId);
+    } else if (selectedEnvironmentId && availableEnvironmentIds && !availableEnvironmentIds.split(',').includes(selectedEnvironmentId)) {
+      setSelectedEnvironmentId(defaultEnvironmentId);
     }
-  }, [availableEnvironments, selectedEnvironmentId]);
+  }, [selectedEnvironmentId, defaultEnvironmentId, availableEnvironmentIds]);
 
   const selectedEnvironment = availableEnvironments.find((env) => env.id === selectedEnvironmentId);
 
@@ -51,6 +54,10 @@ export function AddProjectModal({ isOpen, onClose }: AddProjectModalProps) {
     setError('');
 
     if (!path.trim()) {
+      return;
+    }
+
+    if (!selectedEnvironmentId || !selectedEnvironment) {
       return;
     }
 

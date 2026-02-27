@@ -151,6 +151,10 @@ export async function PATCH(
         );
       }
 
+      if (!txResult.updated) {
+        return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+      }
+
       logger.info('Project settings updated', {
         projectId: project_id,
         updatedFields: Object.keys(updateData).filter(k => k !== 'updated_at'),

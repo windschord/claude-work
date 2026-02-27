@@ -9,7 +9,12 @@ import { useEnvironments } from '@/hooks/useEnvironments';
 interface ProjectEnvironmentSettingsProps {
   projectId: string;
   hostEnvironmentDisabled?: boolean;
-  isEnvironmentsLoading?: boolean;
+}
+
+function getBadgeColorClass(type: string): string {
+  if (type === 'DOCKER') return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
+  if (type === 'HOST') return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
+  return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200';
 }
 
 interface ProjectEnvironmentInfo {
@@ -28,7 +33,7 @@ interface ProjectEnvironmentInfo {
  * プロジェクトの実行環境を表示し、セッションが0件の場合は変更も可能です。
  * セッションが存在する場合は変更できません。
  */
-export function ProjectEnvironmentSettings({ projectId, hostEnvironmentDisabled = false, isEnvironmentsLoading: _isEnvironmentsLoading = false }: ProjectEnvironmentSettingsProps) {
+export function ProjectEnvironmentSettings({ projectId, hostEnvironmentDisabled = false }: ProjectEnvironmentSettingsProps) {
   const [projectEnv, setProjectEnv] = useState<ProjectEnvironmentInfo | null>(null);
   const [isProjectLoading, setIsProjectLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -145,6 +150,7 @@ export function ProjectEnvironmentSettings({ projectId, hostEnvironmentDisabled 
         environment_id: data.project.environment_id || null,
         environment: data.project.environment || null,
       });
+      setNewEnvironmentId(data.project.environment_id || '');
       setIsEditing(false);
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : '環境の変更に失敗しました');
@@ -187,13 +193,7 @@ export function ProjectEnvironmentSettings({ projectId, hostEnvironmentDisabled 
                     {selectedNewEnv?.name || '環境を選択'}
                   </span>
                   {selectedNewEnv && (
-                    <span className={`ml-2 px-1.5 py-0.5 text-xs font-medium rounded ${
-                      selectedNewEnv.type === 'DOCKER'
-                        ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                        : selectedNewEnv.type === 'HOST'
-                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                        : 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
-                    }`}>
+                    <span className={`ml-2 px-1.5 py-0.5 text-xs font-medium rounded ${getBadgeColorClass(selectedNewEnv.type)}`}>
                       {selectedNewEnv.type}
                     </span>
                   )}
@@ -227,13 +227,7 @@ export function ProjectEnvironmentSettings({ projectId, hostEnvironmentDisabled 
                             <span className={`block truncate ${selected ? 'font-medium' : 'font-normal'}`}>
                               {env.name}
                             </span>
-                            <span className={`ml-2 px-1.5 py-0.5 text-xs font-medium rounded ${
-                              env.type === 'DOCKER'
-                                ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                                : env.type === 'HOST'
-                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                                : 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
-                            }`}>
+                            <span className={`ml-2 px-1.5 py-0.5 text-xs font-medium rounded ${getBadgeColorClass(env.type)}`}>
                               {env.type}
                             </span>
                           </div>
