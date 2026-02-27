@@ -92,6 +92,11 @@ vi.mock('@/lib/db', () => ({
           })),
         })),
       })),
+      delete: vi.fn(() => ({
+        where: vi.fn(() => ({
+          run: mockDbDeleteRun,
+        })),
+      })),
     })),
   },
   schema: {
@@ -386,7 +391,7 @@ describe('EnvironmentService', () => {
       expect(mockDbDeleteRun).not.toHaveBeenCalled();
     });
 
-    it('使用中のセッションがある場合は警告をログに出力するが削除は許可する', async () => {
+    it('使用中のプロジェクトがある場合は削除を拒否する', async () => {
       // findById用のモック
       mockDbSelectGet.mockReturnValueOnce({
         id: 'env-123',
@@ -400,21 +405,22 @@ describe('EnvironmentService', () => {
         updated_at: new Date(),
       });
       // projects取得用のモック（この環境を使うプロジェクトが2つ）
-      mockDbSelectAll.mockReturnValueOnce([{ id: 'proj-1' }, { id: 'proj-2' }]);
-      // count用のモック（セッション数3）
-      mockDbSelectGet.mockReturnValueOnce({ count: 3 });
+      mockDbSelectAll.mockReturnValueOnce([
+        { id: 'proj-1', name: 'Project A' },
+        { id: 'proj-2', name: 'Project B' },
+      ]);
 
-      await service.delete('env-123');
-
-      expect(mockLogger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('使用中のセッション'),
-        expect.objectContaining({ environmentId: 'env-123', sessionCount: 3 })
+      await expect(service.delete('env-123')).rejects.toThrow(
+        'この環境は以下のプロジェクトで使用中のため削除できません: Project A, Project B'
       );
-      expect(mockDbDeleteRun).toHaveBeenCalled();
+
+      expect(mockDbDeleteRun).not.toHaveBeenCalled();
     });
 
     it('存在しない環境の削除はエラーになる', async () => {
-      mockDbSelectGet.mockReturnValue(undefined);
+      mockDbSelectGet.mockReturnValueOnce(undefined);
+      // projects取得用のモック（空）
+      mockDbSelectAll.mockReturnValueOnce([]);
 
       await expect(service.delete('non-existent')).rejects.toThrow(
         '環境が見つかりません'

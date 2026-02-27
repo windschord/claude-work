@@ -22,7 +22,7 @@ export default function ProjectSettingsPage({
   params: Promise<{ id: string }>;
 }) {
   const { id: projectId } = use(params);
-  const { hostEnvironmentDisabled, isLoading: isEnvironmentsLoading } = useEnvironments();
+  const { hostEnvironmentDisabled } = useEnvironments();
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -30,7 +30,7 @@ export default function ProjectSettingsPage({
 
       <div className="space-y-6">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <ProjectEnvironmentSettings projectId={projectId} hostEnvironmentDisabled={hostEnvironmentDisabled} isEnvironmentsLoading={isEnvironmentsLoading} />
+          <ProjectEnvironmentSettings projectId={projectId} hostEnvironmentDisabled={hostEnvironmentDisabled} />
         </div>
 
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">

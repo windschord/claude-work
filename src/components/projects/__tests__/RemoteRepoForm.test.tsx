@@ -14,6 +14,17 @@ vi.mock('@/hooks/useGitHubPATs', () => ({
   })),
 }));
 
+// useEnvironments hookのモック
+vi.mock('@/hooks/useEnvironments', () => ({
+  useEnvironments: () => ({
+    environments: [
+      { id: 'env-1', name: 'Default Docker', type: 'DOCKER', is_default: true, description: 'Test env', config: '{}' },
+    ],
+    isLoading: false,
+    error: null,
+  }),
+}));
+
 describe('RemoteRepoForm', () => {
   const mockOnSubmit = vi.fn();
   const mockOnCancel = vi.fn();
@@ -206,6 +217,7 @@ describe('RemoteRepoForm', () => {
       await waitFor(() => {
         expect(mockOnSubmit).toHaveBeenCalledWith(
           'git@github.com:user/repo.git',
+          'env-1',
           undefined,
           'docker',
           undefined
@@ -234,6 +246,7 @@ describe('RemoteRepoForm', () => {
       await waitFor(() => {
         expect(mockOnSubmit).toHaveBeenCalledWith(
           'https://github.com/user/repo.git',
+          'env-1',
           undefined,
           'docker',
           'pat-1'
@@ -261,6 +274,7 @@ describe('RemoteRepoForm', () => {
       await waitFor(() => {
         expect(mockOnSubmit).toHaveBeenCalledWith(
           'git@github.com:user/repo.git',
+          'env-1',
           undefined,
           'host',
           undefined
@@ -293,6 +307,7 @@ describe('RemoteRepoForm', () => {
       await waitFor(() => {
         expect(mockOnSubmit).toHaveBeenCalledWith(
           'git@github.com:user/repo.git',
+          'env-1',
           '/custom/path',
           'docker',
           undefined

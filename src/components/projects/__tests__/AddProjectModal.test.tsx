@@ -16,6 +16,17 @@ vi.mock('@/hooks/useGitHubPATs', () => ({
   })),
 }));
 
+// useEnvironments hookのモック
+vi.mock('@/hooks/useEnvironments', () => ({
+  useEnvironments: () => ({
+    environments: [
+      { id: 'env-1', name: 'Default Docker', type: 'DOCKER', is_default: true, description: 'Test env', config: '{}' },
+    ],
+    isLoading: false,
+    error: null,
+  }),
+}));
+
 describe('AddProjectModal', () => {
   const mockAddProject = vi.fn();
   const mockCloneProject = vi.fn();
@@ -105,7 +116,7 @@ describe('AddProjectModal', () => {
     fireEvent.click(addButton);
 
     await waitFor(() => {
-      expect(mockAddProject).toHaveBeenCalledWith('/valid/path');
+      expect(mockAddProject).toHaveBeenCalledWith('/valid/path', 'env-1');
       expect(mockOnClose).toHaveBeenCalled();
     });
   });
@@ -243,6 +254,7 @@ describe('AddProjectModal', () => {
       await waitFor(() => {
         expect(mockCloneProject).toHaveBeenCalledWith(
           'https://github.com/test/repo.git',
+          'env-1',
           undefined,
           'docker',
           undefined

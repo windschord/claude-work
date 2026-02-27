@@ -458,7 +458,7 @@ describe('POST /api/projects/[project_id]/sessions', () => {
       expect(mockEnvironmentService.findById).toHaveBeenCalledWith('env-docker-1');
     });
 
-    it('should log warning when project environment_id references non-existent environment', async () => {
+    it('should return 400 when project environment_id references non-existent environment', async () => {
       // プロジェクトに存在しない environment_id を設定
       mockDb._mockSelectGet.mockReturnValue({
         id: 'project-1',
@@ -479,8 +479,10 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         params: Promise.resolve({ project_id: 'project-1' }),
       });
 
-      // 環境が見つからない場合はフォールバックして201で成功する
-      expect(response.status).toBe(201);
+      // プロジェクトのenvironment_idが存在しない環境を参照している場合は400エラー
+      expect(response.status).toBe(400);
+      const json = await response.json();
+      expect(json.error).toBe('プロジェクトに設定された実行環境が見つかりません');
       expect(mockEnvironmentService.findById).toHaveBeenCalledWith('non-existent');
     });
 
@@ -598,20 +600,9 @@ describe('POST /api/projects/[project_id]/sessions', () => {
       );
     });
 
-    it('should use requestEnvironmentId when project has no environment_id', async () => {
-      const mockEnvironment = {
-        id: 'env-docker-req',
-        name: 'Request Docker Env',
-        type: 'DOCKER',
-        description: null,
-        config: '{}',
-        auth_dir_path: '/data/environments/env-docker-req',
-        is_default: false,
-        created_at: new Date(),
-        updated_at: new Date(),
-      };
-
-      // プロジェクトに environment_id なし
+    it('should ignore requestEnvironmentId when project has no environment_id (legacy fallback)', async () => {
+      // プロジェクトに environment_id なし → レガシーフォールバックが適用
+      // requestEnvironmentId は無視される
       mockDb._mockSelectGet.mockReturnValue({
         id: 'project-1',
         name: 'Test Project',
@@ -619,7 +610,6 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         environment_id: null,
       });
 
-      mockEnvironmentService.findById.mockResolvedValue(mockEnvironment);
       mockDb._mockInsertGet.mockReturnValue({
         id: 'session-1',
         project_id: 'project-1',
@@ -629,6 +619,7 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         branch_name: 'session/session-123',
         docker_mode: false,
         container_id: null,
+        environment_id: null,
       });
 
       const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
@@ -641,14 +632,15 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         params: Promise.resolve({ project_id: 'project-1' }),
       });
 
+      // requestEnvironmentId は無視され、レガシーフォールバックで成功する
       expect(response.status).toBe(201);
-      expect(mockEnvironmentService.findById).toHaveBeenCalledWith('env-docker-req');
-      // Dockerの診断は呼ばれない（environment_idが使われるため）
-      expect(mockDockerService.diagnoseDockerError).not.toHaveBeenCalled();
+      // findById は呼ばれない（project.environment_id が null のためレガシーパスに入る）
+      expect(mockEnvironmentService.findById).not.toHaveBeenCalled();
     });
 
-    it('should fall back to auto-selection when requestEnvironmentId references non-existent environment', async () => {
-      // プロジェクトに environment_id なし
+    it('should ignore non-existent requestEnvironmentId when project has no environment_id (legacy fallback)', async () => {
+      // プロジェクトに environment_id なし → レガシーフォールバックが適用
+      // requestEnvironmentId は無視される（存在しない値でも影響なし）
       mockDb._mockSelectGet.mockReturnValue({
         id: 'project-1',
         name: 'Test Project',
@@ -657,8 +649,6 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         clone_location: null,
       });
 
-      // リクエストの environment_id が存在しない
-      mockEnvironmentService.findById.mockResolvedValue(null);
       mockDb._mockInsertGet.mockReturnValue({
         id: 'session-1',
         project_id: 'project-1',
@@ -668,6 +658,7 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         branch_name: 'session/session-123',
         docker_mode: false,
         container_id: null,
+        environment_id: null,
       });
 
       const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
@@ -680,9 +671,10 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         params: Promise.resolve({ project_id: 'project-1' }),
       });
 
-      // フォールバックして201で成功する
+      // requestEnvironmentId は無視され、レガシーフォールバックで成功する
       expect(response.status).toBe(201);
-      expect(mockEnvironmentService.findById).toHaveBeenCalledWith('non-existent-req');
+      // findById は呼ばれない（project.environment_id が null のためレガシーパスに入る）
+      expect(mockEnvironmentService.findById).not.toHaveBeenCalled();
     });
 
     it('project environment_id takes priority over requestEnvironmentId', async () => {

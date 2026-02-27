@@ -27,7 +27,7 @@ describe('addProject', () => {
       const { addProject } = useAppStore.getState();
 
       // エラーがスローされることを確認
-      await expect(addProject('/test/path')).rejects.toThrow(
+      await expect(addProject('/test/path', 'env-1')).rejects.toThrow(
         'Gitリポジトリではありません'
       );
     });
@@ -43,7 +43,7 @@ describe('addProject', () => {
       const { addProject } = useAppStore.getState();
 
       // エラーがスローされることを確認
-      await expect(addProject('/test/path')).rejects.toThrow(
+      await expect(addProject('/test/path', 'env-1')).rejects.toThrow(
         '指定されたパスは許可されていません'
       );
     });
@@ -70,7 +70,7 @@ describe('addProject', () => {
       const { addProject } = useAppStore.getState();
 
       try {
-        await addProject('/test/path');
+        await addProject('/test/path', 'env-1');
       } catch {
         // エラーは無視
       }
@@ -114,7 +114,7 @@ describe('addProject', () => {
       const { addProject } = useAppStore.getState();
 
       try {
-        await addProject('/test/path');
+        await addProject('/test/path', 'env-1');
       } catch {
         // エラーは無視
       }
@@ -134,7 +134,7 @@ describe('addProject', () => {
 
       const { addProject } = useAppStore.getState();
 
-      await expect(addProject('/test/path')).rejects.toThrow(
+      await expect(addProject('/test/path', 'env-1')).rejects.toThrow(
         'プロジェクトの追加に失敗しました'
       );
     });
@@ -154,7 +154,7 @@ describe('addProject', () => {
 
       const { addProject } = useAppStore.getState();
 
-      await expect(addProject('/test/path')).rejects.toThrow(
+      await expect(addProject('/test/path', 'env-1')).rejects.toThrow(
         'プロジェクトの追加に失敗しました'
       );
     });
@@ -178,7 +178,7 @@ describe('addProject', () => {
       } as Response);
 
       const { addProject } = useAppStore.getState();
-      await addProject('/test/path');
+      await addProject('/test/path', 'env-1');
 
       const { projects } = useAppStore.getState();
       expect(projects).toHaveLength(1);

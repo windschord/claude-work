@@ -1,11 +1,13 @@
 'use client';
 
-import { useState } from 'react';
-import { ChevronDown, ChevronUp, Loader2, HelpCircle, ExternalLink } from 'lucide-react';
+import { useState, useEffect, Fragment } from 'react';
+import { ChevronDown, ChevronUp, Loader2, HelpCircle, ExternalLink, ChevronsUpDown, Check } from 'lucide-react';
+import { Listbox, Transition } from '@headlessui/react';
 import { useGitHubPATs } from '@/hooks/useGitHubPATs';
+import { useEnvironments } from '@/hooks/useEnvironments';
 
 interface RemoteRepoFormProps {
-  onSubmit: (url: string, targetDir?: string, cloneLocation?: 'host' | 'docker', githubPatId?: string) => Promise<void>;
+  onSubmit: (url: string, environmentId: string, targetDir?: string, cloneLocation?: 'host' | 'docker', githubPatId?: string) => Promise<void>;
   onCancel: () => void;
   isLoading: boolean;
   error?: string;
@@ -29,9 +31,27 @@ export function RemoteRepoForm({
   const [githubPatId, setGithubPatId] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
+  const [selectedEnvironmentId, setSelectedEnvironmentId] = useState<string>('');
 
   const { pats, isLoading: isPATsLoading } = useGitHubPATs();
   const activePATs = pats.filter((pat) => pat.isActive);
+
+  const { environments, isLoading: isEnvironmentsLoading } = useEnvironments();
+  const availableEnvironments = environments.filter((env) => !env.disabled);
+
+  const availableEnvironmentIds = availableEnvironments.map((e) => e.id).join(',');
+  const defaultEnvironmentId = availableEnvironments.find((e) => e.is_default)?.id ?? availableEnvironments[0]?.id ?? '';
+
+  // 初期選択: is_default=true の環境、または選択中の環境がリストから削除された場合にリセット
+  useEffect(() => {
+    if (!selectedEnvironmentId && defaultEnvironmentId) {
+      setSelectedEnvironmentId(defaultEnvironmentId);
+    } else if (selectedEnvironmentId && availableEnvironmentIds && !availableEnvironmentIds.split(',').includes(selectedEnvironmentId)) {
+      setSelectedEnvironmentId(defaultEnvironmentId);
+    }
+  }, [selectedEnvironmentId, defaultEnvironmentId, availableEnvironmentIds]);
+
+  const selectedEnvironment = availableEnvironments.find((env) => env.id === selectedEnvironmentId);
 
   const isHttpsUrl = url.trim().startsWith('https://');
   const isDocker = cloneLocation === 'docker';
@@ -44,8 +64,12 @@ export function RemoteRepoForm({
       return;
     }
 
+    if (!selectedEnvironmentId || !selectedEnvironment) {
+      return;
+    }
+
     const patId = showPATSelector && githubPatId ? githubPatId : undefined;
-    await onSubmit(url.trim(), targetDir.trim() || undefined, cloneLocation, patId);
+    await onSubmit(url.trim(), selectedEnvironmentId, targetDir.trim() || undefined, cloneLocation, patId);
   };
 
   return (
@@ -175,6 +199,95 @@ export function RemoteRepoForm({
         </div>
       )}
 
+      {/* 実行環境選択 */}
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          実行環境
+        </label>
+        {isEnvironmentsLoading ? (
+          <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            環境を読み込み中...
+          </div>
+        ) : availableEnvironments.length === 0 ? (
+          <p className="text-sm text-red-600 dark:text-red-400">
+            利用可能な環境がありません。先に環境を登録してください。
+          </p>
+        ) : (
+          <Listbox value={selectedEnvironmentId} onChange={setSelectedEnvironmentId} disabled={isLoading}>
+            <div className="relative">
+              <Listbox.Button className="relative w-full cursor-pointer rounded-lg bg-white dark:bg-gray-700 py-2 pl-3 pr-10 text-left border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="block truncate text-gray-900 dark:text-gray-100">
+                    {selectedEnvironment?.name || '環境を選択'}
+                  </span>
+                  {selectedEnvironment && (
+                    <span className={`ml-2 px-1.5 py-0.5 text-xs font-medium rounded ${
+                      selectedEnvironment.type === 'DOCKER'
+                        ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                        : selectedEnvironment.type === 'HOST'
+                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                        : 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
+                    }`}>
+                      {selectedEnvironment.type}
+                    </span>
+                  )}
+                </div>
+                <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                  <ChevronsUpDown className="h-5 w-5 text-gray-400" aria-hidden="true" />
+                </span>
+              </Listbox.Button>
+              <Transition
+                as={Fragment}
+                leave="transition ease-in duration-100"
+                leaveFrom="opacity-100"
+                leaveTo="opacity-0"
+              >
+                <Listbox.Options className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white dark:bg-gray-700 py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
+                  {availableEnvironments.map((env) => (
+                    <Listbox.Option
+                      key={env.id}
+                      value={env.id}
+                      className={({ active }) =>
+                        `relative cursor-pointer select-none py-2 pl-10 pr-4 ${
+                          active
+                            ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-900 dark:text-blue-100'
+                            : 'text-gray-900 dark:text-gray-100'
+                        }`
+                      }
+                    >
+                      {({ selected }) => (
+                        <>
+                          <div className="flex items-center justify-between">
+                            <span className={`block truncate ${selected ? 'font-medium' : 'font-normal'}`}>
+                              {env.name}
+                            </span>
+                            <span className={`ml-2 px-1.5 py-0.5 text-xs font-medium rounded ${
+                              env.type === 'DOCKER'
+                                ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                                : env.type === 'HOST'
+                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                : 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
+                            }`}>
+                              {env.type}
+                            </span>
+                          </div>
+                          {selected && (
+                            <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-blue-600 dark:text-blue-400">
+                              <Check className="h-4 w-4" aria-hidden="true" />
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </Listbox.Option>
+                  ))}
+                </Listbox.Options>
+              </Transition>
+            </div>
+          </Listbox>
+        )}
+      </div>
+
       {/* 詳細設定の折りたたみ */}
       <div className="mb-4">
         <button
@@ -229,7 +342,7 @@ export function RemoteRepoForm({
         <button
           type="submit"
           className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-          disabled={!url.trim() || isLoading}
+          disabled={!url.trim() || isLoading || availableEnvironments.length === 0 || !selectedEnvironmentId}
         >
           {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
           {isLoading ? 'Clone中...' : 'Clone'}
