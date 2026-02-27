@@ -439,6 +439,14 @@ export function CreateSessionModal({
                   />
                 </div>
 
+                {!projectEnvironmentType && isProjectFetched && (
+                  <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-md">
+                    <p className="text-sm text-amber-700 dark:text-amber-300">
+                      プロジェクトに実行環境が設定されていません。プロジェクト設定から環境を設定してください。
+                    </p>
+                  </div>
+                )}
+
                 {error && (
                   <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
                     <p className="text-sm text-red-600 dark:text-red-400">{error}</p>

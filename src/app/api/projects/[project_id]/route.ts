@@ -160,23 +160,41 @@ export async function PATCH(
         updatedFields: Object.keys(updateData).filter(k => k !== 'updated_at'),
       });
 
-      return NextResponse.json(txResult.updated);
+      // GETと同じ形式でリレーション付きで返す
+      const updatedProject = await db.query.projects.findFirst({
+        where: eq(schema.projects.id, project_id),
+        with: {
+          environment: {
+            columns: { id: true, name: true, type: true, config: true },
+          },
+        },
+      });
+
+      return NextResponse.json({ project: updatedProject });
     }
 
     // environment_id変更なしの場合は通常の更新
-    const updated = db
-      .update(schema.projects)
+    db.update(schema.projects)
       .set(updateData)
       .where(eq(schema.projects.id, project_id))
-      .returning()
-      .get();
+      .run();
 
     logger.info('Project settings updated', {
       projectId: project_id,
       updatedFields: Object.keys(updateData).filter(k => k !== 'updated_at'),
     });
 
-    return NextResponse.json(updated);
+    // GETと同じ形式でリレーション付きで返す
+    const updatedProject = await db.query.projects.findFirst({
+      where: eq(schema.projects.id, project_id),
+      with: {
+        environment: {
+          columns: { id: true, name: true, type: true, config: true },
+        },
+      },
+    });
+
+    return NextResponse.json({ project: updatedProject });
   } catch (error) {
     logger.error('Failed to update project', { error });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
