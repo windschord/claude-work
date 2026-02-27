@@ -97,8 +97,8 @@ export function CreateSessionModal({
 
   // clone_location=dockerだがDocker環境が存在しない場合のフォールバック検出
   const isDockerFallback = useMemo(() => {
-    return cloneLocation === 'docker' && !environments.some((env) => env.type === 'DOCKER');
-  }, [cloneLocation, environments]);
+    return cloneLocation === 'docker' && !availableEnvironments.some((env) => env.type === 'DOCKER');
+  }, [cloneLocation, availableEnvironments]);
 
   // 選択された環境のタイプとskipPermissionsデフォルト値を取得
   const selectedEnvironment = useMemo(() => {
