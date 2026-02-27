@@ -81,25 +81,7 @@ export async function PATCH(
           return NextResponse.json({ error: '指定された実行環境が見つかりません' }, { status: 400 });
         }
 
-        // セッション0件チェックと environment_id 更新をトランザクションで保護
-        const conflictResponse = db.transaction((tx) => {
-          const sessionCount = tx.select({ count: count() })
-            .from(schema.sessions)
-            .where(eq(schema.sessions.project_id, project_id))
-            .get();
-
-          if (sessionCount && sessionCount.count > 0) {
-            return 'conflict';
-          }
-          return null;
-        });
-
-        if (conflictResponse === 'conflict') {
-          return NextResponse.json(
-            { error: 'セッションが存在するため実行環境を変更できません。すべてのセッションを削除してから変更してください。' },
-            { status: 409 }
-          );
-        }
+        // セッション0件チェックと更新はトランザクション内で後述
       }
     }
 
@@ -139,7 +121,44 @@ export async function PATCH(
       return NextResponse.json({ message: 'No fields to update' }, { status: 200 });
     }
 
-    // 更新
+    // environment_id変更がある場合はセッション0件チェックと更新をトランザクションで保護
+    if (environment_id !== undefined) {
+      const txResult = db.transaction((tx) => {
+        const sessionCount = tx.select({ count: count() })
+          .from(schema.sessions)
+          .where(eq(schema.sessions.project_id, project_id))
+          .get();
+
+        if (sessionCount && sessionCount.count > 0) {
+          return { conflict: true as const };
+        }
+
+        const updated = tx
+          .update(schema.projects)
+          .set(updateData)
+          .where(eq(schema.projects.id, project_id))
+          .returning()
+          .get();
+
+        return { conflict: false as const, updated };
+      });
+
+      if (txResult.conflict) {
+        return NextResponse.json(
+          { error: 'セッションが存在するため実行環境を変更できません。すべてのセッションを削除してから変更してください。' },
+          { status: 409 }
+        );
+      }
+
+      logger.info('Project settings updated', {
+        projectId: project_id,
+        updatedFields: Object.keys(updateData).filter(k => k !== 'updated_at'),
+      });
+
+      return NextResponse.json(txResult.updated);
+    }
+
+    // environment_id変更なしの場合は通常の更新
     const updated = db
       .update(schema.projects)
       .set(updateData)

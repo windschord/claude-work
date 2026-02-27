@@ -567,6 +567,52 @@ describe('PATCH /api/projects/[project_id]', () => {
     }
   });
 
+  it('セッションが存在する場合にenvironment_id変更が409エラーになる', async () => {
+    // 別の環境を作成
+    const newEnv = db.insert(schema.executionEnvironments).values({
+      name: 'Another Env',
+      type: 'DOCKER',
+      config: '{}',
+      is_default: false,
+    }).returning().get()!;
+
+    // プロジェクトにセッションを追加
+    const session = db.insert(schema.sessions).values({
+      project_id: project.id,
+      name: 'test-session',
+      status: 'running',
+      worktree_path: '/tmp/dummy-worktree',
+      branch_name: 'session/test-session',
+    }).returning().get();
+
+    try {
+      const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ environment_id: newEnv.id }),
+      });
+
+      const response = await PATCH(request, {
+        params: Promise.resolve({ project_id: project.id }),
+      });
+
+      expect(response.status).toBe(409);
+      const data = await response.json();
+      expect(data.error).toContain('セッションが存在するため実行環境を変更できません');
+
+      // environment_id が変更されていないことを確認
+      const unchanged = db
+        .select()
+        .from(schema.projects)
+        .where(eq(schema.projects.id, project.id))
+        .get();
+      expect(unchanged?.environment_id).toBe(testEnvId);
+    } finally {
+      db.delete(schema.sessions).where(eq(schema.sessions.id, session.id)).run();
+      db.delete(schema.executionEnvironments).where(eq(schema.executionEnvironments.id, newEnv.id)).run();
+    }
+  });
+
   it('claude_code_optionsを正しく更新する', async () => {
     const options = { model: 'claude-sonnet-4-5-20250929', additionalFlags: '--verbose' };
     const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {

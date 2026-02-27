@@ -45,13 +45,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'URLは必須です' }, { status: 400 });
     }
 
-    if (!environment_id) {
+    if (typeof environment_id !== 'string' || environment_id.trim() === '') {
       return NextResponse.json({ error: '実行環境の指定は必須です' }, { status: 400 });
     }
 
+    const normalizedEnvironmentId = environment_id.trim();
+
     // environment_id の存在確認
     const { environmentService } = await import('@/services/environment-service');
-    const env = await environmentService.findById(environment_id);
+    const env = await environmentService.findById(normalizedEnvironmentId);
     if (!env) {
       return NextResponse.json({ error: '指定された実行環境が見つかりません' }, { status: 400 });
     }
@@ -88,7 +90,7 @@ export async function POST(request: NextRequest) {
           path: `temp-${Date.now()}`, // 一時的なユニーク値（UNIQUE制約対策）
           remote_url: url,
           clone_location: 'docker',
-          environment_id,
+          environment_id: normalizedEnvironmentId,
         }).returning().get();
 
         if (!project) {
@@ -275,7 +277,7 @@ export async function POST(request: NextRequest) {
         path: cloneResult.path,
         remote_url: url,
         clone_location: 'host',
-        environment_id,
+        environment_id: normalizedEnvironmentId,
       }).returning().get();
 
       if (!project) {
