@@ -27,6 +27,23 @@ function makeProjectResponse(overrides: Record<string, unknown> = {}) {
 }
 
 /**
+ * HOST環境が設定されたプロジェクトAPIのレスポンス
+ * projectEnvironmentType が必要なテスト（作成ボタンを押すテスト）で使用
+ */
+function makeProjectResponseWithEnv(overrides: Record<string, unknown> = {}) {
+  return makeProjectResponse({
+    environment_id: 'env-host',
+    environment: {
+      id: 'env-host',
+      name: 'Host Env',
+      type: 'HOST',
+      config: '{}',
+    },
+    ...overrides,
+  });
+}
+
+/**
  * セッション作成APIの成功レスポンス
  */
 function makeSessionResponse() {
@@ -56,13 +73,23 @@ describe('CreateSessionModal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    // デフォルトのフェッチモック: 環境なし（environment=null）のローカルプロジェクト
+    // デフォルトのフェッチモック: HOST環境が設定されたプロジェクト
+    // projectEnvironmentType が null の場合は作成ボタンが disabled になるため、
+    // セッション作成テストでは環境が設定されたプロジェクトを使う
     mockFetch.mockImplementation((url: string) => {
       if (url.includes('/branches')) {
         return Promise.resolve(makeBranchesResponse());
       }
       if (typeof url === 'string' && url.match(/\/api\/projects\/[^/]+$/) && !url.includes('/sessions')) {
-        return Promise.resolve(makeProjectResponse());
+        return Promise.resolve(makeProjectResponse({
+          environment_id: 'env-host',
+          environment: {
+            id: 'env-host',
+            name: 'Host Env',
+            type: 'HOST',
+            config: '{}',
+          },
+        }));
       }
       return Promise.resolve(makeSessionResponse());
     });
@@ -151,7 +178,15 @@ describe('CreateSessionModal', () => {
     });
 
     it('プロジェクトに環境が設定されていない場合、環境が見つかりませんと表示する', async () => {
-      // デフォルトのモックを使用（environment=null）
+      // 環境なし（environment=null）のプロジェクトを返すモックを設定
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes('/branches')) return Promise.resolve(makeBranchesResponse([]));
+        if (url.match(/\/api\/projects\/[^/]+$/) && !url.includes('/sessions')) {
+          return Promise.resolve(makeProjectResponse());
+        }
+        return Promise.resolve(makeSessionResponse());
+      });
+
       render(
         <CreateSessionModal
           isOpen={true}
@@ -320,7 +355,7 @@ describe('CreateSessionModal', () => {
       mockFetch.mockImplementation((url: string) => {
         if (url.includes('/branches')) return Promise.resolve(makeBranchesResponse([]));
         if (url.match(/\/api\/projects\/[^/]+$/) && !url.includes('/sessions')) {
-          return Promise.resolve(makeProjectResponse());
+          return Promise.resolve(makeProjectResponseWithEnv());
         }
         // セッション作成は解決しないPromise
         return new Promise(() => {});
@@ -351,7 +386,7 @@ describe('CreateSessionModal', () => {
       mockFetch.mockImplementation((url: string) => {
         if (url.includes('/branches')) return Promise.resolve(makeBranchesResponse([]));
         if (url.match(/\/api\/projects\/[^/]+$/) && !url.includes('/sessions')) {
-          return Promise.resolve(makeProjectResponse());
+          return Promise.resolve(makeProjectResponseWithEnv());
         }
         // セッション作成は解決しないPromise
         return new Promise(() => {});
@@ -384,7 +419,7 @@ describe('CreateSessionModal', () => {
       mockFetch.mockImplementation((url: string) => {
         if (url.includes('/branches')) return Promise.resolve(makeBranchesResponse([]));
         if (url.match(/\/api\/projects\/[^/]+$/) && !url.includes('/sessions')) {
-          return Promise.resolve(makeProjectResponse());
+          return Promise.resolve(makeProjectResponseWithEnv());
         }
         return Promise.resolve({
           ok: false,
@@ -417,7 +452,7 @@ describe('CreateSessionModal', () => {
       mockFetch.mockImplementation((url: string) => {
         if (url.includes('/branches')) return Promise.resolve(makeBranchesResponse([]));
         if (url.match(/\/api\/projects\/[^/]+$/) && !url.includes('/sessions')) {
-          return Promise.resolve(makeProjectResponse());
+          return Promise.resolve(makeProjectResponseWithEnv());
         }
         return Promise.reject(new Error('Network error'));
       });
@@ -447,7 +482,7 @@ describe('CreateSessionModal', () => {
       mockFetch.mockImplementation((url: string) => {
         if (url.includes('/branches')) return Promise.resolve(makeBranchesResponse([]));
         if (url.match(/\/api\/projects\/[^/]+$/) && !url.includes('/sessions')) {
-          return Promise.resolve(makeProjectResponse());
+          return Promise.resolve(makeProjectResponseWithEnv());
         }
         return Promise.resolve({
           ok: false,
@@ -482,7 +517,7 @@ describe('CreateSessionModal', () => {
       mockFetch.mockImplementation((url: string) => {
         if (url.includes('/branches')) return Promise.resolve(makeBranchesResponse([]));
         if (url.match(/\/api\/projects\/[^/]+$/) && !url.includes('/sessions')) {
-          return Promise.resolve(makeProjectResponse());
+          return Promise.resolve(makeProjectResponseWithEnv());
         }
         return Promise.resolve({
           ok: false,

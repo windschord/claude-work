@@ -8,7 +8,7 @@ import { useGitHubPATs } from '@/hooks/useGitHubPATs';
 import { useEnvironments } from '@/hooks/useEnvironments';
 
 interface RemoteRepoFormProps {
-  onSubmit: (url: string, targetDir?: string, cloneLocation?: 'host' | 'docker', githubPatId?: string, environmentId?: string) => Promise<void>;
+  onSubmit: (url: string, targetDir?: string, cloneLocation?: 'host' | 'docker', githubPatId?: string, environmentId: string) => Promise<void>;
   onCancel: () => void;
   isLoading: boolean;
   error?: string;
@@ -63,7 +63,7 @@ export function RemoteRepoForm({
     }
 
     const patId = showPATSelector && githubPatId ? githubPatId : undefined;
-    await onSubmit(url.trim(), targetDir.trim() || undefined, cloneLocation, patId, selectedEnvironmentId || undefined);
+    await onSubmit(url.trim(), targetDir.trim() || undefined, cloneLocation, patId, selectedEnvironmentId);
   };
 
   return (
@@ -336,7 +336,7 @@ export function RemoteRepoForm({
         <button
           type="submit"
           className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-          disabled={!url.trim() || isLoading || availableEnvironments.length === 0}
+          disabled={!url.trim() || isLoading || availableEnvironments.length === 0 || !selectedEnvironmentId}
         >
           {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
           {isLoading ? 'Clone中...' : 'Clone'}

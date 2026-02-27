@@ -85,7 +85,7 @@ export function ProjectEnvironmentSettings({ projectId, hostEnvironmentDisabled 
         const res = await fetch(`/api/projects/${projectId}/sessions`);
         if (!res.ok) return;
         const data = await res.json();
-        setSessionCount(data.sessions?.length ?? 0);
+        setSessionCount(data.sessions?.filter((s: { status: string }) => s.status !== 'deleted').length ?? 0);
       } catch {
         // セッション数取得失敗は無視
       }

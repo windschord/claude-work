@@ -452,7 +452,7 @@ export function CreateSessionModal({
                     type="button"
                     onClick={handleSubmit}
                     className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={isCreating || !isProjectFetched}
+                    disabled={isCreating || !isProjectFetched || !projectEnvironmentType}
                   >
                     {isCreating ? '作成中...' : '作成'}
                   </button>

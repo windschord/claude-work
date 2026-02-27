@@ -57,7 +57,7 @@ export function AddProjectModal({ isOpen, onClose }: AddProjectModalProps) {
     setIsLoading(true);
 
     try {
-      await addProject(path.trim(), selectedEnvironmentId || undefined);
+      await addProject(path.trim(), selectedEnvironmentId);
       await fetchProjects();
       toast.success('プロジェクトを追加しました');
       setPath('');
@@ -71,7 +71,7 @@ export function AddProjectModal({ isOpen, onClose }: AddProjectModalProps) {
     }
   };
 
-  const handleRemoteSubmit = async (url: string, targetDir?: string, cloneLocation?: 'host' | 'docker', githubPatId?: string, environmentId?: string) => {
+  const handleRemoteSubmit = async (url: string, targetDir?: string, cloneLocation?: 'host' | 'docker', githubPatId?: string, environmentId: string) => {
     setError('');
     setIsLoading(true);
 
@@ -283,7 +283,7 @@ export function AddProjectModal({ isOpen, onClose }: AddProjectModalProps) {
                           <button
                             type="submit"
                             className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            disabled={!path.trim() || isLoading || availableEnvironments.length === 0}
+                            disabled={!path.trim() || isLoading || availableEnvironments.length === 0 || !selectedEnvironmentId}
                           >
                             {isLoading ? '追加中...' : '追加'}
                           </button>

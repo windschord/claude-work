@@ -178,9 +178,9 @@ export interface AppState {
   /** プロジェクト一覧を設定 */
   setProjects: (projects: Project[]) => void;
   /** プロジェクトを追加 */
-  addProject: (path: string, environmentId?: string) => Promise<void>;
+  addProject: (path: string, environmentId: string) => Promise<void>;
   /** リモートリポジトリをcloneしてプロジェクトを追加 */
-  cloneProject: (url: string, targetDir?: string, cloneLocation?: 'host' | 'docker', githubPatId?: string, environmentId?: string) => Promise<void>;
+  cloneProject: (url: string, targetDir?: string, cloneLocation?: 'host' | 'docker', githubPatId?: string, environmentId: string) => Promise<void>;
   /** リモートリポジトリをpull */
   pullProject: (projectId: string) => Promise<{ updated: boolean; message: string }>;
   /** プロジェクトを更新 */
@@ -320,7 +320,7 @@ export const useAppStore = create<AppState>((set) => ({
     }
   },
 
-  addProject: async (path: string, environmentId?: string) => {
+  addProject: async (path: string, environmentId: string) => {
     try {
       const response = await fetch('/api/projects', {
         method: 'POST',
