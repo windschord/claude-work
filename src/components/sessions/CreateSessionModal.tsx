@@ -85,15 +85,26 @@ export function CreateSessionModal({
     });
   }, [environments]);
 
+  // disabled=trueの環境を除外した利用可能な環境リスト（UI表示用）
+  const availableEnvironments = useMemo(() => {
+    return sortedEnvironments.filter(env => !env.disabled);
+  }, [sortedEnvironments]);
+
+  // useEffect依存配列用のプリミティブ値（ガイドライン: useEffectの依存配列にはプリミティブ値のみを使用）
+  // id, type, is_defaultを含めることで、環境の属性変更時にも初期選択ロジックが再実行される
+  const availableEnvironmentIds = useMemo(() => {
+    return availableEnvironments.map(env => `${env.id}:${env.type}:${env.is_default}`).join(',');
+  }, [availableEnvironments]);
+
   // clone_location=dockerだがDocker環境が存在しない場合のフォールバック検出
   const isDockerFallback = useMemo(() => {
-    return cloneLocation === 'docker' && !environments.some((env) => env.type === 'DOCKER');
-  }, [cloneLocation, environments]);
+    return cloneLocation === 'docker' && !availableEnvironments.some((env) => env.type === 'DOCKER');
+  }, [cloneLocation, availableEnvironments]);
 
   // 選択された環境のタイプとskipPermissionsデフォルト値を取得
   const selectedEnvironment = useMemo(() => {
-    return sortedEnvironments.find((env) => env.id === selectedEnvironmentId);
-  }, [sortedEnvironments, selectedEnvironmentId]);
+    return availableEnvironments.find((env) => env.id === selectedEnvironmentId);
+  }, [availableEnvironments, selectedEnvironmentId]);
 
   const isDockerEnvironment = useMemo(() => {
     return selectedEnvironment?.type === 'DOCKER';
@@ -163,36 +174,48 @@ export function CreateSessionModal({
   // isProjectFetchedを待つことで、環境リストが先に読み込まれた場合でも
   // プロジェクトのenvironment_idが正しく反映される（レースコンディション防止）
   useEffect(() => {
-    if (!isEnvironmentsLoading && sortedEnvironments.length > 0 && isProjectFetched) {
-      // プロジェクトに環境が設定されている場合はそれを使用
+    if (!isEnvironmentsLoading && availableEnvironments.length > 0 && isProjectFetched) {
+      // プロジェクトに環境が設定されている場合はそれを使用（利用可能な環境に存在する場合のみ）
       if (projectEnvironmentId) {
-        setSelectedEnvironmentId(projectEnvironmentId);
+        const projectEnv = availableEnvironments.find((env) => env.id === projectEnvironmentId);
+        if (projectEnv) {
+          setSelectedEnvironmentId(projectEnvironmentId);
+        } else {
+          // プロジェクト環境がdisabledの場合、Docker環境→デフォルト環境→先頭の環境にフォールバック
+          const dockerEnv = availableEnvironments.find((env) => env.type === 'DOCKER');
+          const defaultEnv = availableEnvironments.find((env) => env.is_default);
+          setSelectedEnvironmentId(dockerEnv?.id || defaultEnv?.id || availableEnvironments[0]?.id || '');
+        }
       } else if (cloneLocation === 'docker') {
         // clone_location=dockerの場合は最初のDocker環境を自動選択
         // サーバー側でもclone_locationに基づいてDocker環境が強制されるため、UIでも同じ挙動にする
-        const dockerEnv = sortedEnvironments.find((env) => env.type === 'DOCKER');
+        const dockerEnv = availableEnvironments.find((env) => env.type === 'DOCKER');
         if (dockerEnv) {
           setSelectedEnvironmentId(dockerEnv.id);
         } else {
           // Docker環境が存在しない場合はデフォルト環境または先頭の環境をフォールバック
           // このフォールバック選択はUI検証（作成ボタンの有効化）のためのみ使用される
           // サーバー側がclone_locationに基づいてDocker環境を自動選択する
-          const defaultEnv = sortedEnvironments.find((env) => env.is_default);
-          setSelectedEnvironmentId(defaultEnv?.id || sortedEnvironments[0].id);
+          const defaultEnv = availableEnvironments.find((env) => env.is_default);
+          setSelectedEnvironmentId(defaultEnv?.id || availableEnvironments[0]?.id || '');
         }
       } else {
         // 設定されていない場合はデフォルト環境を優先選択
-        const defaultEnv = sortedEnvironments.find((env) => env.is_default);
+        // availableEnvironmentsから選ぶことで、disabled環境が初期選択されることを防ぐ
+        const defaultEnv = availableEnvironments.find((env) => env.is_default);
         if (defaultEnv) {
           setSelectedEnvironmentId(defaultEnv.id);
         } else {
           // デフォルトがない場合は最初のDocker環境を選択
-          const dockerEnv = sortedEnvironments.find((env) => env.type === 'DOCKER');
-          setSelectedEnvironmentId(dockerEnv?.id || sortedEnvironments[0].id);
+          const dockerEnv = availableEnvironments.find((env) => env.type === 'DOCKER');
+          setSelectedEnvironmentId(dockerEnv?.id || availableEnvironments[0]?.id || '');
         }
       }
     }
-  }, [sortedEnvironments, isEnvironmentsLoading, projectEnvironmentId, cloneLocation, isProjectFetched]);
+  // availableEnvironmentIdsはプリミティブ文字列を返すuseMemoで、環境構成の変化を追跡する。
+  // availableEnvironmentsはeffect内で参照するが、availableEnvironmentIdsの変化で同期的に再計算されるため安全。
+  // eslint-disable-next-line react-hooks/exhaustive-deps, local/no-useeffect-with-callback-deps
+  }, [availableEnvironmentIds, isEnvironmentsLoading, projectEnvironmentId, cloneLocation, isProjectFetched]);
 
   // モーダルが閉じられた時に状態をリセット
   useEffect(() => {
@@ -249,15 +272,19 @@ export function CreateSessionModal({
     setError('');
 
     try {
+      // プロジェクト環境が利用可能、またはclone_location=dockerの場合はサーバー側で環境を決定
+      // プロジェクト環境がdisabledの場合はフォールバック先のselectedEnvironmentIdを送信する
+      const shouldOmitEnvironmentId =
+        (projectEnvironmentId && availableEnvironments.some(env => env.id === projectEnvironmentId)) ||
+        cloneLocation === 'docker';
+
       const response = await fetch(`/api/projects/${projectId}/sessions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          // プロジェクトに環境が設定されている場合、またはclone_location=dockerの場合はenvironment_idを送信しない
-          // （サーバー側でproject.environment_idまたはclone_locationに基づいて環境を決定）
-          ...(projectEnvironmentId || cloneLocation === 'docker' ? {} : { environment_id: selectedEnvironmentId }),
+          ...(shouldOmitEnvironmentId ? {} : { environment_id: selectedEnvironmentId }),
           source_branch: selectedBranch || undefined,
           claude_code_options: (() => {
             const opts = { ...claudeOptions };
@@ -335,7 +362,7 @@ export function CreateSessionModal({
                     <div className="flex items-center justify-center py-4 text-gray-500 dark:text-gray-400">
                       環境を読み込み中...
                     </div>
-                  ) : sortedEnvironments.length === 0 ? (
+                  ) : availableEnvironments.length === 0 ? (
                     <div className="text-gray-500 dark:text-gray-400 py-4">
                       利用可能な環境がありません
                     </div>
@@ -365,7 +392,7 @@ export function CreateSessionModal({
                     // プロジェクトに環境が設定されている、またはclone_location=dockerの場合は表示のみ（変更不可）
                     <div className="bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg px-4 py-3">
                       {(() => {
-                        const env = sortedEnvironments.find((e) => e.id === selectedEnvironmentId);
+                        const env = availableEnvironments.find((e) => e.id === selectedEnvironmentId);
                         return env ? (
                           <div className="flex w-full items-center justify-between">
                             <div className="flex items-center">
@@ -408,7 +435,7 @@ export function CreateSessionModal({
                       disabled={isCreating || !isProjectFetched}
                     >
                       <div className="space-y-2">
-                        {sortedEnvironments.map((env: Environment) => (
+                        {availableEnvironments.map((env: Environment) => (
                           <RadioGroup.Option
                             key={env.id}
                             value={env.id}
@@ -616,7 +643,7 @@ export function CreateSessionModal({
                     disabled={
                       isCreating ||
                       isEnvironmentsLoading ||
-                      sortedEnvironments.length === 0 ||
+                      availableEnvironments.length === 0 ||
                       !selectedEnvironmentId
                     }
                   >

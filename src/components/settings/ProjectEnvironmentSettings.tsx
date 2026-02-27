@@ -5,6 +5,8 @@ import { EnvironmentBadge } from '@/components/common/EnvironmentBadge';
 
 interface ProjectEnvironmentSettingsProps {
   projectId: string;
+  hostEnvironmentDisabled?: boolean;
+  isEnvironmentsLoading?: boolean;
 }
 
 interface ProjectEnvironmentInfo {
@@ -23,13 +25,20 @@ interface ProjectEnvironmentInfo {
  * プロジェクトの実行環境を読み取り専用で表示します。
  * 実行環境はプロジェクト作成時に決定され、変更できません。
  */
-export function ProjectEnvironmentSettings({ projectId }: ProjectEnvironmentSettingsProps) {
+export function ProjectEnvironmentSettings({ projectId, hostEnvironmentDisabled = false, isEnvironmentsLoading = false }: ProjectEnvironmentSettingsProps) {
   const [projectEnv, setProjectEnv] = useState<ProjectEnvironmentInfo | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isProjectLoading, setIsProjectLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // プロジェクトAPI・環境APIの両方が取得完了するまでローディング表示
+  const isLoading = isProjectLoading || isEnvironmentsLoading;
 
   useEffect(() => {
     const controller = new AbortController();
+    setIsProjectLoading(true);
+    setError(null);
+    setProjectEnv(null);
+
     const fetchProject = async () => {
       try {
         const res = await fetch(`/api/projects/${projectId}`, { signal: controller.signal });
@@ -48,7 +57,9 @@ export function ProjectEnvironmentSettings({ projectId }: ProjectEnvironmentSett
         console.error('Failed to fetch project', err);
         setError('Failed to fetch project');
       } finally {
-        setIsLoading(false);
+        if (!controller.signal.aborted) {
+          setIsProjectLoading(false);
+        }
       }
     };
     fetchProject();
@@ -70,7 +81,7 @@ export function ProjectEnvironmentSettings({ projectId }: ProjectEnvironmentSett
     }
 
     const cloneLocation = projectEnv.clone_location || 'host';
-    if (cloneLocation === 'docker') {
+    if (cloneLocation === 'docker' || hostEnvironmentDisabled) {
       return { label: 'Docker (自動選択)', type: 'DOCKER' };
     }
     return { label: 'Host (自動選択)', type: 'HOST' };
@@ -98,9 +109,15 @@ export function ProjectEnvironmentSettings({ projectId }: ProjectEnvironmentSett
           <div className="flex items-center px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md">
             <EnvironmentBadge type={envDisplay.type} name={envDisplay.label} />
           </div>
-          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-            クローン場所（{projectEnv?.clone_location || 'host'}）の設定に基づいて自動的に決定されます。プロジェクト作成後に変更することはできません。
-          </p>
+          {projectEnv?.environment_id ? (
+            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+              プロジェクト作成時に選択された環境です。変更することはできません。
+            </p>
+          ) : (
+            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+              クローン場所（{hostEnvironmentDisabled ? 'docker' : (projectEnv?.clone_location || 'host')}）の設定に基づいて自動的に決定されます。プロジェクト作成後に変更することはできません。
+            </p>
+          )}
         </div>
       )}
     </div>
