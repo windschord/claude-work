@@ -109,9 +109,15 @@ export function ProjectEnvironmentSettings({ projectId, hostEnvironmentDisabled 
           <div className="flex items-center px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md">
             <EnvironmentBadge type={envDisplay.type} name={envDisplay.label} />
           </div>
-          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-            クローン場所（{hostEnvironmentDisabled ? 'docker' : (projectEnv?.clone_location || 'host')}）の設定に基づいて自動的に決定されます。プロジェクト作成後に変更することはできません。
-          </p>
+          {projectEnv?.environment_id ? (
+            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+              プロジェクト作成時に選択された環境です。変更することはできません。
+            </p>
+          ) : (
+            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+              クローン場所（{hostEnvironmentDisabled ? 'docker' : (projectEnv?.clone_location || 'host')}）の設定に基づいて自動的に決定されます。プロジェクト作成後に変更することはできません。
+            </p>
+          )}
         </div>
       )}
     </div>

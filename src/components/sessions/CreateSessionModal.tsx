@@ -277,9 +277,10 @@ export function CreateSessionModal({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          // プロジェクトに環境が設定されている場合、またはclone_location=dockerの場合はenvironment_idを送信しない
+          // プロジェクトに環境が設定されていてかつ利用可能な場合、またはclone_location=dockerの場合はenvironment_idを送信しない
           // （サーバー側でproject.environment_idまたはclone_locationに基づいて環境を決定）
-          ...(projectEnvironmentId || cloneLocation === 'docker' ? {} : { environment_id: selectedEnvironmentId }),
+          // ただし、プロジェクト環境がdisabledの場合はフォールバック先のselectedEnvironmentIdを送信する
+          ...((projectEnvironmentId && availableEnvironments.some(env => env.id === projectEnvironmentId)) || cloneLocation === 'docker' ? {} : { environment_id: selectedEnvironmentId }),
           source_branch: selectedBranch || undefined,
           claude_code_options: (() => {
             const opts = { ...claudeOptions };
