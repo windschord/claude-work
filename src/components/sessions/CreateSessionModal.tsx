@@ -91,8 +91,9 @@ export function CreateSessionModal({
   }, [sortedEnvironments]);
 
   // useEffect依存配列用のプリミティブ値（ガイドライン: useEffectの依存配列にはプリミティブ値のみを使用）
+  // id, type, is_defaultを含めることで、環境の属性変更時にも初期選択ロジックが再実行される
   const availableEnvironmentIds = useMemo(() => {
-    return availableEnvironments.map(env => env.id).join(',');
+    return availableEnvironments.map(env => `${env.id}:${env.type}:${env.is_default}`).join(',');
   }, [availableEnvironments]);
 
   // clone_location=dockerだがDocker環境が存在しない場合のフォールバック検出
