@@ -53,7 +53,7 @@ export function CreateSessionModal({
   projectId,
   onSuccess,
 }: CreateSessionModalProps) {
-  const [selectedEnvironmentId, setSelectedEnvironmentId] = useState<string>('');
+  const [_selectedEnvironmentId, setSelectedEnvironmentId] = useState<string>('');
   const [projectEnvironmentType, setProjectEnvironmentType] = useState<string | null>(null);
   const [projectEnvironmentName, setProjectEnvironmentName] = useState<string | null>(null);
   const [projectEnvironmentConfig, setProjectEnvironmentConfig] = useState<string>('{}');
