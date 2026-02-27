@@ -70,24 +70,36 @@ export async function PATCH(
 
     // environment_id の変更処理
     if (environment_id !== undefined) {
-      // 環境の存在確認
-      const { environmentService } = await import('@/services/environment-service');
-      const env = await environmentService.findById(environment_id);
-      if (!env) {
-        return NextResponse.json({ error: '指定された実行環境が見つかりません' }, { status: 400 });
-      }
+      // 同一 environment_id への再送は変更なしとして扱う
+      if (environment_id === project.environment_id) {
+        environment_id = undefined;
+      } else {
+        // 環境の存在確認
+        const { environmentService } = await import('@/services/environment-service');
+        const env = await environmentService.findById(environment_id);
+        if (!env) {
+          return NextResponse.json({ error: '指定された実行環境が見つかりません' }, { status: 400 });
+        }
 
-      // セッション0件チェック
-      const sessionCount = db.select({ count: count() })
-        .from(schema.sessions)
-        .where(eq(schema.sessions.project_id, project_id))
-        .get();
+        // セッション0件チェックと environment_id 更新をトランザクションで保護
+        const conflictResponse = db.transaction((tx) => {
+          const sessionCount = tx.select({ count: count() })
+            .from(schema.sessions)
+            .where(eq(schema.sessions.project_id, project_id))
+            .get();
 
-      if (sessionCount && sessionCount.count > 0) {
-        return NextResponse.json(
-          { error: 'セッションが存在するため実行環境を変更できません。すべてのセッションを削除してから変更してください。' },
-          { status: 409 }
-        );
+          if (sessionCount && sessionCount.count > 0) {
+            return 'conflict';
+          }
+          return null;
+        });
+
+        if (conflictResponse === 'conflict') {
+          return NextResponse.json(
+            { error: 'セッションが存在するため実行環境を変更できません。すべてのセッションを削除してから変更してください。' },
+            { status: 409 }
+          );
+        }
       }
     }
 

@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Path is required' }, { status: 400 });
     }
 
-    if (!environment_id) {
+    if (typeof environment_id !== 'string' || environment_id.trim() === '') {
       return NextResponse.json({ error: '実行環境の指定は必須です' }, { status: 400 });
     }
 

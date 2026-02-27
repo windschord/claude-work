@@ -92,6 +92,11 @@ vi.mock('@/lib/db', () => ({
           })),
         })),
       })),
+      delete: vi.fn(() => ({
+        where: vi.fn(() => ({
+          run: mockDbDeleteRun,
+        })),
+      })),
     })),
   },
   schema: {

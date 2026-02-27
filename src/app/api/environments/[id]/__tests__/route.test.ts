@@ -2,13 +2,31 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NextRequest } from 'next/server';
 import { GET, PUT, DELETE } from '../route';
 
-// モック
-const mockFindById = vi.fn();
-const mockUpdate = vi.fn();
-const mockDelete = vi.fn();
-const mockCheckStatus = vi.fn();
+// vi.hoisted でモック関数とカスタムエラークラスを先に初期化
+const {
+  mockFindById,
+  mockUpdate,
+  mockDelete,
+  mockCheckStatus,
+  MockEnvironmentInUseError,
+} = vi.hoisted(() => {
+  class MockEnvironmentInUseError extends Error {
+    constructor(message: string) {
+      super(message);
+      this.name = 'EnvironmentInUseError';
+    }
+  }
+  return {
+    mockFindById: vi.fn(),
+    mockUpdate: vi.fn(),
+    mockDelete: vi.fn(),
+    mockCheckStatus: vi.fn(),
+    MockEnvironmentInUseError,
+  };
+});
 
 vi.mock('@/services/environment-service', () => ({
+  EnvironmentInUseError: MockEnvironmentInUseError,
   environmentService: {
     findById: (id: string) => mockFindById(id),
     update: (id: string, input: unknown) => mockUpdate(id, input),
@@ -396,7 +414,7 @@ describe('/api/environments/[id]', () => {
 
       mockFindById.mockResolvedValue(environment);
       mockDelete.mockRejectedValue(
-        new Error('この環境は以下のプロジェクトで使用中のため削除できません: Project A')
+        new MockEnvironmentInUseError('この環境は以下のプロジェクトで使用中のため削除できません: Project A')
       );
 
       const request = new NextRequest('http://localhost:3000/api/environments/env-in-use', {

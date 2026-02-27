@@ -9,6 +9,16 @@ import * as fsPromises from 'fs/promises';
 import { DockerClient } from './docker-client';
 
 /**
+ * 環境が使用中のため削除できないことを示すエラー
+ */
+export class EnvironmentInUseError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'EnvironmentInUseError';
+  }
+}
+
+/**
  * 環境状態
  */
 export interface EnvironmentStatus {
@@ -196,7 +206,7 @@ export class EnvironmentService {
 
     if (projectsWithEnv.length > 0) {
       const projectNames = projectsWithEnv.map(p => p.name).join(', ');
-      throw new Error(`この環境は以下のプロジェクトで使用中のため削除できません: ${projectNames}`);
+      throw new EnvironmentInUseError(`この環境は以下のプロジェクトで使用中のため削除できません: ${projectNames}`);
     }
 
     // 認証ディレクトリがあれば削除
@@ -226,15 +236,17 @@ export class EnvironmentService {
       }
     }
 
-    // セッション固有のenvironment_idをNULLに更新（セッションが直接参照している場合のクリーンアップ）
-    db.update(schema.sessions)
-      .set({ environment_id: null })
-      .where(eq(schema.sessions.environment_id, id))
-      .run();
+    // セッションのenvironment_id NULLクリアと環境レコード削除をトランザクションで実行
+    db.transaction((tx) => {
+      tx.update(schema.sessions)
+        .set({ environment_id: null })
+        .where(eq(schema.sessions.environment_id, id))
+        .run();
 
-    db.delete(schema.executionEnvironments)
-      .where(eq(schema.executionEnvironments.id, id))
-      .run();
+      tx.delete(schema.executionEnvironments)
+        .where(eq(schema.executionEnvironments.id, id))
+        .run();
+    });
 
     logger.info('環境を削除しました', { id });
   }

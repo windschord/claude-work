@@ -49,6 +49,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '実行環境の指定は必須です' }, { status: 400 });
     }
 
+    // environment_id の存在確認
+    const { environmentService } = await import('@/services/environment-service');
+    const env = await environmentService.findById(environment_id);
+    if (!env) {
+      return NextResponse.json({ error: '指定された実行環境が見つかりません' }, { status: 400 });
+    }
+
     // URL検証
     const validation = remoteRepoService.validateRemoteUrl(url);
     if (!validation.valid) {
