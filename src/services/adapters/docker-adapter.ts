@@ -23,7 +23,7 @@ export interface DockerAdapterConfig {
   environmentId: string;
   imageName: string;
   imageTag: string;
-  authDirPath: string; // 環境専用認証ディレクトリ（絶対パス）
+  authDirPath?: string; // 環境専用認証ディレクトリ（絶対パス）。名前付きVolume使用時はundefined
   portMappings?: PortMapping[];    // カスタムポートマッピング
   volumeMounts?: VolumeMount[];    // カスタムボリュームマウント
 }
@@ -96,22 +96,36 @@ export class DockerAdapter extends BasePTYAdapter {
   private developerSettingsService: DeveloperSettingsService;
   private encryptionService: EncryptionService;
 
+  /**
+   * 環境IDからClaude設定用Volume名を生成
+   */
+  static getConfigVolumeNames(environmentId: string): {
+    claudeVolume: string;
+    configClaudeVolume: string;
+  } {
+    return {
+      claudeVolume: `claude-config-claude-${environmentId}`,
+      configClaudeVolume: `claude-config-configclaude-${environmentId}`,
+    };
+  }
+
   constructor(config: DockerAdapterConfig) {
     super();
 
-    // Validate authDirPath: must be an absolute path containing environmentId
-    // to prevent accidental cross-environment auth directory usage
-    if (!config.authDirPath || !path.isAbsolute(config.authDirPath)) {
-      throw new Error(`DockerAdapter: authDirPath must be an absolute path, got: ${config.authDirPath}`);
-    }
-    const normalizedAuthPath = path.resolve(config.authDirPath);
-    // Use path separator boundaries to prevent false positives (e.g., env-1 matching env-10)
-    const pathSegments = normalizedAuthPath.split(path.sep);
-    if (!pathSegments.includes(config.environmentId)) {
-      throw new Error(
-        `DockerAdapter: authDirPath must contain environmentId for isolation. ` +
-        `Expected path segment '${config.environmentId}', got: ${normalizedAuthPath}`
-      );
+    // authDirPathが指定されている場合のみバリデーション（既存環境の後方互換性）
+    if (config.authDirPath) {
+      if (!path.isAbsolute(config.authDirPath)) {
+        throw new Error(`DockerAdapter: authDirPath must be an absolute path, got: ${config.authDirPath}`);
+      }
+      const normalizedAuthPath = path.resolve(config.authDirPath);
+      // Use path separator boundaries to prevent false positives (e.g., env-1 matching env-10)
+      const pathSegments = normalizedAuthPath.split(path.sep);
+      if (!pathSegments.includes(config.environmentId)) {
+        throw new Error(
+          `DockerAdapter: authDirPath must contain environmentId for isolation. ` +
+          `Expected path segment '${config.environmentId}', got: ${normalizedAuthPath}`
+        );
+      }
     }
 
     this.config = config;
@@ -158,14 +172,22 @@ export class DockerAdapter extends BasePTYAdapter {
       workingDirConfig = '/workspace';
     }
 
-    // Auth dirs (only mount if they exist, matching DockerPTYAdapter pattern)
-    const claudeDir = path.join(this.config.authDirPath, 'claude');
-    const claudeConfigDir = path.join(this.config.authDirPath, 'config', 'claude');
-    if (fs.existsSync(claudeDir)) {
-      Binds.push(`${claudeDir}:/home/node/.claude`);
-    }
-    if (fs.existsSync(claudeConfigDir)) {
-      Binds.push(`${claudeConfigDir}:/home/node/.config/claude`);
+    // Auth dirs: named volumes or bind mounts (backward compatibility)
+    if (this.config.authDirPath) {
+      // 既存環境: バインドマウント（後方互換性）
+      const claudeDir = path.join(this.config.authDirPath, 'claude');
+      const claudeConfigDir = path.join(this.config.authDirPath, 'config', 'claude');
+      if (fs.existsSync(claudeDir)) {
+        Binds.push(`${claudeDir}:/home/node/.claude`);
+      }
+      if (fs.existsSync(claudeConfigDir)) {
+        Binds.push(`${claudeConfigDir}:/home/node/.config/claude`);
+      }
+    } else {
+      // 新規環境: 名前付きVolume
+      const volumes = DockerAdapter.getConfigVolumeNames(this.config.environmentId);
+      Binds.push(`${volumes.claudeVolume}:/home/node/.claude`);
+      Binds.push(`${volumes.configClaudeVolume}:/home/node/.config/claude`);
     }
 
     // Git auth (RO)
