@@ -408,8 +408,8 @@ describe('POST /api/projects/clone', () => {
 
       // DockerGitServiceのモックを設定
       const { DockerGitService } = await import('@/services/docker-git-service');
-      const mockCloneRepository = vi.fn().mockResolvedValue({ success: true, message: 'cloned' });
-      const mockCloneRepositoryWithPAT = vi.fn().mockResolvedValue({ success: true, message: 'cloned with PAT' });
+      const mockCloneRepository = vi.fn().mockResolvedValue({ success: true, message: 'cloned', volumeName: 'cw-repo-repo' });
+      const mockCloneRepositoryWithPAT = vi.fn().mockResolvedValue({ success: true, message: 'cloned with PAT', volumeName: 'cw-repo-repo' });
       vi.mocked(DockerGitService).mockImplementation(function (this: unknown) {
         Object.assign(this as Record<string, unknown>, {
           cloneRepository: mockCloneRepository,
@@ -443,7 +443,8 @@ describe('POST /api/projects/clone', () => {
       expect(mockCloneRepositoryWithPAT).toHaveBeenCalledWith(
         'https://github.com/user/repo.git',
         expect.any(String), // projectId
-        'ghp_test_token_1234567890' // decrypted PAT
+        'ghp_test_token_1234567890', // decrypted PAT
+        'repo' // projectName (extracted from URL)
       );
     });
 
@@ -543,7 +544,7 @@ describe('POST /api/projects/clone', () => {
     it('should not use PAT for docker clone when githubPatId is not provided', async () => {
       // DockerGitServiceのモックを設定（PATなし）
       const { DockerGitService } = await import('@/services/docker-git-service');
-      const mockCloneRepository = vi.fn().mockResolvedValue({ success: true, message: 'cloned without PAT' });
+      const mockCloneRepository = vi.fn().mockResolvedValue({ success: true, message: 'cloned without PAT', volumeName: 'cw-repo-repo' });
       vi.mocked(DockerGitService).mockImplementation(function (this: unknown) {
         Object.assign(this as Record<string, unknown>, {
           cloneRepository: mockCloneRepository,

@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import { Writable } from 'stream';
 import { logger } from '@/lib/logger';
+import { generateUniqueVolumeName } from '@/lib/volume-naming';
 import { getConfigService } from './config-service';
 import { DockerClient } from './docker-client';
 import {
@@ -55,16 +56,29 @@ export class DockerGitService implements GitOperations {
 
   /**
    * Dockerボリューム名を生成
+   * projectNameが指定された場合は新命名規則(cw-repo-{slug})を使用
+   * 未指定の場合は後方互換のためclaude-repo-{projectId}を使用
    */
-  private getVolumeName(projectId: string): string {
+  private getVolumeName(projectId: string, projectName?: string): string {
+    if (projectName) {
+      return generateUniqueVolumeName('repo', projectName, [], projectId);
+    }
     return `claude-repo-${projectId}`;
   }
 
   /**
    * Dockerボリュームを作成
+   * projectNameが指定された場合は新命名規則を使用し、重複チェックを行う
    */
-  async createVolume(projectId: string): Promise<string> {
-    const volumeName = this.getVolumeName(projectId);
+  async createVolume(projectId: string, projectName?: string): Promise<string> {
+    let volumeName: string;
+
+    if (projectName) {
+      const existingNames = await this.getExistingVolumeNames();
+      volumeName = generateUniqueVolumeName('repo', projectName, existingNames, projectId);
+    } else {
+      volumeName = this.getVolumeName(projectId);
+    }
 
     try {
       logger.info('[docker] Creating Docker volume', { volumeName });
@@ -82,6 +96,19 @@ export class DockerGitService implements GitOperations {
         false,
         error as Error
       );
+    }
+  }
+
+  /**
+   * 既存Docker Volume名の一覧を取得する（重複チェック用）
+   */
+  private async getExistingVolumeNames(): Promise<string[]> {
+    try {
+      const result = await DockerClient.getInstance().listVolumes();
+      return (result.Volumes ?? []).map((v) => v.Name);
+    } catch (error) {
+      logger.warn('[docker] Failed to list volumes for uniqueness check, proceeding without', { error });
+      return [];
     }
   }
 
@@ -338,13 +365,13 @@ export class DockerGitService implements GitOperations {
    * リポジトリをcloneする
    */
   async cloneRepository(options: GitCloneOptions): Promise<GitOperationResult> {
-    const { url, projectId } = options;
+    const { url, projectId, projectName } = options;
     const timeout = options.timeoutMs || this.configService.getGitCloneTimeoutMs();
     let volumeName: string | null = null;
 
     try {
       // 1. Dockerボリューム作成
-      volumeName = await this.createVolume(projectId);
+      volumeName = await this.createVolume(projectId, projectName);
 
       // 2. 認証情報マウントオプション構築
       const auth = await this.buildAuthBindsAndEnv();
@@ -366,6 +393,7 @@ export class DockerGitService implements GitOperations {
       return {
         success: true,
         message: `Repository cloned successfully to Docker volume: ${volumeName}`,
+        volumeName: volumeName ?? undefined,
       };
     } catch (error) {
       logger.error('[docker] git clone failed', { error, url, volumeName });
@@ -474,7 +502,8 @@ export class DockerGitService implements GitOperations {
   async cloneRepositoryWithPAT(
     repoUrl: string,
     projectId: string,
-    pat: string
+    pat: string,
+    projectName?: string
   ): Promise<GitOperationResult> {
     // HTTPS URLのみ許可
     if (!repoUrl.startsWith('https://')) {
@@ -491,7 +520,7 @@ export class DockerGitService implements GitOperations {
 
     try {
       // 1. Dockerボリューム作成
-      volumeName = await this.createVolume(projectId);
+      volumeName = await this.createVolume(projectId, projectName);
 
       // 2. credential helper設定 + git cloneを実行するシェルコマンド
       const shellCommand = [
@@ -522,6 +551,7 @@ export class DockerGitService implements GitOperations {
       return {
         success: true,
         message: `Repository cloned successfully with PAT to Docker volume: ${volumeName}`,
+        volumeName: volumeName ?? undefined,
       };
     } catch (error) {
       logger.error('[docker] git clone with PAT failed', { error: this.sanitizeError(error as Error), repoUrl: this.sanitizeUrl(repoUrl), volumeName });
