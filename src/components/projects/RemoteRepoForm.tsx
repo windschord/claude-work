@@ -36,7 +36,7 @@ export function RemoteRepoForm({
   const { pats, isLoading: isPATsLoading } = useGitHubPATs();
   const activePATs = pats.filter((pat) => pat.isActive);
 
-  const { environments, isLoading: isEnvironmentsLoading } = useEnvironments();
+  const { environments, isLoading: isEnvironmentsLoading, hostEnvironmentDisabled } = useEnvironments();
   const availableEnvironments = environments.filter((env) => !env.disabled);
 
   const availableEnvironmentIds = availableEnvironments.map((e) => e.id).join(',');
@@ -51,10 +51,18 @@ export function RemoteRepoForm({
     }
   }, [selectedEnvironmentId, defaultEnvironmentId, availableEnvironmentIds]);
 
+  // HOST環境が無効化された場合、cloneLocationをdockerに強制リセット
+  useEffect(() => {
+    if (hostEnvironmentDisabled && cloneLocation !== 'docker') {
+      setCloneLocation('docker');
+    }
+  }, [hostEnvironmentDisabled, cloneLocation]);
+
   const selectedEnvironment = availableEnvironments.find((env) => env.id === selectedEnvironmentId);
 
+  const effectiveCloneLocation = hostEnvironmentDisabled ? 'docker' : cloneLocation;
   const isHttpsUrl = url.trim().startsWith('https://');
-  const isDocker = cloneLocation === 'docker';
+  const isDocker = effectiveCloneLocation === 'docker';
   const showPATSelector = isDocker && isHttpsUrl;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -69,7 +77,7 @@ export function RemoteRepoForm({
     }
 
     const patId = showPATSelector && githubPatId ? githubPatId : undefined;
-    await onSubmit(url.trim(), selectedEnvironmentId, targetDir.trim() || undefined, cloneLocation, patId);
+    await onSubmit(url.trim(), selectedEnvironmentId, targetDir.trim() || undefined, effectiveCloneLocation, patId);
   };
 
   return (
@@ -95,60 +103,62 @@ export function RemoteRepoForm({
         </p>
       </div>
 
-      {/* 保存場所選択 */}
-      <div className="mb-4">
-        <div className="flex items-center gap-2 mb-2">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-            保存場所
-          </label>
-          <div className="relative">
-            <HelpCircle
-              className="w-4 h-4 text-gray-400 cursor-help"
-              onMouseEnter={() => setShowTooltip(true)}
-              onMouseLeave={() => setShowTooltip(false)}
-            />
-            {showTooltip && (
-              <div className="absolute left-0 top-6 z-10 w-64 p-2 text-xs bg-gray-800 text-white rounded shadow-lg">
-                <p className="mb-1"><strong>Docker環境（推奨）:</strong></p>
-                <p className="mb-2">SSH Agent認証が自動で利用可能です。</p>
-                <p className="mb-1"><strong>ホスト環境:</strong></p>
-                <p>ローカルのGit設定を使用します。</p>
-              </div>
-            )}
+      {/* 保存場所選択: HOST環境が有効な場合のみ表示（環境情報取得中は非表示） */}
+      {!isEnvironmentsLoading && !hostEnvironmentDisabled && (
+        <div className="mb-4">
+          <div className="flex items-center gap-2 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              保存場所
+            </label>
+            <div className="relative">
+              <HelpCircle
+                className="w-4 h-4 text-gray-400 cursor-help"
+                onMouseEnter={() => setShowTooltip(true)}
+                onMouseLeave={() => setShowTooltip(false)}
+              />
+              {showTooltip && (
+                <div className="absolute left-0 top-6 z-10 w-64 p-2 text-xs bg-gray-800 text-white rounded shadow-lg">
+                  <p className="mb-1"><strong>Docker環境（推奨）:</strong></p>
+                  <p className="mb-2">SSH Agent認証が自動で利用可能です。</p>
+                  <p className="mb-1"><strong>ホスト環境:</strong></p>
+                  <p>ローカルのGit設定を使用します。</p>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="flex gap-4">
+            <label className="flex items-center cursor-pointer">
+              <input
+                type="radio"
+                name="cloneLocation"
+                value="docker"
+                checked={cloneLocation === 'docker'}
+                onChange={(e) => setCloneLocation(e.target.value as 'docker')}
+                className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                disabled={isLoading}
+              />
+              <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                Docker環境
+                <span className="ml-1 text-xs text-blue-600 dark:text-blue-400">(推奨)</span>
+              </span>
+            </label>
+            <label className="flex items-center cursor-pointer">
+              <input
+                type="radio"
+                name="cloneLocation"
+                value="host"
+                checked={cloneLocation === 'host'}
+                onChange={(e) => setCloneLocation(e.target.value as 'host')}
+                className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                disabled={isLoading}
+              />
+              <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                ホスト環境
+              </span>
+            </label>
           </div>
         </div>
-        <div className="flex gap-4">
-          <label className="flex items-center cursor-pointer">
-            <input
-              type="radio"
-              name="cloneLocation"
-              value="docker"
-              checked={cloneLocation === 'docker'}
-              onChange={(e) => setCloneLocation(e.target.value as 'docker')}
-              className="w-4 h-4 text-blue-600 focus:ring-blue-500"
-              disabled={isLoading}
-            />
-            <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">
-              Docker環境
-              <span className="ml-1 text-xs text-blue-600 dark:text-blue-400">(推奨)</span>
-            </span>
-          </label>
-          <label className="flex items-center cursor-pointer">
-            <input
-              type="radio"
-              name="cloneLocation"
-              value="host"
-              checked={cloneLocation === 'host'}
-              onChange={(e) => setCloneLocation(e.target.value as 'host')}
-              className="w-4 h-4 text-blue-600 focus:ring-blue-500"
-              disabled={isLoading}
-            />
-            <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">
-              ホスト環境
-            </span>
-          </label>
-        </div>
-      </div>
+      )}
 
       {/* PAT選択（Docker + HTTPS時のみ表示） */}
       {showPATSelector && (

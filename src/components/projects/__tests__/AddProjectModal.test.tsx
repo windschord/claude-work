@@ -17,15 +17,25 @@ vi.mock('@/hooks/useGitHubPATs', () => ({
 }));
 
 // useEnvironments hookのモック
+const mockUseEnvironments = vi.fn();
 vi.mock('@/hooks/useEnvironments', () => ({
-  useEnvironments: () => ({
-    environments: [
-      { id: 'env-1', name: 'Default Docker', type: 'DOCKER', is_default: true, description: 'Test env', config: '{}' },
-    ],
-    isLoading: false,
-    error: null,
-  }),
+  useEnvironments: () => mockUseEnvironments(),
 }));
+
+const buildMockEnvironments = (overrides: Partial<{
+  environments: Array<{ id: string; name: string; type: string; is_default: boolean; description: string; config: string }>;
+  isLoading: boolean;
+  error: null | string;
+  hostEnvironmentDisabled: boolean;
+}> = {}) => ({
+  environments: [
+    { id: 'env-1', name: 'Default Docker', type: 'DOCKER', is_default: true, description: 'Test env', config: '{}' },
+  ],
+  isLoading: false,
+  error: null,
+  hostEnvironmentDisabled: false,
+  ...overrides,
+});
 
 describe('AddProjectModal', () => {
   const mockAddProject = vi.fn();
@@ -48,6 +58,7 @@ describe('AddProjectModal', () => {
       cloneProject: mockCloneProject,
       fetchProjects: mockFetchProjects,
     });
+    mockUseEnvironments.mockReturnValue(buildMockEnvironments());
   });
 
   afterEach(() => {
@@ -236,6 +247,42 @@ describe('AddProjectModal', () => {
       fireEvent.click(localTab);
 
       expect(screen.getByPlaceholderText('/path/to/git/repo')).toBeInTheDocument();
+    });
+  });
+
+  describe('HOST環境無効化時のタブ制御', () => {
+    it('hostEnvironmentDisabled=trueの場合、ローカルタブが非表示になる', () => {
+      mockUseEnvironments.mockReturnValue(buildMockEnvironments({ hostEnvironmentDisabled: true }));
+
+      render(<AddProjectModal isOpen={true} onClose={mockOnClose} />);
+
+      expect(screen.queryByRole('tab', { name: 'ローカル' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('tab', { name: 'リモート' })).not.toBeInTheDocument();
+    });
+
+    it('hostEnvironmentDisabled=trueの場合、リモートフォームが直接表示される', () => {
+      mockUseEnvironments.mockReturnValue(buildMockEnvironments({ hostEnvironmentDisabled: true }));
+
+      render(<AddProjectModal isOpen={true} onClose={mockOnClose} />);
+
+      expect(screen.getByPlaceholderText('https://github.com/user/repo.git')).toBeInTheDocument();
+    });
+
+    it('hostEnvironmentDisabled=falseの場合、両タブが表示される', () => {
+      render(<AddProjectModal isOpen={true} onClose={mockOnClose} />);
+
+      expect(screen.getByRole('tab', { name: 'ローカル' })).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: 'リモート' })).toBeInTheDocument();
+    });
+
+    it('環境ロード中はタブもリモートフォームも表示されない', () => {
+      mockUseEnvironments.mockReturnValue(buildMockEnvironments({ environments: [], isLoading: true }));
+
+      render(<AddProjectModal isOpen={true} onClose={mockOnClose} />);
+
+      expect(screen.queryByRole('tab', { name: 'ローカル' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('tab', { name: 'リモート' })).not.toBeInTheDocument();
+      expect(screen.getByText('環境を読み込み中...')).toBeInTheDocument();
     });
   });
 
