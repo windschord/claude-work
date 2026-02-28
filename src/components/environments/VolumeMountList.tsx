@@ -4,6 +4,8 @@ import { useState, useRef, useEffect } from 'react';
 import { Plus, X } from 'lucide-react';
 import type { VolumeMount } from '@/types/environment';
 import { isDangerousPath, isSystemContainerPath } from '@/lib/docker-config-validator';
+import { validateVolumeName } from '@/lib/volume-naming';
+import { useDockerVolumes } from '@/hooks/useDockerVolumes';
 
 interface VolumeMountListProps {
   value: VolumeMount[];
@@ -27,39 +29,47 @@ function validateMount(mount: VolumeMount): { errors: MountError; warnings: Moun
   const errors: MountError = {};
   const warnings: MountWarning = {};
 
-  // 空のパスはバリデーション対象外（まだ入力されていない）
-  if (mount.hostPath && !mount.hostPath.startsWith('/')) {
-    errors.hostPath = 'hostPathは絶対パスである必要があります';
+  const sourceType = mount.sourceType ?? 'bind';
+
+  if (sourceType === 'volume') {
+    // Docker Volume名バリデーション
+    if (mount.hostPath && !validateVolumeName(mount.hostPath)) {
+      errors.hostPath = '有効なDocker Volume名ではありません';
+    }
+  } else {
+    // bind mount: ホストパスバリデーション
+    if (mount.hostPath && !mount.hostPath.startsWith('/')) {
+      errors.hostPath = 'hostPathは絶対パスである必要があります';
+    }
+
+    if (mount.hostPath && mount.hostPath.includes('..')) {
+      errors.hostPath = 'hostPathに「..」を含めることはできません';
+    }
+
+    if (mount.hostPath && !errors.hostPath && mount.hostPath.includes(':')) {
+      errors.hostPath = 'hostPathに「:」を含めることはできません';
+    }
+
+    if (mount.hostPath && isDangerousPath(mount.hostPath)) {
+      warnings.hostPath = `hostPath「${mount.hostPath}」は危険なシステムパスです`;
+    }
   }
 
+  // containerPath共通バリデーション
   if (mount.containerPath && !mount.containerPath.startsWith('/')) {
     errors.containerPath = 'containerPathは絶対パスである必要があります';
   }
 
-  // システムコンテナパスチェック
   if (mount.containerPath && isSystemContainerPath(mount.containerPath)) {
     errors.containerPath = `containerPath「${mount.containerPath}」はシステムが使用するパスのためマウントできません`;
   }
 
-  // パストラバーサルチェック
-  if (mount.hostPath && mount.hostPath.includes('..')) {
-    errors.hostPath = 'hostPathに「..」を含めることはできません';
-  }
   if (mount.containerPath && mount.containerPath.includes('..')) {
     errors.containerPath = 'containerPathに「..」を含めることはできません';
   }
 
-  // コロン文字チェック
-  if (mount.hostPath && !errors.hostPath && mount.hostPath.includes(':')) {
-    errors.hostPath = 'hostPathに「:」を含めることはできません';
-  }
   if (mount.containerPath && !errors.containerPath && mount.containerPath.includes(':')) {
     errors.containerPath = 'containerPathに「:」を含めることはできません';
-  }
-
-  // 危険なホストパスチェック
-  if (mount.hostPath && isDangerousPath(mount.hostPath)) {
-    warnings.hostPath = `hostPath「${mount.hostPath}」は危険なシステムパスです`;
   }
 
   return { errors, warnings };
@@ -73,6 +83,7 @@ function validateMount(mount: VolumeMount): { errors: MountError; warnings: Moun
  * リアルタイムでバリデーションを行い、エラーや警告を表示します。
  */
 export function VolumeMountList({ value, onChange, onDangerousPath }: VolumeMountListProps) {
+  const { volumes, loading: volumesLoading } = useDockerVolumes();
   const [keyState, setKeyState] = useState(() => ({
     counter: value.length,
     keys: value.map((_, i) => i),
@@ -137,6 +148,15 @@ export function VolumeMountList({ value, onChange, onDangerousPath }: VolumeMoun
         notifiedPathsRef.current.delete(prevHostPath);
       }
     }
+    // sourceType切替時にhostPathをクリア
+    if (field === 'sourceType') {
+      const newMounts = value.map((mount, i) => {
+        if (i !== index) return mount;
+        return { ...mount, sourceType: fieldValue as 'bind' | 'volume', hostPath: '' };
+      });
+      onChange(newMounts);
+      return;
+    }
     const newMounts = value.map((mount, i) => {
       if (i !== index) return mount;
       return { ...mount, [field]: fieldValue };
@@ -167,17 +187,44 @@ export function VolumeMountList({ value, onChange, onDangerousPath }: VolumeMoun
           {value.map((mount, index) => {
             const { errors, warnings } = validateMount(mount);
 
+            const sourceType = mount.sourceType ?? 'bind';
+
             return (
               <div key={keyState.keys[index]} className="space-y-1">
                 <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={mount.hostPath}
-                    onChange={(e) => handleChange(index, 'hostPath', e.target.value)}
-                    onBlur={(e) => handleHostPathBlur(e.currentTarget.value)}
-                    placeholder="/host/path"
-                    className="flex-1 px-3 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+                  <select
+                    value={sourceType}
+                    onChange={(e) => handleChange(index, 'sourceType', e.target.value)}
+                    className="px-2 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="bind">Bind</option>
+                    <option value="volume">Volume</option>
+                  </select>
+                  {sourceType === 'volume' ? (
+                    <select
+                      value={mount.hostPath}
+                      onChange={(e) => handleChange(index, 'hostPath', e.target.value)}
+                      className="flex-1 px-3 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">
+                        {volumesLoading ? '読み込み中...' : 'Volumeを選択'}
+                      </option>
+                      {volumes.map((vol) => (
+                        <option key={vol.name} value={vol.name}>
+                          {vol.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={mount.hostPath}
+                      onChange={(e) => handleChange(index, 'hostPath', e.target.value)}
+                      onBlur={(e) => handleHostPathBlur(e.currentTarget.value)}
+                      placeholder="/host/path"
+                      className="flex-1 px-3 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  )}
                   <span className="text-sm text-gray-500 dark:text-gray-400 shrink-0">
                     -&gt;
                   </span>

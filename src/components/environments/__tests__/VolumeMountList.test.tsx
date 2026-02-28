@@ -3,6 +3,19 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { VolumeMountList } from '../VolumeMountList';
 import type { VolumeMount } from '@/types/environment';
 
+// useDockerVolumesのモック
+vi.mock('@/hooks/useDockerVolumes', () => ({
+  useDockerVolumes: () => ({
+    volumes: [
+      { name: 'cw-repo-my-project', driver: 'local', createdAt: '2026-01-01T00:00:00Z' },
+      { name: 'cw-config-dev', driver: 'local', createdAt: '2026-01-02T00:00:00Z' },
+    ],
+    loading: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
+}));
+
 describe('VolumeMountList', () => {
   const defaultProps = {
     value: [] as VolumeMount[],
@@ -265,6 +278,71 @@ describe('VolumeMountList', () => {
       render(<VolumeMountList {...defaultProps} />);
 
       expect(screen.getByText('ボリュームマウント')).toBeInTheDocument();
+    });
+  });
+
+  describe('sourceType selection', () => {
+    it('sourceType選択セレクトが表示される', () => {
+      const mounts: VolumeMount[] = [
+        { hostPath: '/data/app', containerPath: '/app', accessMode: 'rw' },
+      ];
+      render(<VolumeMountList value={mounts} onChange={vi.fn()} />);
+      const selects = screen.getAllByRole('combobox');
+      const sourceTypeSelect = selects.find(s => {
+        const options = s.querySelectorAll('option');
+        return Array.from(options).some(o => o.value === 'bind') &&
+               Array.from(options).some(o => o.value === 'volume');
+      });
+      expect(sourceTypeSelect).toBeDefined();
+      expect((sourceTypeSelect as HTMLSelectElement).value).toBe('bind');
+    });
+
+    it('sourceType=volumeに切り替えるとhostPathがクリアされる', () => {
+      const onChange = vi.fn();
+      const mounts: VolumeMount[] = [
+        { hostPath: '/data/app', containerPath: '/app', accessMode: 'rw' },
+      ];
+      render(<VolumeMountList value={mounts} onChange={onChange} />);
+      const selects = screen.getAllByRole('combobox');
+      const sourceTypeSelect = selects.find(s => {
+        const options = s.querySelectorAll('option');
+        return Array.from(options).some(o => o.value === 'bind') &&
+               Array.from(options).some(o => o.value === 'volume');
+      })!;
+      fireEvent.change(sourceTypeSelect, { target: { value: 'volume' } });
+      expect(onChange).toHaveBeenCalledWith([
+        { hostPath: '', containerPath: '/app', accessMode: 'rw', sourceType: 'volume' },
+      ]);
+    });
+
+    it('sourceType=volume時にDocker Volume選択ドロップダウンが表示される', () => {
+      const mounts: VolumeMount[] = [
+        { hostPath: 'cw-repo-my-project', containerPath: '/workspace', accessMode: 'rw', sourceType: 'volume' },
+      ];
+      render(<VolumeMountList value={mounts} onChange={vi.fn()} />);
+      expect(screen.getByText('cw-config-dev')).toBeInTheDocument();
+      const volumeSelect = screen.getAllByRole('combobox').find(s => {
+        const options = s.querySelectorAll('option');
+        return Array.from(options).some(o => o.value === 'cw-repo-my-project');
+      });
+      expect(volumeSelect).toBeDefined();
+      expect((volumeSelect as HTMLSelectElement).value).toBe('cw-repo-my-project');
+    });
+
+    it('sourceType=volume時に無効なVolume名でエラーを表示する', () => {
+      const mounts: VolumeMount[] = [
+        { hostPath: 'invalid volume name!', containerPath: '/workspace', accessMode: 'rw', sourceType: 'volume' },
+      ];
+      render(<VolumeMountList value={mounts} onChange={vi.fn()} />);
+      expect(screen.getByText('有効なDocker Volume名ではありません')).toBeInTheDocument();
+    });
+
+    it('sourceType=bind時にhostPathテキスト入力が表示される', () => {
+      const mounts: VolumeMount[] = [
+        { hostPath: '/data/app', containerPath: '/app', accessMode: 'rw', sourceType: 'bind' },
+      ];
+      render(<VolumeMountList value={mounts} onChange={vi.fn()} />);
+      expect(screen.getByPlaceholderText('/host/path')).toBeInTheDocument();
     });
   });
 
