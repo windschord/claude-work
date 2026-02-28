@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Fragment } from 'react';
+import { useState, useEffect, useMemo, Fragment } from 'react';
 import { Dialog, Transition, Tab, Listbox } from '@headlessui/react';
 import { ChevronsUpDown, Check } from 'lucide-react';
 import { useAppStore } from '@/store';
@@ -33,7 +33,10 @@ export function AddProjectModal({ isOpen, onClose }: AddProjectModalProps) {
   const [selectedEnvironmentId, setSelectedEnvironmentId] = useState<string>('');
 
   const { environments, isLoading: isEnvironmentsLoading, hostEnvironmentDisabled } = useEnvironments();
-  const availableEnvironments = environments.filter((env) => !env.disabled);
+  const availableEnvironments = useMemo(
+    () => environments.filter((env) => !env.disabled),
+    [environments]
+  );
 
   const defaultEnvironmentId = availableEnvironments.find((e) => e.is_default)?.id ?? availableEnvironments[0]?.id ?? '';
 
