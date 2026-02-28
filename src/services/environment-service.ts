@@ -1,12 +1,22 @@
 import { db, schema } from '@/lib/db';
 import type { ExecutionEnvironment } from '@/lib/db';
-import { eq, asc, count, sql, and } from 'drizzle-orm';
+import { eq, asc, and } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
 import { getEnvironmentsDir } from '@/lib/data-dir';
 import { isHostEnvironmentAllowed } from '@/lib/environment-detect';
 import * as path from 'path';
 import * as fsPromises from 'fs/promises';
 import { DockerClient } from './docker-client';
+
+/**
+ * 環境が使用中のため削除できないことを示すエラー
+ */
+export class EnvironmentInUseError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'EnvironmentInUseError';
+  }
+}
 
 /**
  * 環境状態
@@ -174,7 +184,7 @@ export class EnvironmentService {
   /**
    * 環境を削除する
    * デフォルト環境は削除不可
-   * 使用中のセッションがある場合は警告をログに出力（削除は許可）
+   * 使用中のプロジェクトがある場合は削除を拒否
    * @param id - 環境ID
    */
   async delete(id: string): Promise<void> {
@@ -188,31 +198,15 @@ export class EnvironmentService {
       throw new Error('デフォルト環境は削除できません');
     }
 
-    // 使用中のセッション数を確認（この環境を使用しているプロジェクトのセッション数）
-    const projectsWithEnv = db.select({ id: schema.projects.id })
+    // 使用中のプロジェクトを確認
+    const projectsWithEnv = db.select({ id: schema.projects.id, name: schema.projects.name })
       .from(schema.projects)
       .where(eq(schema.projects.environment_id, id))
       .all();
-    const projectIds = projectsWithEnv.map((p) => p.id);
-    let sessionCount = 0;
-    if (projectIds.length > 0) {
-      const result = db.select({ count: count() })
-        .from(schema.sessions)
-        .where(
-          // プロジェクトIDがprojectIdsのいずれかに一致するセッション
-          projectIds.length === 1
-            ? eq(schema.sessions.project_id, projectIds[0])
-            : sql`${schema.sessions.project_id} IN (${sql.join(projectIds.map((id) => sql`${id}`), sql`, `)})`
-        )
-        .get();
-      sessionCount = result?.count ?? 0;
-    }
 
-    if (sessionCount > 0) {
-      logger.warn('使用中のセッションがある環境を削除します', {
-        environmentId: id,
-        sessionCount,
-      });
+    if (projectsWithEnv.length > 0) {
+      const projectNames = projectsWithEnv.map(p => p.name).join(', ');
+      throw new EnvironmentInUseError(`この環境は以下のプロジェクトで使用中のため削除できません: ${projectNames}`);
     }
 
     // 認証ディレクトリがあれば削除
@@ -248,22 +242,17 @@ export class EnvironmentService {
       }
     }
 
-    // 既存DBではON DELETE SET NULLが効かない場合があるため、
-    // 削除前に明示的にNULLに更新して参照整合性を保つ。
-    db.update(schema.projects)
-      .set({ environment_id: null })
-      .where(eq(schema.projects.environment_id, id))
-      .run();
+    // セッションのenvironment_id NULLクリアと環境レコード削除をトランザクションで実行
+    db.transaction((tx) => {
+      tx.update(schema.sessions)
+        .set({ environment_id: null })
+        .where(eq(schema.sessions.environment_id, id))
+        .run();
 
-    // セッション固有のenvironment_idも更新（session.environment_idはこのPRで追加）
-    db.update(schema.sessions)
-      .set({ environment_id: null })
-      .where(eq(schema.sessions.environment_id, id))
-      .run();
-
-    db.delete(schema.executionEnvironments)
-      .where(eq(schema.executionEnvironments.id, id))
-      .run();
+      tx.delete(schema.executionEnvironments)
+        .where(eq(schema.executionEnvironments.id, id))
+        .run();
+    });
 
     logger.info('環境を削除しました', { id });
   }

@@ -456,6 +456,214 @@ HOSTがdisabledの場合のデフォルト選択をDOCKERに変更。
 | `docker-compose.yml` | 変更 | RUNNING_IN_DOCKER追加 |
 | `docs/ENV_VARS.md` | 変更 | 新環境変数のドキュメント |
 
+### 7. UI完全非表示対応 (FR-013〜FR-016)
+
+PR#161でバックエンドの制限は完了しているが、UIレイヤーにグレーアウト表示が残っている。
+Docker環境でHOST環境が無効の場合、UIからHOST関連の要素を完全に除外する。
+
+#### 7.1 CreateSessionModal 変更 (`src/components/sessions/CreateSessionModal.tsx`)
+
+**対応要件:** FR-013
+
+disabled=trueのHOST環境をRadioGroupの選択肢から除外する。
+
+```typescript
+// sortedEnvironmentsからdisabled環境を除外
+const availableEnvironments = useMemo(() => {
+  return sortedEnvironments.filter(env => !env.disabled);
+}, [sortedEnvironments]);
+```
+
+RadioGroup内で `sortedEnvironments` の代わりに `availableEnvironments` を使用する。
+初期選択ロジックも `availableEnvironments` を参照するように変更する。
+
+#### 7.2 ProjectEnvironmentSettings 変更 (`src/components/settings/ProjectEnvironmentSettings.tsx`)
+
+**対応要件:** FR-014
+
+`hostEnvironmentDisabled` フラグをAPIから取得し、HOST表示をDocker表示に変更する。
+
+```typescript
+// useEnvironments hookを追加import
+import { useEnvironments } from '@/hooks/useEnvironments';
+
+// コンポーネント内でhookを使用
+const { hostEnvironmentDisabled } = useEnvironments();
+
+// getEnvironmentDisplay()の修正
+const getEnvironmentDisplay = () => {
+  // ...既存ロジック
+  const cloneLocation = projectEnv.clone_location || 'host';
+  if (cloneLocation === 'docker') {
+    return { label: 'Docker (自動選択)', type: 'DOCKER' };
+  }
+  // Docker環境でHOSTが無効な場合はDOCKER表示にフォールバック
+  if (hostEnvironmentDisabled) {
+    return { label: 'Docker (自動選択)', type: 'DOCKER' };
+  }
+  return { label: 'Host (自動選択)', type: 'HOST' };
+};
+```
+
+#### 7.3 EnvironmentList 変更 (`src/components/environments/EnvironmentList.tsx`)
+
+**対応要件:** FR-015
+
+disabled=trueの環境を環境カード一覧から除外する。
+
+```typescript
+// 環境一覧のレンダリング時にフィルタリング
+const visibleEnvironments = environments.filter(env => !env.disabled);
+
+// mapでvisibleEnvironmentsを使用
+{visibleEnvironments.map((environment) => (
+  <EnvironmentCard ... />
+))}
+```
+
+#### 7.4 EnvironmentForm 変更 (`src/components/environments/EnvironmentForm.tsx`)
+
+**対応要件:** FR-016
+
+HOSTオプションをドロップダウンからフィルタリングで完全除外する。
+
+```typescript
+// ENVIRONMENT_TYPESからフィルタリング
+const availableTypes = hostEnvironmentDisabled
+  ? ENVIRONMENT_TYPES.filter(t => t.value !== 'HOST')
+  : ENVIRONMENT_TYPES;
+```
+
+### 変更ファイル一覧（追加分）
+
+| ファイル | 変更種別 | 説明 |
+|---------|---------|------|
+| `src/components/sessions/CreateSessionModal.tsx` | 変更 | disabled環境をRadioGroupから除外 |
+| `src/components/settings/ProjectEnvironmentSettings.tsx` | 変更 | hostEnvironmentDisabled時のHOST表示をDocker表示に変更 |
+| `src/components/environments/EnvironmentList.tsx` | 変更 | disabled環境カードを非表示 |
+| `src/components/environments/EnvironmentForm.tsx` | 変更 | HOSTオプションをドロップダウンから除外 |
+
+### 8. プロジェクト追加画面でのローカル選択肢制御 (FR-017, FR-018)
+
+US-005対応。プロジェクト追加モーダルにおいて、HOST環境が無効化されている場合にローカル関連の選択肢を非表示にする。
+
+#### 8.1 AddProjectModal 変更 (`src/components/projects/AddProjectModal.tsx`)
+
+**対応要件:** FR-017, AC-001, AC-003, AC-004
+
+`useEnvironments()` フックから `hostEnvironmentDisabled` を取得し、`true` の場合はローカルタブを非表示にする。
+
+**変更箇所:**
+
+1. **`hostEnvironmentDisabled` の取得** (L35付近)
+
+```typescript
+// 変更前
+const { environments, isLoading: isEnvironmentsLoading } = useEnvironments();
+
+// 変更後
+const { environments, isLoading: isEnvironmentsLoading, hostEnvironmentDisabled } = useEnvironments();
+```
+
+2. **Tab.Group の条件付きレンダリング** (L140-L311)
+
+`hostEnvironmentDisabled` が `true` の場合、タブUI自体をスキップして RemoteRepoForm のみをレンダリングする。
+タブが1つしかない場合にタブバーを表示する意味がないため、Tab.Groupごと条件分岐する。
+
+```typescript
+{hostEnvironmentDisabled ? (
+  // HOST無効: リモートフォームのみ表示（タブなし）
+  <RemoteRepoForm
+    onSubmit={handleRemoteSubmit}
+    onCancel={handleClose}
+    isLoading={isLoading}
+    error={error}
+  />
+) : (
+  // HOST有効: 従来通りタブUI表示
+  <Tab.Group defaultIndex={1}>
+    <Tab.List className="...">
+      <Tab ...>ローカル</Tab>
+      <Tab ...>リモート</Tab>
+    </Tab.List>
+    <Tab.Panels>
+      <Tab.Panel>{/* ローカルタブ */}</Tab.Panel>
+      <Tab.Panel>{/* リモートタブ */}</Tab.Panel>
+    </Tab.Panels>
+  </Tab.Group>
+)}
+```
+
+**設計根拠:**
+- タブが1つしか残らない場合、Tab.Groupを条件付きで非表示にしてフォームを直接表示する方がUXが良い
+- `defaultIndex` の調整も不要になり、シンプルな実装になる
+- ローカルタブに関連する state (`path`) や handler (`handleLocalSubmit`) はローカルタブ非表示時に使用されないが、宣言のみなので副作用はない
+
+#### 8.2 RemoteRepoForm 変更 (`src/components/projects/RemoteRepoForm.tsx`)
+
+**対応要件:** FR-018, AC-002, AC-004
+
+`useEnvironments()` フックから `hostEnvironmentDisabled` を取得し、`true` の場合は保存場所セクションを非表示にする。
+
+**変更箇所:**
+
+1. **`hostEnvironmentDisabled` の取得** (L39付近)
+
+```typescript
+// 変更前
+const { environments, isLoading: isEnvironmentsLoading } = useEnvironments();
+
+// 変更後
+const { environments, isLoading: isEnvironmentsLoading, hostEnvironmentDisabled } = useEnvironments();
+```
+
+2. **保存場所選択セクションの条件付き非表示** (L98-L151)
+
+```typescript
+{/* 保存場所選択: HOST環境が有効な場合のみ表示（環境情報取得中は非表示） */}
+{!isEnvironmentsLoading && !hostEnvironmentDisabled && (
+  <div className="mb-4">
+    <div className="flex items-center gap-2 mb-2">
+      <label className="...">保存場所</label>
+      {/* ... tooltip ... */}
+    </div>
+    <div className="flex gap-4">
+      {/* Docker環境ラジオ */}
+      {/* ホスト環境ラジオ */}
+    </div>
+  </div>
+)}
+```
+
+3. **`cloneLocation` の強制リセット**
+
+`cloneLocation` の初期値は `'docker'` だが、`hostEnvironmentDisabled` は非同期で取得されるため、フェッチ完了前にユーザーが `'host'` に切り替える可能性がある。そのため、`hostEnvironmentDisabled` が `true` になった時点で `cloneLocation` を `'docker'` に強制リセットする `useEffect` を追加する。
+
+```typescript
+const [cloneLocation, setCloneLocation] = useState<'host' | 'docker'>('docker');
+
+// HOST環境が無効化された場合、cloneLocationをdockerに強制リセット
+useEffect(() => {
+  if (hostEnvironmentDisabled && cloneLocation !== 'docker') {
+    setCloneLocation('docker');
+  }
+}, [hostEnvironmentDisabled, cloneLocation]);
+```
+
+さらに、`handleSubmit` 内でも `hostEnvironmentDisabled` 時は `cloneLocation` を `'docker'` として送信し、useEffect実行前のレースコンディションに対する防御とする。
+
+**設計根拠:**
+- `useEnvironments()` は RemoteRepoForm 内で既に使用されているため、新たなフックの追加は不要
+- props経由で `hostEnvironmentDisabled` を渡す方式も検討したが、RemoteRepoForm 内で既に `useEnvironments()` を呼んでいるため、フックから直接取得する方がシンプル
+- `useEffect` による強制リセットと `handleSubmit` 内での防御的チェックの二重対策により、HOST無効化環境で `cloneLocation='host'` が送信されることを確実に防ぐ
+
+### 変更ファイル一覧（US-005追加分）
+
+| ファイル | 変更種別 | 説明 |
+|---------|---------|------|
+| `src/components/projects/AddProjectModal.tsx` | 変更 | hostEnvironmentDisabled時にタブUIをスキップし、リモートフォームのみ表示 |
+| `src/components/projects/RemoteRepoForm.tsx` | 変更 | hostEnvironmentDisabled時に保存場所選択セクションを非表示 |
+
 ## 要件との整合性チェック
 
 | 要件ID | 設計要素 | 対応状況 |
@@ -475,3 +683,9 @@ HOSTがdisabledの場合のデフォルト選択をDOCKERに変更。
 | NFR-001 | initializeEnvironmentDetection() + キャッシュ | 対応済 |
 | NFR-002 | API/サービスレベルでの強制 | 対応済 |
 | NFR-003 | isHostEnvironmentAllowed() 非Docker時true | 対応済 |
+| FR-013 | CreateSessionModal disabled環境除外 | 対応済 |
+| FR-014 | ProjectEnvironmentSettings HOST->Docker表示 | 対応済 |
+| FR-015 | EnvironmentList disabled環境カード非表示 | 対応済 |
+| FR-016 | EnvironmentForm HOSTオプション除外 | 対応済 |
+| FR-017 | AddProjectModal ローカルタブ非表示 | 対応済 |
+| FR-018 | RemoteRepoForm 保存場所ホスト環境非表示 | 対応済 |

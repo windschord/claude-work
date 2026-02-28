@@ -1,4 +1,10 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
+
+// node-ptyはネイティブモジュールのため、インポート前にモックが必要
+vi.mock('node-pty', () => ({
+  spawn: vi.fn(),
+}));
+
 import { DockerAdapter, DockerAdapterConfig } from '../docker-adapter';
 import { db, schema } from '@/lib/db';
 import { eq } from 'drizzle-orm';

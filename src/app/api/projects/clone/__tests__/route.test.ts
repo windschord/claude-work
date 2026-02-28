@@ -109,7 +109,17 @@ describe('POST /api/projects/clone', () => {
 
   beforeEach(async () => {
     db.delete(schema.projects).run();
+    db.delete(schema.executionEnvironments).run();
     vi.clearAllMocks();
+
+    // テスト用の実行環境レコードを作成（environment_id外部キー制約を満たすため）
+    db.insert(schema.executionEnvironments).values({
+      id: 'env-docker-default',
+      name: 'Default Docker',
+      type: 'DOCKER',
+      config: JSON.stringify({}),
+      is_default: true,
+    }).run();
 
     // 環境変数をバックアップして無効化
     originalAllowedDirs = process.env.ALLOWED_PROJECT_DIRS;
@@ -143,6 +153,7 @@ describe('POST /api/projects/clone', () => {
 
   afterEach(async () => {
     db.delete(schema.projects).run();
+    db.delete(schema.executionEnvironments).run();
     // 環境変数を復元
     if (originalAllowedDirs === undefined) {
       delete process.env.ALLOWED_PROJECT_DIRS;
@@ -163,6 +174,7 @@ describe('POST /api/projects/clone', () => {
         url: testRepoPath,
         targetDir,
         cloneLocation: 'host', // ローカルリポジトリなのでhost環境を使用
+        environment_id: 'env-docker-default',
       }),
     });
 
@@ -229,6 +241,7 @@ describe('POST /api/projects/clone', () => {
         url: testRepoPath,
         targetDir,
         cloneLocation: 'host',
+        environment_id: 'env-docker-default',
       }),
     });
 
@@ -258,6 +271,7 @@ describe('POST /api/projects/clone', () => {
         url: anotherRepoPath,
         targetDir,
         cloneLocation: 'host',
+        environment_id: 'env-docker-default',
       }),
     });
 
@@ -279,6 +293,7 @@ describe('POST /api/projects/clone', () => {
         targetDir,
         name: 'custom-project-name',
         cloneLocation: 'host',
+        environment_id: 'env-docker-default',
       }),
     });
 
@@ -301,6 +316,7 @@ describe('POST /api/projects/clone', () => {
         url: testRepoPath,
         targetDir,
         cloneLocation: 'host',
+        environment_id: 'env-docker-default',
       }),
     });
 
@@ -323,6 +339,7 @@ describe('POST /api/projects/clone', () => {
         url: testRepoPath,
         targetDir,
         cloneLocation: 'host',
+        environment_id: 'env-docker-default',
       }),
     });
 
@@ -348,6 +365,7 @@ describe('POST /api/projects/clone', () => {
         url: testRepoPath,
         targetDir,
         cloneLocation: 'host',
+        environment_id: 'env-docker-default',
       }),
     });
 
@@ -411,6 +429,7 @@ describe('POST /api/projects/clone', () => {
           url: 'https://github.com/user/repo.git',
           cloneLocation: 'docker',
           githubPatId: 'pat-123',
+          environment_id: 'env-docker-default',
         }),
       });
 
@@ -451,6 +470,7 @@ describe('POST /api/projects/clone', () => {
           url: 'https://github.com/user/repo.git',
           cloneLocation: 'docker',
           githubPatId: 'non-existent-pat',
+          environment_id: 'env-docker-default',
         }),
       });
 
@@ -486,6 +506,7 @@ describe('POST /api/projects/clone', () => {
           url: 'https://github.com/user/repo.git',
           cloneLocation: 'docker',
           githubPatId: 'pat-bad-decrypt',
+          environment_id: 'env-docker-default',
         }),
       });
 
@@ -508,6 +529,7 @@ describe('POST /api/projects/clone', () => {
           targetDir,
           cloneLocation: 'host',
           githubPatId: 'pat-123',
+          environment_id: 'env-docker-default',
         }),
       });
 
@@ -539,6 +561,7 @@ describe('POST /api/projects/clone', () => {
         body: JSON.stringify({
           url: 'https://github.com/user/repo.git',
           cloneLocation: 'docker',
+          environment_id: 'env-docker-default',
         }),
       });
 

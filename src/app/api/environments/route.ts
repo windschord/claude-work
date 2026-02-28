@@ -8,6 +8,9 @@ import { getEnvironmentsDir } from '@/lib/data-dir';
 import { validatePortMappings, validateVolumeMounts } from '@/lib/docker-config-validator';
 import { DockerClient } from '@/services/docker-client';
 import { isHostEnvironmentAllowed } from '@/lib/environment-detect';
+import { db } from '@/lib/db';
+import * as schema from '@/db/schema';
+import { count, sql } from 'drizzle-orm';
 
 // 許可されたベースディレクトリ
 const ALLOWED_BASE_DIRS = [
@@ -55,12 +58,24 @@ export async function GET(request: NextRequest) {
 
     const environments = await environmentService.findAll();
 
+    // 環境ごとのプロジェクト使用数を取得
+    const projectCounts = db.select({
+      environment_id: schema.projects.environment_id,
+      count: count(),
+    }).from(schema.projects)
+      .where(sql`${schema.projects.environment_id} IS NOT NULL`)
+      .groupBy(schema.projects.environment_id)
+      .all();
+
+    const countMap = new Map(projectCounts.map(p => [p.environment_id, p.count]));
+
     if (includeStatus) {
       // 各環境のステータスを並列取得
       const envWithStatus = await Promise.all(
         environments.map(async (env) => ({
           ...env,
           status: await environmentService.checkStatus(env.id),
+          project_count: countMap.get(env.id) ?? 0,
           ...(env.type === 'HOST' && !hostAllowed ? { disabled: true } : {}),
         }))
       );
@@ -74,6 +89,7 @@ export async function GET(request: NextRequest) {
 
     const envData = environments.map(env => ({
       ...env,
+      project_count: countMap.get(env.id) ?? 0,
       ...(env.type === 'HOST' && !hostAllowed ? { disabled: true } : {}),
     }));
 
