@@ -97,7 +97,7 @@ export async function GET(request: NextRequest) {
  * - description: 説明（任意）
  * - config: 設定オブジェクト（任意）
  *
- * DOCKER環境の場合は認証ディレクトリも自動作成されます。
+ * DOCKER環境の場合は設定用の名前付きVolumeも自動作成されます。
  * config.imageSource === 'dockerfile' の場合、自動でDockerイメージをビルドします。
  *
  * @returns
