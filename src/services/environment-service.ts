@@ -228,9 +228,15 @@ export class EnvironmentService {
       }
     }
 
-    // Docker環境の場合、Dockerfileがあれば削除
-    // (auth_dir_pathと同じディレクトリにDockerfileが保存されている場合は上記で削除済み)
+    // Docker環境の場合、名前付きVolumeまたはDockerfileディレクトリを削除
     if (environment.type === 'DOCKER' && !environment.auth_dir_path) {
+      // 名前付きVolumeを削除（auth_dir_pathがnull = 名前付きVolume使用）
+      try {
+        await this.deleteConfigVolumes(id);
+      } catch (error) {
+        logger.warn('設定Volumeの削除に失敗しました', { environmentId: id, error });
+      }
+
       // auth_dir_pathが未設定の場合でもDockerfileが存在する可能性がある
       const envDir = path.join(this.getAuthBasePath(), id);
       try {
@@ -544,6 +550,65 @@ export class EnvironmentService {
       .run();
 
     logger.info('認証ディレクトリを削除しました', { id, path: environment.auth_dir_path });
+  }
+
+  /**
+   * 環境IDからDocker名前付きVolumeの名前を取得する
+   */
+  private getConfigVolumeNames(environmentId: string): { claudeVolume: string; configClaudeVolume: string } {
+    return {
+      claudeVolume: `claude-config-claude-${environmentId}`,
+      configClaudeVolume: `claude-config-configclaude-${environmentId}`,
+    };
+  }
+
+  /**
+   * Docker環境用の設定Volumeを作成する
+   * @param id - 環境ID
+   */
+  async createConfigVolumes(id: string): Promise<void> {
+    const environment = await this.findById(id);
+
+    if (!environment) {
+      throw new Error('環境が見つかりません');
+    }
+
+    const dockerClient = DockerClient.getInstance();
+    const volumes = this.getConfigVolumeNames(id);
+
+    await dockerClient.createVolume(volumes.claudeVolume);
+    await dockerClient.createVolume(volumes.configClaudeVolume);
+
+    logger.info('設定Volumeを作成しました', { id, volumes });
+  }
+
+  /**
+   * Docker環境用の設定Volumeを削除する
+   * @param id - 環境ID
+   */
+  async deleteConfigVolumes(id: string): Promise<void> {
+    const environment = await this.findById(id);
+
+    if (!environment) {
+      throw new Error('環境が見つかりません');
+    }
+
+    const dockerClient = DockerClient.getInstance();
+    const volumes = this.getConfigVolumeNames(id);
+
+    try {
+      await dockerClient.removeVolume(volumes.claudeVolume);
+    } catch (error) {
+      logger.warn('設定Volume削除失敗', { volume: volumes.claudeVolume, error });
+    }
+
+    try {
+      await dockerClient.removeVolume(volumes.configClaudeVolume);
+    } catch (error) {
+      logger.warn('設定Volume削除失敗', { volume: volumes.configClaudeVolume, error });
+    }
+
+    logger.info('設定Volumeを削除しました', { id, volumes });
   }
 }
 
