@@ -1,5 +1,6 @@
 'use client';
 
+import { useSearchParams } from 'next/navigation';
 import { useEnvironments } from '@/hooks/useEnvironments';
 import { EnvironmentList } from '@/components/environments/EnvironmentList';
 import { BackButton } from '@/components/settings/BackButton';
@@ -13,6 +14,9 @@ import { BackButton } from '@/components/settings/BackButton';
  * @returns 実行環境設定ページのJSX要素
  */
 export default function EnvironmentsSettingsPage() {
+  const searchParams = useSearchParams();
+  const highlightedEnvironmentId = searchParams.get('highlight');
+
   const {
     environments,
     isLoading,
@@ -40,6 +44,7 @@ export default function EnvironmentsSettingsPage() {
         onDeleteEnvironment={deleteEnvironment}
         onRefresh={fetchEnvironments}
         hostEnvironmentDisabled={hostEnvironmentDisabled}
+        highlightedEnvironmentId={highlightedEnvironmentId}
       />
     </div>
   );
