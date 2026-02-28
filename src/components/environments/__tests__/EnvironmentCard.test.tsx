@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterAll, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 import { EnvironmentCard } from '../EnvironmentCard';
 import { Environment } from '@/hooks/useEnvironments';

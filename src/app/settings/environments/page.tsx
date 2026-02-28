@@ -1,19 +1,12 @@
 'use client';
 
+import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useEnvironments } from '@/hooks/useEnvironments';
 import { EnvironmentList } from '@/components/environments/EnvironmentList';
 import { BackButton } from '@/components/settings/BackButton';
 
-/**
- * 実行環境設定ページ
- *
- * 実行環境の一覧表示、追加、編集、削除の機能を提供するページです。
- * useEnvironmentsフックで環境データを管理し、EnvironmentListコンポーネントで表示します。
- *
- * @returns 実行環境設定ページのJSX要素
- */
-export default function EnvironmentsSettingsPage() {
+function EnvironmentsSettingsContent() {
   const searchParams = useSearchParams();
   const highlightedEnvironmentId = searchParams.get('highlight');
 
@@ -47,5 +40,21 @@ export default function EnvironmentsSettingsPage() {
         highlightedEnvironmentId={highlightedEnvironmentId}
       />
     </div>
+  );
+}
+
+/**
+ * 実行環境設定ページ
+ *
+ * 実行環境の一覧表示、追加、編集、削除の機能を提供するページです。
+ * useEnvironmentsフックで環境データを管理し、EnvironmentListコンポーネントで表示します。
+ *
+ * @returns 実行環境設定ページのJSX要素
+ */
+export default function EnvironmentsSettingsPage() {
+  return (
+    <Suspense>
+      <EnvironmentsSettingsContent />
+    </Suspense>
   );
 }
