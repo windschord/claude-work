@@ -11,9 +11,10 @@ export interface PortMapping {
 
 /** ボリュームマウント設定 */
 export interface VolumeMount {
-  hostPath: string;                   // 絶対パス
+  hostPath: string;                   // bind時: 絶対パス / volume時: Volume名
   containerPath: string;              // 絶対パス
   accessMode?: 'rw' | 'ro';          // 省略時のデフォルト: 'rw'
+  sourceType?: 'bind' | 'volume';    // 省略時のデフォルト: 'bind'
 }
 
 /** Docker環境の拡張config */
