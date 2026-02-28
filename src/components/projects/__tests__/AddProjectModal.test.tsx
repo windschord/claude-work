@@ -16,11 +16,37 @@ vi.mock('@/hooks/useGitHubPATs', () => ({
   })),
 }));
 
+// useEnvironments hookのモック
+const mockUseEnvironments = vi.fn();
+vi.mock('@/hooks/useEnvironments', () => ({
+  useEnvironments: () => mockUseEnvironments(),
+}));
+
+const buildMockEnvironments = (overrides: Partial<{
+  environments: Array<{ id: string; name: string; type: string; is_default: boolean; description: string; config: string }>;
+  isLoading: boolean;
+  error: null | string;
+  hostEnvironmentDisabled: boolean;
+}> = {}) => ({
+  environments: [
+    { id: 'env-1', name: 'Default Docker', type: 'DOCKER', is_default: true, description: 'Test env', config: '{}' },
+  ],
+  isLoading: false,
+  error: null,
+  hostEnvironmentDisabled: false,
+  ...overrides,
+});
+
 describe('AddProjectModal', () => {
   const mockAddProject = vi.fn();
   const mockCloneProject = vi.fn();
   const mockFetchProjects = vi.fn();
   const mockOnClose = vi.fn();
+
+  const renderModal = () => render(<AddProjectModal isOpen={true} onClose={mockOnClose} />);
+  const switchToLocalTab = () => {
+    fireEvent.click(screen.getByRole('tab', { name: 'ローカル' }));
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -32,6 +58,7 @@ describe('AddProjectModal', () => {
       cloneProject: mockCloneProject,
       fetchProjects: mockFetchProjects,
     });
+    mockUseEnvironments.mockReturnValue(buildMockEnvironments());
   });
 
   afterEach(() => {
@@ -51,7 +78,8 @@ describe('AddProjectModal', () => {
   });
 
   it('パス入力フォームが表示される', () => {
-    render(<AddProjectModal isOpen={true} onClose={mockOnClose} />);
+    renderModal();
+    switchToLocalTab();
 
     const input = screen.getByPlaceholderText('/path/to/git/repo');
     expect(input).toBeInTheDocument();
@@ -59,21 +87,24 @@ describe('AddProjectModal', () => {
   });
 
   it('「追加」ボタンと「キャンセル」ボタンが表示される', () => {
-    render(<AddProjectModal isOpen={true} onClose={mockOnClose} />);
+    renderModal();
+    switchToLocalTab();
 
     expect(screen.getByRole('button', { name: '追加' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'キャンセル' })).toBeInTheDocument();
   });
 
   it('空のパスでは「追加」ボタンが無効化される', () => {
-    render(<AddProjectModal isOpen={true} onClose={mockOnClose} />);
+    renderModal();
+    switchToLocalTab();
 
     const addButton = screen.getByRole('button', { name: '追加' });
     expect(addButton).toBeDisabled();
   });
 
   it('パスを入力すると「追加」ボタンが有効化される', () => {
-    render(<AddProjectModal isOpen={true} onClose={mockOnClose} />);
+    renderModal();
+    switchToLocalTab();
 
     const input = screen.getByPlaceholderText('/path/to/git/repo');
     const addButton = screen.getByRole('button', { name: '追加' });
@@ -86,7 +117,8 @@ describe('AddProjectModal', () => {
   it('有効なパスでプロジェクト追加が成功する', async () => {
     mockAddProject.mockResolvedValueOnce(undefined);
 
-    render(<AddProjectModal isOpen={true} onClose={mockOnClose} />);
+    renderModal();
+    switchToLocalTab();
 
     const input = screen.getByPlaceholderText('/path/to/git/repo');
     const addButton = screen.getByRole('button', { name: '追加' });
@@ -95,7 +127,7 @@ describe('AddProjectModal', () => {
     fireEvent.click(addButton);
 
     await waitFor(() => {
-      expect(mockAddProject).toHaveBeenCalledWith('/valid/path');
+      expect(mockAddProject).toHaveBeenCalledWith('/valid/path', 'env-1');
       expect(mockOnClose).toHaveBeenCalled();
     });
   });
@@ -103,7 +135,8 @@ describe('AddProjectModal', () => {
   it('無効なパスでエラーメッセージが表示される', async () => {
     mockAddProject.mockRejectedValueOnce(new Error('有効なパスを入力してください'));
 
-    render(<AddProjectModal isOpen={true} onClose={mockOnClose} />);
+    renderModal();
+    switchToLocalTab();
 
     const input = screen.getByPlaceholderText('/path/to/git/repo');
     const addButton = screen.getByRole('button', { name: '追加' });
@@ -121,7 +154,8 @@ describe('AddProjectModal', () => {
       new Error('指定されたパスはGitリポジトリではありません')
     );
 
-    render(<AddProjectModal isOpen={true} onClose={mockOnClose} />);
+    renderModal();
+    switchToLocalTab();
 
     const input = screen.getByPlaceholderText('/path/to/git/repo');
     const addButton = screen.getByRole('button', { name: '追加' });
@@ -139,7 +173,8 @@ describe('AddProjectModal', () => {
   it('ネットワークエラーで適切なエラーメッセージが表示される', async () => {
     mockAddProject.mockRejectedValueOnce(new Error('ネットワークエラーが発生しました'));
 
-    render(<AddProjectModal isOpen={true} onClose={mockOnClose} />);
+    renderModal();
+    switchToLocalTab();
 
     const input = screen.getByPlaceholderText('/path/to/git/repo');
     const addButton = screen.getByRole('button', { name: '追加' });
@@ -153,7 +188,8 @@ describe('AddProjectModal', () => {
   });
 
   it('キャンセルボタンをクリックするとonCloseが呼ばれる', () => {
-    render(<AddProjectModal isOpen={true} onClose={mockOnClose} />);
+    renderModal();
+    switchToLocalTab();
 
     const cancelButton = screen.getByRole('button', { name: 'キャンセル' });
     fireEvent.click(cancelButton);
@@ -166,7 +202,8 @@ describe('AddProjectModal', () => {
       // Promise is never resolved to keep loading state
     }));
 
-    render(<AddProjectModal isOpen={true} onClose={mockOnClose} />);
+    renderModal();
+    switchToLocalTab();
 
     const input = screen.getByPlaceholderText('/path/to/git/repo');
     const addButton = screen.getByRole('button', { name: '追加' });
@@ -189,32 +226,63 @@ describe('AddProjectModal', () => {
       expect(screen.getByRole('tab', { name: 'リモート' })).toBeInTheDocument();
     });
 
-    it('デフォルトで「ローカル」タブが選択されている', () => {
-      render(<AddProjectModal isOpen={true} onClose={mockOnClose} />);
-
-      const localTab = screen.getByRole('tab', { name: 'ローカル' });
-      expect(localTab).toHaveAttribute('aria-selected', 'true');
-    });
-
-    it('「リモート」タブをクリックするとRemoteRepoFormが表示される', () => {
+    it('デフォルトで「リモート」タブが選択されている', () => {
       render(<AddProjectModal isOpen={true} onClose={mockOnClose} />);
 
       const remoteTab = screen.getByRole('tab', { name: 'リモート' });
-      fireEvent.click(remoteTab);
-
-      expect(screen.getByPlaceholderText('git@github.com:user/repo.git')).toBeInTheDocument();
+      expect(remoteTab).toHaveAttribute('aria-selected', 'true');
     });
 
-    it('「ローカル」タブに戻るとローカルフォームが表示される', () => {
+    it('デフォルトでRemoteRepoFormが表示される', () => {
       render(<AddProjectModal isOpen={true} onClose={mockOnClose} />);
 
-      const remoteTab = screen.getByRole('tab', { name: 'リモート' });
+      expect(screen.getByPlaceholderText('https://github.com/user/repo.git')).toBeInTheDocument();
+    });
+
+    it('「ローカル」タブをクリックするとローカルフォームが表示される', () => {
+      render(<AddProjectModal isOpen={true} onClose={mockOnClose} />);
+
       const localTab = screen.getByRole('tab', { name: 'ローカル' });
 
-      fireEvent.click(remoteTab);
       fireEvent.click(localTab);
 
       expect(screen.getByPlaceholderText('/path/to/git/repo')).toBeInTheDocument();
+    });
+  });
+
+  describe('HOST環境無効化時のタブ制御', () => {
+    it('hostEnvironmentDisabled=trueの場合、ローカルタブが非表示になる', () => {
+      mockUseEnvironments.mockReturnValue(buildMockEnvironments({ hostEnvironmentDisabled: true }));
+
+      render(<AddProjectModal isOpen={true} onClose={mockOnClose} />);
+
+      expect(screen.queryByRole('tab', { name: 'ローカル' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('tab', { name: 'リモート' })).not.toBeInTheDocument();
+    });
+
+    it('hostEnvironmentDisabled=trueの場合、リモートフォームが直接表示される', () => {
+      mockUseEnvironments.mockReturnValue(buildMockEnvironments({ hostEnvironmentDisabled: true }));
+
+      render(<AddProjectModal isOpen={true} onClose={mockOnClose} />);
+
+      expect(screen.getByPlaceholderText('https://github.com/user/repo.git')).toBeInTheDocument();
+    });
+
+    it('hostEnvironmentDisabled=falseの場合、両タブが表示される', () => {
+      render(<AddProjectModal isOpen={true} onClose={mockOnClose} />);
+
+      expect(screen.getByRole('tab', { name: 'ローカル' })).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: 'リモート' })).toBeInTheDocument();
+    });
+
+    it('環境ロード中はタブもリモートフォームも表示されない', () => {
+      mockUseEnvironments.mockReturnValue(buildMockEnvironments({ environments: [], isLoading: true }));
+
+      render(<AddProjectModal isOpen={true} onClose={mockOnClose} />);
+
+      expect(screen.queryByRole('tab', { name: 'ローカル' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('tab', { name: 'リモート' })).not.toBeInTheDocument();
+      expect(screen.getByText('環境を読み込み中...')).toBeInTheDocument();
     });
   });
 
@@ -224,18 +292,16 @@ describe('AddProjectModal', () => {
 
       render(<AddProjectModal isOpen={true} onClose={mockOnClose} />);
 
-      const remoteTab = screen.getByRole('tab', { name: 'リモート' });
-      fireEvent.click(remoteTab);
-
-      const urlInput = screen.getByPlaceholderText('git@github.com:user/repo.git');
+      const urlInput = screen.getByPlaceholderText('https://github.com/user/repo.git');
       const cloneButton = screen.getByRole('button', { name: 'Clone' });
 
-      fireEvent.change(urlInput, { target: { value: 'git@github.com:test/repo.git' } });
+      fireEvent.change(urlInput, { target: { value: 'https://github.com/test/repo.git' } });
       fireEvent.click(cloneButton);
 
       await waitFor(() => {
         expect(mockCloneProject).toHaveBeenCalledWith(
-          'git@github.com:test/repo.git',
+          'https://github.com/test/repo.git',
+          'env-1',
           undefined,
           'docker',
           undefined
@@ -249,13 +315,10 @@ describe('AddProjectModal', () => {
 
       render(<AddProjectModal isOpen={true} onClose={mockOnClose} />);
 
-      const remoteTab = screen.getByRole('tab', { name: 'リモート' });
-      fireEvent.click(remoteTab);
-
-      const urlInput = screen.getByPlaceholderText('git@github.com:user/repo.git');
+      const urlInput = screen.getByPlaceholderText('https://github.com/user/repo.git');
       const cloneButton = screen.getByRole('button', { name: 'Clone' });
 
-      fireEvent.change(urlInput, { target: { value: 'git@github.com:test/repo.git' } });
+      fireEvent.change(urlInput, { target: { value: 'https://github.com/test/repo.git' } });
       fireEvent.click(cloneButton);
 
       await waitFor(() => {
@@ -268,13 +331,10 @@ describe('AddProjectModal', () => {
 
       render(<AddProjectModal isOpen={true} onClose={mockOnClose} />);
 
-      const remoteTab = screen.getByRole('tab', { name: 'リモート' });
-      fireEvent.click(remoteTab);
-
-      const urlInput = screen.getByPlaceholderText('git@github.com:user/repo.git');
+      const urlInput = screen.getByPlaceholderText('https://github.com/user/repo.git');
       const cloneButton = screen.getByRole('button', { name: 'Clone' });
 
-      fireEvent.change(urlInput, { target: { value: 'git@github.com:test/repo.git' } });
+      fireEvent.change(urlInput, { target: { value: 'https://github.com/test/repo.git' } });
       fireEvent.click(cloneButton);
 
       await waitFor(() => {
@@ -285,12 +345,9 @@ describe('AddProjectModal', () => {
     it('リモートタブのキャンセルボタンでモーダルが閉じる', () => {
       render(<AddProjectModal isOpen={true} onClose={mockOnClose} />);
 
-      const remoteTab = screen.getByRole('tab', { name: 'リモート' });
-      fireEvent.click(remoteTab);
-
-      const cancelButtons = screen.getAllByRole('button', { name: 'キャンセル' });
-      // リモートタブのキャンセルボタンをクリック（2番目のキャンセルボタン）
-      fireEvent.click(cancelButtons[cancelButtons.length - 1]);
+      // リモートタブのキャンセルボタンをクリック
+      const cancelButton = screen.getByRole('button', { name: 'キャンセル' });
+      fireEvent.click(cancelButton);
 
       expect(mockOnClose).toHaveBeenCalled();
     });
