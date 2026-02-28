@@ -304,8 +304,8 @@ export async function POST(request: NextRequest) {
 
     // DOCKER環境の場合は認証ディレクトリを作成
     if (type === 'DOCKER') {
-      await environmentService.createAuthDirectory(environment.id);
-      logger.info('Auth directory created for Docker environment', { id: environment.id });
+      await environmentService.createConfigVolumes(environment.id);
+      logger.info('Config volumes created for Docker environment', { id: environment.id });
     }
 
     logger.info('Environment created', { id: environment.id, name: environment.name });
