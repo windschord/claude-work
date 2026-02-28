@@ -38,17 +38,18 @@ function getTypeBadge(type: string) {
 export function StepEnvironment({ environmentId, onChange }: StepEnvironmentProps) {
   const { environments, isLoading } = useEnvironments();
 
-  const selected = environments.find((e) => e.id === environmentId) || null;
+  const availableEnvironments = environments.filter((e) => !e.disabled);
+  const selected = availableEnvironments.find((e) => e.id === environmentId) || null;
 
   // デフォルト環境を自動選択
   useEffect(() => {
-    if (!environmentId && environments.length > 0) {
-      const defaultEnv = environments.find((e) => e.is_default);
+    if (!environmentId && availableEnvironments.length > 0) {
+      const defaultEnv = availableEnvironments.find((e) => e.is_default);
       if (defaultEnv) {
         onChange({ environmentId: defaultEnv.id });
       }
     }
-  }, [environments, environmentId, onChange]);
+  }, [availableEnvironments, environmentId, onChange]);
 
   const handleChange = (env: Environment | null) => {
     onChange({ environmentId: env?.id || null });
@@ -62,7 +63,7 @@ export function StepEnvironment({ environmentId, onChange }: StepEnvironmentProp
     );
   }
 
-  if (environments.length === 0) {
+  if (availableEnvironments.length === 0) {
     return (
       <div className="text-center py-8">
         <Container className="w-12 h-12 mx-auto text-gray-400 mb-3" />
@@ -114,7 +115,7 @@ export function StepEnvironment({ environmentId, onChange }: StepEnvironmentProp
           </Listbox.Button>
 
           <Listbox.Options className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white dark:bg-gray-700 py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
-            {environments.map((env) => (
+            {availableEnvironments.map((env) => (
               <Listbox.Option
                 key={env.id}
                 value={env}

@@ -10,24 +10,24 @@ AddProjectModalをウィザード形式に置き換え。TDDで実装。
 
 ## 進捗サマリ
 
-| フェーズ | タスク数 | 完了 | 進行中 | TODO |
+| フェーズ | タスク数 | 完了 | 進行中 | DONE |
 |---------|---------|------|--------|------|
-| Phase 1: 基盤 | 2 | 0 | 0 | 2 |
-| Phase 2: ステップ | 4 | 0 | 0 | 4 |
-| Phase 3: 統合 | 1 | 0 | 0 | 1 |
-| **合計** | **7** | **0** | **0** | **7** |
+| Phase 1: 基盤 | 2 | 2 | 0 | 0 |
+| Phase 2: ステップ | 4 | 4 | 0 | 0 |
+| Phase 3: 統合 | 1 | 1 | 0 | 0 |
+| **合計** | **7** | **7** | **0** | **0** |
 
 ## タスク一覧
 
 | ID | タイトル | フェーズ | ステータス | 依存 | 工数 | 詳細リンク |
 |----|---------|---------|-----------|------|------|------------|
-| TASK-001 | 型定義とWizardProgressBar | Phase 1 | TODO | - | 30min | [詳細](phase-1/TASK-001.md) @phase-1/TASK-001.md |
-| TASK-002 | WizardContainer骨格 | Phase 1 | TODO | TASK-001 | 40min | [詳細](phase-1/TASK-002.md) @phase-1/TASK-002.md |
-| TASK-003 | StepEnvironment | Phase 2 | TODO | TASK-001 | 30min | [詳細](phase-2/TASK-003.md) @phase-2/TASK-003.md |
-| TASK-004 | StepAuthentication | Phase 2 | TODO | TASK-001 | 30min | [詳細](phase-2/TASK-004.md) @phase-2/TASK-004.md |
-| TASK-005 | StepRepository | Phase 2 | TODO | TASK-001 | 40min | [詳細](phase-2/TASK-005.md) @phase-2/TASK-005.md |
-| TASK-006 | StepSession | Phase 2 | TODO | TASK-001 | 30min | [詳細](phase-2/TASK-006.md) @phase-2/TASK-006.md |
-| TASK-007 | 統合・置き換え・削除 | Phase 3 | TODO | TASK-002〜006 | 60min | [詳細](phase-3/TASK-007.md) @phase-3/TASK-007.md |
+| TASK-001 | 型定義とWizardProgressBar | Phase 1 | DONE | - | 30min | [詳細](phase-1/TASK-001.md) @phase-1/TASK-001.md |
+| TASK-002 | WizardContainer骨格 | Phase 1 | DONE | TASK-001 | 40min | [詳細](phase-1/TASK-002.md) @phase-1/TASK-002.md |
+| TASK-003 | StepEnvironment | Phase 2 | DONE | TASK-001 | 30min | [詳細](phase-2/TASK-003.md) @phase-2/TASK-003.md |
+| TASK-004 | StepAuthentication | Phase 2 | DONE | TASK-001 | 30min | [詳細](phase-2/TASK-004.md) @phase-2/TASK-004.md |
+| TASK-005 | StepRepository | Phase 2 | DONE | TASK-001 | 40min | [詳細](phase-2/TASK-005.md) @phase-2/TASK-005.md |
+| TASK-006 | StepSession | Phase 2 | DONE | TASK-001 | 30min | [詳細](phase-2/TASK-006.md) @phase-2/TASK-006.md |
+| TASK-007 | 統合・置き換え・削除 | Phase 3 | DONE | TASK-002〜006 | 60min | [詳細](phase-3/TASK-007.md) @phase-3/TASK-007.md |
 
 ## 並列実行グループ
 

@@ -13,7 +13,7 @@ interface StepAuthenticationProps {
 }
 
 export function StepAuthentication({ githubPatId, onChange }: StepAuthenticationProps) {
-  const { pats, isLoading, createPAT } = useGitHubPATs();
+  const { pats, isLoading, error, createPAT } = useGitHubPATs();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
 
   const activePATs = pats.filter((pat) => pat.isActive);
@@ -34,6 +34,14 @@ export function StepAuthentication({ githubPatId, onChange }: StepAuthentication
     return (
       <div className="flex items-center justify-center py-8">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300">
+        {error}
       </div>
     );
   }
