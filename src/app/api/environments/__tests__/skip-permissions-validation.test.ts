@@ -23,7 +23,7 @@ vi.mock('@/services/environment-service', () => ({
       type: 'DOCKER',
       config: '{"skipPermissions":true}',
     }),
-    createAuthDirectory: vi.fn().mockResolvedValue(undefined),
+    createConfigVolumes: vi.fn().mockResolvedValue(undefined),
     findAll: vi.fn().mockResolvedValue([]),
     checkStatus: vi.fn().mockResolvedValue({ available: true }),
   },
@@ -156,6 +156,7 @@ describe('Environment API skipPermissions validation', () => {
         config: '{}',
         is_default: false,
         description: null,
+        auth_dir_path: null,
         created_at: new Date(),
         updated_at: new Date(),
       });

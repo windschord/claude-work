@@ -302,7 +302,7 @@ export async function POST(request: NextRequest) {
       config,
     });
 
-    // DOCKER環境の場合は認証ディレクトリを作成
+    // DOCKER環境の場合は設定用の名前付きVolumeを作成
     if (type === 'DOCKER') {
       await environmentService.createConfigVolumes(environment.id);
       logger.info('Config volumes created for Docker environment', { id: environment.id });

@@ -1366,7 +1366,11 @@ export class DockerAdapter extends BasePTYAdapter {
         return;
       }
 
-      // 一時ディレクトリに鍵を保存
+      // 一時ディレクトリに鍵を保存（authDirPathが未設定の場合はスキップ）
+      if (!this.config.authDirPath) {
+        logger.debug('authDirPath not set, skipping SSH key setup for named volume environment');
+        return;
+      }
       const sshDir = path.join(this.config.authDirPath, 'ssh');
       await fsPromises.mkdir(sshDir, { recursive: true });
 
@@ -1484,6 +1488,9 @@ ${identityFiles}
    */
   async cleanupSSHKeys(): Promise<void> {
     try {
+      if (!this.config.authDirPath) {
+        return;
+      }
       const sshDir = path.join(this.config.authDirPath, 'ssh');
       const files = await fsPromises.readdir(sshDir);
 
