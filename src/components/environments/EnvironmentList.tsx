@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Environment, CreateEnvironmentInput, UpdateEnvironmentInput } from '@/hooks/useEnvironments';
 import { EnvironmentCard } from './EnvironmentCard';
 import { EnvironmentForm } from './EnvironmentForm';
@@ -16,6 +16,7 @@ interface EnvironmentListProps {
   onDeleteEnvironment: (id: string) => Promise<void>;
   onRefresh: () => Promise<void>;
   hostEnvironmentDisabled?: boolean;
+  highlightedEnvironmentId?: string | null;
 }
 
 /**
@@ -36,7 +37,13 @@ export function EnvironmentList({
   onDeleteEnvironment,
   onRefresh,
   hostEnvironmentDisabled,
+  highlightedEnvironmentId,
 }: EnvironmentListProps) {
+  // disabled=trueの環境を除外した表示用リスト
+  const visibleEnvironments = useMemo(() => {
+    return environments.filter(env => !env.disabled);
+  }, [environments]);
+
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -150,7 +157,7 @@ export function EnvironmentList({
         </button>
       </div>
 
-      {environments.length === 0 ? (
+      {visibleEnvironments.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-gray-500 dark:text-gray-400">環境がありません</p>
           <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">
@@ -159,12 +166,13 @@ export function EnvironmentList({
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {environments.map((environment) => (
+          {visibleEnvironments.map((environment) => (
             <EnvironmentCard
               key={environment.id}
               environment={environment}
               onEdit={handleEditClick}
               onDelete={handleDeleteClick}
+              highlighted={environment.id === highlightedEnvironmentId}
             />
           ))}
         </div>

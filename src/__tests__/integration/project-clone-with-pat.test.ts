@@ -111,6 +111,16 @@ describe('Project Clone with PAT Integration', () => {
 
   beforeEach(() => {
     db.delete(schema.projects).run();
+    // テスト用の実行環境レコードを作成（environment_id外部キー制約対策）
+    db.delete(schema.executionEnvironments).run();
+    db.insert(schema.executionEnvironments).values({
+      id: 'docker-default',
+      name: 'Default Docker',
+      type: 'DOCKER',
+      description: 'Test Docker environment',
+      config: JSON.stringify({}),
+      is_default: true,
+    }).run();
     vi.clearAllMocks();
 
     // 環境変数をバックアップして無効化
@@ -143,6 +153,7 @@ describe('Project Clone with PAT Integration', () => {
 
   afterEach(() => {
     db.delete(schema.projects).run();
+    db.delete(schema.executionEnvironments).run();
     if (originalAllowedDirs === undefined) {
       delete process.env.ALLOWED_PROJECT_DIRS;
     } else {
@@ -159,6 +170,7 @@ describe('Project Clone with PAT Integration', () => {
         url: 'https://github.com/user/private-repo.git',
         cloneLocation: 'docker',
         githubPatId: 'pat-123',
+        environment_id: 'docker-default',
       });
 
       const response = await POST(request);
@@ -185,6 +197,7 @@ describe('Project Clone with PAT Integration', () => {
       const request = createRequest({
         url: 'https://github.com/user/public-repo.git',
         cloneLocation: 'docker',
+        environment_id: 'docker-default',
       });
 
       const response = await POST(request);
@@ -209,6 +222,7 @@ describe('Project Clone with PAT Integration', () => {
         url: 'https://github.com/user/repo.git',
         cloneLocation: 'docker',
         githubPatId: 'non-existent-pat',
+        environment_id: 'docker-default',
       });
 
       const response = await POST(request);
@@ -230,6 +244,7 @@ describe('Project Clone with PAT Integration', () => {
         url: 'https://github.com/user/repo.git',
         cloneLocation: 'docker',
         githubPatId: 'pat-bad-decrypt',
+        environment_id: 'docker-default',
       });
 
       const response = await POST(request);
@@ -250,6 +265,7 @@ describe('Project Clone with PAT Integration', () => {
         url: 'https://github.com/user/repo.git',
         cloneLocation: 'docker',
         githubPatId: 'invalid-pat',
+        environment_id: 'docker-default',
       });
 
       await POST(request);
@@ -270,6 +286,7 @@ describe('Project Clone with PAT Integration', () => {
         url: 'https://github.com/user/nonexistent-repo.git',
         cloneLocation: 'docker',
         githubPatId: 'pat-valid',
+        environment_id: 'docker-default',
       });
 
       const response = await POST(request);
@@ -295,6 +312,7 @@ describe('Project Clone with PAT Integration', () => {
       const request = createRequest({
         url: '',
         githubPatId: 'pat-123',
+        environment_id: 'docker-default',
       });
 
       const response = await POST(request);
@@ -306,6 +324,7 @@ describe('Project Clone with PAT Integration', () => {
         url: 'not-a-valid-url',
         cloneLocation: 'docker',
         githubPatId: 'pat-123',
+        environment_id: 'docker-default',
       });
 
       const response = await POST(request);
