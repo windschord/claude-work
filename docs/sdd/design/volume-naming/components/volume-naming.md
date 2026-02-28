@@ -64,7 +64,7 @@ function validateVolumeName(name: string): boolean;
 
 ### generateSlug
 
-```
+```text
 入力: "My Project!!"
 → 小文字: "my project!!"
 → ASCII英数字・ハイフン以外を除去: "my-project"
@@ -73,7 +73,7 @@ function validateVolumeName(name: string): boolean;
 → 出力: "my-project"
 ```
 
-```
+```text
 入力: "日本語プロジェクト"
 → 小文字: "日本語プロジェクト"
 → ASCII英数字・ハイフン以外を除去: ""
@@ -82,7 +82,7 @@ function validateVolumeName(name: string): boolean;
 
 ### generateUniqueVolumeName
 
-```
+```text
 baseName = generateVolumeName('repo', 'my-project')  // "cw-repo-my-project"
 if baseName not in existingNames → return baseName
 suffix = 2

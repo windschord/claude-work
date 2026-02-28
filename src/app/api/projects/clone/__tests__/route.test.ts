@@ -390,8 +390,8 @@ describe('POST /api/projects/clone', () => {
 
       // DockerGitServiceのモックを設定
       const { DockerGitService } = await import('@/services/docker-git-service');
-      const mockCloneRepository = vi.fn().mockResolvedValue({ success: true, message: 'cloned' });
-      const mockCloneRepositoryWithPAT = vi.fn().mockResolvedValue({ success: true, message: 'cloned with PAT' });
+      const mockCloneRepository = vi.fn().mockResolvedValue({ success: true, message: 'cloned', volumeName: 'cw-repo-repo' });
+      const mockCloneRepositoryWithPAT = vi.fn().mockResolvedValue({ success: true, message: 'cloned with PAT', volumeName: 'cw-repo-repo' });
       vi.mocked(DockerGitService).mockImplementation(function (this: unknown) {
         Object.assign(this as Record<string, unknown>, {
           cloneRepository: mockCloneRepository,
@@ -522,7 +522,7 @@ describe('POST /api/projects/clone', () => {
     it('should not use PAT for docker clone when githubPatId is not provided', async () => {
       // DockerGitServiceのモックを設定（PATなし）
       const { DockerGitService } = await import('@/services/docker-git-service');
-      const mockCloneRepository = vi.fn().mockResolvedValue({ success: true, message: 'cloned without PAT' });
+      const mockCloneRepository = vi.fn().mockResolvedValue({ success: true, message: 'cloned without PAT', volumeName: 'cw-repo-repo' });
       vi.mocked(DockerGitService).mockImplementation(function (this: unknown) {
         Object.assign(this as Record<string, unknown>, {
           cloneRepository: mockCloneRepository,

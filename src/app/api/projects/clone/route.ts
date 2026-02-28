@@ -132,7 +132,18 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: cloneResult.error || 'Docker clone failed' }, { status: 400 });
           }
 
-          // clone結果からvolume名を取得
+          // clone結果からvolume名を取得（必須）
+          if (!cloneResult.volumeName) {
+            logger.error('Docker clone succeeded but volumeName is missing', {
+              projectId: project.id,
+              cloneResult,
+            });
+            db.delete(schema.projects).where(eq(schema.projects.id, project.id)).run();
+            return NextResponse.json(
+              { error: 'Docker Volume情報の取得に失敗しました' },
+              { status: 500 }
+            );
+          }
           volumeName = cloneResult.volumeName;
 
           // pathとdocker_volume_idを更新
