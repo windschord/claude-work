@@ -635,19 +635,27 @@ const { environments, isLoading: isEnvironmentsLoading, hostEnvironmentDisabled 
 )}
 ```
 
-3. **`cloneLocation` のデフォルト値保証**
+3. **`cloneLocation` の強制リセット**
 
-`cloneLocation` の初期値は既に `'docker'` であるため、保存場所セクション非表示時は自動的に `'docker'` 固定となる。追加のロジック変更は不要。
+`cloneLocation` の初期値は `'docker'` だが、`hostEnvironmentDisabled` は非同期で取得されるため、フェッチ完了前にユーザーが `'host'` に切り替える可能性がある。そのため、`hostEnvironmentDisabled` が `true` になった時点で `cloneLocation` を `'docker'` に強制リセットする `useEffect` を追加する。
 
 ```typescript
-// 既存コード（変更不要）
 const [cloneLocation, setCloneLocation] = useState<'host' | 'docker'>('docker');
+
+// HOST環境が無効化された場合、cloneLocationをdockerに強制リセット
+useEffect(() => {
+  if (hostEnvironmentDisabled && cloneLocation !== 'docker') {
+    setCloneLocation('docker');
+  }
+}, [hostEnvironmentDisabled, cloneLocation]);
 ```
+
+さらに、`handleSubmit` 内でも `hostEnvironmentDisabled` 時は `cloneLocation` を `'docker'` として送信し、useEffect実行前のレースコンディションに対する防御とする。
 
 **設計根拠:**
 - `useEnvironments()` は RemoteRepoForm 内で既に使用されているため、新たなフックの追加は不要
 - props経由で `hostEnvironmentDisabled` を渡す方式も検討したが、RemoteRepoForm 内で既に `useEnvironments()` を呼んでいるため、フックから直接取得する方がシンプル
-- `cloneLocation` の初期値が `'docker'` であるため、保存場所セクション非表示時に追加の固定ロジックは不要
+- `useEffect` による強制リセットと `handleSubmit` 内での防御的チェックの二重対策により、HOST無効化環境で `cloneLocation='host'` が送信されることを確実に防ぐ
 
 ### 変更ファイル一覧（US-005追加分）
 

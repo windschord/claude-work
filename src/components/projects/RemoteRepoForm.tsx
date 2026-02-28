@@ -75,8 +75,9 @@ export function RemoteRepoForm({
       return;
     }
 
+    const effectiveCloneLocation = hostEnvironmentDisabled ? 'docker' : cloneLocation;
     const patId = showPATSelector && githubPatId ? githubPatId : undefined;
-    await onSubmit(url.trim(), selectedEnvironmentId, targetDir.trim() || undefined, cloneLocation, patId);
+    await onSubmit(url.trim(), selectedEnvironmentId, targetDir.trim() || undefined, effectiveCloneLocation, patId);
   };
 
   return (
@@ -102,8 +103,8 @@ export function RemoteRepoForm({
         </p>
       </div>
 
-      {/* 保存場所選択: HOST環境が有効な場合のみ表示 */}
-      {!hostEnvironmentDisabled && (
+      {/* 保存場所選択: HOST環境が有効な場合のみ表示（環境情報取得中は非表示） */}
+      {!isEnvironmentsLoading && !hostEnvironmentDisabled && (
         <div className="mb-4">
           <div className="flex items-center gap-2 mb-2">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">

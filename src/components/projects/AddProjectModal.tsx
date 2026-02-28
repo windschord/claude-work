@@ -38,6 +38,7 @@ export function AddProjectModal({ isOpen, onClose }: AddProjectModalProps) {
     [environments]
   );
 
+  const availableEnvironmentIds = availableEnvironments.map((e) => e.id).join(',');
   const defaultEnvironmentId = availableEnvironments.find((e) => e.is_default)?.id ?? availableEnvironments[0]?.id ?? '';
 
   // 初期選択: is_default=true の環境、または選択中の環境がリストから削除された場合にリセット
@@ -46,11 +47,12 @@ export function AddProjectModal({ isOpen, onClose }: AddProjectModalProps) {
       setSelectedEnvironmentId(defaultEnvironmentId);
     } else if (
       selectedEnvironmentId &&
-      !availableEnvironments.some((env) => env.id === selectedEnvironmentId)
+      availableEnvironmentIds &&
+      !availableEnvironmentIds.split(',').includes(selectedEnvironmentId)
     ) {
       setSelectedEnvironmentId(defaultEnvironmentId);
     }
-  }, [selectedEnvironmentId, defaultEnvironmentId, availableEnvironments]);
+  }, [selectedEnvironmentId, defaultEnvironmentId, availableEnvironmentIds]);
 
   const selectedEnvironment = availableEnvironments.find((env) => env.id === selectedEnvironmentId);
 
