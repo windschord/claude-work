@@ -111,6 +111,25 @@ export class DockerClient {
     return this.docker.getVolume(name);
   }
 
+  public async listVolumes(): Promise<Docker.VolumeListResponse> {
+    try {
+      return await this.docker.listVolumes();
+    } catch (error) {
+      logger.error('Failed to list volumes', { error });
+      throw error;
+    }
+  }
+
+  public async inspectVolume(name: string): Promise<Docker.VolumeInspectInfo> {
+    try {
+      const volume = this.docker.getVolume(name);
+      return await volume.inspect();
+    } catch (error) {
+      logger.error(`Failed to inspect volume: ${name}`, { error });
+      throw error;
+    }
+  }
+
   public async removeVolume(name: string): Promise<void> {
     try {
       const volume = this.docker.getVolume(name);
