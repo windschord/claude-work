@@ -22,7 +22,7 @@ const DOCKER_VOLUME_NAME_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/;
  *
  * 変換ルール:
  * 1. 小文字に変換
- * 2. スペースをハイフンに変換
+ * 2. スペース・特殊文字をハイフンに変換
  * 3. ASCII英数字・ハイフン・アンダースコア・ドット以外を除去
  * 4. 連続するハイフンを1つに統合
  * 5. 先頭・末尾のハイフンを除去
@@ -31,8 +31,7 @@ const DOCKER_VOLUME_NAME_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/;
 export function generateSlug(name: string): string {
   return name
     .toLowerCase()
-    .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9._-]/g, '')
+    .replace(/[^a-z0-9._-]/g, '-')
     .replace(/-{2,}/g, '-')
     .replace(/^-+|-+$/g, '');
 }

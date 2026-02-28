@@ -315,18 +315,21 @@ describe('VolumeMountList', () => {
       ]);
     });
 
-    it('sourceType=volume時にDocker Volume選択ドロップダウンが表示される', () => {
+    it('sourceType=volume時にVolume名入力とdatalist候補が表示される', () => {
       const mounts: VolumeMount[] = [
         { hostPath: 'cw-repo-my-project', containerPath: '/workspace', accessMode: 'rw', sourceType: 'volume' },
       ];
-      render(<VolumeMountList value={mounts} onChange={vi.fn()} />);
-      expect(screen.getByText('cw-config-dev')).toBeInTheDocument();
-      const volumeSelect = screen.getAllByRole('combobox').find(s => {
-        const options = s.querySelectorAll('option');
-        return Array.from(options).some(o => o.value === 'cw-repo-my-project');
-      });
-      expect(volumeSelect).toBeDefined();
-      expect((volumeSelect as HTMLSelectElement).value).toBe('cw-repo-my-project');
+      const { container } = render(<VolumeMountList value={mounts} onChange={vi.fn()} />);
+      // datalist内にVolume名が候補として存在する
+      const datalist = container.querySelector('datalist');
+      expect(datalist).not.toBeNull();
+      const options = datalist!.querySelectorAll('option');
+      const optionValues = Array.from(options).map(o => o.value);
+      expect(optionValues).toContain('cw-repo-my-project');
+      expect(optionValues).toContain('cw-config-dev');
+      // テキスト入力に値が設定されている
+      const volumeInput = screen.getByDisplayValue('cw-repo-my-project');
+      expect(volumeInput.tagName).toBe('INPUT');
     });
 
     it('sourceType=volume時に無効なVolume名でエラーを表示する', () => {

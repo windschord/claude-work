@@ -201,20 +201,21 @@ export function VolumeMountList({ value, onChange, onDangerousPath }: VolumeMoun
                     <option value="volume">Volume</option>
                   </select>
                   {sourceType === 'volume' ? (
-                    <select
-                      value={mount.hostPath}
-                      onChange={(e) => handleChange(index, 'hostPath', e.target.value)}
-                      className="flex-1 px-3 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">
-                        {volumesLoading ? '読み込み中...' : 'Volumeを選択'}
-                      </option>
-                      {volumes.map((vol) => (
-                        <option key={vol.name} value={vol.name}>
-                          {vol.name}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="flex-1">
+                      <input
+                        type="text"
+                        list={`volume-options-${index}`}
+                        value={mount.hostPath}
+                        onChange={(e) => handleChange(index, 'hostPath', e.target.value)}
+                        placeholder={volumesLoading ? '読み込み中...' : 'Volume名を入力または選択'}
+                        className="w-full px-3 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <datalist id={`volume-options-${index}`}>
+                        {volumes.map((vol) => (
+                          <option key={vol.name} value={vol.name} />
+                        ))}
+                      </datalist>
+                    </div>
                   ) : (
                     <input
                       type="text"

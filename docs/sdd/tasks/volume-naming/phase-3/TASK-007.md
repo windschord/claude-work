@@ -18,7 +18,7 @@
 
 ## UI設計
 
-```
+```text
 [ホストパス ▼] [/host/path     ] → [/container/path] [RW ▼] [X]
 [Volume    ▼] [cw-repo-xxx  ▼ ] → [/container/path] [RW ▼] [X]
 ```

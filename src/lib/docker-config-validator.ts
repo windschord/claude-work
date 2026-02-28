@@ -139,6 +139,11 @@ export function validateVolumeMounts(mounts: VolumeMount[]): ValidationResult {
 
     const sourceType = mount.sourceType ?? 'bind';
 
+    if (sourceType !== 'bind' && sourceType !== 'volume') {
+      errors.push(`マウント${i + 1}: sourceTypeは"bind"または"volume"である必要があります`);
+      continue;
+    }
+
     if (sourceType === 'volume') {
       // Docker Volume名バリデーション
       if (!validateVolumeName(mount.hostPath)) {

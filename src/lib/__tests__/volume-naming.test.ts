@@ -17,9 +17,9 @@ describe('generateSlug', () => {
     expect(generateSlug('hello world test')).toBe('hello-world-test');
   });
 
-  it('特殊文字を除去', () => {
+  it('特殊文字をハイフンに変換', () => {
     expect(generateSlug('Test Project!!')).toBe('test-project');
-    expect(generateSlug('foo@bar#baz')).toBe('foobarbaz');
+    expect(generateSlug('foo@bar#baz')).toBe('foo-bar-baz');
   });
 
   it('連続ハイフンを1つに統合', () => {
