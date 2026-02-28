@@ -47,12 +47,12 @@ export function extractProjectName(pathOrUrl: string): string {
   if (!trimmed) return '';
 
   // SSH URL: git@github.com:user/repo.git
-  if (trimmed.includes(':') && !trimmed.startsWith('/') && !trimmed.startsWith('http')) {
+  if (/^[^/]+@[^:]+:.+/.test(trimmed)) {
     const afterColon = trimmed.split(':').pop() || '';
-    return afterColon.split('/').pop()?.replace('.git', '') || '';
+    return afterColon.split('/').pop()?.replace(/\.git$/, '') || '';
   }
 
   // HTTPS URL or local path
-  const name = trimmed.split('/').pop()?.replace('.git', '') || '';
+  const name = trimmed.split('/').pop()?.replace(/\.git$/, '') || '';
   return name;
 }

@@ -31,12 +31,15 @@ export function WizardProgressBar({ steps, currentStep, onStepClick }: WizardPro
 
         return (
           <Fragment key={step.id}>
-            <div
+            <button
+              type="button"
               data-step={step.id}
               data-status={status}
               className={`flex flex-col items-center gap-1 ${
-                status === 'completed' ? 'cursor-pointer' : ''
+                status === 'completed' ? 'cursor-pointer' : 'cursor-default'
               }`}
+              disabled={status !== 'completed'}
+              aria-current={status === 'current' ? 'step' : undefined}
               onClick={() => handleClick(step.id, status)}
             >
               <div
@@ -65,7 +68,7 @@ export function WizardProgressBar({ steps, currentStep, onStepClick }: WizardPro
               >
                 {step.label}
               </span>
-            </div>
+            </button>
 
             {index < steps.length - 1 && (
               <div

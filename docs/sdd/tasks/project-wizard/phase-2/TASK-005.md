@@ -83,4 +83,4 @@ export function extractProjectName(pathOrUrl: string): string {
 
 ## ステータス
 
-`TODO`
+`DONE`

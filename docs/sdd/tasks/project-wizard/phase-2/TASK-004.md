@@ -64,4 +64,4 @@ interface StepAuthenticationProps {
 
 ## ステータス
 
-`TODO`
+`DONE`

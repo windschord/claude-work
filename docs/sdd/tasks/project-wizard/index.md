@@ -10,7 +10,7 @@ AddProjectModalをウィザード形式に置き換え。TDDで実装。
 
 ## 進捗サマリ
 
-| フェーズ | タスク数 | 完了 | 進行中 | DONE |
+| フェーズ | タスク数 | 完了 | 進行中 | TODO |
 |---------|---------|------|--------|------|
 | Phase 1: 基盤 | 2 | 2 | 0 | 0 |
 | Phase 2: ステップ | 4 | 4 | 0 | 0 |
@@ -32,11 +32,13 @@ AddProjectModalをウィザード形式に置き換え。TDDで実装。
 ## 並列実行グループ
 
 ### グループA（最初に実行）
+
 | タスク | 対象ファイル | 依存 |
 |--------|-------------|------|
 | TASK-001 | AddProjectWizard/types.ts, WizardProgressBar.tsx | なし |
 
 ### グループB（TASK-001完了後に並列実行可能）
+
 | タスク | 対象ファイル | 依存 |
 |--------|-------------|------|
 | TASK-002 | AddProjectWizard/WizardContainer.tsx, index.ts | TASK-001 |
@@ -46,13 +48,14 @@ AddProjectModalをウィザード形式に置き換え。TDDで実装。
 | TASK-006 | AddProjectWizard/StepSession.tsx | TASK-001 |
 
 ### グループC（グループB完了後）
+
 | タスク | 対象ファイル | 依存 |
 |--------|-------------|------|
 | TASK-007 | WizardContainer.tsx, ProjectList.tsx, Sidebar.tsx, 旧ファイル削除 | TASK-002〜006 |
 
 ## 依存関係図
 
-```
+```text
 TASK-001 (型定義 + ProgressBar)
 ├── TASK-002 (WizardContainer骨格)
 ├── TASK-003 (StepEnvironment)     ─┐

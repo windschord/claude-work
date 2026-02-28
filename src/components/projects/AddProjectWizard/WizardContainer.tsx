@@ -83,7 +83,10 @@ export function AddProjectWizard({ isOpen, onClose }: AddProjectWizardProps) {
           const response = await fetch('/api/projects', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ path: wizardData.localPath.trim() }),
+            body: JSON.stringify({
+              path: wizardData.localPath.trim(),
+              name: wizardData.projectName || undefined,
+            }),
           });
           const data = await response.json();
           if (!response.ok) {
