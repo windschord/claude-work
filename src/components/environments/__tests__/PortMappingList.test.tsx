@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { PortMappingList } from '../PortMappingList';
 import type { PortMapping } from '@/types/environment';
 
@@ -11,6 +11,7 @@ describe('PortMappingList', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    global.fetch = vi.fn();
   });
 
   describe('empty state', () => {
@@ -189,6 +190,166 @@ describe('PortMappingList', () => {
       render(<PortMappingList value={mappings} onChange={vi.fn()} />);
 
       expect(screen.queryByText('ポートマッピングは設定されていません')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('port check button', () => {
+    it('should display port check button when valid ports exist', () => {
+      const mappings: PortMapping[] = [
+        { hostPort: 8080, containerPort: 80, protocol: 'tcp' },
+      ];
+      render(<PortMappingList value={mappings} onChange={vi.fn()} />);
+
+      expect(screen.getByRole('button', { name: /ポートチェック/ })).toBeInTheDocument();
+    });
+
+    it('should not display port check button when no ports exist', () => {
+      render(<PortMappingList value={[]} onChange={vi.fn()} />);
+
+      expect(screen.queryByRole('button', { name: /ポートチェック/ })).not.toBeInTheDocument();
+    });
+
+    it('should call fetch API when check button is clicked', async () => {
+      const mappings: PortMapping[] = [
+        { hostPort: 8080, containerPort: 80, protocol: 'tcp' },
+      ];
+      vi.mocked(global.fetch).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ results: [] }),
+      } as Response);
+
+      render(<PortMappingList value={mappings} onChange={vi.fn()} />);
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /ポートチェック/ }));
+      });
+
+      expect(global.fetch).toHaveBeenCalledWith('/api/environments/check-ports', expect.objectContaining({
+        method: 'POST',
+      }));
+    });
+
+    it('should display available text when port check result is available', async () => {
+      const mappings: PortMapping[] = [
+        { hostPort: 8080, containerPort: 80, protocol: 'tcp' },
+      ];
+      vi.mocked(global.fetch).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          results: [{ port: 8080, status: 'available' }],
+        }),
+      } as Response);
+
+      render(<PortMappingList value={mappings} onChange={vi.fn()} />);
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /ポートチェック/ }));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('利用可能')).toBeInTheDocument();
+      });
+    });
+
+    it('should display in_use text when port check result is in_use', async () => {
+      const mappings: PortMapping[] = [
+        { hostPort: 8080, containerPort: 80, protocol: 'tcp' },
+      ];
+      vi.mocked(global.fetch).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          results: [{ port: 8080, status: 'in_use', usedBy: 'nginx' }],
+        }),
+      } as Response);
+
+      render(<PortMappingList value={mappings} onChange={vi.fn()} />);
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /ポートチェック/ }));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText(/使用中/)).toBeInTheDocument();
+      });
+    });
+
+    it('should display unknown text when port check result is unknown', async () => {
+      const mappings: PortMapping[] = [
+        { hostPort: 8080, containerPort: 80, protocol: 'tcp' },
+      ];
+      vi.mocked(global.fetch).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          results: [{ port: 8080, status: 'unknown' }],
+        }),
+      } as Response);
+
+      render(<PortMappingList value={mappings} onChange={vi.fn()} />);
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /ポートチェック/ }));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('チェック不可')).toBeInTheDocument();
+      });
+    });
+
+    it('should reset port check results when host port changes', async () => {
+      const mappings: PortMapping[] = [
+        { hostPort: 8080, containerPort: 80, protocol: 'tcp' },
+      ];
+      const onChange = vi.fn();
+      vi.mocked(global.fetch).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          results: [{ port: 8080, status: 'available' }],
+        }),
+      } as Response);
+
+      const { rerender } = render(<PortMappingList value={mappings} onChange={onChange} />);
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /ポートチェック/ }));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('利用可能')).toBeInTheDocument();
+      });
+
+      // ホストポートを変更してrerenderする
+      const hostPortInputs = screen.getAllByPlaceholderText('ホストポート');
+      fireEvent.change(hostPortInputs[0], { target: { value: '9090' } });
+
+      const updatedMappings: PortMapping[] = [
+        { hostPort: 9090, containerPort: 80, protocol: 'tcp' },
+      ];
+      rerender(<PortMappingList value={updatedMappings} onChange={onChange} />);
+
+      expect(screen.queryByText('利用可能')).not.toBeInTheDocument();
+    });
+
+    it('should include excludeEnvironmentId in fetch request', async () => {
+      const mappings: PortMapping[] = [
+        { hostPort: 8080, containerPort: 80, protocol: 'tcp' },
+      ];
+      vi.mocked(global.fetch).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ results: [] }),
+      } as Response);
+
+      render(
+        <PortMappingList
+          value={mappings}
+          onChange={vi.fn()}
+          excludeEnvironmentId="env-123"
+        />
+      );
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /ポートチェック/ }));
+      });
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/environments/check-ports',
+        expect.objectContaining({
+          body: expect.stringContaining('env-123'),
+        })
+      );
     });
   });
 });
