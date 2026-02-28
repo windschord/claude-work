@@ -83,9 +83,6 @@ export async function POST(request: NextRequest) {
           throw new Error('Failed to create project');
         }
 
-        // ボリューム名を先に決定（クリーンアップ用）
-        volumeName = `claude-repo-${project.id}`;
-
         logger.info('Project created (pre-clone)', {
           id: project.id,
           name: projectName,
@@ -107,7 +104,8 @@ export async function POST(request: NextRequest) {
               cloneResult = await dockerGitService.cloneRepositoryWithPAT(
                 url,
                 project.id.toString(),
-                token
+                token,
+                projectName
               );
             } catch (error) {
               logger.error('PAT authentication failed', { githubPatId, error });
@@ -123,6 +121,7 @@ export async function POST(request: NextRequest) {
             cloneResult = await dockerGitService.cloneRepository({
               url: url,
               projectId: project.id.toString(),
+              projectName: projectName,
             });
           }
 
@@ -132,6 +131,9 @@ export async function POST(request: NextRequest) {
             logger.error('Docker clone failed, project deleted', { projectId: project.id, error: cloneResult.error });
             return NextResponse.json({ error: cloneResult.error || 'Docker clone failed' }, { status: 400 });
           }
+
+          // clone結果からvolume名を取得
+          volumeName = cloneResult.volumeName;
 
           // pathとdocker_volume_idを更新
           const updatedProject = db.update(schema.projects)

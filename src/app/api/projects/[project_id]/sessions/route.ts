@@ -453,7 +453,7 @@ export async function POST(
           logger.info('Created worktree in Docker volume', {
             project_id,
             sessionName,
-            volumeName: `claude-repo-${project.id}`,
+            volumeName: project.docker_volume_id || `claude-repo-${project.id}`,
           });
         } else {
           // Host環境でcloneされたプロジェクト → GitServiceを使用

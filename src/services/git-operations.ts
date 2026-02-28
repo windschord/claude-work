@@ -10,6 +10,7 @@ export interface GitOperationResult {
   success: boolean;
   message?: string;
   error?: Error;
+  volumeName?: string;
 }
 
 /**

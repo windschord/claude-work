@@ -393,6 +393,7 @@ export class DockerGitService implements GitOperations {
       return {
         success: true,
         message: `Repository cloned successfully to Docker volume: ${volumeName}`,
+        volumeName: volumeName ?? undefined,
       };
     } catch (error) {
       logger.error('[docker] git clone failed', { error, url, volumeName });
@@ -550,6 +551,7 @@ export class DockerGitService implements GitOperations {
       return {
         success: true,
         message: `Repository cloned successfully with PAT to Docker volume: ${volumeName}`,
+        volumeName: volumeName ?? undefined,
       };
     } catch (error) {
       logger.error('[docker] git clone with PAT failed', { error: this.sanitizeError(error as Error), repoUrl: this.sanitizeUrl(repoUrl), volumeName });
