@@ -22,6 +22,21 @@ vi.mock('@/hooks/useEnvironments', () => ({
   useEnvironments: () => mockUseEnvironments(),
 }));
 
+const buildMockEnvironments = (overrides: Partial<{
+  environments: Array<{ id: string; name: string; type: string; is_default: boolean; description: string; config: string }>;
+  isLoading: boolean;
+  error: null | string;
+  hostEnvironmentDisabled: boolean;
+}> = {}) => ({
+  environments: [
+    { id: 'env-1', name: 'Default Docker', type: 'DOCKER', is_default: true, description: 'Test env', config: '{}' },
+  ],
+  isLoading: false,
+  error: null,
+  hostEnvironmentDisabled: false,
+  ...overrides,
+});
+
 describe('AddProjectModal', () => {
   const mockAddProject = vi.fn();
   const mockCloneProject = vi.fn();
@@ -43,14 +58,7 @@ describe('AddProjectModal', () => {
       cloneProject: mockCloneProject,
       fetchProjects: mockFetchProjects,
     });
-    mockUseEnvironments.mockReturnValue({
-      environments: [
-        { id: 'env-1', name: 'Default Docker', type: 'DOCKER', is_default: true, description: 'Test env', config: '{}' },
-      ],
-      isLoading: false,
-      error: null,
-      hostEnvironmentDisabled: false,
-    });
+    mockUseEnvironments.mockReturnValue(buildMockEnvironments());
   });
 
   afterEach(() => {
@@ -244,14 +252,7 @@ describe('AddProjectModal', () => {
 
   describe('HOST環境無効化時のタブ制御', () => {
     it('hostEnvironmentDisabled=trueの場合、ローカルタブが非表示になる', () => {
-      mockUseEnvironments.mockReturnValue({
-        environments: [
-          { id: 'env-1', name: 'Default Docker', type: 'DOCKER', is_default: true, description: 'Test env', config: '{}' },
-        ],
-        isLoading: false,
-        error: null,
-        hostEnvironmentDisabled: true,
-      });
+      mockUseEnvironments.mockReturnValue(buildMockEnvironments({ hostEnvironmentDisabled: true }));
 
       render(<AddProjectModal isOpen={true} onClose={mockOnClose} />);
 
@@ -260,14 +261,7 @@ describe('AddProjectModal', () => {
     });
 
     it('hostEnvironmentDisabled=trueの場合、リモートフォームが直接表示される', () => {
-      mockUseEnvironments.mockReturnValue({
-        environments: [
-          { id: 'env-1', name: 'Default Docker', type: 'DOCKER', is_default: true, description: 'Test env', config: '{}' },
-        ],
-        isLoading: false,
-        error: null,
-        hostEnvironmentDisabled: true,
-      });
+      mockUseEnvironments.mockReturnValue(buildMockEnvironments({ hostEnvironmentDisabled: true }));
 
       render(<AddProjectModal isOpen={true} onClose={mockOnClose} />);
 
@@ -282,12 +276,7 @@ describe('AddProjectModal', () => {
     });
 
     it('環境ロード中はタブもリモートフォームも表示されない', () => {
-      mockUseEnvironments.mockReturnValue({
-        environments: [],
-        isLoading: true,
-        error: null,
-        hostEnvironmentDisabled: false,
-      });
+      mockUseEnvironments.mockReturnValue(buildMockEnvironments({ environments: [], isLoading: true }));
 
       render(<AddProjectModal isOpen={true} onClose={mockOnClose} />);
 

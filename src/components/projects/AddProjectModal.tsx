@@ -35,17 +35,19 @@ export function AddProjectModal({ isOpen, onClose }: AddProjectModalProps) {
   const { environments, isLoading: isEnvironmentsLoading, hostEnvironmentDisabled } = useEnvironments();
   const availableEnvironments = environments.filter((env) => !env.disabled);
 
-  const availableEnvironmentIds = availableEnvironments.map((e) => e.id).join(',');
   const defaultEnvironmentId = availableEnvironments.find((e) => e.is_default)?.id ?? availableEnvironments[0]?.id ?? '';
 
   // 初期選択: is_default=true の環境、または選択中の環境がリストから削除された場合にリセット
   useEffect(() => {
     if (!selectedEnvironmentId && defaultEnvironmentId) {
       setSelectedEnvironmentId(defaultEnvironmentId);
-    } else if (selectedEnvironmentId && availableEnvironmentIds && !availableEnvironmentIds.split(',').includes(selectedEnvironmentId)) {
+    } else if (
+      selectedEnvironmentId &&
+      !availableEnvironments.some((env) => env.id === selectedEnvironmentId)
+    ) {
       setSelectedEnvironmentId(defaultEnvironmentId);
     }
-  }, [selectedEnvironmentId, defaultEnvironmentId, availableEnvironmentIds]);
+  }, [selectedEnvironmentId, defaultEnvironmentId, availableEnvironments]);
 
   const selectedEnvironment = availableEnvironments.find((env) => env.id === selectedEnvironmentId);
 
@@ -201,9 +203,7 @@ export function AddProjectModal({ isOpen, onClose }: AddProjectModalProps) {
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                               実行環境
                             </label>
-                            {isEnvironmentsLoading ? (
-                              <p className="text-sm text-gray-500 dark:text-gray-400">環境を読み込み中...</p>
-                            ) : availableEnvironments.length === 0 ? (
+                            {availableEnvironments.length === 0 ? (
                               <p className="text-sm text-red-600 dark:text-red-400">
                                 利用可能な環境がありません。先に環境を登録してください。
                               </p>
