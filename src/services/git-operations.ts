@@ -18,6 +18,7 @@ export interface GitOperationResult {
 export interface GitCloneOptions {
   url: string;
   projectId: string;
+  projectName?: string;
   environmentId?: string;
   timeoutMs?: number;
 }
