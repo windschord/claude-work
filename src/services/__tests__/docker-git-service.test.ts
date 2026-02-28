@@ -6,6 +6,7 @@ const { mockDockerClient } = vi.hoisted(() => ({
     createVolume: vi.fn(),
     removeVolume: vi.fn(),
     run: vi.fn(),
+    listVolumes: vi.fn(),
   }
 }));
 
@@ -72,6 +73,7 @@ describe('DockerGitService', () => {
     mockDockerClient.createVolume.mockResolvedValue({});
     mockDockerClient.removeVolume.mockResolvedValue({});
     mockDockerClient.run.mockResolvedValue({ StatusCode: 0 });
+    mockDockerClient.listVolumes.mockResolvedValue({ Volumes: [], Warnings: [] });
   });
 
   describe('基本機能', () => {
@@ -320,6 +322,59 @@ describe('DockerGitService', () => {
     it('スカッシュマージ成功時にsuccess:trueを返す', async () => {
       const result = await dockerGitService.squashMerge('proj-1', 'test-session', 'Merge commit');
       expect(result).toEqual({ success: true });
+    });
+  });
+
+  describe('Volume命名規則', () => {
+    it('projectNameを指定したcloneでcw-repo-{slug}形式のVolume名が使われる', async () => {
+      const result = await dockerGitService.cloneRepository({
+        url: 'https://github.com/user/my-project.git',
+        projectId: 'test-project-id',
+        projectName: 'My Project',
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockDockerClient.createVolume).toHaveBeenCalledWith('cw-repo-my-project');
+    });
+
+    it('projectNameを指定しないcloneで旧形式(claude-repo-{id})が使われる', async () => {
+      const result = await dockerGitService.cloneRepository({
+        url: 'https://github.com/user/repo.git',
+        projectId: 'test-project-id',
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockDockerClient.createVolume).toHaveBeenCalledWith('claude-repo-test-project-id');
+    });
+
+    it('Volume名重複時にサフィックスが追加される', async () => {
+      mockDockerClient.listVolumes.mockResolvedValue({
+        Volumes: [
+          { Name: 'cw-repo-my-project', Driver: 'local' },
+        ],
+        Warnings: [],
+      });
+
+      const result = await dockerGitService.cloneRepository({
+        url: 'https://github.com/user/my-project.git',
+        projectId: 'test-project-id',
+        projectName: 'My Project',
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockDockerClient.createVolume).toHaveBeenCalledWith('cw-repo-my-project-2');
+    });
+
+    it('projectNameを指定したPAT cloneでcw-repo-{slug}形式が使われる', async () => {
+      const result = await dockerGitService.cloneRepositoryWithPAT(
+        'https://github.com/user/my-project.git',
+        'test-project-id',
+        'ghp_testPATtoken123',
+        'My Project'
+      );
+
+      expect(result.success).toBe(true);
+      expect(mockDockerClient.createVolume).toHaveBeenCalledWith('cw-repo-my-project');
     });
   });
 });
