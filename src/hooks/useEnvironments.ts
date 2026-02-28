@@ -23,6 +23,7 @@ export interface Environment {
   updated_at: string;
   status?: EnvironmentStatus;
   disabled?: boolean;
+  project_count?: number;
 }
 
 /**

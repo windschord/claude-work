@@ -1,4 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+
+// node-ptyはネイティブモジュールのため、インポート前にモックが必要
+vi.mock('node-pty', () => ({
+  spawn: vi.fn(),
+}));
+
 import { PTYSessionManager } from '../pty-session-manager'
 import { ConnectionManager } from '@/lib/websocket/connection-manager'
 import { AdapterFactory } from '../adapter-factory'
