@@ -15,14 +15,9 @@ vi.mock('@/hooks/useGitHubPATs', () => ({
 }));
 
 // useEnvironments hookのモック
+const mockUseEnvironments = vi.fn();
 vi.mock('@/hooks/useEnvironments', () => ({
-  useEnvironments: () => ({
-    environments: [
-      { id: 'env-1', name: 'Default Docker', type: 'DOCKER', is_default: true, description: 'Test env', config: '{}' },
-    ],
-    isLoading: false,
-    error: null,
-  }),
+  useEnvironments: () => mockUseEnvironments(),
 }));
 
 describe('RemoteRepoForm', () => {
@@ -32,6 +27,14 @@ describe('RemoteRepoForm', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockOnSubmit.mockResolvedValue(undefined);
+    mockUseEnvironments.mockReturnValue({
+      environments: [
+        { id: 'env-1', name: 'Default Docker', type: 'DOCKER', is_default: true, description: 'Test env', config: '{}' },
+      ],
+      isLoading: false,
+      error: null,
+      hostEnvironmentDisabled: false,
+    });
   });
 
   describe('初期表示', () => {
@@ -345,6 +348,80 @@ describe('RemoteRepoForm', () => {
       );
 
       expect(screen.getByText('Clone failed: repository not found')).toBeInTheDocument();
+    });
+  });
+
+  describe('HOST環境無効化時の保存場所制御', () => {
+    it('hostEnvironmentDisabled=trueの場合、保存場所セクションが非表示になる', () => {
+      mockUseEnvironments.mockReturnValue({
+        environments: [
+          { id: 'env-1', name: 'Default Docker', type: 'DOCKER', is_default: true, description: 'Test env', config: '{}' },
+        ],
+        isLoading: false,
+        error: null,
+        hostEnvironmentDisabled: true,
+      });
+
+      render(
+        <RemoteRepoForm
+          onSubmit={mockOnSubmit}
+          onCancel={mockOnCancel}
+          isLoading={false}
+        />
+      );
+
+      expect(screen.queryByText('保存場所')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText(/Docker環境/)).not.toBeInTheDocument();
+      expect(screen.queryByLabelText(/ホスト環境/)).not.toBeInTheDocument();
+    });
+
+    it('hostEnvironmentDisabled=trueの場合、cloneLocationがdockerで送信される', async () => {
+      mockUseEnvironments.mockReturnValue({
+        environments: [
+          { id: 'env-1', name: 'Default Docker', type: 'DOCKER', is_default: true, description: 'Test env', config: '{}' },
+        ],
+        isLoading: false,
+        error: null,
+        hostEnvironmentDisabled: true,
+      });
+
+      render(
+        <RemoteRepoForm
+          onSubmit={mockOnSubmit}
+          onCancel={mockOnCancel}
+          isLoading={false}
+        />
+      );
+
+      const urlInput = screen.getByLabelText('リポジトリURL');
+      fireEvent.change(urlInput, { target: { value: 'git@github.com:user/repo.git' } });
+
+      const cloneButton = screen.getByRole('button', { name: 'Clone' });
+      fireEvent.click(cloneButton);
+
+      await waitFor(() => {
+        expect(mockOnSubmit).toHaveBeenCalledWith(
+          'git@github.com:user/repo.git',
+          'env-1',
+          undefined,
+          'docker',
+          undefined
+        );
+      });
+    });
+
+    it('hostEnvironmentDisabled=falseの場合、保存場所セクションが表示される', () => {
+      render(
+        <RemoteRepoForm
+          onSubmit={mockOnSubmit}
+          onCancel={mockOnCancel}
+          isLoading={false}
+        />
+      );
+
+      expect(screen.getByText('保存場所')).toBeInTheDocument();
+      expect(screen.getByLabelText(/Docker環境/)).toBeInTheDocument();
+      expect(screen.getByLabelText(/ホスト環境/)).toBeInTheDocument();
     });
   });
 
