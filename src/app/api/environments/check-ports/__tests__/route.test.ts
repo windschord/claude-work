@@ -49,13 +49,17 @@ describe('POST /api/environments/check-ports', () => {
       expect(json.results[1]).toEqual({ port: 8080, status: 'in_use', usedBy: 'nginx', source: 'os' });
     });
 
-    it('excludeEnvironmentId付きで200を返す', async () => {
+    it('excludeEnvironmentId付きで200を返し、PortCheckerに正しく渡される', async () => {
       const request = createRequest({ ports: [3000, 8080], excludeEnvironmentId: 'env-123' });
       const response = await POST(request);
       const json = await response.json();
 
       expect(response.status).toBe(200);
       expect(json).toHaveProperty('results');
+      expect(mockCheckPorts).toHaveBeenCalledWith({
+        ports: [3000, 8080],
+        excludeEnvironmentId: 'env-123',
+      });
     });
   });
 
@@ -95,6 +99,15 @@ describe('POST /api/environments/check-ports', () => {
 
       expect(response.status).toBe(400);
       expect(json).toHaveProperty('error');
+    });
+
+    it('excludeEnvironmentIdが文字列でない場合400を返す', async () => {
+      const request = createRequest({ ports: [3000], excludeEnvironmentId: 123 });
+      const response = await POST(request);
+      const json = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(json.error).toBe('excludeEnvironmentId must be a string');
     });
 
     it('範囲外ポート(70000)の場合400を返す', async () => {

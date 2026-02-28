@@ -379,12 +379,13 @@ describe('PortMappingList', () => {
         fireEvent.click(screen.getByRole('button', { name: /ポートチェック/ }));
       });
 
-      expect(global.fetch).toHaveBeenCalledWith(
-        '/api/environments/check-ports',
-        expect.objectContaining({
-          body: expect.stringContaining('env-123'),
-        })
-      );
+      const fetchCall = vi.mocked(global.fetch).mock.calls[0];
+      expect(fetchCall[0]).toBe('/api/environments/check-ports');
+      const body = JSON.parse((fetchCall[1] as RequestInit).body as string);
+      expect(body).toEqual({
+        ports: [8080],
+        excludeEnvironmentId: 'env-123',
+      });
     });
   });
 });

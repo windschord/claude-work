@@ -49,11 +49,11 @@ npm run lint
 
 ## 受入基準
 
-- [ ] EnvironmentFormからPortMappingListにexcludeEnvironmentIdが渡されている
-- [ ] 編集モード時に環境IDが渡され、新規作成時はundefined
-- [ ] 全テストがパスする: `npx vitest run`
-- [ ] ビルドが成功する: `npm run build`
-- [ ] ESLintエラーがゼロ: `npm run lint`
+- [x] EnvironmentFormからPortMappingListにexcludeEnvironmentIdが渡されている
+- [x] 編集モード時に環境IDが渡され、新規作成時はundefined
+- [x] 全テストがパスする: `npx vitest run`
+- [x] ビルドが成功する: `npm run build`
+- [x] ESLintエラーがゼロ: `npm run lint`
 
 ## 依存関係
 

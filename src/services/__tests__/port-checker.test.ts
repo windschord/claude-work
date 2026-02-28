@@ -159,11 +159,16 @@ describe('PortChecker', () => {
         close: ReturnType<typeof vi.fn>;
       };
       server.listen = vi.fn(() => server);
-      server.close = vi.fn(() => server);
+      server.close = vi.fn((callback?: () => void) => {
+        if (callback) process.nextTick(callback);
+        return server;
+      });
       mockCreateServer.mockReturnValue(server);
 
       const resultPromise = portChecker.checkHostPort(8080);
       vi.advanceTimersByTime(500);
+      // process.nextTickを処理するためにawait
+      await vi.advanceTimersByTimeAsync(0);
       const result = await resultPromise;
 
       expect(result.port).toBe(8080);
@@ -271,14 +276,33 @@ describe('PortChecker', () => {
     });
 
     it('OSで使用中のポートはin_use (source: os) として返す', async () => {
-      // ポート8080はOS使用中、他は利用可能
+      // ポート番号に基づいてモック動作を制御（callCountベースだと並列実行でフレーキー）
       mockCreateServer.mockImplementation(() => {
-        // 毎回新しいモックを返す必要があるため callCount で判定
-        const callCount = mockCreateServer.mock.calls.length;
-        if (callCount === 1) {
-          return createMockServerError('EADDRINUSE');
-        }
-        return createMockServerSuccess();
+        const server = new EventEmitter() as EventEmitter & {
+          listen: ReturnType<typeof vi.fn>;
+          close: ReturnType<typeof vi.fn>;
+        };
+        server.listen = vi.fn((port: number, callback: () => void) => {
+          if (port === 8080) {
+            // ポート8080はOS使用中
+            process.nextTick(() => {
+              const err = new Error('Port error: EADDRINUSE');
+              (err as NodeJS.ErrnoException).code = 'EADDRINUSE';
+              server.emit('error', err);
+            });
+          } else {
+            // その他のポートは利用可能
+            process.nextTick(() => {
+              callback();
+            });
+          }
+          return server;
+        });
+        server.close = vi.fn((callback?: () => void) => {
+          if (callback) process.nextTick(callback);
+          return server;
+        });
+        return server;
       });
       mockDbSelectAll.mockReturnValue([]);
 

@@ -54,7 +54,7 @@ interface PortCheckResult {
 
 ## 処理フロー
 
-```
+```text
 1. リクエストボディのバリデーション
 2. PortChecker.checkPorts() 呼び出し
 3. 結果をJSON形式で返却
@@ -69,6 +69,13 @@ export async function POST(request: NextRequest) {
     const { ports, excludeEnvironmentId } = body;
 
     // バリデーション
+    if (excludeEnvironmentId !== undefined && typeof excludeEnvironmentId !== 'string') {
+      return NextResponse.json(
+        { error: 'excludeEnvironmentId must be a string' },
+        { status: 400 }
+      );
+    }
+
     if (!Array.isArray(ports) || ports.length === 0) {
       return NextResponse.json(
         { error: 'ports must be a non-empty array' },

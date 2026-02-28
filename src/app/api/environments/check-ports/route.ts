@@ -7,6 +7,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { ports, excludeEnvironmentId } = body;
 
+    if (excludeEnvironmentId !== undefined && typeof excludeEnvironmentId !== 'string') {
+      return NextResponse.json({ error: 'excludeEnvironmentId must be a string' }, { status: 400 });
+    }
+
     if (!Array.isArray(ports) || ports.length === 0) {
       return NextResponse.json({ error: 'ports must be a non-empty array' }, { status: 400 });
     }

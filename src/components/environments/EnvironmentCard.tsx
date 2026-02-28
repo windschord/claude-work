@@ -116,6 +116,10 @@ function StatusIndicator({ available, authenticated }: { available: boolean; aut
  * 環境の情報を表示し、編集、削除のアクションを提供します。
  * デフォルト環境は削除ボタンが無効化されます。
  *
+ * NOTE: 将来的にハイライト（例: 保存後のフラッシュ効果）を実装する場合は、
+ * 環境の更新やリスト再取得でコンポーネントが再マウントされることを考慮し、
+ * keyの変更やアニメーション再トリガーの仕組みが必要になる可能性がある。
+ *
  * @param props - コンポーネントのプロパティ
  * @param props.environment - 表示する環境情報
  * @param props.onEdit - 環境を編集するときのコールバック関数

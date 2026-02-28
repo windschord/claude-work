@@ -97,8 +97,9 @@ export class PortChecker {
       const timeout = setTimeout(() => {
         if (!resolved) {
           resolved = true;
-          server.close();
-          resolve({ port, status: 'unknown' });
+          server.close(() => {
+            resolve({ port, status: 'unknown' });
+          });
         }
       }, 500);
 
@@ -106,12 +107,15 @@ export class PortChecker {
         if (resolved) return;
         resolved = true;
         clearTimeout(timeout);
-        server.close();
         if (err.code === 'EADDRINUSE') {
-          resolve({ port, status: 'in_use', source: 'os' });
+          server.close(() => {
+            resolve({ port, status: 'in_use', source: 'os' });
+          });
         } else {
           // EACCES など権限不足の場合は unknown
-          resolve({ port, status: 'unknown' });
+          server.close(() => {
+            resolve({ port, status: 'unknown' });
+          });
         }
       });
 
