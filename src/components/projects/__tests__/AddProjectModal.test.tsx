@@ -280,6 +280,21 @@ describe('AddProjectModal', () => {
       expect(screen.getByRole('tab', { name: 'ローカル' })).toBeInTheDocument();
       expect(screen.getByRole('tab', { name: 'リモート' })).toBeInTheDocument();
     });
+
+    it('環境ロード中はタブもリモートフォームも表示されない', () => {
+      mockUseEnvironments.mockReturnValue({
+        environments: [],
+        isLoading: true,
+        error: null,
+        hostEnvironmentDisabled: false,
+      });
+
+      render(<AddProjectModal isOpen={true} onClose={mockOnClose} />);
+
+      expect(screen.queryByRole('tab', { name: 'ローカル' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('tab', { name: 'リモート' })).not.toBeInTheDocument();
+      expect(screen.getByText('環境を読み込み中...')).toBeInTheDocument();
+    });
   });
 
   describe('RemoteRepoForm統合', () => {

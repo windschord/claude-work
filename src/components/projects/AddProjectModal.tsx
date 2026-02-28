@@ -137,7 +137,9 @@ export function AddProjectModal({ isOpen, onClose }: AddProjectModalProps) {
                   プロジェクトを追加
                 </Dialog.Title>
 
-                {hostEnvironmentDisabled ? (
+                {isEnvironmentsLoading ? (
+                  <p className="text-sm text-gray-500 dark:text-gray-400 py-4 text-center">環境を読み込み中...</p>
+                ) : hostEnvironmentDisabled ? (
                   <RemoteRepoForm
                     onSubmit={handleRemoteSubmit}
                     onCancel={handleClose}

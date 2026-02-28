@@ -51,6 +51,13 @@ export function RemoteRepoForm({
     }
   }, [selectedEnvironmentId, defaultEnvironmentId, availableEnvironmentIds]);
 
+  // HOST環境が無効化された場合、cloneLocationをdockerに強制リセット
+  useEffect(() => {
+    if (hostEnvironmentDisabled && cloneLocation !== 'docker') {
+      setCloneLocation('docker');
+    }
+  }, [hostEnvironmentDisabled, cloneLocation]);
+
   const selectedEnvironment = availableEnvironments.find((env) => env.id === selectedEnvironmentId);
 
   const isHttpsUrl = url.trim().startsWith('https://');
