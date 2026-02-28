@@ -809,7 +809,11 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode, 
 
                       {/* Port Mapping Settings */}
                       <div className="mt-4">
-                        <PortMappingList value={portMappings} onChange={setPortMappings} />
+                        <PortMappingList
+                          value={portMappings}
+                          onChange={setPortMappings}
+                          excludeEnvironmentId={mode === 'edit' ? environment?.id : undefined}
+                        />
                       </div>
 
                       {/* Volume Mount Settings */}
