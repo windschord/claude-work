@@ -1365,12 +1365,11 @@ export class DockerAdapter extends BasePTYAdapter {
         return;
       }
 
-      // 一時ディレクトリに鍵を保存（authDirPathが未設定の場合はスキップ）
-      if (!this.config.authDirPath) {
-        logger.debug('authDirPath not set, skipping SSH key setup for named volume environment');
-        return;
-      }
-      const sshDir = path.join(this.config.authDirPath, 'ssh');
+      // named volumeモードではOS一時領域を使用
+      const useTempDir = !this.config.authDirPath;
+      const sshDir = useTempDir
+        ? await fsPromises.mkdtemp(path.join(os.tmpdir(), 'claude-ssh-'))
+        : path.join(this.config.authDirPath!, 'ssh');
       await fsPromises.mkdir(sshDir, { recursive: true });
 
       const keyPaths: string[] = [];
@@ -1450,10 +1449,23 @@ export class DockerAdapter extends BasePTYAdapter {
       await execChown.start({});
 
       logger.info('SSH keys applied successfully', { keyCount: keyPaths.length });
+
+      // named volumeモードの一時ディレクトリをクリーンアップ
+      if (useTempDir) {
+        await fsPromises.rm(sshDir, { recursive: true, force: true });
+      }
     } catch (error) {
       logger.error('Failed to apply SSH keys', {
         error: error instanceof Error ? error.message : 'Unknown error',
       });
+      // named volumeモードの一時ディレクトリをクリーンアップ（エラー時も）
+      if (useTempDir) {
+        try {
+          await fsPromises.rm(sshDir, { recursive: true, force: true });
+        } catch {
+          // クリーンアップ失敗は無視
+        }
+      }
       // SSH鍵の失敗は致命的ではないため、エラーをログに記録して続行
     }
   }
@@ -1488,7 +1500,8 @@ ${identityFiles}
   async cleanupSSHKeys(): Promise<void> {
     try {
       if (!this.config.authDirPath) {
-        logger.debug('SSH key cleanup skipped (named volume mode)');
+        // named volumeモードでは一時ディレクトリはapplySSHKeys内で既にクリーンアップ済み
+        logger.debug('SSH key cleanup skipped (named volume mode, temp dir already cleaned)');
         return;
       }
       const sshDir = path.join(this.config.authDirPath, 'ssh');

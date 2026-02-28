@@ -327,7 +327,14 @@ export async function POST(request: NextRequest) {
         logger.error('Failed to create config volumes, rolling back environment', {
           environmentId: environment.id, error: volumeError,
         });
-        await environmentService.delete(environment.id);
+        try {
+          await environmentService.delete(environment.id);
+        } catch (rollbackError) {
+          logger.error('Failed to rollback environment after config volume creation failure', {
+            environmentId: environment.id,
+            rollbackError,
+          });
+        }
         return NextResponse.json(
           { error: '設定Volumeの作成に失敗しました' },
           { status: 500 }

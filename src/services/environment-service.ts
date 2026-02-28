@@ -561,11 +561,25 @@ export class EnvironmentService {
       throw new Error('環境が見つかりません');
     }
 
+    if (environment.type !== 'DOCKER') {
+      throw new Error(`Docker環境でのみ実行可能です: ${environment.type}`);
+    }
+
     const dockerClient = DockerClient.getInstance();
     const volumes = this.getConfigVolumeNames(id);
 
     await dockerClient.createVolume(volumes.claudeVolume);
-    await dockerClient.createVolume(volumes.configClaudeVolume);
+    try {
+      await dockerClient.createVolume(volumes.configClaudeVolume);
+    } catch (error) {
+      // configClaudeVolume作成失敗時、claudeVolumeをクリーンアップ
+      try {
+        await dockerClient.removeVolume(volumes.claudeVolume);
+      } catch {
+        logger.warn('部分的なVolume作成のクリーンアップに失敗しました', { volume: volumes.claudeVolume });
+      }
+      throw error;
+    }
 
     logger.info('設定Volumeを作成しました', { id, volumes });
   }
@@ -581,22 +595,33 @@ export class EnvironmentService {
       throw new Error('環境が見つかりません');
     }
 
+    if (environment.type !== 'DOCKER') {
+      throw new Error(`Docker環境でのみ実行可能です: ${environment.type}`);
+    }
+
     const dockerClient = DockerClient.getInstance();
     const volumes = this.getConfigVolumeNames(id);
+    const failedVolumes: string[] = [];
 
     try {
       await dockerClient.removeVolume(volumes.claudeVolume);
     } catch (error) {
+      failedVolumes.push(volumes.claudeVolume);
       logger.warn('設定Volume削除失敗', { volume: volumes.claudeVolume, error });
     }
 
     try {
       await dockerClient.removeVolume(volumes.configClaudeVolume);
     } catch (error) {
+      failedVolumes.push(volumes.configClaudeVolume);
       logger.warn('設定Volume削除失敗', { volume: volumes.configClaudeVolume, error });
     }
 
-    logger.info('設定Volumeを削除しました', { id, volumes });
+    if (failedVolumes.length === 0) {
+      logger.info('設定Volumeを全て削除しました', { id, volumes });
+    } else {
+      logger.warn('設定Volumeの一部削除に失敗しました', { id, failedVolumes, volumes });
+    }
   }
 }
 

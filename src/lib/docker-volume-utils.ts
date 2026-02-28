@@ -13,6 +13,9 @@ export function getConfigVolumeNames(environmentId: string): {
   claudeVolume: string;
   configClaudeVolume: string;
 } {
+  if (!environmentId || environmentId.trim() === '') {
+    throw new Error('environmentId is required');
+  }
   return {
     claudeVolume: `claude-config-claude-${environmentId}`,
     configClaudeVolume: `claude-config-configclaude-${environmentId}`,
