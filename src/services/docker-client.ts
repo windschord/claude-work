@@ -111,7 +111,7 @@ export class DockerClient {
     return this.docker.getVolume(name);
   }
 
-  public async listVolumes(): Promise<Docker.VolumeListResponse> {
+  public async listVolumes(): Promise<{ Volumes: Docker.VolumeInspectInfo[]; Warnings: string[] }> {
     try {
       return await this.docker.listVolumes();
     } catch (error) {

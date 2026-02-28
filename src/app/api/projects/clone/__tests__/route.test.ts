@@ -424,7 +424,8 @@ describe('POST /api/projects/clone', () => {
       expect(mockCloneRepositoryWithPAT).toHaveBeenCalledWith(
         'https://github.com/user/repo.git',
         expect.any(String), // projectId
-        'ghp_test_token_1234567890' // decrypted PAT
+        'ghp_test_token_1234567890', // decrypted PAT
+        'repo' // projectName (extracted from URL)
       );
     });
 

@@ -18,7 +18,7 @@ export async function GET(): Promise<NextResponse> {
 
     const result = await DockerClient.getInstance().listVolumes();
 
-    const volumes: DockerVolumeInfo[] = (result.Volumes ?? []).map((v) => ({
+    const volumes: DockerVolumeInfo[] = (result.Volumes ?? []).map((v: { Name: string; Driver: string; CreatedAt?: string }) => ({
       name: v.Name,
       driver: v.Driver,
       createdAt: v.CreatedAt ?? '',
