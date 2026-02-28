@@ -60,8 +60,9 @@ export function RemoteRepoForm({
 
   const selectedEnvironment = availableEnvironments.find((env) => env.id === selectedEnvironmentId);
 
+  const effectiveCloneLocation = hostEnvironmentDisabled ? 'docker' : cloneLocation;
   const isHttpsUrl = url.trim().startsWith('https://');
-  const isDocker = cloneLocation === 'docker';
+  const isDocker = effectiveCloneLocation === 'docker';
   const showPATSelector = isDocker && isHttpsUrl;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -75,7 +76,6 @@ export function RemoteRepoForm({
       return;
     }
 
-    const effectiveCloneLocation = hostEnvironmentDisabled ? 'docker' : cloneLocation;
     const patId = showPATSelector && githubPatId ? githubPatId : undefined;
     await onSubmit(url.trim(), selectedEnvironmentId, targetDir.trim() || undefined, effectiveCloneLocation, patId);
   };

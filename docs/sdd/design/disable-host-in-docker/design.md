@@ -620,8 +620,8 @@ const { environments, isLoading: isEnvironmentsLoading, hostEnvironmentDisabled 
 2. **保存場所選択セクションの条件付き非表示** (L98-L151)
 
 ```typescript
-{/* 保存場所選択: HOST環境が有効な場合のみ表示 */}
-{!hostEnvironmentDisabled && (
+{/* 保存場所選択: HOST環境が有効な場合のみ表示（環境情報取得中は非表示） */}
+{!isEnvironmentsLoading && !hostEnvironmentDisabled && (
   <div className="mb-4">
     <div className="flex items-center gap-2 mb-2">
       <label className="...">保存場所</label>
