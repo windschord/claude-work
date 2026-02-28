@@ -34,6 +34,7 @@ const mockFindAll = vi.fn();
 const mockCreate = vi.fn();
 const mockCheckStatus = vi.fn();
 const mockCreateConfigVolumes = vi.fn();
+const mockDelete = vi.fn();
 
 vi.mock('@/services/environment-service', () => ({
   environmentService: {
@@ -41,6 +42,7 @@ vi.mock('@/services/environment-service', () => ({
     create: (input: unknown) => mockCreate(input),
     checkStatus: (id: string) => mockCheckStatus(id),
     createConfigVolumes: (id: string) => mockCreateConfigVolumes(id),
+    delete: (id: string) => mockDelete(id),
   },
 }));
 
@@ -369,7 +371,7 @@ describe('/api/environments', () => {
       };
 
       mockCreate.mockResolvedValue(newEnvironment);
-      mockCreateConfigVolumes.mockResolvedValue('/data/environments/env-docker-new');
+      mockCreateConfigVolumes.mockResolvedValue(undefined);
 
       const request = new NextRequest('http://localhost:3000/api/environments', {
         method: 'POST',
@@ -390,6 +392,41 @@ describe('/api/environments', () => {
       expect(mockCreate).toHaveBeenCalledTimes(1);
       expect(mockCreateConfigVolumes).toHaveBeenCalledTimes(1);
       expect(mockCreateConfigVolumes).toHaveBeenCalledWith('env-docker-new');
+    });
+
+    it('DOCKER環境作成時にcreateConfigVolumesが失敗するとロールバックされる', async () => {
+      const newEnvironment = {
+        id: 'env-docker-rollback',
+        name: 'Docker Rollback Env',
+        type: 'DOCKER',
+        description: null,
+        config: '{}',
+        auth_dir_path: null,
+        is_default: false,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      mockCreate.mockResolvedValue(newEnvironment);
+      mockCreateConfigVolumes.mockRejectedValue(new Error('Volume creation failed'));
+      mockDelete.mockResolvedValue(undefined);
+
+      const request = new NextRequest('http://localhost:3000/api/environments', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: 'Docker Rollback Env',
+          type: 'DOCKER',
+          config: {},
+        }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(500);
+      expect(data.error).toBe('設定Volumeの作成に失敗しました');
+      expect(mockDelete).toHaveBeenCalledWith('env-docker-rollback');
     });
 
     it('名前が空の場合は400エラー', async () => {
@@ -578,7 +615,7 @@ describe('/api/environments', () => {
         };
 
         mockCreate.mockResolvedValue(newEnvironment);
-        mockCreateConfigVolumes.mockResolvedValue('/data/environments/env-docker-build');
+        mockCreateConfigVolumes.mockResolvedValue(undefined);
 
         const request = new NextRequest('http://localhost:3000/api/environments', {
           method: 'POST',
@@ -739,7 +776,7 @@ describe('/api/environments', () => {
         };
 
         mockCreate.mockResolvedValue(newEnvironment);
-        mockCreateConfigVolumes.mockResolvedValue('/data/environments/env-docker-existing');
+        mockCreateConfigVolumes.mockResolvedValue(undefined);
 
         const request = new NextRequest('http://localhost:3000/api/environments', {
           method: 'POST',

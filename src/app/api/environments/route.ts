@@ -320,8 +320,19 @@ export async function POST(request: NextRequest) {
 
     // DOCKER環境の場合は設定用の名前付きVolumeを作成
     if (type === 'DOCKER') {
-      await environmentService.createConfigVolumes(environment.id);
-      logger.info('Config volumes created for Docker environment', { id: environment.id });
+      try {
+        await environmentService.createConfigVolumes(environment.id);
+        logger.info('Config volumes created for Docker environment', { id: environment.id });
+      } catch (volumeError) {
+        logger.error('Failed to create config volumes, rolling back environment', {
+          environmentId: environment.id, error: volumeError,
+        });
+        await environmentService.delete(environment.id);
+        return NextResponse.json(
+          { error: '設定Volumeの作成に失敗しました' },
+          { status: 500 }
+        );
+      }
     }
 
     logger.info('Environment created', { id: environment.id, name: environment.name });

@@ -199,6 +199,8 @@ describe('AdapterFactory', () => {
         imageName: 'claude-code-sandboxed',
         imageTag: 'latest',
         authDirPath: '/data/environments/env-docker-default',
+        portMappings: undefined,
+        volumeMounts: undefined,
       });
     });
   });

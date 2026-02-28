@@ -799,7 +799,7 @@ describe('EnvironmentService', () => {
       const status = await service.checkStatus('docker-env');
 
       expect(status.available).toBe(false);
-      expect(status.authenticated).toBe(false);
+      expect(status.authenticated).toBe(true);
       expect(status.error).toBe(
         'ビルド済みイメージが見つかりません。環境を再作成してビルドしてください。'
       );
@@ -830,7 +830,7 @@ describe('EnvironmentService', () => {
       const status = await service.checkStatus('docker-env');
 
       expect(status.available).toBe(false);
-      expect(status.authenticated).toBe(false);
+      expect(status.authenticated).toBe(true);
       expect(status.error).toBe(
         'イメージ my-existing-image:v1.0 が見つかりません。docker pullまたはビルドしてください。'
       );
@@ -1119,7 +1119,13 @@ describe('EnvironmentService', () => {
 
       await service.deleteConfigVolumes('docker-env');
 
-      expect(mockLogger.warn).toHaveBeenCalled();
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        '設定Volume削除失敗',
+        expect.objectContaining({
+          volume: expect.stringContaining('claude-config-'),
+          error: expect.any(Error),
+        })
+      );
     });
   });
 

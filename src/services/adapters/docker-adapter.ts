@@ -18,6 +18,7 @@ import { DockerPTYStream } from '../docker-pty-stream';
 import Docker from 'dockerode';
 import * as fsPromises from 'fs/promises';
 import type { PortMapping, VolumeMount } from '@/types/environment';
+import { getConfigVolumeNames } from '@/lib/docker-volume-utils';
 
 export interface DockerAdapterConfig {
   environmentId: string;
@@ -98,15 +99,13 @@ export class DockerAdapter extends BasePTYAdapter {
 
   /**
    * 環境IDからClaude設定用Volume名を生成
+   * @see getConfigVolumeNames (src/lib/docker-volume-utils.ts)
    */
   static getConfigVolumeNames(environmentId: string): {
     claudeVolume: string;
     configClaudeVolume: string;
   } {
-    return {
-      claudeVolume: `claude-config-claude-${environmentId}`,
-      configClaudeVolume: `claude-config-configclaude-${environmentId}`,
-    };
+    return getConfigVolumeNames(environmentId);
   }
 
   constructor(config: DockerAdapterConfig) {
@@ -1489,6 +1488,7 @@ ${identityFiles}
   async cleanupSSHKeys(): Promise<void> {
     try {
       if (!this.config.authDirPath) {
+        logger.debug('SSH key cleanup skipped (named volume mode)');
         return;
       }
       const sshDir = path.join(this.config.authDirPath, 'ssh');

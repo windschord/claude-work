@@ -7,6 +7,7 @@ import { isHostEnvironmentAllowed } from '@/lib/environment-detect';
 import * as path from 'path';
 import * as fsPromises from 'fs/promises';
 import { DockerClient } from './docker-client';
+import { getConfigVolumeNames } from '@/lib/docker-volume-utils';
 
 /**
  * 環境が使用中のため削除できないことを示すエラー
@@ -467,7 +468,7 @@ export class EnvironmentService {
 
       return {
         available: false,
-        authenticated: !!environment.auth_dir_path,
+        authenticated: !!environment.auth_dir_path || environment.type === 'DOCKER',
         error: errorMsg,
         details: { dockerDaemon: true, imageExists: false },
       };
@@ -476,7 +477,7 @@ export class EnvironmentService {
     return {
       // imageExistsのみチェック（docker infoが成功していればデーモンは稼働中）
       available: imageExists,
-      authenticated: !!environment.auth_dir_path,
+      authenticated: !!environment.auth_dir_path || environment.type === 'DOCKER',
       details: {
         dockerDaemon: true, // docker infoが成功したのでtrue
         imageExists,
@@ -543,12 +544,10 @@ export class EnvironmentService {
 
   /**
    * 環境IDからDocker名前付きVolumeの名前を取得する
+   * @see getConfigVolumeNames (src/lib/docker-volume-utils.ts)
    */
   private getConfigVolumeNames(environmentId: string): { claudeVolume: string; configClaudeVolume: string } {
-    return {
-      claudeVolume: `claude-config-claude-${environmentId}`,
-      configClaudeVolume: `claude-config-configclaude-${environmentId}`,
-    };
+    return getConfigVolumeNames(environmentId);
   }
 
   /**

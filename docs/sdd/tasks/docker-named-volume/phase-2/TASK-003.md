@@ -4,4 +4,4 @@
 テスト: src/app/api/environments/__tests__/route.test.ts
 対応要件: REQ-001-010, NFR-M-001
 依存: TASK-001, TASK-002
-ステータス: TODO
+ステータス: DONE

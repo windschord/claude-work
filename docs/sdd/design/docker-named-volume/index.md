@@ -8,7 +8,7 @@ Docker環境のClaude Code設定の永続化方式をバインドマウントか
 
 ### 変更後
 
-```
+```text
 EnvironmentService.createConfigVolumes()
   -> DockerClient.createVolume('claude-config-claude-{env-id}')
   -> DockerClient.createVolume('claude-config-configclaude-{env-id}')
