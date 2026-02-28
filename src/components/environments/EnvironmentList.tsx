@@ -16,6 +16,7 @@ interface EnvironmentListProps {
   onDeleteEnvironment: (id: string) => Promise<void>;
   onRefresh: () => Promise<void>;
   hostEnvironmentDisabled?: boolean;
+  highlightedEnvironmentId?: string | null;
 }
 
 /**
@@ -36,6 +37,7 @@ export function EnvironmentList({
   onDeleteEnvironment,
   onRefresh,
   hostEnvironmentDisabled,
+  highlightedEnvironmentId,
 }: EnvironmentListProps) {
   // disabled=trueの環境を除外した表示用リスト
   const visibleEnvironments = useMemo(() => {
@@ -170,6 +172,7 @@ export function EnvironmentList({
               environment={environment}
               onEdit={handleEditClick}
               onDelete={handleDeleteClick}
+              highlighted={environment.id === highlightedEnvironmentId}
             />
           ))}
         </div>

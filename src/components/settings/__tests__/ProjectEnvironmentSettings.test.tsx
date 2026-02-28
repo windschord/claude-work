@@ -2,6 +2,13 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 import { ProjectEnvironmentSettings } from '../ProjectEnvironmentSettings';
 
+// next/linkをモック
+vi.mock('next/link', () => ({
+  default: ({ href, children, ...props }: { href: string; children: React.ReactNode; className?: string }) => (
+    <a href={href} data-testid="next-link" {...props}>{children}</a>
+  ),
+}));
+
 // useEnvironments hookのモック
 const mockUseEnvironments = vi.fn();
 vi.mock('@/hooks/useEnvironments', () => ({
@@ -175,5 +182,64 @@ describe('ProjectEnvironmentSettings', () => {
 
     // DOCKER バッジが表示される
     expect(screen.getByText('DOCKER')).toBeInTheDocument();
+  });
+
+  describe('environment link', () => {
+    it('environment_idが設定されている場合、環境名がリンクとして表示される', async () => {
+      setupMockFetch({
+        id: 'project-1',
+        name: 'Test Project',
+        clone_location: null,
+        environment_id: 'env-1',
+        environment: { id: 'env-1', name: 'Docker Default', type: 'DOCKER' },
+      });
+
+      render(<ProjectEnvironmentSettings projectId="project-1" />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Docker Default')).toBeInTheDocument();
+      });
+
+      const link = screen.getByTestId('next-link');
+      expect(link).toBeInTheDocument();
+      expect(link.getAttribute('href')).toBe('/settings/environments?highlight=env-1');
+    });
+
+    it('environment_idが未設定（自動選択）の場合、リンクは表示されない', async () => {
+      setupMockFetch({
+        id: 'project-1',
+        name: 'Test Project',
+        clone_location: 'docker',
+        environment_id: null,
+        environment: null,
+      });
+
+      render(<ProjectEnvironmentSettings projectId="project-1" />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Docker (自動選択)')).toBeInTheDocument();
+      });
+
+      expect(screen.queryByTestId('next-link')).not.toBeInTheDocument();
+    });
+
+    it('リンクのhrefに正しいenvironment_idが含まれる', async () => {
+      setupMockFetch({
+        id: 'project-1',
+        name: 'Test Project',
+        clone_location: null,
+        environment_id: 'env-abc-123',
+        environment: { id: 'env-abc-123', name: 'My Custom Env', type: 'DOCKER' },
+      });
+
+      render(<ProjectEnvironmentSettings projectId="project-1" />);
+
+      await waitFor(() => {
+        expect(screen.getByText('My Custom Env')).toBeInTheDocument();
+      });
+
+      const link = screen.getByTestId('next-link');
+      expect(link.getAttribute('href')).toBe('/settings/environments?highlight=env-abc-123');
+    });
   });
 });

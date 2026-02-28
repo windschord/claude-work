@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, Fragment } from 'react';
+import Link from 'next/link';
 import { Listbox, Transition } from '@headlessui/react';
 import { ChevronsUpDown, Check } from 'lucide-react';
 import { EnvironmentBadge } from '@/components/common/EnvironmentBadge';
@@ -271,7 +272,16 @@ export function ProjectEnvironmentSettings({ projectId, hostEnvironmentDisabled 
       ) : (
         <div>
           <div className="flex items-center gap-3 px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md">
-            <EnvironmentBadge type={envDisplay.type} name={envDisplay.label} />
+            {projectEnv?.environment_id && projectEnv?.environment ? (
+              <Link
+                href={`/settings/environments?highlight=${projectEnv.environment_id}`}
+                className="hover:opacity-80 transition-opacity"
+              >
+                <EnvironmentBadge type={envDisplay.type} name={envDisplay.label} />
+              </Link>
+            ) : (
+              <EnvironmentBadge type={envDisplay.type} name={envDisplay.label} />
+            )}
             {sessionCount === 0 ? (
               <button
                 type="button"

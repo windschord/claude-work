@@ -1,5 +1,6 @@
 'use client';
 
+import { useRef, useState, useEffect } from 'react';
 import { Environment, EnvironmentType } from '@/hooks/useEnvironments';
 import { ApplyChangesButton } from './ApplyChangesButton';
 
@@ -7,6 +8,7 @@ interface EnvironmentCardProps {
   environment: Environment;
   onEdit: (environment: Environment) => void;
   onDelete: (environment: Environment) => void;
+  highlighted?: boolean;
 }
 
 /**
@@ -126,7 +128,19 @@ function StatusIndicator({ available, authenticated }: { available: boolean; aut
  * @param props.onDelete - 環境を削除するときのコールバック関数
  * @returns 環境カードのJSX要素
  */
-export function EnvironmentCard({ environment, onEdit, onDelete }: EnvironmentCardProps) {
+export function EnvironmentCard({ environment, onEdit, onDelete, highlighted }: EnvironmentCardProps) {
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [isHighlighted, setIsHighlighted] = useState(false);
+
+  useEffect(() => {
+    if (highlighted) {
+      setIsHighlighted(true);
+      cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const timer = setTimeout(() => setIsHighlighted(false), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [highlighted]);
+
   const handleEdit = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
     onEdit(environment);
@@ -142,9 +156,14 @@ export function EnvironmentCard({ environment, onEdit, onDelete }: EnvironmentCa
   const authenticated = status?.authenticated ?? false;
 
   return (
-    <div className={`border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg p-4 hover:shadow-md transition-shadow ${
-      environment.disabled ? 'opacity-60' : ''
-    }`}>
+    <div
+      ref={cardRef}
+      className={`bg-white dark:bg-gray-800 rounded-lg p-4 hover:shadow-md transition-all duration-500 ${
+        isHighlighted
+          ? 'border-2 border-blue-500 ring-2 ring-blue-200 dark:ring-blue-800'
+          : 'border border-gray-200 dark:border-gray-700'
+      } ${environment.disabled ? 'opacity-60' : ''}`}
+    >
       <div className="flex justify-between items-start mb-2">
         <div className="flex items-center gap-2">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">

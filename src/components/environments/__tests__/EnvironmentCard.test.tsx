@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, act } from '@testing-library/react';
 import { EnvironmentCard } from '../EnvironmentCard';
 import { Environment } from '@/hooks/useEnvironments';
 
@@ -162,6 +162,82 @@ describe('EnvironmentCard', () => {
       // Should still render with default values
       expect(screen.getByText(/イメージ:/)).toBeInTheDocument();
       expect(screen.getByText('claude-code-sandboxed:latest')).toBeInTheDocument();
+    });
+  });
+
+  describe('highlight feature', () => {
+    it('should apply highlight styles when highlighted=true', () => {
+      const environment = createEnvironment();
+      Element.prototype.scrollIntoView = vi.fn();
+
+      const { container } = render(
+        <EnvironmentCard {...defaultProps} environment={environment} highlighted={true} />
+      );
+
+      const card = container.firstElementChild as HTMLElement;
+      expect(card.className).toContain('border-blue-500');
+      expect(card.className).toContain('ring-2');
+    });
+
+    it('should not apply highlight styles when highlighted=false', () => {
+      const environment = createEnvironment();
+
+      const { container } = render(
+        <EnvironmentCard {...defaultProps} environment={environment} highlighted={false} />
+      );
+
+      const card = container.firstElementChild as HTMLElement;
+      expect(card.className).not.toContain('border-blue-500');
+      expect(card.className).not.toContain('ring-2');
+    });
+
+    it('should not apply highlight styles when highlighted is undefined', () => {
+      const environment = createEnvironment();
+
+      const { container } = render(
+        <EnvironmentCard {...defaultProps} environment={environment} />
+      );
+
+      const card = container.firstElementChild as HTMLElement;
+      expect(card.className).not.toContain('border-blue-500');
+      expect(card.className).not.toContain('ring-2');
+    });
+
+    it('should call scrollIntoView when highlighted', () => {
+      const environment = createEnvironment();
+      const scrollIntoViewMock = vi.fn();
+      Element.prototype.scrollIntoView = scrollIntoViewMock;
+
+      render(
+        <EnvironmentCard {...defaultProps} environment={environment} highlighted={true} />
+      );
+
+      expect(scrollIntoViewMock).toHaveBeenCalledWith({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    });
+
+    it('should fade out highlight after 3 seconds', () => {
+      vi.useFakeTimers();
+      const environment = createEnvironment();
+      Element.prototype.scrollIntoView = vi.fn();
+
+      const { container } = render(
+        <EnvironmentCard {...defaultProps} environment={environment} highlighted={true} />
+      );
+
+      const card = container.firstElementChild as HTMLElement;
+      expect(card.className).toContain('border-blue-500');
+
+      act(() => {
+        vi.advanceTimersByTime(3000);
+      });
+
+      expect(card.className).not.toContain('border-blue-500');
+      expect(card.className).toContain('border-gray-200');
+
+      vi.useRealTimers();
     });
   });
 
