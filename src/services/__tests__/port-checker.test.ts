@@ -1,0 +1,264 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { EventEmitter } from 'events';
+
+// net モジュールのモック（vi.hoisted で先に定義）
+const { mockCreateServer } = vi.hoisted(() => ({
+  mockCreateServer: vi.fn(),
+}));
+
+vi.mock('net', () => ({
+  default: {
+    createServer: mockCreateServer,
+  },
+  createServer: mockCreateServer,
+}));
+
+// DB モック
+const {
+  mockDbSelectAll,
+} = vi.hoisted(() => ({
+  mockDbSelectAll: vi.fn(),
+}));
+
+vi.mock('@/lib/db', () => ({
+  db: {
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          all: mockDbSelectAll,
+        })),
+      })),
+    })),
+  },
+  schema: {
+    executionEnvironments: {
+      id: 'id',
+      type: 'type',
+      name: 'name',
+      config: 'config',
+    },
+  },
+}));
+
+vi.mock('drizzle-orm', () => ({
+  eq: vi.fn((col, val) => ({ column: col, value: val })),
+}));
+
+vi.mock('@/lib/logger', () => ({
+  logger: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  },
+}));
+
+// テスト対象をインポート
+import { PortChecker } from '../port-checker';
+
+/**
+ * net.createServer のモックサーバーを生成するヘルパー
+ * listen 成功時のサーバーを返す
+ */
+function createMockServerSuccess(): EventEmitter & {
+  listen: ReturnType<typeof vi.fn>;
+  close: ReturnType<typeof vi.fn>;
+} {
+  const server = new EventEmitter() as EventEmitter & {
+    listen: ReturnType<typeof vi.fn>;
+    close: ReturnType<typeof vi.fn>;
+  };
+  server.listen = vi.fn((_port: number, callback: () => void) => {
+    // 非同期でlistenイベントを発火
+    process.nextTick(() => {
+      callback();
+    });
+    return server;
+  });
+  server.close = vi.fn((callback?: () => void) => {
+    if (callback) process.nextTick(callback);
+    return server;
+  });
+  return server;
+}
+
+/**
+ * net.createServer のモックサーバーを生成するヘルパー
+ * listen 失敗時（エラーあり）のサーバーを返す
+ */
+function createMockServerError(errorCode: string): EventEmitter & {
+  listen: ReturnType<typeof vi.fn>;
+  close: ReturnType<typeof vi.fn>;
+} {
+  const server = new EventEmitter() as EventEmitter & {
+    listen: ReturnType<typeof vi.fn>;
+    close: ReturnType<typeof vi.fn>;
+  };
+  server.listen = vi.fn((_port: number, _callback: () => void) => {
+    process.nextTick(() => {
+      const err = new Error(`Port error: ${errorCode}`);
+      (err as NodeJS.ErrnoException).code = errorCode;
+      server.emit('error', err);
+    });
+    return server;
+  });
+  server.close = vi.fn((callback?: () => void) => {
+    if (callback) process.nextTick(callback);
+    return server;
+  });
+  return server;
+}
+
+describe('PortChecker', () => {
+  let portChecker: PortChecker;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    portChecker = new PortChecker();
+  });
+
+  describe('checkHostPort', () => {
+    it('ポートが空いている場合はavailableを返す', async () => {
+      const mockServer = createMockServerSuccess();
+      mockCreateServer.mockReturnValue(mockServer);
+
+      const result = await portChecker.checkHostPort(8080);
+
+      expect(result.port).toBe(8080);
+      expect(result.status).toBe('available');
+      expect(result.source).toBeUndefined();
+    });
+
+    it('ポートが使用中の場合はin_use (source: os) を返す', async () => {
+      const mockServer = createMockServerError('EADDRINUSE');
+      mockCreateServer.mockReturnValue(mockServer);
+
+      const result = await portChecker.checkHostPort(3000);
+
+      expect(result.port).toBe(3000);
+      expect(result.status).toBe('in_use');
+      expect(result.source).toBe('os');
+    });
+
+    it('権限不足の場合はunknownを返す', async () => {
+      const mockServer = createMockServerError('EACCES');
+      mockCreateServer.mockReturnValue(mockServer);
+
+      const result = await portChecker.checkHostPort(80);
+
+      expect(result.port).toBe(80);
+      expect(result.status).toBe('unknown');
+      expect(result.source).toBeUndefined();
+    });
+  });
+
+  describe('checkClaudeWorkPorts', () => {
+    it('他環境で使用中のポートを検出してin_use (source: claudework) を返す', async () => {
+      const envName = 'MyDockerEnv';
+      mockDbSelectAll.mockReturnValue([
+        {
+          id: 'env-other',
+          name: envName,
+          type: 'DOCKER',
+          config: JSON.stringify({
+            portMappings: [
+              { hostPort: 8080, containerPort: 80 },
+            ],
+          }),
+        },
+      ]);
+
+      const results = await portChecker.checkClaudeWorkPorts([8080]);
+
+      expect(results).toHaveLength(1);
+      expect(results[0].port).toBe(8080);
+      expect(results[0].status).toBe('in_use');
+      expect(results[0].source).toBe('claudework');
+      expect(results[0].usedBy).toBe(envName);
+    });
+
+    it('excludeEnvironmentIdで自環境を除外して競合なしを返す', async () => {
+      mockDbSelectAll.mockReturnValue([
+        {
+          id: 'env-self',
+          name: 'SelfEnv',
+          type: 'DOCKER',
+          config: JSON.stringify({
+            portMappings: [
+              { hostPort: 8080, containerPort: 80 },
+            ],
+          }),
+        },
+      ]);
+
+      const results = await portChecker.checkClaudeWorkPorts([8080], 'env-self');
+
+      expect(results).toHaveLength(1);
+      expect(results[0].port).toBe(8080);
+      expect(results[0].status).toBe('available');
+    });
+
+    it('他環境にポートマッピングがない場合はavailableを返す', async () => {
+      mockDbSelectAll.mockReturnValue([
+        {
+          id: 'env-other',
+          name: 'OtherEnv',
+          type: 'DOCKER',
+          config: JSON.stringify({
+            portMappings: [],
+          }),
+        },
+      ]);
+
+      const results = await portChecker.checkClaudeWorkPorts([9000]);
+
+      expect(results).toHaveLength(1);
+      expect(results[0].port).toBe(9000);
+      expect(results[0].status).toBe('available');
+    });
+  });
+
+  describe('checkPorts', () => {
+    it('複数ポートを一括チェックして全ての結果を返す', async () => {
+      // 3ポートすべて利用可能
+      const mockServer = createMockServerSuccess();
+      mockCreateServer.mockReturnValue(mockServer);
+      mockDbSelectAll.mockReturnValue([]);
+
+      const result = await portChecker.checkPorts({
+        ports: [8080, 9000, 9001],
+      });
+
+      expect(result).toHaveLength(3);
+      const ports = result.map((r) => r.port);
+      expect(ports).toContain(8080);
+      expect(ports).toContain(9000);
+      expect(ports).toContain(9001);
+    });
+
+    it('OSで使用中のポートはin_use (source: os) として返す', async () => {
+      // ポート8080はOS使用中、他は利用可能
+      mockCreateServer.mockImplementation(() => {
+        // 毎回新しいモックを返す必要があるため callCount で判定
+        const callCount = mockCreateServer.mock.calls.length;
+        if (callCount === 1) {
+          return createMockServerError('EADDRINUSE');
+        }
+        return createMockServerSuccess();
+      });
+      mockDbSelectAll.mockReturnValue([]);
+
+      const result = await portChecker.checkPorts({
+        ports: [8080, 9000],
+      });
+
+      expect(result).toHaveLength(2);
+      const port8080 = result.find((r) => r.port === 8080);
+      expect(port8080?.status).toBe('in_use');
+      expect(port8080?.source).toBe('os');
+
+      const port9000 = result.find((r) => r.port === 9000);
+      expect(port9000?.status).toBe('available');
+    });
+  });
+});
