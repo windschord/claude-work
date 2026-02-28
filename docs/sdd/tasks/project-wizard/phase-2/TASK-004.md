@@ -48,11 +48,11 @@ interface StepAuthenticationProps {
 
 ## 受入基準
 
-- [ ] `StepAuthentication.tsx`が存在する
-- [ ] テストファイルが存在し、7つ以上のテストケースがある
-- [ ] `npx vitest run` で対象テストが通過
-- [ ] useGitHubPATsフックを使用している
-- [ ] PATCreateDialogを再利用している
+- [x] `StepAuthentication.tsx`が存在する
+- [x] テストファイルが存在し、7つ以上のテストケースがある
+- [x] `npx vitest run` で対象テストが通過
+- [x] useGitHubPATsフックを使用している
+- [x] PATCreateDialogを再利用している
 
 ## 依存関係
 

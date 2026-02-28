@@ -55,23 +55,27 @@ interface StepRepositoryProps {
 ```typescript
 export function extractProjectName(pathOrUrl: string): string {
   const trimmed = pathOrUrl.trim().replace(/\/+$/, '');
-  const name = trimmed.split('/').pop()?.replace('.git', '') || '';
+  if (!trimmed) return '';
+
   // SSH URL: git@github.com:user/repo.git
-  if (trimmed.includes(':') && !trimmed.startsWith('/')) {
+  if (/^[^/]+@[^:]+:.+/.test(trimmed)) {
     const afterColon = trimmed.split(':').pop() || '';
-    return afterColon.split('/').pop()?.replace('.git', '') || '';
+    return afterColon.split('/').pop()?.replace(/\.git$/, '') || '';
   }
+
+  // HTTPS URL or local path
+  const name = trimmed.split('/').pop()?.replace(/\.git$/, '') || '';
   return name;
 }
 ```
 
 ## 受入基準
 
-- [ ] `StepRepository.tsx`が存在する
-- [ ] テストファイルが存在し、10個以上のテストケースがある
-- [ ] `npx vitest run` で対象テストが通過
-- [ ] ローカル/リモートの切替が動作する
-- [ ] プロジェクト名の自動検出が動作する
+- [x] `StepRepository.tsx`が存在する
+- [x] テストファイルが存在し、10個以上のテストケースがある
+- [x] `npx vitest run` で対象テストが通過
+- [x] ローカル/リモートの切替が動作する
+- [x] プロジェクト名の自動検出が動作する
 
 ## 依存関係
 

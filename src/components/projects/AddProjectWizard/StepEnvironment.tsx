@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Listbox } from '@headlessui/react';
 import { ChevronDown, Check, Server, Container, ExternalLink } from 'lucide-react';
 import { useEnvironments, Environment } from '@/hooks/useEnvironments';
@@ -37,19 +37,21 @@ function getTypeBadge(type: string) {
 
 export function StepEnvironment({ environmentId, onChange }: StepEnvironmentProps) {
   const { environments, isLoading } = useEnvironments();
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
 
   const availableEnvironments = environments.filter((e) => !e.disabled);
   const selected = availableEnvironments.find((e) => e.id === environmentId) || null;
+  const defaultEnvironmentId = availableEnvironments.find((e) => e.is_default)?.id ?? null;
 
   // デフォルト環境を自動選択
+  // NOTE: 依存配列にはプリミティブ値のみを含める（CLAUDE.mdガイドライン準拠）
+  // onChangeはuseRefで保持し、environmentsは派生プリミティブ(defaultEnvironmentId)で参照する
   useEffect(() => {
-    if (!environmentId && availableEnvironments.length > 0) {
-      const defaultEnv = availableEnvironments.find((e) => e.is_default);
-      if (defaultEnv) {
-        onChange({ environmentId: defaultEnv.id });
-      }
+    if (!environmentId && defaultEnvironmentId) {
+      onChangeRef.current({ environmentId: defaultEnvironmentId });
     }
-  }, [availableEnvironments, environmentId, onChange]);
+  }, [environmentId, defaultEnvironmentId]);
 
   const handleChange = (env: Environment | null) => {
     onChange({ environmentId: env?.id || null });
