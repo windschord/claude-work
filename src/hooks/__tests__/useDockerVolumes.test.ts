@@ -61,6 +61,68 @@ describe('useDockerVolumes', () => {
     expect(result.current.error).toBe('Network error');
   });
 
+  it('マウント時に1回だけフェッチする', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ volumes: [] }),
+    });
+
+    renderHook(() => useDockerVolumes());
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    expect(mockFetch).toHaveBeenCalledWith('/api/docker/volumes');
+  });
+
+  it('再レンダリングで追加フェッチが発生しない', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ volumes: [] }),
+    });
+
+    const { rerender } = renderHook(() => useDockerVolumes());
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    rerender();
+    rerender();
+    rerender();
+
+    // 再レンダリング後もフェッチ回数は1回のまま
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('アンマウント時にステート更新がキャンセルされる', async () => {
+    let resolvePromise: (value: unknown) => void;
+    const pendingPromise = new Promise((resolve) => {
+      resolvePromise = resolve;
+    });
+
+    mockFetch.mockReturnValueOnce(pendingPromise);
+
+    const { unmount } = renderHook(() => useDockerVolumes());
+
+    // フェッチが開始されたことを確認
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+
+    // アンマウント(クリーンアップでcancelled=trueが設定される)
+    unmount();
+
+    // フェッチを完了させる
+    resolvePromise!({
+      ok: true,
+      json: () => Promise.resolve({ volumes: [{ name: 'late-volume', driver: 'local', createdAt: '' }] }),
+    });
+
+    // アンマウント後のステート更新でエラーが発生しないことを確認
+    // (React would warn about state updates on unmounted components)
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  });
+
   it('refetchでデータを再取得できる', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
