@@ -11,10 +11,10 @@
 
 | ID | タイトル | フェーズ | ステータス | 依存 | 推定工数 | リンク |
 |----|----------|---------|-----------|------|---------|--------|
-| TASK-001 | PortCheckerサービスのテスト作成・実装 | Phase 1 | TODO | なし | 40min | [詳細](phase-1/TASK-001.md) |
-| TASK-002 | check-ports APIエンドポイントのテスト作成・実装 | Phase 1 | TODO | なし | 30min | [詳細](phase-1/TASK-002.md) |
-| TASK-003 | PortMappingList UI拡張のテスト作成・実装 | Phase 2 | TODO | TASK-001, TASK-002 | 40min | [詳細](phase-2/TASK-003.md) |
-| TASK-004 | EnvironmentForm連携とE2E確認 | Phase 2 | TODO | TASK-003 | 20min | [詳細](phase-2/TASK-004.md) |
+| TASK-001 | PortCheckerサービスのテスト作成・実装 | Phase 1 | DONE | なし | 40min | [詳細](phase-1/TASK-001.md) |
+| TASK-002 | check-ports APIエンドポイントのテスト作成・実装 | Phase 1 | DONE | なし | 30min | [詳細](phase-1/TASK-002.md) |
+| TASK-003 | PortMappingList UI拡張のテスト作成・実装 | Phase 2 | DONE | TASK-001, TASK-002 | 40min | [詳細](phase-2/TASK-003.md) |
+| TASK-004 | EnvironmentForm連携とE2E確認 | Phase 2 | DONE | TASK-003 | 20min | [詳細](phase-2/TASK-004.md) |
 
 ## 並列実行グループ
 
@@ -44,9 +44,9 @@ graph TD
 ## 進捗サマリ
 
 - 全タスク数: 4
-- 完了: 0
+- 完了: 4
 - 進行中: 0
-- TODO: 4
+- TODO: 0
 
 ## タスクステータスの凡例
 

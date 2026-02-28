@@ -150,6 +150,26 @@ describe('PortChecker', () => {
       expect(result.status).toBe('unknown');
       expect(result.source).toBeUndefined();
     });
+
+    it('タイムアウト時はunknownを返す', async () => {
+      vi.useFakeTimers();
+      // listen もerror も発火しないサーバー
+      const server = new EventEmitter() as EventEmitter & {
+        listen: ReturnType<typeof vi.fn>;
+        close: ReturnType<typeof vi.fn>;
+      };
+      server.listen = vi.fn(() => server);
+      server.close = vi.fn(() => server);
+      mockCreateServer.mockReturnValue(server);
+
+      const resultPromise = portChecker.checkHostPort(8080);
+      vi.advanceTimersByTime(500);
+      const result = await resultPromise;
+
+      expect(result.port).toBe(8080);
+      expect(result.status).toBe('unknown');
+      vi.useRealTimers();
+    });
   });
 
   describe('checkClaudeWorkPorts', () => {
@@ -196,6 +216,20 @@ describe('PortChecker', () => {
       expect(results).toHaveLength(1);
       expect(results[0].port).toBe(8080);
       expect(results[0].status).toBe('available');
+    });
+
+    it('DB取得失敗時は全ポートをunknownで返す', async () => {
+      mockDbSelectAll.mockImplementation(() => {
+        throw new Error('DB connection failed');
+      });
+
+      const results = await portChecker.checkClaudeWorkPorts([8080, 9000]);
+
+      expect(results).toHaveLength(2);
+      expect(results[0].port).toBe(8080);
+      expect(results[0].status).toBe('unknown');
+      expect(results[1].port).toBe(9000);
+      expect(results[1].status).toBe('unknown');
     });
 
     it('他環境にポートマッピングがない場合はavailableを返す', async () => {

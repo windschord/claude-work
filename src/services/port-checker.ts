@@ -91,9 +91,21 @@ export class PortChecker {
    */
   checkHostPort(port: number): Promise<PortCheckResult> {
     return new Promise((resolve) => {
+      let resolved = false;
       const server = net.createServer();
 
+      const timeout = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          server.close();
+          resolve({ port, status: 'unknown' });
+        }
+      }, 500);
+
       server.on('error', (err: NodeJS.ErrnoException) => {
+        if (resolved) return;
+        resolved = true;
+        clearTimeout(timeout);
         server.close();
         if (err.code === 'EADDRINUSE') {
           resolve({ port, status: 'in_use', source: 'os' });
@@ -104,6 +116,9 @@ export class PortChecker {
       });
 
       server.listen(port, () => {
+        if (resolved) return;
+        resolved = true;
+        clearTimeout(timeout);
         server.close(() => {
           resolve({ port, status: 'available' });
         });
@@ -122,12 +137,18 @@ export class PortChecker {
     ports: number[],
     excludeEnvironmentId?: string
   ): Promise<PortCheckResult[]> {
-    // DOCKER 環境を全取得
-    const envs = db
-      .select()
-      .from(schema.executionEnvironments)
-      .where(eq(schema.executionEnvironments.type, 'DOCKER'))
-      .all();
+    let envs;
+    try {
+      // DOCKER 環境を全取得
+      envs = db
+        .select()
+        .from(schema.executionEnvironments)
+        .where(eq(schema.executionEnvironments.type, 'DOCKER'))
+        .all();
+    } catch {
+      // DB取得失敗時は全ポートをunknownで返す
+      return ports.map((port) => ({ port, status: 'unknown' as PortCheckStatus }));
+    }
 
     // 除外環境ID を持つ環境を除く
     const targetEnvs = excludeEnvironmentId

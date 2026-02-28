@@ -76,7 +76,12 @@ export function PortMappingList({ value, onChange, excludeEnvironmentId }: PortM
       const numValue = typeof rawValue === 'string' ? parseInt(rawValue, 10) || 0 : rawValue;
 
       if (field === 'hostPort') {
-        setPortCheckResults(new Map());
+        const oldPort = mapping.hostPort;
+        setPortCheckResults(prev => {
+          const next = new Map(prev);
+          next.delete(oldPort);
+          return next;
+        });
       }
 
       return { ...mapping, [field]: numValue };
@@ -110,9 +115,19 @@ export function PortMappingList({ value, onChange, excludeEnvironmentId }: PortM
           newResults.set(result.port, result);
         }
         setPortCheckResults(newResults);
+      } else {
+        const unknownResults = new Map<number, PortCheckResult>();
+        for (const port of validPorts) {
+          unknownResults.set(port, { status: 'unknown' });
+        }
+        setPortCheckResults(unknownResults);
       }
     } catch {
-      // エラー時は何もしない
+      const unknownResults = new Map<number, PortCheckResult>();
+      for (const port of validPorts) {
+        unknownResults.set(port, { status: 'unknown' });
+      }
+      setPortCheckResults(unknownResults);
     } finally {
       setIsChecking(false);
     }

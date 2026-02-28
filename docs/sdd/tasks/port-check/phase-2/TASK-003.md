@@ -85,4 +85,4 @@ TASK-001, TASK-002（APIの型定義を使用）
 
 ## ステータス
 
-TODO
+DONE

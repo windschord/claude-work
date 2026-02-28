@@ -324,6 +324,41 @@ describe('PortMappingList', () => {
       expect(screen.queryByText('利用可能')).not.toBeInTheDocument();
     });
 
+    it('should show unknown results when fetch fails', async () => {
+      const mappings: PortMapping[] = [
+        { hostPort: 8080, containerPort: 80, protocol: 'tcp' },
+      ];
+      vi.mocked(global.fetch).mockRejectedValueOnce(new Error('Network error'));
+
+      render(<PortMappingList value={mappings} onChange={vi.fn()} />);
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /ポートチェック/ }));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('チェック不可')).toBeInTheDocument();
+      });
+    });
+
+    it('should show unknown results when response is not ok', async () => {
+      const mappings: PortMapping[] = [
+        { hostPort: 8080, containerPort: 80, protocol: 'tcp' },
+      ];
+      vi.mocked(global.fetch).mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+      } as Response);
+
+      render(<PortMappingList value={mappings} onChange={vi.fn()} />);
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /ポートチェック/ }));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('チェック不可')).toBeInTheDocument();
+      });
+    });
+
     it('should include excludeEnvironmentId in fetch request', async () => {
       const mappings: PortMapping[] = [
         { hostPort: 8080, containerPort: 80, protocol: 'tcp' },

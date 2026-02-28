@@ -31,7 +31,7 @@ const [isChecking, setIsChecking] = useState(false);
 
 ### ポートマッピング行のレイアウト
 
-```
+```text
 [ホストポート入力] : [コンテナポート入力] [protocol] [チェック結果アイコン] [削除ボタン]
 
 [ポートチェック] ボタン（Loader2アニメーション: チェック中）
@@ -65,7 +65,7 @@ import { Plus, X, CheckCircle2, AlertCircle, HelpCircle, Loader2 } from 'lucide-
 
 ### ポート変更時のリセット
 
-- ホストポートの値が変更された場合、該当ポートのチェック結果をMapから削除（未チェック状態に戻す）
+- ホストポートの値が変更された場合、変更された行のチェック結果のみをMapから削除（他行の結果は保持）
 
 ## EnvironmentFormとの連携
 

@@ -74,11 +74,11 @@ export class PortChecker {
 
 ## 受入基準
 
-- [ ] `src/services/__tests__/port-checker.test.ts` に9つ以上のテストケース
-- [ ] `src/services/port-checker.ts` が存在する
-- [ ] 全テストがパスする: `npx vitest run src/services/__tests__/port-checker.test.ts`
-- [ ] ESLintエラーがゼロ
-- [ ] PortCheckResult型が正しく定義されている
+- [x] `src/services/__tests__/port-checker.test.ts` に9つ以上のテストケース
+- [x] `src/services/port-checker.ts` が存在する
+- [x] 全テストがパスする: `npx vitest run src/services/__tests__/port-checker.test.ts`
+- [x] ESLintエラーがゼロ
+- [x] PortCheckResult型が正しく定義されている
 
 ## 依存関係
 
@@ -90,4 +90,4 @@ export class PortChecker {
 
 ## ステータス
 
-TODO
+DONE
