@@ -159,6 +159,8 @@ export function PortMappingList({ value, onChange, excludeEnvironmentId }: PortM
           const result = portResultMap.get(mapping.hostPort);
           if (result) {
             newResults.set(key, result);
+          } else {
+            newResults.set(key, { status: 'unknown' });
           }
         }
         setPortCheckResults(newResults);

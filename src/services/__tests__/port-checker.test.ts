@@ -68,7 +68,7 @@ function createMockServerSuccess(): EventEmitter & {
     listen: ReturnType<typeof vi.fn>;
     close: ReturnType<typeof vi.fn>;
   };
-  server.listen = vi.fn((_port: number, callback: () => void) => {
+  server.listen = vi.fn((_port: number, _host: string, callback: () => void) => {
     // 非同期でlistenイベントを発火
     process.nextTick(() => {
       callback();
@@ -94,7 +94,7 @@ function createMockServerError(errorCode: string): EventEmitter & {
     listen: ReturnType<typeof vi.fn>;
     close: ReturnType<typeof vi.fn>;
   };
-  server.listen = vi.fn((_port: number, _callback: () => void) => {
+  server.listen = vi.fn((_port: number, _host: string, _callback: () => void) => {
     process.nextTick(() => {
       const err = new Error(`Port error: ${errorCode}`);
       (err as NodeJS.ErrnoException).code = errorCode;
@@ -279,7 +279,7 @@ describe('PortChecker', () => {
         listen: ReturnType<typeof vi.fn>;
         close: ReturnType<typeof vi.fn>;
       };
-      server.listen = vi.fn((_port: number, _callback: () => void) => {
+      server.listen = vi.fn((_port: number, _host: string, _callback: () => void) => {
         process.nextTick(() => {
           const err = new Error('Port error: EADDRINUSE');
           (err as NodeJS.ErrnoException).code = 'EADDRINUSE';
@@ -325,7 +325,7 @@ describe('PortChecker', () => {
           listen: ReturnType<typeof vi.fn>;
           close: ReturnType<typeof vi.fn>;
         };
-        server.listen = vi.fn((port: number, callback: () => void) => {
+        server.listen = vi.fn((port: number, _host: string, callback: () => void) => {
           if (port === 8080) {
             // ポート8080はOS使用中
             process.nextTick(() => {

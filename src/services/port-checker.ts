@@ -165,7 +165,7 @@ export class PortChecker {
         }
       });
 
-      server.listen(port, () => {
+      server.listen(port, '0.0.0.0', () => {
         if (resolved) return;
         resolved = true;
         clearTimeout(timeout);
