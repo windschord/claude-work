@@ -1356,6 +1356,8 @@ export class DockerAdapter extends BasePTYAdapter {
    * SSH鍵をコンテナに適用
    */
   private async applySSHKeys(containerId: string): Promise<void> {
+    let useTempDir = false;
+    let sshDir = '';
     try {
       // SSH鍵一覧を取得
       const keys = await this.getAllSSHKeys();
@@ -1366,8 +1368,8 @@ export class DockerAdapter extends BasePTYAdapter {
       }
 
       // named volumeモードではOS一時領域を使用
-      const useTempDir = !this.config.authDirPath;
-      const sshDir = useTempDir
+      useTempDir = !this.config.authDirPath;
+      sshDir = useTempDir
         ? await fsPromises.mkdtemp(path.join(os.tmpdir(), 'claude-ssh-'))
         : path.join(this.config.authDirPath!, 'ssh');
       await fsPromises.mkdir(sshDir, { recursive: true });
