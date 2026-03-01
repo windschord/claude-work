@@ -155,6 +155,9 @@ export function AddProjectWizard({ isOpen, onClose }: AddProjectWizardProps) {
         setError(errorMessage);
         setCurrentStep(4);
       } finally {
+        if (abortControllerRef.current === controller) {
+          abortControllerRef.current = null;
+        }
         if (!controller.signal.aborted) {
           setIsSubmitting(false);
         }
