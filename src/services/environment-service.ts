@@ -7,6 +7,7 @@ import { isHostEnvironmentAllowed } from '@/lib/environment-detect';
 import * as path from 'path';
 import * as fsPromises from 'fs/promises';
 import { DockerClient } from './docker-client';
+import { getConfigVolumeNames } from '@/lib/docker-volume-utils';
 
 /**
  * 環境が使用中のため削除できないことを示すエラー
@@ -222,9 +223,23 @@ export class EnvironmentService {
       }
     }
 
-    // Docker環境の場合、Dockerfileがあれば削除
-    // (auth_dir_pathと同じディレクトリにDockerfileが保存されている場合は上記で削除済み)
+    // Docker環境の場合、名前付きVolumeまたはDockerfileディレクトリを削除
     if (environment.type === 'DOCKER' && !environment.auth_dir_path) {
+      // 名前付きVolumeを直接削除（auth_dir_pathがnull = 名前付きVolume使用）
+      try {
+        const volumeNames = getConfigVolumeNames(id);
+        const dockerClient = DockerClient.getInstance();
+        for (const volumeName of Object.values(volumeNames)) {
+          try {
+            await dockerClient.removeVolume(volumeName);
+          } catch (error) {
+            logger.warn('設定Volume削除失敗', { volume: volumeName, error });
+          }
+        }
+      } catch (error) {
+        logger.warn('設定Volumeの削除に失敗しました', { environmentId: id, error });
+      }
+
       // auth_dir_pathが未設定の場合でもDockerfileが存在する可能性がある
       const envDir = path.join(this.getAuthBasePath(), id);
       try {
@@ -461,7 +476,7 @@ export class EnvironmentService {
 
       return {
         available: false,
-        authenticated: !!environment.auth_dir_path,
+        authenticated: !!environment.auth_dir_path || environment.type === 'DOCKER',
         error: errorMsg,
         details: { dockerDaemon: true, imageExists: false },
       };
@@ -470,7 +485,7 @@ export class EnvironmentService {
     return {
       // imageExistsのみチェック（docker infoが成功していればデーモンは稼働中）
       available: imageExists,
-      authenticated: !!environment.auth_dir_path,
+      authenticated: !!environment.auth_dir_path || environment.type === 'DOCKER',
       details: {
         dockerDaemon: true, // docker infoが成功したのでtrue
         imageExists,
@@ -533,6 +548,80 @@ export class EnvironmentService {
       .run();
 
     logger.info('認証ディレクトリを削除しました', { id, path: environment.auth_dir_path });
+  }
+
+  /**
+   * Docker環境用の設定Volumeを作成する
+   * @param id - 環境ID
+   */
+  async createConfigVolumes(id: string): Promise<void> {
+    const environment = await this.findById(id);
+
+    if (!environment) {
+      throw new Error('環境が見つかりません');
+    }
+
+    if (environment.type !== 'DOCKER') {
+      throw new Error(`Docker環境でのみ実行可能です: ${environment.type}`);
+    }
+
+    const dockerClient = DockerClient.getInstance();
+    const volumes = getConfigVolumeNames(id);
+
+    await dockerClient.createVolume(volumes.claudeVolume);
+    try {
+      await dockerClient.createVolume(volumes.configClaudeVolume);
+    } catch (error) {
+      // configClaudeVolume作成失敗時、claudeVolumeをクリーンアップ
+      try {
+        await dockerClient.removeVolume(volumes.claudeVolume);
+      } catch {
+        logger.warn('部分的なVolume作成のクリーンアップに失敗しました', { volume: volumes.claudeVolume });
+      }
+      throw error;
+    }
+
+    logger.info('設定Volumeを作成しました', { id, volumes });
+  }
+
+  /**
+   * Docker環境用の設定Volumeを削除する
+   * @param id - 環境ID
+   */
+  async deleteConfigVolumes(id: string): Promise<void> {
+    const environment = await this.findById(id);
+
+    if (!environment) {
+      throw new Error('環境が見つかりません');
+    }
+
+    if (environment.type !== 'DOCKER') {
+      throw new Error(`Docker環境でのみ実行可能です: ${environment.type}`);
+    }
+
+    const dockerClient = DockerClient.getInstance();
+    const volumes = getConfigVolumeNames(id);
+    const failedVolumes: string[] = [];
+
+    try {
+      await dockerClient.removeVolume(volumes.claudeVolume);
+    } catch (error) {
+      failedVolumes.push(volumes.claudeVolume);
+      logger.warn('設定Volume削除失敗', { volume: volumes.claudeVolume, error });
+    }
+
+    try {
+      await dockerClient.removeVolume(volumes.configClaudeVolume);
+    } catch (error) {
+      failedVolumes.push(volumes.configClaudeVolume);
+      logger.warn('設定Volume削除失敗', { volume: volumes.configClaudeVolume, error });
+    }
+
+    if (failedVolumes.length === 0) {
+      logger.info('設定Volumeを全て削除しました', { id, volumes });
+    } else {
+      logger.warn('設定Volumeの一部削除に失敗しました', { id, failedVolumes, volumes });
+    }
   }
 }
 
