@@ -71,6 +71,7 @@ jobs:
 
     env:
       DATABASE_URL: file:./data/test.db
+      VITEST_FILE_PARALLELISM: 'true'
 
     steps:
     - uses: actions/checkout@v4
