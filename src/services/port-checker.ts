@@ -166,7 +166,11 @@ export class PortChecker {
       });
 
       server.listen(port, '0.0.0.0', () => {
-        if (resolved) return;
+        if (resolved) {
+          // タイムアウトやエラーで既にresolve済みでも、listenに成功した場合はserverをclose
+          try { server.close(); } catch { /* ignore */ }
+          return;
+        }
         resolved = true;
         clearTimeout(timeout);
         server.close(() => {
