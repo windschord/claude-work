@@ -6,7 +6,7 @@ import type { PortMapping } from '@/types/environment';
 import { validatePortMappings } from '@/lib/docker-config-validator';
 
 interface PortCheckResult {
-  status: string;
+  status: 'available' | 'in_use' | 'unknown';
   usedBy?: string;
   source?: string;
 }
@@ -70,6 +70,14 @@ export function PortMappingList({ value, onChange, excludeEnvironmentId }: PortM
       if (i !== index) return mapping;
 
       if (field === 'protocol') {
+        const oldKey = `${mapping.hostPort}-${mapping.protocol || 'tcp'}`;
+        const newKey = `${mapping.hostPort}-${rawValue}`;
+        setPortCheckResults(prev => {
+          const next = new Map(prev);
+          next.delete(oldKey);
+          next.delete(newKey);
+          return next;
+        });
         return { ...mapping, protocol: rawValue as 'tcp' | 'udp' };
       }
 
@@ -100,6 +108,7 @@ export function PortMappingList({ value, onChange, excludeEnvironmentId }: PortM
 
     if (validMappings.length === 0) return;
 
+    // 現在はホストポートのOSレベルチェックのみ。protocol別の区別はfuture enhancement。
     const uniquePorts = [...new Set(validMappings.map(m => m.hostPort))];
 
     setIsChecking(true);
