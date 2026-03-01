@@ -113,7 +113,7 @@ export async function GET(request: NextRequest) {
  * - description: 説明（任意）
  * - config: 設定オブジェクト（任意）
  *
- * DOCKER環境の場合は認証ディレクトリも自動作成されます。
+ * DOCKER環境の場合は設定用の名前付きVolumeも自動作成されます。
  * config.imageSource === 'dockerfile' の場合、自動でDockerイメージをビルドします。
  *
  * @returns
@@ -318,10 +318,28 @@ export async function POST(request: NextRequest) {
       config,
     });
 
-    // DOCKER環境の場合は認証ディレクトリを作成
+    // DOCKER環境の場合は設定用の名前付きVolumeを作成
     if (type === 'DOCKER') {
-      await environmentService.createAuthDirectory(environment.id);
-      logger.info('Auth directory created for Docker environment', { id: environment.id });
+      try {
+        await environmentService.createConfigVolumes(environment.id);
+        logger.info('Config volumes created for Docker environment', { id: environment.id });
+      } catch (volumeError) {
+        logger.error('Failed to create config volumes, rolling back environment', {
+          environmentId: environment.id, error: volumeError,
+        });
+        try {
+          await environmentService.delete(environment.id);
+        } catch (rollbackError) {
+          logger.error('Failed to rollback environment after config volume creation failure', {
+            environmentId: environment.id,
+            rollbackError,
+          });
+        }
+        return NextResponse.json(
+          { error: '設定Volumeの作成に失敗しました' },
+          { status: 500 }
+        );
+      }
     }
 
     logger.info('Environment created', { id: environment.id, name: environment.name });

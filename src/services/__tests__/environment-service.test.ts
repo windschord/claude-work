@@ -35,6 +35,8 @@ const {
   mockDockerClient: {
     info: vi.fn(),
     inspectImage: vi.fn(),
+    createVolume: vi.fn(),
+    removeVolume: vi.fn(),
   },
   mockIsHostEnvironmentAllowed: vi.fn(() => true),
 }));
@@ -797,7 +799,7 @@ describe('EnvironmentService', () => {
       const status = await service.checkStatus('docker-env');
 
       expect(status.available).toBe(false);
-      expect(status.authenticated).toBe(false);
+      expect(status.authenticated).toBe(true);
       expect(status.error).toBe(
         'ビルド済みイメージが見つかりません。環境を再作成してビルドしてください。'
       );
@@ -828,7 +830,7 @@ describe('EnvironmentService', () => {
       const status = await service.checkStatus('docker-env');
 
       expect(status.available).toBe(false);
-      expect(status.authenticated).toBe(false);
+      expect(status.authenticated).toBe(true);
       expect(status.error).toBe(
         'イメージ my-existing-image:v1.0 が見つかりません。docker pullまたはビルドしてください。'
       );
@@ -1012,6 +1014,167 @@ describe('EnvironmentService', () => {
         // HOST環境のinsertは呼ばれないこと
         expect(mockDbInsertRun).not.toHaveBeenCalled();
       });
+    });
+  });
+
+  describe('createConfigVolumes', () => {
+    it('Docker名前付きVolumeを2つ作成する', async () => {
+      const env = {
+        id: 'docker-env',
+        name: 'Docker Dev',
+        type: 'DOCKER',
+        description: null,
+        config: '{}',
+        auth_dir_path: null,
+        is_default: false,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      mockDbSelectGet.mockReturnValue(env);
+      mockDockerClient.createVolume.mockResolvedValue({});
+
+      await service.createConfigVolumes('docker-env');
+
+      expect(mockDockerClient.createVolume).toHaveBeenCalledTimes(2);
+      expect(mockDockerClient.createVolume).toHaveBeenCalledWith('claude-config-claude-docker-env');
+      expect(mockDockerClient.createVolume).toHaveBeenCalledWith('claude-config-configclaude-docker-env');
+    });
+
+    it('存在しない環境の場合はエラーになる', async () => {
+      mockDbSelectGet.mockReturnValue(undefined);
+
+      await expect(service.createConfigVolumes('non-existent')).rejects.toThrow(
+        '環境が見つかりません'
+      );
+    });
+
+    it('Volume作成に失敗した場合はエラーがスローされる', async () => {
+      const env = {
+        id: 'docker-env',
+        name: 'Docker Dev',
+        type: 'DOCKER',
+        description: null,
+        config: '{}',
+        auth_dir_path: null,
+        is_default: false,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      mockDbSelectGet.mockReturnValue(env);
+      mockDockerClient.createVolume.mockRejectedValue(new Error('Docker API error'));
+
+      await expect(service.createConfigVolumes('docker-env')).rejects.toThrow('Docker API error');
+    });
+  });
+
+  describe('deleteConfigVolumes', () => {
+    it('Docker名前付きVolumeを2つ削除する', async () => {
+      const env = {
+        id: 'docker-env',
+        name: 'Docker Dev',
+        type: 'DOCKER',
+        description: null,
+        config: '{}',
+        auth_dir_path: null,
+        is_default: false,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      mockDbSelectGet.mockReturnValue(env);
+      mockDockerClient.removeVolume.mockResolvedValue(undefined);
+
+      await service.deleteConfigVolumes('docker-env');
+
+      expect(mockDockerClient.removeVolume).toHaveBeenCalledTimes(2);
+      expect(mockDockerClient.removeVolume).toHaveBeenCalledWith('claude-config-claude-docker-env');
+      expect(mockDockerClient.removeVolume).toHaveBeenCalledWith('claude-config-configclaude-docker-env');
+    });
+
+    it('存在しない環境の場合はエラーになる', async () => {
+      mockDbSelectGet.mockReturnValue(undefined);
+
+      await expect(service.deleteConfigVolumes('non-existent')).rejects.toThrow(
+        '環境が見つかりません'
+      );
+    });
+
+    it('Volume削除失敗は警告ログを出力するがエラーにはならない', async () => {
+      const env = {
+        id: 'docker-env',
+        name: 'Docker Dev',
+        type: 'DOCKER',
+        description: null,
+        config: '{}',
+        auth_dir_path: null,
+        is_default: false,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      mockDbSelectGet.mockReturnValue(env);
+      mockDockerClient.removeVolume.mockRejectedValue(new Error('Volume not found'));
+
+      await service.deleteConfigVolumes('docker-env');
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        '設定Volume削除失敗',
+        expect.objectContaining({
+          volume: expect.stringContaining('claude-config-'),
+          error: expect.any(Error),
+        })
+      );
+    });
+  });
+
+  describe('delete with config volumes', () => {
+    it('auth_dir_pathがnullのDocker環境削除時にconfig Volumeも削除する', async () => {
+      const env = {
+        id: 'docker-env',
+        name: 'Docker Dev',
+        type: 'DOCKER',
+        description: null,
+        config: '{}',
+        auth_dir_path: null,
+        is_default: false,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      mockDbSelectGet.mockReturnValueOnce(env);
+      mockDbSelectAll.mockReturnValueOnce([]);
+      mockDockerClient.removeVolume.mockResolvedValue(undefined);
+
+      await service.delete('docker-env');
+
+      expect(mockDockerClient.removeVolume).toHaveBeenCalledWith('claude-config-claude-docker-env');
+      expect(mockDockerClient.removeVolume).toHaveBeenCalledWith('claude-config-configclaude-docker-env');
+      expect(mockDbDeleteRun).toHaveBeenCalled();
+    });
+
+    it('auth_dir_pathが設定されたDocker環境削除時はバインドマウント削除のみ', async () => {
+      const env = {
+        id: 'docker-env',
+        name: 'Docker Dev',
+        type: 'DOCKER',
+        description: null,
+        config: '{}',
+        auth_dir_path: '/data/environments/docker-env',
+        is_default: false,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      mockDbSelectGet.mockReturnValueOnce(env);
+      mockDbSelectAll.mockReturnValueOnce([]);
+
+      await service.delete('docker-env');
+
+      expect(mockDockerClient.removeVolume).not.toHaveBeenCalled();
+      expect(mockRm).toHaveBeenCalledWith('/data/environments/docker-env', { recursive: true, force: true });
+      expect(mockDbDeleteRun).toHaveBeenCalled();
     });
   });
 });
