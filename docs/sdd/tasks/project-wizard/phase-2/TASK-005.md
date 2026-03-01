@@ -54,20 +54,24 @@ interface StepRepositoryProps {
 
 ```typescript
 export function extractProjectName(pathOrUrl: string): string {
-  const trimmed = pathOrUrl.trim().replace(/\/+$/, '');
+  const trimmed = pathOrUrl.trim().replace(/[\\/]+$/, '');
   if (!trimmed) return '';
 
   // SSH URL: git@github.com:user/repo.git
   if (/^[^/]+@[^:]+:.+/.test(trimmed)) {
     const afterColon = trimmed.split(':').pop() || '';
-    return afterColon.split('/').pop()?.replace(/\.git$/, '') || '';
+    return afterColon.split(/[\\/]/).pop()?.replace(/\.git$/, '') || '';
   }
 
   // HTTPS URL or local path
-  const name = trimmed.split('/').pop()?.replace(/\.git$/, '') || '';
+  const name = trimmed.split(/[\\/]/).pop()?.replace(/\.git$/, '') || '';
   return name;
 }
 ```
+
+> **注記**: 非標準SSHポート付きURL（例: `git@ssh.github.com:22:user/repo.git`）には対応していません。
+> このような形式は実践ではまれであり、Gitでは通常SSH設定ファイル（`~/.ssh/config`）でポート指定を行うため、
+> 現在の実装で十分です。将来的にサポートが必要になった場合のみ拡張を検討してください。
 
 ## 受入基準
 
