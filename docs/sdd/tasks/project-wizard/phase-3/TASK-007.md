@@ -125,6 +125,14 @@ const handleProjectSubmit = async () => {
 - [x] `npm run lint` でエラーがない
 - [x] `npm run build` が成功する
 
+> **注記**: 上記「削除対象」としてリストされている以下のファイルは、Wizard統合PRのスコープ外であり、Phase 3の別タスクで対応予定です。現時点ではこれらのファイルは残存しています。
+> - `src/components/projects/AddProjectModal.tsx`
+> - `src/components/projects/RemoteRepoForm.tsx`
+> - `src/components/projects/__tests__/AddProjectModal.test.tsx`
+> - `src/components/projects/AddProjectModal.test.tsx`
+> - `src/components/layout/AddProjectModal.tsx`
+> - `src/components/layout/__tests__/AddProjectModal.test.tsx`
+
 ## 依存関係
 
 - TASK-002（WizardContainer骨格）

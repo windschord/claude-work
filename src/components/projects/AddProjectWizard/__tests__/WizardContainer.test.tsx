@@ -26,10 +26,12 @@ vi.mock('@/hooks/useGitHubPATs', () => ({
   }),
 }));
 
+const mockFetchProjects = vi.fn();
+
 // Mock useAppStore
 vi.mock('@/store', () => ({
   useAppStore: () => ({
-    fetchProjects: vi.fn(),
+    fetchProjects: mockFetchProjects,
     addProject: vi.fn(),
     cloneProject: vi.fn(),
   }),
@@ -149,6 +151,180 @@ describe('AddProjectWizard', () => {
 
     await waitFor(() => {
       expect(screen.getByText('リポジトリ設定')).toBeInTheDocument();
+    });
+  });
+
+  describe('プロジェクト作成フロー', () => {
+    /** Step 1 -> Step 2 -> Step 3 まで遷移するヘルパー */
+    async function navigateToStep3() {
+      render(<AddProjectWizard isOpen={true} onClose={mockOnClose} />);
+
+      // Step 1 -> Step 2
+      const nextButton1 = screen.getByRole('button', { name: '次へ' });
+      await waitFor(() => { expect(nextButton1).not.toBeDisabled(); });
+      fireEvent.click(nextButton1);
+      await waitFor(() => {
+        expect(screen.getByText('認証情報設定')).toBeInTheDocument();
+      });
+
+      // Step 2 -> Step 3
+      const nextButton2 = screen.getByRole('button', { name: '次へ' });
+      fireEvent.click(nextButton2);
+      await waitFor(() => {
+        expect(screen.getByText('リポジトリ設定')).toBeInTheDocument();
+      });
+    }
+
+    it('ローカルプロジェクト追加のfetch呼び出しにenvironment_idが含まれる', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ project: { id: 'proj-1' } }),
+      });
+      global.fetch = mockFetch;
+      mockFetchProjects.mockResolvedValue(undefined);
+
+      await navigateToStep3();
+
+      // ローカルパスを入力
+      const pathInput = screen.getByPlaceholderText('/path/to/git/repo');
+      fireEvent.change(pathInput, { target: { value: '/tmp/my-repo' } });
+
+      // 「次へ」でプロジェクト作成を実行
+      const nextButton = screen.getByRole('button', { name: '次へ' });
+      fireEvent.click(nextButton);
+
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledWith('/api/projects', expect.objectContaining({
+          method: 'POST',
+        }));
+      });
+
+      // fetch呼び出しのbodyを検証
+      const callArgs = mockFetch.mock.calls.find(
+        (call: [string, RequestInit]) => call[0] === '/api/projects'
+      );
+      expect(callArgs).toBeDefined();
+      const body = JSON.parse(callArgs![1].body as string);
+      expect(body).toHaveProperty('environment_id', 'env-1');
+      expect(body).toHaveProperty('path', '/tmp/my-repo');
+    });
+
+    it('リモートプロジェクトcloneのfetch呼び出しにenvironment_idが含まれる', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ project: { id: 'proj-2' } }),
+      });
+      global.fetch = mockFetch;
+      mockFetchProjects.mockResolvedValue(undefined);
+
+      await navigateToStep3();
+
+      // リモートに切り替え
+      const remoteButton = screen.getByText('リモート');
+      fireEvent.click(remoteButton);
+
+      // URL入力
+      const urlInput = screen.getByPlaceholderText('git@github.com:user/repo.git');
+      fireEvent.change(urlInput, { target: { value: 'https://github.com/user/repo.git' } });
+
+      // 「次へ」でプロジェクト作成を実行
+      const nextButton = screen.getByRole('button', { name: '次へ' });
+      fireEvent.click(nextButton);
+
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledWith('/api/projects/clone', expect.objectContaining({
+          method: 'POST',
+        }));
+      });
+
+      // fetch呼び出しのbodyを検証
+      const callArgs = mockFetch.mock.calls.find(
+        (call: [string, RequestInit]) => call[0] === '/api/projects/clone'
+      );
+      expect(callArgs).toBeDefined();
+      const body = JSON.parse(callArgs![1].body as string);
+      expect(body).toHaveProperty('environment_id', 'env-1');
+      expect(body).toHaveProperty('url', 'https://github.com/user/repo.git');
+    });
+
+    it('ローカルプロジェクト追加成功時にStep 4に遷移する', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ project: { id: 'proj-1' } }),
+      });
+      global.fetch = mockFetch;
+      mockFetchProjects.mockResolvedValue(undefined);
+
+      await navigateToStep3();
+
+      // ローカルパスを入力
+      const pathInput = screen.getByPlaceholderText('/path/to/git/repo');
+      fireEvent.change(pathInput, { target: { value: '/tmp/my-repo' } });
+
+      // 「次へ」でプロジェクト作成を実行
+      const nextButton = screen.getByRole('button', { name: '次へ' });
+      fireEvent.click(nextButton);
+
+      // Step 4に遷移
+      await waitFor(() => {
+        expect(screen.getByText('プロジェクトを追加しました')).toBeInTheDocument();
+      });
+    });
+
+    it('プロジェクト作成失敗時にStep 4でエラーが表示される', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: false,
+        json: async () => ({ error: 'テスト用エラーメッセージ' }),
+      });
+      global.fetch = mockFetch;
+
+      await navigateToStep3();
+
+      // ローカルパスを入力
+      const pathInput = screen.getByPlaceholderText('/path/to/git/repo');
+      fireEvent.change(pathInput, { target: { value: '/tmp/bad-repo' } });
+
+      // 「次へ」でプロジェクト作成を実行
+      const nextButton = screen.getByRole('button', { name: '次へ' });
+      fireEvent.click(nextButton);
+
+      // Step 4にエラー表示で遷移
+      await waitFor(() => {
+        expect(screen.getByText('プロジェクト追加に失敗しました')).toBeInTheDocument();
+        expect(screen.getByText('テスト用エラーメッセージ')).toBeInTheDocument();
+      });
+    });
+
+    it('プロジェクト作成失敗時に「もう一度試す」でStep 3に戻れる', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: false,
+        json: async () => ({ error: 'テスト用エラー' }),
+      });
+      global.fetch = mockFetch;
+
+      await navigateToStep3();
+
+      // ローカルパスを入力
+      const pathInput = screen.getByPlaceholderText('/path/to/git/repo');
+      fireEvent.change(pathInput, { target: { value: '/tmp/bad-repo' } });
+
+      // 「次へ」でプロジェクト作成を実行
+      const nextButton = screen.getByRole('button', { name: '次へ' });
+      fireEvent.click(nextButton);
+
+      // Step 4にエラー表示で遷移
+      await waitFor(() => {
+        expect(screen.getByText('プロジェクト追加に失敗しました')).toBeInTheDocument();
+      });
+
+      // 「もう一度試す」をクリック
+      const retryButton = screen.getByRole('button', { name: 'もう一度試す' });
+      fireEvent.click(retryButton);
+
+      // Step 3に戻る
+      await waitFor(() => {
+        expect(screen.getByText('リポジトリ設定')).toBeInTheDocument();
+      });
     });
   });
 });

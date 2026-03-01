@@ -9,6 +9,7 @@ import type { WizardData } from './types';
 interface StepEnvironmentProps {
   environmentId: string | null;
   onChange: (data: Partial<WizardData>) => void;
+  onHostEnvironmentDisabledChange?: (disabled: boolean) => void;
 }
 
 function getTypeIcon(type: string) {
@@ -35,12 +36,21 @@ function getTypeBadge(type: string) {
   );
 }
 
-export function StepEnvironment({ environmentId, onChange }: StepEnvironmentProps) {
-  const { environments, isLoading } = useEnvironments();
+export function StepEnvironment({ environmentId, onChange, onHostEnvironmentDisabledChange }: StepEnvironmentProps) {
+  const { environments, isLoading, hostEnvironmentDisabled } = useEnvironments();
   const onChangeRef = useRef(onChange);
   useEffect(() => {
     onChangeRef.current = onChange;
   });
+
+  // hostEnvironmentDisabledの変更を親コンポーネントに通知
+  const onHostEnvironmentDisabledChangeRef = useRef(onHostEnvironmentDisabledChange);
+  useEffect(() => {
+    onHostEnvironmentDisabledChangeRef.current = onHostEnvironmentDisabledChange;
+  });
+  useEffect(() => {
+    onHostEnvironmentDisabledChangeRef.current?.(hostEnvironmentDisabled);
+  }, [hostEnvironmentDisabled]);
 
   const availableEnvironments = environments.filter((e) => !e.disabled);
   const selected = availableEnvironments.find((e) => e.id === environmentId) || null;

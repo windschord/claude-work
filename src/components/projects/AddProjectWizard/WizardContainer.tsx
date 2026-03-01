@@ -4,7 +4,6 @@ import { useState, useCallback, Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { X, Server, Key, FolderGit2, Play } from 'lucide-react';
 import { useAppStore } from '@/store';
-import { useEnvironments } from '@/hooks/useEnvironments';
 import toast from 'react-hot-toast';
 
 import { WizardProgressBar } from './WizardProgressBar';
@@ -31,12 +30,12 @@ const TOTAL_STEPS = 4;
 
 export function AddProjectWizard({ isOpen, onClose }: AddProjectWizardProps) {
   const { fetchProjects } = useAppStore();
-  const { hostEnvironmentDisabled } = useEnvironments();
 
   const [currentStep, setCurrentStep] = useState(1);
   const [wizardData, setWizardData] = useState<WizardData>({ ...initialWizardData });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hostEnvironmentDisabled, setHostEnvironmentDisabled] = useState(false);
 
   const handleDataChange = useCallback((data: Partial<WizardData>) => {
     setWizardData((prev) => ({ ...prev, ...data }));
@@ -86,6 +85,7 @@ export function AddProjectWizard({ isOpen, onClose }: AddProjectWizardProps) {
             body: JSON.stringify({
               path: wizardData.localPath.trim(),
               name: wizardData.projectName || undefined,
+              environment_id: wizardData.environmentId,
             }),
           });
           const data = await response.json();
@@ -102,6 +102,7 @@ export function AddProjectWizard({ isOpen, onClose }: AddProjectWizardProps) {
               targetDir: wizardData.targetDir.trim() || undefined,
               cloneLocation: wizardData.cloneLocation,
               githubPatId: wizardData.githubPatId || undefined,
+              environment_id: wizardData.environmentId,
             }),
           });
           const data = await response.json();
@@ -201,6 +202,7 @@ export function AddProjectWizard({ isOpen, onClose }: AddProjectWizardProps) {
                     <StepEnvironment
                       environmentId={wizardData.environmentId}
                       onChange={handleDataChange}
+                      onHostEnvironmentDisabledChange={setHostEnvironmentDisabled}
                     />
                   )}
                   {currentStep === 2 && (
