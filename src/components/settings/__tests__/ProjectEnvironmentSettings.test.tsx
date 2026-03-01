@@ -1,5 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 import { ProjectEnvironmentSettings } from '../ProjectEnvironmentSettings';
 
 // next/linkをモック
@@ -15,9 +15,11 @@ vi.mock('@/hooks/useEnvironments', () => ({
   useEnvironments: () => mockUseEnvironments(),
 }));
 
-// fetchのモック
+// fetchのモック（テスト全体で共通のモック設定）
 const mockFetch = vi.fn();
-global.fetch = mockFetch;
+beforeAll(() => {
+  global.fetch = mockFetch;
+});
 
 // URL別にfetchレスポンスを返すヘルパー
 function setupMockFetch(projectData: Record<string, unknown>, sessionsData: Record<string, unknown> = { sessions: [] }) {
@@ -143,6 +145,24 @@ describe('ProjectEnvironmentSettings', () => {
     expect(screen.getByText('読み込み中...')).toBeInTheDocument();
     expect(screen.queryByText('Docker (自動選択)')).not.toBeInTheDocument();
     expect(screen.queryByText('Host (自動選択)')).not.toBeInTheDocument();
+  });
+
+  it('environment_idが存在するがenvironmentがnullの場合、「環境情報を取得できません」と表示される', async () => {
+    setupMockFetch({
+      id: 'project-1',
+      name: 'Test Project',
+      clone_location: null,
+      environment_id: 'env-deleted-123',
+      environment: null,
+    });
+
+    render(<ProjectEnvironmentSettings projectId="project-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByText('環境情報を取得できません')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('UNKNOWN')).toBeInTheDocument();
   });
 
   it('clone_location=dockerかつhostEnvironmentDisabled=trueの場合、Docker (自動選択) と表示される', async () => {
