@@ -74,7 +74,7 @@ const handleProjectSubmit = async () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           url: wizardData.remoteUrl.trim(),
-          targetDir: wizardData.targetDir || undefined,
+          targetDir: wizardData.targetDir?.trim() || undefined,
           cloneLocation: wizardData.cloneLocation,
           githubPatId: wizardData.githubPatId || undefined,
           environment_id: wizardData.environmentId,
@@ -120,8 +120,8 @@ const handleProjectSubmit = async () => {
 
 - [x] WizardContainerに全4ステップが統合されている
 - [x] ProjectList.tsx、Sidebar.tsxのimportが置き換わっている
-- [x] 旧AddProjectModal関連ファイルが削除されている
-- [x] 旧RemoteRepoFormが削除されている
+- [ ] 旧AddProjectModal関連ファイルが削除されている（Phase 3別タスクで対応予定）
+- [ ] 旧RemoteRepoFormが削除されている（Phase 3別タスクで対応予定）
 - [x] テストファイルが存在し、全統合テストが通過
 - [x] `npx vitest run` で既存テストを含む全テストが通過
 - [x] `npm run lint` でエラーがない

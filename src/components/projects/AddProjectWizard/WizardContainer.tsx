@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, Fragment } from 'react';
+import { useState, useCallback, useRef, Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { X, Server, Key, FolderGit2, Play } from 'lucide-react';
 import { useAppStore } from '@/store';
@@ -36,12 +36,15 @@ export function AddProjectWizard({ isOpen, onClose }: AddProjectWizardProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hostEnvironmentDisabled, setHostEnvironmentDisabled] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const handleDataChange = useCallback((data: Partial<WizardData>) => {
     setWizardData((prev) => ({ ...prev, ...data }));
   }, []);
 
   const handleReset = useCallback(() => {
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
     setCurrentStep(1);
     setWizardData({ ...initialWizardData });
     setIsSubmitting(false);
@@ -70,9 +73,26 @@ export function AddProjectWizard({ isOpen, onClose }: AddProjectWizardProps) {
     }
   }, [currentStep, wizardData]);
 
+  /** レスポンスからエラーメッセージを安全に抽出する */
+  const parseErrorResponse = async (response: Response, fallback: string): Promise<string> => {
+    try {
+      const data = await response.json();
+      return data.error || fallback;
+    } catch {
+      const text = await response.text().catch(() => '');
+      return text || fallback;
+    }
+  };
+
   const handleNext = useCallback(async () => {
     if (currentStep === 3) {
-      // Step 3 の「次へ」でプロジェクト作成を実行
+      if (isSubmitting) return;
+
+      // 前回の送信をキャンセル
+      abortControllerRef.current?.abort();
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
       setIsSubmitting(true);
       setError(null);
 
@@ -88,11 +108,12 @@ export function AddProjectWizard({ isOpen, onClose }: AddProjectWizardProps) {
               name: wizardData.projectName || undefined,
               environment_id: wizardData.environmentId,
             }),
+            signal: controller.signal,
           });
-          const data = await response.json();
           if (!response.ok) {
-            throw new Error(data.error || 'プロジェクトの追加に失敗しました');
+            throw new Error(await parseErrorResponse(response, 'プロジェクトの追加に失敗しました'));
           }
+          const data = await response.json();
           projectId = data.project.id;
         } else {
           const response = await fetch('/api/projects/clone', {
@@ -105,13 +126,17 @@ export function AddProjectWizard({ isOpen, onClose }: AddProjectWizardProps) {
               githubPatId: wizardData.githubPatId || undefined,
               environment_id: wizardData.environmentId,
             }),
+            signal: controller.signal,
           });
-          const data = await response.json();
           if (!response.ok) {
-            throw new Error(data.error || 'リポジトリのcloneに失敗しました');
+            throw new Error(await parseErrorResponse(response, 'リポジトリのcloneに失敗しました'));
           }
+          const data = await response.json();
           projectId = data.project.id;
         }
+
+        // キャンセル済みなら結果を無視
+        if (controller.signal.aborted) return;
 
         handleDataChange({ createdProjectId: projectId });
         toast.success('プロジェクトを追加しました');
@@ -124,11 +149,14 @@ export function AddProjectWizard({ isOpen, onClose }: AddProjectWizardProps) {
           // プロジェクト一覧の再取得失敗はUI操作に影響しないため無視
         }
       } catch (err) {
+        if (controller.signal.aborted) return;
         const errorMessage = err instanceof Error ? err.message : 'プロジェクトの追加に失敗しました';
         setError(errorMessage);
         setCurrentStep(4);
       } finally {
-        setIsSubmitting(false);
+        if (!controller.signal.aborted) {
+          setIsSubmitting(false);
+        }
       }
       return;
     }
@@ -136,7 +164,7 @@ export function AddProjectWizard({ isOpen, onClose }: AddProjectWizardProps) {
     if (currentStep < TOTAL_STEPS) {
       setCurrentStep((prev) => prev + 1);
     }
-  }, [currentStep, wizardData, fetchProjects, handleDataChange]);
+  }, [currentStep, wizardData, isSubmitting, fetchProjects, handleDataChange]);
 
   const handleBack = useCallback(() => {
     if (currentStep > 1) {
