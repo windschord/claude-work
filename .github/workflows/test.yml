@@ -177,10 +177,14 @@ jobs:
     - name: Verify build outputs
       run: |
         for f in .next/BUILD_ID; do
-          [ -f "$f" ] || { echo "::error::Missing build output: $f"; exit 1; }
+          [ -s "$f" ] || { echo "::error::Missing or empty build output: $f"; exit 1; }
         done
         for d in .next/static .next/server; do
           [ -d "$d" ] || { echo "::error::Missing build output directory: $d"; exit 1; }
+          [ -n "$(find "$d" -mindepth 1 -type f -print -quit)" ] || {
+            echo "::error::Build output directory is empty: $d"
+            exit 1
+          }
         done
 
     - name: Create CLI E2E package
