@@ -4,7 +4,13 @@ import { logger } from '@/lib/logger';
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
+    }
+
     const { ports, excludeEnvironmentId } = body;
 
     if (excludeEnvironmentId !== undefined && typeof excludeEnvironmentId !== 'string') {
@@ -26,7 +32,7 @@ export async function POST(request: NextRequest) {
     const results = await portChecker.checkPorts({ ports, excludeEnvironmentId });
     return NextResponse.json({ results });
   } catch (error) {
-    logger.error('Port check failed:', error);
+    logger.error('Port check failed', { error });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

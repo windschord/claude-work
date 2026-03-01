@@ -359,7 +359,7 @@ describe('PortMappingList', () => {
       });
     });
 
-    it('should display results correctly for same hostPort with different protocols', async () => {
+    it('should display results correctly for same hostPort with different protocols (UDP is unknown)', async () => {
       const mappings: PortMapping[] = [
         { hostPort: 8080, containerPort: 80, protocol: 'tcp' },
         { hostPort: 8080, containerPort: 80, protocol: 'udp' },
@@ -377,9 +377,27 @@ describe('PortMappingList', () => {
       });
 
       await waitFor(() => {
-        const availableTexts = screen.getAllByText('利用可能');
-        expect(availableTexts).toHaveLength(2);
+        // TCPは利用可能、UDPはチェック不可
+        expect(screen.getByText('利用可能')).toBeInTheDocument();
+        expect(screen.getByText('チェック不可')).toBeInTheDocument();
       });
+    });
+
+    it('should show unknown for UDP-only mappings without calling fetch', async () => {
+      const mappings: PortMapping[] = [
+        { hostPort: 8080, containerPort: 80, protocol: 'udp' },
+      ];
+
+      render(<PortMappingList value={mappings} onChange={vi.fn()} />);
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /ポートの使用状況をチェック/ }));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('チェック不可')).toBeInTheDocument();
+      });
+      // UDPのみの場合はfetchを呼ばない
+      expect(global.fetch).not.toHaveBeenCalled();
     });
 
     it('should not collide results for same hostPort with different protocols on reset', async () => {
@@ -401,7 +419,9 @@ describe('PortMappingList', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getAllByText('利用可能')).toHaveLength(2);
+        // TCPは利用可能、UDPはチェック不可
+        expect(screen.getByText('利用可能')).toBeInTheDocument();
+        expect(screen.getByText('チェック不可')).toBeInTheDocument();
       });
 
       // tcpの行のホストポートを変更
@@ -414,9 +434,9 @@ describe('PortMappingList', () => {
       ];
       rerender(<PortMappingList value={updatedMappings} onChange={onChange} />);
 
-      // tcp行の結果はリセットされるが、udp行は残る
-      const availableTexts = screen.getAllByText('利用可能');
-      expect(availableTexts).toHaveLength(1);
+      // tcp行の結果はリセットされるが、udp行(チェック不可)は残る
+      expect(screen.queryByText('利用可能')).not.toBeInTheDocument();
+      expect(screen.getByText('チェック不可')).toBeInTheDocument();
     });
 
     it('should include excludeEnvironmentId in fetch request', async () => {

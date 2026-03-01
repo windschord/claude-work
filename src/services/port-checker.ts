@@ -35,14 +35,71 @@ export interface PortCheckRequest {
 export class PortChecker {
   /**
    * 複数ポートを一括チェックする
+   * 入力portsをユニーク化し、ClaudeWorkチェックを1回だけ実行してパフォーマンスを改善する。
    * @param request - チェックするポートリストと除外環境ID
-   * @returns 各ポートのチェック結果
+   * @returns 各ポートのチェック結果（入力順序を保持）
    */
   async checkPorts(request: PortCheckRequest): Promise<PortCheckResult[]> {
     const { ports, excludeEnvironmentId } = request;
-    return Promise.all(
-      ports.map((port) => this.checkSinglePort(port, excludeEnvironmentId))
+
+    // ポートをユニーク化して自己衝突（同一ポートの並列listen）を防ぐ
+    const uniquePorts = [...new Set(ports)];
+
+    // ClaudeWork チェックを1回だけ実行してMap化
+    const cwResults = await this.checkClaudeWorkPorts(uniquePorts, excludeEnvironmentId);
+    const cwResultMap = new Map<number, PortCheckResult>();
+    for (const result of cwResults) {
+      cwResultMap.set(result.port, result);
+    }
+
+    // OS チェックをユニーク化されたポートに対して並列実行
+    const osResults = await Promise.all(
+      uniquePorts.map((port) => this.checkHostPort(port))
     );
+    const osResultMap = new Map<number, PortCheckResult>();
+    for (const result of osResults) {
+      osResultMap.set(result.port, result);
+    }
+
+    // 入力順序を保持してマージ（優先度: in_use > unknown > available）
+    return ports.map((port) => {
+      const osResult = osResultMap.get(port)!;
+      const cwResult = cwResultMap.get(port);
+      return this.mergeResults(port, osResult, cwResult);
+    });
+  }
+
+  /**
+   * OS チェック結果と ClaudeWork チェック結果をマージする
+   * 優先度: in_use > unknown > available
+   */
+  private mergeResults(
+    port: number,
+    osResult: PortCheckResult,
+    cwResult?: PortCheckResult
+  ): PortCheckResult {
+    // OS で使用中なら最優先
+    if (osResult.status === 'in_use') {
+      return osResult;
+    }
+
+    // ClaudeWork 環境で使用中
+    if (cwResult && cwResult.status === 'in_use') {
+      return cwResult;
+    }
+
+    // OS で unknown
+    if (osResult.status === 'unknown') {
+      return osResult;
+    }
+
+    // ClaudeWork で unknown
+    if (cwResult && cwResult.status === 'unknown') {
+      return cwResult;
+    }
+
+    // どちらも available
+    return { port, status: 'available' };
   }
 
   /**
@@ -63,24 +120,7 @@ export class PortChecker {
     ]);
 
     const cwResult = cwResults[0];
-
-    // OS で使用中なら最優先
-    if (osResult.status === 'in_use') {
-      return osResult;
-    }
-
-    // ClaudeWork 環境で使用中
-    if (cwResult && cwResult.status === 'in_use') {
-      return cwResult;
-    }
-
-    // OS で unknown
-    if (osResult.status === 'unknown') {
-      return osResult;
-    }
-
-    // どちらも available
-    return { port, status: 'available' };
+    return this.mergeResults(port, osResult, cwResult);
   }
 
   /**
@@ -94,12 +134,22 @@ export class PortChecker {
       let resolved = false;
       const server = net.createServer();
 
+      /** server.close()をtry/catchで保護して安全にresolveする */
+      const safeCloseAndResolve = (result: PortCheckResult) => {
+        try {
+          server.close(() => {
+            resolve(result);
+          });
+        } catch {
+          // listen完了前にclose()が同期例外を投げる可能性がある
+          resolve(result);
+        }
+      };
+
       const timeout = setTimeout(() => {
         if (!resolved) {
           resolved = true;
-          server.close(() => {
-            resolve({ port, status: 'unknown' });
-          });
+          safeCloseAndResolve({ port, status: 'unknown' });
         }
       }, 500);
 
@@ -108,14 +158,10 @@ export class PortChecker {
         resolved = true;
         clearTimeout(timeout);
         if (err.code === 'EADDRINUSE') {
-          server.close(() => {
-            resolve({ port, status: 'in_use', source: 'os' });
-          });
+          safeCloseAndResolve({ port, status: 'in_use', source: 'os' });
         } else {
           // EACCES など権限不足の場合は unknown
-          server.close(() => {
-            resolve({ port, status: 'unknown' });
-          });
+          safeCloseAndResolve({ port, status: 'unknown' });
         }
       });
 
@@ -133,6 +179,11 @@ export class PortChecker {
   /**
    * ClaudeWork の DOCKER 環境で使用中のポートかどうかをチェックする
    * DB から DOCKER 環境を取得し、config の portMappings を照合する
+   *
+   * NOTE: 現在はhostPortのみで照合しており、protocol（tcp/udp）は考慮していない。
+   * OSレベルではtcp/udpは別のポート空間だが、UIでUDPエントリはunknown扱いとしているため、
+   * ここでのprotocol対応は将来課題とする。
+   *
    * @param ports - チェックするポート番号の配列
    * @param excludeEnvironmentId - 除外する環境ID（自環境を除外する場合）
    * @returns 各ポートのチェック結果

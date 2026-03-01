@@ -134,5 +134,18 @@ describe('POST /api/environments/check-ports', () => {
       expect(response.status).toBe(500);
       expect(json).toHaveProperty('error');
     });
+
+    it('不正なJSONの場合400を返す', async () => {
+      const request = new NextRequest('http://localhost:3000/api/environments/check-ports', {
+        method: 'POST',
+        body: 'invalid-json',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const response = await POST(request);
+      const json = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(json.error).toBe('Invalid JSON in request body');
+    });
   });
 });

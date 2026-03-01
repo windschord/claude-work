@@ -257,6 +257,49 @@ describe('PortChecker', () => {
     });
   });
 
+  describe('checkSinglePort - CW unknown', () => {
+    it('ClaudeWorkでunknownの場合はunknownを返す', async () => {
+      const mockServer = createMockServerSuccess();
+      mockCreateServer.mockReturnValue(mockServer);
+      // DB取得失敗でunknownが返る
+      mockDbSelectAll.mockImplementation(() => {
+        throw new Error('DB connection failed');
+      });
+
+      const result = await portChecker.checkSinglePort(8080);
+
+      expect(result.port).toBe(8080);
+      expect(result.status).toBe('unknown');
+    });
+  });
+
+  describe('checkHostPort - server.close() exception', () => {
+    it('server.close()が例外を投げても正しくresolveされる', async () => {
+      const server = new EventEmitter() as EventEmitter & {
+        listen: ReturnType<typeof vi.fn>;
+        close: ReturnType<typeof vi.fn>;
+      };
+      server.listen = vi.fn((_port: number, _callback: () => void) => {
+        process.nextTick(() => {
+          const err = new Error('Port error: EADDRINUSE');
+          (err as NodeJS.ErrnoException).code = 'EADDRINUSE';
+          server.emit('error', err);
+        });
+        return server;
+      });
+      server.close = vi.fn(() => {
+        throw new Error('Not running');
+      });
+      mockCreateServer.mockReturnValue(server);
+
+      const result = await portChecker.checkHostPort(8080);
+
+      expect(result.port).toBe(8080);
+      expect(result.status).toBe('in_use');
+      expect(result.source).toBe('os');
+    });
+  });
+
   describe('checkPorts', () => {
     it('複数ポートを一括チェックして全ての結果を返す', async () => {
       // 3ポートすべて利用可能
@@ -317,6 +360,37 @@ describe('PortChecker', () => {
 
       const port9000 = result.find((r) => r.port === 9000);
       expect(port9000?.status).toBe('available');
+    });
+
+    it('重複ポートをユニーク化して自己衝突を防ぐ', async () => {
+      const mockServer = createMockServerSuccess();
+      mockCreateServer.mockReturnValue(mockServer);
+      mockDbSelectAll.mockReturnValue([]);
+
+      const result = await portChecker.checkPorts({
+        ports: [8080, 8080, 9000],
+      });
+
+      expect(result).toHaveLength(3);
+      // 重複分も含めて結果が返る
+      expect(result[0].port).toBe(8080);
+      expect(result[1].port).toBe(8080);
+      expect(result[2].port).toBe(9000);
+      // net.createServerはユニークポート分のみ呼ばれる（8080 + 9000 = 2回）
+      expect(mockCreateServer).toHaveBeenCalledTimes(2);
+    });
+
+    it('ClaudeWorkチェックのDB呼び出しは1回のみ', async () => {
+      const mockServer = createMockServerSuccess();
+      mockCreateServer.mockReturnValue(mockServer);
+      mockDbSelectAll.mockReturnValue([]);
+
+      await portChecker.checkPorts({
+        ports: [8080, 9000, 9001],
+      });
+
+      // checkClaudeWorkPortsは1回だけ呼ばれる（以前はポート数分呼ばれていた）
+      expect(mockDbSelectAll).toHaveBeenCalledTimes(1);
     });
   });
 });

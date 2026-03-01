@@ -103,6 +103,16 @@ export function PortMappingList({ value, onChange, excludeEnvironmentId }: PortM
     onChange(updated);
   };
 
+  /** 全validMappingsのチェック結果をunknownで初期化したMapを生成する */
+  const buildUnknownResults = (mappings: PortMapping[]): Map<string, PortCheckResult> => {
+    const results = new Map<string, PortCheckResult>();
+    for (const mapping of mappings) {
+      const key = `${mapping.hostPort}-${mapping.protocol || 'tcp'}`;
+      results.set(key, { status: 'unknown' });
+    }
+    return results;
+  };
+
   const handleCheckPorts = async () => {
     const validMappings = value.filter(
       m => Number.isInteger(m.hostPort) && m.hostPort >= 1 && m.hostPort <= 65535
@@ -111,12 +121,18 @@ export function PortMappingList({ value, onChange, excludeEnvironmentId }: PortM
     if (validMappings.length === 0) return;
 
     // PortCheckerはnet.createServer()を使用するためTCPポートのみチェック可能。
-    // 同じポート番号のtcp/udpは同一のチェック結果を共有する（OSレベルではtcp/udpは別空間だが、
-    // UDPの使用状況チェックにはdgram.createSocket等が必要で現在未対応）。
-    const uniquePorts = [...new Set(validMappings.map(m => m.hostPort))];
+    // UDPマッピングにはTCPチェック結果を割り当てず、unknownとして扱う。
+    const tcpMappings = validMappings.filter(m => (m.protocol ?? 'tcp') !== 'udp');
+    const uniquePorts = [...new Set(tcpMappings.map(m => m.hostPort))];
 
     setIsChecking(true);
     try {
+      // UDPのみでTCPチェック対象がない場合はAPI呼び出しをスキップ
+      if (uniquePorts.length === 0) {
+        setPortCheckResults(buildUnknownResults(validMappings));
+        return;
+      }
+
       const response = await fetch('/api/environments/check-ports', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -135,6 +151,11 @@ export function PortMappingList({ value, onChange, excludeEnvironmentId }: PortM
         const newResults = new Map<string, PortCheckResult>();
         for (const mapping of validMappings) {
           const key = `${mapping.hostPort}-${mapping.protocol || 'tcp'}`;
+          // UDPエントリはTCPチェック結果を割り当てず、unknownにする
+          if ((mapping.protocol ?? 'tcp') === 'udp') {
+            newResults.set(key, { status: 'unknown' });
+            continue;
+          }
           const result = portResultMap.get(mapping.hostPort);
           if (result) {
             newResults.set(key, result);
@@ -142,20 +163,10 @@ export function PortMappingList({ value, onChange, excludeEnvironmentId }: PortM
         }
         setPortCheckResults(newResults);
       } else {
-        const unknownResults = new Map<string, PortCheckResult>();
-        for (const mapping of validMappings) {
-          const key = `${mapping.hostPort}-${mapping.protocol || 'tcp'}`;
-          unknownResults.set(key, { status: 'unknown' });
-        }
-        setPortCheckResults(unknownResults);
+        setPortCheckResults(buildUnknownResults(validMappings));
       }
     } catch {
-      const unknownResults = new Map<string, PortCheckResult>();
-      for (const mapping of validMappings) {
-        const key = `${mapping.hostPort}-${mapping.protocol || 'tcp'}`;
-        unknownResults.set(key, { status: 'unknown' });
-      }
-      setPortCheckResults(unknownResults);
+      setPortCheckResults(buildUnknownResults(validMappings));
     } finally {
       setIsChecking(false);
     }
@@ -261,7 +272,7 @@ export function PortMappingList({ value, onChange, excludeEnvironmentId }: PortM
           <Plus className="h-4 w-4" />
           ポートを追加
         </button>
-        {value.length > 0 && value.some(m => m.hostPort >= 1 && m.hostPort <= 65535) && (
+        {value.length > 0 && value.some(m => Number.isInteger(m.hostPort) && m.hostPort >= 1 && m.hostPort <= 65535) && (
           <button
             type="button"
             onClick={handleCheckPorts}
