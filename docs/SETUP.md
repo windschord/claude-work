@@ -10,7 +10,28 @@
 
 Docker Composeを使用すると、環境構築なしで起動できます。
 
-### 手順
+### 手順（クイックスタート）
+
+git clone 不要で、`docker-compose.yml` をダウンロードするだけで起動できます。
+
+```bash
+# 1. 作業ディレクトリを作成
+mkdir claude-work && cd claude-work
+
+# 2. docker-compose.yml をダウンロード
+curl -fsSL -O https://raw.githubusercontent.com/windschord/claude-work/main/docker-compose.yml
+
+# 3. (Linux のみ) .env で docker.sock のアクセス権を設定
+#    macOS / Docker Desktop では不要（docker.sock のパーミッションが異なるため）
+echo "DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)" > .env
+
+# 4. 起動
+docker compose up -d
+```
+
+### 手順（開発者向け）
+
+ソースコードを変更して開発する場合:
 
 ```bash
 # 1. リポジトリをクローン
@@ -21,11 +42,13 @@ cd claude-work
 cp .env.example .env
 
 # 3. (Linux のみ) docker.sock のアクセス権を設定
-#    macOS / Docker Desktop では不要（docker.sock のパーミッションが異なるため）
 grep -q '^DOCKER_GID=' .env && sed -i "s/^DOCKER_GID=.*/DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)/" .env || echo "DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)" >> .env
 
-# 4. 起動
-docker compose up -d
+# 4. override ファイルを作成（ローカルビルド + バインドマウント有効化）
+cp docker-compose.override.yml.example docker-compose.override.yml
+
+# 5. 起動
+docker compose up -d --build
 ```
 
 ブラウザで `http://localhost:3000`（`HOST_PORT` を変更した場合は該当ポート）を開きます。
@@ -195,7 +218,7 @@ sudo systemctl start docker
 Docker イメージがない場合は自動的にビルドされますが、手動でビルドすることもできます:
 
 ```bash
-docker build -t claude-code-sandboxed:latest docker/
+docker build -t ghcr.io/windschord/claude-work-sandbox:latest docker/
 ```
 
 #### Dockerコンテナの権限エラー（Linux）

@@ -101,7 +101,7 @@ describe('DockerAdapter - Developer Settings Integration', () => {
 
   const defaultConfig: DockerAdapterConfig = {
     environmentId: 'test-env-dev-settings',
-    imageName: 'claude-code-sandboxed',
+    imageName: 'ghcr.io/windschord/claude-work-sandbox',
     imageTag: 'latest',
     authDirPath: '/tmp/claude-test-dev-settings-' + process.pid + '/test-env-dev-settings',
   };

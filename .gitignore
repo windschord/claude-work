@@ -266,6 +266,9 @@ logs/
 # Claude Code
 .claude/
 
+# Docker Compose override (developer-local)
+docker-compose.override.yml
+
 # Database files
 *.db
 *.db-journal

@@ -1,0 +1,15 @@
+# 開発者向け docker-compose.override.yml
+#
+# ローカルビルドやバインドマウントを使用する場合:
+#   cp docker-compose.override.yml.example docker-compose.override.yml
+#
+# Docker Compose は自動的に docker-compose.override.yml をマージします。
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./data:/data
+      - /var/run/docker.sock:/var/run/docker.sock

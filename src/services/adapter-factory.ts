@@ -74,7 +74,7 @@ export class AdapterFactory {
 
     const config: DockerAdapterConfig = {
       environmentId: environment.id,
-      imageName: configData.imageName || 'claude-code-sandboxed',
+      imageName: configData.imageName || 'ghcr.io/windschord/claude-work-sandbox',
       imageTag: configData.imageTag || 'latest',
       authDirPath: environment.auth_dir_path,
       portMappings: configData.portMappings,

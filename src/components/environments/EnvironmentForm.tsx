@@ -40,7 +40,7 @@ const IMAGE_SOURCE_OPTIONS: { value: ImageSourceType; label: string }[] = [
 ];
 
 const CUSTOM_IMAGE_VALUE = '__custom__';
-const DEFAULT_DOCKER_IMAGE = process.env.NEXT_PUBLIC_DEFAULT_DOCKER_IMAGE || 'ghcr.io/windschord/claude-work:latest';
+const DEFAULT_DOCKER_IMAGE = process.env.NEXT_PUBLIC_DEFAULT_DOCKER_IMAGE || 'ghcr.io/windschord/claude-work-sandbox:latest';
 
 /**
  * 環境作成・編集フォームモーダルコンポーネント

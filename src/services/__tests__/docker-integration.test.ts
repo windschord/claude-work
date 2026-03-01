@@ -28,7 +28,7 @@ function isDockerAvailable(): boolean {
 // Dockerイメージの存在チェック
 function dockerImageExists(): boolean {
   try {
-    const result = execSync('docker images -q claude-code-sandboxed:latest', {
+    const result = execSync('docker images -q ghcr.io/windschord/claude-work-sandbox:latest', {
       encoding: 'utf-8',
     }).trim();
     return result.length > 0;
@@ -97,7 +97,7 @@ describeWithDocker('Docker Integration Tests', () => {
     it('should run container with volume mount', () => {
       // bashシェルでファイル読み取りテスト
       const result = execSync(
-        `docker run --rm -v "${tempDir}:/workspace:ro" claude-code-sandboxed:latest cat /workspace/test.txt`,
+        `docker run --rm -v "${tempDir}:/workspace:ro" ghcr.io/windschord/claude-work-sandbox:latest cat /workspace/test.txt`,
         { encoding: 'utf-8' }
       );
       expect(result.trim()).toBe('Hello from host');
@@ -106,7 +106,7 @@ describeWithDocker('Docker Integration Tests', () => {
     it('should run container with correct user', () => {
       // Dockerfileでは既存のnodeユーザー（UID 1000）を使用
       const result = execSync(
-        `docker run --rm claude-code-sandboxed:latest whoami`,
+        `docker run --rm ghcr.io/windschord/claude-work-sandbox:latest whoami`,
         { encoding: 'utf-8' }
       );
       expect(result.trim()).toBe('node');
@@ -114,7 +114,7 @@ describeWithDocker('Docker Integration Tests', () => {
 
     it('should have claude command available', () => {
       const result = execSync(
-        `docker run --rm claude-code-sandboxed:latest which claude`,
+        `docker run --rm ghcr.io/windschord/claude-work-sandbox:latest which claude`,
         { encoding: 'utf-8' }
       );
       expect(result.trim()).toContain('/claude');
@@ -125,7 +125,7 @@ describeWithDocker('Docker Integration Tests', () => {
       // SYS_ADMIN権限がないためmountが失敗することを期待
       expect(() => {
         execSync(
-          `docker run --rm --cap-drop ALL claude-code-sandboxed:latest mount -t proc proc /proc 2>&1`,
+          `docker run --rm --cap-drop ALL ghcr.io/windschord/claude-work-sandbox:latest mount -t proc proc /proc 2>&1`,
           { encoding: 'utf-8' }
         );
       }).toThrow();
@@ -134,7 +134,7 @@ describeWithDocker('Docker Integration Tests', () => {
     it('should be able to write to workspace', () => {
       // ワークスペースへの書き込みテスト
       const result = execSync(
-        `docker run --rm -v "${tempDir}:/workspace" claude-code-sandboxed:latest sh -c "echo 'written by container' > /workspace/output.txt && cat /workspace/output.txt"`,
+        `docker run --rm -v "${tempDir}:/workspace" ghcr.io/windschord/claude-work-sandbox:latest sh -c "echo 'written by container' > /workspace/output.txt && cat /workspace/output.txt"`,
         { encoding: 'utf-8' }
       );
       expect(result.trim()).toBe('written by container');
@@ -146,7 +146,7 @@ describeWithDocker('Docker Integration Tests', () => {
 
     it('should have git available', () => {
       const result = execSync(
-        `docker run --rm claude-code-sandboxed:latest git --version`,
+        `docker run --rm ghcr.io/windschord/claude-work-sandbox:latest git --version`,
         { encoding: 'utf-8' }
       );
       expect(result).toContain('git version');
@@ -154,7 +154,7 @@ describeWithDocker('Docker Integration Tests', () => {
 
     it('should have node available', () => {
       const result = execSync(
-        `docker run --rm claude-code-sandboxed:latest node --version`,
+        `docker run --rm ghcr.io/windschord/claude-work-sandbox:latest node --version`,
         { encoding: 'utf-8' }
       );
       expect(result.trim()).toMatch(/^v\d+\.\d+/);
@@ -190,7 +190,7 @@ describe('Docker Test Environment Info', () => {
       console.log('Skipping Docker tests - Docker not available');
     } else if (!IMAGE_EXISTS) {
       console.log('Some tests skipped - Docker image not found');
-      console.log('Run: docker build -t claude-code-sandboxed:latest docker/');
+      console.log('Run: docker build -t ghcr.io/windschord/claude-work-sandbox:latest docker/');
     }
 
     // このテストは常に通過（情報提供のため）

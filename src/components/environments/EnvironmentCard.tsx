@@ -70,7 +70,7 @@ function renderImageInfo(environment: Environment): React.ReactNode {
     );
   }
 
-  const imageName = (config.imageName as string) || 'claude-code-sandboxed';
+  const imageName = (config.imageName as string) || 'ghcr.io/windschord/claude-work-sandbox';
   const imageTag = (config.imageTag as string) || 'latest';
   return (
     <div className="text-sm text-gray-500 dark:text-gray-400 mb-3">

@@ -72,7 +72,7 @@ describe('DockerPTYAdapter', () => {
 
   describe('constructor', () => {
     it('defaults', () => {
-      expect(adapter.getImageName()).toBe('claude-code-sandboxed');
+      expect(adapter.getImageName()).toBe('ghcr.io/windschord/claude-work-sandbox');
       expect(adapter.getImageTag()).toBe('latest');
     });
 
@@ -93,7 +93,7 @@ describe('DockerPTYAdapter', () => {
       expect(mockDockerClient.createContainer).toHaveBeenCalled();
       const createOptions = mockDockerClient.createContainer.mock.calls[0][0];
       
-      expect(createOptions.Image).toBe('claude-code-sandboxed:latest');
+      expect(createOptions.Image).toBe('ghcr.io/windschord/claude-work-sandbox:latest');
       expect(createOptions.Tty).toBe(true);
       expect(createOptions.HostConfig.Binds).toContain('/workspace:/workspace');
       

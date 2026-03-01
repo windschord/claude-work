@@ -107,7 +107,7 @@ describe('EnvironmentCard', () => {
       render(<EnvironmentCard {...defaultProps} environment={environment} />);
 
       expect(screen.getByText(/イメージ:/)).toBeInTheDocument();
-      expect(screen.getByText('claude-code-sandboxed:latest')).toBeInTheDocument();
+      expect(screen.getByText('ghcr.io/windschord/claude-work-sandbox:latest')).toBeInTheDocument();
     });
 
     it('should display default image info when imageSource is not specified', () => {
@@ -119,7 +119,7 @@ describe('EnvironmentCard', () => {
       render(<EnvironmentCard {...defaultProps} environment={environment} />);
 
       expect(screen.getByText(/イメージ:/)).toBeInTheDocument();
-      expect(screen.getByText('claude-code-sandboxed:latest')).toBeInTheDocument();
+      expect(screen.getByText('ghcr.io/windschord/claude-work-sandbox:latest')).toBeInTheDocument();
     });
 
     it('should handle config as object (not string)', () => {
@@ -148,7 +148,7 @@ describe('EnvironmentCard', () => {
 
       // Should still render with default values
       expect(screen.getByText(/イメージ:/)).toBeInTheDocument();
-      expect(screen.getByText('claude-code-sandboxed:latest')).toBeInTheDocument();
+      expect(screen.getByText('ghcr.io/windschord/claude-work-sandbox:latest')).toBeInTheDocument();
     });
 
     it('should handle null config gracefully', () => {
@@ -161,7 +161,7 @@ describe('EnvironmentCard', () => {
 
       // Should still render with default values
       expect(screen.getByText(/イメージ:/)).toBeInTheDocument();
-      expect(screen.getByText('claude-code-sandboxed:latest')).toBeInTheDocument();
+      expect(screen.getByText('ghcr.io/windschord/claude-work-sandbox:latest')).toBeInTheDocument();
     });
   });
 
