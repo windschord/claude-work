@@ -37,13 +37,22 @@ ClaudeWork は、Claude Code セッションをブラウザから管理するた
 
 ### クイックスタート
 
-> **Linux環境の場合**: 起動前に `stat -c '%g' /var/run/docker.sock` の実行結果（数値）を `.env` の `DOCKER_GID` に設定してください（例: `DOCKER_GID=999`）。詳細は [セットアップガイド](docs/SETUP.md) を参照してください。
+git clone 不要で、`docker-compose.yml` を作成するだけで起動できます。
+
+> **Linux環境の場合**: 起動前に `stat -c '%g' /var/run/docker.sock` の実行結果（数値）を `DOCKER_GID` に設定してください（例: `DOCKER_GID=999`）。詳細は [セットアップガイド](docs/SETUP.md) を参照してください。
 
 ```bash
-git clone https://github.com/windschord/claude-work.git
-cd claude-work
-cp .env.example .env    # 環境変数ファイルを作成
-docker compose up -d    # バックグラウンドで起動
+# 1. 作業ディレクトリを作成
+mkdir claude-work && cd claude-work
+
+# 2. docker-compose.yml をダウンロード
+curl -fsSL -O https://raw.githubusercontent.com/windschord/claude-work/main/docker-compose.yml
+
+# 3. (Linux のみ) .env で docker.sock のアクセス権を設定
+echo "DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)" > .env
+
+# 4. 起動
+docker compose up -d
 ```
 
 ブラウザで `http://localhost:3000` を開きます。
@@ -51,7 +60,7 @@ docker compose up -d    # バックグラウンドで起動
 ```bash
 docker compose logs -f   # ログ表示
 docker compose down      # 停止
-docker compose up -d --build  # 再ビルドして起動
+docker compose pull && docker compose up -d  # 最新イメージに更新
 ```
 
 ポートを変更する場合:
@@ -70,6 +79,47 @@ HOST_PORT=3001
 
 # ログレベル
 LOG_LEVEL=info
+```
+
+### 既存ユーザー向け移行手順
+
+以前のバージョンで `./data` ディレクトリにデータを保存していた場合、named volume への移行が必要です:
+
+```bash
+# 1. コンテナを停止
+docker compose down
+
+# 2. docker-compose.override.yml でバインドマウントを維持する方法（推奨）
+cat > docker-compose.override.yml <<'EOF'
+services:
+  app:
+    volumes:
+      - ./data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+EOF
+
+# 3. 再起動
+docker compose up -d
+```
+
+バインドマウントを使わず named volume に移行する場合:
+
+```bash
+# 既存データを named volume にコピー
+docker volume create claudework-data
+docker run --rm -v ./data:/src -v claudework-data:/dst alpine cp -a /src/. /dst/
+```
+
+### 開発者向けセットアップ
+
+ソースコードを変更して開発する場合:
+
+```bash
+git clone https://github.com/windschord/claude-work.git
+cd claude-work
+cp .env.example .env
+cp docker-compose.override.yml.example docker-compose.override.yml
+docker compose up -d --build
 ```
 
 ## 環境変数

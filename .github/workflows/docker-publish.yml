@@ -31,7 +31,7 @@ jobs:
 
       - name: Set image name to lowercase
         id: image
-        run: echo "name=${GITHUB_REPOSITORY_OWNER,,}/claude-work" >> "$GITHUB_OUTPUT"
+        run: echo "name=${GITHUB_REPOSITORY_OWNER,,}/claude-work-sandbox" >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3

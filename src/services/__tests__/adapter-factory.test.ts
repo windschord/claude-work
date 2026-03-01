@@ -196,7 +196,7 @@ describe('AdapterFactory', () => {
 
       expect(DockerAdapter).toHaveBeenCalledWith({
         environmentId: 'env-docker-default',
-        imageName: 'claude-code-sandboxed',
+        imageName: 'ghcr.io/windschord/claude-work-sandbox',
         imageTag: 'latest',
         authDirPath: '/data/environments/env-docker-default',
         portMappings: undefined,

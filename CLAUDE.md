@@ -175,7 +175,7 @@ Configuration in `ecosystem.config.js` defines:
 ```bash
 docker compose up -d           # バックグラウンドで起動
 docker compose down            # 停止
-docker compose up -d --build   # 再ビルドして起動
+docker compose pull && docker compose up -d  # 最新イメージに更新
 docker compose logs -f         # ログ表示
 ```
 
