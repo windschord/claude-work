@@ -135,14 +135,17 @@ jobs:
         pkg=/tmp/cli-e2e-package/package
         ok=true
         for f in dist/src/bin/cli.js package.json .next/BUILD_ID; do
-          if [ ! -f "$pkg/$f" ]; then
-            echo "::error::Missing required file: $pkg/$f"
+          if [ ! -s "$pkg/$f" ]; then
+            echo "::error::Missing or empty required file: $pkg/$f"
             ok=false
           fi
         done
         for d in .next .next/static .next/server; do
           if [ ! -d "$pkg/$d" ]; then
             echo "::error::Missing required directory: $pkg/$d"
+            ok=false
+          elif [ "$d" != ".next" ] && ! find "$pkg/$d" -mindepth 1 -type f ! -name '.gitkeep' -print -quit | grep -q .; then
+            echo "::error::Directory contains no build files: $pkg/$d"
             ok=false
           fi
         done
@@ -195,10 +198,10 @@ jobs:
         # Copy only files needed for CLI E2E tests (skip npm pack for speed)
         cp package.json "$PKG/"
         cp -r dist "$PKG/"
-        # Copy .next structure; empty dirs need placeholders to survive artifact upload
-        mkdir -p "$PKG/.next/static" "$PKG/.next/server"
+        # Copy real Next.js build outputs
+        mkdir -p "$PKG/.next"
         cp .next/BUILD_ID "$PKG/.next/"
-        touch "$PKG/.next/static/.gitkeep" "$PKG/.next/server/.gitkeep"
+        cp -r .next/static .next/server "$PKG/.next/"
 
     - name: Upload CLI E2E package
       uses: actions/upload-artifact@v4
