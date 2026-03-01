@@ -48,7 +48,10 @@ mkdir claude-work && cd claude-work
 # 2. docker-compose.yml をダウンロード
 curl -fsSL -O https://raw.githubusercontent.com/windschord/claude-work/main/docker-compose.yml
 
-# 3. 起動
+# 3. (Linux のみ) .env で docker.sock のアクセス権を設定
+echo "DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)" > .env
+
+# 4. 起動
 docker compose up -d
 ```
 

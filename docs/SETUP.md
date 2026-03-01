@@ -213,9 +213,15 @@ docker --version
 sudo systemctl start docker
 ```
 
-#### Docker イメージのビルド
+#### sandbox Docker イメージの取得
 
-Docker イメージがない場合は自動的にビルドされますが、手動でビルドすることもできます:
+Docker 環境でセッションを作成するには、sandbox イメージが必要です。通常は初回セッション作成時に自動で pull されますが、手動で取得することもできます:
+
+```bash
+docker pull ghcr.io/windschord/claude-work-sandbox:latest
+```
+
+開発者がソースからビルドする場合:
 
 ```bash
 docker build -t ghcr.io/windschord/claude-work-sandbox:latest docker/
