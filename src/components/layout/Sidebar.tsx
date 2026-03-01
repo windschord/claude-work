@@ -7,7 +7,7 @@ import { useUIStore } from '@/store/ui';
 import { ProjectTreeItem } from './ProjectTreeItem';
 import { CreateSessionModal } from '@/components/sessions/CreateSessionModal';
 import { AddProjectButton } from './AddProjectButton';
-import { AddProjectModal } from '@/components/projects/AddProjectModal';
+import { AddProjectWizard } from '@/components/projects/AddProjectWizard';
 import { ProjectSettingsModal } from './ProjectSettingsModal';
 import { DeleteConfirmDialog } from './DeleteConfirmDialog';
 import { Project, Session } from '@/store';
@@ -256,8 +256,8 @@ export function Sidebar() {
         />
       )}
 
-      {/* プロジェクト追加モーダル */}
-      <AddProjectModal
+      {/* プロジェクト追加ウィザード */}
+      <AddProjectWizard
         isOpen={isAddProjectModalOpen}
         onClose={() => setIsAddProjectModalOpen(false)}
       />

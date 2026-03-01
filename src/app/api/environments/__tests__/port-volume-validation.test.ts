@@ -23,7 +23,7 @@ vi.mock('@/services/environment-service', () => ({
       type: 'DOCKER',
       config: '{}',
     }),
-    createAuthDirectory: vi.fn().mockResolvedValue(undefined),
+    createConfigVolumes: vi.fn().mockResolvedValue(undefined),
     findAll: vi.fn().mockResolvedValue([]),
     checkStatus: vi.fn().mockResolvedValue({ available: true }),
   },

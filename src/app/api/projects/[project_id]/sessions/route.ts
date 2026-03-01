@@ -210,95 +210,49 @@ export async function POST(
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    // 実効環境とdockerModeを決定
-    let effectiveEnvironmentId: string | null = null;
+    // プロジェクトのenvironment_idを使用（必須）
+    let effectiveEnvironmentId: string | null = project.environment_id;
     let effectiveDockerMode = false;
-
-    // パラメータ優先順位:
-    // 1. プロジェクトに environment_id が設定されていればそれを使用（最高優先）
-    // 2. リクエストボディの environment_id が指定されていればそれを使用
-    // 3. プロジェクトのclone_locationに基づいて自動設定（docker→デフォルトDocker環境）
-    // 4. dockerMode=true → レガシー動作（警告ログ出力）
-
     let effectiveEnvironmentType: string | null = null;
 
-    if (project.environment_id) {
-      // プロジェクト単位の環境設定を使用
-      const env = await environmentService.findById(project.environment_id);
-      if (!env) {
-        logger.warn('Project environment not found, falling back to auto-selection', {
-          project_id,
-          environment_id: project.environment_id,
-        });
-        // フォールバック処理は下のelse節で実施
-      } else {
-        effectiveEnvironmentId = project.environment_id;
-        effectiveEnvironmentType = env.type;
-        logger.info('Using project environment', {
-          project_id,
-          environment_id: project.environment_id,
-          environmentType: env.type,
-        });
-      }
-    }
-
     if (!effectiveEnvironmentId) {
-      if (requestEnvironmentId) {
-        // リクエストで指定された環境IDを使用
-        const env = await environmentService.findById(requestEnvironmentId);
-        if (!env) {
-          logger.warn('Request environment not found, falling back to auto-selection', {
+      // environment_idが未設定の場合はレガシーフォールバック（既存プロジェクトの後方互換性）
+      if (project.clone_location === 'docker') {
+        const defaultEnv = await environmentService.getDefault();
+        if (defaultEnv && defaultEnv.type === 'DOCKER') {
+          effectiveEnvironmentId = defaultEnv.id;
+          effectiveEnvironmentType = defaultEnv.type;
+          logger.info('Auto-selected Docker environment based on clone_location (legacy fallback)', {
             project_id,
-            environment_id: requestEnvironmentId,
+            clone_location: project.clone_location,
+            environment_id: defaultEnv.id,
           });
         } else {
-          effectiveEnvironmentId = requestEnvironmentId;
-          effectiveEnvironmentType = env.type;
-          logger.info('Using request environment', {
-            project_id,
-            environment_id: requestEnvironmentId,
-            environmentType: env.type,
-          });
-        }
-      }
-
-      if (!effectiveEnvironmentId) {
-        // プロジェクトのclone_locationに基づいて自動設定（dockerModeより優先）
-        if (project.clone_location === 'docker') {
-          // Docker環境でcloneされたプロジェクト → デフォルトのDocker環境を使用
-          const defaultEnv = await environmentService.getDefault();
-          if (defaultEnv && defaultEnv.type === 'DOCKER') {
-            effectiveEnvironmentId = defaultEnv.id;
-            effectiveEnvironmentType = defaultEnv.type;
-            logger.info('Auto-selected Docker environment based on clone_location', {
-              project_id,
-              clone_location: project.clone_location,
-              environment_id: defaultEnv.id,
-            });
-          } else {
-            // デフォルトのDocker環境がない場合は警告（後方互換性のためレガシーdockerModeを使用）
-            logger.warn('No default Docker environment found, falling back to legacy dockerMode', {
-              project_id,
-              clone_location: project.clone_location,
-            });
-            effectiveDockerMode = true;
-          }
-        } else {
-          // Host環境でcloneされたプロジェクト → environment_id=null（Host環境）
-          logger.info('Using Host environment based on clone_location', {
+          logger.warn('No default Docker environment found, falling back to legacy dockerMode', {
             project_id,
             clone_location: project.clone_location,
           });
+          effectiveDockerMode = true;
         }
-      }
-
-      if (!effectiveEnvironmentId && !effectiveDockerMode && dockerMode) {
+      } else if (dockerMode) {
         // レガシー方式: 警告を出力しつつ従来動作を維持
         logger.warn('dockerMode parameter is deprecated, use project environment_id instead', {
           project_id,
         });
         effectiveDockerMode = true;
       }
+      // requestEnvironmentId は無視
+    } else {
+      const env = await environmentService.findById(effectiveEnvironmentId);
+      if (!env) {
+        return NextResponse.json({ error: 'プロジェクトに設定された実行環境が見つかりません' }, { status: 400 });
+      }
+      effectiveEnvironmentType = env.type;
+      logger.info('Using project environment', {
+        project_id,
+        environment_id: effectiveEnvironmentId,
+        environmentType: env.type,
+      });
     }
 
     // HOST環境の利用制限チェック（キャッシュ済みのtypeを使用してDB再クエリを回避）
@@ -453,7 +407,7 @@ export async function POST(
           logger.info('Created worktree in Docker volume', {
             project_id,
             sessionName,
-            volumeName: `claude-repo-${project.id}`,
+            volumeName: project.docker_volume_id || `claude-repo-${project.id}`,
           });
         } else {
           // Host環境でcloneされたプロジェクト → GitServiceを使用

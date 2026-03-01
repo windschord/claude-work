@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { environmentService } from '@/services/environment-service';
+import { environmentService, EnvironmentInUseError } from '@/services/environment-service';
 import { logger } from '@/lib/logger';
 import { validatePortMappings, validateVolumeMounts } from '@/lib/docker-config-validator';
 import { isHostEnvironmentAllowed } from '@/lib/environment-detect';
@@ -210,7 +210,14 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     logger.info('Deleting environment', { id, name: environment.name });
 
-    await environmentService.delete(id);
+    try {
+      await environmentService.delete(id);
+    } catch (error) {
+      if (error instanceof EnvironmentInUseError) {
+        return NextResponse.json({ error: error.message }, { status: 409 });
+      }
+      throw error;
+    }
 
     logger.info('Environment deleted', { id });
     return NextResponse.json({ success: true });

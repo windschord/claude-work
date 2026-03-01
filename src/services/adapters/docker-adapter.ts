@@ -18,12 +18,13 @@ import { DockerPTYStream } from '../docker-pty-stream';
 import Docker from 'dockerode';
 import * as fsPromises from 'fs/promises';
 import type { PortMapping, VolumeMount } from '@/types/environment';
+import { getConfigVolumeNames } from '@/lib/docker-volume-utils';
 
 export interface DockerAdapterConfig {
   environmentId: string;
   imageName: string;
   imageTag: string;
-  authDirPath: string; // 環境専用認証ディレクトリ（絶対パス）
+  authDirPath?: string; // 環境専用認証ディレクトリ（絶対パス）。名前付きVolume使用時はundefined
   portMappings?: PortMapping[];    // カスタムポートマッピング
   volumeMounts?: VolumeMount[];    // カスタムボリュームマウント
 }
@@ -96,22 +97,34 @@ export class DockerAdapter extends BasePTYAdapter {
   private developerSettingsService: DeveloperSettingsService;
   private encryptionService: EncryptionService;
 
+  /**
+   * 環境IDからClaude設定用Volume名を生成
+   * @see getConfigVolumeNames (src/lib/docker-volume-utils.ts)
+   */
+  static getConfigVolumeNames(environmentId: string): {
+    claudeVolume: string;
+    configClaudeVolume: string;
+  } {
+    return getConfigVolumeNames(environmentId);
+  }
+
   constructor(config: DockerAdapterConfig) {
     super();
 
-    // Validate authDirPath: must be an absolute path containing environmentId
-    // to prevent accidental cross-environment auth directory usage
-    if (!config.authDirPath || !path.isAbsolute(config.authDirPath)) {
-      throw new Error(`DockerAdapter: authDirPath must be an absolute path, got: ${config.authDirPath}`);
-    }
-    const normalizedAuthPath = path.resolve(config.authDirPath);
-    // Use path separator boundaries to prevent false positives (e.g., env-1 matching env-10)
-    const pathSegments = normalizedAuthPath.split(path.sep);
-    if (!pathSegments.includes(config.environmentId)) {
-      throw new Error(
-        `DockerAdapter: authDirPath must contain environmentId for isolation. ` +
-        `Expected path segment '${config.environmentId}', got: ${normalizedAuthPath}`
-      );
+    // authDirPathが指定されている場合のみバリデーション（既存環境の後方互換性）
+    if (config.authDirPath) {
+      if (!path.isAbsolute(config.authDirPath)) {
+        throw new Error(`DockerAdapter: authDirPath must be an absolute path, got: ${config.authDirPath}`);
+      }
+      const normalizedAuthPath = path.resolve(config.authDirPath);
+      // Use path separator boundaries to prevent false positives (e.g., env-1 matching env-10)
+      const pathSegments = normalizedAuthPath.split(path.sep);
+      if (!pathSegments.includes(config.environmentId)) {
+        throw new Error(
+          `DockerAdapter: authDirPath must contain environmentId for isolation. ` +
+          `Expected path segment '${config.environmentId}', got: ${normalizedAuthPath}`
+        );
+      }
     }
 
     this.config = config;
@@ -158,14 +171,22 @@ export class DockerAdapter extends BasePTYAdapter {
       workingDirConfig = '/workspace';
     }
 
-    // Auth dirs (only mount if they exist, matching DockerPTYAdapter pattern)
-    const claudeDir = path.join(this.config.authDirPath, 'claude');
-    const claudeConfigDir = path.join(this.config.authDirPath, 'config', 'claude');
-    if (fs.existsSync(claudeDir)) {
-      Binds.push(`${claudeDir}:/home/node/.claude`);
-    }
-    if (fs.existsSync(claudeConfigDir)) {
-      Binds.push(`${claudeConfigDir}:/home/node/.config/claude`);
+    // Auth dirs: named volumes or bind mounts (backward compatibility)
+    if (this.config.authDirPath) {
+      // 既存環境: バインドマウント（後方互換性）
+      const claudeDir = path.join(this.config.authDirPath, 'claude');
+      const claudeConfigDir = path.join(this.config.authDirPath, 'config', 'claude');
+      if (fs.existsSync(claudeDir)) {
+        Binds.push(`${claudeDir}:/home/node/.claude`);
+      }
+      if (fs.existsSync(claudeConfigDir)) {
+        Binds.push(`${claudeConfigDir}:/home/node/.config/claude`);
+      }
+    } else {
+      // 新規環境: 名前付きVolume
+      const volumes = DockerAdapter.getConfigVolumeNames(this.config.environmentId);
+      Binds.push(`${volumes.claudeVolume}:/home/node/.claude`);
+      Binds.push(`${volumes.configClaudeVolume}:/home/node/.config/claude`);
     }
 
     // Git auth (RO)
@@ -1335,6 +1356,8 @@ export class DockerAdapter extends BasePTYAdapter {
    * SSH鍵をコンテナに適用
    */
   private async applySSHKeys(containerId: string): Promise<void> {
+    let useTempDir = false;
+    let sshDir = '';
     try {
       // SSH鍵一覧を取得
       const keys = await this.getAllSSHKeys();
@@ -1344,8 +1367,11 @@ export class DockerAdapter extends BasePTYAdapter {
         return;
       }
 
-      // 一時ディレクトリに鍵を保存
-      const sshDir = path.join(this.config.authDirPath, 'ssh');
+      // named volumeモードではOS一時領域を使用
+      useTempDir = !this.config.authDirPath;
+      sshDir = useTempDir
+        ? await fsPromises.mkdtemp(path.join(os.tmpdir(), 'claude-ssh-'))
+        : path.join(this.config.authDirPath!, 'ssh');
       await fsPromises.mkdir(sshDir, { recursive: true });
 
       const keyPaths: string[] = [];
@@ -1416,7 +1442,7 @@ export class DockerAdapter extends BasePTYAdapter {
       } finally {
         tarStream.destroy();
       }
-      
+
       // 所有権の修正（putArchiveはrootで展開される可能性があるため）
       const execChown = await container.exec({
         Cmd: ['chown', '-R', 'node:node', '/home/node/.ssh'],
@@ -1430,6 +1456,15 @@ export class DockerAdapter extends BasePTYAdapter {
         error: error instanceof Error ? error.message : 'Unknown error',
       });
       // SSH鍵の失敗は致命的ではないため、エラーをログに記録して続行
+    } finally {
+      // named volumeモードの一時ディレクトリを確実にクリーンアップ
+      if (useTempDir && sshDir) {
+        try {
+          await fsPromises.rm(sshDir, { recursive: true, force: true });
+        } catch {
+          // クリーンアップ失敗は無視
+        }
+      }
     }
   }
 
@@ -1462,6 +1497,11 @@ ${identityFiles}
    */
   async cleanupSSHKeys(): Promise<void> {
     try {
+      if (!this.config.authDirPath) {
+        // named volumeモードでは一時ディレクトリはapplySSHKeys内で既にクリーンアップ済み
+        logger.debug('SSH key cleanup skipped (named volume mode, temp dir already cleaned)');
+        return;
+      }
       const sshDir = path.join(this.config.authDirPath, 'ssh');
       const files = await fsPromises.readdir(sshDir);
 

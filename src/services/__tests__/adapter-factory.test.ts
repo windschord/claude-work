@@ -199,6 +199,8 @@ describe('AdapterFactory', () => {
         imageName: 'ghcr.io/windschord/claude-work-sandbox',
         imageTag: 'latest',
         authDirPath: '/data/environments/env-docker-default',
+        portMappings: undefined,
+        volumeMounts: undefined,
       });
     });
   });
@@ -380,6 +382,34 @@ describe('AdapterFactory', () => {
 
       expect(HostAdapter).toHaveBeenCalledTimes(2);
       expect(DockerAdapter).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('getAdapter - DOCKER with null auth_dir_path (named volumes)', () => {
+    it('auth_dir_pathがnullでもDockerAdapterを作成できる', () => {
+      const environment: ExecutionEnvironment = {
+        id: 'env-docker-no-auth',
+        name: 'Docker Named Volume',
+        type: 'DOCKER',
+        description: null,
+        config: JSON.stringify({ imageName: 'my-image', imageTag: 'v1' }),
+        auth_dir_path: null,
+        is_default: false,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      const adapter = AdapterFactory.getAdapter(environment);
+
+      expect(adapter).toBeDefined();
+      expect(DockerAdapter).toHaveBeenCalledWith({
+        environmentId: 'env-docker-no-auth',
+        imageName: 'my-image',
+        imageTag: 'v1',
+        authDirPath: undefined,
+        portMappings: undefined,
+        volumeMounts: undefined,
+      });
     });
   });
 });

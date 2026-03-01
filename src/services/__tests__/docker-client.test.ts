@@ -114,6 +114,46 @@ describe('DockerClient', () => {
     expect(mockVolume.remove).toHaveBeenCalled();
   });
 
+  describe('listVolumes', () => {
+    it('Docker Volume一覧を返す', async () => {
+      const mockResponse = {
+        Volumes: [
+          { Name: 'cw-repo-my-project', Driver: 'local', CreatedAt: '2026-01-15T10:30:00Z', Labels: {}, Mountpoint: '/var/lib/docker/volumes/cw-repo-my-project/_data', Scope: 'local' },
+          { Name: 'claude-repo-abc123', Driver: 'local', CreatedAt: '2025-12-01T08:00:00Z', Labels: {}, Mountpoint: '/var/lib/docker/volumes/claude-repo-abc123/_data', Scope: 'local' },
+        ],
+        Warnings: [],
+      };
+      mockDockerInstance.listVolumes = vi.fn().mockResolvedValue(mockResponse);
+      const result = await dockerClient.listVolumes();
+      expect(mockDockerInstance.listVolumes).toHaveBeenCalled();
+      expect(result.Volumes).toHaveLength(2);
+      expect(result.Volumes[0].Name).toBe('cw-repo-my-project');
+    });
+
+    it('エラー時に例外をスローする', async () => {
+      mockDockerInstance.listVolumes = vi.fn().mockRejectedValue(new Error('Docker error'));
+      await expect(dockerClient.listVolumes()).rejects.toThrow('Docker error');
+    });
+  });
+
+  describe('inspectVolume', () => {
+    it('指定Volumeの詳細を返す', async () => {
+      const mockInfo = { Name: 'cw-repo-test', Driver: 'local', CreatedAt: '2026-01-15T10:30:00Z', Labels: {}, Mountpoint: '/var/lib/docker/volumes/cw-repo-test/_data', Scope: 'local' };
+      const mockVolume = { inspect: vi.fn().mockResolvedValue(mockInfo) };
+      mockDockerInstance.getVolume.mockReturnValue(mockVolume);
+      const result = await dockerClient.inspectVolume('cw-repo-test');
+      expect(mockDockerInstance.getVolume).toHaveBeenCalledWith('cw-repo-test');
+      expect(mockVolume.inspect).toHaveBeenCalled();
+      expect(result.Name).toBe('cw-repo-test');
+    });
+
+    it('存在しないVolumeでエラーをスローする', async () => {
+      const mockVolume = { inspect: vi.fn().mockRejectedValue(new Error('No such volume')) };
+      mockDockerInstance.getVolume.mockReturnValue(mockVolume);
+      await expect(dockerClient.inspectVolume('nonexistent')).rejects.toThrow('No such volume');
+    });
+  });
+
   describe('run', () => {
     it('should return StatusCode from array result (Dockerode format)', async () => {
       const { Writable } = await import('stream');

@@ -96,9 +96,19 @@ describe('GET /api/projects', () => {
 describe('POST /api/projects', () => {
   let testRepoPath: string;
   let originalAllowedDirs: string | undefined;
+  let testEnvId: string;
 
   beforeEach(async () => {
     db.delete(schema.projects).run();
+
+    // テスト用の実行環境を作成
+    const env = db.insert(schema.executionEnvironments).values({
+      name: 'Test Environment',
+      type: 'DOCKER',
+      config: '{}',
+      is_default: false,
+    }).returning().get()!;
+    testEnvId = env.id;
 
     // 環境変数をバックアップして無効化（テストごとに制御するため）
     originalAllowedDirs = process.env.ALLOWED_PROJECT_DIRS;
@@ -117,6 +127,7 @@ describe('POST /api/projects', () => {
 
   afterEach(async () => {
     db.delete(schema.projects).run();
+    db.delete(schema.executionEnvironments).where(eq(schema.executionEnvironments.id, testEnvId)).run();
     if (testRepoPath) {
       rmSync(testRepoPath, { recursive: true, force: true });
     }
@@ -136,6 +147,7 @@ describe('POST /api/projects', () => {
       },
       body: JSON.stringify({
         path: testRepoPath,
+        environment_id: testEnvId,
       }),
     });
 
@@ -161,6 +173,7 @@ describe('POST /api/projects', () => {
       },
       body: JSON.stringify({
         path: invalidPath,
+        environment_id: testEnvId,
       }),
     });
 
@@ -173,6 +186,24 @@ describe('POST /api/projects', () => {
     rmSync(invalidPath, { recursive: true, force: true });
   });
 
+  it('should return 400 when environment_id is not provided', async () => {
+    const request = new NextRequest('http://localhost:3000/api/projects', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        path: testRepoPath,
+      }),
+    });
+
+    const response = await POST(request);
+    expect(response.status).toBe(400);
+
+    const data = await response.json();
+    expect(data.error).toBe('実行環境の指定は必須です');
+  });
+
   it('should return 409 when adding duplicate project path', async () => {
     // 最初のプロジェクト作成
     const firstRequest = new NextRequest('http://localhost:3000/api/projects', {
@@ -182,6 +213,7 @@ describe('POST /api/projects', () => {
       },
       body: JSON.stringify({
         path: testRepoPath,
+        environment_id: testEnvId,
       }),
     });
 
@@ -196,6 +228,7 @@ describe('POST /api/projects', () => {
       },
       body: JSON.stringify({
         path: testRepoPath,
+        environment_id: testEnvId,
       }),
     });
 
@@ -214,6 +247,7 @@ describe('POST /api/projects', () => {
       },
       body: JSON.stringify({
         path: testRepoPath,
+        environment_id: testEnvId,
       }),
     });
 
@@ -249,6 +283,7 @@ describe('POST /api/projects', () => {
         },
         body: JSON.stringify({
           path: testRepoPath,
+          environment_id: testEnvId,
         }),
       });
 
@@ -266,6 +301,7 @@ describe('POST /api/projects', () => {
         },
         body: JSON.stringify({
           path: testRepoPath,
+          environment_id: testEnvId,
         }),
       });
 
@@ -293,6 +329,7 @@ describe('POST /api/projects', () => {
         },
         body: JSON.stringify({
           path: allowedPath,
+          environment_id: testEnvId,
         }),
       });
 
@@ -322,6 +359,7 @@ describe('POST /api/projects', () => {
         },
         body: JSON.stringify({
           path: disallowedPath,
+          environment_id: testEnvId,
         }),
       });
 

@@ -1,5 +1,6 @@
 'use client';
 
+import { useRef, useState, useEffect } from 'react';
 import { Environment, EnvironmentType } from '@/hooks/useEnvironments';
 import { ApplyChangesButton } from './ApplyChangesButton';
 
@@ -7,6 +8,7 @@ interface EnvironmentCardProps {
   environment: Environment;
   onEdit: (environment: Environment) => void;
   onDelete: (environment: Environment) => void;
+  highlighted?: boolean;
 }
 
 /**
@@ -116,13 +118,29 @@ function StatusIndicator({ available, authenticated }: { available: boolean; aut
  * 環境の情報を表示し、編集、削除のアクションを提供します。
  * デフォルト環境は削除ボタンが無効化されます。
  *
+ * NOTE: 将来的にハイライト（例: 保存後のフラッシュ効果）を実装する場合は、
+ * 環境の更新やリスト再取得でコンポーネントが再マウントされることを考慮し、
+ * keyの変更やアニメーション再トリガーの仕組みが必要になる可能性がある。
+ *
  * @param props - コンポーネントのプロパティ
  * @param props.environment - 表示する環境情報
  * @param props.onEdit - 環境を編集するときのコールバック関数
  * @param props.onDelete - 環境を削除するときのコールバック関数
  * @returns 環境カードのJSX要素
  */
-export function EnvironmentCard({ environment, onEdit, onDelete }: EnvironmentCardProps) {
+export function EnvironmentCard({ environment, onEdit, onDelete, highlighted }: EnvironmentCardProps) {
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [isHighlighted, setIsHighlighted] = useState(false);
+
+  useEffect(() => {
+    if (highlighted) {
+      setIsHighlighted(true);
+      cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const timer = setTimeout(() => setIsHighlighted(false), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [highlighted]);
+
   const handleEdit = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
     onEdit(environment);
@@ -138,9 +156,14 @@ export function EnvironmentCard({ environment, onEdit, onDelete }: EnvironmentCa
   const authenticated = status?.authenticated ?? false;
 
   return (
-    <div className={`border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg p-4 hover:shadow-md transition-shadow ${
-      environment.disabled ? 'opacity-60' : ''
-    }`}>
+    <div
+      ref={cardRef}
+      className={`bg-white dark:bg-gray-800 rounded-lg p-4 hover:shadow-md transition-all duration-500 ${
+        isHighlighted
+          ? 'border-2 border-blue-500 ring-2 ring-blue-200 dark:ring-blue-800'
+          : 'border border-gray-200 dark:border-gray-700'
+      } ${environment.disabled ? 'opacity-60' : ''}`}
+    >
       <div className="flex justify-between items-start mb-2">
         <div className="flex items-center gap-2">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
@@ -196,8 +219,16 @@ export function EnvironmentCard({ environment, onEdit, onDelete }: EnvironmentCa
           type="button"
           onClick={handleDelete}
           className="flex-1 bg-red-600 dark:bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 dark:hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          disabled={environment.is_default || environment.disabled}
-          title={environment.is_default ? 'デフォルト環境は削除できません' : environment.disabled ? '無効化された環境です' : ''}
+          disabled={environment.is_default || environment.disabled || (environment.project_count !== undefined && environment.project_count > 0)}
+          title={
+            environment.is_default
+              ? 'デフォルト環境は削除できません'
+              : environment.disabled
+              ? '無効化された環境です'
+              : environment.project_count !== undefined && environment.project_count > 0
+              ? `${environment.project_count}個のプロジェクトで使用中のため削除できません`
+              : ''
+          }
         >
           削除
         </button>

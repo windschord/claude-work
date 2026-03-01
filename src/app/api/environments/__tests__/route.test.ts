@@ -33,14 +33,16 @@ vi.mock('tar-fs', () => ({
 const mockFindAll = vi.fn();
 const mockCreate = vi.fn();
 const mockCheckStatus = vi.fn();
-const mockCreateAuthDirectory = vi.fn();
+const mockCreateConfigVolumes = vi.fn();
+const mockDelete = vi.fn();
 
 vi.mock('@/services/environment-service', () => ({
   environmentService: {
     findAll: () => mockFindAll(),
     create: (input: unknown) => mockCreate(input),
     checkStatus: (id: string) => mockCheckStatus(id),
-    createAuthDirectory: (id: string) => mockCreateAuthDirectory(id),
+    createConfigVolumes: (id: string) => mockCreateConfigVolumes(id),
+    delete: (id: string) => mockDelete(id),
   },
 }));
 
@@ -352,7 +354,7 @@ describe('/api/environments', () => {
       expect(data.environment.name).toBe('New Host');
       expect(mockCreate).toHaveBeenCalledTimes(1);
       // HOST環境では認証ディレクトリは作成されない
-      expect(mockCreateAuthDirectory).not.toHaveBeenCalled();
+      expect(mockCreateConfigVolumes).not.toHaveBeenCalled();
     });
 
     it('DOCKER環境を作成すると認証ディレクトリも作成される', async () => {
@@ -369,7 +371,7 @@ describe('/api/environments', () => {
       };
 
       mockCreate.mockResolvedValue(newEnvironment);
-      mockCreateAuthDirectory.mockResolvedValue('/data/environments/env-docker-new');
+      mockCreateConfigVolumes.mockResolvedValue(undefined);
 
       const request = new NextRequest('http://localhost:3000/api/environments', {
         method: 'POST',
@@ -388,8 +390,43 @@ describe('/api/environments', () => {
       expect(response.status).toBe(201);
       expect(data.environment.id).toBe('env-docker-new');
       expect(mockCreate).toHaveBeenCalledTimes(1);
-      expect(mockCreateAuthDirectory).toHaveBeenCalledTimes(1);
-      expect(mockCreateAuthDirectory).toHaveBeenCalledWith('env-docker-new');
+      expect(mockCreateConfigVolumes).toHaveBeenCalledTimes(1);
+      expect(mockCreateConfigVolumes).toHaveBeenCalledWith('env-docker-new');
+    });
+
+    it('DOCKER環境作成時にcreateConfigVolumesが失敗するとロールバックされる', async () => {
+      const newEnvironment = {
+        id: 'env-docker-rollback',
+        name: 'Docker Rollback Env',
+        type: 'DOCKER',
+        description: null,
+        config: '{}',
+        auth_dir_path: null,
+        is_default: false,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      mockCreate.mockResolvedValue(newEnvironment);
+      mockCreateConfigVolumes.mockRejectedValue(new Error('Volume creation failed'));
+      mockDelete.mockResolvedValue(undefined);
+
+      const request = new NextRequest('http://localhost:3000/api/environments', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: 'Docker Rollback Env',
+          type: 'DOCKER',
+          config: {},
+        }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(500);
+      expect(data.error).toBe('設定Volumeの作成に失敗しました');
+      expect(mockDelete).toHaveBeenCalledWith('env-docker-rollback');
     });
 
     it('名前が空の場合は400エラー', async () => {
@@ -494,7 +531,7 @@ describe('/api/environments', () => {
       expect(response.status).toBe(201);
       expect(data.environment.type).toBe('SSH');
       // SSH環境でも認証ディレクトリは作成されない（現時点では）
-      expect(mockCreateAuthDirectory).not.toHaveBeenCalled();
+      expect(mockCreateConfigVolumes).not.toHaveBeenCalled();
     });
 
     it('HOST不許可時にHOST環境作成で403エラー', async () => {
@@ -578,7 +615,7 @@ describe('/api/environments', () => {
         };
 
         mockCreate.mockResolvedValue(newEnvironment);
-        mockCreateAuthDirectory.mockResolvedValue('/data/environments/env-docker-build');
+        mockCreateConfigVolumes.mockResolvedValue(undefined);
 
         const request = new NextRequest('http://localhost:3000/api/environments', {
           method: 'POST',
@@ -602,7 +639,7 @@ describe('/api/environments', () => {
         // buildImageが呼ばれたことを確認
         expect(mockDockerClient.buildImage).toHaveBeenCalled();
         // 認証ディレクトリが作成されたことを確認
-        expect(mockCreateAuthDirectory).toHaveBeenCalledWith('env-docker-build');
+        expect(mockCreateConfigVolumes).toHaveBeenCalledWith('env-docker-build');
         // configにビルドしたイメージ名が設定されていることを確認
         expect(mockCreate).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -739,7 +776,7 @@ describe('/api/environments', () => {
         };
 
         mockCreate.mockResolvedValue(newEnvironment);
-        mockCreateAuthDirectory.mockResolvedValue('/data/environments/env-docker-existing');
+        mockCreateConfigVolumes.mockResolvedValue(undefined);
 
         const request = new NextRequest('http://localhost:3000/api/environments', {
           method: 'POST',
@@ -764,7 +801,7 @@ describe('/api/environments', () => {
         // ビルドは実行されない
         expect(mockDockerClient.buildImage).not.toHaveBeenCalled();
         // 認証ディレクトリは作成される
-        expect(mockCreateAuthDirectory).toHaveBeenCalledWith('env-docker-existing');
+        expect(mockCreateConfigVolumes).toHaveBeenCalledWith('env-docker-existing');
       });
     });
   });

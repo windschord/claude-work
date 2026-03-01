@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useAppStore, Project } from '@/store';
 import { ProjectCard } from './ProjectCard';
-import { AddProjectModal } from './AddProjectModal';
+import { AddProjectWizard } from './AddProjectWizard';
 import { DeleteProjectDialog } from './DeleteProjectDialog';
 import { ProjectSettingsModal } from './ProjectSettingsModal';
 
@@ -75,7 +75,7 @@ export function ProjectList() {
         </div>
       )}
 
-      <AddProjectModal
+      <AddProjectWizard
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
       />

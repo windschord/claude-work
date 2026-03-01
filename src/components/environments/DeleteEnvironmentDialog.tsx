@@ -37,7 +37,10 @@ export function DeleteEnvironmentDialog({
     return null;
   }
 
+  const isInUse = (environment?.project_count ?? 0) > 0;
+
   const handleDelete = async () => {
+    if (isInUse) return;
     setError('');
     setIsLoading(true);
 
@@ -103,6 +106,13 @@ export function DeleteEnvironmentDialog({
                       関連する認証ディレクトリも削除されます。
                     </p>
                   )}
+                  {environment.project_count !== undefined && environment.project_count > 0 && (
+                    <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-md">
+                      <p className="text-sm text-amber-700 dark:text-amber-300">
+                        この環境は {environment.project_count} 個のプロジェクトで使用中のため削除できません。
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {error && (
@@ -124,7 +134,7 @@ export function DeleteEnvironmentDialog({
                     type="button"
                     onClick={handleDelete}
                     className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={isLoading}
+                    disabled={isLoading || isInUse}
                   >
                     {isLoading ? '削除中...' : '削除'}
                   </button>

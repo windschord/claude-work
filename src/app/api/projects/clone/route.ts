@@ -9,6 +9,7 @@ import { logger } from '@/lib/logger';
 import { DockerGitService } from '@/services/docker-git-service';
 import { GitHubPATService } from '@/services/github-pat-service';
 import { validateCloneLocation, validateProjectName } from '@/lib/validation';
+import { environmentService } from '@/services/environment-service';
 
 /**
  * POST /api/projects/clone - リモートリポジトリをcloneしてプロジェクト登録
@@ -39,10 +40,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
 
-    const { url, targetDir, name, cloneLocation, githubPatId } = body;
+    const { url, targetDir, name, cloneLocation, githubPatId, environment_id } = body;
 
     if (!url) {
       return NextResponse.json({ error: 'URLは必須です' }, { status: 400 });
+    }
+
+    if (typeof environment_id !== 'string' || environment_id.trim() === '') {
+      return NextResponse.json({ error: '実行環境の指定は必須です' }, { status: 400 });
+    }
+
+    const normalizedEnvironmentId = environment_id.trim();
+
+    // environment_id の存在確認
+    const env = await environmentService.findById(normalizedEnvironmentId);
+    if (!env) {
+      return NextResponse.json({ error: '指定された実行環境が見つかりません' }, { status: 400 });
     }
 
     // URL検証
@@ -77,14 +90,12 @@ export async function POST(request: NextRequest) {
           path: `temp-${Date.now()}`, // 一時的なユニーク値（UNIQUE制約対策）
           remote_url: url,
           clone_location: 'docker',
+          environment_id: normalizedEnvironmentId,
         }).returning().get();
 
         if (!project) {
           throw new Error('Failed to create project');
         }
-
-        // ボリューム名を先に決定（クリーンアップ用）
-        volumeName = `claude-repo-${project.id}`;
 
         logger.info('Project created (pre-clone)', {
           id: project.id,
@@ -107,7 +118,8 @@ export async function POST(request: NextRequest) {
               cloneResult = await dockerGitService.cloneRepositoryWithPAT(
                 url,
                 project.id.toString(),
-                token
+                token,
+                projectName
               );
             } catch (error) {
               logger.error('PAT authentication failed', { githubPatId, error });
@@ -123,6 +135,7 @@ export async function POST(request: NextRequest) {
             cloneResult = await dockerGitService.cloneRepository({
               url: url,
               projectId: project.id.toString(),
+              projectName: projectName,
             });
           }
 
@@ -132,6 +145,20 @@ export async function POST(request: NextRequest) {
             logger.error('Docker clone failed, project deleted', { projectId: project.id, error: cloneResult.error });
             return NextResponse.json({ error: cloneResult.error || 'Docker clone failed' }, { status: 400 });
           }
+
+          // clone結果からvolume名を取得（必須）
+          if (!cloneResult.volumeName) {
+            logger.error('Docker clone succeeded but volumeName is missing', {
+              projectId: project.id,
+              cloneResult,
+            });
+            db.delete(schema.projects).where(eq(schema.projects.id, project.id)).run();
+            return NextResponse.json(
+              { error: 'Docker Volume情報の取得に失敗しました' },
+              { status: 500 }
+            );
+          }
+          volumeName = cloneResult.volumeName;
 
           // pathとdocker_volume_idを更新
           const updatedProject = db.update(schema.projects)
@@ -263,6 +290,7 @@ export async function POST(request: NextRequest) {
         path: cloneResult.path,
         remote_url: url,
         clone_location: 'host',
+        environment_id: normalizedEnvironmentId,
       }).returning().get();
 
       if (!project) {
