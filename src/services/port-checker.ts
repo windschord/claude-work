@@ -192,6 +192,7 @@ export class PortChecker {
     ports: number[],
     excludeEnvironmentId?: string
   ): Promise<PortCheckResult[]> {
+    let hasConfigParseError = false;
     let envs;
     try {
       // DOCKER 環境を全取得
@@ -218,7 +219,8 @@ export class PortChecker {
       try {
         config = JSON.parse(env.config || '{}');
       } catch {
-        // JSON パースエラーは無視（空のconfigとして扱う）
+        // 一部環境の設定を読めない場合は安全側に倒す
+        hasConfigParseError = true;
         continue;
       }
 
@@ -241,6 +243,10 @@ export class PortChecker {
           source: 'claudework' as const,
           usedBy,
         };
+      }
+      // JSONパースエラーがあった場合、未検出ポートはunknownにフォールバック
+      if (hasConfigParseError) {
+        return { port, status: 'unknown' as PortCheckStatus };
       }
       return { port, status: 'available' as PortCheckStatus };
     });
