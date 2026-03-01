@@ -46,6 +46,7 @@ export function AddProjectWizard({ isOpen, onClose }: AddProjectWizardProps) {
     setWizardData({ ...initialWizardData });
     setIsSubmitting(false);
     setError(null);
+    setHostEnvironmentDisabled(false);
   }, []);
 
   const handleClose = useCallback(() => {
@@ -112,10 +113,16 @@ export function AddProjectWizard({ isOpen, onClose }: AddProjectWizardProps) {
           projectId = data.project.id;
         }
 
-        await fetchProjects();
         handleDataChange({ createdProjectId: projectId });
         toast.success('プロジェクトを追加しました');
         setCurrentStep(4);
+
+        // プロジェクトリスト更新は成功/失敗に関わらずStep 4遷移には影響しない
+        try {
+          await fetchProjects();
+        } catch {
+          // プロジェクト一覧の再取得失敗はUI操作に影響しないため無視
+        }
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'プロジェクトの追加に失敗しました';
         setError(errorMessage);

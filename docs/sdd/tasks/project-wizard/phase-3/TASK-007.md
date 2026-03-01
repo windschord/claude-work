@@ -62,6 +62,7 @@ const handleProjectSubmit = async () => {
         body: JSON.stringify({
           path: wizardData.localPath.trim(),
           name: wizardData.projectName || undefined,
+          environment_id: wizardData.environmentId,
         }),
       });
       const data = await response.json();
@@ -76,6 +77,7 @@ const handleProjectSubmit = async () => {
           targetDir: wizardData.targetDir || undefined,
           cloneLocation: wizardData.cloneLocation,
           githubPatId: wizardData.githubPatId || undefined,
+          environment_id: wizardData.environmentId,
         }),
       });
       const data = await response.json();

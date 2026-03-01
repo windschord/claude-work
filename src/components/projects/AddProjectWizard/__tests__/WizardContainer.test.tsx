@@ -59,6 +59,10 @@ describe('AddProjectWizard', () => {
     vi.clearAllMocks();
   });
 
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it('isOpen=trueの時にモーダルが表示される', () => {
     render(<AddProjectWizard isOpen={true} onClose={mockOnClose} />);
     expect(screen.getByText('プロジェクトを追加')).toBeInTheDocument();
@@ -180,7 +184,7 @@ describe('AddProjectWizard', () => {
         ok: true,
         json: async () => ({ project: { id: 'proj-1' } }),
       });
-      global.fetch = mockFetch;
+      vi.stubGlobal('fetch', mockFetch);
       mockFetchProjects.mockResolvedValue(undefined);
 
       await navigateToStep3();
@@ -214,7 +218,7 @@ describe('AddProjectWizard', () => {
         ok: true,
         json: async () => ({ project: { id: 'proj-2' } }),
       });
-      global.fetch = mockFetch;
+      vi.stubGlobal('fetch', mockFetch);
       mockFetchProjects.mockResolvedValue(undefined);
 
       await navigateToStep3();
@@ -252,7 +256,7 @@ describe('AddProjectWizard', () => {
         ok: true,
         json: async () => ({ project: { id: 'proj-1' } }),
       });
-      global.fetch = mockFetch;
+      vi.stubGlobal('fetch', mockFetch);
       mockFetchProjects.mockResolvedValue(undefined);
 
       await navigateToStep3();
@@ -276,7 +280,7 @@ describe('AddProjectWizard', () => {
         ok: false,
         json: async () => ({ error: 'テスト用エラーメッセージ' }),
       });
-      global.fetch = mockFetch;
+      vi.stubGlobal('fetch', mockFetch);
 
       await navigateToStep3();
 
@@ -300,7 +304,7 @@ describe('AddProjectWizard', () => {
         ok: false,
         json: async () => ({ error: 'テスト用エラー' }),
       });
-      global.fetch = mockFetch;
+      vi.stubGlobal('fetch', mockFetch);
 
       await navigateToStep3();
 
