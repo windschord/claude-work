@@ -182,9 +182,11 @@ jobs:
         # Copy only files needed for CLI E2E tests (skip npm pack for speed)
         cp package.json "$PKG/"
         cp -r dist "$PKG/"
-        # Create minimal .next structure (tests only check directory existence)
+        # Create minimal .next structure (tests check directory existence)
+        # Note: empty dirs are lost during artifact upload, so add placeholder files
         mkdir -p "$PKG/.next/static" "$PKG/.next/server"
         cp .next/BUILD_ID "$PKG/.next/"
+        touch "$PKG/.next/static/.gitkeep" "$PKG/.next/server/.gitkeep"
 
     - name: Upload CLI E2E package
       uses: actions/upload-artifact@v4
