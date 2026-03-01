@@ -262,7 +262,7 @@ export function PortMappingList({ value, onChange, excludeEnvironmentId }: PortM
             type="button"
             onClick={handleCheckPorts}
             disabled={isChecking}
-            className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
+            className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             aria-label="ポートの使用状況をチェック"
           >
             {isChecking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
