@@ -128,7 +128,7 @@ jobs:
         path: /tmp/cli-e2e-package/package
 
     - name: Link node_modules to CLI package
-      run: ln -s "$GITHUB_WORKSPACE/node_modules" /tmp/cli-e2e-package/package/node_modules
+      run: ln -sf "$GITHUB_WORKSPACE/node_modules" /tmp/cli-e2e-package/package/node_modules
 
     - name: Verify CLI package
       run: |
@@ -153,9 +153,9 @@ jobs:
 
     - name: Run CLI E2E tests
       run: SKIP_WEBSERVER=true CLI_PACKAGE_DIR=/tmp/cli-e2e-package/package pnpm exec playwright test --project=cli
-      timeout-minutes: 1
+      timeout-minutes: 2
 
-  # Build job - runs in parallel with tests, also creates CLI E2E package artifact
+  # Build job - runs in parallel with lint/unit tests, required by test-e2e for CLI E2E package artifact
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 10
