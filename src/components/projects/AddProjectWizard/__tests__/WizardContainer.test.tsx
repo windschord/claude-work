@@ -278,7 +278,7 @@ describe('AddProjectWizard', () => {
     it('プロジェクト作成失敗時にStep 4でエラーが表示される', async () => {
       const mockFetch = vi.fn().mockResolvedValue({
         ok: false,
-        json: async () => ({ error: 'テスト用エラーメッセージ' }),
+        text: async () => JSON.stringify({ error: 'テスト用エラーメッセージ' }),
       });
       vi.stubGlobal('fetch', mockFetch);
 
@@ -302,7 +302,7 @@ describe('AddProjectWizard', () => {
     it('プロジェクト作成失敗時に「もう一度試す」でStep 3に戻れる', async () => {
       const mockFetch = vi.fn().mockResolvedValue({
         ok: false,
-        json: async () => ({ error: 'テスト用エラー' }),
+        text: async () => JSON.stringify({ error: 'テスト用エラー' }),
       });
       vi.stubGlobal('fetch', mockFetch);
 

@@ -75,12 +75,13 @@ export function AddProjectWizard({ isOpen, onClose }: AddProjectWizardProps) {
 
   /** レスポンスからエラーメッセージを安全に抽出する */
   const parseErrorResponse = async (response: Response, fallback: string): Promise<string> => {
+    const raw = await response.text().catch(() => '');
+    if (!raw) return fallback;
     try {
-      const data = await response.json();
-      return data.error || fallback;
+      const data = JSON.parse(raw) as { error?: string };
+      return data.error || raw || fallback;
     } catch {
-      const text = await response.text().catch(() => '');
-      return text || fallback;
+      return raw || fallback;
     }
   };
 
@@ -162,7 +163,7 @@ export function AddProjectWizard({ isOpen, onClose }: AddProjectWizardProps) {
     }
 
     if (currentStep < TOTAL_STEPS) {
-      setCurrentStep((prev) => prev + 1);
+      setCurrentStep(currentStep + 1);
     }
   }, [currentStep, wizardData, isSubmitting, fetchProjects, handleDataChange]);
 
