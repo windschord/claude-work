@@ -37,6 +37,7 @@ export function AddProjectWizard({ isOpen, onClose }: AddProjectWizardProps) {
   const [error, setError] = useState<string | null>(null);
   const [hostEnvironmentDisabled, setHostEnvironmentDisabled] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const submitInFlightRef = useRef(false);
 
   const handleDataChange = useCallback((data: Partial<WizardData>) => {
     setWizardData((prev) => ({ ...prev, ...data }));
@@ -45,6 +46,7 @@ export function AddProjectWizard({ isOpen, onClose }: AddProjectWizardProps) {
   const handleReset = useCallback(() => {
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
+    submitInFlightRef.current = false;
     setCurrentStep(1);
     setWizardData({ ...initialWizardData });
     setIsSubmitting(false);
@@ -87,7 +89,8 @@ export function AddProjectWizard({ isOpen, onClose }: AddProjectWizardProps) {
 
   const handleNext = useCallback(async () => {
     if (currentStep === 3) {
-      if (isSubmitting) return;
+      if (submitInFlightRef.current || isSubmitting) return;
+      submitInFlightRef.current = true;
 
       // 前回の送信をキャンセル
       abortControllerRef.current?.abort();
@@ -155,6 +158,7 @@ export function AddProjectWizard({ isOpen, onClose }: AddProjectWizardProps) {
         setError(errorMessage);
         setCurrentStep(4);
       } finally {
+        submitInFlightRef.current = false;
         if (abortControllerRef.current === controller) {
           abortControllerRef.current = null;
         }
@@ -171,10 +175,11 @@ export function AddProjectWizard({ isOpen, onClose }: AddProjectWizardProps) {
   }, [currentStep, wizardData, isSubmitting, fetchProjects, handleDataChange]);
 
   const handleBack = useCallback(() => {
+    if (isSubmitting) return;
     if (currentStep > 1) {
       setCurrentStep((prev) => prev - 1);
     }
-  }, [currentStep]);
+  }, [currentStep, isSubmitting]);
 
   const handleStepClick = useCallback((step: number) => {
     if (step < currentStep && !isSubmitting) {
@@ -279,7 +284,8 @@ export function AddProjectWizard({ isOpen, onClose }: AddProjectWizardProps) {
                         <button
                           type="button"
                           onClick={handleBack}
-                          className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                          disabled={isSubmitting}
+                          className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           戻る
                         </button>
