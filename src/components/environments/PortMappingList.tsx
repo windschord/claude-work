@@ -4,12 +4,7 @@ import { useState } from 'react';
 import { Plus, X, CheckCircle2, AlertCircle, HelpCircle, Loader2, Search } from 'lucide-react';
 import type { PortMapping } from '@/types/environment';
 import { validatePortMappings } from '@/lib/docker-config-validator';
-
-interface PortCheckResult {
-  status: 'available' | 'in_use' | 'unknown';
-  usedBy?: string;
-  source?: string;
-}
+import type { PortCheckResult } from '@/services/port-checker';
 
 interface PortMappingListProps {
   value: PortMapping[];
@@ -108,7 +103,9 @@ export function PortMappingList({ value, onChange, excludeEnvironmentId }: PortM
 
     if (validMappings.length === 0) return;
 
-    // 現在はホストポートのOSレベルチェックのみ。protocol別の区別はfuture enhancement。
+    // PortCheckerはnet.createServer()を使用するためTCPポートのみチェック可能。
+    // 同じポート番号のtcp/udpは同一のチェック結果を共有する（OSレベルではtcp/udpは別空間だが、
+    // UDPの使用状況チェックにはdgram.createSocket等が必要で現在未対応）。
     const uniquePorts = [...new Set(validMappings.map(m => m.hostPort))];
 
     setIsChecking(true);
