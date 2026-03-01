@@ -1442,7 +1442,7 @@ export class DockerAdapter extends BasePTYAdapter {
       } finally {
         tarStream.destroy();
       }
-      
+
       // 所有権の修正（putArchiveはrootで展開される可能性があるため）
       const execChown = await container.exec({
         Cmd: ['chown', '-R', 'node:node', '/home/node/.ssh'],
@@ -1451,24 +1451,20 @@ export class DockerAdapter extends BasePTYAdapter {
       await execChown.start({});
 
       logger.info('SSH keys applied successfully', { keyCount: keyPaths.length });
-
-      // named volumeモードの一時ディレクトリをクリーンアップ
-      if (useTempDir) {
-        await fsPromises.rm(sshDir, { recursive: true, force: true });
-      }
     } catch (error) {
       logger.error('Failed to apply SSH keys', {
         error: error instanceof Error ? error.message : 'Unknown error',
       });
-      // named volumeモードの一時ディレクトリをクリーンアップ（エラー時も）
-      if (useTempDir) {
+      // SSH鍵の失敗は致命的ではないため、エラーをログに記録して続行
+    } finally {
+      // named volumeモードの一時ディレクトリを確実にクリーンアップ
+      if (useTempDir && sshDir) {
         try {
           await fsPromises.rm(sshDir, { recursive: true, force: true });
         } catch {
           // クリーンアップ失敗は無視
         }
       }
-      // SSH鍵の失敗は致命的ではないため、エラーをログに記録して続行
     }
   }
 

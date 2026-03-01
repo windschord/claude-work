@@ -225,9 +225,17 @@ export class EnvironmentService {
 
     // Docker環境の場合、名前付きVolumeまたはDockerfileディレクトリを削除
     if (environment.type === 'DOCKER' && !environment.auth_dir_path) {
-      // 名前付きVolumeを削除（auth_dir_pathがnull = 名前付きVolume使用）
+      // 名前付きVolumeを直接削除（auth_dir_pathがnull = 名前付きVolume使用）
       try {
-        await this.deleteConfigVolumes(id);
+        const volumeNames = getConfigVolumeNames(id);
+        const dockerClient = DockerClient.getInstance();
+        for (const volumeName of Object.values(volumeNames)) {
+          try {
+            await dockerClient.removeVolume(volumeName);
+          } catch (error) {
+            logger.warn('設定Volume削除失敗', { volume: volumeName, error });
+          }
+        }
       } catch (error) {
         logger.warn('設定Volumeの削除に失敗しました', { environmentId: id, error });
       }
@@ -543,14 +551,6 @@ export class EnvironmentService {
   }
 
   /**
-   * 環境IDからDocker名前付きVolumeの名前を取得する
-   * @see getConfigVolumeNames (src/lib/docker-volume-utils.ts)
-   */
-  private getConfigVolumeNames(environmentId: string): { claudeVolume: string; configClaudeVolume: string } {
-    return getConfigVolumeNames(environmentId);
-  }
-
-  /**
    * Docker環境用の設定Volumeを作成する
    * @param id - 環境ID
    */
@@ -566,7 +566,7 @@ export class EnvironmentService {
     }
 
     const dockerClient = DockerClient.getInstance();
-    const volumes = this.getConfigVolumeNames(id);
+    const volumes = getConfigVolumeNames(id);
 
     await dockerClient.createVolume(volumes.claudeVolume);
     try {
@@ -600,7 +600,7 @@ export class EnvironmentService {
     }
 
     const dockerClient = DockerClient.getInstance();
-    const volumes = this.getConfigVolumeNames(id);
+    const volumes = getConfigVolumeNames(id);
     const failedVolumes: string[] = [];
 
     try {
