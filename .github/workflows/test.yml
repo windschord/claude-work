@@ -106,9 +106,11 @@ jobs:
       timeout-minutes: 8
 
   # E2E tests - CLI installation tests (browser tests require Claude CLI)
+  # Uses pre-built CLI package from build job to avoid redundant rebuild (~226s -> ~30s)
   test-e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 3
+    needs: [build]
 
     steps:
     - uses: actions/checkout@v4
@@ -118,37 +120,14 @@ jobs:
       with:
         skip-db-setup: 'true'
 
-    - name: Get Node.js version for cache key
-      id: node-version
-      run: echo "version=$(node --version)" >> $GITHUB_OUTPUT
-
-    - name: Cache CLI E2E package
-      uses: actions/cache@v4
-      id: cli-package-cache
+    - name: Download CLI E2E package
+      uses: actions/download-artifact@v4
       with:
-        path: /tmp/cli-e2e-package
-        # src/** を含めることでビルド成果物に影響する全ソースの変更を検出する。
-        # テストファイルの変更でもキャッシュが無効化されるが、ビルドの正確性を優先する。
-        key: cli-e2e-pkg-${{ runner.os }}-node${{ steps.node-version.outputs.version }}-${{ hashFiles('package.json', 'pnpm-lock.yaml', 'src/**', 'server.ts', 'tsconfig*.json', 'next.config.js', 'tailwind.config.*', 'postcss.config.*', '.npmignore') }}
+        name: cli-e2e-package
+        path: /tmp/cli-e2e-package/package
 
-    - name: Build CLI E2E package
-      if: steps.cli-package-cache.outputs.cache-hit != 'true'
-      run: |
-        set -eo pipefail
-        echo "=== npm pack ==="
-        TARBALL_NAME=$(npm pack --ignore-scripts | tail -1)
-        echo "Created tarball: $TARBALL_NAME"
-
-        echo "=== Extract tarball ==="
-        mkdir -p /tmp/cli-e2e-package
-        tar -xzf "$TARBALL_NAME" -C /tmp/cli-e2e-package
-        rm -f "$TARBALL_NAME"
-
-        echo "=== npm install (triggers prepare/build) ==="
-        cd /tmp/cli-e2e-package/package
-        npm install
-        echo "=== Build complete ==="
-      timeout-minutes: 8
+    - name: Link node_modules to CLI package
+      run: ln -s "$GITHUB_WORKSPACE/node_modules" /tmp/cli-e2e-package/package/node_modules
 
     - name: Verify CLI package
       run: |
@@ -173,9 +152,9 @@ jobs:
 
     - name: Run CLI E2E tests
       run: SKIP_WEBSERVER=true CLI_PACKAGE_DIR=/tmp/cli-e2e-package/package pnpm exec playwright test --project=cli
-      timeout-minutes: 3
+      timeout-minutes: 1
 
-  # Build job - runs in parallel with tests
+  # Build job - runs in parallel with tests, also creates CLI E2E package artifact
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -191,6 +170,22 @@ jobs:
 
     - name: Build
       run: pnpm run build
+
+    - name: Create CLI E2E package
+      run: |
+        set -eo pipefail
+        # npm pack after build so .next (minus cache) and dist are included in tarball
+        TARBALL_NAME=$(npm pack --ignore-scripts | tail -1)
+        mkdir -p /tmp/cli-e2e-package
+        tar -xzf "$TARBALL_NAME" -C /tmp/cli-e2e-package
+        rm -f "$TARBALL_NAME"
+
+    - name: Upload CLI E2E package
+      uses: actions/upload-artifact@v4
+      with:
+        name: cli-e2e-package
+        path: /tmp/cli-e2e-package/package
+        retention-days: 1
 
   # Final check - ensures all jobs passed
   ci-check:
