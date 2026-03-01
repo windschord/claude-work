@@ -150,7 +150,8 @@ export async function POST(request: NextRequest) {
           if (!cloneResult.volumeName) {
             logger.error('Docker clone succeeded but volumeName is missing', {
               projectId: project.id,
-              cloneResult,
+              cloneSuccess: cloneResult.success,
+              cloneError: cloneResult.error ?? null,
             });
             db.delete(schema.projects).where(eq(schema.projects.id, project.id)).run();
             return NextResponse.json(
