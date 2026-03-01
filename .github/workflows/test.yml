@@ -179,12 +179,15 @@ jobs:
         mkdir -p /tmp/cli-e2e-package
         tar -xzf "$TARBALL_NAME" -C /tmp/cli-e2e-package
         rm -f "$TARBALL_NAME"
+        # Remove .gitignore so upload-artifact doesn't exclude .next and dist
+        rm -f /tmp/cli-e2e-package/package/.gitignore
 
     - name: Upload CLI E2E package
       uses: actions/upload-artifact@v4
       with:
         name: cli-e2e-package
         path: /tmp/cli-e2e-package/package
+        include-hidden-files: true
         retention-days: 1
 
   # Final check - ensures all jobs passed
