@@ -38,7 +38,9 @@ function getTypeBadge(type: string) {
 export function StepEnvironment({ environmentId, onChange }: StepEnvironmentProps) {
   const { environments, isLoading } = useEnvironments();
   const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  });
 
   const availableEnvironments = environments.filter((e) => !e.disabled);
   const selected = availableEnvironments.find((e) => e.id === environmentId) || null;

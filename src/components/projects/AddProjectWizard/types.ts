@@ -43,16 +43,16 @@ export const initialWizardData: WizardData = {
  * パスまたはURLからプロジェクト名を推測する
  */
 export function extractProjectName(pathOrUrl: string): string {
-  const trimmed = pathOrUrl.trim().replace(/\/+$/, '');
+  const trimmed = pathOrUrl.trim().replace(/[\\/]+$/, '');
   if (!trimmed) return '';
 
   // SSH URL: git@github.com:user/repo.git
   if (/^[^/]+@[^:]+:.+/.test(trimmed)) {
     const afterColon = trimmed.split(':').pop() || '';
-    return afterColon.split('/').pop()?.replace(/\.git$/, '') || '';
+    return afterColon.split(/[\\/]/).pop()?.replace(/\.git$/, '') || '';
   }
 
   // HTTPS URL or local path
-  const name = trimmed.split('/').pop()?.replace(/\.git$/, '') || '';
+  const name = trimmed.split(/[\\/]/).pop()?.replace(/\.git$/, '') || '';
   return name;
 }
