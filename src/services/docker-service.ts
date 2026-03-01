@@ -79,7 +79,7 @@ export interface AuthCredentialsCheck {
  * DockerService設定
  */
 export interface DockerServiceConfig {
-  /** イメージ名（デフォルト: claude-code-sandboxed） */
+  /** イメージ名（デフォルト: ghcr.io/windschord/claude-work-sandbox） */
   imageName: string;
   /** イメージタグ（デフォルト: latest） */
   imageTag: string;
@@ -94,7 +94,7 @@ export interface DockerServiceConfig {
  * Docker機能はデフォルトで無効。有効にするにはDOCKER_ENABLED=trueを設定。
  */
 const DEFAULT_CONFIG: DockerServiceConfig = {
-  imageName: process.env.DOCKER_IMAGE_NAME || 'claude-code-sandboxed',
+  imageName: process.env.DOCKER_IMAGE_NAME || 'ghcr.io/windschord/claude-work-sandbox',
   imageTag: process.env.DOCKER_IMAGE_TAG || 'latest',
   // NaNや負の値の場合はデフォルト値5にフォールバック、最小値1を保証
   maxConcurrentContainers: Math.max(1, parseInt(process.env.DOCKER_MAX_CONTAINERS || '5', 10) || 5),

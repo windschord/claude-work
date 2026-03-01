@@ -78,7 +78,7 @@ describe('DockerService', () => {
       const result = await dockerService.imageExists();
 
       expect(result).toBe(true);
-      expect(mockDockerClient.inspectImage).toHaveBeenCalledWith('claude-code-sandboxed:latest');
+      expect(mockDockerClient.inspectImage).toHaveBeenCalledWith('ghcr.io/windschord/claude-work-sandbox:latest');
     });
 
     it('イメージが存在しない場合はfalseを返す', async () => {
@@ -92,7 +92,7 @@ describe('DockerService', () => {
 
   describe('getImageName', () => {
     it('デフォルトのイメージ名を返す', () => {
-      expect(dockerService.getImageName()).toBe('claude-code-sandboxed');
+      expect(dockerService.getImageName()).toBe('ghcr.io/windschord/claude-work-sandbox');
     });
 
     it('設定されたイメージ名を返す', () => {
@@ -128,7 +128,7 @@ describe('DockerService', () => {
 
   describe('getFullImageName', () => {
     it('完全なイメージ名を返す', () => {
-      expect(dockerService.getFullImageName()).toBe('claude-code-sandboxed:latest');
+      expect(dockerService.getFullImageName()).toBe('ghcr.io/windschord/claude-work-sandbox:latest');
     });
 
     it('カスタム設定の完全なイメージ名を返す', () => {
@@ -148,7 +148,7 @@ describe('DockerService', () => {
     it('デフォルト設定で初期化される', () => {
       const service = new DockerService();
 
-      expect(service.getImageName()).toBe('claude-code-sandboxed');
+      expect(service.getImageName()).toBe('ghcr.io/windschord/claude-work-sandbox');
       expect(service.getImageTag()).toBe('latest');
       expect(service.getMaxConcurrentContainers()).toBe(5);
       expect(service.isEnabled()).toBe(false);
@@ -178,7 +178,7 @@ describe('DockerService', () => {
       
       expect(mockDockerClient.buildImage).toHaveBeenCalledWith(
         'mock-tar-stream',
-        expect.objectContaining({ t: 'claude-code-sandboxed:latest' }),
+        expect.objectContaining({ t: 'ghcr.io/windschord/claude-work-sandbox:latest' }),
         expect.any(Function)
       );
     });

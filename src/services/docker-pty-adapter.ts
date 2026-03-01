@@ -73,7 +73,7 @@ function parseContainerStartError(errorOutput: string): DockerError | null {
  * DockerPTYAdapter設定
  */
 export interface DockerPTYAdapterConfig {
-  /** イメージ名（デフォルト: claude-code-sandboxed） */
+  /** イメージ名（デフォルト: ghcr.io/windschord/claude-work-sandbox） */
   imageName?: string;
   /** イメージタグ（デフォルト: latest） */
   imageTag?: string;
@@ -130,7 +130,7 @@ export class DockerPTYAdapter extends EventEmitter {
 
   constructor(config?: DockerPTYAdapterConfig) {
     super();
-    this.imageName = config?.imageName || process.env.DOCKER_IMAGE_NAME || 'claude-code-sandboxed';
+    this.imageName = config?.imageName || process.env.DOCKER_IMAGE_NAME || 'ghcr.io/windschord/claude-work-sandbox';
     this.imageTag = config?.imageTag || process.env.DOCKER_IMAGE_TAG || 'latest';
   }
 

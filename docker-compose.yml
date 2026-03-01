@@ -1,13 +1,11 @@
 services:
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/windschord/claude-work:latest
     container_name: claudework
     ports:
       - "${HOST_PORT:-3000}:3000"
     volumes:
-      - ./data:/data
+      - claudework-data:/data
       - /var/run/docker.sock:/var/run/docker.sock
     # nodeユーザーがdocker.sockにアクセスするため、ホストのdockerグループGIDを追加
     # デフォルト984は一般的な値だが、ホストにより異なる場合がある
@@ -39,3 +37,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
+
+volumes:
+  claudework-data:
