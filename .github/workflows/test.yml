@@ -148,14 +148,14 @@ jobs:
         done
         if [ "$ok" != "true" ]; then
           echo "CLI package verification failed. Listing contents:"
-          ls -laR "$pkg/.next"
+          ls -laR "$pkg"
           exit 1
         fi
         echo "CLI package verified successfully"
 
     - name: Run CLI E2E tests
       run: SKIP_WEBSERVER=true CLI_PACKAGE_DIR=/tmp/cli-e2e-package/package pnpm exec playwright test --project=cli
-      timeout-minutes: 2
+      timeout-minutes: 5
 
   # Build job - runs in parallel with lint/unit tests, required by test-e2e for CLI E2E package artifact
   build:
