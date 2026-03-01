@@ -177,10 +177,10 @@ export function AddProjectWizard({ isOpen, onClose }: AddProjectWizardProps) {
   }, [currentStep]);
 
   const handleStepClick = useCallback((step: number) => {
-    if (step < currentStep) {
+    if (step < currentStep && !isSubmitting) {
       setCurrentStep(step);
     }
-  }, [currentStep]);
+  }, [currentStep, isSubmitting]);
 
   const handleRetry = useCallback(() => {
     setError(null);
