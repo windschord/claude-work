@@ -110,7 +110,7 @@ jobs:
   # Uses pre-built CLI package from build job to avoid redundant rebuild (~226s -> ~30s)
   test-e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 5
     needs: [build]
 
     steps:
@@ -134,19 +134,21 @@ jobs:
       run: |
         pkg=/tmp/cli-e2e-package/package
         ok=true
-        for f in dist/src/bin/cli.js package.json; do
+        for f in dist/src/bin/cli.js package.json .next/BUILD_ID; do
           if [ ! -f "$pkg/$f" ]; then
             echo "::error::Missing required file: $pkg/$f"
             ok=false
           fi
         done
-        if [ ! -d "$pkg/.next" ]; then
-          echo "::error::Missing required directory: $pkg/.next"
-          ok=false
-        fi
+        for d in .next .next/static .next/server; do
+          if [ ! -d "$pkg/$d" ]; then
+            echo "::error::Missing required directory: $pkg/$d"
+            ok=false
+          fi
+        done
         if [ "$ok" != "true" ]; then
           echo "CLI package verification failed. Listing contents:"
-          ls -la "$pkg"
+          ls -laR "$pkg/.next"
           exit 1
         fi
         echo "CLI package verified successfully"
