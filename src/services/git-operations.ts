@@ -10,6 +10,7 @@ export interface GitOperationResult {
   success: boolean;
   message?: string;
   error?: Error;
+  volumeName?: string;
 }
 
 /**
@@ -18,6 +19,7 @@ export interface GitOperationResult {
 export interface GitCloneOptions {
   url: string;
   projectId: string;
+  projectName?: string;
   environmentId?: string;
   timeoutMs?: number;
 }

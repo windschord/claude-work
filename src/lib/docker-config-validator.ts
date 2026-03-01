@@ -6,6 +6,7 @@
  */
 
 import type { PortMapping, VolumeMount } from '@/types/environment';
+import { validateVolumeName } from '@/lib/volume-naming';
 
 /** 危険なホストパス一覧 */
 export const DANGEROUS_HOST_PATHS = [
@@ -136,46 +137,58 @@ export function validateVolumeMounts(mounts: VolumeMount[]): ValidationResult {
       continue;
     }
 
-    // 絶対パスチェック
-    if (!mount.hostPath.startsWith('/')) {
-      errors.push(`マウント${i + 1}: hostPathは絶対パスである必要があります`);
+    const sourceType = mount.sourceType ?? 'bind';
+
+    if (sourceType !== 'bind' && sourceType !== 'volume') {
+      errors.push(`マウント${i + 1}: sourceTypeは"bind"または"volume"である必要があります`);
+      continue;
     }
 
+    if (sourceType === 'volume') {
+      // Docker Volume名バリデーション
+      if (!validateVolumeName(mount.hostPath)) {
+        errors.push(`マウント${i + 1}: hostPath「${mount.hostPath}」は有効なDocker Volume名ではありません`);
+      }
+    } else {
+      // bind mount: 既存のホストパスバリデーション
+      if (!mount.hostPath.startsWith('/')) {
+        errors.push(`マウント${i + 1}: hostPathは絶対パスである必要があります`);
+      }
+
+      if (mount.hostPath.includes('..')) {
+        errors.push(`マウント${i + 1}: hostPathに「..」を含めることはできません`);
+      }
+
+      if (mount.hostPath.includes(':')) {
+        errors.push(`マウント${i + 1}: hostPathに「:」を含めることはできません`);
+      }
+
+      if (isDangerousPath(mount.hostPath)) {
+        warnings.push(
+          `マウント${i + 1}: hostPath「${mount.hostPath}」は危険なシステムパスです`
+        );
+      }
+    }
+
+    // containerPath バリデーション（共通）
     if (!mount.containerPath.startsWith('/')) {
       errors.push(`マウント${i + 1}: containerPathは絶対パスである必要があります`);
-    }
-
-    // パストラバーサルチェック
-    if (mount.hostPath.includes('..')) {
-      errors.push(`マウント${i + 1}: hostPathに「..」を含めることはできません`);
     }
 
     if (mount.containerPath.includes('..')) {
       errors.push(`マウント${i + 1}: containerPathに「..」を含めることはできません`);
     }
 
-    // コロン文字チェック（Docker -v デリミタとの衝突防止）
-    if (mount.hostPath.includes(':')) {
-      errors.push(`マウント${i + 1}: hostPathに「:」を含めることはできません`);
-    }
-
     if (mount.containerPath.includes(':')) {
       errors.push(`マウント${i + 1}: containerPathに「:」を含めることはできません`);
     }
 
-    // 危険なホストパスチェック
-    if (isDangerousPath(mount.hostPath)) {
-      warnings.push(
-        `マウント${i + 1}: hostPath「${mount.hostPath}」は危険なシステムパスです`
-      );
-    }
-
-    // システムコンテナパスチェック
     if (isSystemContainerPath(mount.containerPath)) {
       errors.push(
         `マウント${i + 1}: containerPath「${mount.containerPath}」はシステムが使用するパスのためマウントできません`
       );
     }
+
     // accessMode バリデーション
     const accessMode = mount.accessMode ?? 'rw';
     if (accessMode !== 'rw' && accessMode !== 'ro') {

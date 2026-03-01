@@ -212,6 +212,69 @@ describe('docker-config-validator', () => {
       expect(result.valid).toBe(false);
       expect(result.errors.some((e) => e.includes('無効'))).toBe(true);
     });
+
+    describe('sourceType=volume', () => {
+      it('有効なVolume名で valid: true', () => {
+        const mounts: VolumeMount[] = [
+          { hostPath: 'cw-repo-my-project', containerPath: '/data', accessMode: 'rw', sourceType: 'volume' },
+        ];
+        const result = validateVolumeMounts(mounts);
+        expect(result.valid).toBe(true);
+        expect(result.errors).toHaveLength(0);
+      });
+
+      it('無効なVolume名（スペース含む）でエラー', () => {
+        const mounts: VolumeMount[] = [
+          { hostPath: 'invalid name', containerPath: '/data', accessMode: 'rw', sourceType: 'volume' },
+        ];
+        const result = validateVolumeMounts(mounts);
+        expect(result.valid).toBe(false);
+        expect(result.errors.some((e) => e.includes('Volume名'))).toBe(true);
+      });
+
+      it('無効なVolume名（先頭がハイフン）でエラー', () => {
+        const mounts: VolumeMount[] = [
+          { hostPath: '-invalid', containerPath: '/data', accessMode: 'rw', sourceType: 'volume' },
+        ];
+        const result = validateVolumeMounts(mounts);
+        expect(result.valid).toBe(false);
+      });
+
+      it('空のVolume名でエラー', () => {
+        const mounts: VolumeMount[] = [
+          { hostPath: '', containerPath: '/data', accessMode: 'rw', sourceType: 'volume' },
+        ];
+        const result = validateVolumeMounts(mounts);
+        expect(result.valid).toBe(false);
+      });
+
+      it('ホストパス固有バリデーション（絶対パス）をスキップ', () => {
+        const mounts: VolumeMount[] = [
+          { hostPath: 'cw-repo-test', containerPath: '/data', accessMode: 'rw', sourceType: 'volume' },
+        ];
+        const result = validateVolumeMounts(mounts);
+        expect(result.valid).toBe(true);
+        expect(result.errors.some((e) => e.includes('絶対パス'))).toBe(false);
+      });
+
+      it('containerPathのバリデーションは維持', () => {
+        const mounts: VolumeMount[] = [
+          { hostPath: 'cw-repo-test', containerPath: 'relative', accessMode: 'rw', sourceType: 'volume' },
+        ];
+        const result = validateVolumeMounts(mounts);
+        expect(result.valid).toBe(false);
+        expect(result.errors.some((e) => e.includes('containerPath'))).toBe(true);
+      });
+    });
+
+    it('sourceType未指定(bind)は既存の動作を維持', () => {
+      const mounts: VolumeMount[] = [
+        { hostPath: 'not-absolute', containerPath: '/data', accessMode: 'rw' },
+      ];
+      const result = validateVolumeMounts(mounts);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.includes('絶対パス'))).toBe(true);
+    });
   });
 
   describe('isDangerousPath', () => {

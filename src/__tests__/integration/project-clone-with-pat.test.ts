@@ -188,7 +188,8 @@ describe('Project Clone with PAT Integration', () => {
       expect(mockCloneRepositoryWithPAT).toHaveBeenCalledWith(
         'https://github.com/user/private-repo.git',
         expect.any(String), // projectId
-        'ghp_test_token_1234567890abcdef'
+        'ghp_test_token_1234567890abcdef',
+        'private-repo' // projectName (extracted from URL)
       );
     });
 
