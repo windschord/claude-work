@@ -4,7 +4,14 @@ import { useState } from 'react';
 import { Plus, X, CheckCircle2, AlertCircle, HelpCircle, Loader2, Search } from 'lucide-react';
 import type { PortMapping } from '@/types/environment';
 import { validatePortMappings } from '@/lib/docker-config-validator';
-import type { PortCheckResult } from '@/services/port-checker';
+import type { PortCheckStatus } from '@/services/port-checker';
+
+/** クライアント側のポートチェック結果（サーバーのPortCheckResultからportを除いた形式） */
+interface PortCheckResult {
+  status: PortCheckStatus;
+  usedBy?: string;
+  source?: 'os' | 'claudework';
+}
 
 interface PortMappingListProps {
   value: PortMapping[];
