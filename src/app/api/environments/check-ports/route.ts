@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PortChecker } from '@/services/port-checker';
+import { portChecker } from '@/services/port-checker';
 import { logger } from '@/lib/logger';
 
 export async function POST(request: NextRequest) {
@@ -23,8 +23,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const checker = new PortChecker();
-    const results = await checker.checkPorts({ ports, excludeEnvironmentId });
+    const results = await portChecker.checkPorts({ ports, excludeEnvironmentId });
     return NextResponse.json({ results });
   } catch (error) {
     logger.error('Port check failed:', error);

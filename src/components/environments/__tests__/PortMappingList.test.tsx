@@ -200,13 +200,13 @@ describe('PortMappingList', () => {
       ];
       render(<PortMappingList value={mappings} onChange={vi.fn()} />);
 
-      expect(screen.getByRole('button', { name: /ポートチェック/ })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /ポートの使用状況をチェック/ })).toBeInTheDocument();
     });
 
     it('should not display port check button when no ports exist', () => {
       render(<PortMappingList value={[]} onChange={vi.fn()} />);
 
-      expect(screen.queryByRole('button', { name: /ポートチェック/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /ポートの使用状況をチェック/ })).not.toBeInTheDocument();
     });
 
     it('should call fetch API when check button is clicked', async () => {
@@ -220,7 +220,7 @@ describe('PortMappingList', () => {
 
       render(<PortMappingList value={mappings} onChange={vi.fn()} />);
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /ポートチェック/ }));
+        fireEvent.click(screen.getByRole('button', { name: /ポートの使用状況をチェック/ }));
       });
 
       expect(global.fetch).toHaveBeenCalledWith('/api/environments/check-ports', expect.objectContaining({
@@ -241,7 +241,7 @@ describe('PortMappingList', () => {
 
       render(<PortMappingList value={mappings} onChange={vi.fn()} />);
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /ポートチェック/ }));
+        fireEvent.click(screen.getByRole('button', { name: /ポートの使用状況をチェック/ }));
       });
 
       await waitFor(() => {
@@ -262,7 +262,7 @@ describe('PortMappingList', () => {
 
       render(<PortMappingList value={mappings} onChange={vi.fn()} />);
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /ポートチェック/ }));
+        fireEvent.click(screen.getByRole('button', { name: /ポートの使用状況をチェック/ }));
       });
 
       await waitFor(() => {
@@ -283,7 +283,7 @@ describe('PortMappingList', () => {
 
       render(<PortMappingList value={mappings} onChange={vi.fn()} />);
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /ポートチェック/ }));
+        fireEvent.click(screen.getByRole('button', { name: /ポートの使用状況をチェック/ }));
       });
 
       await waitFor(() => {
@@ -305,7 +305,7 @@ describe('PortMappingList', () => {
 
       const { rerender } = render(<PortMappingList value={mappings} onChange={onChange} />);
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /ポートチェック/ }));
+        fireEvent.click(screen.getByRole('button', { name: /ポートの使用状況をチェック/ }));
       });
 
       await waitFor(() => {
@@ -332,7 +332,7 @@ describe('PortMappingList', () => {
 
       render(<PortMappingList value={mappings} onChange={vi.fn()} />);
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /ポートチェック/ }));
+        fireEvent.click(screen.getByRole('button', { name: /ポートの使用状況をチェック/ }));
       });
 
       await waitFor(() => {
@@ -351,7 +351,7 @@ describe('PortMappingList', () => {
 
       render(<PortMappingList value={mappings} onChange={vi.fn()} />);
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /ポートチェック/ }));
+        fireEvent.click(screen.getByRole('button', { name: /ポートの使用状況をチェック/ }));
       });
 
       await waitFor(() => {
@@ -376,7 +376,7 @@ describe('PortMappingList', () => {
         />
       );
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /ポートチェック/ }));
+        fireEvent.click(screen.getByRole('button', { name: /ポートの使用状況をチェック/ }));
       });
 
       const fetchCall = vi.mocked(global.fetch).mock.calls[0];

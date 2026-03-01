@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { POST } from '../route';
 import { NextRequest } from 'next/server';
-import { PortChecker } from '@/services/port-checker';
 
 const mockCheckPorts = vi.fn().mockResolvedValue([
   { port: 3000, status: 'available' },
@@ -9,9 +8,9 @@ const mockCheckPorts = vi.fn().mockResolvedValue([
 ]);
 
 vi.mock('@/services/port-checker', () => ({
-  PortChecker: vi.fn().mockImplementation(function () {
-    return { checkPorts: mockCheckPorts };
-  }),
+  portChecker: {
+    checkPorts: (...args: unknown[]) => mockCheckPorts(...args),
+  },
 }));
 
 vi.mock('@/lib/logger', () => ({
@@ -33,6 +32,10 @@ function createRequest(body: object) {
 describe('POST /api/environments/check-ports', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockCheckPorts.mockResolvedValue([
+      { port: 3000, status: 'available' },
+      { port: 8080, status: 'in_use', usedBy: 'nginx', source: 'os' },
+    ]);
   });
 
   describe('正常系', () => {
@@ -49,7 +52,7 @@ describe('POST /api/environments/check-ports', () => {
       expect(json.results[1]).toEqual({ port: 8080, status: 'in_use', usedBy: 'nginx', source: 'os' });
     });
 
-    it('excludeEnvironmentId付きで200を返し、PortCheckerに正しく渡される', async () => {
+    it('excludeEnvironmentId付きで200を返し、portCheckerに正しく渡される', async () => {
       const request = createRequest({ ports: [3000, 8080], excludeEnvironmentId: 'env-123' });
       const response = await POST(request);
       const json = await response.json();
@@ -121,10 +124,8 @@ describe('POST /api/environments/check-ports', () => {
   });
 
   describe('エラー系', () => {
-    it('PortCheckerが例外をスローした場合500を返す', async () => {
-      vi.mocked(PortChecker).mockImplementationOnce(function () {
-        return { checkPorts: vi.fn().mockRejectedValue(new Error('Port check failed')) };
-      });
+    it('portCheckerが例外をスローした場合500を返す', async () => {
+      mockCheckPorts.mockRejectedValueOnce(new Error('Port check failed'));
 
       const request = createRequest({ ports: [3000] });
       const response = await POST(request);

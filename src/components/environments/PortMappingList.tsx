@@ -76,10 +76,12 @@ export function PortMappingList({ value, onChange, excludeEnvironmentId }: PortM
       const numValue = typeof rawValue === 'string' ? parseInt(rawValue, 10) || 0 : rawValue;
 
       if (field === 'hostPort') {
-        const oldPort = mapping.hostPort;
+        const previousHostPort = mapping.hostPort;
+        const nextHostPort = numValue;
         setPortCheckResults(prev => {
           const next = new Map(prev);
-          next.delete(oldPort);
+          next.delete(previousHostPort);
+          next.delete(nextHostPort);
           return next;
         });
       }
@@ -239,6 +241,7 @@ export function PortMappingList({ value, onChange, excludeEnvironmentId }: PortM
             onClick={handleCheckPorts}
             disabled={isChecking}
             className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
+            aria-label="ポートの使用状況をチェック"
           >
             {isChecking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
             ポートチェック
