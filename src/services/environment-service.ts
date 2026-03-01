@@ -53,6 +53,11 @@ const DEFAULT_HOST_ENVIRONMENT = {
 } as const;
 
 /**
+ * サンドボックスDockerイメージのデフォルト名
+ */
+export const DEFAULT_SANDBOX_IMAGE_NAME = 'ghcr.io/windschord/claude-work-sandbox';
+
+/**
  * デフォルトDocker環境の定数
  */
 const DEFAULT_DOCKER_ENVIRONMENT = {
@@ -61,7 +66,7 @@ const DEFAULT_DOCKER_ENVIRONMENT = {
   type: 'DOCKER',
   description: 'デフォルトのDocker環境',
   config: JSON.stringify({
-    imageName: 'ghcr.io/windschord/claude-work-sandbox',
+    imageName: DEFAULT_SANDBOX_IMAGE_NAME,
     imageTag: 'latest',
   }),
   is_default: true,
@@ -446,11 +451,11 @@ export class EnvironmentService {
 
     if (config.imageSource === 'dockerfile') {
       // Dockerfileビルドの場合はビルド後のイメージ名を使用
-      imageName = (config.buildImageName as string) || (config.imageName as string) || 'ghcr.io/windschord/claude-work-sandbox';
+      imageName = (config.buildImageName as string) || (config.imageName as string) || DEFAULT_SANDBOX_IMAGE_NAME;
       imageTag = 'latest';
     } else {
       // 既存イメージの場合
-      imageName = (config.imageName as string) || 'ghcr.io/windschord/claude-work-sandbox';
+      imageName = (config.imageName as string) || DEFAULT_SANDBOX_IMAGE_NAME;
       imageTag = (config.imageTag as string) || 'latest';
     }
 

@@ -78,6 +78,35 @@ HOST_PORT=3001
 LOG_LEVEL=info
 ```
 
+### 既存ユーザー向け移行手順
+
+以前のバージョンで `./data` ディレクトリにデータを保存していた場合、named volume への移行が必要です:
+
+```bash
+# 1. コンテナを停止
+docker compose down
+
+# 2. docker-compose.override.yml でバインドマウントを維持する方法（推奨）
+cat > docker-compose.override.yml <<'EOF'
+services:
+  app:
+    volumes:
+      - ./data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+EOF
+
+# 3. 再起動
+docker compose up -d
+```
+
+バインドマウントを使わず named volume に移行する場合:
+
+```bash
+# 既存データを named volume にコピー
+docker volume create claudework-data
+docker run --rm -v ./data:/src -v claudework-data:/dst alpine cp -a /src/. /dst/
+```
+
 ### 開発者向けセットアップ
 
 ソースコードを変更して開発する場合:
