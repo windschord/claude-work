@@ -359,6 +359,66 @@ describe('PortMappingList', () => {
       });
     });
 
+    it('should display results correctly for same hostPort with different protocols', async () => {
+      const mappings: PortMapping[] = [
+        { hostPort: 8080, containerPort: 80, protocol: 'tcp' },
+        { hostPort: 8080, containerPort: 80, protocol: 'udp' },
+      ];
+      vi.mocked(global.fetch).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          results: [{ port: 8080, status: 'available' }],
+        }),
+      } as Response);
+
+      render(<PortMappingList value={mappings} onChange={vi.fn()} />);
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /ポートの使用状況をチェック/ }));
+      });
+
+      await waitFor(() => {
+        const availableTexts = screen.getAllByText('利用可能');
+        expect(availableTexts).toHaveLength(2);
+      });
+    });
+
+    it('should not collide results for same hostPort with different protocols on reset', async () => {
+      const mappings: PortMapping[] = [
+        { hostPort: 8080, containerPort: 80, protocol: 'tcp' },
+        { hostPort: 8080, containerPort: 80, protocol: 'udp' },
+      ];
+      const onChange = vi.fn();
+      vi.mocked(global.fetch).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          results: [{ port: 8080, status: 'available' }],
+        }),
+      } as Response);
+
+      const { rerender } = render(<PortMappingList value={mappings} onChange={onChange} />);
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /ポートの使用状況をチェック/ }));
+      });
+
+      await waitFor(() => {
+        expect(screen.getAllByText('利用可能')).toHaveLength(2);
+      });
+
+      // tcpの行のホストポートを変更
+      const hostPortInputs = screen.getAllByPlaceholderText('ホストポート');
+      fireEvent.change(hostPortInputs[0], { target: { value: '9090' } });
+
+      const updatedMappings: PortMapping[] = [
+        { hostPort: 9090, containerPort: 80, protocol: 'tcp' },
+        { hostPort: 8080, containerPort: 80, protocol: 'udp' },
+      ];
+      rerender(<PortMappingList value={updatedMappings} onChange={onChange} />);
+
+      // tcp行の結果はリセットされるが、udp行は残る
+      const availableTexts = screen.getAllByText('利用可能');
+      expect(availableTexts).toHaveLength(1);
+    });
+
     it('should include excludeEnvironmentId in fetch request', async () => {
       const mappings: PortMapping[] = [
         { hostPort: 8080, containerPort: 80, protocol: 'tcp' },

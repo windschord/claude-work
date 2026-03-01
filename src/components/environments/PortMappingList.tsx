@@ -30,7 +30,7 @@ export function PortMappingList({ value, onChange, excludeEnvironmentId }: PortM
     counter: value.length,
     keys: value.map((_, i) => i),
   }));
-  const [portCheckResults, setPortCheckResults] = useState<Map<number, PortCheckResult>>(new Map());
+  const [portCheckResults, setPortCheckResults] = useState<Map<string, PortCheckResult>>(new Map());
   const [isChecking, setIsChecking] = useState(false);
 
   // 親コンポーネントによるvalue外部変更時にkeysを同期する
@@ -76,12 +76,13 @@ export function PortMappingList({ value, onChange, excludeEnvironmentId }: PortM
       const numValue = typeof rawValue === 'string' ? parseInt(rawValue, 10) || 0 : rawValue;
 
       if (field === 'hostPort') {
-        const previousHostPort = mapping.hostPort;
-        const nextHostPort = numValue;
+        const protocol = mapping.protocol || 'tcp';
+        const previousKey = `${mapping.hostPort}-${protocol}`;
+        const nextKey = `${numValue}-${protocol}`;
         setPortCheckResults(prev => {
           const next = new Map(prev);
-          next.delete(previousHostPort);
-          next.delete(nextHostPort);
+          next.delete(previousKey);
+          next.delete(nextKey);
           return next;
         });
       }
@@ -93,11 +94,13 @@ export function PortMappingList({ value, onChange, excludeEnvironmentId }: PortM
   };
 
   const handleCheckPorts = async () => {
-    const validPorts = value
-      .map(m => m.hostPort)
-      .filter(p => Number.isInteger(p) && p >= 1 && p <= 65535);
+    const validMappings = value.filter(
+      m => Number.isInteger(m.hostPort) && m.hostPort >= 1 && m.hostPort <= 65535
+    );
 
-    if (validPorts.length === 0) return;
+    if (validMappings.length === 0) return;
+
+    const uniquePorts = [...new Set(validMappings.map(m => m.hostPort))];
 
     setIsChecking(true);
     try {
@@ -105,29 +108,39 @@ export function PortMappingList({ value, onChange, excludeEnvironmentId }: PortM
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ports: validPorts,
+          ports: uniquePorts,
           excludeEnvironmentId,
         }),
       });
 
       if (response.ok) {
         const data = await response.json();
-        const newResults = new Map<number, PortCheckResult>();
+        const portResultMap = new Map<number, PortCheckResult>();
         for (const result of data.results) {
-          newResults.set(result.port, result);
+          portResultMap.set(result.port, result);
+        }
+        const newResults = new Map<string, PortCheckResult>();
+        for (const mapping of validMappings) {
+          const key = `${mapping.hostPort}-${mapping.protocol || 'tcp'}`;
+          const result = portResultMap.get(mapping.hostPort);
+          if (result) {
+            newResults.set(key, result);
+          }
         }
         setPortCheckResults(newResults);
       } else {
-        const unknownResults = new Map<number, PortCheckResult>();
-        for (const port of validPorts) {
-          unknownResults.set(port, { status: 'unknown' });
+        const unknownResults = new Map<string, PortCheckResult>();
+        for (const mapping of validMappings) {
+          const key = `${mapping.hostPort}-${mapping.protocol || 'tcp'}`;
+          unknownResults.set(key, { status: 'unknown' });
         }
         setPortCheckResults(unknownResults);
       }
     } catch {
-      const unknownResults = new Map<number, PortCheckResult>();
-      for (const port of validPorts) {
-        unknownResults.set(port, { status: 'unknown' });
+      const unknownResults = new Map<string, PortCheckResult>();
+      for (const mapping of validMappings) {
+        const key = `${mapping.hostPort}-${mapping.protocol || 'tcp'}`;
+        unknownResults.set(key, { status: 'unknown' });
       }
       setPortCheckResults(unknownResults);
     } finally {
@@ -148,7 +161,7 @@ export function PortMappingList({ value, onChange, excludeEnvironmentId }: PortM
       ) : (
         <div className="space-y-2">
           {value.map((mapping, index) => {
-            const checkResult = portCheckResults.get(mapping.hostPort);
+            const checkResult = portCheckResults.get(`${mapping.hostPort}-${mapping.protocol || 'tcp'}`);
             return (
               <div key={keyState.keys[index]} className="flex items-center gap-2">
                 <input
