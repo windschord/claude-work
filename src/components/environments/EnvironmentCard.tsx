@@ -226,7 +226,9 @@ export function EnvironmentCard({ environment, onEdit, onDelete, highlighted }: 
       </div>
       {environment.project_count !== undefined && environment.project_count > 0 && (
         <p className="text-sm text-amber-600 dark:text-amber-400 mt-2">
-          使用中のため削除できません: {environment.project_names?.join(', ') ?? `${environment.project_count}個のプロジェクト`}
+          使用中のため削除できません: {environment.project_names && environment.project_names.length > 0
+            ? environment.project_names.join(', ')
+            : `${environment.project_count ?? 0}個のプロジェクト`}
         </p>
       )}
     </div>

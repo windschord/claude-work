@@ -286,6 +286,19 @@ describe('EnvironmentCard', () => {
       expect(screen.queryByText(/使用中のため削除できません/)).not.toBeInTheDocument();
     });
 
+    it('should show fallback project count when project_names is empty but project_count > 0', () => {
+      const environment = createEnvironment({
+        project_count: 3,
+        project_names: [],
+      });
+
+      render(<EnvironmentCard {...defaultProps} environment={environment} />);
+
+      const deleteButton = screen.getByRole('button', { name: '削除' });
+      expect(deleteButton).toBeDisabled();
+      expect(screen.getByText('使用中のため削除できません: 3個のプロジェクト')).toBeInTheDocument();
+    });
+
     it('should enable delete button for default environments without project usage', () => {
       const environment = createEnvironment({
         is_default: true,
