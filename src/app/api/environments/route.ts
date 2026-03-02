@@ -64,6 +64,7 @@ export async function GET(request: NextRequest) {
       name: schema.projects.name,
     }).from(schema.projects)
       .where(sql`${schema.projects.environment_id} IS NOT NULL`)
+      .orderBy(schema.projects.name)
       .all();
 
     const projectMap = new Map<string | null, { count: number; names: string[] }>();
