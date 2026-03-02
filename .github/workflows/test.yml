@@ -71,6 +71,7 @@ jobs:
 
     env:
       DATABASE_URL: file:./data/test.db
+      VITEST_FILE_PARALLELISM: 'true'
 
     steps:
     - uses: actions/checkout@v4
@@ -106,9 +107,11 @@ jobs:
       timeout-minutes: 8
 
   # E2E tests - CLI installation tests (browser tests require Claude CLI)
+  # Uses pre-built CLI package from build job to avoid redundant rebuild (~226s -> ~30s)
   test-e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 8
+    needs: [build]
 
     steps:
     - uses: actions/checkout@v4
@@ -118,64 +121,46 @@ jobs:
       with:
         skip-db-setup: 'true'
 
-    - name: Get Node.js version for cache key
-      id: node-version
-      run: echo "version=$(node --version)" >> $GITHUB_OUTPUT
-
-    - name: Cache CLI E2E package
-      uses: actions/cache@v4
-      id: cli-package-cache
+    - name: Download CLI E2E package
+      uses: actions/download-artifact@v4
       with:
-        path: /tmp/cli-e2e-package
-        # src/** を含めることでビルド成果物に影響する全ソースの変更を検出する。
-        # テストファイルの変更でもキャッシュが無効化されるが、ビルドの正確性を優先する。
-        key: cli-e2e-pkg-${{ runner.os }}-node${{ steps.node-version.outputs.version }}-${{ hashFiles('package.json', 'pnpm-lock.yaml', 'src/**', 'server.ts', 'tsconfig*.json', 'next.config.js', 'tailwind.config.*', 'postcss.config.*', '.npmignore') }}
+        name: cli-e2e-package
+        path: /tmp/cli-e2e-package/package
 
-    - name: Build CLI E2E package
-      if: steps.cli-package-cache.outputs.cache-hit != 'true'
-      run: |
-        set -eo pipefail
-        echo "=== npm pack ==="
-        TARBALL_NAME=$(npm pack --ignore-scripts | tail -1)
-        echo "Created tarball: $TARBALL_NAME"
-
-        echo "=== Extract tarball ==="
-        mkdir -p /tmp/cli-e2e-package
-        tar -xzf "$TARBALL_NAME" -C /tmp/cli-e2e-package
-        rm -f "$TARBALL_NAME"
-
-        echo "=== npm install (triggers prepare/build) ==="
-        cd /tmp/cli-e2e-package/package
-        npm install
-        echo "=== Build complete ==="
-      timeout-minutes: 8
+    - name: Link node_modules to CLI package
+      run: ln -sf "$GITHUB_WORKSPACE/node_modules" /tmp/cli-e2e-package/package/node_modules
 
     - name: Verify CLI package
       run: |
         pkg=/tmp/cli-e2e-package/package
         ok=true
-        for f in dist/src/bin/cli.js package.json; do
-          if [ ! -f "$pkg/$f" ]; then
-            echo "::error::Missing required file: $pkg/$f"
+        for f in dist/src/bin/cli.js package.json .next/BUILD_ID; do
+          if [ ! -s "$pkg/$f" ]; then
+            echo "::error::Missing or empty required file: $pkg/$f"
             ok=false
           fi
         done
-        if [ ! -d "$pkg/.next" ]; then
-          echo "::error::Missing required directory: $pkg/.next"
-          ok=false
-        fi
+        for d in .next .next/static .next/server; do
+          if [ ! -d "$pkg/$d" ]; then
+            echo "::error::Missing required directory: $pkg/$d"
+            ok=false
+          elif [ "$d" != ".next" ] && ! find "$pkg/$d" -mindepth 1 -type f ! -name '.gitkeep' -print -quit | grep -q .; then
+            echo "::error::Directory contains no build files: $pkg/$d"
+            ok=false
+          fi
+        done
         if [ "$ok" != "true" ]; then
           echo "CLI package verification failed. Listing contents:"
-          ls -la "$pkg"
+          ls -laR "$pkg"
           exit 1
         fi
         echo "CLI package verified successfully"
 
     - name: Run CLI E2E tests
       run: SKIP_WEBSERVER=true CLI_PACKAGE_DIR=/tmp/cli-e2e-package/package pnpm exec playwright test --project=cli
-      timeout-minutes: 3
+      timeout-minutes: 5
 
-  # Build job - runs in parallel with tests
+  # Build job - runs in parallel with lint/unit tests, required by test-e2e for CLI E2E package artifact
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -191,6 +176,40 @@ jobs:
 
     - name: Build
       run: pnpm run build
+
+    - name: Verify build outputs
+      run: |
+        for f in .next/BUILD_ID; do
+          [ -s "$f" ] || { echo "::error::Missing or empty build output: $f"; exit 1; }
+        done
+        for d in .next/static .next/server; do
+          [ -d "$d" ] || { echo "::error::Missing build output directory: $d"; exit 1; }
+          [ -n "$(find "$d" -mindepth 1 -type f -print -quit)" ] || {
+            echo "::error::Build output directory is empty: $d"
+            exit 1
+          }
+        done
+
+    - name: Create CLI E2E package
+      run: |
+        set -eo pipefail
+        PKG=/tmp/cli-e2e-package/package
+        mkdir -p "$PKG"
+        # Copy only files needed for CLI E2E tests (skip npm pack for speed)
+        cp package.json "$PKG/"
+        cp -r dist "$PKG/"
+        # Copy real Next.js build outputs
+        mkdir -p "$PKG/.next"
+        cp .next/BUILD_ID "$PKG/.next/"
+        cp -r .next/static .next/server "$PKG/.next/"
+
+    - name: Upload CLI E2E package
+      uses: actions/upload-artifact@v4
+      with:
+        name: cli-e2e-package
+        path: /tmp/cli-e2e-package/package
+        include-hidden-files: true
+        retention-days: 1
 
   # Final check - ensures all jobs passed
   ci-check:
