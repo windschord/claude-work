@@ -358,7 +358,7 @@ describe('/api/environments/[id]', () => {
       expect(mockDelete).toHaveBeenCalledWith('env-to-delete');
     });
 
-    it('デフォルト環境の削除は400エラー', async () => {
+    it('デフォルト環境も削除できる', async () => {
       const environment = {
         id: 'host-default',
         name: 'Local Host',
@@ -372,6 +372,7 @@ describe('/api/environments/[id]', () => {
       };
 
       mockFindById.mockResolvedValue(environment);
+      mockDelete.mockResolvedValue(undefined);
 
       const request = new NextRequest('http://localhost:3000/api/environments/host-default', {
         method: 'DELETE',
@@ -380,9 +381,9 @@ describe('/api/environments/[id]', () => {
       const response = await DELETE(request, { params: Promise.resolve({ id: 'host-default' }) });
       const data = await response.json();
 
-      expect(response.status).toBe(400);
-      expect(data.error).toContain('default');
-      expect(mockDelete).not.toHaveBeenCalled();
+      expect(response.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(mockDelete).toHaveBeenCalledWith('host-default');
     });
 
     it('存在しない環境の削除は404エラー', async () => {
