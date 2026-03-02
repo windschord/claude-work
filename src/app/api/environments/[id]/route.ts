@@ -181,13 +181,13 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
  * DELETE /api/environments/:id - 環境を削除
  *
  * 注:
- * - デフォルト環境は削除不可
+ * - 使用中のプロジェクトがある場合は削除不可（409）
  * - 使用中のセッションがあっても削除は許可（警告をログ出力）
  *
  * @returns
  * - 200: 削除成功
- * - 400: デフォルト環境は削除不可
  * - 404: 環境が見つからない
+ * - 409: 使用中のプロジェクトがある
  * - 500: サーバーエラー
  */
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
@@ -198,14 +198,6 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     const environment = await environmentService.findById(id);
     if (!environment) {
       return NextResponse.json({ error: 'Environment not found' }, { status: 404 });
-    }
-
-    // デフォルト環境は削除不可
-    if (environment.is_default) {
-      return NextResponse.json(
-        { error: 'Cannot delete default environment' },
-        { status: 400 }
-      );
     }
 
     logger.info('Deleting environment', { id, name: environment.name });
