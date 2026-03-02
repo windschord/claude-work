@@ -30,11 +30,13 @@ export default defineConfig({
       DATABASE_URL: 'file:../data/test.db',
     },
     // CI環境では並列化を制限してハングを防ぐ
+    // VITEST_FILE_PARALLELISM=true で並列実行を有効化（frontendテスト等、DB/認証を使わないテスト向け）
     pool: 'forks',
-    maxConcurrency: process.env.CI ? 1 : 5,
+    maxConcurrency: process.env.VITEST_FILE_PARALLELISM === 'true' ? 5 : (process.env.CI ? 1 : 5),
     isolate: true,
     // APIテストの認証セッション競合を防ぐためファイル並列実行を無効化
-    fileParallelism: false,
+    // VITEST_FILE_PARALLELISM=true の場合は並列実行を許可
+    fileParallelism: process.env.VITEST_FILE_PARALLELISM === 'true',
     // テスト完了後にハングしないようにタイムアウトを短く設定
     teardownTimeout: 5000,
     server: {
