@@ -24,6 +24,7 @@ export interface Environment {
   status?: EnvironmentStatus;
   disabled?: boolean;
   project_count?: number;
+  project_names?: string[];
 }
 
 /**

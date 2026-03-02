@@ -10,7 +10,7 @@ import { DockerClient } from '@/services/docker-client';
 import { isHostEnvironmentAllowed } from '@/lib/environment-detect';
 import { db } from '@/lib/db';
 import * as schema from '@/db/schema';
-import { count, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 
 // 許可されたベースディレクトリ
 const ALLOWED_BASE_DIRS = [
@@ -58,16 +58,22 @@ export async function GET(request: NextRequest) {
 
     const environments = await environmentService.findAll();
 
-    // 環境ごとのプロジェクト使用数を取得
-    const projectCounts = db.select({
+    // 環境ごとの使用プロジェクト情報を取得
+    const projectsByEnv = db.select({
       environment_id: schema.projects.environment_id,
-      count: count(),
+      name: schema.projects.name,
     }).from(schema.projects)
       .where(sql`${schema.projects.environment_id} IS NOT NULL`)
-      .groupBy(schema.projects.environment_id)
+      .orderBy(schema.projects.name)
       .all();
 
-    const countMap = new Map(projectCounts.map(p => [p.environment_id, p.count]));
+    const projectMap = new Map<string | null, { count: number; names: string[] }>();
+    for (const p of projectsByEnv) {
+      const entry = projectMap.get(p.environment_id) ?? { count: 0, names: [] };
+      entry.count++;
+      entry.names.push(p.name);
+      projectMap.set(p.environment_id, entry);
+    }
 
     if (includeStatus) {
       // 各環境のステータスを並列取得
@@ -75,7 +81,8 @@ export async function GET(request: NextRequest) {
         environments.map(async (env) => ({
           ...env,
           status: await environmentService.checkStatus(env.id),
-          project_count: countMap.get(env.id) ?? 0,
+          project_count: projectMap.get(env.id)?.count ?? 0,
+          project_names: projectMap.get(env.id)?.names ?? [],
           ...(env.type === 'HOST' && !hostAllowed ? { disabled: true } : {}),
         }))
       );
@@ -89,7 +96,8 @@ export async function GET(request: NextRequest) {
 
     const envData = environments.map(env => ({
       ...env,
-      project_count: countMap.get(env.id) ?? 0,
+      project_count: projectMap.get(env.id)?.count ?? 0,
+      project_names: projectMap.get(env.id)?.names ?? [],
       ...(env.type === 'HOST' && !hostAllowed ? { disabled: true } : {}),
     }));
 

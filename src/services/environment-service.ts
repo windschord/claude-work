@@ -189,8 +189,7 @@ export class EnvironmentService {
 
   /**
    * 環境を削除する
-   * デフォルト環境は削除不可
-   * 使用中のプロジェクトがある場合は削除を拒否
+   * 使用中のプロジェクトがある場合は EnvironmentInUseError をスロー
    * @param id - 環境ID
    */
   async delete(id: string): Promise<void> {
@@ -198,10 +197,6 @@ export class EnvironmentService {
 
     if (!environment) {
       throw new Error('環境が見つかりません');
-    }
-
-    if (environment.is_default) {
-      throw new Error('デフォルト環境は削除できません');
     }
 
     // 使用中のプロジェクトを確認

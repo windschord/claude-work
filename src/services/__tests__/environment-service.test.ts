@@ -373,7 +373,7 @@ describe('EnvironmentService', () => {
       expect(mockDbDeleteRun).toHaveBeenCalled();
     });
 
-    it('デフォルト環境は削除できない', async () => {
+    it('デフォルト環境も削除できる', async () => {
       mockDbSelectGet.mockReturnValue({
         id: 'host-default',
         name: 'Local Host',
@@ -385,12 +385,11 @@ describe('EnvironmentService', () => {
         created_at: new Date(),
         updated_at: new Date(),
       });
+      mockDbSelectAll.mockReturnValueOnce([]); // プロジェクト使用なし
 
-      await expect(service.delete('host-default')).rejects.toThrow(
-        'デフォルト環境は削除できません'
-      );
+      await service.delete('host-default');
 
-      expect(mockDbDeleteRun).not.toHaveBeenCalled();
+      expect(mockDbDeleteRun).toHaveBeenCalled();
     });
 
     it('使用中のプロジェクトがある場合は削除を拒否する', async () => {

@@ -116,7 +116,7 @@ function StatusIndicator({ available, authenticated }: { available: boolean; aut
  * 環境カードコンポーネント
  *
  * 環境の情報を表示し、編集、削除のアクションを提供します。
- * デフォルト環境は削除ボタンが無効化されます。
+ * プロジェクトで使用中の環境は削除ボタンが無効化されます。
  *
  * NOTE: 将来的にハイライト（例: 保存後のフラッシュ効果）を実装する場合は、
  * 環境の更新やリスト再取得でコンポーネントが再マウントされることを考慮し、
@@ -219,20 +219,18 @@ export function EnvironmentCard({ environment, onEdit, onDelete, highlighted }: 
           type="button"
           onClick={handleDelete}
           className="flex-1 bg-red-600 dark:bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 dark:hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          disabled={environment.is_default || environment.disabled || (environment.project_count !== undefined && environment.project_count > 0)}
-          title={
-            environment.is_default
-              ? 'デフォルト環境は削除できません'
-              : environment.disabled
-              ? '無効化された環境です'
-              : environment.project_count !== undefined && environment.project_count > 0
-              ? `${environment.project_count}個のプロジェクトで使用中のため削除できません`
-              : ''
-          }
+          disabled={environment.disabled || (environment.project_count !== undefined && environment.project_count > 0)}
         >
           削除
         </button>
       </div>
+      {environment.project_count !== undefined && environment.project_count > 0 && (
+        <p className="text-sm text-amber-600 dark:text-amber-400 mt-2">
+          使用中のため削除できません: {environment.project_names && environment.project_names.length > 0
+            ? environment.project_names.join(', ')
+            : `${environment.project_count ?? 0}個のプロジェクト`}
+        </p>
+      )}
     </div>
   );
 }
