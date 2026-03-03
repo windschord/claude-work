@@ -15,7 +15,6 @@
 #           "--headless",
 #           "--isolated",
 #           "--executablePath=/usr/bin/chromium",
-#           "--chromeArg=--no-sandbox",
 #           "--chromeArg=--disable-dev-shm-usage"
 #         ]
 #       }
@@ -23,6 +22,11 @@
 #   }
 #
 # コンテナ起動時に --shm-size=256m 以上を推奨
+#
+# セキュリティ注意:
+#   Chromiumのsandboxが機能しない環境（unprivileged user namespacesが無効等）では
+#   MCP argsに "--chromeArg=--no-sandbox" を追加してください。
+#   sandbox有効化にはホスト側で kernel.unprivileged_userns_clone=1 の設定が必要な場合があります。
 
 FROM node:20-slim
 
@@ -71,11 +75,12 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 # Claude Codeをインストール
-RUN npm install -g @anthropic-ai/claude-code
+ARG CLAUDE_CODE_VERSION=2.1.63
+RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
 
 # nodeユーザーを使用（node:20-slimに既存のUID 1000）
 # /home/claude → /home/node のシンボリックリンク
-RUN [ -e /home/claude ] || ln -s /home/node /home/claude
+RUN test -e /home/claude || ln -s /home/node /home/claude
 
 # SSHディレクトリの準備（マウント用）
 RUN mkdir -p /home/node/.ssh \
@@ -101,8 +106,9 @@ ENV COLORTERM=truecolor
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 ENV CHROME_PATH=/usr/bin/chromium
-# Docker内ではsandboxが使えないため無効化（Docker自体がサンドボックス）
-ENV CHROMIUM_FLAGS="--no-sandbox --disable-dev-shm-usage"
+# /dev/shmサイズ制限の回避（Dockerデフォルト64MBでは不足）
+# --no-sandbox はsandboxが機能しない環境でのみ追加（上部コメント参照）
+ENV CHROMIUM_FLAGS="--disable-dev-shm-usage"
 
 WORKDIR /workspace
 
