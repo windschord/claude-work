@@ -1,0 +1,43 @@
+# syntax=docker/dockerfile:1
+# Claude Code Sandboxed Container with Rust
+# 基本のsandboxイメージを拡張し、Rust開発環境を追加した実行環境
+#
+# 使用方法:
+#   docker build -f docker/extensions/Dockerfile.rust -t claude-work-env:rust docker/
+#
+#   # ローカルビルドした基本イメージを使用
+#   docker build -f docker/Dockerfile -t claude-work-sandbox:local docker/
+#   docker build -f docker/extensions/Dockerfile.rust --build-arg BASE_IMAGE=claude-work-sandbox:local \
+#     -t claude-work-env:rust docker/
+
+ARG BASE_IMAGE=ghcr.io/windschord/claude-work-sandbox:latest
+FROM ${BASE_IMAGE}
+
+LABEL description="Sandboxed environment for running Claude Code with Rust"
+
+# rustupはnodeユーザー権限でインストール（/home/node配下）
+USER node
+
+ENV RUSTUP_HOME=/home/node/.rustup
+ENV CARGO_HOME=/home/node/.cargo
+ENV PATH="${CARGO_HOME}/bin:${PATH}"
+
+ARG RUSTUP_VERSION=1.28.1
+# SHA256 checksums pinned from https://rust-lang.github.io/rustup/installation/other.html
+ARG RUSTUP_SHA256_AMD64=a3339fb004c3d0bb9862ba0bce001861fe5cbde9c10d16591eb3f39ee6cd3e7f
+ARG RUSTUP_SHA256_ARM64=c64b33db2c6b9385817ec0e49a84bcfe018ed6e328fe755c3c809580cc70ce7a
+
+RUN ARCH="$(dpkg --print-architecture)" \
+    && case "${ARCH}" in \
+        amd64) RUST_ARCH="x86_64-unknown-linux-gnu"; EXPECTED_SHA256="${RUSTUP_SHA256_AMD64}" ;; \
+        arm64) RUST_ARCH="aarch64-unknown-linux-gnu"; EXPECTED_SHA256="${RUSTUP_SHA256_ARM64}" ;; \
+        *) echo "Unsupported architecture: ${ARCH}" && exit 1 ;; \
+    esac \
+    && curl --proto '=https' --tlsv1.2 -fsSL -o /tmp/rustup-init \
+        "https://static.rust-lang.org/rustup/archive/${RUSTUP_VERSION}/${RUST_ARCH}/rustup-init" \
+    && echo "${EXPECTED_SHA256}  /tmp/rustup-init" | sha256sum -c - \
+    && chmod +x /tmp/rustup-init \
+    && /tmp/rustup-init -y --default-toolchain stable --profile minimal \
+    && rm /tmp/rustup-init \
+    && . "${CARGO_HOME}/env" \
+    && rustup component add rustfmt clippy
