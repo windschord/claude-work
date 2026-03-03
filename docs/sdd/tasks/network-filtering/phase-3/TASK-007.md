@@ -82,4 +82,8 @@ TASK-003（NetworkFilterService CRUD）
 40分
 
 ## ステータス
-`IN_PROGRESS`
+`DONE`
+
+## 完了サマリー
+
+ルールCRUD APIエンドポイント(GET/POST/PUT/DELETE)をTDD手順で実装。テスト9件全て通過。
