@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { NetworkFilterRule, NetworkFilterConfig } from '@/db/schema';
 import type { CreateRuleInput, UpdateRuleInput, DefaultTemplate, TestResult } from '@/services/network-filter-service';
 
@@ -44,6 +44,7 @@ export function useNetworkFilter(environmentId: string): UseNetworkFilterReturn 
   const [filterConfig, setFilterConfig] = useState<NetworkFilterConfig | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
 
   /**
    * ルール一覧を取得する
@@ -75,8 +76,12 @@ export function useNetworkFilter(environmentId: string): UseNetworkFilterReturn 
 
   /**
    * ルール一覧とフィルタ設定を並列で取得して状態を更新する
+   *
+   * requestIdRefによる競合ガード: environmentId切替時に古いレスポンスで状態が上書きされないよう、
+   * リクエストIDが最新でない場合は結果を破棄する。
    */
   const fetchAll = useCallback(async (envId: string): Promise<void> => {
+    const currentRequestId = ++requestIdRef.current;
     setIsLoading(true);
     setError(null);
 
@@ -86,13 +91,19 @@ export function useNetworkFilter(environmentId: string): UseNetworkFilterReturn 
         fetchConfig(envId),
       ]);
 
+      // stale response guard: このリクエストが最新でなければ状態を更新しない
+      if (currentRequestId !== requestIdRef.current) return;
+
       setRules(fetchedRules);
       setFilterConfig(fetchedConfig);
     } catch (err) {
+      if (currentRequestId !== requestIdRef.current) return;
       const errorMessage = err instanceof Error ? err.message : 'データの取得に失敗しました';
       setError(errorMessage);
     } finally {
-      setIsLoading(false);
+      if (currentRequestId === requestIdRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [fetchRules, fetchConfig]);
 
@@ -213,7 +224,7 @@ export function useNetworkFilter(environmentId: string): UseNetworkFilterReturn 
    * テンプレートからルールを一括追加し一覧を再フェッチする
    */
   const applyTemplates = useCallback(async (ruleInputs: CreateRuleInput[]): Promise<void> => {
-    const response = await fetch(`/api/environments/${environmentId}/network-rules/templates`, {
+    const response = await fetch(`/api/environments/${environmentId}/network-rules/templates/apply`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ rules: ruleInputs }),

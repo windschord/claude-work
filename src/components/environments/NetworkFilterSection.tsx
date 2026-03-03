@@ -6,6 +6,8 @@ import type { NetworkFilterRule } from '@/db/schema';
 import { useNetworkFilter } from '@/hooks/useNetworkFilter';
 import { NetworkRuleList } from './NetworkRuleList';
 import { NetworkRuleForm } from './NetworkRuleForm';
+import { NetworkTemplateDialog } from './NetworkTemplateDialog';
+import { NetworkTestDialog } from './NetworkTestDialog';
 import type { CreateRuleInput } from '@/hooks/useNetworkFilter';
 
 type EnvironmentType = 'HOST' | 'DOCKER' | 'SSH';
@@ -59,6 +61,8 @@ function NetworkFilterSectionInner({ environmentId }: NetworkFilterSectionInnerP
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<NetworkFilterRule | null>(null);
+  const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false);
+  const [isTestDialogOpen, setIsTestDialogOpen] = useState(false);
 
   const handleAddRule = () => {
     setEditingRule(null);
@@ -175,22 +179,20 @@ function NetworkFilterSectionInner({ environmentId }: NetworkFilterSectionInnerP
               ルールを追加
             </button>
 
-            {/* テンプレート適用ボタン（TASK-011実装予定） */}
+            {/* テンプレート適用ボタン */}
             <button
               type="button"
-              disabled
-              className="inline-flex items-center gap-1.5 text-sm text-gray-400 cursor-not-allowed"
-              title="テンプレートの適用は近日実装予定"
+              onClick={() => setIsTemplateDialogOpen(true)}
+              className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
             >
               テンプレートを適用
             </button>
 
-            {/* 通信テストボタン（TASK-011実装予定） */}
+            {/* 通信テストボタン */}
             <button
               type="button"
-              disabled
-              className="inline-flex items-center gap-1.5 text-sm text-gray-400 cursor-not-allowed"
-              title="通信テストは近日実装予定"
+              onClick={() => setIsTestDialogOpen(true)}
+              className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
             >
               <FlaskConical className="h-4 w-4" />
               通信テスト
@@ -205,6 +207,21 @@ function NetworkFilterSectionInner({ environmentId }: NetworkFilterSectionInnerP
         onClose={handleFormClose}
         onSubmit={handleFormSubmit}
         initialData={editingRule}
+      />
+
+      {/* テンプレート適用ダイアログ */}
+      <NetworkTemplateDialog
+        isOpen={isTemplateDialogOpen}
+        onClose={() => setIsTemplateDialogOpen(false)}
+        environmentId={environmentId}
+        onApplied={() => setIsTemplateDialogOpen(false)}
+      />
+
+      {/* 通信テストダイアログ */}
+      <NetworkTestDialog
+        isOpen={isTestDialogOpen}
+        onClose={() => setIsTestDialogOpen(false)}
+        environmentId={environmentId}
       />
     </div>
   );

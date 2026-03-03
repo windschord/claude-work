@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, Fragment } from 'react';
+import { useState, useRef, Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 
 interface MatchedRule {
@@ -42,6 +42,7 @@ export function NetworkTestDialog({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [testResult, setTestResult] = useState<TestResult | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const handleTest = async () => {
     if (!target.trim()) return;
@@ -49,6 +50,11 @@ export function NetworkTestDialog({
     setError('');
     setIsLoading(true);
     setTestResult(null);
+
+    // 前のリクエストがあれば中断する
+    abortControllerRef.current?.abort();
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
 
     const body: { target: string; port?: number } = { target: target.trim() };
     if (port.trim()) {
@@ -65,6 +71,7 @@ export function NetworkTestDialog({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
+          signal: abortController.signal,
         }
       );
       const data = await response.json();
@@ -73,6 +80,8 @@ export function NetworkTestDialog({
       }
       setTestResult(data.result);
     } catch (err) {
+      // ダイアログクローズによるabortは無視する
+      if (err instanceof Error && err.name === 'AbortError') return;
       setError(err instanceof Error ? err.message : '通信テストに失敗しました');
     } finally {
       setIsLoading(false);
@@ -80,6 +89,9 @@ export function NetworkTestDialog({
   };
 
   const handleClose = () => {
+    // リクエスト中の場合はabortして状態が更新されないようにする
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
     setTarget('');
     setPort('');
     setError('');
