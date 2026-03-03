@@ -1,6 +1,6 @@
 import { db, schema } from '@/lib/db';
 import type { ExecutionEnvironment } from '@/lib/db';
-import { eq, asc, and } from 'drizzle-orm';
+import { eq, asc } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
 import { getEnvironmentsDir } from '@/lib/data-dir';
 import { isHostEnvironmentAllowed } from '@/lib/environment-detect';
@@ -52,36 +52,9 @@ export interface UpdateEnvironmentInput {
 }
 
 /**
- * デフォルトHOST環境の定数
- */
-const DEFAULT_HOST_ENVIRONMENT = {
-  id: 'host-default',
-  name: 'Local Host',
-  type: 'HOST',
-  description: 'デフォルトのホスト環境',
-  config: '{}',
-  is_default: true,
-} as const;
-
-/**
  * サンドボックスDockerイメージのデフォルト名
  */
 export const DEFAULT_SANDBOX_IMAGE_NAME = 'ghcr.io/windschord/claude-work-sandbox';
-
-/**
- * デフォルトDocker環境の定数
- */
-const DEFAULT_DOCKER_ENVIRONMENT = {
-  id: 'docker-default',
-  name: 'Default Docker',
-  type: 'DOCKER',
-  description: 'デフォルトのDocker環境',
-  config: JSON.stringify({
-    imageName: DEFAULT_SANDBOX_IMAGE_NAME,
-    imageTag: 'latest',
-  }),
-  is_default: true,
-} as const;
 
 /**
  * EnvironmentService
@@ -114,7 +87,6 @@ export class EnvironmentService {
       type: input.type,
       description: input.description,
       config: configJson,
-      is_default: false,
     }).returning().get();
 
     if (!environment) {
@@ -210,6 +182,16 @@ export class EnvironmentService {
       throw new EnvironmentInUseError(`この環境は以下のプロジェクトで使用中のため削除できません: ${projectNames}`);
     }
 
+    // 使用中のセッションを確認
+    const sessionsWithEnv = db.select({ id: schema.sessions.id })
+      .from(schema.sessions)
+      .where(eq(schema.sessions.environment_id, id))
+      .all();
+
+    if (sessionsWithEnv.length > 0) {
+      throw new EnvironmentInUseError(`この環境は ${sessionsWithEnv.length} 件のセッションで使用中のため削除できません`);
+    }
+
     // 認証ディレクトリがあれば削除
     if (environment.auth_dir_path) {
       try {
@@ -251,111 +233,12 @@ export class EnvironmentService {
       }
     }
 
-    // セッションのenvironment_id NULLクリアと環境レコード削除をトランザクションで実行
-    db.transaction((tx) => {
-      tx.update(schema.sessions)
-        .set({ environment_id: null })
-        .where(eq(schema.sessions.environment_id, id))
-        .run();
-
-      tx.delete(schema.executionEnvironments)
-        .where(eq(schema.executionEnvironments.id, id))
-        .run();
-    });
+    // 環境レコードを削除
+    db.delete(schema.executionEnvironments)
+      .where(eq(schema.executionEnvironments.id, id))
+      .run();
 
     logger.info('環境を削除しました', { id });
-  }
-
-  /**
-   * デフォルト環境を取得する
-   * @returns デフォルト環境
-   * @throws デフォルト環境が見つからない場合
-   */
-  async getDefault(): Promise<ExecutionEnvironment> {
-    const environment = db.select().from(schema.executionEnvironments)
-      .where(eq(schema.executionEnvironments.is_default, true))
-      .get();
-
-    if (!environment) {
-      throw new Error('デフォルト環境が見つかりません');
-    }
-
-    return environment;
-  }
-
-  /**
-   * デフォルト環境が存在しない場合に作成する
-   */
-  async ensureDefaultExists(): Promise<void> {
-    if (!isHostEnvironmentAllowed()) {
-      // Docker内動作: デフォルトDocker環境を作成
-      await this.ensureDefaultEnvironment();
-      return;
-    }
-
-    const existing = db.select().from(schema.executionEnvironments)
-      .where(eq(schema.executionEnvironments.is_default, true))
-      .get();
-
-    if (existing) {
-      logger.debug('デフォルト環境は既に存在します', { id: existing.id });
-      return;
-    }
-
-    db.insert(schema.executionEnvironments).values({
-      id: DEFAULT_HOST_ENVIRONMENT.id,
-      name: DEFAULT_HOST_ENVIRONMENT.name,
-      type: DEFAULT_HOST_ENVIRONMENT.type,
-      description: DEFAULT_HOST_ENVIRONMENT.description,
-      config: DEFAULT_HOST_ENVIRONMENT.config,
-      is_default: DEFAULT_HOST_ENVIRONMENT.is_default,
-    }).run();
-
-    logger.info('デフォルト環境を作成しました', { id: DEFAULT_HOST_ENVIRONMENT.id });
-  }
-
-  /**
-   * デフォルトDocker環境を取得または作成する
-   * @returns デフォルトDocker環境
-   */
-  async ensureDefaultEnvironment(): Promise<ExecutionEnvironment> {
-    // is_default=trueのDocker環境のみを検索
-    const existing = db.select().from(schema.executionEnvironments)
-      .where(and(
-        eq(schema.executionEnvironments.type, 'DOCKER'),
-        eq(schema.executionEnvironments.is_default, true)
-      ))
-      .get();
-
-    if (existing) {
-      logger.debug('デフォルトDocker環境は既に存在します', { id: existing.id });
-      return existing;
-    }
-
-    // 既存のデフォルト環境をis_default=falseに更新してから新規作成（トランザクションで保護）
-    const environment = db.transaction((tx) => {
-      tx.update(schema.executionEnvironments)
-        .set({ is_default: false })
-        .where(eq(schema.executionEnvironments.is_default, true))
-        .run();
-
-      return tx.insert(schema.executionEnvironments).values({
-        id: DEFAULT_DOCKER_ENVIRONMENT.id,
-        name: DEFAULT_DOCKER_ENVIRONMENT.name,
-        type: DEFAULT_DOCKER_ENVIRONMENT.type,
-        description: DEFAULT_DOCKER_ENVIRONMENT.description,
-        config: DEFAULT_DOCKER_ENVIRONMENT.config,
-        is_default: DEFAULT_DOCKER_ENVIRONMENT.is_default,
-      }).returning().get();
-    });
-
-    if (!environment) {
-      throw new Error('Failed to create default Docker environment');
-    }
-
-    logger.info('デフォルトDocker環境を作成しました', { id: environment.id, name: environment.name });
-
-    return environment;
   }
 
   /**

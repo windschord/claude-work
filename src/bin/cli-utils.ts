@@ -247,7 +247,6 @@ function createInitialTables(db: InstanceType<typeof Database>): void {
       "description" text,
       "config" text NOT NULL,
       "auth_dir_path" text,
-      "is_default" integer NOT NULL DEFAULT 0,
       "created_at" integer NOT NULL,
       "updated_at" integer NOT NULL
     );

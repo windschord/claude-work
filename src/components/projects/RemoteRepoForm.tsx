@@ -40,16 +40,24 @@ export function RemoteRepoForm({
   const availableEnvironments = environments.filter((env) => !env.disabled);
 
   const availableEnvironmentIds = availableEnvironments.map((e) => e.id).join(',');
-  const defaultEnvironmentId = availableEnvironments.find((e) => e.is_default)?.id ?? availableEnvironments[0]?.id ?? '';
 
-  // 初期選択: is_default=true の環境、または選択中の環境がリストから削除された場合にリセット
+  // 選択中の環境がリストから削除された場合にリセット
   useEffect(() => {
-    if (!selectedEnvironmentId && defaultEnvironmentId) {
-      setSelectedEnvironmentId(defaultEnvironmentId);
-    } else if (selectedEnvironmentId && availableEnvironmentIds && !availableEnvironmentIds.split(',').includes(selectedEnvironmentId)) {
-      setSelectedEnvironmentId(defaultEnvironmentId);
+    if (
+      selectedEnvironmentId &&
+      availableEnvironmentIds &&
+      !availableEnvironmentIds.split(',').includes(selectedEnvironmentId)
+    ) {
+      setSelectedEnvironmentId('');
     }
-  }, [selectedEnvironmentId, defaultEnvironmentId, availableEnvironmentIds]);
+  }, [selectedEnvironmentId, availableEnvironmentIds]);
+
+  // Auto-select when only one environment is available
+  useEffect(() => {
+    if (!selectedEnvironmentId && availableEnvironments.length === 1) {
+      setSelectedEnvironmentId(availableEnvironments[0].id);
+    }
+  }, [availableEnvironments, selectedEnvironmentId]);
 
   // HOST環境が無効化された場合、cloneLocationをdockerに強制リセット
   useEffect(() => {

@@ -118,7 +118,6 @@ describe('POST /api/projects/clone', () => {
       name: 'Default Docker',
       type: 'DOCKER',
       config: JSON.stringify({}),
-      is_default: true,
     }).run();
 
     // 環境変数をバックアップして無効化

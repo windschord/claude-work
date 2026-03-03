@@ -18,7 +18,6 @@ export interface Environment {
   description?: string | null;
   config: string;
   auth_dir_path?: string | null;
-  is_default: boolean;
   created_at: string;
   updated_at: string;
   status?: EnvironmentStatus;

@@ -15,7 +15,7 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/hooks/useEnvironments', () => ({
   useEnvironments: () => ({
     environments: [
-      { id: 'host-default', name: 'Local Host', type: 'HOST', is_default: true },
+      { id: 'host-default', name: 'Local Host', type: 'HOST', },
     ],
     isLoading: false,
     error: null,

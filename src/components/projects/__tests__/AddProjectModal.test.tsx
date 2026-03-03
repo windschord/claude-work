@@ -23,13 +23,13 @@ vi.mock('@/hooks/useEnvironments', () => ({
 }));
 
 const buildMockEnvironments = (overrides: Partial<{
-  environments: Array<{ id: string; name: string; type: string; is_default: boolean; description: string; config: string }>;
+  environments: Array<{ id: string; name: string; type: string;  description: string; config: string }>;
   isLoading: boolean;
   error: null | string;
   hostEnvironmentDisabled: boolean;
 }> = {}) => ({
   environments: [
-    { id: 'env-1', name: 'Default Docker', type: 'DOCKER', is_default: true, description: 'Test env', config: '{}' },
+    { id: 'env-1', name: 'Default Docker', type: 'DOCKER', description: 'Test env', config: '{}' },
   ],
   isLoading: false,
   error: null,

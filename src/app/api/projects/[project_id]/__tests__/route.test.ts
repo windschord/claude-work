@@ -500,7 +500,6 @@ describe('PATCH /api/projects/[project_id]', () => {
       name: 'Test Env',
       type: 'DOCKER',
       config: '{}',
-      is_default: false,
     }).returning().get();
     testEnvId = testEnv.id;
 
@@ -540,7 +539,6 @@ describe('PATCH /api/projects/[project_id]', () => {
       name: 'New Test Env',
       type: 'DOCKER',
       config: '{}',
-      is_default: false,
     }).returning().get()!;
 
     try {
@@ -573,7 +571,6 @@ describe('PATCH /api/projects/[project_id]', () => {
       name: 'Another Env',
       type: 'DOCKER',
       config: '{}',
-      is_default: false,
     }).returning().get()!;
 
     // プロジェクトにセッションを追加

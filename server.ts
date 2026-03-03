@@ -14,7 +14,6 @@ import {
   getProcessLifecycleManager,
   ProcessLifecycleManager,
 } from './src/services/process-lifecycle-manager';
-import { environmentService } from './src/services/environment-service';
 import { DockerAdapter } from './src/services/adapters/docker-adapter';
 import { db } from './src/lib/db';
 import { ptySessionManager } from './src/services/pty-session-manager';
@@ -271,15 +270,6 @@ app.prepare().then(() => {
       runningInDocker: isRunningInDocker(),
       hostEnvironmentAllowed: isHostEnvironmentAllowed(),
     });
-
-    // デフォルト環境の初期化（TASK-EE-016）
-    try {
-      await environmentService.ensureDefaultExists();
-      logger.info('Default environment initialized');
-    } catch (error) {
-      logger.error('Failed to initialize default environment', { error });
-      // デフォルト環境の初期化失敗はクリティカルではないため、サーバーは継続
-    }
 
     // セッション復元（TASK-018）
     try {

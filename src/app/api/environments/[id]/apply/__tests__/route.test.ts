@@ -104,7 +104,6 @@ describe('/api/environments/[id]/apply', () => {
         description: 'Test',
         config: '{}',
         auth_dir_path: '/data/environments/env-1',
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -134,7 +133,6 @@ describe('/api/environments/[id]/apply', () => {
         description: 'Docker environment',
         config: '{"imageName":"my-image"}',
         auth_dir_path: '/data/environments/env-docker-1',
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -203,7 +201,6 @@ describe('/api/environments/[id]/apply', () => {
         description: 'Docker environment',
         config: '{}',
         auth_dir_path: '/data/environments/env-docker-2',
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };

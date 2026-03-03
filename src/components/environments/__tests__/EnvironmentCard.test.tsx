@@ -32,7 +32,6 @@ describe('EnvironmentCard', () => {
     type: 'HOST',
     description: 'Test description',
     config: '{}',
-    is_default: false,
     status: {
       available: true,
       authenticated: true,
@@ -301,7 +300,6 @@ describe('EnvironmentCard', () => {
 
     it('should enable delete button for default environments without project usage', () => {
       const environment = createEnvironment({
-        is_default: true,
         project_count: 0,
         project_names: [],
       });

@@ -211,49 +211,27 @@ export async function POST(
     }
 
     // プロジェクトのenvironment_idを使用（必須）
-    let effectiveEnvironmentId: string | null = project.environment_id;
+    const effectiveEnvironmentId: string | null = project.environment_id;
     let effectiveDockerMode = false;
     let effectiveEnvironmentType: string | null = null;
 
     if (!effectiveEnvironmentId) {
-      // environment_idが未設定の場合はレガシーフォールバック（既存プロジェクトの後方互換性）
-      if (project.clone_location === 'docker') {
-        const defaultEnv = await environmentService.getDefault();
-        if (defaultEnv && defaultEnv.type === 'DOCKER') {
-          effectiveEnvironmentId = defaultEnv.id;
-          effectiveEnvironmentType = defaultEnv.type;
-          logger.info('Auto-selected Docker environment based on clone_location (legacy fallback)', {
-            project_id,
-            clone_location: project.clone_location,
-            environment_id: defaultEnv.id,
-          });
-        } else {
-          logger.warn('No default Docker environment found, falling back to legacy dockerMode', {
-            project_id,
-            clone_location: project.clone_location,
-          });
-          effectiveDockerMode = true;
-        }
-      } else if (dockerMode) {
-        // レガシー方式: 警告を出力しつつ従来動作を維持
-        logger.warn('dockerMode parameter is deprecated, use project environment_id instead', {
-          project_id,
-        });
-        effectiveDockerMode = true;
-      }
-      // requestEnvironmentId は無視
-    } else {
-      const env = await environmentService.findById(effectiveEnvironmentId);
-      if (!env) {
-        return NextResponse.json({ error: 'プロジェクトに設定された実行環境が見つかりません' }, { status: 400 });
-      }
-      effectiveEnvironmentType = env.type;
-      logger.info('Using project environment', {
-        project_id,
-        environment_id: effectiveEnvironmentId,
-        environmentType: env.type,
-      });
+      return NextResponse.json(
+        { error: 'プロジェクトに実行環境が設定されていません。プロジェクト設定で環境を選択してください。' },
+        { status: 400 }
+      );
     }
+
+    const env = await environmentService.findById(effectiveEnvironmentId);
+    if (!env) {
+      return NextResponse.json({ error: 'プロジェクトに設定された実行環境が見つかりません' }, { status: 400 });
+    }
+    effectiveEnvironmentType = env.type;
+    logger.info('Using project environment', {
+      project_id,
+      environment_id: effectiveEnvironmentId,
+      environmentType: env.type,
+    });
 
     // HOST環境の利用制限チェック（キャッシュ済みのtypeを使用してDB再クエリを回避）
     if (!isHostEnvironmentAllowed()) {

@@ -225,7 +225,6 @@ describe('Claude WebSocket Handler - Environment Support', () => {
         type: 'DOCKER',
         config: '{}',
         auth_dir_path: '/data/environments/env-docker-1',
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -276,7 +275,6 @@ describe('Claude WebSocket Handler - Environment Support', () => {
         type: 'HOST',
         config: '{}',
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -344,7 +342,6 @@ describe('Claude WebSocket Handler - Environment Support', () => {
         type: 'HOST',
         config: '{}',
         auth_dir_path: null,
-        is_default: true,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -393,7 +390,6 @@ describe('Claude WebSocket Handler - Environment Support', () => {
         type: 'HOST',
         config: '{}',
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       });
@@ -454,7 +450,6 @@ describe('Claude WebSocket Handler - Environment Support', () => {
         type: 'HOST',
         config: '{}',
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       });
@@ -520,7 +515,6 @@ describe('Claude WebSocket Handler - Environment Support', () => {
         type: 'HOST',
         config: '{}',
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       });
@@ -561,7 +555,6 @@ describe('Claude WebSocket Handler - Environment Support', () => {
         type: 'HOST',
         config: '{}',
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       });
@@ -668,7 +661,6 @@ describe('Claude WebSocket Handler - Environment Support', () => {
         type: 'HOST',
         config: '{}',
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       });
@@ -753,7 +745,6 @@ describe('Claude WebSocket Handler - Environment Support', () => {
         type: 'HOST',
         config: '{}',
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       });
@@ -797,7 +788,6 @@ describe('Claude WebSocket Handler - Environment Support', () => {
         type: 'HOST',
         config: '{}',
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       });
@@ -878,7 +868,6 @@ describe('Claude WebSocket Handler - Environment Support', () => {
         type: 'HOST',
         config: '{}',
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       });
@@ -953,7 +942,6 @@ describe('Claude WebSocket Handler - Environment Support', () => {
         type: 'HOST',
         config: '{}',
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       });
@@ -1020,7 +1008,6 @@ describe('Claude WebSocket Handler - Environment Support', () => {
         type: 'HOST',
         config: '{}',
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       });

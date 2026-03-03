@@ -197,12 +197,9 @@ describe('cli-utils', () => {
       const columnNames = columns.map((c) => c.name);
       expect(columnNames).toEqual([
         'id', 'name', 'type', 'description', 'config',
-        'auth_dir_path', 'is_default', 'created_at', 'updated_at',
+        'auth_dir_path', 'created_at', 'updated_at',
       ]);
 
-      const isDefaultCol = columns.find((c) => c.name === 'is_default');
-      expect(isDefaultCol?.notnull).toBe(1);
-      expect(isDefaultCol?.dflt_value).toBe('0');
       db.close();
     });
 
@@ -643,7 +640,6 @@ describe('cli-utils', () => {
           "description" text,
           "config" text NOT NULL,
           "auth_dir_path" text,
-          "is_default" integer NOT NULL DEFAULT 0,
           "created_at" integer NOT NULL,
           "updated_at" integer NOT NULL
         );
@@ -793,7 +789,6 @@ describe('cli-utils', () => {
           "description" text,
           "config" text NOT NULL,
           "auth_dir_path" text,
-          "is_default" integer NOT NULL DEFAULT 0,
           "created_at" integer NOT NULL,
           "updated_at" integer NOT NULL
         );
@@ -862,7 +857,6 @@ describe('cli-utils', () => {
           "description" text,
           "config" text NOT NULL,
           "auth_dir_path" text,
-          "is_default" integer NOT NULL DEFAULT 0,
           "created_at" integer NOT NULL,
           "updated_at" integer NOT NULL
         );
@@ -960,7 +954,6 @@ describe('cli-utils', () => {
           "description" text,
           "config" text NOT NULL,
           "auth_dir_path" text,
-          "is_default" integer NOT NULL DEFAULT 0,
           "created_at" integer NOT NULL,
           "updated_at" integer NOT NULL
         );
@@ -1060,7 +1053,6 @@ describe('cli-utils', () => {
           "description" text,
           "config" text NOT NULL,
           "auth_dir_path" text,
-          "is_default" integer NOT NULL DEFAULT 0,
           "created_at" integer NOT NULL,
           "updated_at" integer NOT NULL
         );
