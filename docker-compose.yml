@@ -32,6 +32,8 @@ services:
       - DOCKER_ENABLED=true
       # アプリがDockerコンテナ内で動作していることを示すフラグ
       - RUNNING_IN_DOCKER=true
+      # Docker Compose環境であることを示すフラグ（ネットワークフィルタリング方式の判定に使用）
+      - COMPOSE_PROJECT=${COMPOSE_PROJECT_NAME:-claudework}
       # Docker環境内でもHOST環境を使用する場合はコメントを外す
       # - ALLOW_HOST_ENVIRONMENT=true
     restart: unless-stopped
