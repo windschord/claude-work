@@ -1,0 +1,42 @@
+# syntax=docker/dockerfile:1
+# Claude Code Sandboxed Container with Go
+# 基本のsandboxイメージを拡張し、Go開発環境を追加した実行環境
+#
+# 使用方法:
+#   docker build -f docker/extensions/Dockerfile.golang -t claude-work-env:golang docker/
+#
+#   # ローカルビルドした基本イメージを使用
+#   docker build -f docker/Dockerfile -t claude-work-sandbox:local docker/
+#   docker build -f docker/extensions/Dockerfile.golang --build-arg BASE_IMAGE=claude-work-sandbox:local \
+#     -t claude-work-env:golang docker/
+
+ARG BASE_IMAGE=ghcr.io/windschord/claude-work-sandbox:latest
+FROM ${BASE_IMAGE}
+
+LABEL description="Sandboxed environment for running Claude Code with Go"
+
+ARG GO_VERSION=1.24.1
+# SHA256 checksums pinned from https://go.dev/dl/ (信頼済みのハッシュを事前固定)
+ARG GO_SHA256_AMD64=cb2396bae64183cdccf81a9a6df0aea3bce9511fc21469fb89a0c00470088073
+ARG GO_SHA256_ARM64=8df5750ffc0281017fb6070fba450f5d22b600a02081dceef47966ffaf36a3af
+
+USER root
+
+RUN ARCH="$(dpkg --print-architecture)" \
+    && case "${ARCH}" in \
+        amd64) EXPECTED_SHA256="${GO_SHA256_AMD64}" ;; \
+        arm64) EXPECTED_SHA256="${GO_SHA256_ARM64}" ;; \
+        *) echo "Unsupported architecture: ${ARCH}" && exit 1 ;; \
+    esac \
+    && curl -fsSL -o /tmp/go.tar.gz "https://dl.google.com/go/go${GO_VERSION}.linux-${ARCH}.tar.gz" \
+    && echo "${EXPECTED_SHA256}  /tmp/go.tar.gz" | sha256sum -c - \
+    && rm -rf /usr/local/go \
+    && tar -C /usr/local -xzf /tmp/go.tar.gz \
+    && rm /tmp/go.tar.gz \
+    && chown -R root:root /usr/local/go
+
+USER node
+
+ENV GOROOT=/usr/local/go
+ENV GOPATH=/home/node/go
+ENV PATH="${GOPATH}/bin:${GOROOT}/bin:${PATH}"
