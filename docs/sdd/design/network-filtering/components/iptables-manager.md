@@ -33,9 +33,9 @@
 **説明**: 環境用のiptablesフィルタチェインを作成し、ホワイトリストルールを適用
 
 **処理フロー**:
-1. チェイン名生成: `CWFILTER-<envIdの先頭8文字>`
+1. チェイン名生成: `CWFILTER-<sha256(envId)の先頭12文字>`
 2. 既存チェインがあれば削除（冪等性確保）
-3. 新規チェイン作成: `iptables -N <chain>`
+3. iptables-restore形式で一括適用（チェイン作成、ルール追加を1回で実行）
 4. DOCKER-USER chainにジャンプルール追加:
    `iptables -I DOCKER-USER -s <subnet> -j <chain>`
 5. DNS通信許可:
@@ -65,9 +65,9 @@
 **説明**: 環境用のiptablesフィルタチェインを削除
 
 **処理フロー**:
-1. チェイン名生成: `CWFILTER-<envIdの先頭8文字>`
+1. チェイン名生成: `CWFILTER-<sha256(envId)の先頭12文字>`
 2. DOCKER-USER chainからジャンプルール削除:
-   `iptables -D DOCKER-USER -j <chain>` (存在する全てのジャンプルール)
+   `iptables -S DOCKER-USER` でルール一覧を取得し、`-j <chain>` を含む全ルールを `-A` → `-D` に変換して削除（追加時と同一条件で削除）
 3. チェイン内ルール全削除: `iptables -F <chain>`
 4. チェイン削除: `iptables -X <chain>`
 
@@ -75,13 +75,13 @@
 
 #### `cleanupOrphanedChains(): Promise<void>`
 
-**説明**: `CWFILTER-` プレフィックスを持つが、対応する環境が存在しないチェインを削除
+**説明**: `CWFILTER-` プレフィックスを持ち、参照カウントが0のチェインを孤立チェインとして削除
 
 **処理フロー**:
 1. `iptables -L -n` で全チェインを取得
 2. `CWFILTER-*` パターンにマッチするチェインを抽出
-3. 各チェインに対して、対応する環境がDBに存在するか確認
-4. 存在しないものを削除
+3. 各チェインの参照カウント（references）を確認
+4. references==0（どこからもジャンプされていない）チェインのみ削除
 
 ---
 
@@ -106,10 +106,10 @@
 ### チェイン命名規則
 
 ```
-CWFILTER-<environmentIdの先頭8文字>
+CWFILTER-<sha256(environmentId)の先頭12文字>
 ```
 
-例: `CWFILTER-a1b2c3d4`
+例: `CWFILTER-a1b2c3d4e5f6`
 
 この命名規則により:
 - iptablesのチェイン名長制限（30文字以下）に収まる

@@ -10,7 +10,7 @@ interface RouteParams {
  * GET /api/environments/:id/network-filter - フィルタリング設定を取得
  *
  * @returns
- * - 200: フィルタリング設定（未設定時はデフォルト disabled を返す）
+ * - 200: フィルタリング設定（未設定時は config: null を返す）
  * - 500: サーバーエラー
  */
 export async function GET(request: NextRequest, { params }: RouteParams) {

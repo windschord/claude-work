@@ -78,7 +78,8 @@ export function NetworkRuleForm({ isOpen, onClose, onSubmit, initialData }: Netw
       }
       setError('');
     }
-  }, [isOpen, initialData]);
+  }, [isOpen, initialData?.target, initialData?.port, initialData?.description]); // eslint-disable-line react-hooks/exhaustive-deps
+  // CLAUDE.mdガイドライン準拠: initialDataオブジェクトではなくprimitiveプロパティのみを依存配列に含める
 
   const handleClose = () => {
     setTarget('');

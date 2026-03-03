@@ -83,11 +83,9 @@ mockPTYStreamInstance.onExit = vi.fn((cb: (info: unknown) => void) =>
 );
 
 vi.mock('../../docker-pty-stream', () => ({
-  DockerPTYStream: class {
-    constructor() {
-      return mockPTYStreamInstance;
-    }
-  },
+  DockerPTYStream: vi.fn(function (_opts: unknown) {
+    return mockPTYStreamInstance;
+  }),
 }));
 
 // DBモック

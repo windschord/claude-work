@@ -82,10 +82,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'target is too long' }, { status: 400 });
     }
 
-    // port は undefined か整数
+    // port は undefined か整数（1-65535の範囲）
     if (port !== undefined && port !== null) {
       if (typeof port !== 'number' || !Number.isInteger(port)) {
         return NextResponse.json({ error: 'port must be an integer' }, { status: 400 });
+      }
+      if (port < 1 || port > 65535) {
+        return NextResponse.json({ error: 'port must be between 1 and 65535' }, { status: 400 });
       }
     }
 

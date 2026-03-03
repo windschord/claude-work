@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { networkFilterService } from '@/services/network-filter-service';
+import { networkFilterService, ValidationError } from '@/services/network-filter-service';
 import { logger } from '@/lib/logger';
 import type { CreateRuleInput } from '@/services/network-filter-service';
 
@@ -94,7 +94,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
     const { id } = await params;
-    if (error instanceof Error && error.message.includes('Invalid')) {
+    if (error instanceof ValidationError) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
     logger.error('Failed to apply templates', { error, id });

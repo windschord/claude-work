@@ -27,8 +27,8 @@ interface NetworkFilterSectionProps {
  * - フィルタリングの有効/無効トグル
  * - ルール一覧の表示
  * - ルール追加/編集/削除
- * - テンプレート適用（TASK-011で実装するダイアログの呼び出し口）
- * - 通信テスト（TASK-011で実装するダイアログの呼び出し口）
+ * - テンプレート適用ダイアログ（NetworkTemplateDialog）
+ * - 通信テストダイアログ（NetworkTestDialog）
  *
  * @param props.environmentId - 環境ID
  * @param props.environmentType - 環境タイプ（DOCKER の場合のみ表示）
