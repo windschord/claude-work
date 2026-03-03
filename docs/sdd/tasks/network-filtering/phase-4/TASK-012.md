@@ -87,4 +87,4 @@ TASK-006（DockerAdapter統合）、TASK-009（Docker Compose対応）
 40分
 
 ## ステータス
-`TODO`
+`IN_PROGRESS`
