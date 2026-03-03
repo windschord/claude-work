@@ -113,4 +113,4 @@ TASK-007（ルールCRUD API）、TASK-008（設定API）
 60分
 
 ## ステータス
-`TODO`
+`IN_PROGRESS`
