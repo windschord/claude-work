@@ -85,5 +85,9 @@ TASK-006（DockerAdapter統合）
 ## 推定工数
 30分
 
+## 完了サマリー
+
+Docker Compose環境検出（isDockerComposeEnvironment）とフィルタリング用ネットワーク名生成（getFilterNetworkName）をNetworkFilterServiceに追加。docker-compose.ymlにNET_ADMIN capabilityを追加し、ENV_VARS.mdにドキュメントを追記した。TDDで実装し、9件のテスト全て通過。
+
 ## ステータス
-`IN_PROGRESS`
+`DONE`
