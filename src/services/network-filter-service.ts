@@ -437,9 +437,9 @@ export class NetworkFilterService {
       return this.isValidIPv4(target);
     }
 
-    // IPv6アドレス（コロンを含む）
+    // IPv6アドレス（コロンを含む）: 未サポート（iptables-restoreはIPv4のみ）
     if (target.includes(':') && IPV6_PATTERN.test(target)) {
-      return this.isValidIPv6(target);
+      return false;
     }
 
     // 通常のドメイン名
@@ -734,8 +734,8 @@ export class NetworkFilterService {
     if (IPV4_CIDR_PATTERN.test(target)) return true;
     // IPv4アドレス
     if (IPV4_PATTERN.test(target)) return true;
-    // IPv6アドレス（コロンを含む）
-    if (target.includes(':') && IPV6_PATTERN.test(target)) return true;
+    // IPv6アドレス（コロンを含む）: 未サポート（iptables-restoreはIPv4のみ）
+    if (target.includes(':') && IPV6_PATTERN.test(target)) return false;
     return false;
   }
 
@@ -830,8 +830,9 @@ export class NetworkFilterService {
     }
 
     // CIDR ルール（IPv4アドレスが対象の場合）
+    // isIPv4InCidr を呼ぶ前に target がIPv4アドレスであることを検証する（非IPv4文字列の誤判定を防ぐ）
     if (IPV4_CIDR_PATTERN.test(ruleTarget)) {
-      return this.isIPv4InCidr(target, ruleTarget);
+      return this.isValidIPv4(target) && this.isIPv4InCidr(target, ruleTarget);
     }
 
     // 完全一致（ドメインまたはIP）

@@ -304,12 +304,10 @@ describe('NetworkFilterService', () => {
       ).resolves.toBeDefined();
     });
 
-    it('有効なIPv6アドレスを受け付ける', async () => {
-      mockDbInsertGet.mockReturnValue({ ...mockRule, target: '::1' });
-
+    it('IPv6アドレスを拒否する（iptables-restoreはIPv4のみ対応）', async () => {
       await expect(
         service.createRule(envId, { target: '::1' })
-      ).resolves.toBeDefined();
+      ).rejects.toThrow(ValidationError);
     });
 
     it('*.サブドメイン形式を受け付ける', async () => {
