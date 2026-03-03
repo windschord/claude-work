@@ -3,6 +3,7 @@ import type { NetworkFilterConfig, NetworkFilterRule } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
 import dns from 'dns/promises';
+import { IptablesManager, iptablesManager as defaultIptablesManager } from './iptables-manager';
 
 // ==================== エラークラス ====================
 
@@ -150,6 +151,14 @@ const DOMAIN_PATTERN = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a
  * フィルタリング適用のオーケストレーションを担当する
  */
 export class NetworkFilterService {
+
+  // ==================== IptablesManager ====================
+
+  private readonly iptablesManager: IptablesManager;
+
+  constructor(iptablesManagerInstance?: IptablesManager) {
+    this.iptablesManager = iptablesManagerInstance ?? defaultIptablesManager;
+  }
 
   // ==================== DNSキャッシュ ====================
 
@@ -563,22 +572,95 @@ export class NetworkFilterService {
     return { allowed: false };
   }
 
-  // ==================== スタブ（後続タスクで実装） ====================
+  // ==================== フィルタリング適用・クリーンアップ ====================
 
   /**
    * コンテナ起動時にフィルタリングを適用する
-   * TASK-005で実装予定
+   *
+   * 処理フロー:
+   * 1. getFilterConfig(environmentId) でフィルタリング設定を確認
+   * 2. 無効なら即座にreturn
+   * 3. IptablesManager.checkAvailability() で利用可否チェック → 利用不可ならエラー
+   * 4. getRules(environmentId) でルール取得（enabledのみフィルタ）
+   * 5. resolveDomains(rules) でDNS解決
+   * 6. IptablesManager.setupFilterChain(envId, resolvedRules, subnet) でiptables適用
+   * 7. 失敗時は FilterApplicationError をスロー
+   *
+   * @param environmentId - 環境ID
+   * @param containerSubnet - コンテナのサブネット（例: 172.18.0.0/16）
+   * @throws FilterApplicationError iptablesが利用不可またはルール適用に失敗した場合
    */
-  async applyFilter(_environmentId: string, _containerSubnet: string): Promise<void> {
-    throw new Error('Not implemented: applyFilter は TASK-005 で実装されます');
+  async applyFilter(environmentId: string, containerSubnet: string): Promise<void> {
+    // 1. フィルタリング設定を確認
+    const config = await this.getFilterConfig(environmentId);
+
+    // 2. フィルタリングが無効または設定がない場合はスキップ
+    if (!config || !config.enabled) {
+      logger.debug('フィルタリングが無効のためスキップ', { environmentId });
+      return;
+    }
+
+    logger.info('フィルタリングの適用を開始します', { environmentId, containerSubnet });
+
+    // 3. iptables利用可否チェック
+    const available = await this.iptablesManager.checkAvailability();
+    if (!available) {
+      const errorMessage = `iptablesが利用不可のためフィルタリングを適用できません: environmentId=${environmentId}`;
+      logger.error('フィルタリング適用に失敗しました（iptables利用不可）', { environmentId });
+      throw new FilterApplicationError(errorMessage);
+    }
+
+    try {
+      // 4. ルール取得（enabledのもののみ）
+      const allRules = await this.getRules(environmentId);
+      const enabledRules = allRules.filter((r) => r.enabled);
+
+      // 5. DNS解決
+      const resolvedRules = await this.resolveDomains(enabledRules);
+
+      // 6. iptables適用
+      await this.iptablesManager.setupFilterChain(environmentId, resolvedRules, containerSubnet);
+
+      logger.info('フィルタリングの適用が完了しました', {
+        environmentId,
+        ruleCount: enabledRules.length,
+        resolvedCount: resolvedRules.length,
+      });
+    } catch (err) {
+      if (err instanceof FilterApplicationError) {
+        throw err;
+      }
+      const errorMessage = `フィルタリング適用中にエラーが発生しました: ${err instanceof Error ? err.message : String(err)}`;
+      logger.error('フィルタリング適用に失敗しました', {
+        environmentId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      throw new FilterApplicationError(errorMessage);
+    }
   }
 
   /**
-   * フィルタリングルールをクリーンアップする
-   * TASK-005で実装予定
+   * コンテナ停止時にフィルタリングルールをクリーンアップする
+   *
+   * 処理フロー:
+   * 1. IptablesManager.removeFilterChain(envId) でクリーンアップ
+   * 2. 失敗時は警告ログのみ（エラーにしない）
+   *
+   * @param environmentId - 環境ID
    */
-  async removeFilter(_environmentId: string): Promise<void> {
-    throw new Error('Not implemented: removeFilter は TASK-005 で実装されます');
+  async removeFilter(environmentId: string): Promise<void> {
+    logger.info('フィルタリングのクリーンアップを開始します', { environmentId });
+
+    try {
+      await this.iptablesManager.removeFilterChain(environmentId);
+      logger.info('フィルタリングのクリーンアップが完了しました', { environmentId });
+    } catch (err) {
+      // クリーンアップ失敗は警告のみ（エラーにしない）
+      logger.warn('フィルタリングのクリーンアップ中に問題が発生しました（無視します）', {
+        environmentId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
   }
 
   /**
