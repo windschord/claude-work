@@ -105,7 +105,7 @@ describe('/api/environments/[id]/network-filter および templates', () => {
       expect(mockGetFilterConfig).toHaveBeenCalledWith('env-uuid');
     });
 
-    it('未設定時はデフォルト（disabled）を返す', async () => {
+    it('未設定時はconfig: nullを返す', async () => {
       mockGetFilterConfig.mockResolvedValue(null);
 
       const request = new NextRequest(
@@ -117,8 +117,7 @@ describe('/api/environments/[id]/network-filter および templates', () => {
       const data = await response.json();
 
       expect(response.status).toBe(200);
-      expect(data.config.environment_id).toBe('env-uuid');
-      expect(data.config.enabled).toBe(false);
+      expect(data.config).toBeNull();
     });
   });
 

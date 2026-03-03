@@ -19,14 +19,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     const config = await networkFilterService.getFilterConfig(id);
 
-    // 未設定時はデフォルト（disabled）を返す
-    if (!config) {
-      return NextResponse.json({
-        config: { environment_id: id, enabled: false },
-      });
-    }
-
-    return NextResponse.json({ config });
+    // 未設定時はconfig: nullを返す（フロントエンド側でnullチェックする）
+    return NextResponse.json({ config: config ?? null });
   } catch (error) {
     const { id } = await params;
     logger.error('Failed to get filter config', { error, id });

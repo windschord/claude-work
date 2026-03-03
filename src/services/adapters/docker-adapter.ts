@@ -730,6 +730,7 @@ export class DockerAdapter extends BasePTYAdapter {
 
     let container: Docker.Container | undefined;
     let ptyProcess: DockerPTYStream | undefined;
+    let activeCountIncremented = false;
     try {
       container = await DockerClient.getInstance().createContainer(createOptions);
 
@@ -776,6 +777,8 @@ export class DockerAdapter extends BasePTYAdapter {
       // アクティブセッション参照カウントをインクリメント
       const envId = this.config.environmentId;
       this.activeSessionCount.set(envId, (this.activeSessionCount.get(envId) ?? 0) + 1);
+      // フラグ: カウントをインクリメントしたため、失敗時にロールバックが必要
+      activeCountIncremented = true;
 
       const containerWorkDir = options?.dockerVolumeId ? workingDir : '/workspace';
       this.sessions.set(sessionId, {
@@ -903,6 +906,13 @@ export class DockerAdapter extends BasePTYAdapter {
       try { ptyProcess?.kill(); } catch { /* ignore */ }
       try { await container?.remove({ force: true }); } catch { /* ignore */ }
       this.cleanupSSHKeys().catch(() => { /* ignore */ });
+
+      // activeSessionCountをインクリメント後に失敗した場合はロールバックする
+      if (activeCountIncremented) {
+        const envId = this.config.environmentId;
+        const currentCount = this.activeSessionCount.get(envId) ?? 0;
+        this.activeSessionCount.set(envId, Math.max(0, currentCount - 1));
+      }
 
       logger.error('DockerAdapter: Failed to create session', {
         sessionId,

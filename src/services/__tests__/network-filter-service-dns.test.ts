@@ -147,17 +147,20 @@ describe('NetworkFilterService - DNS解決とテスト接続', () => {
       expect(result[0].port).toBe(443);
     });
 
-    // テスト2: 通常ドメインをIPv6に解決できる
-    it('通常ドメインをIPv6に解決できる', async () => {
+    // テスト2: IPv6のみ解決できる場合はスキップ（iptables-restoreはIPv4専用）
+    it('IPv4解決が失敗し、IPv6のみ解決できる場合はスキップする', async () => {
       const rule = makeRule({ target: 'api.anthropic.com', port: 443 });
       mockResolve4.mockRejectedValue(new Error('No IPv4'));
       mockResolve6.mockResolvedValue(['2001:db8::1', '2001:db8::2']);
 
       const result = await service.resolveDomains([rule]);
 
-      expect(result).toHaveLength(1);
-      expect(result[0].ips).toContain('2001:db8::1');
-      expect(result[0].ips).toContain('2001:db8::2');
+      // iptables-restoreはIPv4専用のため、IPv6アドレスは除外される。
+      // IPv4解決が失敗した場合はスキップされる（空配列）。
+      expect(result).toHaveLength(0);
+      expect(mockLoggerWarn).toHaveBeenCalled();
+      // resolve6は呼ばれない（IPv4のみ解決する実装）
+      expect(mockResolve6).not.toHaveBeenCalled();
     });
 
     // テスト3: ワイルドカードドメインのベースドメインを解決

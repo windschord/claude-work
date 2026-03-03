@@ -765,8 +765,12 @@ export class NetworkFilterService {
    * DNSキャッシュを使ってドメインを解決する
    * キャッシュヒット時はDNS解決を再実行しない
    * TTL超過時はDNS解決を再実行する
+   *
+   * IPv6アドレスは除外する。iptables-restore はIPv4専用であり、
+   * ip6tablesは未実装のため、IPv6アドレスをルールに含めるとエラーになる。
+   *
    * @param domain - 解決するドメイン名
-   * @returns 解決されたIPアドレスの配列（失敗時は空配列）
+   * @returns 解決されたIPv4アドレスの配列（失敗時は空配列）
    */
   private async resolveWithCache(domain: string): Promise<string[]> {
     const now = Date.now();
@@ -777,21 +781,14 @@ export class NetworkFilterService {
       return cached.ips;
     }
 
-    // DNS解決
+    // IPv4のみ解決する（iptables-restoreはIPv4専用。ip6tablesは未実装）
     const ips: string[] = [];
 
     try {
       const v4Addrs = await dns.resolve4(domain);
       ips.push(...v4Addrs);
     } catch {
-      // IPv4解決失敗は無視（IPv6で補完される可能性）
-    }
-
-    try {
-      const v6Addrs = await dns.resolve6(domain);
-      ips.push(...v6Addrs);
-    } catch {
-      // IPv6解決失敗は無視
+      // IPv4解決失敗は無視
     }
 
     // 解決成功時はキャッシュに保存

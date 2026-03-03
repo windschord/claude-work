@@ -67,6 +67,19 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             { status: 400 }
           );
         }
+        if (port < 1 || port > 65535) {
+          return NextResponse.json(
+            { error: `rules[${i}].port must be between 1 and 65535` },
+            { status: 400 }
+          );
+        }
+      }
+      const { description } = rule as Record<string, unknown>;
+      if (description !== undefined && typeof description !== 'string') {
+        return NextResponse.json(
+          { error: `rules[${i}].description must be a string` },
+          { status: 400 }
+        );
       }
     }
 
