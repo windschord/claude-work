@@ -92,4 +92,4 @@ TASK-004（DNS解決・テスト機能）
 40分
 
 ## ステータス
-`TODO`
+`IN_PROGRESS`
