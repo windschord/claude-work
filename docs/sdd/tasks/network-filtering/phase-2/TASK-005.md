@@ -91,4 +91,7 @@ TASK-002（IptablesManager）、TASK-004（DNS解決）
 40分
 
 ## ステータス
-`IN_PROGRESS`
+`DONE`
+
+## 完了サマリー
+NetworkFilterServiceにapplyFilter/removeFilterのオーケストレーションロジックを実装。IptablesManagerのコンストラクタ注入対応、フェイルセーフ動作（iptables利用不可・適用失敗時のエラースロー）、removeFilterの冪等性（失敗時は警告のみ）を実現。11件のテストすべてPASS。
