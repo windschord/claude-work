@@ -30,6 +30,7 @@ RUN ARCH="$(dpkg --print-architecture)" \
     esac \
     && curl -fsSL -o /tmp/go.tar.gz "https://dl.google.com/go/go${GO_VERSION}.linux-${ARCH}.tar.gz" \
     && echo "${EXPECTED_SHA256}  /tmp/go.tar.gz" | sha256sum -c - \
+    && rm -rf /usr/local/go \
     && tar -C /usr/local -xzf /tmp/go.tar.gz \
     && rm /tmp/go.tar.gz \
     && chown -R root:root /usr/local/go
