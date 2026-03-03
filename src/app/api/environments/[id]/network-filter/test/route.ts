@@ -40,6 +40,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'target is required' }, { status: 400 });
     }
 
+    // port のバリデーション（任意項目だが、指定時は整数 1-65535）
+    if (port !== undefined && port !== null) {
+      if (typeof port !== 'number' || !Number.isInteger(port)) {
+        return NextResponse.json({ error: 'port must be an integer' }, { status: 400 });
+      }
+      if (port < 1 || port > 65535) {
+        return NextResponse.json({ error: 'port must be between 1 and 65535' }, { status: 400 });
+      }
+    }
+
     const portNumber = port !== undefined ? (port as number) : undefined;
 
     const result = await networkFilterService.testConnection(id, target.trim(), portNumber);

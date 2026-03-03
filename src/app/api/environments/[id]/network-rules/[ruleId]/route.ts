@@ -67,11 +67,21 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       if (typeof target !== 'string') {
         return NextResponse.json({ error: 'target must be a string' }, { status: 400 });
       }
-      input.target = target;
+      const trimmedTarget = target.trim();
+      if (trimmedTarget === '') {
+        return NextResponse.json({ error: 'target must not be empty' }, { status: 400 });
+      }
+      if (trimmedTarget.length > 253) {
+        return NextResponse.json({ error: 'target is too long' }, { status: 400 });
+      }
+      input.target = trimmedTarget;
     }
     if (port !== undefined) {
       if (port !== null && (typeof port !== 'number' || !Number.isInteger(port))) {
         return NextResponse.json({ error: 'port must be an integer or null' }, { status: 400 });
+      }
+      if (port !== null && typeof port === 'number' && (port < 1 || port > 65535)) {
+        return NextResponse.json({ error: 'port must be between 1 and 65535' }, { status: 400 });
       }
       input.port = port as number | null;
     }
