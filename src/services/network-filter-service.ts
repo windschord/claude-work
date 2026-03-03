@@ -694,10 +694,28 @@ export class NetworkFilterService {
 
   /**
    * アプリケーション起動時に孤立したiptablesルールをクリーンアップする
-   * TASK-012で実装予定
+   *
+   * 処理フロー:
+   * 1. IptablesManager.checkAvailability() で利用可否チェック → 利用不可なら警告のみ
+   * 2. IptablesManager.cleanupOrphanedChains() で孤立チェインを削除
+   * 3. 失敗時は警告ログのみ（エラーにしない）
    */
   async cleanupOrphanedRules(): Promise<void> {
-    throw new Error('Not implemented: cleanupOrphanedRules は TASK-012 で実装されます');
+    try {
+      // 1. iptables利用可否チェック
+      const available = await this.iptablesManager.checkAvailability();
+      if (!available) {
+        logger.warn('iptables is not available, skipping orphaned rules cleanup', {});
+        return;
+      }
+
+      // 2. 孤立チェインのクリーンアップ
+      await this.iptablesManager.cleanupOrphanedChains();
+
+      logger.info('Orphaned network filter rules cleanup completed', {});
+    } catch (error) {
+      logger.warn('Failed to cleanup orphaned network filter rules', { error });
+    }
   }
 
   // ==================== DNS内部ヘルパー ====================
