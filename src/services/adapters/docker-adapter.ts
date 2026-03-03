@@ -492,7 +492,7 @@ export class DockerAdapter extends BasePTYAdapter {
   /**
    * Dockerコンテナを停止する
    */
-  private async stopContainer(containerName: string): Promise<void> {
+  private async stopContainer(containerName: string): Promise<boolean> {
     logger.info(`Stopping container ${containerName}`);
 
     try {
@@ -501,11 +501,12 @@ export class DockerAdapter extends BasePTYAdapter {
       await container.stop({ t: 10 });
 
       logger.info(`Container ${containerName} stopped successfully`);
+      return true;
     } catch (error: any) {
       // コンテナが既に停止している、または存在しない場合はエラーを無視
       if (error.statusCode === 304 || error.statusCode === 404 || (error.message && error.message.includes('No such container'))) {
         logger.debug(`Container ${containerName} already stopped or not found`);
-        return;
+        return true;
       }
 
       logger.error(`Failed to stop container ${containerName}:`, error);
@@ -515,8 +516,10 @@ export class DockerAdapter extends BasePTYAdapter {
         const container = DockerClient.getInstance().getContainer(containerName);
         await container.kill();
         logger.warn(`Container ${containerName} force-killed`);
+        return true;
       } catch (killError) {
         logger.error(`Failed to force-kill container ${containerName}:`, killError);
+        return false;
       }
     }
   }
@@ -847,10 +850,18 @@ export class DockerAdapter extends BasePTYAdapter {
       ptyProcess.onExit(async ({ exitCode, signal }) => {
         logger.info('DockerAdapter: Session exited', { sessionId, exitCode, signal });
 
+        const currentSession = this.sessions.get(sessionId);
+
+        // destroySession側で既にクリーンアップ済み（sessionsから削除済み）の場合はスキップ
+        if (!currentSession) {
+          logger.debug('DockerAdapter: onExit skipped, session already cleaned up by destroySession', { sessionId });
+          this.emit('exit', sessionId, { exitCode, signal } as PTYExitInfo);
+          return;
+        }
+
         // restartSession()で新セッションが作成された後に旧PTYのonExitが遅延発火した場合、
         // 新セッションを消さないようにptyProcess同一性チェックを行う
-        const currentSession = this.sessions.get(sessionId);
-        if (currentSession && currentSession.ptyProcess !== ptyProcess) {
+        if (currentSession.ptyProcess !== ptyProcess) {
           logger.info('DockerAdapter: Stale onExit ignored (new session exists)', { sessionId });
           // コンテナは停止する（旧コンテナがゾンビにならないように）
           if (containerName && !shellMode) {
@@ -879,12 +890,9 @@ export class DockerAdapter extends BasePTYAdapter {
         this.sessions.delete(sessionId);
 
         // PTY終了時にコンテナがまだ実行中なら停止
+        let containerStopped = true;
         if (containerName && !shellMode) {
-          try {
-            await this.stopContainer(containerName);
-          } catch (error) {
-            logger.error(`Error stopping container in onExit:`, error);
-          }
+          containerStopped = await this.stopContainer(containerName);
 
           // SSH鍵一時ファイルのクリーンアップ
           try {
@@ -902,12 +910,14 @@ export class DockerAdapter extends BasePTYAdapter {
           const currentCount = this.activeSessionCount.get(envId) ?? 0;
           const newCount = Math.max(0, currentCount - 1);
           this.activeSessionCount.set(envId, newCount);
-          if (newCount === 0) {
+          if (newCount === 0 && containerStopped) {
             try {
               await networkFilterService.removeFilter(envId);
             } catch (filterError) {
               logger.warn('Network filter cleanup failed in onExit', { sessionId, error: filterError });
             }
+          } else if (newCount === 0 && !containerStopped) {
+            logger.warn('Skip removeFilter in onExit because container stop failed', { sessionId, envId });
           }
         }
       });
@@ -1004,16 +1014,15 @@ export class DockerAdapter extends BasePTYAdapter {
       }
 
       scrollbackBuffer.clear(sessionId);
-      session.ptyProcess.kill();
+      // onExitハンドラとの二重クリーンアップを防ぐため、kill前にsessionsから削除する
+      // onExit側はsessionsにエントリがなければクリーンアップをスキップする
       this.sessions.delete(sessionId);
+      session.ptyProcess.kill();
 
       // Dockerコンテナを明示的に停止（shellModeではコンテナを止めない）
+      let containerStopped = true;
       if (!shellMode) {
-        try {
-          await this.stopContainer(containerId);
-        } catch (error) {
-          logger.error(`Error stopping container in destroySession:`, error);
-        }
+        containerStopped = await this.stopContainer(containerId);
 
         // SSH鍵一時ファイルのクリーンアップ
         try {
@@ -1024,12 +1033,14 @@ export class DockerAdapter extends BasePTYAdapter {
       }
 
       // コンテナ停止完了後にフィルタを解除（停止前に解除すると無保護ウィンドウが生じる）
-      if (shouldRemoveFilter) {
+      if (shouldRemoveFilter && containerStopped) {
         try {
           await networkFilterService.removeFilter(envId);
         } catch (filterError) {
           logger.warn('Network filter cleanup failed', { sessionId, error: filterError });
         }
+      } else if (shouldRemoveFilter && !containerStopped) {
+        logger.warn('Skip removeFilter because container stop failed', { sessionId, envId });
       }
 
       // container_idをクリア（同期実行）
