@@ -376,18 +376,22 @@ export class NetworkFilterService {
     const createdRules: NetworkFilterRule[] = [];
     let skipped = 0;
 
-    for (const input of ruleInputs) {
-      // 重複チェック（target と port が一致するルールを検索）
-      const isDuplicate = existingRules.some(
-        (r) => r.target === input.target && r.port === (input.port ?? null)
-      );
+    // 既存ルールのキーセット（同一リクエスト内の重複も検出するために使用）
+    const seen = new Set(
+      existingRules.map((r) => `${r.target}:${r.port ?? ''}`)
+    );
 
-      if (isDuplicate) {
+    for (const input of ruleInputs) {
+      const key = `${input.target}:${input.port ?? ''}`;
+
+      // 重複チェック（既存ルールおよび同一リクエスト内の重複）
+      if (seen.has(key)) {
         logger.debug('重複ルールをスキップ', { target: input.target, port: input.port });
         skipped++;
         continue;
       }
 
+      seen.add(key);
       const rule = await this.createRule(environmentId, input);
       createdRules.push(rule);
     }
@@ -827,8 +831,37 @@ export class NetworkFilterService {
       return target === baseDomain || target.endsWith(`.${baseDomain}`);
     }
 
+    // CIDR ルール（IPv4アドレスが対象の場合）
+    if (IPV4_CIDR_PATTERN.test(ruleTarget)) {
+      return this.isIPv4InCidr(target, ruleTarget);
+    }
+
     // 完全一致（ドメインまたはIP）
     return target === ruleTarget;
+  }
+
+  /**
+   * IPv4アドレスがCIDRブロックに含まれるかを判定する
+   * @param ip - 判定するIPv4アドレス
+   * @param cidr - CIDRブロック（例: 192.168.0.0/24）
+   * @returns 含まれる場合true
+   */
+  private isIPv4InCidr(ip: string, cidr: string): boolean {
+    const [network, prefixStr] = cidr.split('/');
+    const prefix = parseInt(prefixStr, 10);
+    const ipNum = this.ipToNumber(ip);
+    const networkNum = this.ipToNumber(network);
+    const mask = ~(2 ** (32 - prefix) - 1) >>> 0;
+    return (ipNum & mask) === (networkNum & mask);
+  }
+
+  /**
+   * IPv4アドレスを32ビット符号なし整数に変換する
+   * @param ip - IPv4アドレス文字列
+   * @returns 32ビット符号なし整数
+   */
+  private ipToNumber(ip: string): number {
+    return ip.split('.').reduce((acc, octet) => (acc << 8) + parseInt(octet, 10), 0) >>> 0;
   }
 }
 
