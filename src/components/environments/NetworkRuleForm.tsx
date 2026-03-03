@@ -36,8 +36,8 @@ function validateTarget(target: string): string | null {
  */
 function validatePort(portStr: string): string | null {
   if (!portStr) return null;
-  const port = parseInt(portStr, 10);
-  if (isNaN(port) || port < 1 || port > 65535) {
+  const port = Number(portStr);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
     return 'ポートは1〜65535の整数で指定してください';
   }
   return null;
@@ -117,7 +117,7 @@ export function NetworkRuleForm({ isOpen, onClose, onSubmit, initialData }: Netw
     try {
       const data: CreateRuleInput = {
         target: target.trim(),
-        port: portStr ? parseInt(portStr, 10) : null,
+        port: portStr ? Number(portStr) : null,
         description: description.trim() || undefined,
       };
 

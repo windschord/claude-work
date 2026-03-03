@@ -1,9 +1,37 @@
 import { createHash } from 'crypto';
-import { execFile } from 'child_process';
+import { execFile, spawn } from 'child_process';
 import { promisify } from 'util';
 import { logger } from '../lib/logger';
 
-export const execFileAsync = promisify(execFile);
+const execFileAsyncBase = promisify(execFile);
+
+/**
+ * execFileAsyncのラッパー。options.inputが指定された場合はspawnでstdinにデータを流す。
+ * Node.jsのexecFileはinputオプションをサポートしないため、iptables-restore等のstdin入力が必要なコマンドに対応する。
+ */
+export async function execFileAsync(
+  file: string,
+  args?: readonly string[],
+  options?: { input?: string }
+): Promise<{ stdout: string; stderr: string }> {
+  if (options?.input !== undefined) {
+    return new Promise((resolve, reject) => {
+      const child = spawn(file, args as string[]);
+      let stdout = '';
+      let stderr = '';
+      child.stdout.on('data', (data: Buffer) => { stdout += data.toString(); });
+      child.stderr.on('data', (data: Buffer) => { stderr += data.toString(); });
+      child.on('close', (code) => {
+        if (code === 0) resolve({ stdout, stderr });
+        else reject(new Error(`${file} exited with code ${code}: ${stderr}`));
+      });
+      child.on('error', reject);
+      child.stdin.write(options.input);
+      child.stdin.end();
+    });
+  }
+  return execFileAsyncBase(file, args as string[]);
+}
 
 export interface ResolvedRule {
   ips: string[];
