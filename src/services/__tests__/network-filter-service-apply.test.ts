@@ -10,7 +10,6 @@ const {
   mockCheckAvailability,
   mockSetupFilterChain,
   mockRemoveFilterChain,
-  mockResolveDomains,
 } = vi.hoisted(() => ({
   mockDbSelectGet: vi.fn(),
   mockDbSelectAll: vi.fn(),
@@ -20,7 +19,6 @@ const {
   mockCheckAvailability: vi.fn(),
   mockSetupFilterChain: vi.fn(),
   mockRemoveFilterChain: vi.fn(),
-  mockResolveDomains: vi.fn(),
 }));
 
 // Drizzle DBのモック
