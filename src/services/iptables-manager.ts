@@ -264,8 +264,8 @@ export class IptablesManager {
     return (
       message.includes('No chain/target/match') ||
       message.includes('does a matching rule exist') ||
-      message.includes('No such file or directory') ||
-      message.includes('iptables: Bad rule')
+      message.includes('does not exist') ||
+      message.includes("doesn't exist")
     );
   }
 
