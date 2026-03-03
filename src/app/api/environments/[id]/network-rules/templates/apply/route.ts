@@ -94,6 +94,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
     const { id } = await params;
+    if (error instanceof Error && error.message.includes('Invalid')) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     logger.error('Failed to apply templates', { error, id });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

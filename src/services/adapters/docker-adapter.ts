@@ -953,12 +953,16 @@ export class DockerAdapter extends BasePTYAdapter {
 
       // アクティブセッション参照カウントをデクリメントし、
       // 最後のセッションになったときのみnetworkFilterのルールを削除する
+      // shellModeセッションはカウント対象外（createSessionでもインクリメントしていない）
       const envId = this.config.environmentId;
+      const shouldDecrement = !shellMode;
       const currentCount = this.activeSessionCount.get(envId) ?? 0;
-      const newCount = Math.max(0, currentCount - 1);
-      this.activeSessionCount.set(envId, newCount);
+      const newCount = shouldDecrement ? Math.max(0, currentCount - 1) : currentCount;
+      if (shouldDecrement) {
+        this.activeSessionCount.set(envId, newCount);
+      }
 
-      if (newCount === 0) {
+      if (shouldDecrement && newCount === 0) {
         try {
           await networkFilterService.removeFilter(envId);
         } catch (filterError) {
