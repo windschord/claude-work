@@ -138,6 +138,17 @@ describe('NetworkTemplateDialog', () => {
           body: expect.any(String),
         })
       );
+
+      // POSTボディのJSON構造を検証
+      const lastCall = mockFetch.mock.calls[mockFetch.mock.calls.length - 1];
+      const bodyJson = JSON.parse(lastCall[1].body as string) as unknown;
+      expect(bodyJson).toMatchObject({
+        rules: expect.arrayContaining([
+          expect.objectContaining({ target: 'api.anthropic.com', port: 443 }),
+          expect.objectContaining({ target: '*.npmjs.org', port: 443 }),
+          expect.objectContaining({ target: '*.npmjs.com', port: 443 }),
+        ]),
+      });
     });
 
     await waitFor(() => {

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // vi.hoistedで全モック関数を先に初期化
 const { mockResolve4, mockResolve6, mockLoggerWarn } = vi.hoisted(() => ({
@@ -123,10 +123,6 @@ describe('NetworkFilterService - DNS解決とテスト接続', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     service = new NetworkFilterService();
-  });
-
-  afterEach(() => {
-    // キャッシュをリセットするため、各テスト後に新しいインスタンスを作成できるようにする
   });
 
   // ==================== resolveDomains ====================
@@ -264,20 +260,21 @@ describe('NetworkFilterService - DNS解決とテスト接続', () => {
 
     // テスト9: キャッシュTTL超過時はDNS解決を再実行する
     it('キャッシュTTL超過時はDNS解決を再実行する', async () => {
+      vi.useFakeTimers();
       const rule = makeRule({ target: 'api.anthropic.com', port: 443 });
       mockResolve4.mockResolvedValue(['1.2.3.4']);
       mockResolve6.mockRejectedValue(new Error('No IPv6'));
 
-      // 現在時刻をモック
-      const now = Date.now();
-      vi.spyOn(Date, 'now').mockReturnValueOnce(now); // 1回目の解決時
-      // TTL（5分 = 300000ms）を超過させる
-      vi.spyOn(Date, 'now').mockReturnValueOnce(now + 301000); // 2回目のキャッシュチェック時
-
       // 1回目の解決
       await service.resolveDomains([rule]);
+
+      // TTL（5分 = 300000ms）を超過させる
+      vi.advanceTimersByTime(301000);
+
       // 2回目の解決（TTL超過後）
       await service.resolveDomains([rule]);
+
+      vi.useRealTimers();
 
       // DNS解決が2回実行される
       expect(mockResolve4).toHaveBeenCalledTimes(2);

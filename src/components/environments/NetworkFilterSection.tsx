@@ -9,8 +9,7 @@ import { NetworkRuleForm } from './NetworkRuleForm';
 import { NetworkTemplateDialog } from './NetworkTemplateDialog';
 import { NetworkTestDialog } from './NetworkTestDialog';
 import type { CreateRuleInput } from '@/hooks/useNetworkFilter';
-
-type EnvironmentType = 'HOST' | 'DOCKER' | 'SSH';
+import type { EnvironmentType } from '@/hooks/useEnvironments';
 
 interface NetworkFilterSectionProps {
   environmentId: string;

@@ -19,9 +19,9 @@ interface RouteParams {
  * - 500: サーバーエラー
  */
 export async function POST(request: NextRequest, { params }: RouteParams) {
-  try {
-    const { id } = await params;
+  const { id } = await params;
 
+  try {
     let body: unknown;
     try {
       body = await request.json();
@@ -42,11 +42,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // port のバリデーション（任意項目だが、指定時は整数 1-65535）
     if (port !== undefined && port !== null) {
-      if (typeof port !== 'number' || !Number.isInteger(port)) {
-        return NextResponse.json({ error: 'port must be an integer' }, { status: 400 });
-      }
-      if (port < 1 || port > 65535) {
-        return NextResponse.json({ error: 'port must be between 1 and 65535' }, { status: 400 });
+      if (typeof port !== 'number' || !Number.isInteger(port) || port < 1 || port > 65535) {
+        return NextResponse.json({ error: 'port must be an integer between 1 and 65535' }, { status: 400 });
       }
     }
 
@@ -57,7 +54,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     logger.info('Connection test executed', { environmentId: id, target, port, allowed: result.allowed });
     return NextResponse.json({ result });
   } catch (error) {
-    const { id } = await params;
     logger.error('Failed to test connection', { error, id });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

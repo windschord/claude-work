@@ -63,7 +63,7 @@ export function NetworkRuleList({ rules, onEdit, onDelete, onToggle }: NetworkRu
               <td className="py-2 pr-4 text-gray-700 dark:text-gray-300">
                 {rule.port != null ? rule.port : '全て'}
               </td>
-              <td className="py-2 pr-4 text-gray-600 dark:text-gray-400 max-w-xs truncate">
+              <td className="py-2 pr-4 text-gray-600 dark:text-gray-400 max-w-xs truncate" title={rule.description || '-'}>
                 {rule.description || '-'}
               </td>
               <td className="py-2 pr-4">

@@ -749,13 +749,13 @@ export class NetworkFilterService {
 
     // ベースドメインを解決
     const baseIps = await this.resolveWithCache(baseDomain);
-    baseIps.forEach(ip => allIps.add(ip));
+    baseIps.forEach((ip) => { allIps.add(ip); });
 
     // 一般的なサブドメインも解決を試行
     for (const subdomain of COMMON_SUBDOMAINS) {
       const fqdn = `${subdomain}.${baseDomain}`;
       const subIps = await this.resolveWithCache(fqdn);
-      subIps.forEach(ip => allIps.add(ip));
+      subIps.forEach((ip) => { allIps.add(ip); });
     }
 
     return Array.from(allIps);
@@ -773,6 +773,7 @@ export class NetworkFilterService {
    * @returns 解決されたIPv4アドレスの配列（失敗時は空配列）
    */
   private async resolveWithCache(domain: string): Promise<string[]> {
+    this.clearExpiredCache();
     const now = Date.now();
     const cached = this.dnsCache.get(domain);
 
