@@ -731,6 +731,7 @@ export class DockerAdapter extends BasePTYAdapter {
     let container: Docker.Container | undefined;
     let ptyProcess: DockerPTYStream | undefined;
     let activeCountIncremented = false;
+    let filterApplied = false;
     try {
       container = await DockerClient.getInstance().createContainer(createOptions);
 
@@ -764,6 +765,7 @@ export class DockerAdapter extends BasePTYAdapter {
         // コンテナのネットワーク設定からsubnetを動的に取得（失敗時はフォールバック）
         const containerSubnet = await this.getContainerSubnet(container);
         await networkFilterService.applyFilter(this.config.environmentId, containerSubnet);
+        filterApplied = true;
       } catch (filterError) {
         logger.error('Network filter application failed, stopping container', {
           sessionId,
@@ -878,14 +880,35 @@ export class DockerAdapter extends BasePTYAdapter {
 
         // PTY終了時にコンテナがまだ実行中なら停止
         if (containerName && !shellMode) {
-          this.stopContainer(containerName).catch((error) => {
+          try {
+            await this.stopContainer(containerName);
+          } catch (error) {
             logger.error(`Error stopping container in onExit:`, error);
-          });
+          }
 
           // SSH鍵一時ファイルのクリーンアップ
-          this.cleanupSSHKeys().catch((error) => {
+          try {
+            await this.cleanupSSHKeys();
+          } catch (error) {
             logger.error(`Error cleaning up SSH keys in onExit:`, error);
-          });
+          }
+        }
+
+        // アクティブセッション参照カウントをデクリメントし、
+        // 最後のセッションならネットワークフィルタを解除する
+        // （コンテナ停止完了後に実行して無保護ウィンドウを防ぐ）
+        if (!shellMode) {
+          const envId = this.config.environmentId;
+          const currentCount = this.activeSessionCount.get(envId) ?? 0;
+          const newCount = Math.max(0, currentCount - 1);
+          this.activeSessionCount.set(envId, newCount);
+          if (newCount === 0) {
+            try {
+              await networkFilterService.removeFilter(envId);
+            } catch (filterError) {
+              logger.warn('Network filter cleanup failed in onExit', { sessionId, error: filterError });
+            }
+          }
         }
       });
 
@@ -911,7 +934,16 @@ export class DockerAdapter extends BasePTYAdapter {
       if (activeCountIncremented) {
         const envId = this.config.environmentId;
         const currentCount = this.activeSessionCount.get(envId) ?? 0;
-        this.activeSessionCount.set(envId, Math.max(0, currentCount - 1));
+        const newCount = Math.max(0, currentCount - 1);
+        this.activeSessionCount.set(envId, newCount);
+        // applyFilter成功後に失敗した場合、最後のセッションならフィルタも解除する
+        if (filterApplied && newCount === 0) {
+          try {
+            await networkFilterService.removeFilter(envId);
+          } catch (filterError) {
+            logger.warn('Network filter cleanup failed in createSession rollback', { sessionId, error: filterError });
+          }
+        }
       }
 
       logger.error('DockerAdapter: Failed to create session', {
@@ -962,13 +994,8 @@ export class DockerAdapter extends BasePTYAdapter {
         this.activeSessionCount.set(envId, newCount);
       }
 
-      if (shouldDecrement && newCount === 0) {
-        try {
-          await networkFilterService.removeFilter(envId);
-        } catch (filterError) {
-          logger.warn('Network filter cleanup failed', { sessionId, error: filterError });
-        }
-      } else {
+      const shouldRemoveFilter = shouldDecrement && newCount === 0;
+      if (!shouldRemoveFilter) {
         logger.debug('DockerAdapter: Skipping removeFilter, other sessions still active', {
           sessionId,
           envId,
@@ -993,6 +1020,15 @@ export class DockerAdapter extends BasePTYAdapter {
           await this.cleanupSSHKeys();
         } catch (error) {
           logger.error(`Error cleaning up SSH keys in destroySession:`, error);
+        }
+      }
+
+      // コンテナ停止完了後にフィルタを解除（停止前に解除すると無保護ウィンドウが生じる）
+      if (shouldRemoveFilter) {
+        try {
+          await networkFilterService.removeFilter(envId);
+        } catch (filterError) {
+          logger.warn('Network filter cleanup failed', { sessionId, error: filterError });
         }
       }
 
