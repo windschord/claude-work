@@ -163,6 +163,42 @@ export const developerSettings = sqliteTable('DeveloperSettings', {
 }));
 
 /**
+ * network_filter_configs テーブル
+ * 実行環境ごとのネットワークフィルタリング設定を管理
+ */
+export const networkFilterConfigs = sqliteTable('NetworkFilterConfig', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  environment_id: text('environment_id')
+    .notNull()
+    .unique()
+    .references(() => executionEnvironments.id, { onDelete: 'cascade' }),
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(false),
+  created_at: integer('created_at', { mode: 'timestamp' })
+    .notNull().$defaultFn(() => new Date()),
+  updated_at: integer('updated_at', { mode: 'timestamp' })
+    .notNull().$defaultFn(() => new Date()),
+});
+
+/**
+ * network_filter_rules テーブル
+ * 実行環境ごとのネットワークフィルタリングルールを管理
+ */
+export const networkFilterRules = sqliteTable('NetworkFilterRule', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  environment_id: text('environment_id')
+    .notNull()
+    .references(() => executionEnvironments.id, { onDelete: 'cascade' }),
+  target: text('target').notNull(),
+  port: integer('port'),
+  description: text('description'),
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+  created_at: integer('created_at', { mode: 'timestamp' })
+    .notNull().$defaultFn(() => new Date()),
+  updated_at: integer('updated_at', { mode: 'timestamp' })
+    .notNull().$defaultFn(() => new Date()),
+});
+
+/**
  * ssh_keys テーブル
  * SSH鍵ペアを管理（秘密鍵はAES-256で暗号化保存）
  */
@@ -192,6 +228,8 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
 export const executionEnvironmentsRelations = relations(executionEnvironments, ({ many }) => ({
   projects: many(projects),
   sessions: many(sessions),
+  networkFilterConfig: many(networkFilterConfigs),
+  networkFilterRules: many(networkFilterRules),
 }));
 
 export const sessionsRelations = relations(sessions, ({ one, many }) => ({
@@ -233,6 +271,20 @@ export const developerSettingsRelations = relations(developerSettings, ({ one })
 
 export const sshKeysRelations = relations(sshKeys, () => ({}));
 
+export const networkFilterConfigsRelations = relations(networkFilterConfigs, ({ one }) => ({
+  environment: one(executionEnvironments, {
+    fields: [networkFilterConfigs.environment_id],
+    references: [executionEnvironments.id],
+  }),
+}));
+
+export const networkFilterRulesRelations = relations(networkFilterRules, ({ one }) => ({
+  environment: one(executionEnvironments, {
+    fields: [networkFilterRules.environment_id],
+    references: [executionEnvironments.id],
+  }),
+}));
+
 // ==================== 型エクスポート ====================
 
 export type Project = typeof projects.$inferSelect;
@@ -261,3 +313,9 @@ export type NewDeveloperSettings = typeof developerSettings.$inferInsert;
 
 export type SshKey = typeof sshKeys.$inferSelect;
 export type NewSshKey = typeof sshKeys.$inferInsert;
+
+export type NetworkFilterConfig = typeof networkFilterConfigs.$inferSelect;
+export type NewNetworkFilterConfig = typeof networkFilterConfigs.$inferInsert;
+
+export type NetworkFilterRule = typeof networkFilterRules.$inferSelect;
+export type NewNetworkFilterRule = typeof networkFilterRules.$inferInsert;

@@ -1,10 +1,37 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { db } from '@/lib/db';
-import { executionEnvironments, networkFilterConfigs, networkFilterRules } from '@/db/schema';
+import { describe, it, expect, beforeAll, beforeEach, afterEach } from 'vitest';
+import { db } from '../../lib/db';
+import { executionEnvironments, networkFilterConfigs, networkFilterRules } from '../schema';
 import { eq, sql } from 'drizzle-orm';
 
 describe('NetworkFilter Schema Tests', () => {
   let testEnvironmentId: string;
+
+  beforeAll(async () => {
+    // NetworkFilterConfigテーブルを作成（テストDBに存在しない場合）
+    db.run(sql`
+      CREATE TABLE IF NOT EXISTS NetworkFilterConfig (
+        id TEXT PRIMARY KEY,
+        environment_id TEXT NOT NULL UNIQUE REFERENCES ExecutionEnvironment(id) ON DELETE CASCADE,
+        enabled INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      )
+    `);
+
+    // NetworkFilterRuleテーブルを作成（テストDBに存在しない場合）
+    db.run(sql`
+      CREATE TABLE IF NOT EXISTS NetworkFilterRule (
+        id TEXT PRIMARY KEY,
+        environment_id TEXT NOT NULL REFERENCES ExecutionEnvironment(id) ON DELETE CASCADE,
+        target TEXT NOT NULL,
+        port INTEGER,
+        description TEXT,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      )
+    `);
+  });
 
   beforeEach(async () => {
     // SQLiteで外部キー制約を有効化
