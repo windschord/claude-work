@@ -74,10 +74,11 @@ export class IptablesManager {
   async checkAvailability(): Promise<boolean> {
     try {
       await this._execFileAsync('iptables', ['--version']);
-      logger.debug('iptables is available');
+      await this._execFileAsync('iptables-restore', ['--version']);
+      logger.debug('iptables and iptables-restore are available');
       return true;
     } catch (err) {
-      logger.warn('iptables is not available', { error: err });
+      logger.warn('iptables or iptables-restore is not available', { error: err });
       return false;
     }
   }
@@ -196,7 +197,7 @@ export class IptablesManager {
 
   /**
    * チェイン削除の内部処理（DOCKER-USERからのジャンプ削除、チェインflush、チェイン削除）
-   * エラーは抑制（存在しない場合の冪等性）
+   * 「存在しない」系エラーのみ抑制（冪等性）。権限不足等の想定外エラーは再スローする。
    */
   private async _removeChain(chainName: string): Promise<void> {
     // DOCKER-USERからのジャンプルール削除
@@ -216,33 +217,56 @@ export class IptablesManager {
         try {
           await this._execFileAsync('iptables', deleteArgs);
         } catch (err) {
-          logger.debug('Failed to remove jump rule from DOCKER-USER', {
-            chainName,
-            rule,
-            error: err,
-          });
+          if (this._isNotFoundError(err)) {
+            logger.debug('Jump rule already removed from DOCKER-USER', { chainName, rule });
+          } else {
+            throw err;
+          }
         }
       }
     } catch (err) {
-      logger.debug('Failed to list DOCKER-USER rules (may not exist)', {
-        chainName,
-        error: err,
-      });
+      if (this._isNotFoundError(err)) {
+        logger.debug('DOCKER-USER chain does not exist, skipping jump rule cleanup', { chainName });
+      } else {
+        throw err;
+      }
     }
 
     // チェイン内ルール全削除
     try {
       await this._execFileAsync('iptables', ['-F', chainName]);
     } catch (err) {
-      logger.debug('Failed to flush chain (may not exist)', { chainName, error: err });
+      if (this._isNotFoundError(err)) {
+        logger.debug('Chain does not exist, skipping flush', { chainName });
+      } else {
+        throw err;
+      }
     }
 
     // チェイン削除
     try {
       await this._execFileAsync('iptables', ['-X', chainName]);
     } catch (err) {
-      logger.debug('Failed to delete chain (may not exist)', { chainName, error: err });
+      if (this._isNotFoundError(err)) {
+        logger.debug('Chain does not exist, skipping delete', { chainName });
+      } else {
+        throw err;
+      }
     }
+  }
+
+  /**
+   * iptablesの「存在しない」系エラーかを判定する。
+   * チェインやルールが既に存在しない場合のエラーは冪等性のために抑制する。
+   */
+  private _isNotFoundError(err: unknown): boolean {
+    const message = err instanceof Error ? err.message : String(err);
+    return (
+      message.includes('No chain/target/match') ||
+      message.includes('does a matching rule exist') ||
+      message.includes('No such file or directory') ||
+      message.includes('iptables: Bad rule')
+    );
   }
 
   /**
