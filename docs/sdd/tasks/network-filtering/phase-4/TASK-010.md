@@ -112,5 +112,8 @@ TASK-007（ルールCRUD API）、TASK-008（設定API）
 ## 推定工数
 60分
 
+## 完了サマリー
+useNetworkFilter フックと NetworkFilterSection/NetworkRuleList/NetworkRuleForm コンポーネントを実装。TDD（Red→Green）で26件のテストが全通過。
+
 ## ステータス
-`IN_PROGRESS`
+`DONE`
