@@ -99,4 +99,4 @@ TASK-008（テンプレート・テストAPI）
 40分
 
 ## ステータス
-`TODO`
+`IN_PROGRESS`
