@@ -21,6 +21,10 @@ interface RouteParams {
 export async function POST(request: NextRequest, { params }: RouteParams) {
   const { id } = await params;
 
+  if (!id || typeof id !== 'string' || id.trim() === '') {
+    return NextResponse.json({ error: 'id is required' }, { status: 400 });
+  }
+
   try {
     let body: unknown;
     try {
@@ -47,7 +51,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       }
     }
 
-    const portNumber = port !== undefined ? (port as number) : undefined;
+    const portNumber = port != null ? (port as number) : undefined;
 
     const result = await networkFilterService.testConnection(id, target.trim(), portNumber);
 

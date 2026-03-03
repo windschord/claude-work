@@ -1,10 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { NetworkTemplateDialog } from '../NetworkTemplateDialog';
 
 // fetchをモック
 const mockFetch = vi.fn();
-global.fetch = mockFetch;
 
 const mockTemplates = [
   {
@@ -34,11 +33,16 @@ function createDefaultProps(overrides: Partial<Parameters<typeof NetworkTemplate
 
 describe('NetworkTemplateDialog', () => {
   beforeEach(() => {
+    vi.stubGlobal('fetch', mockFetch);
     vi.clearAllMocks();
     mockFetch.mockResolvedValue({
       ok: true,
       json: async () => ({ templates: mockTemplates }),
     });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it('1. テンプレート一覧がカテゴリ別に表示される', async () => {

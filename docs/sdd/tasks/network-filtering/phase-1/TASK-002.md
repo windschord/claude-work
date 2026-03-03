@@ -12,7 +12,7 @@ iptablesコマンドの実行を抽象化するサービスクラスを新規作
 ## 技術的文脈
 
 - `child_process.execFile` でiptablesコマンドを実行
-- チェイン命名規則: `CWFILTER-<envIdの先頭8文字>`
+- チェイン命名規則: `CWFILTER-<sha256(envId)の先頭12文字>`
 - DOCKER-USER chainにジャンプルールを追加
 - Winstonロガー使用（`src/lib/logger.ts`）
 
