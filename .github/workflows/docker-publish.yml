@@ -66,8 +66,14 @@ jobs:
       - name: Set base tag for extensions
         id: base-tag
         run: |
-          SHA_SHORT="${GITHUB_SHA::7}"
-          echo "tag=${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:sha-${SHA_SHORT}" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            # PR時はベースイメージがpushされないため、レジストリの既存latestを使用
+            echo "tag=${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:latest" >> "$GITHUB_OUTPUT"
+          else
+            # push時は同一ワークフローでビルドしたshaタグを使用
+            SHA_SHORT="${GITHUB_SHA::7}"
+            echo "tag=${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:sha-${SHA_SHORT}" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Build and push base Docker image
         uses: docker/build-push-action@v6
