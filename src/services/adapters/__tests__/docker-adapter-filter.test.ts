@@ -164,7 +164,18 @@ describe('DockerAdapter フィルタリング統合', () => {
     mockContainer.start.mockResolvedValue(undefined);
     mockContainer.stop.mockResolvedValue(undefined);
     mockContainer.remove.mockResolvedValue(undefined);
-    mockContainer.inspect.mockResolvedValue({ State: { Running: true } });
+    // container.inspect() はサブネット取得にも使用される
+    mockContainer.inspect.mockResolvedValue({
+      State: { Running: true },
+      NetworkSettings: {
+        Networks: {
+          bridge: {
+            IPAddress: '172.17.0.2',
+            IPPrefixLen: 16,
+          },
+        },
+      },
+    });
     mockContainer.exec.mockResolvedValue({
       start: vi.fn().mockResolvedValue(mockStream),
       resize: vi.fn(),
@@ -192,6 +203,7 @@ describe('DockerAdapter フィルタリング統合', () => {
       await adapter.createSession('session-1', '/workspace');
 
       expect(mockApplyFilter).toHaveBeenCalledTimes(1);
+      // container.inspect() から IPAddress=172.17.0.2, IPPrefixLen=16 → 172.17.0.0/16
       expect(mockApplyFilter).toHaveBeenCalledWith('env-test-1234', '172.17.0.0/16');
     });
 
@@ -259,13 +271,28 @@ describe('DockerAdapter フィルタリング統合', () => {
   // =========================================================
 
   describe('destroySession', () => {
-    it('destroySession時にremoveFilterが呼ばれる', async () => {
-      // セッション作成
+    it('最後のセッション破棄時にremoveFilterが呼ばれる', async () => {
+      // セッション作成（1セッション）
       await adapter.createSession('session-1', '/workspace');
 
-      // セッション破棄
+      // セッション破棄（参照カウント0になるのでremoveFilter呼ばれる）
       await adapter.destroySession('session-1');
 
+      expect(mockRemoveFilter).toHaveBeenCalledWith('env-test-1234');
+    });
+
+    it('複数セッション稼働中は最後のセッション破棄時のみremoveFilterが呼ばれる', async () => {
+      // 2つのセッションを作成（同一environment）
+      await adapter.createSession('session-1', '/workspace');
+      await adapter.createSession('session-2', '/workspace');
+
+      // 1つ目のセッション破棄（参照カウントまだ1なのでremoveFilterは呼ばれない）
+      await adapter.destroySession('session-1');
+      expect(mockRemoveFilter).not.toHaveBeenCalled();
+
+      // 2つ目のセッション破棄（参照カウント0でremoveFilter呼ばれる）
+      await adapter.destroySession('session-2');
+      expect(mockRemoveFilter).toHaveBeenCalledTimes(1);
       expect(mockRemoveFilter).toHaveBeenCalledWith('env-test-1234');
     });
 

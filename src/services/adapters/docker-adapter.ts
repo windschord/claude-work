@@ -95,6 +95,8 @@ interface DockerSession {
 export class DockerAdapter extends BasePTYAdapter {
   private config: DockerAdapterConfig;
   private sessions: Map<string, DockerSession> = new Map();
+  /** 環境IDごとのアクティブセッション参照カウント（複数セッション時のremoveFilter制御用） */
+  private activeSessionCount: Map<string, number> = new Map();
   private developerSettingsService: DeveloperSettingsService;
   private encryptionService: EncryptionService;
 
@@ -393,6 +395,48 @@ export class DockerAdapter extends BasePTYAdapter {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * コンテナのネットワーク設定からサブネットを取得する。
+   * NetworkSettings から IPAddress と IPPrefixLen を使ってサブネットを計算する。
+   * 取得に失敗した場合はフォールバック値 '172.17.0.0/16' を返す。
+   */
+  private async getContainerSubnet(container: Docker.Container): Promise<string> {
+    const fallbackSubnet = '172.17.0.0/16';
+    try {
+      const info = await container.inspect();
+      const networks = info.NetworkSettings?.Networks ?? {};
+      for (const network of Object.values(networks)) {
+        const ipAddress = network.IPAddress;
+        const prefixLen = network.IPPrefixLen;
+        if (ipAddress && prefixLen > 0) {
+          // IPアドレスのマスク部分をゼロにしてサブネットを計算
+          const parts = ipAddress.split('.').map(Number);
+          const maskBits = prefixLen;
+          // 32ビット整数に変換してマスクを適用
+          const ipInt =
+            (parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3];
+          const mask = maskBits === 0 ? 0 : (~0 << (32 - maskBits)) >>> 0;
+          const networkInt = (ipInt & mask) >>> 0;
+          const subnet = [
+            (networkInt >>> 24) & 0xff,
+            (networkInt >>> 16) & 0xff,
+            (networkInt >>> 8) & 0xff,
+            networkInt & 0xff,
+          ].join('.') + `/${maskBits}`;
+          logger.debug('DockerAdapter: Detected container subnet', { subnet });
+          return subnet;
+        }
+      }
+      logger.debug('DockerAdapter: No IP address found, using fallback subnet', { fallbackSubnet });
+    } catch (err) {
+      logger.warn('DockerAdapter: Failed to inspect container for subnet, using fallback', {
+        error: err,
+        fallbackSubnet,
+      });
+    }
+    return fallbackSubnet;
   }
 
   /**
@@ -716,7 +760,9 @@ export class DockerAdapter extends BasePTYAdapter {
       // ネットワークフィルタリング適用（コンテナ起動後、ready待ち前）
       // フィルタリング無効の場合はnetworkFilterService内部でスキップされる
       try {
-        await networkFilterService.applyFilter(this.config.environmentId, '172.17.0.0/16');
+        // コンテナのネットワーク設定からsubnetを動的に取得（失敗時はフォールバック）
+        const containerSubnet = await this.getContainerSubnet(container);
+        await networkFilterService.applyFilter(this.config.environmentId, containerSubnet);
       } catch (filterError) {
         logger.error('Network filter application failed, stopping container', {
           sessionId,
@@ -726,6 +772,10 @@ export class DockerAdapter extends BasePTYAdapter {
         try { await container.remove({ force: true }); } catch { /* ignore */ }
         throw filterError;
       }
+
+      // アクティブセッション参照カウントをインクリメント
+      const envId = this.config.environmentId;
+      this.activeSessionCount.set(envId, (this.activeSessionCount.get(envId) ?? 0) + 1);
 
       const containerWorkDir = options?.dockerVolumeId ? workingDir : '/workspace';
       this.sessions.set(sessionId, {
@@ -891,11 +941,25 @@ export class DockerAdapter extends BasePTYAdapter {
       const { containerId, shellMode } = session;
       logger.info('DockerAdapter: Destroying session', { sessionId, containerId: session.containerId });
 
-      // ネットワークフィルタリングクリーンアップ
-      try {
-        await networkFilterService.removeFilter(this.config.environmentId);
-      } catch (filterError) {
-        logger.warn('Network filter cleanup failed', { sessionId, error: filterError });
+      // アクティブセッション参照カウントをデクリメントし、
+      // 最後のセッションになったときのみnetworkFilterのルールを削除する
+      const envId = this.config.environmentId;
+      const currentCount = this.activeSessionCount.get(envId) ?? 0;
+      const newCount = Math.max(0, currentCount - 1);
+      this.activeSessionCount.set(envId, newCount);
+
+      if (newCount === 0) {
+        try {
+          await networkFilterService.removeFilter(envId);
+        } catch (filterError) {
+          logger.warn('Network filter cleanup failed', { sessionId, error: filterError });
+        }
+      } else {
+        logger.debug('DockerAdapter: Skipping removeFilter, other sessions still active', {
+          sessionId,
+          envId,
+          remainingSessionCount: newCount,
+        });
       }
 
       scrollbackBuffer.clear(sessionId);

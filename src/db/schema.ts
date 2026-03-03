@@ -225,10 +225,13 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   developerSettings: many(developerSettings),
 }));
 
-export const executionEnvironmentsRelations = relations(executionEnvironments, ({ many }) => ({
+export const executionEnvironmentsRelations = relations(executionEnvironments, ({ one, many }) => ({
   projects: many(projects),
   sessions: many(sessions),
-  networkFilterConfig: many(networkFilterConfigs),
+  networkFilterConfig: one(networkFilterConfigs, {
+    fields: [executionEnvironments.id],
+    references: [networkFilterConfigs.environment_id],
+  }),
   networkFilterRules: many(networkFilterRules),
 }));
 

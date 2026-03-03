@@ -301,9 +301,11 @@ app.prepare().then(() => {
     }
 
     // 孤立したiptablesフィルタリングルールのクリーンアップ（TASK-012）
-    networkFilterService.cleanupOrphanedRules().catch((err) => {
+    try {
+      await networkFilterService.cleanupOrphanedRules();
+    } catch (err) {
       logger.warn('Network filter cleanup on startup failed', { error: err });
-    });
+    }
 
     // アイドルタイムアウトチェッカーを開始
     const idleTimeoutMinutes = ProcessLifecycleManager.getIdleTimeoutMinutes();
