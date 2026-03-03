@@ -106,5 +106,9 @@ TASK-001（DBスキーマ）
 ## 推定工数
 40分
 
+## 完了サマリー
+NetworkFilterServiceのルールCRUD、バリデーション、テンプレート機能を実装。
+26件のテストが全て通過。後続タスク用スタブ（resolveDomains, applyFilter等）も作成済み。
+
 ## ステータス
-`IN_PROGRESS`
+`DONE`
