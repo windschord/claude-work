@@ -205,8 +205,7 @@ describe('DockerAdapter フィルタリング統合', () => {
       expect(mockApplyFilter).toHaveBeenCalledWith('env-test-1234', '172.17.0.0/16');
     });
 
-    it('フィルタリング無効時（applyFilterがノーオペレーション）にコンテナが起動する', async () => {
-      // applyFilter は無効時に何もしないのでresolveするだけ（サービス内部で判断）
+    it('applyFilterが成功時にコンテナが正常起動する', async () => {
       mockApplyFilter.mockResolvedValue(undefined);
 
       await adapter.createSession('session-1', '/workspace');

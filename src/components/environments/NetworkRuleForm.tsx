@@ -36,6 +36,9 @@ function validateTarget(target: string): string | null {
  */
 function validatePort(portStr: string): string | null {
   if (!portStr) return null;
+  if (!/^\d+$/.test(portStr.trim())) {
+    return 'ポートは1〜65535の整数で指定してください';
+  }
   const port = Number(portStr);
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
     return 'ポートは1〜65535の整数で指定してください';

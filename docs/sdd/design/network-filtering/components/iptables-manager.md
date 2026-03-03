@@ -24,7 +24,7 @@
 
 **説明**: iptablesコマンドが利用可能かチェック
 
-**処理**: `iptables --version` を実行し、成功すればtrue
+**処理**: `iptables --version`、`iptables-restore --version`、`iptables -S DOCKER-USER` を実行し、全て成功すればtrue（バイナリ存在 + 権限確認）
 
 ---
 
@@ -49,6 +49,7 @@
    `iptables -A <chain> -j DROP`
 
 **パラメータ**:
+
 | 名前 | 型 | 必須 | 説明 |
 |------|-----|------|------|
 | envId | string | Yes | 環境ID |
@@ -89,7 +90,7 @@
 
 **説明**: 現在アクティブなフィルタチェイン一覧を取得
 
-**戻り値**: `ActiveChainInfo[]` - チェイン名、ルール数、参照カウント
+**戻り値**: `ActiveChainInfo[]` - チェイン名、参照カウント、envIdプレフィックス
 
 ---
 
@@ -105,7 +106,7 @@
 
 ### チェイン命名規則
 
-```
+```text
 CWFILTER-<sha256(environmentId)の先頭12文字>
 ```
 
@@ -118,7 +119,7 @@ CWFILTER-<sha256(environmentId)の先頭12文字>
 
 ### iptablesルールの構造
 
-```
+```text
 *filter
 :CWFILTER-<id> - [0:0]
 

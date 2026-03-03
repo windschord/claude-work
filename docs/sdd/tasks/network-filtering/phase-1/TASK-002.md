@@ -66,7 +66,7 @@ interface ResolvedRule {
 
 interface ActiveChainInfo {
   chainName: string;
-  ruleCount: number;
+  referenceCount: number;
   envIdPrefix: string;
 }
 ```

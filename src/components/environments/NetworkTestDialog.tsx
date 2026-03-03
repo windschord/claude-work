@@ -58,10 +58,13 @@ export function NetworkTestDialog({
 
     const body: { target: string; port?: number } = { target: target.trim() };
     if (port.trim()) {
-      const portNumber = parseInt(port.trim(), 10);
-      if (!isNaN(portNumber)) {
-        body.port = portNumber;
+      const portNumber = Number(port.trim());
+      if (!Number.isInteger(portNumber) || portNumber < 1 || portNumber > 65535) {
+        setError('ポート番号は1〜65535の範囲で入力してください');
+        setIsLoading(false);
+        return;
       }
+      body.port = portNumber;
     }
 
     try {

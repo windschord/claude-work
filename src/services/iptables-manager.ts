@@ -41,7 +41,7 @@ export interface ResolvedRule {
 
 export interface ActiveChainInfo {
   chainName: string;
-  ruleCount: number;
+  referenceCount: number;
   envIdPrefix: string;
 }
 
@@ -132,7 +132,7 @@ export class IptablesManager {
     const activeChains = await this.listActiveChains();
 
     // references==0のチェインのみ対象（使用中のチェインはスキップ）
-    const orphanedChains = activeChains.filter((c) => c.ruleCount === 0);
+    const orphanedChains = activeChains.filter((c) => c.referenceCount === 0);
 
     if (orphanedChains.length === 0) {
       logger.debug('No orphaned chains found');
@@ -284,7 +284,7 @@ export class IptablesManager {
       if (match) {
         chains.push({
           chainName: match[1],
-          ruleCount: parseInt(match[3], 10),
+          referenceCount: parseInt(match[3], 10),
           envIdPrefix: match[2],
         });
       }

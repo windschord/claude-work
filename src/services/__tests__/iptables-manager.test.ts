@@ -246,6 +246,13 @@ describe('IptablesManager', () => {
       // エラーがスローされないことを確認
       await expect(manager.removeFilterChain('notexist-xxxx')).resolves.not.toThrow();
     });
+
+    it('Permission deniedエラーは抑制せず再スローする', async () => {
+      const permDeniedError = new Error('iptables: Permission denied');
+      mockExecFileAsync.mockRejectedValue(permDeniedError);
+
+      await expect(manager.removeFilterChain('some-env')).rejects.toThrow('Permission denied');
+    });
   });
 
   // ============================================================
