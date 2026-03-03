@@ -86,4 +86,4 @@ TASK-006（DockerAdapter統合）
 30分
 
 ## ステータス
-`TODO`
+`IN_PROGRESS`
