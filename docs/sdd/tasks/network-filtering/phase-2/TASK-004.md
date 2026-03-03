@@ -109,4 +109,8 @@ TASK-003（NetworkFilterServiceの基本構造）
 40分
 
 ## ステータス
-`IN_PROGRESS`
+`DONE`
+
+## 完了サマリー
+
+DNS解決（resolveDomains）と通信テスト（testConnection）をTDD手順で実装。全15件のテストが通過。
