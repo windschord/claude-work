@@ -34,17 +34,30 @@ describe('IptablesManager', () => {
   // checkAvailability
   // ============================================================
   describe('checkAvailability', () => {
-    it('iptablesが利用可能な場合trueを返す', async () => {
+    it('iptablesが利用可能で権限がある場合trueを返す', async () => {
       mockExecFileAsync.mockResolvedValue({ stdout: 'iptables v1.8.7', stderr: '' });
 
       const result = await manager.checkAvailability();
 
       expect(result).toBe(true);
       expect(mockExecFileAsync).toHaveBeenCalledWith('iptables', ['--version']);
+      expect(mockExecFileAsync).toHaveBeenCalledWith('iptables-restore', ['--version']);
+      expect(mockExecFileAsync).toHaveBeenCalledWith('iptables', ['-S', 'DOCKER-USER']);
     });
 
     it('iptablesが利用不可な場合falseを返す', async () => {
       mockExecFileAsync.mockRejectedValue(new Error('iptables: command not found'));
+
+      const result = await manager.checkAvailability();
+
+      expect(result).toBe(false);
+    });
+
+    it('権限不足の場合falseを返す', async () => {
+      mockExecFileAsync
+        .mockResolvedValueOnce({ stdout: 'iptables v1.8.7', stderr: '' }) // --version OK
+        .mockResolvedValueOnce({ stdout: 'iptables-restore v1.8.7', stderr: '' }) // --version OK
+        .mockRejectedValueOnce(new Error('Permission denied')); // -S DOCKER-USER 失敗
 
       const result = await manager.checkAvailability();
 

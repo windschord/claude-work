@@ -69,16 +69,18 @@ export class IptablesManager {
   }
 
   /**
-   * iptablesコマンドが利用可能かチェック
+   * iptablesコマンドが利用可能かチェック（バイナリ存在 + 権限確認）
    */
   async checkAvailability(): Promise<boolean> {
     try {
       await this._execFileAsync('iptables', ['--version']);
       await this._execFileAsync('iptables-restore', ['--version']);
-      logger.debug('iptables and iptables-restore are available');
+      // 権限確認: DOCKER-USERチェインへのアクセスを検証
+      await this._execFileAsync('iptables', ['-S', 'DOCKER-USER']);
+      logger.debug('iptables and iptables-restore are available with sufficient permissions');
       return true;
     } catch (err) {
-      logger.warn('iptables or iptables-restore is not available', { error: err });
+      logger.warn('iptables is not available or insufficient permissions', { error: err });
       return false;
     }
   }
