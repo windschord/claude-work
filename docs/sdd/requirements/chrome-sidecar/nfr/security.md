@@ -2,12 +2,22 @@
 
 ## NFR-SEC-001: Chromeコンテナの権限制限
 
-Chromeサイドカーコンテナは、既存のClaude Codeコンテナと同等のセキュリティ設定（CapDrop: ALL, no-new-privileges）で起動しなければならない。
+Chromeサイドカーコンテナは、既存のClaude Codeコンテナと同等のセキュリティ設定で起動しなければならない。
+
+**検証条件**（`docker inspect` で確認可能）:
+- `HostConfig.CapDrop` に `ALL` が含まれること
+- `HostConfig.SecurityOpt` に `no-new-privileges` が含まれること
+- `HostConfig.PortBindings` のCDPポート（9222）で `HostIp` が `127.0.0.1` であること
 
 **理由**: サイドカーコンテナがホストへのエスケープ経路にならないようにする。
 
 ## NFR-SEC-002: ネットワーク隔離
 
 セッション専用ネットワークは、他のセッションのコンテナからアクセスできないようにしなければならない。
+
+**検証条件**（`docker inspect` で確認可能）:
+- Chromeサイドカーコンテナの `NetworkSettings.Networks` にはセッション専用ネットワーク（`cw-net-<session-id>`）のみが含まれること
+- 他のセッションのネットワーク名が含まれていないこと
+- セッション専用ネットワークに接続されているコンテナが、同一セッションのClaude CodeコンテナとChromeコンテナのみであること
 
 **理由**: セッション間のブラウザ状態・通信の完全分離を保証する。
