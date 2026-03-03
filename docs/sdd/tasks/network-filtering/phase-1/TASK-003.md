@@ -107,4 +107,4 @@ TASK-001（DBスキーマ）
 40分
 
 ## ステータス
-`TODO`
+`IN_PROGRESS`
