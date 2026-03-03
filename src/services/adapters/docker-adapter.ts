@@ -19,6 +19,7 @@ import Docker from 'dockerode';
 import * as fsPromises from 'fs/promises';
 import type { PortMapping, VolumeMount } from '@/types/environment';
 import { getConfigVolumeNames } from '@/lib/docker-volume-utils';
+import { networkFilterService } from '@/services/network-filter-service';
 
 export interface DockerAdapterConfig {
   environmentId: string;
@@ -712,6 +713,20 @@ export class DockerAdapter extends BasePTYAdapter {
       // Start container after stream listeners are registered
       await container.start();
 
+      // ネットワークフィルタリング適用（コンテナ起動後、ready待ち前）
+      // フィルタリング無効の場合はnetworkFilterService内部でスキップされる
+      try {
+        await networkFilterService.applyFilter(this.config.environmentId, '172.17.0.0/16');
+      } catch (filterError) {
+        logger.error('Network filter application failed, stopping container', {
+          sessionId,
+          error: filterError,
+        });
+        try { await container.stop({ t: 5 }); } catch { /* ignore */ }
+        try { await container.remove({ force: true }); } catch { /* ignore */ }
+        throw filterError;
+      }
+
       const containerWorkDir = options?.dockerVolumeId ? workingDir : '/workspace';
       this.sessions.set(sessionId, {
         ptyProcess,
@@ -875,6 +890,14 @@ export class DockerAdapter extends BasePTYAdapter {
     if (session) {
       const { containerId, shellMode } = session;
       logger.info('DockerAdapter: Destroying session', { sessionId, containerId: session.containerId });
+
+      // ネットワークフィルタリングクリーンアップ
+      try {
+        await networkFilterService.removeFilter(this.config.environmentId);
+      } catch (filterError) {
+        logger.warn('Network filter cleanup failed', { sessionId, error: filterError });
+      }
+
       scrollbackBuffer.clear(sessionId);
       session.ptyProcess.kill();
       this.sessions.delete(sessionId);

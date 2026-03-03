@@ -2,6 +2,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { DockerAdapter } from '../docker-adapter';
 import { EventEmitter } from 'events';
 
+// Mock networkFilterService
+vi.mock('@/services/network-filter-service', () => ({
+  networkFilterService: {
+    applyFilter: vi.fn().mockResolvedValue(undefined),
+    removeFilter: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
 // Mock node-pty (native module)
 vi.mock('node-pty', () => ({
   spawn: vi.fn(),
