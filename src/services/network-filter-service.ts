@@ -494,7 +494,7 @@ export class NetworkFilterService {
   /**
    * ドメイン名を含むルールをDNS解決し、IPアドレスに変換する
    * - IP/CIDR形式のルールはそのまま通過
-   * - 通常ドメインはIPv4/IPv6で解決
+   * - 通常ドメインはIPv4で解決（ip6tables未実装のため）
    * - ワイルドカードはベースドメインと一般的なサブドメインを解決
    * - DNS解決失敗時は警告ログを出力してスキップ
    * @param rules - 解決対象のルール一覧
