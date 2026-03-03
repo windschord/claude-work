@@ -111,19 +111,19 @@ docker build --build-arg BASE_IMAGE=ghcr.io/windschord/claude-work-sandbox:pytho
 - ツールのインストールは `USER root` に切り替えて実施し、完了後に `USER node` に戻す
 - `apt-get clean` と `rm -rf /var/lib/apt/lists/*` でキャッシュを削除
 - Chrome DevToolsでは `--no-sandbox` をデフォルトで使用しない（必要時のみ明示的に追加）
-- Goのtarballは公式サイト（dl.google.com）からのみ取得
-- Rustはrustup公式インストーラを使用
+- Goのtarballは公式サイト（dl.google.com）からのみ取得し、SHA256チェックサムを検証
+- Rustはrustup公式インストーラのバージョン固定バイナリを取得し、SHA256チェックサムを検証
 
 ## パフォーマンス考慮事項
 
 - 各拡張イメージはベースイメージのレイヤーを共有（Docker layer caching）
 - CI/CDでは `cache-from: type=gha` でGitHub Actions Cacheを活用
 - 拡張ビルドはmatrix strategyで並列実行
-- 不要な `--no-install-recommends` でaptパッケージサイズを最小化
+- `--no-install-recommends` を利用して推奨パッケージを省略し、aptパッケージサイズを最小化
 
 ## ディレクトリ構成
 
-```
+```text
 docker/
 ├── Dockerfile                       # base: Node.js + Claude Code
 ├── .dockerignore                    # ビルドコンテキスト除外設定

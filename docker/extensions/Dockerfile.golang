@@ -19,8 +19,12 @@ ARG GO_VERSION=1.24.1
 
 USER root
 
-RUN curl -fsSL "https://dl.google.com/go/go${GO_VERSION}.linux-$(dpkg --print-architecture).tar.gz" \
-    | tar -C /usr/local -xz \
+RUN ARCH="$(dpkg --print-architecture)" \
+    && curl -fsSL -o /tmp/go.tar.gz "https://dl.google.com/go/go${GO_VERSION}.linux-${ARCH}.tar.gz" \
+    && EXPECTED_SHA256="$(curl -fsSL "https://dl.google.com/go/go${GO_VERSION}.linux-${ARCH}.tar.gz.sha256")" \
+    && echo "${EXPECTED_SHA256}  /tmp/go.tar.gz" | sha256sum -c - \
+    && tar -C /usr/local -xzf /tmp/go.tar.gz \
+    && rm /tmp/go.tar.gz \
     && chown -R root:root /usr/local/go
 
 USER node

@@ -22,7 +22,21 @@ ENV RUSTUP_HOME=/home/node/.rustup
 ENV CARGO_HOME=/home/node/.cargo
 ENV PATH="${CARGO_HOME}/bin:${PATH}"
 
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-    | sh -s -- -y --default-toolchain stable --profile minimal \
+ARG RUSTUP_VERSION=1.28.1
+
+RUN ARCH="$(dpkg --print-architecture)" \
+    && case "${ARCH}" in \
+        amd64) RUST_ARCH="x86_64-unknown-linux-gnu" ;; \
+        arm64) RUST_ARCH="aarch64-unknown-linux-gnu" ;; \
+        *) echo "Unsupported architecture: ${ARCH}" && exit 1 ;; \
+    esac \
+    && curl --proto '=https' --tlsv1.2 -fsSL -o /tmp/rustup-init \
+        "https://static.rust-lang.org/rustup/archive/${RUSTUP_VERSION}/${RUST_ARCH}/rustup-init" \
+    && curl --proto '=https' --tlsv1.2 -fsSL -o /tmp/rustup-init.sha256 \
+        "https://static.rust-lang.org/rustup/archive/${RUSTUP_VERSION}/${RUST_ARCH}/rustup-init.sha256" \
+    && cd /tmp && sha256sum -c rustup-init.sha256 \
+    && chmod +x /tmp/rustup-init \
+    && /tmp/rustup-init -y --default-toolchain stable --profile minimal \
+    && rm /tmp/rustup-init /tmp/rustup-init.sha256 \
     && . "${CARGO_HOME}/env" \
     && rustup component add rustfmt clippy
