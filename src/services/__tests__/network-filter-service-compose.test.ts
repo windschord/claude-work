@@ -233,7 +233,7 @@ describe('NetworkFilterService - Docker Compose環境対応', () => {
 
       // フォールバック時も同じ命名規則が使われる
       expect(networkName).toMatch(/^claudework-filter-/);
-      expect(networkName).toBe('claudework-filter-standalon');
+      expect(networkName).toBe('claudework-filter-standalo');
     });
   });
 });

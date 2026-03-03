@@ -7,6 +7,10 @@ services:
     volumes:
       - claudework-data:/data
       - /var/run/docker.sock:/var/run/docker.sock
+    # ネットワークフィルタリング機能でiptablesを操作するためNET_ADMINが必要
+    # サンドボックスコンテナからの外部通信を制御するDOCKER-USERチェーンの管理に使用する
+    cap_add:
+      - NET_ADMIN
     # nodeユーザーがdocker.sockにアクセスするため、ホストのdockerグループGIDを追加
     # デフォルト984は一般的な値だが、ホストにより異なる場合がある
     # 正確な値の取得: DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)

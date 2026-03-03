@@ -272,6 +272,35 @@ export class NetworkFilterService {
     logger.info('ネットワークフィルタリングルールを削除しました', { ruleId });
   }
 
+  // ==================== Docker Compose環境対応 ====================
+
+  /**
+   * Docker Compose環境かどうかを検出する
+   *
+   * COMPOSE_PROJECT環境変数の存在で判定する。
+   * Docker Composeで起動した場合、この変数にプロジェクト名が設定される。
+   * 検出失敗時（変数未設定）はfalseを返し、スタンドアロンDockerと同じ方式にフォールバックする。
+   *
+   * @returns Docker Compose環境の場合true、それ以外はfalse
+   */
+  isDockerComposeEnvironment(): boolean {
+    return !!process.env.COMPOSE_PROJECT;
+  }
+
+  /**
+   * フィルタリング用ネットワーク名を生成する
+   *
+   * 既存のDocker Composeネットワークとの衝突を回避するため、
+   * `claudework-filter-` プレフィックスに環境IDの先頭8文字を付与する。
+   * これにより、環境ごとに一意なネットワーク名が生成される。
+   *
+   * @param environmentId - 環境ID
+   * @returns フィルタリング用ネットワーク名（例: claudework-filter-abcdef12）
+   */
+  getFilterNetworkName(environmentId: string): string {
+    return `claudework-filter-${environmentId.slice(0, 8)}`;
+  }
+
   // ==================== フィルタリング設定 ====================
 
   /**
