@@ -100,4 +100,7 @@ TASK-005（フィルタリング適用ロジック）
 40分
 
 ## ステータス
-`IN_PROGRESS`
+`DONE`
+
+## 完了サマリー
+DockerAdapterにnetworkFilterServiceを統合。createSessionでコンテナ起動後にapplyFilterを適用し、destroySessionでremoveFilterをクリーンアップする。フィルタリング失敗時はコンテナを停止・削除してエラーをスロー（フェイルセーフ）。既存CapDrop['ALL']維持、フィルタリング無効時は既存動作と完全同一。TDDで13件のテストを作成し全て通過、既存102テストも全てパス。
