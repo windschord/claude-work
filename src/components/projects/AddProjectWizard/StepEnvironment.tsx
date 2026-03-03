@@ -55,11 +55,13 @@ export function StepEnvironment({ environmentId, onChange, onHostEnvironmentDisa
   const availableEnvironments = environments.filter((e) => !e.disabled);
 
   // Auto-select when only one environment is available
+  const availableEnvironmentsLength = availableEnvironments.length;
+  const firstAvailableEnvironmentId = availableEnvironments[0]?.id;
   useEffect(() => {
-    if (!environmentId && availableEnvironments.length === 1) {
-      onChangeRef.current({ environmentId: availableEnvironments[0].id });
+    if (!environmentId && availableEnvironmentsLength === 1 && firstAvailableEnvironmentId) {
+      onChangeRef.current({ environmentId: firstAvailableEnvironmentId });
     }
-  }, [availableEnvironments, environmentId]);
+  }, [availableEnvironmentsLength, firstAvailableEnvironmentId, environmentId]);
 
   const selected = availableEnvironments.find((e) => e.id === environmentId) || null;
 

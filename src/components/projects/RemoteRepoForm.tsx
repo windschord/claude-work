@@ -53,11 +53,13 @@ export function RemoteRepoForm({
   }, [selectedEnvironmentId, availableEnvironmentIds]);
 
   // Auto-select when only one environment is available
+  const availableEnvironmentsLength = availableEnvironments.length;
+  const firstEnvironmentId = availableEnvironments[0]?.id;
   useEffect(() => {
-    if (!selectedEnvironmentId && availableEnvironments.length === 1) {
-      setSelectedEnvironmentId(availableEnvironments[0].id);
+    if (!selectedEnvironmentId && availableEnvironmentsLength === 1 && firstEnvironmentId) {
+      setSelectedEnvironmentId(firstEnvironmentId);
     }
-  }, [availableEnvironments, selectedEnvironmentId]);
+  }, [availableEnvironmentsLength, firstEnvironmentId, selectedEnvironmentId]);
 
   // HOST環境が無効化された場合、cloneLocationをdockerに強制リセット
   useEffect(() => {

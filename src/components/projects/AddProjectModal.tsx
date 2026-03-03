@@ -52,11 +52,13 @@ export function AddProjectModal({ isOpen, onClose }: AddProjectModalProps) {
   }, [selectedEnvironmentId, availableEnvironmentIds]);
 
   // Auto-select when only one environment is available
+  const availableEnvironmentsLength = availableEnvironments.length;
+  const firstEnvironmentId = availableEnvironments[0]?.id;
   useEffect(() => {
-    if (!selectedEnvironmentId && availableEnvironments.length === 1) {
-      setSelectedEnvironmentId(availableEnvironments[0].id);
+    if (!selectedEnvironmentId && availableEnvironmentsLength === 1 && firstEnvironmentId) {
+      setSelectedEnvironmentId(firstEnvironmentId);
     }
-  }, [availableEnvironments, selectedEnvironmentId]);
+  }, [availableEnvironmentsLength, firstEnvironmentId, selectedEnvironmentId]);
 
   const selectedEnvironment = availableEnvironments.find((env) => env.id === selectedEnvironmentId);
 

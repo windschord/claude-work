@@ -158,7 +158,7 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
 
-    let { name, prompt = '', dockerMode = false, source_branch, claude_code_options, custom_env_vars, environment_id: requestEnvironmentId = null } = body;
+    let { name, prompt = '', source_branch, claude_code_options, custom_env_vars, environment_id: requestEnvironmentId = null } = body;
 
     // requestEnvironmentId のバリデーション（非文字列・空文字は400で弾く）
     if (requestEnvironmentId !== null && requestEnvironmentId !== undefined) {
