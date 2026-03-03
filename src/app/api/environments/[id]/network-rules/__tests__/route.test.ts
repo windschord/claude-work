@@ -57,6 +57,8 @@ const baseRule = {
 describe('/api/environments/[id]/network-rules', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // PUT/DELETE のスコープチェック（getRules）用デフォルト設定
+    mockGetRules.mockResolvedValue([baseRule]);
   });
 
   // ==================== GET /api/environments/[id]/network-rules ====================

@@ -25,6 +25,24 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
     const { id, ruleId } = await params;
 
+    // id と ruleId の基本検証
+    if (!id || id.trim() === '') {
+      return NextResponse.json({ error: 'Environment id is required' }, { status: 400 });
+    }
+    if (!ruleId || ruleId.trim() === '') {
+      return NextResponse.json({ error: 'Rule id is required' }, { status: 400 });
+    }
+
+    // environmentId スコープ強制: ruleId がこの環境に属するか確認
+    const existingRules = await networkFilterService.getRules(id);
+    if (Array.isArray(existingRules)) {
+      const ruleExists = existingRules.some((r) => r.id === ruleId);
+      if (!ruleExists) {
+        logger.warn('Network filter rule not found in environment', { id, ruleId });
+        return NextResponse.json({ error: 'Rule not found' }, { status: 404 });
+      }
+    }
+
     let body: unknown;
     try {
       body = await request.json();
@@ -32,7 +50,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
 
-    if (!body || typeof body !== 'object') {
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
       return NextResponse.json({ error: 'Request body is required' }, { status: 400 });
     }
 
@@ -45,10 +63,30 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       enabled?: boolean;
     } = {};
 
-    if (target !== undefined) input.target = target as string;
-    if (port !== undefined) input.port = port as number | null;
-    if (description !== undefined) input.description = description as string;
-    if (enabled !== undefined) input.enabled = enabled as boolean;
+    if (target !== undefined) {
+      if (typeof target !== 'string') {
+        return NextResponse.json({ error: 'target must be a string' }, { status: 400 });
+      }
+      input.target = target;
+    }
+    if (port !== undefined) {
+      if (port !== null && (typeof port !== 'number' || !Number.isInteger(port))) {
+        return NextResponse.json({ error: 'port must be an integer or null' }, { status: 400 });
+      }
+      input.port = port as number | null;
+    }
+    if (description !== undefined) {
+      if (typeof description !== 'string') {
+        return NextResponse.json({ error: 'description must be a string' }, { status: 400 });
+      }
+      input.description = description;
+    }
+    if (enabled !== undefined) {
+      if (typeof enabled !== 'boolean') {
+        return NextResponse.json({ error: 'enabled must be a boolean' }, { status: 400 });
+      }
+      input.enabled = enabled;
+    }
 
     const rule = await networkFilterService.updateRule(ruleId, input);
 
@@ -82,6 +120,24 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const { id, ruleId } = await params;
+
+    // id と ruleId の基本検証
+    if (!id || id.trim() === '') {
+      return NextResponse.json({ error: 'Environment id is required' }, { status: 400 });
+    }
+    if (!ruleId || ruleId.trim() === '') {
+      return NextResponse.json({ error: 'Rule id is required' }, { status: 400 });
+    }
+
+    // environmentId スコープ強制: ruleId がこの環境に属するか確認
+    const existingRules = await networkFilterService.getRules(id);
+    if (Array.isArray(existingRules)) {
+      const ruleExists = existingRules.some((r) => r.id === ruleId);
+      if (!ruleExists) {
+        logger.warn('Network filter rule not found in environment for deletion', { id, ruleId });
+        return NextResponse.json({ error: 'Rule not found' }, { status: 404 });
+      }
+    }
 
     await networkFilterService.deleteRule(ruleId);
 

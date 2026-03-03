@@ -44,6 +44,32 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'rules must not be empty' }, { status: 400 });
     }
 
+    // 各要素のバリデーション
+    for (let i = 0; i < rules.length; i++) {
+      const rule = rules[i];
+      if (!rule || typeof rule !== 'object' || Array.isArray(rule)) {
+        return NextResponse.json(
+          { error: `rules[${i}] must be an object` },
+          { status: 400 }
+        );
+      }
+      const { target, port } = rule as Record<string, unknown>;
+      if (!target || typeof target !== 'string' || target.trim() === '') {
+        return NextResponse.json(
+          { error: `rules[${i}].target is required and must be a non-empty string` },
+          { status: 400 }
+        );
+      }
+      if (port !== undefined && port !== null) {
+        if (typeof port !== 'number' || !Number.isInteger(port)) {
+          return NextResponse.json(
+            { error: `rules[${i}].port must be an integer` },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
     const result = await networkFilterService.applyTemplates(id, rules as CreateRuleInput[]);
 
     logger.info('Templates applied', {

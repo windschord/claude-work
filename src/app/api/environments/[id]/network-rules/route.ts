@@ -18,6 +18,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
 
+    // id の先行検証
+    if (!id || id.trim() === '') {
+      return NextResponse.json({ error: 'Environment id is required' }, { status: 400 });
+    }
+
     const rules = await networkFilterService.getRules(id);
 
     return NextResponse.json({ rules });
@@ -51,6 +56,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
 
+    // id の先行検証
+    if (!id || id.trim() === '') {
+      return NextResponse.json({ error: 'Environment id is required' }, { status: 400 });
+    }
+
     let body: unknown;
     try {
       body = await request.json();
@@ -58,15 +68,30 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
 
-    if (!body || typeof body !== 'object') {
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
       return NextResponse.json({ error: 'Request body is required' }, { status: 400 });
     }
 
     const { target, port, description } = body as Record<string, unknown>;
 
-    // target は必須
+    // target は必須・型検証・長さ制限
     if (!target || typeof target !== 'string' || target.trim() === '') {
       return NextResponse.json({ error: 'target is required' }, { status: 400 });
+    }
+    if (target.length > 253) {
+      return NextResponse.json({ error: 'target is too long' }, { status: 400 });
+    }
+
+    // port は undefined か整数
+    if (port !== undefined && port !== null) {
+      if (typeof port !== 'number' || !Number.isInteger(port)) {
+        return NextResponse.json({ error: 'port must be an integer' }, { status: 400 });
+      }
+    }
+
+    // description は undefined か string
+    if (description !== undefined && typeof description !== 'string') {
+      return NextResponse.json({ error: 'description must be a string' }, { status: 400 });
     }
 
     const input = {
