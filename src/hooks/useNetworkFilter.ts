@@ -1,0 +1,264 @@
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import type { NetworkFilterRule, NetworkFilterConfig } from '@/db/schema';
+import type { CreateRuleInput, UpdateRuleInput, DefaultTemplate, TestResult } from '@/services/network-filter-service';
+
+export type { CreateRuleInput, UpdateRuleInput };
+
+export interface UseNetworkFilterReturn {
+  // 状態
+  rules: NetworkFilterRule[];
+  filterConfig: NetworkFilterConfig | null;
+  isLoading: boolean;
+  error: string | null;
+
+  // ルール操作
+  createRule: (input: CreateRuleInput) => Promise<void>;
+  updateRule: (ruleId: string, input: UpdateRuleInput) => Promise<void>;
+  deleteRule: (ruleId: string) => Promise<void>;
+  toggleRule: (ruleId: string, enabled: boolean) => Promise<void>;
+
+  // フィルタリング設定
+  toggleFilter: (enabled: boolean) => Promise<void>;
+
+  // テンプレート
+  getTemplates: () => Promise<DefaultTemplate[]>;
+  applyTemplates: (rules: CreateRuleInput[]) => Promise<void>;
+
+  // テスト
+  testConnection: (target: string, port?: number) => Promise<TestResult>;
+}
+
+/**
+ * ネットワークフィルタリング管理フック
+ *
+ * 指定した環境のネットワークフィルタリングルールとフィルタ設定を管理する。
+ * useEffect依存配列にはprimitiveな値（environmentId）のみを含める。
+ *
+ * @param environmentId - 管理対象の環境ID
+ * @returns ルール・設定の状態と操作関数
+ */
+export function useNetworkFilter(environmentId: string): UseNetworkFilterReturn {
+  const [rules, setRules] = useState<NetworkFilterRule[]>([]);
+  const [filterConfig, setFilterConfig] = useState<NetworkFilterConfig | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  /**
+   * ルール一覧を取得する
+   */
+  const fetchRules = useCallback(async (envId: string): Promise<NetworkFilterRule[]> => {
+    const response = await fetch(`/api/environments/${envId}/network-rules`);
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'ルール一覧の取得に失敗しました');
+    }
+
+    return data.rules as NetworkFilterRule[];
+  }, []);
+
+  /**
+   * フィルタリング設定を取得する
+   */
+  const fetchConfig = useCallback(async (envId: string): Promise<NetworkFilterConfig | null> => {
+    const response = await fetch(`/api/environments/${envId}/network-filter`);
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'フィルタリング設定の取得に失敗しました');
+    }
+
+    return data.config as NetworkFilterConfig;
+  }, []);
+
+  /**
+   * ルール一覧とフィルタ設定を並列で取得して状態を更新する
+   */
+  const fetchAll = useCallback(async (envId: string): Promise<void> => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const [fetchedRules, fetchedConfig] = await Promise.all([
+        fetchRules(envId),
+        fetchConfig(envId),
+      ]);
+
+      setRules(fetchedRules);
+      setFilterConfig(fetchedConfig);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'データの取得に失敗しました';
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [fetchRules, fetchConfig]);
+
+  // NOTE: environmentIdはprimitiveなためuseEffect依存配列に安全に含められる
+  useEffect(() => {
+    fetchAll(environmentId);
+  }, [environmentId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // fetchAllをdepsに含めないのはCLAUDE.mdのガイドライン準拠（primitive値のみ）
+
+  /**
+   * ルールを作成し一覧を再フェッチする
+   */
+  const createRule = useCallback(async (input: CreateRuleInput): Promise<void> => {
+    const response = await fetch(`/api/environments/${environmentId}/network-rules`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'ルールの作成に失敗しました');
+    }
+
+    // 再フェッチで最新状態を取得
+    await fetchAll(environmentId);
+  }, [environmentId, fetchAll]);
+
+  /**
+   * ルールを更新し一覧を再フェッチする
+   */
+  const updateRule = useCallback(async (ruleId: string, input: UpdateRuleInput): Promise<void> => {
+    const response = await fetch(`/api/environments/${environmentId}/network-rules/${ruleId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'ルールの更新に失敗しました');
+    }
+
+    await fetchAll(environmentId);
+  }, [environmentId, fetchAll]);
+
+  /**
+   * ルールを削除し一覧を再フェッチする
+   */
+  const deleteRule = useCallback(async (ruleId: string): Promise<void> => {
+    const response = await fetch(`/api/environments/${environmentId}/network-rules/${ruleId}`, {
+      method: 'DELETE',
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || 'ルールの削除に失敗しました');
+    }
+
+    await fetchAll(environmentId);
+  }, [environmentId, fetchAll]);
+
+  /**
+   * ルールの有効/無効を切り替えし一覧を再フェッチする
+   */
+  const toggleRule = useCallback(async (ruleId: string, enabled: boolean): Promise<void> => {
+    const response = await fetch(`/api/environments/${environmentId}/network-rules/${ruleId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'ルールの更新に失敗しました');
+    }
+
+    await fetchAll(environmentId);
+  }, [environmentId, fetchAll]);
+
+  /**
+   * フィルタリングの有効/無効を切り替え設定を再フェッチする
+   */
+  const toggleFilter = useCallback(async (enabled: boolean): Promise<void> => {
+    const response = await fetch(`/api/environments/${environmentId}/network-filter`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'フィルタリング設定の更新に失敗しました');
+    }
+
+    await fetchAll(environmentId);
+  }, [environmentId, fetchAll]);
+
+  /**
+   * デフォルトテンプレートを取得する
+   */
+  const getTemplates = useCallback(async (): Promise<DefaultTemplate[]> => {
+    const response = await fetch(`/api/environments/${environmentId}/network-rules/templates`);
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'テンプレートの取得に失敗しました');
+    }
+
+    return data.templates as DefaultTemplate[];
+  }, [environmentId]);
+
+  /**
+   * テンプレートからルールを一括追加し一覧を再フェッチする
+   */
+  const applyTemplates = useCallback(async (ruleInputs: CreateRuleInput[]): Promise<void> => {
+    const response = await fetch(`/api/environments/${environmentId}/network-rules/templates`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rules: ruleInputs }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'テンプレートの適用に失敗しました');
+    }
+
+    await fetchAll(environmentId);
+  }, [environmentId, fetchAll]);
+
+  /**
+   * 通信テストを実行する
+   */
+  const testConnection = useCallback(async (target: string, port?: number): Promise<TestResult> => {
+    const response = await fetch(`/api/environments/${environmentId}/network-filter/test`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target, port }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || '通信テストに失敗しました');
+    }
+
+    return data.result as TestResult;
+  }, [environmentId]);
+
+  return {
+    rules,
+    filterConfig,
+    isLoading,
+    error,
+    createRule,
+    updateRule,
+    deleteRule,
+    toggleRule,
+    toggleFilter,
+    getTemplates,
+    applyTemplates,
+    testConnection,
+  };
+}
