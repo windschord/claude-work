@@ -164,6 +164,18 @@ export class NetworkFilterService {
 
   private dnsCache = new Map<string, DnsCacheEntry>();
 
+  // ==================== ターゲット正規化 ====================
+
+  /**
+   * ターゲット文字列を正規化する（trim + ドメインは小文字化）
+   * IPv4/CIDRはそのまま、ドメイン系は小文字化して保存の一貫性を保つ
+   */
+  private normalizeTarget(target: string): string {
+    const t = target.trim();
+    if (IPV4_PATTERN.test(t) || IPV4_CIDR_PATTERN.test(t)) return t;
+    return t.toLowerCase();
+  }
+
   // ==================== ルールCRUD ====================
 
   /**
@@ -188,7 +200,9 @@ export class NetworkFilterService {
    * @throws ValidationError targetまたはportの形式が不正な場合
    */
   async createRule(environmentId: string, input: CreateRuleInput): Promise<NetworkFilterRule> {
-    if (!this.validateTarget(input.target)) {
+    const normalizedTarget = this.normalizeTarget(input.target);
+
+    if (!this.validateTarget(normalizedTarget)) {
       throw new ValidationError(`不正なターゲット形式: ${input.target}`);
     }
 
@@ -196,12 +210,12 @@ export class NetworkFilterService {
       throw new ValidationError(`不正なポート番号: ${input.port}（1-65535の範囲で指定してください）`);
     }
 
-    logger.info('ネットワークフィルタリングルールを作成中', { environmentId, target: input.target });
+    logger.info('ネットワークフィルタリングルールを作成中', { environmentId, target: normalizedTarget });
 
     const rule = db.insert(schema.networkFilterRules)
       .values({
         environment_id: environmentId,
-        target: input.target,
+        target: normalizedTarget,
         port: input.port ?? null,
         description: input.description,
         enabled: true,
@@ -226,7 +240,9 @@ export class NetworkFilterService {
    * @throws ValidationError targetまたはportの形式が不正な場合
    */
   async updateRule(ruleId: string, input: UpdateRuleInput): Promise<NetworkFilterRule> {
-    if (input.target !== undefined && !this.validateTarget(input.target)) {
+    const normalizedTarget = input.target !== undefined ? this.normalizeTarget(input.target) : undefined;
+
+    if (normalizedTarget !== undefined && !this.validateTarget(normalizedTarget)) {
       throw new ValidationError(`不正なターゲット形式: ${input.target}`);
     }
 
@@ -236,7 +252,7 @@ export class NetworkFilterService {
 
     const updateData: Record<string, unknown> = { updated_at: new Date() };
 
-    if (input.target !== undefined) updateData.target = input.target;
+    if (normalizedTarget !== undefined) updateData.target = normalizedTarget;
     if (input.port !== undefined) updateData.port = input.port;
     if (input.description !== undefined) updateData.description = input.description;
     if (input.enabled !== undefined) updateData.enabled = input.enabled;
@@ -357,7 +373,10 @@ export class NetworkFilterService {
    * @returns テンプレート一覧
    */
   getDefaultTemplates(): DefaultTemplate[] {
-    return DEFAULT_TEMPLATES;
+    return DEFAULT_TEMPLATES.map((template) => ({
+      category: template.category,
+      rules: template.rules.map((rule) => ({ ...rule })),
+    }));
   }
 
   /**
@@ -382,7 +401,7 @@ export class NetworkFilterService {
     );
 
     for (const input of ruleInputs) {
-      const key = `${input.target}:${input.port ?? ''}`;
+      const key = `${this.normalizeTarget(input.target)}:${input.port ?? ''}`;
 
       // 重複チェック（既存ルールおよび同一リクエスト内の重複）
       if (seen.has(key)) {
@@ -563,6 +582,9 @@ export class NetworkFilterService {
    * @returns TestResult - 許可/ブロック結果とマッチしたルール情報
    */
   async testConnection(environmentId: string, target: string, port?: number): Promise<TestResult> {
+    // 入力ターゲットを正規化
+    const normalizedTarget = this.normalizeTarget(target);
+
     // フィルタリング設定を確認
     const config = await this.getFilterConfig(environmentId);
 
@@ -579,7 +601,7 @@ export class NetworkFilterService {
       if (!rule.enabled) continue;
 
       // ターゲットのマッチング確認
-      const targetMatches = this.matchesTarget(target, rule.target);
+      const targetMatches = this.matchesTarget(normalizedTarget, rule.target);
       if (!targetMatches) continue;
 
       // ポートのマッチング確認
