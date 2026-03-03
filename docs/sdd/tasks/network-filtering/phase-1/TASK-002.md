@@ -92,4 +92,10 @@ interface ActiveChainInfo {
 40分
 
 ## ステータス
-`IN_PROGRESS`
+`DONE`
+
+## 完了サマリー
+
+依存性注入パターンを用いてIptablesManagerを実装。テストは13件全て通過。
+- `src/services/iptables-manager.ts`: IptablesManagerクラス実装
+- `src/services/__tests__/iptables-manager.test.ts`: 13件のテスト（全通過）

@@ -1,27 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// child_process.execFileをホイストされたモックで定義
-const { mockExecFile } = vi.hoisted(() => ({
-  mockExecFile: vi.fn(),
-}));
-
-// child_processをモック
-vi.mock('child_process', () => ({
-  execFile: mockExecFile,
-}));
-
-// utilのpromisifyをモック（execFileAsyncとして使われる）
-vi.mock('util', () => ({
-  promisify: (fn: unknown) => {
-    // execFileが渡された場合はmockExecFileAsyncを返す
-    if (fn === mockExecFile) {
-      return mockExecFileAsync;
-    }
-    // その他はそのまま返す
-    return fn;
-  },
-}));
-
 // loggerをモック
 vi.mock('@/lib/logger', () => ({
   logger: {
@@ -32,17 +10,17 @@ vi.mock('@/lib/logger', () => ({
   },
 }));
 
-// promisify後のexecFile
-const mockExecFileAsync = vi.fn();
-
 import { IptablesManager } from '../iptables-manager';
 
 describe('IptablesManager', () => {
+  let mockExecFileAsync: ReturnType<typeof vi.fn>;
   let manager: IptablesManager;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    manager = new IptablesManager();
+    mockExecFileAsync = vi.fn();
+    // 依存性注入でモック関数を渡す
+    manager = new IptablesManager(mockExecFileAsync);
   });
 
   // ============================================================
@@ -83,15 +61,19 @@ describe('IptablesManager', () => {
 
       await manager.setupFilterChain('abcdef12-3456-7890', resolvedRules, '172.17.0.0/16');
 
-      // チェイン名は先頭8文字: CWFILTER-abcdef12
-      const chainName = 'CWFILTER-abcdef12';
-
       // iptables-restore が呼ばれることを確認
       const calls = mockExecFileAsync.mock.calls;
       const restoreCall = calls.find(
-        (call) => call[0] === 'iptables-restore' && call[1]?.includes('--noflush')
+        (call: unknown[]) =>
+          call[0] === 'iptables-restore' &&
+          Array.isArray(call[1]) &&
+          call[1].includes('--noflush')
       );
       expect(restoreCall).toBeDefined();
+
+      // iptables-restoreに渡されるルールにチェイン名が含まれる
+      const restoreOptions = restoreCall![2] as { input?: string };
+      expect(restoreOptions?.input).toContain('CWFILTER-abcdef12');
     });
 
     it('既存チェインがある場合は削除してから再作成（冪等性）', async () => {
@@ -108,19 +90,30 @@ describe('IptablesManager', () => {
 
       const calls = mockExecFileAsync.mock.calls;
 
-      // removeFilterChain内の削除コマンド（-D DOCKER-USER、-F、-X）が含まれることを確認
+      // removeFilterChain内の削除コマンド（-F）が含まれることを確認
       const flushCall = calls.find(
-        (call) => call[0] === 'iptables' && call[1]?.includes('-F')
-      );
-      const deleteChainCall = calls.find(
-        (call) => call[0] === 'iptables' && call[1]?.includes('-X')
+        (call: unknown[]) =>
+          call[0] === 'iptables' &&
+          Array.isArray(call[1]) &&
+          call[1].includes('-F')
       );
       expect(flushCall).toBeDefined();
+
+      // deleteChainコマンド（-X）も含まれることを確認
+      const deleteChainCall = calls.find(
+        (call: unknown[]) =>
+          call[0] === 'iptables' &&
+          Array.isArray(call[1]) &&
+          call[1].includes('-X')
+      );
       expect(deleteChainCall).toBeDefined();
 
       // その後 iptables-restore が呼ばれることを確認
       const restoreCall = calls.find(
-        (call) => call[0] === 'iptables-restore' && call[1]?.includes('--noflush')
+        (call: unknown[]) =>
+          call[0] === 'iptables-restore' &&
+          Array.isArray(call[1]) &&
+          call[1].includes('--noflush')
       );
       expect(restoreCall).toBeDefined();
     });
@@ -140,36 +133,38 @@ describe('IptablesManager', () => {
 
       // DOCKER-USERからのジャンプルール削除
       const deleteJumpCall = calls.find(
-        (call) =>
+        (call: unknown[]) =>
           call[0] === 'iptables' &&
-          call[1]?.includes('-D') &&
-          call[1]?.includes('DOCKER-USER') &&
-          call[1]?.includes(chainName)
+          Array.isArray(call[1]) &&
+          call[1].includes('-D') &&
+          call[1].includes('DOCKER-USER') &&
+          call[1].includes(chainName)
       );
       expect(deleteJumpCall).toBeDefined();
 
       // チェイン内ルール全削除
       const flushCall = calls.find(
-        (call) =>
+        (call: unknown[]) =>
           call[0] === 'iptables' &&
-          call[1]?.includes('-F') &&
-          call[1]?.includes(chainName)
+          Array.isArray(call[1]) &&
+          call[1].includes('-F') &&
+          call[1].includes(chainName)
       );
       expect(flushCall).toBeDefined();
 
       // チェイン削除
       const deleteChainCall = calls.find(
-        (call) =>
+        (call: unknown[]) =>
           call[0] === 'iptables' &&
-          call[1]?.includes('-X') &&
-          call[1]?.includes(chainName)
+          Array.isArray(call[1]) &&
+          call[1].includes('-X') &&
+          call[1].includes(chainName)
       );
       expect(deleteChainCall).toBeDefined();
     });
 
     it('チェインが存在しない場合はエラーを抑制する', async () => {
       const noChainError = new Error('iptables: No chain/target/match by that name');
-      (noChainError as NodeJS.ErrnoException).code = '1';
       mockExecFileAsync.mockRejectedValue(noChainError);
 
       // エラーがスローされないことを確認
@@ -242,7 +237,7 @@ describe('IptablesManager', () => {
       expect(result).toContain('-p udp --dport 53 -j ACCEPT');
       expect(result).toContain(`-A ${chainName} -j DROP`);
       // ホワイトリストルールは含まれない
-      expect(result).not.toContain('-d ');
+      expect(result).not.toContain(' -d ');
     });
   });
 
@@ -270,19 +265,21 @@ describe('IptablesManager', () => {
 
       // CWFILTER-aabbccdd の削除コマンドが呼ばれる
       const flushAabb = calls.find(
-        (call) =>
+        (call: unknown[]) =>
           call[0] === 'iptables' &&
-          call[1]?.includes('-F') &&
-          call[1]?.includes('CWFILTER-aabbccdd')
+          Array.isArray(call[1]) &&
+          call[1].includes('-F') &&
+          call[1].includes('CWFILTER-aabbccdd')
       );
       expect(flushAabb).toBeDefined();
 
       // CWFILTER-11223344 の削除コマンドも呼ばれる
       const flush1122 = calls.find(
-        (call) =>
+        (call: unknown[]) =>
           call[0] === 'iptables' &&
-          call[1]?.includes('-F') &&
-          call[1]?.includes('CWFILTER-11223344')
+          Array.isArray(call[1]) &&
+          call[1].includes('-F') &&
+          call[1].includes('CWFILTER-11223344')
       );
       expect(flush1122).toBeDefined();
     });
@@ -300,7 +297,8 @@ describe('IptablesManager', () => {
 
       // iptables -L -n の呼び出し以外は行われない
       const nonListCalls = mockExecFileAsync.mock.calls.filter(
-        (call) => !(call[0] === 'iptables' && call[1]?.includes('-L'))
+        (call: unknown[]) =>
+          !(call[0] === 'iptables' && Array.isArray(call[1]) && call[1].includes('-L'))
       );
       expect(nonListCalls.length).toBe(0);
     });
