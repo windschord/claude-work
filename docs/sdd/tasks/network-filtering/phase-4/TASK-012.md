@@ -86,5 +86,13 @@ TASK-006（DockerAdapter統合）、TASK-009（Docker Compose対応）
 ## 推定工数
 40分
 
+## 完了サマリー
+
+TDDで実装を完了。
+
+- `cleanupOrphanedRules()` を実装: iptables可否チェック → `cleanupOrphanedChains()` 委譲 → 結果ログ
+- `server.ts` にDocker孤立コンテナクリーンアップの直後にフィルタークリーンアップ呼び出しを追加
+- テスト14件（cleanup: 5件、integration: 9件）全て通過
+
 ## ステータス
-`IN_PROGRESS`
+`DONE`
