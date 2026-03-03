@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { logger } from '../lib/logger';
@@ -17,10 +18,10 @@ export interface ActiveChainInfo {
 }
 
 const CHAIN_PREFIX = 'CWFILTER-';
-const ENV_ID_PREFIX_LENGTH = 8;
 
 function buildChainName(envId: string): string {
-  return `${CHAIN_PREFIX}${envId.substring(0, ENV_ID_PREFIX_LENGTH)}`;
+  const hash = createHash('sha256').update(envId).digest('hex').slice(0, 12);
+  return `${CHAIN_PREFIX}${hash}`;
 }
 
 type ExecFileAsyncFn = (
@@ -93,23 +94,26 @@ export class IptablesManager {
   }
 
   /**
-   * CWFILTER-プレフィックスを持つ全チェインを孤立チェインとしてクリーンアップ
+   * CWFILTER-プレフィックスを持ち、references==0のチェインを孤立チェインとしてクリーンアップ
    */
   async cleanupOrphanedChains(): Promise<void> {
     logger.info('Cleaning up orphaned iptables chains');
     const activeChains = await this.listActiveChains();
 
-    if (activeChains.length === 0) {
+    // references==0のチェインのみ対象（使用中のチェインはスキップ）
+    const orphanedChains = activeChains.filter((c) => c.ruleCount === 0);
+
+    if (orphanedChains.length === 0) {
       logger.debug('No orphaned chains found');
       return;
     }
 
-    for (const chain of activeChains) {
+    for (const chain of orphanedChains) {
       logger.info('Removing orphaned chain', { chainName: chain.chainName });
       await this._removeChain(chain.chainName);
     }
 
-    logger.info('Orphaned chain cleanup complete', { count: activeChains.length });
+    logger.info('Orphaned chain cleanup complete', { count: orphanedChains.length });
   }
 
   /**
@@ -168,10 +172,31 @@ export class IptablesManager {
    */
   private async _removeChain(chainName: string): Promise<void> {
     // DOCKER-USERからのジャンプルール削除
+    // iptables -S DOCKER-USER でルール一覧を取得し、対象チェインへのジャンプを全て削除
     try {
-      await this._execFileAsync('iptables', ['-D', 'DOCKER-USER', '-j', chainName]);
+      const { stdout } = await this._execFileAsync('iptables', ['-S', 'DOCKER-USER']);
+      const jumpRules = stdout
+        .split('\n')
+        .filter((line) => line.includes(`-j ${chainName}`));
+
+      for (const rule of jumpRules) {
+        // "-A DOCKER-USER ..." を "-D DOCKER-USER ..." に変換して削除
+        const deleteArgs = rule
+          .replace(/^-A /, '-D ')
+          .split(' ')
+          .filter(Boolean);
+        try {
+          await this._execFileAsync('iptables', deleteArgs);
+        } catch (err) {
+          logger.debug('Failed to remove jump rule from DOCKER-USER', {
+            chainName,
+            rule,
+            error: err,
+          });
+        }
+      }
     } catch (err) {
-      logger.debug('Failed to remove jump rule from DOCKER-USER (may not exist)', {
+      logger.debug('Failed to list DOCKER-USER rules (may not exist)', {
         chainName,
         error: err,
       });
