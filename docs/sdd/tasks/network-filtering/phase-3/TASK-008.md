@@ -78,12 +78,12 @@
 
 ## 受入基準
 
-- [ ] フィルタリング設定のGET/PUTが実装されている
-- [ ] 通信テスト（dry-run）のPOSTが実装されている
-- [ ] テンプレート取得のGETが実装されている
-- [ ] テンプレート適用のPOSTが実装されている
-- [ ] 適切なHTTPステータスコードが返される
-- [ ] テストが12件以上あり、全て通過する
+- [x] フィルタリング設定のGET/PUTが実装されている
+- [x] 通信テスト（dry-run）のPOSTが実装されている
+- [x] テンプレート取得のGETが実装されている
+- [x] テンプレート適用のPOSTが実装されている
+- [x] 適切なHTTPステータスコードが返される
+- [x] テストが12件以上あり、全て通過する
 
 ## 依存関係
 TASK-004（DNS解決・テスト機能）
@@ -92,4 +92,12 @@ TASK-004（DNS解決・テスト機能）
 40分
 
 ## ステータス
-`IN_PROGRESS`
+`DONE`
+
+## 完了サマリー
+TDD手順に従い、12件のテストを先に作成してから実装。
+- `network-filter/route.ts`: GET（設定取得、未設定時デフォルト）/ PUT（有効/無効切替）
+- `network-filter/test/route.ts`: POST（dry-run通信テスト）
+- `network-rules/templates/route.ts`: GET（テンプレート一覧）
+- `network-rules/templates/apply/route.ts`: POST（テンプレート一括適用）
+全12件テスト通過。
