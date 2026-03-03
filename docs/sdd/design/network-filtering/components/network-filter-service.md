@@ -211,7 +211,7 @@ const DEFAULT_TEMPLATES: DefaultTemplate[] = [
 
 ### コンテナ起動時のフィルタリング適用
 
-```
+```text
 DockerAdapter.createSession()
   │
   ├─→ NetworkFilterService.getFilterConfig(envId)

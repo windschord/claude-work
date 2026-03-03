@@ -58,11 +58,11 @@ private networkFilterService: NetworkFilterService;
 **createSession変更**（既存フローにフィルタリングステップを追加）:
 ```typescript
 // 既存: コンテナ作成 → stream attach → コンテナ起動
-// 変更: コンテナ作成 → フィルタリング適用 → stream attach → コンテナ起動
+// 変更: コンテナ作成 → stream attach → コンテナ起動 → applyFilter
 //
 // フィルタリング適用ステップ:
 // 1. networkFilterService.applyFilter(environmentId, containerSubnet)
-// 2. 失敗時: コンテナ削除 → エラースロー
+// 2. 失敗時: コンテナ停止・削除 → エラースロー
 ```
 
 **destroySession変更**:
@@ -85,13 +85,13 @@ private networkFilterService: NetworkFilterService;
 
 ## 受入基準
 
-- [ ] `createSession` にフィルタリング適用ステップが統合されている
-- [ ] `destroySession` にクリーンアップステップが統合されている
-- [ ] フィルタリング無効時は既存動作と完全に同一
-- [ ] フィルタリング適用失敗時はコンテナ起動が中止される
-- [ ] `CapDrop: ['ALL']` が維持されている
-- [ ] 既存のDockerAdapter関連テストが全てパスする
-- [ ] 新規テストが10件以上あり、全て通過する
+- [x] `createSession` にフィルタリング適用ステップが統合されている
+- [x] `destroySession` にクリーンアップステップが統合されている
+- [x] フィルタリング無効時は既存動作と完全に同一
+- [x] フィルタリング適用失敗時はコンテナ起動が中止される
+- [x] `CapDrop: ['ALL']` が維持されている
+- [x] 既存のDockerAdapter関連テストが全てパスする
+- [x] 新規テストが10件以上あり、全て通過する
 
 ## 依存関係
 TASK-005（フィルタリング適用ロジック）

@@ -76,14 +76,14 @@ interface ActiveChainInfo {
 
 ## 受入基準
 
-- [ ] `src/services/iptables-manager.ts` が作成されている
-- [ ] iptablesコマンドの利用可否チェックが実装されている
-- [ ] チェイン作成・削除が冪等に実装されている
-- [ ] iptables-restore形式のルール生成が正しい
-- [ ] DOCKER-USER chainへのジャンプルール追加・削除が実装されている
-- [ ] 孤立チェインのクリーンアップが実装されている
-- [ ] テストが10件以上あり、全て通過する
-- [ ] Winstonロガーでログが出力される
+- [x] `src/services/iptables-manager.ts` が作成されている
+- [x] iptablesコマンドの利用可否チェックが実装されている
+- [x] チェイン作成・削除が冪等に実装されている
+- [x] iptables-restore形式のルール生成が正しい
+- [x] DOCKER-USER chainへのジャンプルール追加・削除が実装されている
+- [x] 孤立チェインのクリーンアップが実装されている
+- [x] テストが10件以上あり、全て通過する
+- [x] Winstonロガーでログが出力される
 
 ## 依存関係
 なし（TASK-001と並列実行可能）

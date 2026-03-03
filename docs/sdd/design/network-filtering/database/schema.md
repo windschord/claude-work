@@ -68,12 +68,14 @@ erDiagram
 | updated_at | INTEGER (timestamp) | NOT NULL | new Date() | 更新日時 |
 
 **インデックス**:
+
 | 名前 | カラム | 種類 | 用途 |
 |------|--------|------|------|
 | PK | id | PRIMARY | 主キー |
 | UQ_env | environment_id | UNIQUE | 環境ごとに1レコード |
 
 **外部キー**:
+
 | 名前 | カラム | 参照先 | ON DELETE |
 |------|--------|--------|-----------|
 | fk_env | environment_id | ExecutionEnvironment(id) | CASCADE |
@@ -114,6 +116,7 @@ export const networkFilterConfigs = sqliteTable('NetworkFilterConfig', {
 | updated_at | INTEGER (timestamp) | NOT NULL | new Date() | 更新日時 |
 
 **インデックス**:
+
 | 名前 | カラム | 種類 | 用途 |
 |------|--------|------|------|
 | PK | id | PRIMARY | 主キー |
@@ -121,6 +124,7 @@ export const networkFilterConfigs = sqliteTable('NetworkFilterConfig', {
 | idx_env_target | environment_id, target | BTREE | 重複チェック |
 
 **外部キー**:
+
 | 名前 | カラム | 参照先 | ON DELETE |
 |------|--------|--------|-----------|
 | fk_env | environment_id | ExecutionEnvironment(id) | CASCADE |

@@ -23,7 +23,7 @@
 
 ## コンポーネント構成
 
-```
+```text
 EnvironmentDetail (既存)
   └── NetworkFilterSection
         ├── FilterToggle (有効/無効)

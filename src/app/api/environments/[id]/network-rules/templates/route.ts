@@ -15,6 +15,8 @@ interface RouteParams {
  */
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
+    // id は現在 getDefaultTemplates() では使用されないが、将来的に環境ごとの
+    // カスタムテンプレートをサポートする際に使用する想定で保持している
     const { id } = await params;
 
     const templates = networkFilterService.getDefaultTemplates();

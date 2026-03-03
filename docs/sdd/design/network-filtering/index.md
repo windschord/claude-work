@@ -22,7 +22,7 @@
 
 ## アーキテクチャ概要
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                     ClaudeWork Server                        │
 │                                                              │
@@ -68,7 +68,7 @@
 
 ### コンテナ起動時のフロー
 
-```
+```text
 DockerAdapter.createSession()
   │
   ├── NetworkFilterService.getFilterConfig(environmentId)
