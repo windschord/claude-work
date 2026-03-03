@@ -1,0 +1,30 @@
+# syntax=docker/dockerfile:1
+# Claude Code Sandboxed Container with Go
+# 基本のsandboxイメージを拡張し、Go開発環境を追加した実行環境
+#
+# 使用方法:
+#   docker build -f docker/extensions/Dockerfile.golang -t claude-work-env:golang docker/
+#
+#   # ローカルビルドした基本イメージを使用
+#   docker build -f docker/Dockerfile -t claude-work-sandbox:local docker/
+#   docker build -f docker/extensions/Dockerfile.golang --build-arg BASE_IMAGE=claude-work-sandbox:local \
+#     -t claude-work-env:golang docker/
+
+ARG BASE_IMAGE=ghcr.io/windschord/claude-work-sandbox:latest
+FROM ${BASE_IMAGE}
+
+LABEL description="Sandboxed environment for running Claude Code with Go"
+
+ARG GO_VERSION=1.24.1
+
+USER root
+
+RUN curl -fsSL "https://dl.google.com/go/go${GO_VERSION}.linux-$(dpkg --print-architecture).tar.gz" \
+    | tar -C /usr/local -xz \
+    && chown -R root:root /usr/local/go
+
+USER node
+
+ENV GOROOT=/usr/local/go
+ENV GOPATH=/home/node/go
+ENV PATH="${GOPATH}/bin:${GOROOT}/bin:${PATH}"

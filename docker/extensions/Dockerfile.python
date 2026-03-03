@@ -1,0 +1,32 @@
+# syntax=docker/dockerfile:1
+# Claude Code Sandboxed Container with Python
+# 基本のsandboxイメージを拡張し、Python3開発環境を追加した実行環境
+#
+# 使用方法:
+#   docker build -f docker/extensions/Dockerfile.python -t claude-work-env:python docker/
+#
+#   # ローカルビルドした基本イメージを使用
+#   docker build -f docker/Dockerfile -t claude-work-sandbox:local docker/
+#   docker build -f docker/extensions/Dockerfile.python --build-arg BASE_IMAGE=claude-work-sandbox:local \
+#     -t claude-work-env:python docker/
+
+ARG BASE_IMAGE=ghcr.io/windschord/claude-work-sandbox:latest
+FROM ${BASE_IMAGE}
+
+LABEL description="Sandboxed environment for running Claude Code with Python"
+
+USER root
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        python3 \
+        python3-pip \
+        python3-venv \
+    && apt-get autoremove -y \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+USER node
+
+# pip user installのパスをPATHに追加
+ENV PATH="/home/node/.local/bin:${PATH}"

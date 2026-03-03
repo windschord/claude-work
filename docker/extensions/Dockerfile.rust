@@ -1,0 +1,28 @@
+# syntax=docker/dockerfile:1
+# Claude Code Sandboxed Container with Rust
+# 基本のsandboxイメージを拡張し、Rust開発環境を追加した実行環境
+#
+# 使用方法:
+#   docker build -f docker/extensions/Dockerfile.rust -t claude-work-env:rust docker/
+#
+#   # ローカルビルドした基本イメージを使用
+#   docker build -f docker/Dockerfile -t claude-work-sandbox:local docker/
+#   docker build -f docker/extensions/Dockerfile.rust --build-arg BASE_IMAGE=claude-work-sandbox:local \
+#     -t claude-work-env:rust docker/
+
+ARG BASE_IMAGE=ghcr.io/windschord/claude-work-sandbox:latest
+FROM ${BASE_IMAGE}
+
+LABEL description="Sandboxed environment for running Claude Code with Rust"
+
+# rustupはnodeユーザー権限でインストール（/home/node配下）
+USER node
+
+ENV RUSTUP_HOME=/home/node/.rustup
+ENV CARGO_HOME=/home/node/.cargo
+ENV PATH="${CARGO_HOME}/bin:${PATH}"
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+    | sh -s -- -y --default-toolchain stable --profile minimal \
+    && . "${CARGO_HOME}/env" \
+    && rustup component add rustfmt clippy
