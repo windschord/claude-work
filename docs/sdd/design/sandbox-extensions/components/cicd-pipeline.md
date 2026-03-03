@@ -76,11 +76,21 @@ jobs:
           tags: |
             type=ref,event=branch
             type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
             type=sha
             type=raw,value=latest,enable={{is_default_branch}}
-      - id: base-tag
+      - name: Set base tag for extensions
+        id: base-tag
         run: |
-          echo "tag=${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            # PR時はベースイメージがpushされないため、レジストリの既存latestを使用
+            echo "tag=${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:latest" >> "$GITHUB_OUTPUT"
+          else
+            # push時は同一ワークフローでビルドしたshaタグを使用
+            SHA_SHORT="${GITHUB_SHA::7}"
+            echo "tag=${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:sha-${SHA_SHORT}" >> "$GITHUB_OUTPUT"
+          fi
       - uses: docker/build-push-action@v6
         with:
           context: docker
@@ -89,8 +99,8 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=base
+          cache-to: type=gha,mode=max,scope=base
 
   build-extensions:
     needs: build-base
@@ -160,6 +170,7 @@ graph LR
 | タグ種別 | 例 | 条件 |
 |---------|-----|------|
 | branch | `:main` | push時 |
+| semver | `:1.2.3`, `:1.2`, `:1` | タグpush時 |
 | sha | `:sha-abc1234` | 常時 |
 | latest | `:latest` | mainブランチ push時 |
 
@@ -176,13 +187,16 @@ graph LR
 
 1つの拡張ビルドが失敗しても、他の拡張ビルドは継続する。特定言語のDockerfileに問題があっても、他の言語イメージは正常にデプロイされる。
 
-### BASE_IMAGE にsha-tagを使用
+### BASE_IMAGE のタグ選択（PR vs push）
 
-拡張ビルドでは `needs.build-base.outputs.base-tag`（sha指定タグ）を `BASE_IMAGE` として渡す。`latest` ではなくshaを使うことで、同一ワークフロー実行内でビルドしたベースイメージを確実に参照する。
+拡張ビルドでは `needs.build-base.outputs.base-tag` を `BASE_IMAGE` として渡す。タグはイベント種別により異なる:
+
+- **push時**: 同一ワークフローでビルドしたshaタグ（`:sha-abc1234`）を使用。同一ビルド内のベースイメージを確実に参照する。
+- **PR時**: レジストリの既存 `:latest` を使用。PR時はベースイメージがpushされないため、shaタグはレジストリに存在しない。
 
 ### キャッシュスコープの分離
 
-各バリアントで `scope=${{ matrix.variant }}` を指定し、キャッシュを分離する。拡張ごとにインストールするパッケージが異なるため、キャッシュの競合を防止する。
+baseジョブでは `scope=base` を指定し、各バリアントでは `scope=${{ matrix.variant }}` を指定してキャッシュを分離する。拡張ごとにインストールするパッケージが異なるため、キャッシュの競合を防止する。
 
 ## テスト観点
 

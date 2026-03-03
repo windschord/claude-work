@@ -28,24 +28,42 @@ FROM ${BASE_IMAGE}
 
 LABEL description="Sandboxed environment for running Claude Code with Rust"
 
-# rustupはnodeユーザー権限でインストール（/home/node配下にインストールされる）
+# rustupはnodeユーザー権限でインストール（/home/node配下）
 USER node
 
 ENV RUSTUP_HOME=/home/node/.rustup
 ENV CARGO_HOME=/home/node/.cargo
 ENV PATH="${CARGO_HOME}/bin:${PATH}"
 
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-    | sh -s -- -y --default-toolchain stable --profile minimal \
+ARG RUSTUP_VERSION=1.28.1
+# SHA256 checksums pinned from https://rust-lang.github.io/rustup/installation/other.html
+ARG RUSTUP_SHA256_AMD64=a3339fb004c3d0bb9862ba0bce001861fe5cbde9c10d16591eb3f39ee6cd3e7f
+ARG RUSTUP_SHA256_ARM64=c64b33db2c6b9385817ec0e49a84bcfe018ed6e328fe755c3c809580cc70ce7a
+
+RUN ARCH="$(dpkg --print-architecture)" \
+    && case "${ARCH}" in \
+        amd64) RUST_ARCH="x86_64-unknown-linux-gnu"; EXPECTED_SHA256="${RUSTUP_SHA256_AMD64}" ;; \
+        arm64) RUST_ARCH="aarch64-unknown-linux-gnu"; EXPECTED_SHA256="${RUSTUP_SHA256_ARM64}" ;; \
+        *) echo "Unsupported architecture: ${ARCH}" && exit 1 ;; \
+    esac \
+    && curl --proto '=https' --tlsv1.2 -fsSL -o /tmp/rustup-init \
+        "https://static.rust-lang.org/rustup/archive/${RUSTUP_VERSION}/${RUST_ARCH}/rustup-init" \
+    && echo "${EXPECTED_SHA256}  /tmp/rustup-init" | sha256sum -c - \
+    && chmod +x /tmp/rustup-init \
+    && /tmp/rustup-init -y --default-toolchain stable --profile minimal \
+    && rm /tmp/rustup-init \
+    && . "${CARGO_HOME}/env" \
     && rustup component add rustfmt clippy
 ```
 
 ### 設計判断
 
-- **rustup公式インストーラを使用**: aptのrustcパッケージはバージョンが古く、rustupによるツールチェイン管理が標準的
+- **rustup-initバイナリを直接使用**: `sh.rustup.rs` のシェルスクリプト経由ではなく、バージョン固定されたrustup-initバイナリを直接ダウンロードし、SHA256チェックサムで検証する
+- **RUSTUP_VERSIONとSHA256をARGで固定**: バージョンとチェックサムをARGとして固定し、再現可能なビルドを保証。更新時はバージョンとチェックサムを一緒に更新する
 - **nodeユーザーでインストール**: rustupはユーザーローカルにインストールされるため、rootへの切り替え不要
 - **minimal profile**: 最小限のコンポーネントのみインストールし、イメージサイズを抑制
 - **rustfmt + clippy追加**: 開発で一般的に使用されるツールを含める
+- **アーキテクチャ自動判定**: `dpkg --print-architecture` でamd64/arm64を自動選択し、対応するrustupバイナリとチェックサムを使用
 
 ## インストールされるツール
 
