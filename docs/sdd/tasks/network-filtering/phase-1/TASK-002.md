@@ -92,4 +92,4 @@ interface ActiveChainInfo {
 40分
 
 ## ステータス
-`TODO`
+`IN_PROGRESS`
