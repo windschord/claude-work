@@ -30,6 +30,22 @@ vi.mock('@/hooks/useNetworkFilter', () => ({
   useNetworkFilter: vi.fn(() => defaultMockHook),
 }));
 
+// NetworkTemplateDialog をモック（内部fetchを使うため）
+let capturedOnApplied: (() => Promise<void>) | null = null;
+vi.mock('../NetworkTemplateDialog', () => ({
+  NetworkTemplateDialog: ({ isOpen, onApplied }: { isOpen: boolean; onApplied: () => Promise<void> }) => {
+    if (isOpen) {
+      capturedOnApplied = onApplied;
+      return (
+        <div role="dialog" data-testid="template-dialog">
+          <button onClick={() => onApplied()}>適用実行</button>
+        </div>
+      );
+    }
+    return null;
+  },
+}));
+
 import { useNetworkFilter } from '@/hooks/useNetworkFilter';
 
 const mockUseNetworkFilter = vi.mocked(useNetworkFilter);
@@ -256,6 +272,11 @@ describe('NetworkFilterSection', () => {
   });
 
   describe('テンプレート適用後のUI更新', () => {
+    beforeEach(() => {
+      capturedOnApplied = null;
+      mockRefresh.mockResolvedValue(undefined);
+    });
+
     it('テンプレートダイアログのonAppliedが呼ばれたときrefreshが実行される', async () => {
       render(
         <NetworkFilterSection environmentId="env-001" environmentType="DOCKER" />
@@ -271,6 +292,38 @@ describe('NetworkFilterSection', () => {
 
       // ダイアログが開いた直後はrefreshは呼ばれていない
       expect(mockRefresh).not.toHaveBeenCalled();
+
+      // テンプレート適用操作をシミュレート（モック内の「適用実行」ボタンをクリック）
+      const applyButton = screen.getByRole('button', { name: '適用実行' });
+      fireEvent.click(applyButton);
+
+      // refreshが呼ばれることを検証
+      await waitFor(() => {
+        expect(mockRefresh).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    it('テンプレート適用後にダイアログが閉じられる', async () => {
+      render(
+        <NetworkFilterSection environmentId="env-001" environmentType="DOCKER" />
+      );
+
+      // ダイアログを開く
+      const templateButton = screen.getByRole('button', { name: /テンプレートを適用/ });
+      fireEvent.click(templateButton);
+
+      await waitFor(() => {
+        expect(screen.getByRole('dialog')).toBeInTheDocument();
+      });
+
+      // テンプレート適用操作をシミュレート
+      const applyButton = screen.getByRole('button', { name: '適用実行' });
+      fireEvent.click(applyButton);
+
+      // ダイアログが閉じられることを検証
+      await waitFor(() => {
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      });
     });
   });
 });

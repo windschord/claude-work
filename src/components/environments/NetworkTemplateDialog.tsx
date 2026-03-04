@@ -24,7 +24,7 @@ interface NetworkTemplateDialogProps {
   isOpen: boolean;
   onClose: () => void;
   environmentId: string;
-  onApplied: () => void;
+  onApplied: () => Promise<void>;
 }
 
 /**
@@ -161,7 +161,7 @@ export function NetworkTemplateDialog({
         throw new Error(data.error || 'テンプレートの適用に失敗しました');
       }
       setApplyResult(data);
-      onApplied();
+      await onApplied();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'テンプレートの適用に失敗しました');
     } finally {
