@@ -8,6 +8,7 @@ const mockUpdateRule = vi.fn();
 const mockDeleteRule = vi.fn();
 const mockToggleRule = vi.fn();
 const mockToggleFilter = vi.fn();
+const mockRefresh = vi.fn();
 
 const defaultMockHook = {
   rules: [],
@@ -22,6 +23,7 @@ const defaultMockHook = {
   getTemplates: vi.fn(),
   applyTemplates: vi.fn(),
   testConnection: vi.fn(),
+  refresh: mockRefresh,
 };
 
 vi.mock('@/hooks/useNetworkFilter', () => ({
@@ -250,6 +252,25 @@ describe('NetworkFilterSection', () => {
       );
 
       expect(screen.getByText('ネットワークフィルタリングの読み込みに失敗しました')).toBeInTheDocument();
+    });
+  });
+
+  describe('テンプレート適用後のUI更新', () => {
+    it('テンプレートダイアログのonAppliedが呼ばれたときrefreshが実行される', async () => {
+      render(
+        <NetworkFilterSection environmentId="env-001" environmentType="DOCKER" />
+      );
+
+      // テンプレートを適用ボタンをクリックしてダイアログを開く
+      const templateButton = screen.getByRole('button', { name: /テンプレートを適用/ });
+      fireEvent.click(templateButton);
+
+      await waitFor(() => {
+        expect(screen.getByRole('dialog')).toBeInTheDocument();
+      });
+
+      // ダイアログが開いた直後はrefreshは呼ばれていない
+      expect(mockRefresh).not.toHaveBeenCalled();
     });
   });
 });
