@@ -793,11 +793,10 @@ export class NetworkFilterService {
   /**
    * ワイルドカードドメインのベースドメインと一般的サブドメインを解決する
    *
-   * 解決の優先順位:
-   * 1. ベースドメイン自体
-   * 2. COMMON_SUBDOMAINSの一般的なサブドメイン
-   * 3. SERVICE_SPECIFIC_SUBDOMAINSのサービス固有サブドメイン
-   * 4. KNOWN_SERVICE_CIDRSの既知IPレンジ（DNS解決なしで直接追加）
+   * 解決の流れ:
+   * 1. ベースドメイン自体を解決
+   * 2. COMMON_SUBDOMAINSとSERVICE_SPECIFIC_SUBDOMAINSをSetで重複排除し、Promise.allで並列解決
+   * 3. KNOWN_SERVICE_CIDRSの既知IPレンジを直接追加（DNS解決なし）
    *
    * @param baseDomain - ベースドメイン（例: github.com）
    * @returns 解決されたIPアドレスおよびCIDRの配列

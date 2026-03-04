@@ -76,24 +76,21 @@ private async resolveWildcardDomain(baseDomain: string): Promise<string[]> {
   const baseIps = await this.resolveWithCache(baseDomain);
   baseIps.forEach((ip) => { allIps.add(ip); });
 
-  // 一般的なサブドメインも解決を試行
-  for (const subdomain of COMMON_SUBDOMAINS) {
-    const fqdn = `${subdomain}.${baseDomain}`;
-    const subIps = await this.resolveWithCache(fqdn);
-    subIps.forEach((ip) => { allIps.add(ip); });
-  }
+  // 一般的なサブドメインとサービス固有サブドメインを重複排除して並列解決
+  const candidateSubdomains = new Set([
+    ...COMMON_SUBDOMAINS,
+    ...(SERVICE_SPECIFIC_SUBDOMAINS[baseDomain] ?? []),
+  ]);
 
-  // サービス固有のサブドメインを解決（追加）
-  const specificSubdomains = SERVICE_SPECIFIC_SUBDOMAINS[baseDomain];
-  if (specificSubdomains) {
-    for (const subdomain of specificSubdomains) {
+  await Promise.all(
+    Array.from(candidateSubdomains).map(async (subdomain) => {
       const fqdn = `${subdomain}.${baseDomain}`;
       const subIps = await this.resolveWithCache(fqdn);
       subIps.forEach((ip) => { allIps.add(ip); });
-    }
-  }
+    })
+  );
 
-  // 既知サービスのCIDRブロックを追加（追加）
+  // 既知サービスのCIDRブロックを追加（DNS解決なし）
   const knownCidrs = KNOWN_SERVICE_CIDRS[baseDomain];
   if (knownCidrs) {
     knownCidrs.forEach(cidr => { allIps.add(cidr); });
@@ -148,7 +145,7 @@ private async resolveWildcardDomain(baseDomain: string): Promise<string[]> {
 - **変更**: `src/services/network-filter-service.ts`（内部ロジックのみ）
 - **変更**: `src/components/environments/NetworkRuleForm.tsx`（ヘルプテキストのみ）
 - **追加**: テストケース
-- **既存動作への影響**: 既存の `COMMON_SUBDOMAINS` 処理は変更なし。追加のみ。
+- **既存動作への影響**: `COMMON_SUBDOMAINS` の解決を `SERVICE_SPECIFIC_SUBDOMAINS` と統合し、`Set` による重複排除と `Promise.all` による並列解決に変更。解決対象のサブドメイン自体は変更なし。
 - **破壊的変更なし**
 
 ## 関連ドキュメント
