@@ -80,6 +80,18 @@ vi.mock('@/lib/db', () => ({
       })),
     })),
     transaction: vi.fn((callback: (tx: unknown) => unknown) => callback({
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            get: mockDbSelectGet,
+            all: mockDbSelectAll,
+          })),
+          orderBy: vi.fn(() => ({
+            all: mockDbSelectAll,
+          })),
+          get: mockDbSelectGet,
+        })),
+      })),
       update: vi.fn(() => ({
         set: vi.fn(() => ({
           where: vi.fn(() => ({

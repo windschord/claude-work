@@ -171,31 +171,42 @@ export class EnvironmentService {
       throw new Error('環境が見つかりません');
     }
 
-    // 使用中のプロジェクトを確認
-    const projectsWithEnv = db.select({ id: schema.projects.id, name: schema.projects.name })
-      .from(schema.projects)
-      .where(eq(schema.projects.environment_id, id))
-      .all();
+    // トランザクション内で使用中チェックとDBレコード削除をアトミックに実行
+    // TOCTOU競合を防ぐため、チェックと削除を同一トランザクションでラップする
+    db.transaction((tx) => {
+      // 使用中のプロジェクトを確認
+      const projectsWithEnv = tx.select({ id: schema.projects.id, name: schema.projects.name })
+        .from(schema.projects)
+        .where(eq(schema.projects.environment_id, id))
+        .all();
 
-    if (projectsWithEnv.length > 0) {
-      const projectNames = projectsWithEnv.map(p => p.name).join(', ');
-      throw new EnvironmentInUseError(`この環境は以下のプロジェクトで使用中のため削除できません: ${projectNames}`);
-    }
+      if (projectsWithEnv.length > 0) {
+        const projectNames = projectsWithEnv.map(p => p.name).join(', ');
+        throw new EnvironmentInUseError(`この環境は以下のプロジェクトで使用中のため削除できません: ${projectNames}`);
+      }
 
-    // 使用中のアクティブセッションを確認（終了済みセッションは無視）
-    const sessionsWithEnv = db.select({ id: schema.sessions.id })
-      .from(schema.sessions)
-      .where(and(
-        eq(schema.sessions.environment_id, id),
-        inArray(schema.sessions.status, ['running', 'initializing'])
-      ))
-      .all();
+      // 使用中のアクティブセッションを確認（終了済みセッションは無視）
+      const sessionsWithEnv = tx.select({ id: schema.sessions.id })
+        .from(schema.sessions)
+        .where(and(
+          eq(schema.sessions.environment_id, id),
+          inArray(schema.sessions.status, ['running', 'initializing'])
+        ))
+        .all();
 
-    if (sessionsWithEnv.length > 0) {
-      throw new EnvironmentInUseError(`この環境は ${sessionsWithEnv.length} 件のアクティブなセッションで使用中のため削除できません`);
-    }
+      if (sessionsWithEnv.length > 0) {
+        throw new EnvironmentInUseError(`この環境は ${sessionsWithEnv.length} 件のアクティブなセッションで使用中のため削除できません`);
+      }
 
-    // 認証ディレクトリがあれば削除
+      // DBレコードを先に削除（外部リソース削除はベストエフォートで後続実施）
+      tx.delete(schema.executionEnvironments)
+        .where(eq(schema.executionEnvironments.id, id))
+        .run();
+    });
+
+    logger.info('環境を削除しました', { id });
+
+    // 認証ディレクトリがあれば削除（ベストエフォート）
     if (environment.auth_dir_path) {
       try {
         await fsPromises.rm(environment.auth_dir_path, { recursive: true, force: true });
@@ -208,7 +219,7 @@ export class EnvironmentService {
       }
     }
 
-    // Docker環境の場合、名前付きVolumeまたはDockerfileディレクトリを削除
+    // Docker環境の場合、名前付きVolumeまたはDockerfileディレクトリを削除（ベストエフォート）
     if (environment.type === 'DOCKER' && !environment.auth_dir_path) {
       // 名前付きVolumeを直接削除（auth_dir_pathがnull = 名前付きVolume使用）
       try {
@@ -235,13 +246,6 @@ export class EnvironmentService {
         logger.debug('環境ディレクトリの削除をスキップしました', { path: envDir, error });
       }
     }
-
-    // 環境レコードを削除
-    db.delete(schema.executionEnvironments)
-      .where(eq(schema.executionEnvironments.id, id))
-      .run();
-
-    logger.info('環境を削除しました', { id });
   }
 
   /**
