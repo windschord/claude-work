@@ -4,7 +4,7 @@
 
 ## 完了サマリー
 
-CURRENT_DB_VERSIONを7に更新し、v6→v7マイグレーションを追加。NetworkFilterConfig/NetworkFilterRuleテーブルがDocker Composeデプロイ時に自動作成されるようになった。CIチェック全通過。PR #198。
+CURRENT_DB_VERSIONを7に更新し、v6→v7マイグレーションを追加。NetworkFilterConfig/NetworkFilterRuleテーブルがDocker Composeデプロイ時に自動作成されるようになった。
 
 ## タスク一覧
 
