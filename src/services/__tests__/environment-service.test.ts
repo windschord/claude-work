@@ -173,6 +173,7 @@ import {
   CreateEnvironmentInput,
   UpdateEnvironmentInput,
 } from '../environment-service';
+import { getConfigVolumeNames } from '@/lib/docker-volume-utils';
 
 describe('EnvironmentService', () => {
   let service: EnvironmentService;
@@ -1020,6 +1021,77 @@ describe('EnvironmentService', () => {
       expect(mockDockerClient.removeVolume).toHaveBeenCalledWith('claude-config-claude-docker-env');
       expect(mockDockerClient.removeVolume).toHaveBeenCalledWith('claude-config-configclaude-docker-env');
       expect(mockDbDeleteRun).toHaveBeenCalled();
+    });
+
+    it('keepClaudeVolume=trueの場合、Claude設定Volumeを保持する', async () => {
+      const envId = 'docker-env';
+      const volumeNames = getConfigVolumeNames(envId);
+      const env = {
+        id: envId,
+        name: 'Docker Dev',
+        type: 'DOCKER',
+        description: null,
+        config: '{}',
+        auth_dir_path: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      mockDbSelectGet.mockReturnValueOnce(env);
+      mockDbSelectAll.mockReturnValueOnce([]); // projects
+      mockDbSelectAll.mockReturnValueOnce([]); // sessions
+      mockDockerClient.removeVolume.mockResolvedValue(undefined);
+
+      await service.delete(envId, { keepClaudeVolume: true });
+
+      expect(mockDockerClient.removeVolume).not.toHaveBeenCalledWith(volumeNames.claudeVolume);
+      expect(mockDockerClient.removeVolume).toHaveBeenCalledWith(volumeNames.configClaudeVolume);
+    });
+
+    it('keepConfigVolume=trueの場合、Config Volumeを保持する', async () => {
+      const envId = 'docker-env';
+      const volumeNames = getConfigVolumeNames(envId);
+      const env = {
+        id: envId,
+        name: 'Docker Dev',
+        type: 'DOCKER',
+        description: null,
+        config: '{}',
+        auth_dir_path: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      mockDbSelectGet.mockReturnValueOnce(env);
+      mockDbSelectAll.mockReturnValueOnce([]); // projects
+      mockDbSelectAll.mockReturnValueOnce([]); // sessions
+      mockDockerClient.removeVolume.mockResolvedValue(undefined);
+
+      await service.delete(envId, { keepConfigVolume: true });
+
+      expect(mockDockerClient.removeVolume).toHaveBeenCalledWith(volumeNames.claudeVolume);
+      expect(mockDockerClient.removeVolume).not.toHaveBeenCalledWith(volumeNames.configClaudeVolume);
+    });
+
+    it('両方keepの場合、どちらのVolumeも削除しない', async () => {
+      const env = {
+        id: 'docker-env',
+        name: 'Docker Dev',
+        type: 'DOCKER',
+        description: null,
+        config: '{}',
+        auth_dir_path: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      mockDbSelectGet.mockReturnValueOnce(env);
+      mockDbSelectAll.mockReturnValueOnce([]); // projects
+      mockDbSelectAll.mockReturnValueOnce([]); // sessions
+
+      await service.delete('docker-env', { keepClaudeVolume: true, keepConfigVolume: true });
+
+      expect(mockDockerClient.removeVolume).not.toHaveBeenCalled();
     });
 
     it('auth_dir_pathが設定されたDocker環境削除時はバインドマウント削除のみ', async () => {

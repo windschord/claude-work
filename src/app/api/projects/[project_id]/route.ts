@@ -5,6 +5,7 @@ import { logger } from '@/lib/logger';
 import { existsSync } from 'fs';
 import { spawnSync } from 'child_process';
 import { ClaudeOptionsService } from '@/services/claude-options-service';
+import { DockerClient } from '@/services/docker-client';
 
 /**
  * GET /api/projects/[project_id] - プロジェクト詳細取得
@@ -327,7 +328,7 @@ export async function PUT(
  * DELETE /api/projects/[project_id] - プロジェクト削除
  */
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ project_id: string }> }
 ) {
   try {
@@ -339,10 +340,25 @@ export async function DELETE(
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
+    // Volume保持オプションの解析
+    const keepGitVolume = request.nextUrl.searchParams.get('keepGitVolume') === 'true';
+
     // プロジェクト削除（cascadeでセッション、メッセージ、スクリプトも削除）
     db.delete(schema.projects).where(eq(schema.projects.id, project_id)).run();
 
     logger.info('Project deleted', { projectId: project_id });
+
+    // Docker clone環境のGit checkout Volume削除（ベストエフォート）
+    if (!keepGitVolume && project.clone_location === 'docker') {
+      const volumeName = project.docker_volume_id || `claude-repo-${project_id}`;
+      try {
+        const dockerClient = DockerClient.getInstance();
+        await dockerClient.removeVolume(volumeName);
+        logger.info('Git checkout Volume deleted', { volume: volumeName });
+      } catch (error) {
+        logger.warn('Git checkout Volume削除失敗', { volume: volumeName, error });
+      }
+    }
 
     return new NextResponse(null, { status: 204 });
   } catch (error) {
