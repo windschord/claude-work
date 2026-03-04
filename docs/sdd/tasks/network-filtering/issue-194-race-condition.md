@@ -57,6 +57,6 @@
 ## 完了サマリー
 
 Promise-based mutexを`NetworkFilterService`に追加し、`applyFilter`/`removeFilter`を
-`withFilterLock`によるラップにより直列化を実現した。同一`environmentId`に対する操作は
+`withFilterLock`でラップし直列化を実現した。同一`environmentId`に対する操作は
 順番に実行されるようになり、iptablesチェインの競合状態が解消された。
 異なる`environmentId`間は引き続き並列実行されるため、パフォーマンスへの影響は最小限。
