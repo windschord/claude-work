@@ -14,6 +14,7 @@ interface DeleteProjectDialogProps {
  * プロジェクト削除確認ダイアログコンポーネント
  *
  * プロジェクトを削除する前に確認を求めるダイアログです。
+ * Docker clone環境の場合、Git checkout Volumeの保持/削除を選択できます。
  * worktreeは削除されないことをユーザーに通知します。
  *
  * @param props - コンポーネントのプロパティ
@@ -30,18 +31,22 @@ export function DeleteProjectDialog({
   const { deleteProject, fetchProjects } = useAppStore();
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [keepGitVolume, setKeepGitVolume] = useState(false);
 
   if (!project) {
     return null;
   }
+
+  const hasDockerVolume = project.clone_location === 'docker' && !!project.docker_volume_id;
 
   const handleDelete = async () => {
     setError('');
     setIsLoading(true);
 
     try {
-      await deleteProject(project.id);
+      await deleteProject(project.id, { keepGitVolume: hasDockerVolume ? keepGitVolume : undefined });
       await fetchProjects();
+      setKeepGitVolume(false);
       onClose();
     } catch (err) {
       if (err instanceof Error) {
@@ -56,6 +61,7 @@ export function DeleteProjectDialog({
 
   const handleClose = () => {
     setError('');
+    setKeepGitVolume(false);
     onClose();
   };
 
@@ -85,26 +91,50 @@ export function DeleteProjectDialog({
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
+              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white dark:bg-gray-800 p-6 text-left align-middle shadow-xl transition-all">
                 <Dialog.Title
                   as="h3"
-                  className="text-lg font-medium leading-6 text-gray-900 mb-4"
+                  className="text-lg font-medium leading-6 text-gray-900 dark:text-gray-100 mb-4"
                 >
                   プロジェクトを削除
                 </Dialog.Title>
 
                 <div className="mb-4">
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-gray-600 dark:text-gray-300">
                     プロジェクト「{project.name}」を削除しますか？
                   </p>
-                  <p className="text-sm text-gray-500 mt-2">
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
                     worktreeは削除されません。
                   </p>
                 </div>
 
+                {hasDockerVolume && (
+                  <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-md">
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Docker Volume
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                      チェックを入れたVolumeは削除せずに保持します。
+                    </p>
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={keepGitVolume}
+                          onChange={(e) => setKeepGitVolume(e.target.checked)}
+                          className="rounded border-gray-300 dark:border-gray-500 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-600 dark:text-gray-300">
+                          Gitリポジトリを保持 <span className="text-xs text-gray-400">({project.docker_volume_id})</span>
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+                )}
+
                 {error && (
-                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
-                    <p className="text-sm text-red-600">{error}</p>
+                  <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+                    <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
                   </div>
                 )}
 
@@ -112,7 +142,7 @@ export function DeleteProjectDialog({
                   <button
                     type="button"
                     onClick={handleClose}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
+                    className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                     disabled={isLoading}
                   >
                     キャンセル

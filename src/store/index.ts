@@ -186,7 +186,7 @@ export interface AppState {
   /** プロジェクトを更新 */
   updateProject: (id: string, data: Partial<Project>) => Promise<void>;
   /** プロジェクトを削除 */
-  deleteProject: (id: string) => Promise<void>;
+  deleteProject: (id: string, options?: { keepGitVolume?: boolean }) => Promise<void>;
   /** 選択中のプロジェクトIDを設定 */
   setSelectedProjectId: (projectId: string | null) => void;
   /** セッション一覧を取得 */
@@ -489,9 +489,14 @@ export const useAppStore = create<AppState>((set) => ({
     }
   },
 
-  deleteProject: async (id: string) => {
+  deleteProject: async (id: string, options?: { keepGitVolume?: boolean }) => {
     try {
-      const response = await fetch(`/api/projects/${id}`, {
+      const params = new URLSearchParams();
+      if (options?.keepGitVolume) params.set('keepGitVolume', 'true');
+      const query = params.toString();
+      const url = query ? `/api/projects/${id}?${query}` : `/api/projects/${id}`;
+
+      const response = await fetch(url, {
         method: 'DELETE',
       });
 

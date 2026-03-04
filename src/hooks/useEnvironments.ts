@@ -154,8 +154,14 @@ export function useEnvironments(): UseEnvironmentsReturn {
   /**
    * 環境を削除する
    */
-  const deleteEnvironment = useCallback(async (id: string): Promise<void> => {
-    const response = await fetch(`/api/environments/${id}`, {
+  const deleteEnvironment = useCallback(async (id: string, volumeOptions?: { keepClaudeVolume?: boolean; keepConfigVolume?: boolean }): Promise<void> => {
+    const params = new URLSearchParams();
+    if (volumeOptions?.keepClaudeVolume) params.set('keepClaudeVolume', 'true');
+    if (volumeOptions?.keepConfigVolume) params.set('keepConfigVolume', 'true');
+    const query = params.toString();
+    const url = query ? `/api/environments/${id}?${query}` : `/api/environments/${id}`;
+
+    const response = await fetch(url, {
       method: 'DELETE',
     });
 

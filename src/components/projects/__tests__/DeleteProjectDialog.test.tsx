@@ -76,7 +76,7 @@ describe('DeleteProjectDialog', () => {
     fireEvent.click(deleteButton);
 
     await waitFor(() => {
-      expect(mockDeleteProject).toHaveBeenCalledWith('1');
+      expect(mockDeleteProject).toHaveBeenCalledWith('1', { keepGitVolume: undefined });
       expect(mockOnClose).toHaveBeenCalled();
     });
   });
@@ -135,5 +135,52 @@ describe('DeleteProjectDialog', () => {
     render(<DeleteProjectDialog isOpen={true} onClose={mockOnClose} project={null} />);
 
     expect(screen.queryByText('プロジェクトを削除')).not.toBeInTheDocument();
+  });
+
+  describe('Docker Volume保持オプション', () => {
+    const dockerProject = {
+      ...mockProject,
+      clone_location: 'docker' as const,
+      docker_volume_id: 'claude-repo-test-123',
+    };
+
+    it('Docker cloneプロジェクトの場合、Volume保持チェックボックスが表示される', () => {
+      render(<DeleteProjectDialog isOpen={true} onClose={mockOnClose} project={dockerProject} />);
+
+      expect(screen.getByText('Docker Volume')).toBeInTheDocument();
+      expect(screen.getByText(/Gitリポジトリを保持/)).toBeInTheDocument();
+    });
+
+    it('ホストcloneプロジェクトの場合、Volume保持チェックボックスが表示されない', () => {
+      const hostProject = { ...mockProject, clone_location: 'host' as const };
+      render(<DeleteProjectDialog isOpen={true} onClose={mockOnClose} project={hostProject} />);
+
+      expect(screen.queryByText('Docker Volume')).not.toBeInTheDocument();
+    });
+
+    it('チェックを入れるとkeepGitVolume=trueで削除される', async () => {
+      render(<DeleteProjectDialog isOpen={true} onClose={mockOnClose} project={dockerProject} />);
+
+      const checkbox = screen.getByRole('checkbox');
+      fireEvent.click(checkbox);
+
+      const deleteButton = screen.getByRole('button', { name: '削除' });
+      fireEvent.click(deleteButton);
+
+      await waitFor(() => {
+        expect(mockDeleteProject).toHaveBeenCalledWith('1', { keepGitVolume: true });
+      });
+    });
+
+    it('チェックなしの場合、keepGitVolume=falseで削除される', async () => {
+      render(<DeleteProjectDialog isOpen={true} onClose={mockOnClose} project={dockerProject} />);
+
+      const deleteButton = screen.getByRole('button', { name: '削除' });
+      fireEvent.click(deleteButton);
+
+      await waitFor(() => {
+        expect(mockDeleteProject).toHaveBeenCalledWith('1', { keepGitVolume: false });
+      });
+    });
   });
 });

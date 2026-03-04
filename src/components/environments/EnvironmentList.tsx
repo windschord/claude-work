@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react';
 import { Environment, CreateEnvironmentInput, UpdateEnvironmentInput } from '@/hooks/useEnvironments';
 import { EnvironmentCard } from './EnvironmentCard';
 import { EnvironmentForm } from './EnvironmentForm';
-import { DeleteEnvironmentDialog } from './DeleteEnvironmentDialog';
+import { DeleteEnvironmentDialog, DeleteEnvironmentVolumeOptions } from './DeleteEnvironmentDialog';
 import toast from 'react-hot-toast';
 
 interface EnvironmentListProps {
@@ -13,7 +13,7 @@ interface EnvironmentListProps {
   error: string | null;
   onCreateEnvironment: (input: CreateEnvironmentInput) => Promise<Environment>;
   onUpdateEnvironment: (id: string, input: UpdateEnvironmentInput) => Promise<Environment>;
-  onDeleteEnvironment: (id: string) => Promise<void>;
+  onDeleteEnvironment: (id: string, volumeOptions?: DeleteEnvironmentVolumeOptions) => Promise<void>;
   onRefresh: () => Promise<void>;
   hostEnvironmentDisabled?: boolean;
   highlightedEnvironmentId?: string | null;
@@ -94,10 +94,10 @@ export function EnvironmentList({
     }
   };
 
-  const handleDelete = async () => {
+  const handleDelete = async (volumeOptions?: DeleteEnvironmentVolumeOptions) => {
     if (!environmentToDelete) return;
     try {
-      await onDeleteEnvironment(environmentToDelete.id);
+      await onDeleteEnvironment(environmentToDelete.id, volumeOptions);
       toast.success('環境を削除しました');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : '環境の削除に失敗しました';

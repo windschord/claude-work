@@ -4,18 +4,23 @@ import { useState, Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { Environment } from '@/hooks/useEnvironments';
 
+export interface DeleteEnvironmentVolumeOptions {
+  keepClaudeVolume: boolean;
+  keepConfigVolume: boolean;
+}
+
 interface DeleteEnvironmentDialogProps {
   isOpen: boolean;
   onClose: () => void;
   environment: Environment | null;
-  onConfirm: () => Promise<void>;
+  onConfirm: (volumeOptions?: DeleteEnvironmentVolumeOptions) => Promise<void>;
 }
 
 /**
  * 環境削除確認ダイアログコンポーネント
  *
  * 環境を削除する前に確認を求めるダイアログです。
- * デフォルト環境は削除できないことをユーザーに通知します。
+ * Docker環境の場合、Volumeの保持/削除を個別に選択できます。
  *
  * @param props - コンポーネントのプロパティ
  * @param props.isOpen - ダイアログの開閉状態
@@ -32,12 +37,15 @@ export function DeleteEnvironmentDialog({
 }: DeleteEnvironmentDialogProps) {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [keepClaudeVolume, setKeepClaudeVolume] = useState(false);
+  const [keepConfigVolume, setKeepConfigVolume] = useState(false);
 
   if (!environment) {
     return null;
   }
 
   const isInUse = (environment?.project_count ?? 0) > 0;
+  const isDockerWithVolumes = environment.type === 'DOCKER' && !environment.auth_dir_path;
 
   const handleDelete = async () => {
     if (isInUse) return;
@@ -45,8 +53,13 @@ export function DeleteEnvironmentDialog({
     setIsLoading(true);
 
     try {
-      await onConfirm();
+      const volumeOptions = isDockerWithVolumes
+        ? { keepClaudeVolume, keepConfigVolume }
+        : undefined;
+      await onConfirm(volumeOptions);
       onClose();
+      setKeepClaudeVolume(false);
+      setKeepConfigVolume(false);
     } catch (err) {
       if (err instanceof Error) {
         setError(err.message);
@@ -60,6 +73,8 @@ export function DeleteEnvironmentDialog({
 
   const handleClose = () => {
     setError('');
+    setKeepClaudeVolume(false);
+    setKeepConfigVolume(false);
     onClose();
   };
 
@@ -114,6 +129,41 @@ export function DeleteEnvironmentDialog({
                     </div>
                   )}
                 </div>
+
+                {isDockerWithVolumes && (
+                  <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-md">
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Docker Volume
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                      チェックを入れたVolumeは削除せずに保持します。
+                    </p>
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={keepClaudeVolume}
+                          onChange={(e) => setKeepClaudeVolume(e.target.checked)}
+                          className="rounded border-gray-300 dark:border-gray-500 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-600 dark:text-gray-300">
+                          Claude設定を保持 <span className="text-xs text-gray-400">(.claude)</span>
+                        </span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={keepConfigVolume}
+                          onChange={(e) => setKeepConfigVolume(e.target.checked)}
+                          className="rounded border-gray-300 dark:border-gray-500 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-600 dark:text-gray-300">
+                          Config設定を保持 <span className="text-xs text-gray-400">(.config/claude)</span>
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+                )}
 
                 {error && (
                   <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
