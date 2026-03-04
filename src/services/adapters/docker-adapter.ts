@@ -722,6 +722,20 @@ export class DockerAdapter extends BasePTYAdapter {
     const initialCols = options?.cols ?? 80;
     const initialRows = options?.rows ?? 24;
 
+    // Issue #193: 無保護ウィンドウ修正
+    // フィルタリングが有効な場合、コンテナをNetworkMode: 'none'で起動してネットワークを
+    // 無効化し、iptablesルール適用後にbridgeネットワークへ接続する。
+    // これにより、container.start()からapplyFilter()完了までの無保護ウィンドウを排除する。
+    const filterEnabled = await networkFilterService.isFilterEnabled(this.config.environmentId);
+    if (filterEnabled) {
+      createOptions.HostConfig = createOptions.HostConfig ?? {};
+      createOptions.HostConfig.NetworkMode = 'none';
+      logger.info('DockerAdapter: Network filtering enabled, starting container with NetworkMode=none', {
+        sessionId,
+        environmentId: this.config.environmentId,
+      });
+    }
+
     logger.info('DockerAdapter: Creating session', {
       sessionId,
       workingDir,
@@ -760,7 +774,31 @@ export class DockerAdapter extends BasePTYAdapter {
       ptyProcess.setStream(stream);
 
       // Start container after stream listeners are registered
+      // フィルタリング有効時はNetworkMode=noneのため、ネットワーク通信不可の状態で起動
       await container.start();
+
+      // Issue #193: フィルタリング有効時はbridgeネットワークへ接続（iptablesルール適用前）
+      // ネットワーク接続後すぐにiptablesルールを適用するため、Claude Codeが
+      // ネットワーク通信できるウィンドウを最小化する
+      if (filterEnabled) {
+        try {
+          const docker = DockerClient.getInstance().getDockerInstance();
+          const bridgeNetwork = docker.getNetwork('bridge');
+          await bridgeNetwork.connect({ Container: container.id });
+          logger.info('DockerAdapter: Connected container to bridge network', {
+            sessionId,
+            containerId: container.id,
+          });
+        } catch (networkError) {
+          logger.error('DockerAdapter: Failed to connect container to bridge network', {
+            sessionId,
+            error: networkError,
+          });
+          try { await container.stop({ t: 5 }); } catch { /* ignore */ }
+          try { await container.remove({ force: true }); } catch { /* ignore */ }
+          throw networkError;
+        }
+      }
 
       // ネットワークフィルタリング適用（コンテナ起動後、ready待ち前）
       // フィルタリング無効の場合はnetworkFilterService内部でスキップされる

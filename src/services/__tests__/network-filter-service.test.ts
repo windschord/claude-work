@@ -591,4 +591,39 @@ describe('NetworkFilterService', () => {
       expect(hasCidr(ips)).toBe(false);
     });
   });
+
+  // ==================== isFilterEnabled ====================
+
+  describe('isFilterEnabled', () => {
+    it('フィルタリング設定が存在してenabledがtrueの場合にtrueを返す', async () => {
+      mockDbSelectGet.mockReturnValue({
+        environment_id: envId,
+        enabled: true,
+        created_at: new Date(),
+        updated_at: new Date(),
+      });
+
+      const result = await service.isFilterEnabled(envId);
+      expect(result).toBe(true);
+    });
+
+    it('フィルタリング設定が存在しない場合にfalseを返す', async () => {
+      mockDbSelectGet.mockReturnValue(undefined);
+
+      const result = await service.isFilterEnabled(envId);
+      expect(result).toBe(false);
+    });
+
+    it('フィルタリング設定が存在してもenabledがfalseの場合にfalseを返す', async () => {
+      mockDbSelectGet.mockReturnValue({
+        environment_id: envId,
+        enabled: false,
+        created_at: new Date(),
+        updated_at: new Date(),
+      });
+
+      const result = await service.isFilterEnabled(envId);
+      expect(result).toBe(false);
+    });
+  });
 });

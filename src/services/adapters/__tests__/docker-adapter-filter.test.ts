@@ -2,15 +2,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { EventEmitter } from 'events';
 
 // networkFilterService をモック（hoistedで他のモックより前に定義）
-const { mockApplyFilter, mockRemoveFilter } = vi.hoisted(() => ({
+const { mockApplyFilter, mockRemoveFilter, mockIsFilterEnabled } = vi.hoisted(() => ({
   mockApplyFilter: vi.fn(),
   mockRemoveFilter: vi.fn(),
+  mockIsFilterEnabled: vi.fn(),
 }));
 
 vi.mock('@/services/network-filter-service', () => ({
   networkFilterService: {
     applyFilter: mockApplyFilter,
     removeFilter: mockRemoveFilter,
+    isFilterEnabled: mockIsFilterEnabled,
   },
 }));
 
@@ -47,6 +49,7 @@ vi.mock('@/lib/logger', () => ({
 
 // DockerClientモック
 const mockContainer = {
+  id: 'mock-container-id',
   attach: vi.fn(),
   start: vi.fn(),
   exec: vi.fn(),
@@ -57,10 +60,21 @@ const mockContainer = {
   remove: vi.fn(),
 };
 
+// bridgeネットワークのモック
+const mockBridgeNetwork = {
+  connect: vi.fn(),
+};
+
+// Dockerインスタンスのモック（getNetwork('bridge')用）
+const mockDockerInstance = {
+  getNetwork: vi.fn().mockReturnValue(mockBridgeNetwork),
+};
+
 const mockDockerClient = {
   createContainer: vi.fn(),
   getContainer: vi.fn(),
   inspectContainer: vi.fn(),
+  getDockerInstance: vi.fn().mockReturnValue(mockDockerInstance),
 };
 
 vi.mock('../../docker-client', () => ({
@@ -183,6 +197,12 @@ describe('DockerAdapter フィルタリング統合', () => {
     // フィルタリングサービスのデフォルト（成功）
     mockApplyFilter.mockResolvedValue(undefined);
     mockRemoveFilter.mockResolvedValue(undefined);
+    // デフォルトではフィルタリング無効（既存テストの互換性維持）
+    mockIsFilterEnabled.mockResolvedValue(false);
+
+    // bridgeネットワーク接続のデフォルト（成功）
+    mockBridgeNetwork.connect.mockResolvedValue(undefined);
+    mockDockerInstance.getNetwork.mockReturnValue(mockBridgeNetwork);
 
     adapter = new DockerAdapter({
       environmentId: 'env-test-1234',
@@ -380,6 +400,103 @@ describe('DockerAdapter フィルタリング統合', () => {
 
       const createOptions = mockDockerClient.createContainer.mock.calls[0][0];
       expect(createOptions.Env).toContain('TEST_VAR=value');
+    });
+  });
+
+  // =========================================================
+  // Issue #193: 無保護ウィンドウ修正のテスト
+  // =========================================================
+
+  describe('無保護ウィンドウ修正 (Issue #193)', () => {
+    describe('フィルタリング有効時', () => {
+      beforeEach(() => {
+        // フィルタリング有効に設定
+        mockIsFilterEnabled.mockResolvedValue(true);
+      });
+
+      it('フィルタリング有効時はNetworkModeがnoneに設定される', async () => {
+        await adapter.createSession('session-1', '/workspace');
+
+        const createOptions = mockDockerClient.createContainer.mock.calls[0][0];
+        expect(createOptions.HostConfig.NetworkMode).toBe('none');
+      });
+
+      it('フィルタリング有効時はbridgeネットワークに接続される', async () => {
+        await adapter.createSession('session-1', '/workspace');
+
+        expect(mockDockerInstance.getNetwork).toHaveBeenCalledWith('bridge');
+        expect(mockBridgeNetwork.connect).toHaveBeenCalledWith({
+          Container: mockContainer.id,
+        });
+      });
+
+      it('フィルタリング有効時はcontainer.start()後にbridge接続してからapplyFilterが呼ばれる（順序確認）', async () => {
+        const callOrder: string[] = [];
+        mockContainer.start.mockImplementation(async () => {
+          callOrder.push('container.start');
+        });
+        mockBridgeNetwork.connect.mockImplementation(async () => {
+          callOrder.push('bridge.connect');
+        });
+        mockApplyFilter.mockImplementation(async () => {
+          callOrder.push('applyFilter');
+        });
+
+        await adapter.createSession('session-1', '/workspace');
+
+        const startIndex = callOrder.indexOf('container.start');
+        const connectIndex = callOrder.indexOf('bridge.connect');
+        const filterIndex = callOrder.indexOf('applyFilter');
+        expect(startIndex).toBeGreaterThanOrEqual(0);
+        expect(connectIndex).toBeGreaterThan(startIndex);
+        expect(filterIndex).toBeGreaterThan(connectIndex);
+      });
+
+      it('bridge接続失敗時はコンテナをクリーンアップしてエラーをスローする', async () => {
+        mockBridgeNetwork.connect.mockRejectedValue(new Error('Network bridge not found'));
+
+        await expect(adapter.createSession('session-1', '/workspace')).rejects.toThrow(
+          'Network bridge not found'
+        );
+
+        expect(mockContainer.remove).toHaveBeenCalledWith({ force: true });
+      });
+
+      it('フィルタリング有効時はCapDrop[ALL]が維持されている', async () => {
+        await adapter.createSession('session-1', '/workspace');
+
+        const createOptions = mockDockerClient.createContainer.mock.calls[0][0];
+        expect(createOptions.HostConfig.CapDrop).toContain('ALL');
+        // NetworkModeがnoneであることも確認
+        expect(createOptions.HostConfig.NetworkMode).toBe('none');
+      });
+    });
+
+    describe('フィルタリング無効時', () => {
+      beforeEach(() => {
+        // フィルタリング無効に設定（デフォルトと同じだが明示的に設定）
+        mockIsFilterEnabled.mockResolvedValue(false);
+      });
+
+      it('フィルタリング無効時はNetworkModeがデフォルト（未設定）', async () => {
+        await adapter.createSession('session-1', '/workspace');
+
+        const createOptions = mockDockerClient.createContainer.mock.calls[0][0];
+        expect(createOptions.HostConfig.NetworkMode).toBeUndefined();
+      });
+
+      it('フィルタリング無効時はbridgeネットワーク接続は実施されない', async () => {
+        await adapter.createSession('session-1', '/workspace');
+
+        expect(mockBridgeNetwork.connect).not.toHaveBeenCalled();
+      });
+
+      it('フィルタリング無効時もapplyFilterは呼ばれる（サービス内部でスキップ）', async () => {
+        await adapter.createSession('session-1', '/workspace');
+
+        // applyFilterは呼ばれるが、サービス内部でフィルタリング無効を判断してスキップする
+        expect(mockApplyFilter).toHaveBeenCalledTimes(1);
+      });
     });
   });
 });
