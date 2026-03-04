@@ -48,6 +48,16 @@ const SERVICE_SPECIFIC_SUBDOMAINS: Record<string, string[]> = {
 };
 ```
 
+### CIDR情報の更新運用
+
+- **情報源**: GitHub公式APIエンドポイント (https://api.github.com/meta)
+- **更新トリガー**: 定期確認（リリース前）、通信障害発生時
+- **更新手順**:
+  1. 公式APIからCIDR情報を取得
+  2. `KNOWN_SERVICE_CIDRS` 定数を更新
+  3. テスト実行で既存動作に影響がないことを確認
+  4. PR作成・レビュー・マージ
+
 ### 2. `resolveWildcardDomain` メソッドの変更
 
 既存メソッドに2つのステップを追加する。

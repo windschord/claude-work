@@ -437,6 +437,9 @@ describe('NetworkFilterService', () => {
   // ==================== resolveWildcardDomain（resolveDomains経由）====================
 
   describe('resolveDomains - ワイルドカードドメインの拡張解決', () => {
+    // IPv4 CIDR 判定用ヘルパー
+    const IPV4_CIDR_PATTERN = /^\d+\.\d+\.\d+\.\d+\/\d+$/;
+    const hasCidr = (ips: string[]) => ips.some(ip => IPV4_CIDR_PATTERN.test(ip));
     let dnsResolve4Spy: ReturnType<typeof vi.spyOn>;
 
     beforeEach(() => {
@@ -480,9 +483,14 @@ describe('NetworkFilterService', () => {
       expect(resolved).toHaveLength(1);
       const ips = resolved[0].ips;
 
-      // サービス固有サブドメインのIPが含まれる
-      expect(ips).toContain('140.82.112.10'); // codeload.github.com
-      expect(ips).toContain('140.82.112.11'); // objects.github.com
+      // サービス固有サブドメインのIPが含まれる（モックで設定した全IPを検証）
+      expect(ips).toEqual(expect.arrayContaining([
+        '140.82.112.10', // codeload.github.com
+        '140.82.112.11', // objects.github.com
+        '140.82.112.12', // pkg.github.com
+        '140.82.112.13', // ghcr.github.com
+        '140.82.112.14', // copilot-proxy.github.com
+      ]));
     });
 
     it('github.com ワイルドカードで既知CIDRブロックが含まれる', async () => {
@@ -557,9 +565,7 @@ describe('NetworkFilterService', () => {
       // registry サブドメインのIPが含まれる
       expect(ips).toContain('104.16.0.2');
       // 未知ドメインなのでCIDRは含まれない
-      const cidrPattern = /^\d+\.\d+\.\d+\.\d+\/\d+$/;
-      const hasCidr = ips.some(ip => cidrPattern.test(ip));
-      expect(hasCidr).toBe(false);
+      expect(hasCidr(ips)).toBe(false);
     });
 
     it('未知ドメインのワイルドカードではCIDR追加なしで動作する', async () => {
@@ -582,9 +588,7 @@ describe('NetworkFilterService', () => {
       // ベースドメインのIPは含まれる
       expect(ips).toContain('93.184.216.34');
       // CIDRは含まれない
-      const cidrPattern = /^\d+\.\d+\.\d+\.\d+\/\d+$/;
-      const hasCidr = ips.some(ip => cidrPattern.test(ip));
-      expect(hasCidr).toBe(false);
+      expect(hasCidr(ips)).toBe(false);
     });
   });
 });
