@@ -722,20 +722,6 @@ export class DockerAdapter extends BasePTYAdapter {
     const initialCols = options?.cols ?? 80;
     const initialRows = options?.rows ?? 24;
 
-    // Issue #193: 無保護ウィンドウ修正
-    // フィルタリングが有効な場合、コンテナをNetworkMode: 'none'で起動してネットワークを
-    // 無効化し、iptablesルール適用後にbridgeネットワークへ接続する。
-    // これにより、container.start()からapplyFilter()完了までの無保護ウィンドウを排除する。
-    const filterEnabled = await networkFilterService.isFilterEnabled(this.config.environmentId);
-    if (filterEnabled) {
-      createOptions.HostConfig = createOptions.HostConfig ?? {};
-      createOptions.HostConfig.NetworkMode = 'none';
-      logger.info('DockerAdapter: Network filtering enabled, starting container with NetworkMode=none', {
-        sessionId,
-        environmentId: this.config.environmentId,
-      });
-    }
-
     logger.info('DockerAdapter: Creating session', {
       sessionId,
       workingDir,
@@ -750,6 +736,24 @@ export class DockerAdapter extends BasePTYAdapter {
     let activeCountIncremented = false;
     let filterApplied = false;
     try {
+      // Issue #193: 無保護ウィンドウ修正
+      // フィルタリングが有効な場合、まずコンテナを NetworkMode: 'none' で起動して
+      // 起動直後のネットワークを無効化し、その後 container.start() の直後に bridge
+      // ネットワークへ接続してから applyFilter() で iptables ルールを適用する。
+      // これにより、container.start() 直後に任意のネットワークへ接続されることを防ぎつつ、
+      // bridge 接続後から applyFilter() 完了までの無保護ウィンドウを最小化する。
+      const filterEnabled = await networkFilterService.isFilterEnabled(this.config.environmentId);
+      if (filterEnabled) {
+        createOptions.HostConfig = createOptions.HostConfig ?? {};
+        createOptions.HostConfig.NetworkMode = 'none';
+        // NetworkMode='none'とPortBindingsは非互換のため、フィルタリング有効時はポートマッピングを除去
+        delete createOptions.HostConfig.PortBindings;
+        delete createOptions.ExposedPorts;
+        logger.info('DockerAdapter: Network filtering enabled, starting container with NetworkMode=none', {
+          sessionId,
+          environmentId: this.config.environmentId,
+        });
+      }
       container = await DockerClient.getInstance().createContainer(createOptions);
 
       // Attach stream (hijack)

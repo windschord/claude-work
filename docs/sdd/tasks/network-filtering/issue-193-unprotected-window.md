@@ -57,7 +57,7 @@
 ## 受入基準（全体）
 
 - [x] フィルタリング有効時: container.start()時点でNetworkMode='none'のためネットワーク通信不可
-- [x] フィルタリング有効時: iptablesルール適用後にbridgeネットワーク接続
+- [x] フィルタリング有効時: container.start()後はbridgeネットワーク接続→subnet取得→iptablesルール適用（applyFilter）の順序で処理されること
 - [x] フィルタリング無効時: 既存の動作を維持（NetworkMode未設定、bridge接続なし）
 - [x] 全テストがパスすること
 - [x] 既存テストが壊れていないこと
