@@ -23,7 +23,7 @@ ExecutionEnvironmentの`is_default`フィールドを廃止し、環境選択を
 | `src/components/environments/EnvironmentCard.tsx` | 「デフォルト」バッジ削除、削除ボタンのis_default無効化削除 |
 | `src/components/projects/AddProjectModal.tsx` | `defaultEnvironmentId`ロジック削除、環境未選択時の送信無効化 |
 | `src/components/projects/RemoteRepoForm.tsx` | `defaultEnvironmentId`ロジック削除、環境未選択時の送信無効化 |
-| `src/components/projects/AddProjectWizard/StepEnvironment.tsx` | デフォルト自動選択削除、`(default)`表示削除 |
+| `src/components/projects/AddProjectWizard/StepEnvironment.tsx` | `is_default`依存の自動選択を廃止（1件時自動選択は維持）、`(default)`表示削除 |
 | `src/components/sessions/CreateSessionModal.tsx` | is_defaultソートロジック削除 |
 
 ### テスト

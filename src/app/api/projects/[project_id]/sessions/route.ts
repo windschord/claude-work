@@ -153,8 +153,22 @@ export async function POST(
       );
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let { name, prompt = '', source_branch, claude_code_options, custom_env_vars, environment_id: requestEnvironmentId = null } = body as Record<string, any>;
+    let { claude_code_options, custom_env_vars, environment_id: requestEnvironmentId = null } = body as Record<string, unknown>;
+    const { name: rawName, prompt: rawPrompt, source_branch: rawSourceBranch } = body as Record<string, unknown>;
+
+    // name, prompt, source_branch の型バリデーション
+    if (rawName !== undefined && typeof rawName !== 'string') {
+      return NextResponse.json({ error: 'name must be a string' }, { status: 400 });
+    }
+    if (rawPrompt !== undefined && typeof rawPrompt !== 'string') {
+      return NextResponse.json({ error: 'prompt must be a string' }, { status: 400 });
+    }
+    if (rawSourceBranch !== undefined && typeof rawSourceBranch !== 'string') {
+      return NextResponse.json({ error: 'source_branch must be a string' }, { status: 400 });
+    }
+    const name = rawName as string | undefined;
+    const prompt = (rawPrompt as string) ?? '';
+    const source_branch = rawSourceBranch as string | undefined;
 
     // requestEnvironmentId のバリデーション（非文字列・空文字は400で弾く）
     if (requestEnvironmentId !== null && requestEnvironmentId !== undefined) {
