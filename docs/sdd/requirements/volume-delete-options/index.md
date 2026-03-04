@@ -48,7 +48,7 @@
 
 | Volume | マウント先 | 命名規則 |
 |--------|-----------|----------|
-| Git checkout Volume | `/repo` | `claude-repo-<projectId>` または `docker_volume_id` |
+| Git checkout Volume | `/repo` | `project.docker_volume_id`の値を使用（通常は`cw-repo-<slug>`形式） |
 
 ## 非機能要件
 
@@ -75,5 +75,4 @@
 - `src/store/useAppStore.ts` - deleteProject にオプション引数追加
 
 **プロジェクト削除（バックエンド）:**
-- `src/app/api/projects/[project_id]/route.ts` - Volume削除処理追加
-- (新規サービスまたは既存サービスにVolume削除メソッド追加)
+- `src/app/api/projects/[project_id]/route.ts` - Volume削除処理追加（DockerClient.removeVolumeを直接使用）

@@ -14,7 +14,7 @@ interface DeleteProjectDialogProps {
  * プロジェクト削除確認ダイアログコンポーネント
  *
  * プロジェクトを削除する前に確認を求めるダイアログです。
- * Docker clone環境の場合、Git checkout Volumeの保持/削除を選択できます。
+ * Docker cloneかつGit checkout Volumeが存在する場合、Volumeの保持/削除を選択できます。
  * worktreeは削除されないことをユーザーに通知します。
  *
  * @param props - コンポーネントのプロパティ
@@ -48,9 +48,14 @@ export function DeleteProjectDialog({
         project.id,
         hasDockerVolume ? { keepGitVolume } : undefined
       );
-      await fetchProjects();
       setKeepGitVolume(false);
       onClose();
+      // 一覧更新失敗は削除失敗として扱わない
+      try {
+        await fetchProjects();
+      } catch {
+        // 一覧更新エラーは無視（削除自体は成功している）
+      }
     } catch (err) {
       if (err instanceof Error) {
         setError(err.message);
