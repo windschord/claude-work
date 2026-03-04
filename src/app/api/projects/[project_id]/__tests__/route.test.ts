@@ -9,7 +9,10 @@ import { join } from 'path';
 import { execSync } from 'child_process';
 import type { Project } from '@/lib/db';
 
-const mockRemoveVolume = vi.fn();
+const { mockRemoveVolume } = vi.hoisted(() => ({
+  mockRemoveVolume: vi.fn(),
+}));
+
 vi.mock('@/services/docker-client', () => ({
   DockerClient: {
     getInstance: () => ({
