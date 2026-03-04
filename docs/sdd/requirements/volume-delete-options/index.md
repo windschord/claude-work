@@ -48,7 +48,7 @@
 
 | Volume | マウント先 | 命名規則 |
 |--------|-----------|----------|
-| Git checkout Volume | `/repo` | `project.docker_volume_id`の値を使用（通常は`cw-repo-<slug>`形式） |
+| Git checkout Volume | `/repo` | `project.docker_volume_id`の値を使用（通常は`cw-repo-<slug>`形式）。未設定の場合は`claude-repo-<projectId>`にフォールバック |
 
 ## 非機能要件
 

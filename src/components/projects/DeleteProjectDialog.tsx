@@ -16,7 +16,7 @@ interface DeleteProjectDialogProps {
  * プロジェクト削除確認ダイアログコンポーネント
  *
  * プロジェクトを削除する前に確認を求めるダイアログです。
- * Docker cloneかつGit checkout Volumeが存在する場合、Volumeの保持/削除を選択できます。
+ * Docker cloneプロジェクトの場合、Git checkout Volumeの保持/削除を選択できます。
  * worktreeは削除されないことをユーザーに通知します。
  *
  * @param props - コンポーネントのプロパティ
@@ -39,7 +39,8 @@ export function DeleteProjectDialog({
     return null;
   }
 
-  const hasDockerVolume = project.clone_location === 'docker' && !!project.docker_volume_id;
+  const isDockerClone = project.clone_location === 'docker';
+  const dockerVolumeName = project.docker_volume_id || `claude-repo-${project.id}`;
 
   const handleDelete = async () => {
     setError('');
@@ -48,7 +49,7 @@ export function DeleteProjectDialog({
     try {
       await deleteProject(
         project.id,
-        hasDockerVolume ? { keepGitVolume } : undefined
+        isDockerClone ? { keepGitVolume } : undefined
       );
       setKeepGitVolume(false);
       onClose();
@@ -119,7 +120,7 @@ export function DeleteProjectDialog({
                   </p>
                 </div>
 
-                {hasDockerVolume && (
+                {isDockerClone && (
                   <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-md">
                     <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       Docker Volume
@@ -137,7 +138,7 @@ export function DeleteProjectDialog({
                           className="rounded border-gray-300 dark:border-gray-500 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
                         />
                         <span className="text-sm text-gray-600 dark:text-gray-300">
-                          Gitリポジトリを保持 <span className="text-xs text-gray-400">({project.docker_volume_id})</span>
+                          Gitリポジトリを保持 <span className="text-xs text-gray-400">({dockerVolumeName})</span>
                         </span>
                       </label>
                     </div>

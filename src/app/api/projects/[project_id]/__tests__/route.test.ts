@@ -1018,15 +1018,64 @@ describe('DELETE /api/projects/[project_id]', () => {
       expect(mockRemoveVolume).toHaveBeenCalledWith('cw-repo-test-vol');
     });
 
-    it('hostプロジェクトの場合、Volume削除が呼ばれない', async () => {
-      // hostプロジェクトはデフォルトのprojectを使用（clone_location未設定）
-      const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
-        method: 'DELETE',
+    it('docker_volume_id未設定のDocker cloneはフォールバックVolume名で削除される', async () => {
+      // docker_volume_id未設定のDocker cloneプロジェクトを作成
+      const noVolIdRepoPath = mkdtempSync(join(tmpdir(), 'docker-novol-test-'));
+      execSync('git init', { cwd: noVolIdRepoPath });
+      execSync('git config user.name "Test"', { cwd: noVolIdRepoPath });
+      execSync('git config user.email "test@example.com"', { cwd: noVolIdRepoPath });
+      execSync('echo "test" > README.md && git add . && git commit -m "initial"', {
+        cwd: noVolIdRepoPath,
+        shell: true,
       });
 
-      const response = await DELETE(request, { params: Promise.resolve({ project_id: project.id }) });
-      expect(response.status).toBe(204);
-      expect(mockRemoveVolume).not.toHaveBeenCalled();
+      const noVolIdProject = db.insert(schema.projects).values({
+        name: 'Docker No VolId',
+        path: noVolIdRepoPath,
+        clone_location: 'docker',
+      }).returning().get();
+
+      try {
+        const request = new NextRequest(`http://localhost:3000/api/projects/${noVolIdProject.id}`, {
+          method: 'DELETE',
+        });
+
+        const response = await DELETE(request, { params: Promise.resolve({ project_id: noVolIdProject.id }) });
+        expect(response.status).toBe(204);
+        expect(mockRemoveVolume).toHaveBeenCalledWith(`claude-repo-${noVolIdProject.id}`);
+      } finally {
+        rmSync(noVolIdRepoPath, { recursive: true, force: true });
+      }
+    });
+
+    it('hostプロジェクトの場合、Volume削除が呼ばれない', async () => {
+      // 明示的にclone_location='host'のプロジェクトを作成
+      const hostRepoPath = mkdtempSync(join(tmpdir(), 'host-project-test-'));
+      execSync('git init', { cwd: hostRepoPath });
+      execSync('git config user.name "Test"', { cwd: hostRepoPath });
+      execSync('git config user.email "test@example.com"', { cwd: hostRepoPath });
+      execSync('echo "test" > README.md && git add . && git commit -m "initial"', {
+        cwd: hostRepoPath,
+        shell: true,
+      });
+
+      const hostProject = db.insert(schema.projects).values({
+        name: 'Host Project',
+        path: hostRepoPath,
+        clone_location: 'host',
+      }).returning().get();
+
+      try {
+        const request = new NextRequest(`http://localhost:3000/api/projects/${hostProject.id}`, {
+          method: 'DELETE',
+        });
+
+        const response = await DELETE(request, { params: Promise.resolve({ project_id: hostProject.id }) });
+        expect(response.status).toBe(204);
+        expect(mockRemoveVolume).not.toHaveBeenCalled();
+      } finally {
+        rmSync(hostRepoPath, { recursive: true, force: true });
+      }
     });
   });
 });

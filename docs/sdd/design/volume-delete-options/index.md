@@ -81,12 +81,13 @@ export async function DELETE(request: NextRequest, ...) {
   db.delete(schema.projects).where(...).run();
 
   // 新規: Volume削除（ベストエフォート）
-  if (!keepGitVolume && project.clone_location === 'docker' && project.docker_volume_id) {
+  if (!keepGitVolume && project.clone_location === 'docker') {
+    const volumeName = project.docker_volume_id || `claude-repo-${project_id}`;
     try {
       const dockerClient = DockerClient.getInstance();
-      await dockerClient.removeVolume(project.docker_volume_id);
+      await dockerClient.removeVolume(volumeName);
     } catch (error) {
-      logger.warn('Git checkout Volume削除失敗', { volume: project.docker_volume_id, error });
+      logger.warn('Git checkout Volume削除失敗', { volume: volumeName, error });
     }
   }
 }

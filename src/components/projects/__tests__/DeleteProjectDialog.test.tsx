@@ -182,5 +182,26 @@ describe('DeleteProjectDialog', () => {
         expect(mockDeleteProject).toHaveBeenCalledWith('1', { keepGitVolume: false });
       });
     });
+
+    it('docker_volume_id未設定のDocker cloneでもVolume保持オプションが表示される', () => {
+      const dockerProjectNoVolume = {
+        ...mockProject,
+        clone_location: 'docker' as const,
+      };
+      render(<DeleteProjectDialog isOpen={true} onClose={mockOnClose} project={dockerProjectNoVolume} />);
+
+      expect(screen.getByText('Docker Volume')).toBeInTheDocument();
+      expect(screen.getByText(/Gitリポジトリを保持/)).toBeInTheDocument();
+    });
+
+    it('docker_volume_id未設定の場合、フォールバックVolume名が表示される', () => {
+      const dockerProjectNoVolume = {
+        ...mockProject,
+        clone_location: 'docker' as const,
+      };
+      render(<DeleteProjectDialog isOpen={true} onClose={mockOnClose} project={dockerProjectNoVolume} />);
+
+      expect(screen.getByText(`(claude-repo-${mockProject.id})`)).toBeInTheDocument();
+    });
   });
 });

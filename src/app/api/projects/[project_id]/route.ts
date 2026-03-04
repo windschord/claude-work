@@ -349,13 +349,14 @@ export async function DELETE(
     logger.info('Project deleted', { projectId: project_id });
 
     // Docker clone環境のGit checkout Volume削除（ベストエフォート）
-    if (!keepGitVolume && project.clone_location === 'docker' && project.docker_volume_id) {
+    if (!keepGitVolume && project.clone_location === 'docker') {
+      const volumeName = project.docker_volume_id || `claude-repo-${project_id}`;
       try {
         const dockerClient = DockerClient.getInstance();
-        await dockerClient.removeVolume(project.docker_volume_id);
-        logger.info('Git checkout Volume deleted', { volume: project.docker_volume_id });
+        await dockerClient.removeVolume(volumeName);
+        logger.info('Git checkout Volume deleted', { volume: volumeName });
       } catch (error) {
-        logger.warn('Git checkout Volume削除失敗', { volume: project.docker_volume_id, error });
+        logger.warn('Git checkout Volume削除失敗', { volume: volumeName, error });
       }
     }
 
