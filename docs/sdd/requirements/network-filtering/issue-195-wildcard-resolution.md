@@ -10,8 +10,8 @@
 ## 問題の背景
 
 現在のネットワークフィルタリング機能において、`*.github.com` のようなワイルドカードルールを設定した場合、
-`COMMON_SUBDOMAINS` に定義されたわずか8個のサブドメイン（www, api, raw, gist, cdn, static, assets, media）の
-DNS解決しか行われない。
+`COMMON_SUBDOMAINS` に定義された8個のサブドメインのDNS解決しか行われない。
+対象はwww/api/raw/gist/cdn/static/assets/mediaのみである。
 
 実際にGitHub操作に必要なエンドポイントである `codeload.github.com`（リリースzipダウンロード）や
 `objects.githubusercontent.com`（Gitオブジェクト転送）などが解決されず、フィルタリング適用時に
