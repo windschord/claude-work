@@ -28,6 +28,9 @@ export interface UseNetworkFilterReturn {
 
   // テスト
   testConnection: (target: string, port?: number) => Promise<TestResult>;
+
+  // 再フェッチ
+  refresh: () => Promise<void>;
 }
 
 /**
@@ -281,6 +284,15 @@ export function useNetworkFilter(environmentId: string): UseNetworkFilterReturn 
     return data.result as TestResult;
   }, [environmentId]);
 
+  /**
+   * ルール一覧とフィルタ設定を再取得する
+   *
+   * テンプレート適用など外部からの変更後にUIを最新状態に同期するために使用する。
+   */
+  const refresh = useCallback(async (): Promise<void> => {
+    await fetchAll(environmentId);
+  }, [environmentId, fetchAll]);
+
   return {
     rules,
     filterConfig,
@@ -294,5 +306,6 @@ export function useNetworkFilter(environmentId: string): UseNetworkFilterReturn 
     getTemplates,
     applyTemplates,
     testConnection,
+    refresh,
   };
 }
