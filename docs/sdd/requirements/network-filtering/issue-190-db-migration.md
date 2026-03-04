@@ -40,8 +40,8 @@ THEN 既存のデータは保持されなければならない
 
 ## 受入基準
 
-- [ ] v6のDBに対してmigrateDatabase()を実行するとNetworkFilterConfig/NetworkFilterRuleテーブルが作成される
-- [ ] 新規DBにinitializeDatabase()を実行するとNetworkFilterConfig/NetworkFilterRuleテーブルが作成される
-- [ ] マイグレーション後のDBバージョンが7になる
-- [ ] 既存データが失われない
-- [ ] 既にv7のDBに対して再実行してもエラーにならない
+- [x] v6のDBに対してmigrateDatabase()を実行するとNetworkFilterConfig/NetworkFilterRuleテーブルが作成される
+- [x] 新規DBにinitializeDatabase()を実行するとNetworkFilterConfig/NetworkFilterRuleテーブルが作成される
+- [x] マイグレーション後のDBバージョンが7になる
+- [x] 既存データが失われない
+- [x] 既にv7のDBに対して再実行してもエラーにならない
