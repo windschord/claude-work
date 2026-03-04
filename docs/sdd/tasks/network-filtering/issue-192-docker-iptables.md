@@ -15,4 +15,4 @@
 - [x] 既存のdocker-ce-cliインストールが維持されている
 - [x] 既存テストに回帰がないこと（202件中201件成功、1件は既知の無関連失敗）
 
-**完了サマリー**: Dockerfile Line 87のapt-getコマンドに `iptables` を追加した。
+**完了サマリー**: runnerステージのapt-getコマンドに `iptables` を追加した。
