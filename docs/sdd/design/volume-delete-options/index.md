@@ -27,16 +27,16 @@ DeleteProjectDialog (チェックボックス追加)
 
 ## API設計
 
-### DELETE /api/environments/:id
+### DELETE /api/environments/{id}
 
 **変更**: クエリパラメータ追加
 
 | パラメータ | 型 | デフォルト | 説明 |
 |-----------|-----|-----------|------|
 | keepClaudeVolume | boolean | false | trueの場合、Claude設定Volumeを保持 |
-| keepConfigVolume | boolean | false | trueの場合、Config Claude Volumeを保持 |
+| keepConfigVolume | boolean | false | trueの場合、Config Volumeを保持 |
 
-### DELETE /api/projects/:project_id
+### DELETE /api/projects/{project_id}
 
 **変更**: クエリパラメータ追加 + Volume削除処理追加
 

@@ -26,7 +26,7 @@
 | Volume | マウント先 | 命名規則 |
 |--------|-----------|----------|
 | Claude設定Volume | `/home/node/.claude` | `claude-config-claude-<envId>` |
-| Config Claude Volume | `/home/node/.config/claude` | `claude-config-configclaude-<envId>` |
+| Config Volume | `/home/node/.config/claude` | `claude-config-configclaude-<envId>` |
 
 ### US-VDO-002: プロジェクト削除時のVolume選択
 
