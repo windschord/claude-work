@@ -1359,12 +1359,17 @@ describe('cli-utils', () => {
       expect(envFk?.table).toBe('ExecutionEnvironment');
       expect(envFk?.on_delete).toBe('CASCADE');
 
-      // UNIQUE制約（environment_id）- PRAGMA index_listで自動インデックスを含めて確認
+      // UNIQUE制約（environment_id）- PRAGMA index_listとindex_infoで対象カラムまで確認
       const nfcIndexList = db2.prepare(
         "PRAGMA index_list('NetworkFilterConfig')"
       ).all() as { name: string; unique: number; origin: string }[];
-      const uniqueIdx = nfcIndexList.find((idx) => idx.unique === 1);
-      expect(uniqueIdx).toBeDefined();
+      const envIdUniqueIdx = nfcIndexList
+        .filter((idx) => idx.unique === 1)
+        .find((idx) => {
+          const cols = db2.prepare(`PRAGMA index_info("${idx.name}")`).all() as { name: string }[];
+          return cols.length === 1 && cols[0]?.name === 'environment_id';
+        });
+      expect(envIdUniqueIdx).toBeDefined();
 
       db2.close();
     });
