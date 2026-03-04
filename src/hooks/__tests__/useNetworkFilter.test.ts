@@ -283,6 +283,34 @@ describe('useNetworkFilter', () => {
     });
   });
 
+  describe('refresh', () => {
+    it('refresh呼び出し後にルール一覧を再フェッチする', async () => {
+      const updatedRule = { ...sampleRule, target: 'updated.example.com' };
+
+      mockFetch
+        .mockImplementationOnce(() => makeFetchResponse({ rules: [sampleRule] }))
+        .mockImplementationOnce(() => makeFetchResponse({ config: sampleConfig }))
+        .mockImplementationOnce(() => makeFetchResponse({ rules: [updatedRule] }))
+        .mockImplementationOnce(() => makeFetchResponse({ config: sampleConfig }));
+
+      const { result } = renderHook(() => useNetworkFilter('env-001'));
+
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      expect(result.current.rules[0].target).toBe('api.anthropic.com');
+
+      await act(async () => {
+        await result.current.refresh();
+      });
+
+      await waitFor(() => {
+        expect(result.current.rules[0].target).toBe('updated.example.com');
+      });
+
+      // 初回 + refresh での再フェッチ = 計4回
+      expect(mockFetch).toHaveBeenCalledTimes(4);
+    });
+  });
+
   describe('エラーハンドリング', () => {
     it('ルール一覧フェッチ失敗時にerror状態を設定する', async () => {
       mockFetch

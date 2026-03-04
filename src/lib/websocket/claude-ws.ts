@@ -335,10 +335,16 @@ export function setupClaudeWebSocket(
           const environmentId = projectEnvironmentId || session.environment_id;
           if (!environmentId) {
             logger.error('Claude WebSocket: No environment configured for session', { sessionId });
-            ws.send(JSON.stringify({
-              type: 'error',
-              message: 'プロジェクトに実行環境が設定されていません。プロジェクト設定で環境を選択してください。',
-            }));
+            await db.update(schema.sessions)
+              .set({ status: 'error' })
+              .where(eq(schema.sessions.id, sessionId))
+              .run();
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({
+                type: 'error',
+                message: 'プロジェクトに実行環境が設定されていません。プロジェクト設定で環境を選択してください。',
+              }));
+            }
             ws.off('message', earlyMessageHandler);
             ws.close(1008, 'No environment configured');
             return;
