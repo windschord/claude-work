@@ -66,6 +66,17 @@
 4. RemoteRepoForm: `defaultEnvironmentId`ロジック削除
 5. StepEnvironment: デフォルト自動選択削除、`(default)`テキスト削除
 6. CreateSessionModal: is_defaultソートロジック削除
+7. 環境1件時の自動選択useEffectを追加（AddProjectModal, RemoteRepoForm, StepEnvironmentの3コンポーネント）
+   - 利用可能な環境が1件のみの場合、自動的にその環境を選択する
+   - useEffectの依存配列にはプリミティブ値のみを使用（`availableEnvironments.length`, `availableEnvironments[0]?.id`）
+   - 例:
+     ```typescript
+     useEffect(() => {
+       if (availableEnvironments.length === 1 && !selectedEnvironmentId) {
+         setSelectedEnvironmentId(availableEnvironments[0].id);
+       }
+     }, [availableEnvironments.length, availableEnvironments[0]?.id, selectedEnvironmentId]);
+     ```
 
 ## TASK-RDE-006: テストの修正
 

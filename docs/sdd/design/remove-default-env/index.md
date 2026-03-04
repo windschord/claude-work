@@ -49,6 +49,11 @@ is_default: integer('is_default', { mode: 'boolean' }).notNull().default(false),
 
 `npm run db:push`でスキーマを反映。SQLiteではカラム削除時にテーブルが再作成される。
 
+> **データ移行安全性について:**
+> - Drizzle ORMの`db:push`はカラム削除時にALTER TABLEまたはデータ移行を自動処理するため、既存データは保持される
+> - 本番環境では事前にDBバックアップを強く推奨する（`cp data/claudework.db data/claudework.db.bak`）
+> - 既存のデフォルト環境レコードは通常の環境として残る（`is_default`カラムが削除されるだけで、レコード自体は削除されない）
+
 ### 2. environment-service.ts 変更
 
 **削除するもの:**
@@ -107,6 +112,12 @@ if (!effectiveEnvironmentId) {
   );
 }
 ```
+
+> **`docker_mode`後方互換性について:**
+> - `docker_mode`パラメータは以前のPRで非推奨化済みであり、フロントエンドからは既に送信されていない
+> - 本変更で`docker_mode`のフォールバックロジックを完全に削除する
+> - `environment_id`がプロジェクトに設定されていない場合は400エラーを返す（フォールバックなし）
+> - 移行期間は不要（`docker_mode`は既にフロントエンドから送信されておらず、実質的に未使用）
 
 ### 4. UI変更方針
 
