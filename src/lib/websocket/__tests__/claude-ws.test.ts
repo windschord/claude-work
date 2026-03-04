@@ -587,6 +587,65 @@ describe('Claude WebSocket Handler - Environment Support', () => {
   });
 
   describe('error handling', () => {
+    it('should send error and close with 1008 when no environment configured for session', async () => {
+      const sessionId = 'session-no-env-configured';
+
+      // セッションにenvironment_idなし、プロジェクトにもenvironment_idなし
+      mockDb.query.sessions.findFirst.mockResolvedValue({
+        id: sessionId,
+        project_id: 'project-no-env',
+        branch_name: 'main',
+        worktree_path: '/path/to/worktree',
+        docker_mode: false,
+        environment_id: null,
+        status: 'running',
+        resume_session_id: null,
+        claude_code_options: null,
+        custom_env_vars: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+        project: {
+          environment_id: null, // プロジェクト側もnull
+        },
+      });
+
+      mockDb.query.projects.findFirst.mockResolvedValue({
+        id: 'project-no-env',
+        name: 'Test Project',
+        path: '/test/path',
+        environment_id: null,
+        claude_code_options: null,
+        custom_env_vars: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      });
+
+      // earlyMessageHandlerのoff呼び出しをキャプチャするため、
+      // off をスパイとして設定
+      const offSpy = vi.fn();
+      mockWs.off = offSpy;
+
+      setupClaudeWebSocket(mockWss, '/ws/claude');
+      await connectionHandler(mockWs, {
+        url: `/ws/claude/${sessionId}`,
+        headers: { host: 'localhost:3000' },
+      });
+
+      // type:'error' メッセージが送信されること
+      expect(mockWs.send).toHaveBeenCalledWith(
+        JSON.stringify({
+          type: 'error',
+          message: 'プロジェクトに実行環境が設定されていません。プロジェクト設定で環境を選択してください。',
+        })
+      );
+
+      // earlyMessageHandler が解除されること
+      expect(offSpy).toHaveBeenCalledWith('message', expect.any(Function));
+
+      // ws.closeが1008コードで呼ばれること
+      expect(mockWs.close).toHaveBeenCalledWith(1008, 'No environment configured');
+    });
+
     // TODO: PTYSessionManagerの内部実装詳細のため、統合テストで検証
     it.skip('should handle environment not found error', async () => {
       const sessionId = 'session-no-env';

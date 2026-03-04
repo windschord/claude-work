@@ -100,6 +100,12 @@ async delete(id: string): Promise<void> {
       );
     }
 
+    // 終了済みセッションのenvironment_id参照をクリア（孤立参照を防止）
+    tx.update(schema.sessions)
+      .set({ environment_id: null })
+      .where(eq(schema.sessions.environment_id, id))
+      .run();
+
     // DBレコードを先に削除（外部リソース削除はベストエフォートで後続実施）
     tx.delete(schema.executionEnvironments)
       .where(eq(schema.executionEnvironments.id, id))

@@ -377,6 +377,38 @@ describe('EnvironmentService', () => {
 
       await service.delete('env-123');
 
+      // 終了済みセッションのenvironment_idがNULLクリアされることを確認
+      expect(mockDbUpdateRun).toHaveBeenCalled();
+      expect(mockDbDeleteRun).toHaveBeenCalled();
+    });
+
+    it('終了済みセッションのenvironment_idをNULLクリアする', async () => {
+      const env = {
+        id: 'env-123',
+        name: 'Test Env',
+        type: 'DOCKER',
+        description: null,
+        config: '{}',
+        auth_dir_path: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      mockDbSelectGet.mockReturnValueOnce(env);
+      // projects取得用のモック（この環境を使うプロジェクトはなし）
+      mockDbSelectAll.mockReturnValueOnce([]);
+      // sessions取得用のモック（アクティブセッションはなし）
+      mockDbSelectAll.mockReturnValueOnce([]);
+
+      await service.delete('env-123');
+
+      // tx.update(schema.sessions).set({ environment_id: null }) が呼ばれることを確認
+      const { db } = await import('@/lib/db');
+      const txCallback = vi.mocked(db.transaction).mock.calls[0]?.[0];
+      expect(txCallback).toBeDefined();
+
+      // トランザクション内でupdateとdeleteの両方が呼ばれていることを確認
+      expect(mockDbUpdateRun).toHaveBeenCalled();
       expect(mockDbDeleteRun).toHaveBeenCalled();
     });
 
@@ -402,6 +434,8 @@ describe('EnvironmentService', () => {
         'この環境は以下のプロジェクトで使用中のため削除できません: Project A, Project B'
       );
 
+      // プロジェクト使用中の場合はNULLクリアもDBレコード削除も実行されない
+      expect(mockDbUpdateRun).not.toHaveBeenCalled();
       expect(mockDbDeleteRun).not.toHaveBeenCalled();
     });
 
@@ -432,6 +466,8 @@ describe('EnvironmentService', () => {
       const { inArray } = await import('drizzle-orm');
       expect(inArray).toHaveBeenCalledWith('status', ['running', 'initializing', 'waiting_input']);
 
+      // アクティブセッション使用中の場合はNULLクリアもDBレコード削除も実行されない
+      expect(mockDbUpdateRun).not.toHaveBeenCalled();
       expect(mockDbDeleteRun).not.toHaveBeenCalled();
     });
 
