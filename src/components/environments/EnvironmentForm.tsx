@@ -7,6 +7,7 @@ import { Environment, EnvironmentType, CreateEnvironmentInput, UpdateEnvironment
 import { PortMappingList } from './PortMappingList';
 import { VolumeMountList } from './VolumeMountList';
 import { DangerousPathWarning } from './DangerousPathWarning';
+import { NetworkFilterSection } from './NetworkFilterSection';
 import type { PortMapping, VolumeMount } from '@/types/environment';
 
 interface EnvironmentFormProps {
@@ -485,7 +486,7 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode, 
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white dark:bg-gray-800 p-6 text-left align-middle shadow-xl transition-all">
+              <Dialog.Panel className="w-full max-w-lg transform overflow-hidden rounded-2xl bg-white dark:bg-gray-800 p-6 text-left align-middle shadow-xl transition-all">
                 <Dialog.Title
                   as="h3"
                   className="text-lg font-medium leading-6 text-gray-900 dark:text-gray-100 mb-4"
@@ -865,6 +866,16 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode, 
                           </p>
                         )}
                       </div>
+
+                      {/* Network Filter Settings (edit mode only) */}
+                      {mode === 'edit' && environment?.id && (
+                        <div className="mt-4">
+                          <NetworkFilterSection
+                            environmentId={environment.id}
+                            environmentType={environment.type as 'HOST' | 'DOCKER' | 'SSH'}
+                          />
+                        </div>
+                      )}
                     </div>
                   )}
 
