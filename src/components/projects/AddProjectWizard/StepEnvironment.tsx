@@ -53,17 +53,28 @@ export function StepEnvironment({ environmentId, onChange, onHostEnvironmentDisa
   }, [hostEnvironmentDisabled]);
 
   const availableEnvironments = environments.filter((e) => !e.disabled);
-  const selected = availableEnvironments.find((e) => e.id === environmentId) || null;
-  const defaultEnvironmentId = availableEnvironments.find((e) => e.is_default)?.id ?? null;
 
-  // デフォルト環境を自動選択
-  // NOTE: 依存配列にはプリミティブ値のみを含める（CLAUDE.mdガイドライン準拠）
-  // onChangeはuseRefで保持し、environmentsは派生プリミティブ(defaultEnvironmentId)で参照する
+  // Auto-select when only one environment is available
+  const availableEnvironmentsLength = availableEnvironments.length;
+  const firstAvailableEnvironmentId = availableEnvironments[0]?.id;
+  const availableEnvironmentIds = availableEnvironments.map((e) => e.id).join(',');
   useEffect(() => {
-    if (!environmentId && defaultEnvironmentId) {
-      onChangeRef.current({ environmentId: defaultEnvironmentId });
+    if (!environmentId && availableEnvironmentsLength === 1 && firstAvailableEnvironmentId) {
+      onChangeRef.current({ environmentId: firstAvailableEnvironmentId });
     }
-  }, [environmentId, defaultEnvironmentId]);
+  }, [availableEnvironmentsLength, firstAvailableEnvironmentId, environmentId]);
+
+  // Reset when selected environment becomes unavailable
+  useEffect(() => {
+    if (environmentId) {
+      const ids = availableEnvironmentIds ? availableEnvironmentIds.split(',') : [];
+      if (!ids.includes(environmentId)) {
+        onChangeRef.current({ environmentId: null });
+      }
+    }
+  }, [environmentId, availableEnvironmentIds]);
+
+  const selected = availableEnvironments.find((e) => e.id === environmentId) || null;
 
   const handleChange = (env: Environment | null) => {
     onChange({ environmentId: env?.id || null });
@@ -116,9 +127,7 @@ export function StepEnvironment({ environmentId, onChange, onHostEnvironmentDisa
                   {selected.name}
                 </span>
                 {getTypeBadge(selected.type)}
-                {selected.is_default && (
-                  <span className="text-xs text-gray-500 dark:text-gray-400">(default)</span>
-                )}
+
               </div>
             ) : (
               <span className="block truncate text-gray-500">環境を選択...</span>
@@ -151,9 +160,6 @@ export function StepEnvironment({ environmentId, onChange, onHostEnvironmentDisa
                         {env.name}
                       </span>
                       {getTypeBadge(env.type)}
-                      {env.is_default && (
-                        <span className="text-xs text-gray-500 dark:text-gray-400">(default)</span>
-                      )}
                     </div>
                     {isSelected && (
                       <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-blue-600">

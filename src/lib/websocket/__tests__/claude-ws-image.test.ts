@@ -179,7 +179,6 @@ describe('Claude WebSocket - Image Paste', () => {
       type: 'HOST',
       config: '{}',
       auth_dir_path: null,
-      is_default: true,
       created_at: new Date(),
       updated_at: new Date(),
     });

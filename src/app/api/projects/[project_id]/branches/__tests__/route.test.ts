@@ -22,7 +22,6 @@ describe('GET /api/projects/[project_id]/branches', () => {
       type: 'DOCKER',
       description: 'Test environment',
       config: '{}',
-      is_default: false,
     }).run();
 
     // テスト用のGitリポジトリを作成

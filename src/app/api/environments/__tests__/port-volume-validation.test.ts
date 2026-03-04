@@ -15,7 +15,6 @@ vi.mock('@/services/environment-service', () => ({
       name: 'Test Docker',
       type: 'DOCKER',
       config: '{}',
-      is_default: false,
     }),
     update: vi.fn().mockResolvedValue({
       id: 'test-env-id',

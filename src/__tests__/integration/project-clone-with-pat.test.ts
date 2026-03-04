@@ -119,7 +119,6 @@ describe('Project Clone with PAT Integration', () => {
       type: 'DOCKER',
       description: 'Test Docker environment',
       config: JSON.stringify({}),
-      is_default: true,
     }).run();
     vi.clearAllMocks();
 
@@ -147,7 +146,7 @@ describe('Project Clone with PAT Integration', () => {
     mockExecSync.mockReturnValue(''); // git コマンドは成功する想定
 
     // DockerGitServiceのデフォルト動作
-    mockCloneRepository.mockResolvedValue({ success: true, message: 'cloned' });
+    mockCloneRepository.mockResolvedValue({ success: true, message: 'cloned', volumeName: 'claude-repo-test-volume' });
     mockDeleteVolume.mockResolvedValue(undefined);
   });
 
@@ -164,7 +163,7 @@ describe('Project Clone with PAT Integration', () => {
   describe('Docker + HTTPS + PAT clone flow', () => {
     it('should clone HTTPS repository with PAT authentication', async () => {
       mockDecryptToken.mockResolvedValue('ghp_test_token_1234567890abcdef');
-      mockCloneRepositoryWithPAT.mockResolvedValue({ success: true, message: 'cloned with PAT' });
+      mockCloneRepositoryWithPAT.mockResolvedValue({ success: true, message: 'cloned with PAT', volumeName: 'claude-repo-test-volume' });
 
       const request = createRequest({
         url: 'https://github.com/user/private-repo.git',

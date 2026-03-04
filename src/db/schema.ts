@@ -45,7 +45,6 @@ export const executionEnvironments = sqliteTable('ExecutionEnvironment', {
   description: text('description'),
   config: text('config').notNull(),
   auth_dir_path: text('auth_dir_path'),
-  is_default: integer('is_default', { mode: 'boolean' }).notNull().default(false),
   created_at: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
   updated_at: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
 });

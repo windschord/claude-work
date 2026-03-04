@@ -6,7 +6,7 @@ import { AddProjectWizard } from '../index';
 vi.mock('@/hooks/useEnvironments', () => ({
   useEnvironments: () => ({
     environments: [
-      { id: 'env-1', name: 'Docker Default', type: 'DOCKER', is_default: true, config: '{}', created_at: '', updated_at: '' },
+      { id: 'env-1', name: 'Docker Default', type: 'DOCKER', config: '{}', created_at: '', updated_at: '' },
     ],
     isLoading: false,
     error: null,

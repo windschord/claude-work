@@ -29,7 +29,7 @@ describe('RemoteRepoForm', () => {
     mockOnSubmit.mockResolvedValue(undefined);
     mockUseEnvironments.mockReturnValue({
       environments: [
-        { id: 'env-1', name: 'Default Docker', type: 'DOCKER', is_default: true, description: 'Test env', config: '{}' },
+        { id: 'env-1', name: 'Default Docker', type: 'DOCKER', description: 'Test env', config: '{}' },
       ],
       isLoading: false,
       error: null,
@@ -355,7 +355,7 @@ describe('RemoteRepoForm', () => {
     it('hostEnvironmentDisabled=trueの場合、保存場所セクションが非表示になる', () => {
       mockUseEnvironments.mockReturnValue({
         environments: [
-          { id: 'env-1', name: 'Default Docker', type: 'DOCKER', is_default: true, description: 'Test env', config: '{}' },
+          { id: 'env-1', name: 'Default Docker', type: 'DOCKER', description: 'Test env', config: '{}' },
         ],
         isLoading: false,
         error: null,
@@ -378,7 +378,7 @@ describe('RemoteRepoForm', () => {
     it('hostEnvironmentDisabled=trueの場合、cloneLocationがdockerで送信される', async () => {
       mockUseEnvironments.mockReturnValue({
         environments: [
-          { id: 'env-1', name: 'Default Docker', type: 'DOCKER', is_default: true, description: 'Test env', config: '{}' },
+          { id: 'env-1', name: 'Default Docker', type: 'DOCKER', description: 'Test env', config: '{}' },
         ],
         isLoading: false,
         error: null,

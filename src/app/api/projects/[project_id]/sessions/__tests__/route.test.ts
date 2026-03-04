@@ -156,6 +156,7 @@ describe('POST /api/projects/[project_id]/sessions', () => {
       id: 'project-1',
       name: 'Test Project',
       path: '/path/to/project',
+      environment_id: 'env-docker-1',
     });
 
     // セッション重複チェック用（既存なし）
@@ -174,6 +175,18 @@ describe('POST /api/projects/[project_id]/sessions', () => {
     });
 
     mockGitService.createWorktree.mockReturnValue('/path/to/worktree');
+
+    // デフォルト環境モック
+    mockEnvironmentService.findById.mockResolvedValue({
+      id: 'env-docker-1',
+      name: 'Docker Env',
+      type: 'DOCKER',
+      description: null,
+      config: '{}',
+      auth_dir_path: '/data/environments/env-docker-1',
+      created_at: new Date(),
+      updated_at: new Date(),
+    });
   });
 
   afterEach(() => {
@@ -195,22 +208,8 @@ describe('POST /api/projects/[project_id]/sessions', () => {
       expect(response.status).toBe(201);
     });
 
-    it('should create session with dockerMode=true when specified and Docker available', async () => {
-      mockDockerService.diagnoseDockerError.mockResolvedValue(null); // No error = Docker available
-      mockDockerService.diagnoseAuthIssues.mockResolvedValue([]);
-      mockDockerService.imageExists.mockResolvedValue(true);
-
-      mockDb._mockInsertGet.mockReturnValue({
-        id: 'session-1',
-        project_id: 'project-1',
-        name: 'happy-panda',
-        status: 'initializing',
-        worktree_path: '/path/to/worktree',
-        branch_name: 'session/session-123',
-        docker_mode: true,
-        container_id: null,
-      });
-
+    it('should create session ignoring dockerMode=true when project has environment_id', async () => {
+      // プロジェクトに environment_id がある場合、dockerMode は無視される
       const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -222,17 +221,17 @@ describe('POST /api/projects/[project_id]/sessions', () => {
       });
 
       expect(response.status).toBe(201);
-      expect(mockDockerService.diagnoseDockerError).toHaveBeenCalled();
-      expect(mockDockerService.imageExists).toHaveBeenCalled();
+      // プロジェクトに environment_id があるため、レガシーDockerMode パスには入らない
+      expect(mockDockerService.diagnoseDockerError).not.toHaveBeenCalled();
+      expect(mockDockerService.imageExists).not.toHaveBeenCalled();
     });
 
-    it('should return 503 when Docker not available and dockerMode=true', async () => {
-      // DockerError objectを返すことで、Dockerが利用不可であることを示す
-      mockDockerService.diagnoseDockerError.mockResolvedValue({
-        errorType: 'DOCKER_NOT_INSTALLED',
-        message: 'Docker not installed',
-        userMessage: 'Dockerがインストールされていません',
-        suggestion: 'Dockerをインストールしてください',
+    it('should return 400 when dockerMode=true but project has no environment_id', async () => {
+      mockDb._mockSelectGet.mockReturnValue({
+        id: 'project-1',
+        name: 'Test Project',
+        path: '/path/to/project',
+        environment_id: null,
       });
 
       const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
@@ -245,59 +244,9 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         params: Promise.resolve({ project_id: 'project-1' }),
       });
 
-      expect(response.status).toBe(503);
+      expect(response.status).toBe(400);
       const json = await response.json();
-      expect(json.error).toContain('Docker');
-    });
-
-    it('should build image when Docker available but image not exists', async () => {
-      mockDockerService.diagnoseDockerError.mockResolvedValue(null);
-      mockDockerService.diagnoseAuthIssues.mockResolvedValue([]);
-      mockDockerService.imageExists.mockResolvedValue(false);
-      mockDockerService.buildImage.mockResolvedValue(undefined);
-
-      mockDb._mockInsertGet.mockReturnValue({
-        id: 'session-1',
-        project_id: 'project-1',
-        name: 'happy-panda',
-        status: 'initializing',
-        worktree_path: '/path/to/worktree',
-        branch_name: 'session/session-123',
-        docker_mode: true,
-        container_id: null,
-      });
-
-      const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: 'Hello Claude', dockerMode: true }),
-      });
-
-      const response = await POST(request, {
-        params: Promise.resolve({ project_id: 'project-1' }),
-      });
-
-      expect(response.status).toBe(201);
-      expect(mockDockerService.buildImage).toHaveBeenCalled();
-    });
-
-    it('should return 500 when image build fails', async () => {
-      mockDockerService.diagnoseDockerError.mockResolvedValue(null);
-      mockDockerService.diagnoseAuthIssues.mockResolvedValue([]);
-      mockDockerService.imageExists.mockResolvedValue(false);
-      mockDockerService.buildImage.mockRejectedValue(new Error('Build failed'));
-
-      const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: 'Hello Claude', dockerMode: true }),
-      });
-
-      const response = await POST(request, {
-        params: Promise.resolve({ project_id: 'project-1' }),
-      });
-
-      expect(response.status).toBe(500);
+      expect(json.error).toContain('実行環境が設定されていません');
     });
   });
 
@@ -419,7 +368,6 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         description: null,
         config: '{}',
         auth_dir_path: '/data/environments/env-docker-1',
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -486,16 +434,11 @@ describe('POST /api/projects/[project_id]/sessions', () => {
       expect(mockEnvironmentService.findById).toHaveBeenCalledWith('non-existent');
     });
 
-    it('should use default environment when no environment_id specified', async () => {
-      mockDb._mockInsertGet.mockReturnValue({
-        id: 'session-1',
-        project_id: 'project-1',
-        name: 'happy-panda',
-        status: 'initializing',
-        worktree_path: '/path/to/worktree',
-        branch_name: 'session/session-123',
-        docker_mode: false,
-        container_id: null,
+    it('should return 400 when project has no environment_id', async () => {
+      mockDb._mockSelectGet.mockReturnValue({
+        id: 'project-1',
+        name: 'Test Project',
+        path: '/path/to/project',
         environment_id: null,
       });
 
@@ -509,7 +452,9 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         params: Promise.resolve({ project_id: 'project-1' }),
       });
 
-      expect(response.status).toBe(201);
+      expect(response.status).toBe(400);
+      const json = await response.json();
+      expect(json.error).toContain('実行環境が設定されていません');
     });
 
     it('project environment_id takes priority over dockerMode parameter', async () => {
@@ -520,7 +465,6 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         description: null,
         config: '{}',
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -564,22 +508,11 @@ describe('POST /api/projects/[project_id]/sessions', () => {
       expect(mockDockerService.diagnoseDockerError).not.toHaveBeenCalled();
     });
 
-    it('should log deprecation warning when using dockerMode without environment_id', async () => {
-      const { logger } = await import('@/lib/logger');
-
-      mockDockerService.diagnoseDockerError.mockResolvedValue(null);
-      mockDockerService.diagnoseAuthIssues.mockResolvedValue([]);
-      mockDockerService.imageExists.mockResolvedValue(true);
-
-      mockDb._mockInsertGet.mockReturnValue({
-        id: 'session-1',
-        project_id: 'project-1',
-        name: 'happy-panda',
-        status: 'initializing',
-        worktree_path: '/path/to/worktree',
-        branch_name: 'session/session-123',
-        docker_mode: true,
-        container_id: null,
+    it('should return 400 when using dockerMode without project environment_id', async () => {
+      mockDb._mockSelectGet.mockReturnValue({
+        id: 'project-1',
+        name: 'Test Project',
+        path: '/path/to/project',
         environment_id: null,
       });
 
@@ -589,36 +522,20 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         body: JSON.stringify({ prompt: 'Hello Claude', dockerMode: true }),
       });
 
-      await POST(request, {
+      const response = await POST(request, {
         params: Promise.resolve({ project_id: 'project-1' }),
       });
 
-      // 非推奨警告がログ出力される
-      expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('deprecated'),
-        expect.any(Object)
-      );
+      expect(response.status).toBe(400);
+      const json = await response.json();
+      expect(json.error).toContain('実行環境が設定されていません');
     });
 
-    it('should ignore requestEnvironmentId when project has no environment_id (legacy fallback)', async () => {
-      // プロジェクトに environment_id なし → レガシーフォールバックが適用
-      // requestEnvironmentId は無視される
+    it('should return 400 when project has no environment_id regardless of request environment_id', async () => {
       mockDb._mockSelectGet.mockReturnValue({
         id: 'project-1',
         name: 'Test Project',
         path: '/path/to/project',
-        environment_id: null,
-      });
-
-      mockDb._mockInsertGet.mockReturnValue({
-        id: 'session-1',
-        project_id: 'project-1',
-        name: 'happy-panda',
-        status: 'initializing',
-        worktree_path: '/path/to/worktree',
-        branch_name: 'session/session-123',
-        docker_mode: false,
-        container_id: null,
         environment_id: null,
       });
 
@@ -632,33 +549,17 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         params: Promise.resolve({ project_id: 'project-1' }),
       });
 
-      // requestEnvironmentId は無視され、レガシーフォールバックで成功する
-      expect(response.status).toBe(201);
-      // findById は呼ばれない（project.environment_id が null のためレガシーパスに入る）
+      expect(response.status).toBe(400);
       expect(mockEnvironmentService.findById).not.toHaveBeenCalled();
     });
 
-    it('should ignore non-existent requestEnvironmentId when project has no environment_id (legacy fallback)', async () => {
-      // プロジェクトに environment_id なし → レガシーフォールバックが適用
-      // requestEnvironmentId は無視される（存在しない値でも影響なし）
+    it('should return 400 when project has no environment_id even with non-existent request environment_id', async () => {
       mockDb._mockSelectGet.mockReturnValue({
         id: 'project-1',
         name: 'Test Project',
         path: '/path/to/project',
         environment_id: null,
         clone_location: null,
-      });
-
-      mockDb._mockInsertGet.mockReturnValue({
-        id: 'session-1',
-        project_id: 'project-1',
-        name: 'happy-panda',
-        status: 'initializing',
-        worktree_path: '/path/to/worktree',
-        branch_name: 'session/session-123',
-        docker_mode: false,
-        container_id: null,
-        environment_id: null,
       });
 
       const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
@@ -671,9 +572,7 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         params: Promise.resolve({ project_id: 'project-1' }),
       });
 
-      // requestEnvironmentId は無視され、レガシーフォールバックで成功する
-      expect(response.status).toBe(201);
-      // findById は呼ばれない（project.environment_id が null のためレガシーパスに入る）
+      expect(response.status).toBe(400);
       expect(mockEnvironmentService.findById).not.toHaveBeenCalled();
     });
 
@@ -685,7 +584,6 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         description: null,
         config: '{}',
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -768,6 +666,7 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         name: 'Test Project',
         path: '/path/to/project',
         claude_code_options: '{}',
+        environment_id: 'env-docker-1',
       });
 
       mockDb._mockInsertGet.mockReturnValue({
@@ -802,6 +701,7 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         name: 'Test Project',
         path: '/path/to/project',
         claude_code_options: '{"worktree":true}',
+        environment_id: 'env-docker-1',
       });
 
       mockDb._mockInsertGet.mockReturnValue({
@@ -833,6 +733,7 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         name: 'Test Project',
         path: '/path/to/project',
         claude_code_options: '{}',
+        environment_id: 'env-docker-1',
       });
 
       mockDb._mockInsertGet.mockReturnValue({
@@ -869,6 +770,7 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         name: 'Test Project',
         path: '/path/to/project',
         claude_code_options: '{}',
+        environment_id: 'env-docker-1',
       });
 
       mockDb._mockInsertGet.mockReturnValue({
@@ -905,6 +807,7 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         name: 'Test Project',
         path: '/path/to/project',
         claude_code_options: '{}',
+        environment_id: 'env-docker-1',
       });
 
       mockDb._mockInsertGet.mockReturnValue({
@@ -939,6 +842,7 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         name: 'Test Project',
         path: '/path/to/project',
         claude_code_options: '{}',
+        environment_id: 'env-docker-1',
       });
 
       const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {

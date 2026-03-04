@@ -2,6 +2,35 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { AddProjectModal } from './AddProjectModal';
 
+// Zustandストアのモック
+vi.mock('@/store', () => ({
+  useAppStore: vi.fn(() => ({
+    addProject: vi.fn(),
+    cloneProject: vi.fn(),
+    fetchProjects: vi.fn(),
+  })),
+}));
+
+// GitHub PAT hookのモック
+vi.mock('@/hooks/useGitHubPATs', () => ({
+  useGitHubPATs: vi.fn(() => ({
+    pats: [],
+    isLoading: false,
+  })),
+}));
+
+// useEnvironments hookのモック
+vi.mock('@/hooks/useEnvironments', () => ({
+  useEnvironments: vi.fn(() => ({
+    environments: [
+      { id: 'env-1', name: 'Default Docker', type: 'DOCKER', description: 'Test env', config: '{}' },
+    ],
+    isLoading: false,
+    error: null,
+    hostEnvironmentDisabled: false,
+  })),
+}));
+
 describe('AddProjectModal - キャンセルボタン', () => {
   it('キャンセルボタンをクリックするとonCloseが呼ばれる', async () => {
     const onClose = vi.fn();

@@ -15,7 +15,6 @@ vi.mock('@/services/environment-service', () => ({
       name: 'Test Docker',
       type: 'DOCKER',
       config: '{}',
-      is_default: false,
     }),
     update: vi.fn().mockResolvedValue({
       id: 'test-env-id',
@@ -154,8 +153,7 @@ describe('Environment API skipPermissions validation', () => {
         name: 'Host Env',
         type: 'HOST',
         config: '{}',
-        is_default: false,
-        description: null,
+          description: null,
         auth_dir_path: null,
         created_at: new Date(),
         updated_at: new Date(),

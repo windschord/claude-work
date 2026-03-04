@@ -169,11 +169,6 @@ export function EnvironmentCard({ environment, onEdit, onDelete, highlighted }: 
           <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
             {environment.name}
           </h3>
-          {environment.is_default && (
-            <span className="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full px-2 py-0.5 text-xs font-medium">
-              デフォルト
-            </span>
-          )}
           {environment.disabled && (
             <span className="bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 rounded-full px-2 py-0.5 text-xs font-medium">
               無効

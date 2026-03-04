@@ -51,7 +51,6 @@ describe('AdapterFactory', () => {
         description: null,
         config: '{}',
         auth_dir_path: null,
-        is_default: true,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -70,7 +69,6 @@ describe('AdapterFactory', () => {
         description: null,
         config: '{}',
         auth_dir_path: null,
-        is_default: true,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -82,7 +80,6 @@ describe('AdapterFactory', () => {
         description: null,
         config: '{}',
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -106,7 +103,6 @@ describe('AdapterFactory', () => {
         description: null,
         config: JSON.stringify({ imageName: 'my-image', imageTag: 'v1' }),
         auth_dir_path: '/data/environments/env-docker-1',
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -131,7 +127,6 @@ describe('AdapterFactory', () => {
         description: null,
         config: JSON.stringify({ imageName: 'my-image', imageTag: 'v1' }),
         auth_dir_path: '/data/environments/env-docker-1',
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -153,7 +148,6 @@ describe('AdapterFactory', () => {
         description: null,
         config: JSON.stringify({ imageName: 'image1', imageTag: 'v1' }),
         auth_dir_path: '/data/environments/env-docker-1',
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -165,7 +159,6 @@ describe('AdapterFactory', () => {
         description: null,
         config: JSON.stringify({ imageName: 'image2', imageTag: 'v2' }),
         auth_dir_path: '/data/environments/env-docker-2',
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -187,7 +180,6 @@ describe('AdapterFactory', () => {
         description: null,
         config: '{}',
         auth_dir_path: '/data/environments/env-docker-default',
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -214,7 +206,6 @@ describe('AdapterFactory', () => {
         description: null,
         config: '{}',
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -234,7 +225,6 @@ describe('AdapterFactory', () => {
         description: null,
         config: '{}',
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       } as ExecutionEnvironment;
@@ -254,7 +244,6 @@ describe('AdapterFactory', () => {
         description: null,
         config: JSON.stringify({ imageName: 'my-image', imageTag: 'v1' }),
         auth_dir_path: '/data/environments/env-docker-remove',
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -282,7 +271,6 @@ describe('AdapterFactory', () => {
         description: null,
         config: JSON.stringify({ imageName: 'my-image', imageTag: 'v1' }),
         auth_dir_path: '/data/environments/env-docker-recreate',
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -312,7 +300,6 @@ describe('AdapterFactory', () => {
         description: null,
         config: '{}',
         auth_dir_path: '/data/environments/env-docker-count-1',
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -324,7 +311,6 @@ describe('AdapterFactory', () => {
         description: null,
         config: '{}',
         auth_dir_path: '/data/environments/env-docker-count-2',
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -346,7 +332,6 @@ describe('AdapterFactory', () => {
         description: null,
         config: '{}',
         auth_dir_path: null,
-        is_default: true,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -358,7 +343,6 @@ describe('AdapterFactory', () => {
         description: null,
         config: '{}',
         auth_dir_path: '/data/environments/env-docker-reset',
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -394,7 +378,6 @@ describe('AdapterFactory', () => {
         description: null,
         config: JSON.stringify({ imageName: 'my-image', imageTag: 'v1' }),
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };

@@ -77,7 +77,6 @@ describe('/api/environments/[id]', () => {
         description: 'Default host',
         config: '{}',
         auth_dir_path: null,
-        is_default: true,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -101,7 +100,6 @@ describe('/api/environments/[id]', () => {
         description: 'Default host',
         config: '{}',
         auth_dir_path: null,
-        is_default: true,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -142,7 +140,6 @@ describe('/api/environments/[id]', () => {
         description: 'Old description',
         config: '{}',
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -184,7 +181,6 @@ describe('/api/environments/[id]', () => {
         description: null,
         config: '{"imageName":"old-image"}',
         auth_dir_path: '/data/environments/env-docker',
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -252,7 +248,6 @@ describe('/api/environments/[id]', () => {
         description: null,
         config: '{}',
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -280,7 +275,6 @@ describe('/api/environments/[id]', () => {
         description: null,
         config: '{}',
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -308,7 +302,6 @@ describe('/api/environments/[id]', () => {
         description: null,
         config: '{}',
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -338,7 +331,6 @@ describe('/api/environments/[id]', () => {
         description: null,
         config: '{}',
         auth_dir_path: '/data/environments/env-to-delete',
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -366,7 +358,6 @@ describe('/api/environments/[id]', () => {
         description: null,
         config: '{}',
         auth_dir_path: null,
-        is_default: true,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -408,7 +399,6 @@ describe('/api/environments/[id]', () => {
         description: null,
         config: '{}',
         auth_dir_path: '/data/environments/env-in-use',
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -437,7 +427,6 @@ describe('/api/environments/[id]', () => {
         description: null,
         config: '{}',
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };

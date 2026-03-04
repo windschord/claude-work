@@ -39,20 +39,25 @@ export function AddProjectModal({ isOpen, onClose }: AddProjectModalProps) {
   );
 
   const availableEnvironmentIds = availableEnvironments.map((e) => e.id).join(',');
-  const defaultEnvironmentId = availableEnvironments.find((e) => e.is_default)?.id ?? availableEnvironments[0]?.id ?? '';
 
-  // 初期選択: is_default=true の環境、または選択中の環境がリストから削除された場合にリセット
+  // 選択中の環境がリストから削除された場合にリセット
   useEffect(() => {
-    if (!selectedEnvironmentId && defaultEnvironmentId) {
-      setSelectedEnvironmentId(defaultEnvironmentId);
-    } else if (
-      selectedEnvironmentId &&
-      availableEnvironmentIds &&
-      !availableEnvironmentIds.split(',').includes(selectedEnvironmentId)
-    ) {
-      setSelectedEnvironmentId(defaultEnvironmentId);
+    if (selectedEnvironmentId) {
+      const ids = availableEnvironmentIds ? availableEnvironmentIds.split(',') : [];
+      if (!ids.includes(selectedEnvironmentId)) {
+        setSelectedEnvironmentId('');
+      }
     }
-  }, [selectedEnvironmentId, defaultEnvironmentId, availableEnvironmentIds]);
+  }, [selectedEnvironmentId, availableEnvironmentIds]);
+
+  // Auto-select when only one environment is available
+  const availableEnvironmentsLength = availableEnvironments.length;
+  const firstEnvironmentId = availableEnvironments[0]?.id;
+  useEffect(() => {
+    if (!selectedEnvironmentId && availableEnvironmentsLength === 1 && firstEnvironmentId) {
+      setSelectedEnvironmentId(firstEnvironmentId);
+    }
+  }, [availableEnvironmentsLength, firstEnvironmentId, selectedEnvironmentId]);
 
   const selectedEnvironment = availableEnvironments.find((env) => env.id === selectedEnvironmentId);
 

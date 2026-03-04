@@ -94,7 +94,6 @@ describe('/api/environments/[id]/sessions', () => {
         description: 'Test',
         config: '{}',
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -121,7 +120,6 @@ describe('/api/environments/[id]/sessions', () => {
         description: 'Docker environment',
         config: '{"imageName":"my-image"}',
         auth_dir_path: '/data/environments/env-docker-1',
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };

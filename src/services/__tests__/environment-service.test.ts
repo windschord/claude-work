@@ -80,6 +80,18 @@ vi.mock('@/lib/db', () => ({
       })),
     })),
     transaction: vi.fn((callback: (tx: unknown) => unknown) => callback({
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            get: mockDbSelectGet,
+            all: mockDbSelectAll,
+          })),
+          orderBy: vi.fn(() => ({
+            all: mockDbSelectAll,
+          })),
+          get: mockDbSelectGet,
+        })),
+      })),
       update: vi.fn(() => ({
         set: vi.fn(() => ({
           where: vi.fn(() => ({
@@ -102,8 +114,8 @@ vi.mock('@/lib/db', () => ({
     })),
   },
   schema: {
-    executionEnvironments: { id: 'id', is_default: 'is_default' },
-    sessions: { project_id: 'project_id' },
+    executionEnvironments: { id: 'id' },
+    sessions: { project_id: 'project_id', environment_id: 'environment_id', id: 'id', status: 'status' },
     projects: { id: 'id', environment_id: 'environment_id' },
   },
 }));
@@ -119,6 +131,7 @@ vi.mock('drizzle-orm', () => {
   return {
     eq: vi.fn((col, val) => ({ column: col, value: val })),
     and: vi.fn((...conditions) => ({ type: 'and', conditions })),
+    inArray: vi.fn((col, values) => ({ column: col, values })),
     asc: vi.fn((col) => ({ column: col, direction: 'asc' })),
     count: vi.fn(() => 'count'),
     sql: mockSql,
@@ -189,7 +202,6 @@ describe('EnvironmentService', () => {
         description: 'Test Docker environment',
         config: JSON.stringify({ imageName: 'test-image' }),
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -215,7 +227,6 @@ describe('EnvironmentService', () => {
         description: null,
         config: JSON.stringify(input.config),
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       });
@@ -235,7 +246,6 @@ describe('EnvironmentService', () => {
         description: null,
         config: '{}',
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -266,7 +276,6 @@ describe('EnvironmentService', () => {
           description: null,
           config: '{}',
           auth_dir_path: null,
-          is_default: true,
           created_at: new Date(),
           updated_at: new Date(),
         },
@@ -277,7 +286,6 @@ describe('EnvironmentService', () => {
           description: 'Development Docker',
           config: '{"imageName":"dev-image"}',
           auth_dir_path: null,
-          is_default: false,
           created_at: new Date(),
           updated_at: new Date(),
         },
@@ -313,7 +321,6 @@ describe('EnvironmentService', () => {
         description: 'Updated description',
         config: '{}',
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -337,7 +344,6 @@ describe('EnvironmentService', () => {
         description: null,
         config: JSON.stringify(input.config),
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       });
@@ -358,7 +364,6 @@ describe('EnvironmentService', () => {
         description: null,
         config: '{}',
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -367,28 +372,43 @@ describe('EnvironmentService', () => {
       mockDbSelectGet.mockReturnValueOnce(env);
       // projects取得用のモック（この環境を使うプロジェクトはなし）
       mockDbSelectAll.mockReturnValueOnce([]);
+      // sessions取得用のモック（この環境を使うセッションはなし）
+      mockDbSelectAll.mockReturnValueOnce([]);
 
       await service.delete('env-123');
 
+      // 終了済みセッションのenvironment_idがNULLクリアされることを確認
+      expect(mockDbUpdateRun).toHaveBeenCalled();
       expect(mockDbDeleteRun).toHaveBeenCalled();
     });
 
-    it('デフォルト環境も削除できる', async () => {
-      mockDbSelectGet.mockReturnValue({
-        id: 'host-default',
-        name: 'Local Host',
-        type: 'HOST',
+    it('終了済みセッションのenvironment_idをNULLクリアする', async () => {
+      const env = {
+        id: 'env-123',
+        name: 'Test Env',
+        type: 'DOCKER',
         description: null,
         config: '{}',
         auth_dir_path: null,
-        is_default: true,
         created_at: new Date(),
         updated_at: new Date(),
-      });
-      mockDbSelectAll.mockReturnValueOnce([]); // プロジェクト使用なし
+      };
 
-      await service.delete('host-default');
+      mockDbSelectGet.mockReturnValueOnce(env);
+      // projects取得用のモック（この環境を使うプロジェクトはなし）
+      mockDbSelectAll.mockReturnValueOnce([]);
+      // sessions取得用のモック（アクティブセッションはなし）
+      mockDbSelectAll.mockReturnValueOnce([]);
 
+      await service.delete('env-123');
+
+      // tx.update(schema.sessions).set({ environment_id: null }) が呼ばれることを確認
+      const { db } = await import('@/lib/db');
+      const txCallback = vi.mocked(db.transaction).mock.calls[0]?.[0];
+      expect(txCallback).toBeDefined();
+
+      // トランザクション内でupdateとdeleteの両方が呼ばれていることを確認
+      expect(mockDbUpdateRun).toHaveBeenCalled();
       expect(mockDbDeleteRun).toHaveBeenCalled();
     });
 
@@ -401,7 +421,6 @@ describe('EnvironmentService', () => {
         description: null,
         config: '{}',
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       });
@@ -415,158 +434,52 @@ describe('EnvironmentService', () => {
         'この環境は以下のプロジェクトで使用中のため削除できません: Project A, Project B'
       );
 
+      // プロジェクト使用中の場合はNULLクリアもDBレコード削除も実行されない
+      expect(mockDbUpdateRun).not.toHaveBeenCalled();
+      expect(mockDbDeleteRun).not.toHaveBeenCalled();
+    });
+
+    it('使用中のセッションがある場合は削除を拒否する', async () => {
+      mockDbSelectGet.mockReturnValueOnce({
+        id: 'env-123',
+        name: 'Test Env',
+        type: 'DOCKER',
+        description: null,
+        config: '{}',
+        auth_dir_path: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      });
+      // projects取得用のモック（空）
+      mockDbSelectAll.mockReturnValueOnce([]);
+      // sessions取得用のモック（この環境を使うセッションが2つ）
+      mockDbSelectAll.mockReturnValueOnce([
+        { id: 'session-1' },
+        { id: 'session-2' },
+      ]);
+
+      await expect(service.delete('env-123')).rejects.toThrow(
+        'この環境は 2 件のアクティブなセッションで使用中のため削除できません'
+      );
+
+      // アクティブ状態フィルタが適用されていることを検証
+      const { inArray } = await import('drizzle-orm');
+      expect(inArray).toHaveBeenCalledWith('status', ['running', 'initializing', 'waiting_input']);
+
+      // アクティブセッション使用中の場合はNULLクリアもDBレコード削除も実行されない
+      expect(mockDbUpdateRun).not.toHaveBeenCalled();
       expect(mockDbDeleteRun).not.toHaveBeenCalled();
     });
 
     it('存在しない環境の削除はエラーになる', async () => {
       mockDbSelectGet.mockReturnValueOnce(undefined);
-      // projects取得用のモック（空）
-      mockDbSelectAll.mockReturnValueOnce([]);
 
       await expect(service.delete('non-existent')).rejects.toThrow(
         '環境が見つかりません'
       );
 
+      expect(mockDbSelectAll).not.toHaveBeenCalled();
       expect(mockDbDeleteRun).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('getDefault', () => {
-    it('デフォルト環境を取得できる', async () => {
-      const defaultEnv = {
-        id: 'host-default',
-        name: 'Local Host',
-        type: 'HOST',
-        description: null,
-        config: '{}',
-        auth_dir_path: null,
-        is_default: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      };
-
-      mockDbSelectGet.mockReturnValue(defaultEnv);
-
-      const result = await service.getDefault();
-
-      expect(result).toEqual(defaultEnv);
-    });
-
-    it('デフォルト環境が存在しない場合はエラーになる', async () => {
-      mockDbSelectGet.mockReturnValue(undefined);
-
-      await expect(service.getDefault()).rejects.toThrow(
-        'デフォルト環境が見つかりません'
-      );
-    });
-  });
-
-  describe('ensureDefaultExists', () => {
-    it('デフォルト環境が存在しない場合は作成する', async () => {
-      mockDbSelectGet.mockReturnValue(undefined);
-
-      await service.ensureDefaultExists();
-
-      expect(mockDbInsertRun).toHaveBeenCalled();
-      expect(mockLogger.info).toHaveBeenCalledWith(
-        expect.stringContaining('デフォルト環境を作成'),
-        expect.objectContaining({ id: 'host-default' })
-      );
-    });
-
-    it('デフォルト環境が既に存在する場合は何もしない', async () => {
-      mockDbSelectGet.mockReturnValue({
-        id: 'host-default',
-        name: 'Local Host',
-        type: 'HOST',
-        description: null,
-        config: '{}',
-        auth_dir_path: null,
-        is_default: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      });
-
-      await service.ensureDefaultExists();
-
-      expect(mockDbInsertRun).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('ensureDefaultEnvironment', () => {
-    it('Docker環境が存在しない場合は自動作成する', async () => {
-      // Docker環境が存在しない場合
-      mockDbSelectGet.mockReturnValue(undefined);
-
-      const createdEnv = {
-        id: 'docker-default',
-        name: 'Default Docker',
-        type: 'DOCKER',
-        description: 'デフォルトのDocker環境',
-        config: JSON.stringify({ imageName: 'ghcr.io/windschord/claude-work-sandbox', imageTag: 'latest' }),
-        auth_dir_path: null,
-        is_default: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      };
-
-      mockDbInsertGet.mockReturnValue(createdEnv);
-
-      const result = await service.ensureDefaultEnvironment();
-
-      expect(result).toEqual(createdEnv);
-      expect(mockLogger.info).toHaveBeenCalledWith(
-        expect.stringContaining('デフォルトDocker環境を作成'),
-        expect.any(Object)
-      );
-    });
-
-    it('Docker環境が既に存在する場合は既存環境を返す', async () => {
-      const existingEnv = {
-        id: 'docker-existing',
-        name: 'Existing Docker',
-        type: 'DOCKER',
-        description: 'Existing Docker environment',
-        config: '{"imageName":"test"}',
-        auth_dir_path: null,
-        is_default: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      };
-
-      mockDbSelectGet.mockReturnValue(existingEnv);
-
-      const result = await service.ensureDefaultEnvironment();
-
-      expect(result).toEqual(existingEnv);
-      expect(mockLogger.debug).toHaveBeenCalledWith(
-        expect.stringContaining('デフォルトDocker環境は既に存在'),
-        expect.objectContaining({ id: existingEnv.id })
-      );
-      expect(mockDbInsertGet).not.toHaveBeenCalled();
-    });
-
-    it('作成されたDocker環境はis_default=trueである', async () => {
-      mockDbSelectGet.mockReturnValue(undefined);
-
-      const createdEnv = {
-        id: 'docker-default',
-        name: 'Default Docker',
-        type: 'DOCKER',
-        description: 'デフォルトのDocker環境',
-        config: JSON.stringify({ imageName: 'ghcr.io/windschord/claude-work-sandbox', imageTag: 'latest' }),
-        auth_dir_path: null,
-        is_default: true,
-        created_at: new Date(),
-        updated_at: new Date(),
-      };
-
-      mockDbInsertGet.mockReturnValue(createdEnv);
-
-      const result = await service.ensureDefaultEnvironment();
-
-      expect(result.is_default).toBe(true);
-      expect(result.type).toBe('DOCKER');
     });
   });
 
@@ -579,7 +492,6 @@ describe('EnvironmentService', () => {
         description: null,
         config: '{}',
         auth_dir_path: null,
-        is_default: true,
         created_at: new Date(),
         updated_at: new Date(),
       });
@@ -617,7 +529,6 @@ describe('EnvironmentService', () => {
         description: null,
         config: '{"imageName":"test"}',
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       });
@@ -636,7 +547,6 @@ describe('EnvironmentService', () => {
         description: null,
         config: '{"host":"example.com"}',
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       });
@@ -657,7 +567,6 @@ describe('EnvironmentService', () => {
         description: null,
         config: '{}',
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -690,7 +599,6 @@ describe('EnvironmentService', () => {
         description: null,
         config: '{}',
         auth_dir_path: '/data/environments/docker-env',
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -715,7 +623,6 @@ describe('EnvironmentService', () => {
         description: null,
         config: '{}',
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       });
@@ -761,7 +668,6 @@ describe('EnvironmentService', () => {
           imageName: 'fallback-image',
         }),
         auth_dir_path: '/data/environments/docker-env',
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       });
@@ -790,7 +696,6 @@ describe('EnvironmentService', () => {
           buildImageName: 'my-custom-image',
         }),
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       });
@@ -821,7 +726,6 @@ describe('EnvironmentService', () => {
           imageTag: 'v1.0',
         }),
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       });
@@ -850,7 +754,6 @@ describe('EnvironmentService', () => {
           imageName: 'some-image',
         }),
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       });
@@ -876,7 +779,6 @@ describe('EnvironmentService', () => {
           // buildImageNameは未設定
         }),
         auth_dir_path: '/data/environments/docker-env',
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       });
@@ -923,7 +825,6 @@ describe('EnvironmentService', () => {
           description: null,
           config: '{}',
           auth_dir_path: null,
-          is_default: false,
           created_at: new Date(),
           updated_at: new Date(),
         };
@@ -951,7 +852,6 @@ describe('EnvironmentService', () => {
           description: null,
           config: JSON.stringify({ imageName: 'test-image' }),
           auth_dir_path: null,
-          is_default: false,
           created_at: new Date(),
           updated_at: new Date(),
         };
@@ -975,7 +875,6 @@ describe('EnvironmentService', () => {
           description: null,
           config: '{}',
           auth_dir_path: null,
-          is_default: true,
           created_at: new Date(),
           updated_at: new Date(),
         });
@@ -988,32 +887,6 @@ describe('EnvironmentService', () => {
       });
     });
 
-    describe('ensureDefaultExists() - HOST制限', () => {
-      it('HOST環境が不許可の場合、ensureDefaultEnvironment()が呼ばれる', async () => {
-        mockIsHostEnvironmentAllowed.mockReturnValue(false);
-
-        // ensureDefaultEnvironment内で既にDocker環境が存在する場合
-        const existingDockerEnv = {
-          id: 'docker-default',
-          name: 'Default Docker',
-          type: 'DOCKER',
-          description: 'デフォルトのDocker環境',
-          config: JSON.stringify({ imageName: 'ghcr.io/windschord/claude-work-sandbox', imageTag: 'latest' }),
-          auth_dir_path: null,
-          is_default: true,
-          created_at: new Date(),
-          updated_at: new Date(),
-        };
-
-        mockDbSelectGet.mockReturnValue(existingDockerEnv);
-
-        await service.ensureDefaultExists();
-
-        // ensureDefaultEnvironment内でDocker環境の検索が行われたことを確認
-        // HOST環境のinsertは呼ばれないこと
-        expect(mockDbInsertRun).not.toHaveBeenCalled();
-      });
-    });
   });
 
   describe('createConfigVolumes', () => {
@@ -1025,7 +898,6 @@ describe('EnvironmentService', () => {
         description: null,
         config: '{}',
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -1056,7 +928,6 @@ describe('EnvironmentService', () => {
         description: null,
         config: '{}',
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -1077,7 +948,6 @@ describe('EnvironmentService', () => {
         description: null,
         config: '{}',
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -1108,7 +978,6 @@ describe('EnvironmentService', () => {
         description: null,
         config: '{}',
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -1137,13 +1006,13 @@ describe('EnvironmentService', () => {
         description: null,
         config: '{}',
         auth_dir_path: null,
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };
 
       mockDbSelectGet.mockReturnValueOnce(env);
-      mockDbSelectAll.mockReturnValueOnce([]);
+      mockDbSelectAll.mockReturnValueOnce([]); // projects
+      mockDbSelectAll.mockReturnValueOnce([]); // sessions
       mockDockerClient.removeVolume.mockResolvedValue(undefined);
 
       await service.delete('docker-env');
@@ -1161,13 +1030,13 @@ describe('EnvironmentService', () => {
         description: null,
         config: '{}',
         auth_dir_path: '/data/environments/docker-env',
-        is_default: false,
         created_at: new Date(),
         updated_at: new Date(),
       };
 
       mockDbSelectGet.mockReturnValueOnce(env);
-      mockDbSelectAll.mockReturnValueOnce([]);
+      mockDbSelectAll.mockReturnValueOnce([]); // projects
+      mockDbSelectAll.mockReturnValueOnce([]); // sessions
 
       await service.delete('docker-env');
 

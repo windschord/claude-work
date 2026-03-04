@@ -55,7 +55,6 @@ function createDockerEnvironment(configOverrides: object = {}): Environment {
       volumeMounts: [{ hostPath: '/data', containerPath: '/app/data', accessMode: 'rw' }],
       ...configOverrides,
     }),
-    is_default: false,
     created_at: '2024-01-01',
     updated_at: '2024-01-01',
   };

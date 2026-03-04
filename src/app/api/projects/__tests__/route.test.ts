@@ -106,7 +106,6 @@ describe('POST /api/projects', () => {
       name: 'Test Environment',
       type: 'DOCKER',
       config: '{}',
-      is_default: false,
     }).returning().get()!;
     testEnvId = env.id;
 

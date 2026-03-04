@@ -5,7 +5,6 @@ import { ptySessionManager } from '@/services/pty-session-manager';
 import { db, schema } from '@/lib/db';
 import { eq, asc } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
-import { environmentService } from '@/services/environment-service';
 import { ClaudeOptionsService } from '@/services/claude-options-service';
 import type {
   ClaudeErrorMessage,
@@ -332,20 +331,22 @@ export function setupClaudeWebSocket(
           }
 
           // 環境IDを取得（プロジェクト環境を優先）
-          let environmentId = session.project?.environment_id || session.environment_id;
+          const projectEnvironmentId = session.project?.environment_id;
+          const environmentId = projectEnvironmentId || session.environment_id;
           if (!environmentId) {
-            const defaultEnv = await environmentService.getDefault();
-            environmentId = defaultEnv.id;
-            logger.info('Claude WebSocket: Using default environment (legacy fallback)', {
-              sessionId,
-              environmentId,
-            });
-          } else {
-            logger.info('Claude WebSocket: Using project environment', {
-              sessionId,
-              environmentId,
-            });
+            logger.error('Claude WebSocket: No environment configured for session', { sessionId });
+            ws.send(JSON.stringify({
+              type: 'error',
+              message: 'プロジェクトに実行環境が設定されていません。プロジェクト設定で環境を選択してください。',
+            }));
+            ws.off('message', earlyMessageHandler);
+            ws.close(1008, 'No environment configured');
+            return;
           }
+          logger.info(`Claude WebSocket: Using ${projectEnvironmentId ? 'project' : 'session'} environment`, {
+            sessionId,
+            environmentId,
+          });
 
           // ターミナルサイズを取得
           const terminalSize: { cols: number; rows: number } = pendingResize ?? { cols: 80, rows: 24 };
