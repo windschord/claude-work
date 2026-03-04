@@ -47,7 +47,7 @@ private async withFilterLock<T>(environmentId: string, fn: () => Promise<T>): Pr
 
 ### 動作シーケンス
 
-```
+```text
 同時呼び出し例: applyFilter(envA, subnet1) と applyFilter(envA, subnet2)
 
 時刻  操作A（先着）          操作B（後着）
@@ -121,6 +121,8 @@ async removeFilter(environmentId: string): Promise<void> {
 - `src/services/network-filter-service.ts`: 変更
 - `src/services/__tests__/network-filter-service.test.ts`: テスト追加
 - 外部インターフェース変更なし（同じシグネチャ）
+
+> **注意**: `container.start()` 実行後から `networkFilterService.applyFilter()` 適用完了までの短時間ウィンドウは、設計上の制約として受容済みです（Issue #193 で対応範囲外として記録）。本Issue #194 のmutex化はこのウィンドウとは別の、同一環境IDに対する同時操作の競合を解消するものです。
 
 ## 関連ドキュメント
 
