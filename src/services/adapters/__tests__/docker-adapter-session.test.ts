@@ -2,6 +2,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { DockerAdapter } from '../docker-adapter';
 import { EventEmitter } from 'events';
 
+// Mock networkFilterService
+vi.mock('@/services/network-filter-service', () => ({
+  networkFilterService: {
+    applyFilter: vi.fn().mockResolvedValue(undefined),
+    removeFilter: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
 // Mock node-pty (native module)
 vi.mock('node-pty', () => ({
   spawn: vi.fn(),
@@ -150,7 +158,18 @@ describe('DockerAdapter Sessions', () => {
     mockDockerClient.inspectContainer.mockResolvedValue({ State: { Running: true } }); // Added
     mockContainer.attach.mockResolvedValue(mockStream);
     mockContainer.start.mockResolvedValue(undefined);
-    mockContainer.inspect.mockResolvedValue({ State: { Running: true } });
+    // container.inspect() はサブネット取得にも使用される
+    mockContainer.inspect.mockResolvedValue({
+      State: { Running: true },
+      NetworkSettings: {
+        Networks: {
+          bridge: {
+            IPAddress: '172.17.0.2',
+            IPPrefixLen: 16,
+          },
+        },
+      },
+    });
     mockContainer.exec.mockResolvedValue(mockExec);
     mockExec.start.mockResolvedValue(mockStream);
     

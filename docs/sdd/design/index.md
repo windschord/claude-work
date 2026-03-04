@@ -13,6 +13,7 @@
 | [ハイブリッド設計](hybrid-clone/index.md) | ホスト環境/Docker環境でのプロジェクトclone | 計画中 |
 | [Docker環境でのHOST機能無効化](disable-host-in-docker/design.md) | Docker内動作時のHOST環境自動無効化 | 進行中 |
 | [Dockerポート・ボリューム設定](docker-port-volume/design.md) | Docker環境のポートマッピング・ボリュームマウント設定機能 | 完了 |
+| [Docker環境ネットワークフィルタリング](network-filtering/index.md) | Dockerコンテナの外部通信をホワイトリスト方式でフィルタリング | 進行中 |
 | [Sandbox拡張イメージ](sandbox-extensions/index.md) | 言語別/ツール別Docker拡張イメージ（Python, Go, Rust, C++, Chrome DevTools） | 進行中 |
 
 ### 完了済み機能

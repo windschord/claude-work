@@ -7,6 +7,10 @@ services:
     volumes:
       - claudework-data:/data
       - /var/run/docker.sock:/var/run/docker.sock
+    # ネットワークフィルタリング機能でiptablesを操作するためNET_ADMINが必要
+    # サンドボックスコンテナからの外部通信を制御するDOCKER-USERチェーンの管理に使用する
+    cap_add:
+      - NET_ADMIN
     # nodeユーザーがdocker.sockにアクセスするため、ホストのdockerグループGIDを追加
     # デフォルト984は一般的な値だが、ホストにより異なる場合がある
     # 正確な値の取得: DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)
@@ -28,6 +32,8 @@ services:
       - DOCKER_ENABLED=true
       # アプリがDockerコンテナ内で動作していることを示すフラグ
       - RUNNING_IN_DOCKER=true
+      # Docker Compose環境であることを示すフラグ（ネットワークフィルタリング方式の判定に使用）
+      - COMPOSE_PROJECT=${COMPOSE_PROJECT_NAME:-claudework}
       # Docker環境内でもHOST環境を使用する場合はコメントを外す
       # - ALLOW_HOST_ENVIRONMENT=true
     restart: unless-stopped

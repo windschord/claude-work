@@ -15,6 +15,8 @@
 | [ハイブリッド設計](hybrid-clone/index.md) | ホスト環境/Docker環境でのプロジェクトclone | 計画中 |
 | [Docker環境でのHOST機能無効化](disable-host-in-docker/index.md) | Docker内動作時のHOST環境自動無効化と環境変数による有効化 | 進行中 |
 | [Dockerポート・ボリューム設定](docker-port-volume/index.md) | Docker環境のポートマッピング・ボリュームマウント設定機能 | 完了 |
+| [Docker環境ネットワークフィルタリング](network-filtering/index.md) | Dockerコンテナの外部通信をホワイトリスト方式でフィルタリング | 進行中 |
+| [サイドカーChrome DevTools MCP](chrome-sidecar/index.md) | セッション単位の独立Chromeサイドカーコンテナによるブラウザ検証 | 計画中 |
 
 ### 完了済み機能
 

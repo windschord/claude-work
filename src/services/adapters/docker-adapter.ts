@@ -19,6 +19,7 @@ import Docker from 'dockerode';
 import * as fsPromises from 'fs/promises';
 import type { PortMapping, VolumeMount } from '@/types/environment';
 import { getConfigVolumeNames } from '@/lib/docker-volume-utils';
+import { networkFilterService } from '@/services/network-filter-service';
 
 export interface DockerAdapterConfig {
   environmentId: string;
@@ -94,6 +95,8 @@ interface DockerSession {
 export class DockerAdapter extends BasePTYAdapter {
   private config: DockerAdapterConfig;
   private sessions: Map<string, DockerSession> = new Map();
+  /** 環境IDごとのアクティブセッション参照カウント（複数セッション時のremoveFilter制御用） */
+  private activeSessionCount: Map<string, number> = new Map();
   private developerSettingsService: DeveloperSettingsService;
   private encryptionService: EncryptionService;
 
@@ -395,6 +398,48 @@ export class DockerAdapter extends BasePTYAdapter {
   }
 
   /**
+   * コンテナのネットワーク設定からサブネットを取得する。
+   * NetworkSettings から IPAddress と IPPrefixLen を使ってサブネットを計算する。
+   * 取得に失敗した場合はフォールバック値 '172.17.0.0/16' を返す。
+   */
+  private async getContainerSubnet(container: Docker.Container): Promise<string> {
+    const fallbackSubnet = '172.17.0.0/16';
+    try {
+      const info = await container.inspect();
+      const networks = info.NetworkSettings?.Networks ?? {};
+      for (const network of Object.values(networks)) {
+        const ipAddress = network.IPAddress;
+        const prefixLen = network.IPPrefixLen;
+        if (ipAddress && prefixLen > 0) {
+          // IPアドレスのマスク部分をゼロにしてサブネットを計算
+          const parts = ipAddress.split('.').map(Number);
+          const maskBits = prefixLen;
+          // 32ビット整数に変換してマスクを適用
+          const ipInt =
+            (parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3];
+          const mask = maskBits === 0 ? 0 : (~0 << (32 - maskBits)) >>> 0;
+          const networkInt = (ipInt & mask) >>> 0;
+          const subnet = [
+            (networkInt >>> 24) & 0xff,
+            (networkInt >>> 16) & 0xff,
+            (networkInt >>> 8) & 0xff,
+            networkInt & 0xff,
+          ].join('.') + `/${maskBits}`;
+          logger.debug('DockerAdapter: Detected container subnet', { subnet });
+          return subnet;
+        }
+      }
+      logger.debug('DockerAdapter: No IP address found, using fallback subnet', { fallbackSubnet });
+    } catch (err) {
+      logger.warn('DockerAdapter: Failed to inspect container for subnet, using fallback', {
+        error: err,
+        fallbackSubnet,
+      });
+    }
+    return fallbackSubnet;
+  }
+
+  /**
    * Dockerコンテナが完全に起動するまで待機
    */
   private async waitForContainerReady(containerId: string): Promise<void> {
@@ -447,7 +492,7 @@ export class DockerAdapter extends BasePTYAdapter {
   /**
    * Dockerコンテナを停止する
    */
-  private async stopContainer(containerName: string): Promise<void> {
+  private async stopContainer(containerName: string): Promise<boolean> {
     logger.info(`Stopping container ${containerName}`);
 
     try {
@@ -456,11 +501,12 @@ export class DockerAdapter extends BasePTYAdapter {
       await container.stop({ t: 10 });
 
       logger.info(`Container ${containerName} stopped successfully`);
+      return true;
     } catch (error: any) {
       // コンテナが既に停止している、または存在しない場合はエラーを無視
       if (error.statusCode === 304 || error.statusCode === 404 || (error.message && error.message.includes('No such container'))) {
         logger.debug(`Container ${containerName} already stopped or not found`);
-        return;
+        return true;
       }
 
       logger.error(`Failed to stop container ${containerName}:`, error);
@@ -470,8 +516,10 @@ export class DockerAdapter extends BasePTYAdapter {
         const container = DockerClient.getInstance().getContainer(containerName);
         await container.kill();
         logger.warn(`Container ${containerName} force-killed`);
+        return true;
       } catch (killError) {
         logger.error(`Failed to force-kill container ${containerName}:`, killError);
+        return false;
       }
     }
   }
@@ -685,6 +733,8 @@ export class DockerAdapter extends BasePTYAdapter {
 
     let container: Docker.Container | undefined;
     let ptyProcess: DockerPTYStream | undefined;
+    let activeCountIncremented = false;
+    let filterApplied = false;
     try {
       container = await DockerClient.getInstance().createContainer(createOptions);
 
@@ -711,6 +761,29 @@ export class DockerAdapter extends BasePTYAdapter {
 
       // Start container after stream listeners are registered
       await container.start();
+
+      // ネットワークフィルタリング適用（コンテナ起動後、ready待ち前）
+      // フィルタリング無効の場合はnetworkFilterService内部でスキップされる
+      try {
+        // コンテナのネットワーク設定からsubnetを動的に取得（失敗時はフォールバック）
+        const containerSubnet = await this.getContainerSubnet(container);
+        await networkFilterService.applyFilter(this.config.environmentId, containerSubnet);
+        filterApplied = true;
+      } catch (filterError) {
+        logger.error('Network filter application failed, stopping container', {
+          sessionId,
+          error: filterError,
+        });
+        try { await container.stop({ t: 5 }); } catch { /* ignore */ }
+        try { await container.remove({ force: true }); } catch { /* ignore */ }
+        throw filterError;
+      }
+
+      // アクティブセッション参照カウントをインクリメント
+      const envId = this.config.environmentId;
+      this.activeSessionCount.set(envId, (this.activeSessionCount.get(envId) ?? 0) + 1);
+      // フラグ: カウントをインクリメントしたため、失敗時にロールバックが必要
+      activeCountIncremented = true;
 
       const containerWorkDir = options?.dockerVolumeId ? workingDir : '/workspace';
       this.sessions.set(sessionId, {
@@ -777,10 +850,18 @@ export class DockerAdapter extends BasePTYAdapter {
       ptyProcess.onExit(async ({ exitCode, signal }) => {
         logger.info('DockerAdapter: Session exited', { sessionId, exitCode, signal });
 
+        const currentSession = this.sessions.get(sessionId);
+
+        // destroySession側で既にクリーンアップ済み（sessionsから削除済み）の場合はスキップ
+        if (!currentSession) {
+          logger.debug('DockerAdapter: onExit skipped, session already cleaned up by destroySession', { sessionId });
+          this.emit('exit', sessionId, { exitCode, signal } as PTYExitInfo);
+          return;
+        }
+
         // restartSession()で新セッションが作成された後に旧PTYのonExitが遅延発火した場合、
         // 新セッションを消さないようにptyProcess同一性チェックを行う
-        const currentSession = this.sessions.get(sessionId);
-        if (currentSession && currentSession.ptyProcess !== ptyProcess) {
+        if (currentSession.ptyProcess !== ptyProcess) {
           logger.info('DockerAdapter: Stale onExit ignored (new session exists)', { sessionId });
           // コンテナは停止する（旧コンテナがゾンビにならないように）
           if (containerName && !shellMode) {
@@ -809,15 +890,35 @@ export class DockerAdapter extends BasePTYAdapter {
         this.sessions.delete(sessionId);
 
         // PTY終了時にコンテナがまだ実行中なら停止
+        let containerStopped = true;
         if (containerName && !shellMode) {
-          this.stopContainer(containerName).catch((error) => {
-            logger.error(`Error stopping container in onExit:`, error);
-          });
+          containerStopped = await this.stopContainer(containerName);
 
           // SSH鍵一時ファイルのクリーンアップ
-          this.cleanupSSHKeys().catch((error) => {
+          try {
+            await this.cleanupSSHKeys();
+          } catch (error) {
             logger.error(`Error cleaning up SSH keys in onExit:`, error);
-          });
+          }
+        }
+
+        // アクティブセッション参照カウントをデクリメントし、
+        // 最後のセッションならネットワークフィルタを解除する
+        // （コンテナ停止完了後に実行して無保護ウィンドウを防ぐ）
+        if (!shellMode) {
+          const envId = this.config.environmentId;
+          const currentCount = this.activeSessionCount.get(envId) ?? 0;
+          const newCount = Math.max(0, currentCount - 1);
+          this.activeSessionCount.set(envId, newCount);
+          if (newCount === 0 && containerStopped) {
+            try {
+              await networkFilterService.removeFilter(envId);
+            } catch (filterError) {
+              logger.warn('Network filter cleanup failed in onExit', { sessionId, error: filterError });
+            }
+          } else if (newCount === 0 && !containerStopped) {
+            logger.warn('Skip removeFilter in onExit because container stop failed', { sessionId, envId });
+          }
         }
       });
 
@@ -838,6 +939,22 @@ export class DockerAdapter extends BasePTYAdapter {
       try { ptyProcess?.kill(); } catch { /* ignore */ }
       try { await container?.remove({ force: true }); } catch { /* ignore */ }
       this.cleanupSSHKeys().catch(() => { /* ignore */ });
+
+      // activeSessionCountをインクリメント後に失敗した場合はロールバックする
+      if (activeCountIncremented) {
+        const envId = this.config.environmentId;
+        const currentCount = this.activeSessionCount.get(envId) ?? 0;
+        const newCount = Math.max(0, currentCount - 1);
+        this.activeSessionCount.set(envId, newCount);
+        // applyFilter成功後に失敗した場合、最後のセッションならフィルタも解除する
+        if (filterApplied && newCount === 0) {
+          try {
+            await networkFilterService.removeFilter(envId);
+          } catch (filterError) {
+            logger.warn('Network filter cleanup failed in createSession rollback', { sessionId, error: filterError });
+          }
+        }
+      }
 
       logger.error('DockerAdapter: Failed to create session', {
         sessionId,
@@ -875,17 +992,37 @@ export class DockerAdapter extends BasePTYAdapter {
     if (session) {
       const { containerId, shellMode } = session;
       logger.info('DockerAdapter: Destroying session', { sessionId, containerId: session.containerId });
+
+      // アクティブセッション参照カウントをデクリメントし、
+      // 最後のセッションになったときのみnetworkFilterのルールを削除する
+      // shellModeセッションはカウント対象外（createSessionでもインクリメントしていない）
+      const envId = this.config.environmentId;
+      const shouldDecrement = !shellMode;
+      const currentCount = this.activeSessionCount.get(envId) ?? 0;
+      const newCount = shouldDecrement ? Math.max(0, currentCount - 1) : currentCount;
+      if (shouldDecrement) {
+        this.activeSessionCount.set(envId, newCount);
+      }
+
+      const shouldRemoveFilter = shouldDecrement && newCount === 0;
+      if (!shouldRemoveFilter) {
+        logger.debug('DockerAdapter: Skipping removeFilter, other sessions still active', {
+          sessionId,
+          envId,
+          remainingSessionCount: newCount,
+        });
+      }
+
       scrollbackBuffer.clear(sessionId);
-      session.ptyProcess.kill();
+      // onExitハンドラとの二重クリーンアップを防ぐため、kill前にsessionsから削除する
+      // onExit側はsessionsにエントリがなければクリーンアップをスキップする
       this.sessions.delete(sessionId);
+      session.ptyProcess.kill();
 
       // Dockerコンテナを明示的に停止（shellModeではコンテナを止めない）
+      let containerStopped = true;
       if (!shellMode) {
-        try {
-          await this.stopContainer(containerId);
-        } catch (error) {
-          logger.error(`Error stopping container in destroySession:`, error);
-        }
+        containerStopped = await this.stopContainer(containerId);
 
         // SSH鍵一時ファイルのクリーンアップ
         try {
@@ -893,6 +1030,17 @@ export class DockerAdapter extends BasePTYAdapter {
         } catch (error) {
           logger.error(`Error cleaning up SSH keys in destroySession:`, error);
         }
+      }
+
+      // コンテナ停止完了後にフィルタを解除（停止前に解除すると無保護ウィンドウが生じる）
+      if (shouldRemoveFilter && containerStopped) {
+        try {
+          await networkFilterService.removeFilter(envId);
+        } catch (filterError) {
+          logger.warn('Network filter cleanup failed', { sessionId, error: filterError });
+        }
+      } else if (shouldRemoveFilter && !containerStopped) {
+        logger.warn('Skip removeFilter because container stop failed', { sessionId, envId });
       }
 
       // container_idをクリア（同期実行）
