@@ -494,8 +494,15 @@ describe('cli-utils', () => {
       const nfcIndexList = db.prepare(
         "PRAGMA index_list('NetworkFilterConfig')"
       ).all() as { name: string; unique: number; origin: string }[];
-      const uniqueIdx = nfcIndexList.find((idx) => idx.unique === 1);
+      const uniqueIdx = nfcIndexList.find((idx) => idx.unique === 1 && idx.origin !== 'pk');
       expect(uniqueIdx).toBeDefined();
+      // PRAGMA index_infoでUNIQUE制約がenvironment_idカラムに設定されていることを確認
+      const indexInfo = db.prepare(
+        `PRAGMA index_info('${uniqueIdx!.name}')`
+      ).all() as { seqno: number; cid: number; name: string }[];
+      expect(indexInfo).toEqual(
+        expect.arrayContaining([expect.objectContaining({ name: 'environment_id' })])
+      );
 
       db.close();
     });
