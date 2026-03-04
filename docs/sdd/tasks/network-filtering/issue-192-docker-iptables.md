@@ -1,6 +1,8 @@
 # タスク: Issue #192 - Dockerイメージへのiptablesパッケージ追加
 
-## ステータス: DONE
+## ステータス
+
+DONE
 
 ## タスク詳細
 
