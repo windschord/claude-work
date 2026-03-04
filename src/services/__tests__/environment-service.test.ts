@@ -430,20 +430,19 @@ describe('EnvironmentService', () => {
 
       // アクティブ状態フィルタが適用されていることを検証
       const { inArray } = await import('drizzle-orm');
-      expect(inArray).toHaveBeenCalledWith('status', ['running', 'initializing']);
+      expect(inArray).toHaveBeenCalledWith('status', ['running', 'initializing', 'waiting_input']);
 
       expect(mockDbDeleteRun).not.toHaveBeenCalled();
     });
 
     it('存在しない環境の削除はエラーになる', async () => {
       mockDbSelectGet.mockReturnValueOnce(undefined);
-      // projects取得用のモック（空）
-      mockDbSelectAll.mockReturnValueOnce([]);
 
       await expect(service.delete('non-existent')).rejects.toThrow(
         '環境が見つかりません'
       );
 
+      expect(mockDbSelectAll).not.toHaveBeenCalled();
       expect(mockDbDeleteRun).not.toHaveBeenCalled();
     });
   });

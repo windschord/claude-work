@@ -88,10 +88,13 @@ async delete(id: string): Promise<void> {
       .from(schema.sessions)
       .where(and(
         eq(schema.sessions.environment_id, id),
-        inArray(schema.sessions.status, ['running', 'initializing'])
+        // アクティブなセッションステータス: running（実行中）, initializing（初期化中）, waiting_input（入力待ち）
+        // completed, error, stopped は終了済みとして扱い、削除をブロックしない
+        inArray(schema.sessions.status, ['running', 'initializing', 'waiting_input'])
       ))
       .all();
     if (sessionsWithEnv.length > 0) {
+      // トランザクション内でのthrowはSQLiteにより自動的にロールバックされる
       throw new EnvironmentInUseError(
         `この環境は ${sessionsWithEnv.length} 件のアクティブなセッションで使用中のため削除できません`
       );
@@ -135,4 +138,7 @@ if (!effectiveEnvironmentId) {
 
 - プロジェクト作成フォーム: 環境未選択状態を初期状態とし、選択必須バリデーションを追加
 - 環境カード: 「デフォルト」バッジとis_defaultによる削除制限を削除
-- StepEnvironment: 環境が1件のみの場合に自動で選択する仕様を採用し、環境が0件の場合は作成を促すメッセージを表示する
+- StepEnvironment:
+  - 環境が1件のみの場合: 自動的にその環境を選択する
+  - 環境が2件以上の場合: ユーザーがドロップダウンから明示的に選択する
+  - 環境が0件の場合: 「利用可能な環境がありません」メッセージと環境設定ページへのリンクを表示する

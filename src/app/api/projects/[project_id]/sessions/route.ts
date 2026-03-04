@@ -146,7 +146,14 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
 
-    let { name, prompt = '', source_branch, claude_code_options, custom_env_vars, environment_id: requestEnvironmentId = null } = body;
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return NextResponse.json(
+        { error: 'Request body must be a JSON object' },
+        { status: 400 }
+      );
+    }
+
+    let { name, prompt = '', source_branch, claude_code_options, custom_env_vars, environment_id: requestEnvironmentId = null } = body as Record<string, unknown>;
 
     // requestEnvironmentId のバリデーション（非文字列・空文字は400で弾く）
     if (requestEnvironmentId !== null && requestEnvironmentId !== undefined) {

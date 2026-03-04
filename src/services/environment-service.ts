@@ -190,7 +190,7 @@ export class EnvironmentService {
         .from(schema.sessions)
         .where(and(
           eq(schema.sessions.environment_id, id),
-          inArray(schema.sessions.status, ['running', 'initializing'])
+          inArray(schema.sessions.status, ['running', 'initializing', 'waiting_input'])
         ))
         .all();
 
