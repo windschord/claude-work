@@ -199,7 +199,8 @@ export function NetworkRuleForm({ isOpen, onClose, onSubmit, initialData }: Netw
                       <div className="mt-2 flex items-start gap-1.5 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-md">
                         <Info className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" />
                         <p className="text-xs text-blue-700 dark:text-blue-300">
-                          {baseDomain} の全てのサブドメインにマッチします
+                          {baseDomain} の全てのサブドメインにマッチします。
+                          主要サブドメインのDNS解決で対応しますが、全サブドメインを網羅するにはCIDR形式（例: 140.82.112.0/20）の使用を推奨します。
                         </p>
                       </div>
                     )}
