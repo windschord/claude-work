@@ -46,6 +46,14 @@ export interface UpdateEnvironmentInput {
 }
 
 /**
+ * 環境削除時のVolume保持オプション
+ */
+export interface EnvironmentVolumeOptions {
+  keepClaudeVolume?: boolean;
+  keepConfigVolume?: boolean;
+}
+
+/**
  * useEnvironments フックの戻り値
  */
 export interface UseEnvironmentsReturn {
@@ -55,7 +63,7 @@ export interface UseEnvironmentsReturn {
   fetchEnvironments: () => Promise<void>;
   createEnvironment: (input: CreateEnvironmentInput) => Promise<Environment>;
   updateEnvironment: (id: string, input: UpdateEnvironmentInput) => Promise<Environment>;
-  deleteEnvironment: (id: string) => Promise<void>;
+  deleteEnvironment: (id: string, volumeOptions?: EnvironmentVolumeOptions) => Promise<void>;
   refreshEnvironment: (id: string) => Promise<Environment | null>;
   hostEnvironmentDisabled: boolean;
 }
@@ -154,8 +162,14 @@ export function useEnvironments(): UseEnvironmentsReturn {
   /**
    * 環境を削除する
    */
-  const deleteEnvironment = useCallback(async (id: string): Promise<void> => {
-    const response = await fetch(`/api/environments/${id}`, {
+  const deleteEnvironment = useCallback(async (id: string, volumeOptions?: EnvironmentVolumeOptions): Promise<void> => {
+    const params = new URLSearchParams();
+    if (volumeOptions?.keepClaudeVolume) params.set('keepClaudeVolume', 'true');
+    if (volumeOptions?.keepConfigVolume) params.set('keepConfigVolume', 'true');
+    const query = params.toString();
+    const url = query ? `/api/environments/${id}?${query}` : `/api/environments/${id}`;
+
+    const response = await fetch(url, {
       method: 'DELETE',
     });
 
