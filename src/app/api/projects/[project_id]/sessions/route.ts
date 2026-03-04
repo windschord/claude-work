@@ -98,7 +98,7 @@ export async function GET(
  * @param request - リクエストボディに以下を含むJSON:
  *   - `prompt`（オプション）: 初期プロンプト
  *   - `name`（オプション、未指定時は自動生成）: セッション名
- *   - `environment_id`（オプション）: 実行環境ID（プロジェクトの設定を使用するため現在は無視される）
+ *   - `environment_id`（オプション）: 予約済みパラメータ（現在はプロジェクトのenvironment_idが常に使用される）
  * @param params.project_id - プロジェクトID
  *
  * @returns

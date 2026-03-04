@@ -12,6 +12,137 @@ import { join } from 'path';
 
 import { checkNextBuild, checkDatabase, initializeDatabase, migrateDatabase } from '../cli-utils';
 
+/**
+ * レガシーDBバージョン（v4/v5/v6）のテスト用DBを作成するヘルパー関数
+ *
+ * v4/v5/v6で共通するテーブル定義をまとめ、バージョン固有の差分のみ引数で制御する。
+ *
+ * バージョン別の差分:
+ * - v4: Session.environment_idが欠落する場合あり（v4バグDB）または存在する場合あり（v4正常DB）
+ *       → sessionHasEnvironmentId で制御
+ * - v5: DeveloperSettings/SshKeyテーブルが存在しない
+ *       → hasDeveloperSettings=false で制御
+ * - v6: DeveloperSettings/SshKeyテーブルが存在する
+ *       → hasDeveloperSettings=true で制御
+ */
+function createLegacyDb(
+  dbPath: string,
+  version: 4 | 5 | 6,
+  options: { sessionHasEnvironmentId?: boolean; hasDeveloperSettings?: boolean } = {}
+): InstanceType<typeof import('better-sqlite3').default> {
+  const Database = require('better-sqlite3');
+  const db = new Database(dbPath);
+  db.pragma('journal_mode = WAL');
+
+  db.exec(`
+    CREATE TABLE "Project" (
+      "id" text PRIMARY KEY NOT NULL,
+      "name" text NOT NULL,
+      "path" text NOT NULL,
+      "remote_url" text,
+      "claude_code_options" text NOT NULL DEFAULT '{}',
+      "custom_env_vars" text NOT NULL DEFAULT '{}',
+      "clone_location" text DEFAULT 'docker',
+      "docker_volume_id" text,
+      "environment_id" text,
+      "created_at" integer NOT NULL,
+      "updated_at" integer NOT NULL
+    );
+  `);
+  db.exec(`
+    CREATE TABLE "ExecutionEnvironment" (
+      "id" text PRIMARY KEY NOT NULL,
+      "name" text NOT NULL,
+      "type" text NOT NULL,
+      "description" text,
+      "config" text NOT NULL,
+      "auth_dir_path" text,
+      "created_at" integer NOT NULL,
+      "updated_at" integer NOT NULL
+    );
+  `);
+
+  const sessionEnvironmentIdCol = options.sessionHasEnvironmentId !== false
+    ? `"environment_id" text REFERENCES "ExecutionEnvironment"("id") ON DELETE SET NULL,`
+    : '';
+
+  db.exec(`
+    CREATE TABLE "Session" (
+      "id" text PRIMARY KEY NOT NULL,
+      "project_id" text NOT NULL REFERENCES "Project"("id") ON DELETE CASCADE,
+      "name" text NOT NULL,
+      "status" text NOT NULL,
+      "worktree_path" text NOT NULL,
+      "branch_name" text NOT NULL,
+      "resume_session_id" text,
+      "last_activity_at" integer,
+      "pr_url" text,
+      "pr_number" integer,
+      "pr_status" text,
+      "pr_updated_at" integer,
+      "docker_mode" integer NOT NULL DEFAULT 0,
+      "container_id" text,
+      "claude_code_options" text,
+      "custom_env_vars" text,
+      ${sessionEnvironmentIdCol}
+      "active_connections" integer NOT NULL DEFAULT 0,
+      "destroy_at" integer,
+      "session_state" text NOT NULL DEFAULT 'ACTIVE',
+      "created_at" integer NOT NULL,
+      "updated_at" integer NOT NULL
+    );
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS "sessions_session_state_idx" ON "Session" ("session_state");`);
+  db.exec(`CREATE INDEX IF NOT EXISTS "sessions_destroy_at_idx" ON "Session" ("destroy_at");`);
+  db.exec(`CREATE INDEX IF NOT EXISTS "sessions_last_activity_at_idx" ON "Session" ("last_activity_at");`);
+  db.exec(`
+    CREATE TABLE "GitHubPAT" (
+      "id" text PRIMARY KEY NOT NULL,
+      "name" text NOT NULL,
+      "description" text,
+      "encrypted_token" text NOT NULL,
+      "is_active" integer NOT NULL DEFAULT 1,
+      "created_at" integer NOT NULL,
+      "updated_at" integer NOT NULL
+    );
+  `);
+
+  // v6のみDeveloperSettings/SshKeyを持つ（v5は持たない）
+  const hasDeveloperSettings = options.hasDeveloperSettings ?? (version >= 6);
+  if (hasDeveloperSettings) {
+    db.exec(`
+      CREATE TABLE "DeveloperSettings" (
+        "id" text PRIMARY KEY NOT NULL,
+        "scope" text NOT NULL,
+        "project_id" text REFERENCES "Project"("id") ON DELETE CASCADE,
+        "git_username" text,
+        "git_email" text,
+        "created_at" integer NOT NULL,
+        "updated_at" integer NOT NULL
+      );
+    `);
+    db.exec(`CREATE INDEX IF NOT EXISTS "developer_settings_scope_project_id_idx" ON "DeveloperSettings" ("scope", "project_id");`);
+    db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS "developer_settings_global_unique" ON "DeveloperSettings" ("scope") WHERE scope = 'GLOBAL';`);
+    db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS "developer_settings_project_unique" ON "DeveloperSettings" ("project_id") WHERE scope = 'PROJECT' AND project_id IS NOT NULL;`);
+    db.exec(`
+      CREATE TABLE "SshKey" (
+        "id" text PRIMARY KEY NOT NULL,
+        "name" text NOT NULL,
+        "public_key" text NOT NULL,
+        "private_key_encrypted" text NOT NULL,
+        "encryption_iv" text NOT NULL,
+        "has_passphrase" integer NOT NULL DEFAULT 0,
+        "created_at" integer NOT NULL,
+        "updated_at" integer NOT NULL
+      );
+    `);
+    db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS "ssh_key_name_unique" ON "SshKey" ("name");`);
+  }
+
+  db.exec(`PRAGMA user_version = ${version}`);
+  return db;
+}
+
 describe('cli-utils', () => {
   let testDir: string;
 
@@ -490,19 +621,17 @@ describe('cli-utils', () => {
       expect(nfrEnabledCol?.notnull).toBe(1);
       expect(nfrEnabledCol?.dflt_value).toBe('1');
 
-      // NetworkFilterConfigのUNIQUE制約（environment_id）- PRAGMA index_listで確認
+      // NetworkFilterConfigのUNIQUE制約（environment_id）- PRAGMA index_listとindex_infoで対象カラムまで確認
       const nfcIndexList = db.prepare(
         "PRAGMA index_list('NetworkFilterConfig')"
       ).all() as { name: string; unique: number; origin: string }[];
-      const uniqueIdx = nfcIndexList.find((idx) => idx.unique === 1 && idx.origin !== 'pk');
-      expect(uniqueIdx).toBeDefined();
-      // PRAGMA index_infoでUNIQUE制約がenvironment_idカラムに設定されていることを確認
-      const indexInfo = db.prepare(
-        `PRAGMA index_info('${uniqueIdx!.name}')`
-      ).all() as { seqno: number; cid: number; name: string }[];
-      expect(indexInfo).toEqual(
-        expect.arrayContaining([expect.objectContaining({ name: 'environment_id' })])
-      );
+      const envIdUniqueIdx = nfcIndexList
+        .filter((idx) => idx.unique === 1)
+        .find((idx) => {
+          const cols = db.prepare(`PRAGMA index_info("${idx.name}")`).all() as { name: string }[];
+          return cols.length === 1 && cols[0]?.name === 'environment_id';
+        });
+      expect(envIdUniqueIdx).toBeDefined();
 
       db.close();
     });
@@ -890,78 +1019,7 @@ describe('cli-utils', () => {
       const dbPath = join(testDir, 'v4-bug-db.db');
 
       // v4バグDB: Session.environment_idが欠落した状態
-      const Database = require('better-sqlite3');
-      const db = new Database(dbPath);
-      db.pragma('journal_mode = WAL');
-
-      db.exec(`
-        CREATE TABLE "Project" (
-          "id" text PRIMARY KEY NOT NULL,
-          "name" text NOT NULL,
-          "path" text NOT NULL,
-          "remote_url" text,
-          "claude_code_options" text NOT NULL DEFAULT '{}',
-          "custom_env_vars" text NOT NULL DEFAULT '{}',
-          "clone_location" text DEFAULT 'docker',
-          "docker_volume_id" text,
-          "environment_id" text,
-          "created_at" integer NOT NULL,
-          "updated_at" integer NOT NULL
-        );
-      `);
-      db.exec(`
-        CREATE TABLE "ExecutionEnvironment" (
-          "id" text PRIMARY KEY NOT NULL,
-          "name" text NOT NULL,
-          "type" text NOT NULL,
-          "description" text,
-          "config" text NOT NULL,
-          "auth_dir_path" text,
-          "created_at" integer NOT NULL,
-          "updated_at" integer NOT NULL
-        );
-      `);
-      // Session テーブル: environment_idが欠落（v4バグ）
-      db.exec(`
-        CREATE TABLE "Session" (
-          "id" text PRIMARY KEY NOT NULL,
-          "project_id" text NOT NULL REFERENCES "Project"("id") ON DELETE CASCADE,
-          "name" text NOT NULL,
-          "status" text NOT NULL,
-          "worktree_path" text NOT NULL,
-          "branch_name" text NOT NULL,
-          "resume_session_id" text,
-          "last_activity_at" integer,
-          "pr_url" text,
-          "pr_number" integer,
-          "pr_status" text,
-          "pr_updated_at" integer,
-          "docker_mode" integer NOT NULL DEFAULT 0,
-          "container_id" text,
-          "claude_code_options" text,
-          "custom_env_vars" text,
-          "active_connections" integer NOT NULL DEFAULT 0,
-          "destroy_at" integer,
-          "session_state" text NOT NULL DEFAULT 'ACTIVE',
-          "created_at" integer NOT NULL,
-          "updated_at" integer NOT NULL
-        );
-      `);
-      db.exec(`CREATE INDEX IF NOT EXISTS "sessions_session_state_idx" ON "Session" ("session_state");`);
-      db.exec(`CREATE INDEX IF NOT EXISTS "sessions_destroy_at_idx" ON "Session" ("destroy_at");`);
-      db.exec(`CREATE INDEX IF NOT EXISTS "sessions_last_activity_at_idx" ON "Session" ("last_activity_at");`);
-      db.exec(`
-        CREATE TABLE "GitHubPAT" (
-          "id" text PRIMARY KEY NOT NULL,
-          "name" text NOT NULL,
-          "description" text,
-          "encrypted_token" text NOT NULL,
-          "is_active" integer NOT NULL DEFAULT 1,
-          "created_at" integer NOT NULL,
-          "updated_at" integer NOT NULL
-        );
-      `);
-      db.exec('PRAGMA user_version = 4');
+      const db = createLegacyDb(dbPath, 4, { sessionHasEnvironmentId: false, hasDeveloperSettings: false });
       db.close();
 
       // マイグレーション実行
@@ -969,6 +1027,7 @@ describe('cli-utils', () => {
       expect(result).toBe(true);
 
       // 確認
+      const Database = require('better-sqlite3');
       const db2 = new Database(dbPath, { readonly: true });
 
       // user_versionが7になっていることを確認
@@ -987,79 +1046,7 @@ describe('cli-utils', () => {
       const dbPath = join(testDir, 'v4-normal-db.db');
 
       // v4正常DB: Session.environment_idが既に存在する
-      const Database = require('better-sqlite3');
-      const db = new Database(dbPath);
-      db.pragma('journal_mode = WAL');
-
-      db.exec(`
-        CREATE TABLE "Project" (
-          "id" text PRIMARY KEY NOT NULL,
-          "name" text NOT NULL,
-          "path" text NOT NULL,
-          "remote_url" text,
-          "claude_code_options" text NOT NULL DEFAULT '{}',
-          "custom_env_vars" text NOT NULL DEFAULT '{}',
-          "clone_location" text DEFAULT 'docker',
-          "docker_volume_id" text,
-          "environment_id" text,
-          "created_at" integer NOT NULL,
-          "updated_at" integer NOT NULL
-        );
-      `);
-      db.exec(`
-        CREATE TABLE "ExecutionEnvironment" (
-          "id" text PRIMARY KEY NOT NULL,
-          "name" text NOT NULL,
-          "type" text NOT NULL,
-          "description" text,
-          "config" text NOT NULL,
-          "auth_dir_path" text,
-          "created_at" integer NOT NULL,
-          "updated_at" integer NOT NULL
-        );
-      `);
-      // Session テーブル: environment_idが存在（正常なv4 DB）
-      db.exec(`
-        CREATE TABLE "Session" (
-          "id" text PRIMARY KEY NOT NULL,
-          "project_id" text NOT NULL REFERENCES "Project"("id") ON DELETE CASCADE,
-          "name" text NOT NULL,
-          "status" text NOT NULL,
-          "worktree_path" text NOT NULL,
-          "branch_name" text NOT NULL,
-          "resume_session_id" text,
-          "last_activity_at" integer,
-          "pr_url" text,
-          "pr_number" integer,
-          "pr_status" text,
-          "pr_updated_at" integer,
-          "docker_mode" integer NOT NULL DEFAULT 0,
-          "container_id" text,
-          "claude_code_options" text,
-          "custom_env_vars" text,
-          "environment_id" text REFERENCES "ExecutionEnvironment"("id") ON DELETE SET NULL,
-          "active_connections" integer NOT NULL DEFAULT 0,
-          "destroy_at" integer,
-          "session_state" text NOT NULL DEFAULT 'ACTIVE',
-          "created_at" integer NOT NULL,
-          "updated_at" integer NOT NULL
-        );
-      `);
-      db.exec(`CREATE INDEX IF NOT EXISTS "sessions_session_state_idx" ON "Session" ("session_state");`);
-      db.exec(`CREATE INDEX IF NOT EXISTS "sessions_destroy_at_idx" ON "Session" ("destroy_at");`);
-      db.exec(`CREATE INDEX IF NOT EXISTS "sessions_last_activity_at_idx" ON "Session" ("last_activity_at");`);
-      db.exec(`
-        CREATE TABLE "GitHubPAT" (
-          "id" text PRIMARY KEY NOT NULL,
-          "name" text NOT NULL,
-          "description" text,
-          "encrypted_token" text NOT NULL,
-          "is_active" integer NOT NULL DEFAULT 1,
-          "created_at" integer NOT NULL,
-          "updated_at" integer NOT NULL
-        );
-      `);
-      db.exec('PRAGMA user_version = 4');
+      const db = createLegacyDb(dbPath, 4, { sessionHasEnvironmentId: true, hasDeveloperSettings: false });
       db.close();
 
       // マイグレーション実行（エラーなく成功するはず）
@@ -1067,6 +1054,7 @@ describe('cli-utils', () => {
       expect(result).toBe(true);
 
       // 確認
+      const Database = require('better-sqlite3');
       const db2 = new Database(dbPath, { readonly: true });
 
       // user_versionが7になっていることを確認
@@ -1085,79 +1073,7 @@ describe('cli-utils', () => {
       const dbPath = join(testDir, 'v5-db.db');
 
       // v5のDBを作成（DeveloperSettings/SshKeyなし）
-      const Database = require('better-sqlite3');
-      const db = new Database(dbPath);
-      db.pragma('journal_mode = WAL');
-
-      // 既存のv5テーブルを作成（Project, ExecutionEnvironment, Session, GitHubPAT等の最低限）
-      db.exec(`
-        CREATE TABLE "Project" (
-          "id" text PRIMARY KEY NOT NULL,
-          "name" text NOT NULL,
-          "path" text NOT NULL,
-          "remote_url" text,
-          "claude_code_options" text NOT NULL DEFAULT '{}',
-          "custom_env_vars" text NOT NULL DEFAULT '{}',
-          "clone_location" text DEFAULT 'docker',
-          "docker_volume_id" text,
-          "environment_id" text,
-          "created_at" integer NOT NULL,
-          "updated_at" integer NOT NULL
-        );
-      `);
-      db.exec(`
-        CREATE TABLE "ExecutionEnvironment" (
-          "id" text PRIMARY KEY NOT NULL,
-          "name" text NOT NULL,
-          "type" text NOT NULL,
-          "description" text,
-          "config" text NOT NULL,
-          "auth_dir_path" text,
-          "created_at" integer NOT NULL,
-          "updated_at" integer NOT NULL
-        );
-      `);
-      db.exec(`
-        CREATE TABLE "Session" (
-          "id" text PRIMARY KEY NOT NULL,
-          "project_id" text NOT NULL REFERENCES "Project"("id") ON DELETE CASCADE,
-          "name" text NOT NULL,
-          "status" text NOT NULL,
-          "worktree_path" text NOT NULL,
-          "branch_name" text NOT NULL,
-          "resume_session_id" text,
-          "last_activity_at" integer,
-          "pr_url" text,
-          "pr_number" integer,
-          "pr_status" text,
-          "pr_updated_at" integer,
-          "docker_mode" integer NOT NULL DEFAULT 0,
-          "container_id" text,
-          "claude_code_options" text,
-          "custom_env_vars" text,
-          "environment_id" text REFERENCES "ExecutionEnvironment"("id") ON DELETE SET NULL,
-          "active_connections" integer NOT NULL DEFAULT 0,
-          "destroy_at" integer,
-          "session_state" text NOT NULL DEFAULT 'ACTIVE',
-          "created_at" integer NOT NULL,
-          "updated_at" integer NOT NULL
-        );
-      `);
-      db.exec(`CREATE INDEX IF NOT EXISTS "sessions_session_state_idx" ON "Session" ("session_state");`);
-      db.exec(`CREATE INDEX IF NOT EXISTS "sessions_destroy_at_idx" ON "Session" ("destroy_at");`);
-      db.exec(`CREATE INDEX IF NOT EXISTS "sessions_last_activity_at_idx" ON "Session" ("last_activity_at");`);
-      db.exec(`
-        CREATE TABLE "GitHubPAT" (
-          "id" text PRIMARY KEY NOT NULL,
-          "name" text NOT NULL,
-          "description" text,
-          "encrypted_token" text NOT NULL,
-          "is_active" integer NOT NULL DEFAULT 1,
-          "created_at" integer NOT NULL,
-          "updated_at" integer NOT NULL
-        );
-      `);
-      db.exec('PRAGMA user_version = 5');
+      const db = createLegacyDb(dbPath, 5, { hasDeveloperSettings: false });
       db.close();
 
       // マイグレーション実行
@@ -1165,6 +1081,7 @@ describe('cli-utils', () => {
       expect(result).toBe(true);
 
       // 確認
+      const Database = require('better-sqlite3');
       const db2 = new Database(dbPath, { readonly: true });
 
       // user_versionが7になっていることを確認
@@ -1212,105 +1129,7 @@ describe('cli-utils', () => {
       const dbPath = join(testDir, 'v6-db.db');
 
       // v6のDBを作成（DeveloperSettings/SshKeyあり、NetworkFilterなし）
-      const Database = require('better-sqlite3');
-      const db = new Database(dbPath);
-      db.pragma('journal_mode = WAL');
-
-      db.exec(`
-        CREATE TABLE "Project" (
-          "id" text PRIMARY KEY NOT NULL,
-          "name" text NOT NULL,
-          "path" text NOT NULL,
-          "remote_url" text,
-          "claude_code_options" text NOT NULL DEFAULT '{}',
-          "custom_env_vars" text NOT NULL DEFAULT '{}',
-          "clone_location" text DEFAULT 'docker',
-          "docker_volume_id" text,
-          "environment_id" text,
-          "created_at" integer NOT NULL,
-          "updated_at" integer NOT NULL
-        );
-      `);
-      db.exec(`
-        CREATE TABLE "ExecutionEnvironment" (
-          "id" text PRIMARY KEY NOT NULL,
-          "name" text NOT NULL,
-          "type" text NOT NULL,
-          "description" text,
-          "config" text NOT NULL,
-          "auth_dir_path" text,
-          "created_at" integer NOT NULL,
-          "updated_at" integer NOT NULL
-        );
-      `);
-      db.exec(`
-        CREATE TABLE "Session" (
-          "id" text PRIMARY KEY NOT NULL,
-          "project_id" text NOT NULL REFERENCES "Project"("id") ON DELETE CASCADE,
-          "name" text NOT NULL,
-          "status" text NOT NULL,
-          "worktree_path" text NOT NULL,
-          "branch_name" text NOT NULL,
-          "resume_session_id" text,
-          "last_activity_at" integer,
-          "pr_url" text,
-          "pr_number" integer,
-          "pr_status" text,
-          "pr_updated_at" integer,
-          "docker_mode" integer NOT NULL DEFAULT 0,
-          "container_id" text,
-          "claude_code_options" text,
-          "custom_env_vars" text,
-          "environment_id" text REFERENCES "ExecutionEnvironment"("id") ON DELETE SET NULL,
-          "active_connections" integer NOT NULL DEFAULT 0,
-          "destroy_at" integer,
-          "session_state" text NOT NULL DEFAULT 'ACTIVE',
-          "created_at" integer NOT NULL,
-          "updated_at" integer NOT NULL
-        );
-      `);
-      db.exec(`CREATE INDEX IF NOT EXISTS "sessions_session_state_idx" ON "Session" ("session_state");`);
-      db.exec(`CREATE INDEX IF NOT EXISTS "sessions_destroy_at_idx" ON "Session" ("destroy_at");`);
-      db.exec(`CREATE INDEX IF NOT EXISTS "sessions_last_activity_at_idx" ON "Session" ("last_activity_at");`);
-      db.exec(`
-        CREATE TABLE "GitHubPAT" (
-          "id" text PRIMARY KEY NOT NULL,
-          "name" text NOT NULL,
-          "description" text,
-          "encrypted_token" text NOT NULL,
-          "is_active" integer NOT NULL DEFAULT 1,
-          "created_at" integer NOT NULL,
-          "updated_at" integer NOT NULL
-        );
-      `);
-      db.exec(`
-        CREATE TABLE "DeveloperSettings" (
-          "id" text PRIMARY KEY NOT NULL,
-          "scope" text NOT NULL,
-          "project_id" text REFERENCES "Project"("id") ON DELETE CASCADE,
-          "git_username" text,
-          "git_email" text,
-          "created_at" integer NOT NULL,
-          "updated_at" integer NOT NULL
-        );
-      `);
-      db.exec(`CREATE INDEX IF NOT EXISTS "developer_settings_scope_project_id_idx" ON "DeveloperSettings" ("scope", "project_id");`);
-      db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS "developer_settings_global_unique" ON "DeveloperSettings" ("scope") WHERE scope = 'GLOBAL';`);
-      db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS "developer_settings_project_unique" ON "DeveloperSettings" ("project_id") WHERE scope = 'PROJECT' AND project_id IS NOT NULL;`);
-      db.exec(`
-        CREATE TABLE "SshKey" (
-          "id" text PRIMARY KEY NOT NULL,
-          "name" text NOT NULL,
-          "public_key" text NOT NULL,
-          "private_key_encrypted" text NOT NULL,
-          "encryption_iv" text NOT NULL,
-          "has_passphrase" integer NOT NULL DEFAULT 0,
-          "created_at" integer NOT NULL,
-          "updated_at" integer NOT NULL
-        );
-      `);
-      db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS "ssh_key_name_unique" ON "SshKey" ("name");`);
-      db.exec('PRAGMA user_version = 6');
+      const db = createLegacyDb(dbPath, 6);
       db.close();
 
       // マイグレーション実行
@@ -1318,6 +1137,7 @@ describe('cli-utils', () => {
       expect(result).toBe(true);
 
       // 確認
+      const Database = require('better-sqlite3');
       const db2 = new Database(dbPath, { readonly: true });
 
       // user_versionが7になっていることを確認
