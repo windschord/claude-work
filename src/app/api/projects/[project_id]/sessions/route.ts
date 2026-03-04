@@ -153,7 +153,8 @@ export async function POST(
       );
     }
 
-    let { name, prompt = '', source_branch, claude_code_options, custom_env_vars, environment_id: requestEnvironmentId = null } = body as Record<string, unknown>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let { name, prompt = '', source_branch, claude_code_options, custom_env_vars, environment_id: requestEnvironmentId = null } = body as Record<string, any>;
 
     // requestEnvironmentId のバリデーション（非文字列・空文字は400で弾く）
     if (requestEnvironmentId !== null && requestEnvironmentId !== undefined) {
