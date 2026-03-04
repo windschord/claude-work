@@ -65,7 +65,7 @@ is_default: integer('is_default', { mode: 'boolean' }).notNull().default(false),
 - `create()`内の`is_default: false`
 
 **変更するもの:**
-- `delete()`: セッション参照チェックを追加
+- `delete()`: トランザクション内でセッション参照チェックとDB削除をアトミックに実行
 
 ```typescript
 async delete(id: string): Promise<void> {
@@ -74,24 +74,36 @@ async delete(id: string): Promise<void> {
     throw new Error('環境が見つかりません');
   }
 
-  // 使用中のプロジェクトを確認（既存ロジック）
-  const projectsWithEnv = db.select(...)...;
-  if (projectsWithEnv.length > 0) {
-    throw new EnvironmentInUseError(`...`);
-  }
+  // トランザクション内で使用中チェックとDBレコード削除をアトミックに実行
+  // TOCTOU競合を防ぐため、チェックと削除を同一トランザクションでラップする
+  db.transaction((tx) => {
+    // 使用中のプロジェクトを確認（既存ロジック）
+    const projectsWithEnv = tx.select(...)...;
+    if (projectsWithEnv.length > 0) {
+      throw new EnvironmentInUseError(`...`);
+    }
 
-  // 使用中のセッションを確認（新規追加）
-  const sessionsWithEnv = db.select({ id: schema.sessions.id })
-    .from(schema.sessions)
-    .where(eq(schema.sessions.environment_id, id))
-    .all();
-  if (sessionsWithEnv.length > 0) {
-    throw new EnvironmentInUseError(
-      `この環境は ${sessionsWithEnv.length} 件のセッションで使用中のため削除できません`
-    );
-  }
+    // 使用中のアクティブセッションを確認（終了済みセッションは無視）
+    const sessionsWithEnv = tx.select({ id: schema.sessions.id })
+      .from(schema.sessions)
+      .where(and(
+        eq(schema.sessions.environment_id, id),
+        inArray(schema.sessions.status, ['running', 'initializing'])
+      ))
+      .all();
+    if (sessionsWithEnv.length > 0) {
+      throw new EnvironmentInUseError(
+        `この環境は ${sessionsWithEnv.length} 件のアクティブなセッションで使用中のため削除できません`
+      );
+    }
 
-  // 以降は既存の削除処理（セッションNULLクリアのトランザクションは不要になる）
+    // DBレコードを先に削除（外部リソース削除はベストエフォートで後続実施）
+    tx.delete(schema.executionEnvironments)
+      .where(eq(schema.executionEnvironments.id, id))
+      .run();
+  });
+
+  // 外部リソース（認証ディレクトリ、Docker Volume等）をベストエフォートで削除
 }
 ```
 
@@ -123,4 +135,4 @@ if (!effectiveEnvironmentId) {
 
 - プロジェクト作成フォーム: 環境未選択状態を初期状態とし、選択必須バリデーションを追加
 - 環境カード: 「デフォルト」バッジとis_defaultによる削除制限を削除
-- StepEnvironment: デフォルト自動選択を削除、環境0件時のメッセージ追加
+- StepEnvironment: 環境が1件のみの場合に自動で選択する仕様を採用し、環境が0件の場合は作成を促すメッセージを表示する

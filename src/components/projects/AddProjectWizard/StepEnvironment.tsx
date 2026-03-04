@@ -66,8 +66,11 @@ export function StepEnvironment({ environmentId, onChange, onHostEnvironmentDisa
 
   // Reset when selected environment becomes unavailable
   useEffect(() => {
-    if (environmentId && availableEnvironmentIds && !availableEnvironmentIds.split(',').includes(environmentId)) {
-      onChangeRef.current({ environmentId: null });
+    if (environmentId) {
+      const ids = availableEnvironmentIds ? availableEnvironmentIds.split(',') : [];
+      if (!ids.includes(environmentId)) {
+        onChangeRef.current({ environmentId: null });
+      }
     }
   }, [environmentId, availableEnvironmentIds]);
 

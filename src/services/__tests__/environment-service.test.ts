@@ -428,6 +428,10 @@ describe('EnvironmentService', () => {
         'この環境は 2 件のアクティブなセッションで使用中のため削除できません'
       );
 
+      // アクティブ状態フィルタが適用されていることを検証
+      const { inArray } = await import('drizzle-orm');
+      expect(inArray).toHaveBeenCalledWith('status', ['running', 'initializing']);
+
       expect(mockDbDeleteRun).not.toHaveBeenCalled();
     });
 
