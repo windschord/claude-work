@@ -4,7 +4,8 @@ import { useState, useMemo } from 'react';
 import { Environment, CreateEnvironmentInput, UpdateEnvironmentInput } from '@/hooks/useEnvironments';
 import { EnvironmentCard } from './EnvironmentCard';
 import { EnvironmentForm } from './EnvironmentForm';
-import { DeleteEnvironmentDialog, DeleteEnvironmentVolumeOptions } from './DeleteEnvironmentDialog';
+import { DeleteEnvironmentDialog } from './DeleteEnvironmentDialog';
+import { EnvironmentVolumeOptions } from '@/hooks/useEnvironments';
 import toast from 'react-hot-toast';
 
 interface EnvironmentListProps {
@@ -13,7 +14,7 @@ interface EnvironmentListProps {
   error: string | null;
   onCreateEnvironment: (input: CreateEnvironmentInput) => Promise<Environment>;
   onUpdateEnvironment: (id: string, input: UpdateEnvironmentInput) => Promise<Environment>;
-  onDeleteEnvironment: (id: string, volumeOptions?: DeleteEnvironmentVolumeOptions) => Promise<void>;
+  onDeleteEnvironment: (id: string, volumeOptions?: EnvironmentVolumeOptions) => Promise<void>;
   onRefresh: () => Promise<void>;
   hostEnvironmentDisabled?: boolean;
   highlightedEnvironmentId?: string | null;
@@ -94,7 +95,7 @@ export function EnvironmentList({
     }
   };
 
-  const handleDelete = async (volumeOptions?: DeleteEnvironmentVolumeOptions) => {
+  const handleDelete = async (volumeOptions?: EnvironmentVolumeOptions) => {
     if (!environmentToDelete) return;
     try {
       await onDeleteEnvironment(environmentToDelete.id, volumeOptions);

@@ -2,25 +2,20 @@
 
 import { useState, Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
-import { Environment } from '@/hooks/useEnvironments';
-
-export interface DeleteEnvironmentVolumeOptions {
-  keepClaudeVolume: boolean;
-  keepConfigVolume: boolean;
-}
+import { Environment, EnvironmentVolumeOptions } from '@/hooks/useEnvironments';
 
 interface DeleteEnvironmentDialogProps {
   isOpen: boolean;
   onClose: () => void;
   environment: Environment | null;
-  onConfirm: (volumeOptions?: DeleteEnvironmentVolumeOptions) => Promise<void>;
+  onConfirm: (volumeOptions?: EnvironmentVolumeOptions) => Promise<void>;
 }
 
 /**
  * 環境削除確認ダイアログコンポーネント
  *
  * 環境を削除する前に確認を求めるダイアログです。
- * Docker環境の場合、Volumeの保持/削除を個別に選択できます。
+ * 名前付きVolume利用のDocker環境の場合、Volumeの保持/削除を個別に選択できます。
  *
  * @param props - コンポーネントのプロパティ
  * @param props.isOpen - ダイアログの開閉状態

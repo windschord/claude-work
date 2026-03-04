@@ -72,7 +72,7 @@
 
 **プロジェクト削除（フロントエンド）:**
 - `src/components/projects/DeleteProjectDialog.tsx` - チェックボックスUI追加
-- `src/store/useAppStore.ts` - deleteProject にオプション引数追加
+- `src/store/index.ts` - deleteProject にオプション引数追加
 
 **プロジェクト削除（バックエンド）:**
 - `src/app/api/projects/[project_id]/route.ts` - Volume削除処理追加（DockerClient.removeVolumeを直接使用）

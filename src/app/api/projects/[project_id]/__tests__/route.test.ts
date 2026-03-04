@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { GET, PUT, DELETE, PATCH } from '../route';
 import { db, schema } from '@/lib/db';
 import { eq } from 'drizzle-orm';
@@ -8,6 +8,15 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { execSync } from 'child_process';
 import type { Project } from '@/lib/db';
+
+const mockRemoveVolume = vi.fn();
+vi.mock('@/services/docker-client', () => ({
+  DockerClient: {
+    getInstance: () => ({
+      removeVolume: mockRemoveVolume,
+    }),
+  },
+}));
 
 function createTempGitRepo(): string {
   const repoPath = mkdtempSync(join(tmpdir(), 'project-test-'));
@@ -940,5 +949,81 @@ describe('DELETE /api/projects/[project_id]', () => {
 
     const response = await DELETE(request, { params: Promise.resolve({ project_id: 'non-existent-id' }) });
     expect(response.status).toBe(404);
+  });
+
+  describe('Docker Volume削除', () => {
+    let dockerProject: Project;
+    let dockerRepoPath: string;
+
+    beforeEach(() => {
+      mockRemoveVolume.mockReset();
+      mockRemoveVolume.mockResolvedValue(undefined);
+
+      // Docker cloneプロジェクト用に別のgitリポジトリを作成
+      dockerRepoPath = mkdtempSync(join(tmpdir(), 'docker-project-test-'));
+      execSync('git init', { cwd: dockerRepoPath });
+      execSync('git config user.name "Test"', { cwd: dockerRepoPath });
+      execSync('git config user.email "test@example.com"', { cwd: dockerRepoPath });
+      execSync('echo "test" > README.md && git add . && git commit -m "initial"', {
+        cwd: dockerRepoPath,
+        shell: true,
+      });
+
+      dockerProject = db.insert(schema.projects).values({
+        name: 'Docker Project',
+        path: dockerRepoPath,
+        clone_location: 'docker',
+        docker_volume_id: 'cw-repo-test-vol',
+      }).returning().get();
+    });
+
+    afterEach(() => {
+      if (dockerRepoPath) {
+        rmSync(dockerRepoPath, { recursive: true, force: true });
+      }
+    });
+
+    it('Docker cloneプロジェクト削除時にVolume削除が呼ばれる', async () => {
+      const request = new NextRequest(`http://localhost:3000/api/projects/${dockerProject.id}`, {
+        method: 'DELETE',
+      });
+
+      const response = await DELETE(request, { params: Promise.resolve({ project_id: dockerProject.id }) });
+      expect(response.status).toBe(204);
+      expect(mockRemoveVolume).toHaveBeenCalledWith('cw-repo-test-vol');
+    });
+
+    it('keepGitVolume=trueの場合、Volume削除が呼ばれない', async () => {
+      const request = new NextRequest(`http://localhost:3000/api/projects/${dockerProject.id}?keepGitVolume=true`, {
+        method: 'DELETE',
+      });
+
+      const response = await DELETE(request, { params: Promise.resolve({ project_id: dockerProject.id }) });
+      expect(response.status).toBe(204);
+      expect(mockRemoveVolume).not.toHaveBeenCalled();
+    });
+
+    it('Volume削除失敗時も204が返る（ベストエフォート）', async () => {
+      mockRemoveVolume.mockRejectedValue(new Error('Volume not found'));
+
+      const request = new NextRequest(`http://localhost:3000/api/projects/${dockerProject.id}`, {
+        method: 'DELETE',
+      });
+
+      const response = await DELETE(request, { params: Promise.resolve({ project_id: dockerProject.id }) });
+      expect(response.status).toBe(204);
+      expect(mockRemoveVolume).toHaveBeenCalledWith('cw-repo-test-vol');
+    });
+
+    it('hostプロジェクトの場合、Volume削除が呼ばれない', async () => {
+      // hostプロジェクトはデフォルトのprojectを使用（clone_location未設定）
+      const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
+        method: 'DELETE',
+      });
+
+      const response = await DELETE(request, { params: Promise.resolve({ project_id: project.id }) });
+      expect(response.status).toBe(204);
+      expect(mockRemoveVolume).not.toHaveBeenCalled();
+    });
   });
 });
