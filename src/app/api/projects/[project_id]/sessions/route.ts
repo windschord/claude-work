@@ -169,7 +169,7 @@ export async function POST(
     }
     const name = rawName as string | undefined;
     const prompt = (rawPrompt as string) ?? '';
-    const source_branch = rawSourceBranch as string | undefined;
+    const source_branch = typeof rawSourceBranch === 'string' ? rawSourceBranch.trim() || undefined : undefined;
 
     // requestEnvironmentId のバリデーション（非文字列・空文字は400で弾く）
     if (requestEnvironmentId !== null && requestEnvironmentId !== undefined) {

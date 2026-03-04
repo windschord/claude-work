@@ -341,6 +341,11 @@ export function setupClaudeWebSocket(
             }));
             ws.off('message', earlyMessageHandler);
             ws.close(1008, 'No environment configured');
+
+            await db.update(schema.sessions)
+              .set({ status: 'error' })
+              .where(eq(schema.sessions.id, sessionId))
+              .run();
             return;
           }
           logger.info(`Claude WebSocket: Using ${projectEnvironmentId ? 'project' : 'session'} environment`, {
