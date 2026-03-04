@@ -145,7 +145,7 @@ private async resolveWildcardDomain(baseDomain: string): Promise<string[]> {
 - **変更**: `src/services/network-filter-service.ts`（内部ロジックのみ）
 - **変更**: `src/components/environments/NetworkRuleForm.tsx`（ヘルプテキストのみ）
 - **追加**: テストケース
-- **既存動作への影響**: `COMMON_SUBDOMAINS` の解決を `SERVICE_SPECIFIC_SUBDOMAINS` と統合し、`Set` による重複排除と `Promise.all` による並列解決に変更。解決対象のサブドメイン自体は変更なし。
+- **既存動作への影響**: `COMMON_SUBDOMAINS` の解決を `SERVICE_SPECIFIC_SUBDOMAINS` と統合し、`Set` による重複排除と `Promise.all` による並列解決に変更。`COMMON_SUBDOMAINS` 自体の定義は変更なしだが、`SERVICE_SPECIFIC_SUBDOMAINS` の追加により解決対象のサブドメインは増加。
 - **破壊的変更なし**
 
 ## 関連ドキュメント
