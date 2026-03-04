@@ -42,12 +42,11 @@ export function AddProjectModal({ isOpen, onClose }: AddProjectModalProps) {
 
   // 選択中の環境がリストから削除された場合にリセット
   useEffect(() => {
-    if (
-      selectedEnvironmentId &&
-      availableEnvironmentIds &&
-      !availableEnvironmentIds.split(',').includes(selectedEnvironmentId)
-    ) {
-      setSelectedEnvironmentId('');
+    if (selectedEnvironmentId) {
+      const ids = availableEnvironmentIds ? availableEnvironmentIds.split(',') : [];
+      if (!ids.includes(selectedEnvironmentId)) {
+        setSelectedEnvironmentId('');
+      }
     }
   }, [selectedEnvironmentId, availableEnvironmentIds]);
 

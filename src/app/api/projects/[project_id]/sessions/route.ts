@@ -4,7 +4,6 @@ import { eq, desc, and } from 'drizzle-orm';
 import { GitService } from '@/services/git-service';
 import { logger } from '@/lib/logger';
 import { generateUniqueSessionName } from '@/lib/session-name-generator';
-import { dockerService, DockerError } from '@/services/docker-service';
 import { environmentService } from '@/services/environment-service';
 import { ClaudeOptionsService } from '@/services/claude-options-service';
 import { isHostEnvironmentAllowed } from '@/lib/environment-detect';
@@ -99,7 +98,7 @@ export async function GET(
  * @param request - リクエストボディに以下を含むJSON:
  *   - `prompt`（オプション）: 初期プロンプト
  *   - `name`（オプション、未指定時は自動生成）: セッション名
- *   - `dockerMode`（オプション、デフォルト: false）: Dockerモードで実行するかどうか
+ *   - `environment_id`（オプション）: 実行環境ID（プロジェクトの設定を使用するため現在は無視される）
  * @param params.project_id - プロジェクトID
  *
  * @returns
@@ -107,7 +106,6 @@ export async function GET(
  * - 400: nameまたはpromptが指定されていない
  * - 404: プロジェクトが見つからない
  * - 500: サーバーエラー
- * - 503: Docker未インストールまたは利用不可（dockerMode=true時）
  *
  * @example
  * ```typescript
@@ -119,15 +117,6 @@ export async function GET(
  *   "prompt": "ユーザー認証機能を実装してください"
  * }
  *
- * // リクエスト（Dockerモード）
- * POST /api/projects/uuid-1234/sessions
- * Content-Type: application/json
- * {
- *   "name": "Dockerセッション",
- *   "prompt": "テストを実行してください",
- *   "dockerMode": true
- * }
- *
  * // レスポンス
  * {
  *   "session": {
@@ -137,7 +126,6 @@ export async function GET(
  *     "status": "running",
  *     "worktree_path": "/path/to/worktrees/session-1234567890",
  *     "branch_name": "session/session-1234567890",
- *     "docker_mode": false,
  *     "created_at": "2025-12-13T09:00:00.000Z"
  *   }
  * }
@@ -212,7 +200,6 @@ export async function POST(
 
     // プロジェクトのenvironment_idを使用（必須）
     const effectiveEnvironmentId: string | null = project.environment_id;
-    let effectiveDockerMode = false;
     let effectiveEnvironmentType: string | null = null;
 
     if (!effectiveEnvironmentId) {
@@ -234,87 +221,11 @@ export async function POST(
     });
 
     // HOST環境の利用制限チェック（キャッシュ済みのtypeを使用してDB再クエリを回避）
-    if (!isHostEnvironmentAllowed()) {
-      if (effectiveEnvironmentId) {
-        if (effectiveEnvironmentType === 'HOST') {
-          return NextResponse.json(
-            { error: 'Docker環境内ではHOST環境でのセッション作成はできません' },
-            { status: 403 }
-          );
-        }
-      } else if (!effectiveDockerMode) {
-        // effectiveEnvironmentId未設定かつDockerモードでない場合はHOST環境として動作する
-        return NextResponse.json(
-          { error: 'Docker環境内ではHOST環境でのセッション作成はできません' },
-          { status: 403 }
-        );
-      }
-    }
-
-    // Dockerモードの場合（レガシー方式）、Docker可用性と認証情報をチェック
-    if (effectiveDockerMode) {
-      logger.info('Creating session with Docker mode', { project_id });
-
-      // Docker環境診断
-      const dockerError = await dockerService.diagnoseDockerError();
-      if (dockerError) {
-        logger.warn('Docker error diagnosed', {
-          project_id,
-          errorType: dockerError.errorType,
-          message: dockerError.message,
-        });
-        return NextResponse.json(
-          {
-            error: dockerError.userMessage,
-            errorType: dockerError.errorType,
-            suggestion: dockerError.suggestion,
-          },
-          { status: 503 }
-        );
-      }
-
-      // 認証情報チェック
-      const authIssues = await dockerService.diagnoseAuthIssues();
-      if (authIssues.length > 0) {
-        logger.warn('Auth issues found for Docker mode', { project_id, issues: authIssues });
-        // 警告としてログに記録するが、セッション作成は続行
-        // （ユーザーがClaude認証を手動で行う場合もあるため）
-      }
-
-      // イメージ存在チェック、なければビルド
-      const imageExists = await dockerService.imageExists();
-      if (!imageExists) {
-        logger.info('Docker image not found, building...', { project_id });
-        try {
-          await dockerService.buildImage();
-          logger.info('Docker image built successfully', { project_id });
-        } catch (buildError) {
-          logger.error('Failed to build Docker image', { error: buildError, project_id });
-
-          let errorMessage: string;
-          let suggestion: string;
-
-          if (buildError instanceof DockerError) {
-            errorMessage = buildError.userMessage;
-            suggestion = buildError.suggestion;
-          } else if (buildError instanceof Error) {
-            errorMessage = `Dockerイメージのビルドに失敗しました: ${buildError.message}`;
-            suggestion = 'Dockerfileの構文を確認し、docker buildコマンドを手動で実行してエラーを確認してください';
-          } else {
-            errorMessage = 'Dockerイメージのビルドに失敗しました';
-            suggestion = 'docker/Dockerfileを確認してください';
-          }
-
-          return NextResponse.json(
-            {
-              error: errorMessage,
-              errorType: 'DOCKER_IMAGE_BUILD_FAILED',
-              suggestion,
-            },
-            { status: 500 }
-          );
-        }
-      }
+    if (!isHostEnvironmentAllowed() && effectiveEnvironmentType === 'HOST') {
+      return NextResponse.json(
+        { error: 'Docker環境内ではHOST環境でのセッション作成はできません' },
+        { status: 403 }
+      );
     }
 
     // セッション名が未指定の場合は一意な名前を自動生成
@@ -416,7 +327,6 @@ export async function POST(
       status: 'initializing',  // PTY接続時に'running'に変更される
       worktree_path: worktreePath,
       branch_name: branchName,
-      docker_mode: effectiveDockerMode,
       environment_id: effectiveEnvironmentId,
       claude_code_options: claude_code_options ? JSON.stringify(claude_code_options) : null,
       custom_env_vars: custom_env_vars ? JSON.stringify(custom_env_vars) : null,

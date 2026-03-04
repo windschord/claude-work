@@ -1,6 +1,6 @@
 import { db, schema } from '@/lib/db';
 import type { ExecutionEnvironment } from '@/lib/db';
-import { eq, asc } from 'drizzle-orm';
+import { eq, asc, and, inArray } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
 import { getEnvironmentsDir } from '@/lib/data-dir';
 import { isHostEnvironmentAllowed } from '@/lib/environment-detect';
@@ -182,14 +182,17 @@ export class EnvironmentService {
       throw new EnvironmentInUseError(`この環境は以下のプロジェクトで使用中のため削除できません: ${projectNames}`);
     }
 
-    // 使用中のセッションを確認
+    // 使用中のアクティブセッションを確認（終了済みセッションは無視）
     const sessionsWithEnv = db.select({ id: schema.sessions.id })
       .from(schema.sessions)
-      .where(eq(schema.sessions.environment_id, id))
+      .where(and(
+        eq(schema.sessions.environment_id, id),
+        inArray(schema.sessions.status, ['running', 'initializing'])
+      ))
       .all();
 
     if (sessionsWithEnv.length > 0) {
-      throw new EnvironmentInUseError(`この環境は ${sessionsWithEnv.length} 件のセッションで使用中のため削除できません`);
+      throw new EnvironmentInUseError(`この環境は ${sessionsWithEnv.length} 件のアクティブなセッションで使用中のため削除できません`);
     }
 
     // 認証ディレクトリがあれば削除

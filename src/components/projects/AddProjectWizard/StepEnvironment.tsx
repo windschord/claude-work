@@ -57,11 +57,19 @@ export function StepEnvironment({ environmentId, onChange, onHostEnvironmentDisa
   // Auto-select when only one environment is available
   const availableEnvironmentsLength = availableEnvironments.length;
   const firstAvailableEnvironmentId = availableEnvironments[0]?.id;
+  const availableEnvironmentIds = availableEnvironments.map((e) => e.id).join(',');
   useEffect(() => {
     if (!environmentId && availableEnvironmentsLength === 1 && firstAvailableEnvironmentId) {
       onChangeRef.current({ environmentId: firstAvailableEnvironmentId });
     }
   }, [availableEnvironmentsLength, firstAvailableEnvironmentId, environmentId]);
+
+  // Reset when selected environment becomes unavailable
+  useEffect(() => {
+    if (environmentId && availableEnvironmentIds && !availableEnvironmentIds.split(',').includes(environmentId)) {
+      onChangeRef.current({ environmentId: null });
+    }
+  }, [environmentId, availableEnvironmentIds]);
 
   const selected = availableEnvironments.find((e) => e.id === environmentId) || null;
 

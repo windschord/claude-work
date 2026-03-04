@@ -103,7 +103,7 @@ vi.mock('@/lib/db', () => ({
   },
   schema: {
     executionEnvironments: { id: 'id' },
-    sessions: { project_id: 'project_id', environment_id: 'environment_id', id: 'id' },
+    sessions: { project_id: 'project_id', environment_id: 'environment_id', id: 'id', status: 'status' },
     projects: { id: 'id', environment_id: 'environment_id' },
   },
 }));
@@ -119,6 +119,7 @@ vi.mock('drizzle-orm', () => {
   return {
     eq: vi.fn((col, val) => ({ column: col, value: val })),
     and: vi.fn((...conditions) => ({ type: 'and', conditions })),
+    inArray: vi.fn((col, values) => ({ column: col, values })),
     asc: vi.fn((col) => ({ column: col, direction: 'asc' })),
     count: vi.fn(() => 'count'),
     sql: mockSql,
@@ -412,7 +413,7 @@ describe('EnvironmentService', () => {
       ]);
 
       await expect(service.delete('env-123')).rejects.toThrow(
-        'この環境は 2 件のセッションで使用中のため削除できません'
+        'この環境は 2 件のアクティブなセッションで使用中のため削除できません'
       );
 
       expect(mockDbDeleteRun).not.toHaveBeenCalled();
