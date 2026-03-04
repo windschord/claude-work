@@ -3,6 +3,7 @@
 import { useState, Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { useAppStore, Project } from '@/store';
+import toast from 'react-hot-toast';
 
 interface DeleteProjectDialogProps {
   isOpen: boolean;
@@ -53,8 +54,9 @@ export function DeleteProjectDialog({
       // 一覧更新失敗は削除失敗として扱わない
       try {
         await fetchProjects();
-      } catch {
-        // 一覧更新エラーは無視（削除自体は成功している）
+      } catch (refreshErr) {
+        console.error('fetchProjects failed after deletion', refreshErr);
+        toast.error('一覧の更新に失敗しました。リロードしてください。');
       }
     } catch (err) {
       if (err instanceof Error) {
@@ -130,7 +132,8 @@ export function DeleteProjectDialog({
                           type="checkbox"
                           checked={keepGitVolume}
                           onChange={(e) => setKeepGitVolume(e.target.checked)}
-                          className="rounded border-gray-300 dark:border-gray-500 text-blue-600 focus:ring-blue-500"
+                          disabled={isLoading}
+                          className="rounded border-gray-300 dark:border-gray-500 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
                         />
                         <span className="text-sm text-gray-600 dark:text-gray-300">
                           Gitリポジトリを保持 <span className="text-xs text-gray-400">({project.docker_volume_id})</span>

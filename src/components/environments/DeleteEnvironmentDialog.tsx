@@ -144,7 +144,8 @@ export function DeleteEnvironmentDialog({
                           type="checkbox"
                           checked={keepClaudeVolume}
                           onChange={(e) => setKeepClaudeVolume(e.target.checked)}
-                          className="rounded border-gray-300 dark:border-gray-500 text-blue-600 focus:ring-blue-500"
+                          disabled={isLoading}
+                          className="rounded border-gray-300 dark:border-gray-500 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
                         />
                         <span className="text-sm text-gray-600 dark:text-gray-300">
                           Claude設定を保持 <span className="text-xs text-gray-400">(.claude)</span>
@@ -155,7 +156,8 @@ export function DeleteEnvironmentDialog({
                           type="checkbox"
                           checked={keepConfigVolume}
                           onChange={(e) => setKeepConfigVolume(e.target.checked)}
-                          className="rounded border-gray-300 dark:border-gray-500 text-blue-600 focus:ring-blue-500"
+                          disabled={isLoading}
+                          className="rounded border-gray-300 dark:border-gray-500 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
                         />
                         <span className="text-sm text-gray-600 dark:text-gray-300">
                           Config設定を保持 <span className="text-xs text-gray-400">(.config/claude)</span>
