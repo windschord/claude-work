@@ -1,12 +1,12 @@
 # Issue #191: テンプレート適用後のUI更新 - タスク
 
-## ステータス: TODO
+## ステータス: DONE
 
 ## タスク一覧
 
 ### TASK-001: テストを追加（TDD）
 
-**ステータス**: TODO
+**ステータス**: DONE
 
 **対象ファイル**:
 - `src/hooks/__tests__/useNetworkFilter.test.ts`
@@ -23,7 +23,7 @@
 
 ### TASK-002: 実装
 
-**ステータス**: TODO
+**ステータス**: DONE
 
 **対象ファイル**:
 - `src/hooks/useNetworkFilter.ts`
