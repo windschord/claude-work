@@ -557,7 +557,8 @@ describe('NetworkFilterService', () => {
       // registry サブドメインのIPが含まれる
       expect(ips).toContain('104.16.0.2');
       // 未知ドメインなのでCIDRは含まれない
-      expect(ips).not.toContain(expect.stringMatching(/\/\d+$/));
+      const hasCidr = ips.some(ip => /\/\d+$/.test(ip));
+      expect(hasCidr).toBe(false);
     });
 
     it('未知ドメインのワイルドカードではCIDR追加なしで動作する', async () => {

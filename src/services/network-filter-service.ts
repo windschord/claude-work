@@ -809,22 +809,19 @@ export class NetworkFilterService {
     const baseIps = await this.resolveWithCache(baseDomain);
     baseIps.forEach((ip) => { allIps.add(ip); });
 
-    // 一般的なサブドメインも解決を試行
-    for (const subdomain of COMMON_SUBDOMAINS) {
-      const fqdn = `${subdomain}.${baseDomain}`;
-      const subIps = await this.resolveWithCache(fqdn);
-      subIps.forEach((ip) => { allIps.add(ip); });
-    }
+    // 一般的なサブドメインとサービス固有サブドメインを重複排除して並列解決
+    const candidateSubdomains = new Set([
+      ...COMMON_SUBDOMAINS,
+      ...(SERVICE_SPECIFIC_SUBDOMAINS[baseDomain] ?? []),
+    ]);
 
-    // サービス固有のサブドメインを解決
-    const specificSubdomains = SERVICE_SPECIFIC_SUBDOMAINS[baseDomain];
-    if (specificSubdomains) {
-      for (const subdomain of specificSubdomains) {
+    await Promise.all(
+      Array.from(candidateSubdomains).map(async (subdomain) => {
         const fqdn = `${subdomain}.${baseDomain}`;
         const subIps = await this.resolveWithCache(fqdn);
         subIps.forEach((ip) => { allIps.add(ip); });
-      }
-    }
+      })
+    );
 
     // 既知サービスのCIDRブロックを追加（DNS解決なし）
     const knownCidrs = KNOWN_SERVICE_CIDRS[baseDomain];

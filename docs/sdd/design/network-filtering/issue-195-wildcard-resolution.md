@@ -41,7 +41,8 @@ const KNOWN_SERVICE_CIDRS: Record<string, string[]> = {
  */
 const SERVICE_SPECIFIC_SUBDOMAINS: Record<string, string[]> = {
   'github.com': ['codeload', 'objects', 'pkg', 'ghcr', 'copilot-proxy'],
-  'githubusercontent.com': ['raw', 'objects', 'avatars', 'user-images', 'camo'],
+  // 'raw' は COMMON_SUBDOMAINS に含まれるため省略
+  'githubusercontent.com': ['objects', 'avatars', 'user-images', 'camo'],
   'npmjs.org': ['registry'],
   'npmjs.com': ['registry'],
 };

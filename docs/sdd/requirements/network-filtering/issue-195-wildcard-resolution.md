@@ -27,7 +27,7 @@
 
 **受入基準**:
 - `*.github.com` ルールが設定された場合、`COMMON_SUBDOMAINS` に加えてGitHub固有サブドメイン（codeload, objects, pkg, ghcr, copilot-proxy）もDNS解決される
-- `*.githubusercontent.com` ルールが設定された場合、githubusercontent固有サブドメイン（raw, objects, avatars, user-images, camo）もDNS解決される
+- `*.githubusercontent.com` ルールが設定された場合、githubusercontent固有サブドメイン（objects, avatars, user-images, camo）もDNS解決される（rawはCOMMON_SUBDOMAINSで解決済み）
 - `*.npmjs.org` / `*.npmjs.com` ルールが設定された場合、registry サブドメインもDNS解決される
 - 未知のドメインに対しては、従来通り `COMMON_SUBDOMAINS` のみで解決が試みられる
 
