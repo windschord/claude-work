@@ -2,7 +2,8 @@
 
 import { useState, Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
-import { useAppStore, Project } from '@/store';
+import { useAppStore } from '@/store';
+import type { Project } from '@/store';
 import toast from 'react-hot-toast';
 
 interface DeleteProjectDialogProps {

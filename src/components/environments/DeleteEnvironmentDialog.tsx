@@ -2,7 +2,7 @@
 
 import { useState, Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
-import { Environment, EnvironmentVolumeOptions } from '@/hooks/useEnvironments';
+import type { Environment, EnvironmentVolumeOptions } from '@/hooks/useEnvironments';
 
 interface DeleteEnvironmentDialogProps {
   isOpen: boolean;

@@ -173,6 +173,7 @@ import {
   CreateEnvironmentInput,
   UpdateEnvironmentInput,
 } from '../environment-service';
+import { getConfigVolumeNames } from '@/lib/docker-volume-utils';
 
 describe('EnvironmentService', () => {
   let service: EnvironmentService;
@@ -1023,8 +1024,10 @@ describe('EnvironmentService', () => {
     });
 
     it('keepClaudeVolume=trueの場合、Claude設定Volumeを保持する', async () => {
+      const envId = 'docker-env';
+      const volumeNames = getConfigVolumeNames(envId);
       const env = {
-        id: 'docker-env',
+        id: envId,
         name: 'Docker Dev',
         type: 'DOCKER',
         description: null,
@@ -1039,15 +1042,17 @@ describe('EnvironmentService', () => {
       mockDbSelectAll.mockReturnValueOnce([]); // sessions
       mockDockerClient.removeVolume.mockResolvedValue(undefined);
 
-      await service.delete('docker-env', { keepClaudeVolume: true });
+      await service.delete(envId, { keepClaudeVolume: true });
 
-      expect(mockDockerClient.removeVolume).not.toHaveBeenCalledWith('claude-config-claude-docker-env');
-      expect(mockDockerClient.removeVolume).toHaveBeenCalledWith('claude-config-configclaude-docker-env');
+      expect(mockDockerClient.removeVolume).not.toHaveBeenCalledWith(volumeNames.claudeVolume);
+      expect(mockDockerClient.removeVolume).toHaveBeenCalledWith(volumeNames.configClaudeVolume);
     });
 
     it('keepConfigVolume=trueの場合、Config Volumeを保持する', async () => {
+      const envId = 'docker-env';
+      const volumeNames = getConfigVolumeNames(envId);
       const env = {
-        id: 'docker-env',
+        id: envId,
         name: 'Docker Dev',
         type: 'DOCKER',
         description: null,
@@ -1062,10 +1067,10 @@ describe('EnvironmentService', () => {
       mockDbSelectAll.mockReturnValueOnce([]); // sessions
       mockDockerClient.removeVolume.mockResolvedValue(undefined);
 
-      await service.delete('docker-env', { keepConfigVolume: true });
+      await service.delete(envId, { keepConfigVolume: true });
 
-      expect(mockDockerClient.removeVolume).toHaveBeenCalledWith('claude-config-claude-docker-env');
-      expect(mockDockerClient.removeVolume).not.toHaveBeenCalledWith('claude-config-configclaude-docker-env');
+      expect(mockDockerClient.removeVolume).toHaveBeenCalledWith(volumeNames.claudeVolume);
+      expect(mockDockerClient.removeVolume).not.toHaveBeenCalledWith(volumeNames.configClaudeVolume);
     });
 
     it('両方keepの場合、どちらのVolumeも削除しない', async () => {
