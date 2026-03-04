@@ -108,6 +108,8 @@ describe('cli-utils', () => {
       expect(tableNames).toContain('RunScript');
       expect(tableNames).toContain('DeveloperSettings');
       expect(tableNames).toContain('SshKey');
+      expect(tableNames).toContain('NetworkFilterConfig');
+      expect(tableNames).toContain('NetworkFilterRule');
       db.close();
     });
 
@@ -447,6 +449,57 @@ describe('cli-utils', () => {
       db.close();
     });
 
+    it('should create NetworkFilterConfig and NetworkFilterRule tables', () => {
+      const dbPath = join(testDir, 'test.db');
+      initializeDatabase(dbPath);
+
+      const Database = require('better-sqlite3');
+      const db = new Database(dbPath);
+
+      // テーブルが存在することを確認
+      const tables = db.prepare(
+        "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+      ).all() as { name: string }[];
+      const tableNames = tables.map((t: { name: string }) => t.name);
+      expect(tableNames).toContain('NetworkFilterConfig');
+      expect(tableNames).toContain('NetworkFilterRule');
+
+      // NetworkFilterConfigのカラム確認
+      const nfcColumns = db.prepare("PRAGMA table_info('NetworkFilterConfig')").all() as {
+        name: string; type: string; notnull: number; dflt_value: string | null;
+      }[];
+      const nfcColumnNames = nfcColumns.map((c) => c.name);
+      expect(nfcColumnNames).toEqual([
+        'id', 'environment_id', 'enabled', 'created_at', 'updated_at',
+      ]);
+
+      const enabledCol = nfcColumns.find((c) => c.name === 'enabled');
+      expect(enabledCol?.notnull).toBe(1);
+      expect(enabledCol?.dflt_value).toBe('0');
+
+      // NetworkFilterRuleのカラム確認
+      const nfrColumns = db.prepare("PRAGMA table_info('NetworkFilterRule')").all() as {
+        name: string; type: string; notnull: number; dflt_value: string | null;
+      }[];
+      const nfrColumnNames = nfrColumns.map((c) => c.name);
+      expect(nfrColumnNames).toEqual([
+        'id', 'environment_id', 'target', 'port', 'description', 'enabled', 'created_at', 'updated_at',
+      ]);
+
+      const nfrEnabledCol = nfrColumns.find((c) => c.name === 'enabled');
+      expect(nfrEnabledCol?.notnull).toBe(1);
+      expect(nfrEnabledCol?.dflt_value).toBe('1');
+
+      // NetworkFilterConfigのUNIQUE制約（environment_id）- PRAGMA index_listで確認
+      const nfcIndexList = db.prepare(
+        "PRAGMA index_list('NetworkFilterConfig')"
+      ).all() as { name: string; unique: number; origin: string }[];
+      const uniqueIdx = nfcIndexList.find((idx) => idx.unique === 1);
+      expect(uniqueIdx).toBeDefined();
+
+      db.close();
+    });
+
     it('should not fail when called twice (IF NOT EXISTS)', () => {
       const dbPath = join(testDir, 'test.db');
       const result1 = initializeDatabase(dbPath);
@@ -484,7 +537,7 @@ describe('cli-utils', () => {
   });
 
   describe('migrateDatabase', () => {
-    it('should migrate new DB to CURRENT_DB_VERSION (6)', () => {
+    it('should migrate new DB to CURRENT_DB_VERSION (7)', () => {
       const dbPath = join(testDir, 'migrate-test.db');
       const result = migrateDatabase(dbPath);
       expect(result).toBe(true);
@@ -493,9 +546,9 @@ describe('cli-utils', () => {
       const Database = require('better-sqlite3');
       const db = new Database(dbPath, { readonly: true });
 
-      // user_versionが6になっていることを確認
+      // user_versionが7になっていることを確認
       const row = db.prepare('PRAGMA user_version').get() as { user_version: number };
-      expect(row.user_version).toBe(6);
+      expect(row.user_version).toBe(7);
 
       // 全テーブルが存在することを確認
       const tables = db.prepare(
@@ -532,7 +585,7 @@ describe('cli-utils', () => {
       db.close();
     });
 
-    it('should migrate v1 DB to v6', () => {
+    it('should migrate v1 DB to v7', () => {
       const dbPath = join(testDir, 'v1-db.db');
 
       // v1のDBを手動で作成（user_version = 1、新カラムなし）
@@ -576,9 +629,9 @@ describe('cli-utils', () => {
       // 確認
       const db2 = new Database(dbPath, { readonly: true });
 
-      // user_versionが6になっていることを確認
+      // user_versionが7になっていることを確認
       const row = db2.prepare('PRAGMA user_version').get() as { user_version: number };
-      expect(row.user_version).toBe(6);
+      expect(row.user_version).toBe(7);
 
       // v2で追加されたカラムが存在することを確認
       const projectColumns = db2.prepare("PRAGMA table_info('Project')").all() as { name: string }[];
@@ -612,7 +665,7 @@ describe('cli-utils', () => {
       db2.close();
     });
 
-    it('should migrate v3 DB to v6', () => {
+    it('should migrate v3 DB to v7', () => {
       const dbPath = join(testDir, 'v3-db.db');
 
       // v3のDBを作成
@@ -688,7 +741,7 @@ describe('cli-utils', () => {
       // 確認
       const db2 = new Database(dbPath, { readonly: true });
       const row = db2.prepare('PRAGMA user_version').get() as { user_version: number };
-      expect(row.user_version).toBe(6);
+      expect(row.user_version).toBe(7);
 
       // v4で追加されたカラムが存在することを確認
       const projectColumns = db2.prepare("PRAGMA table_info('Project')").all() as { name: string }[];
@@ -715,7 +768,7 @@ describe('cli-utils', () => {
       db2.close();
     });
 
-    it('should skip migration when DB is already at latest version (6)', () => {
+    it('should skip migration when DB is already at latest version (7)', () => {
       const dbPath = join(testDir, 'latest-db.db');
 
       // 最新バージョンのDBを作成
@@ -725,7 +778,7 @@ describe('cli-utils', () => {
       const Database = require('better-sqlite3');
       const db = new Database(dbPath, { readonly: true });
       const rowBefore = db.prepare('PRAGMA user_version').get() as { user_version: number };
-      expect(rowBefore.user_version).toBe(6);
+      expect(rowBefore.user_version).toBe(7);
       db.close();
 
       // 再度マイグレーション実行（スキップされるはず）
@@ -735,7 +788,7 @@ describe('cli-utils', () => {
       // バージョンが変わっていないことを確認
       const db2 = new Database(dbPath, { readonly: true });
       const rowAfter = db2.prepare('PRAGMA user_version').get() as { user_version: number };
-      expect(rowAfter.user_version).toBe(6);
+      expect(rowAfter.user_version).toBe(7);
       db2.close();
     });
 
@@ -755,7 +808,7 @@ describe('cli-utils', () => {
       const Database = require('better-sqlite3');
       const db = new Database(dbPath, { readonly: true });
       const row = db.prepare('PRAGMA user_version').get() as { user_version: number };
-      expect(row.user_version).toBe(6);
+      expect(row.user_version).toBe(7);
       db.close();
     });
 
@@ -826,7 +879,7 @@ describe('cli-utils', () => {
       db2.close();
     });
 
-    it('should migrate v4 bug DB (missing Session.environment_id) to v6', () => {
+    it('should migrate v4 bug DB (missing Session.environment_id) to v7', () => {
       const dbPath = join(testDir, 'v4-bug-db.db');
 
       // v4バグDB: Session.environment_idが欠落した状態
@@ -911,9 +964,9 @@ describe('cli-utils', () => {
       // 確認
       const db2 = new Database(dbPath, { readonly: true });
 
-      // user_versionが6になっていることを確認
+      // user_versionが7になっていることを確認
       const row = db2.prepare('PRAGMA user_version').get() as { user_version: number };
-      expect(row.user_version).toBe(6);
+      expect(row.user_version).toBe(7);
 
       // Session.environment_idが追加されていることを確認
       const sessionColumns = db2.prepare("PRAGMA table_info('Session')").all() as { name: string }[];
@@ -923,7 +976,7 @@ describe('cli-utils', () => {
       db2.close();
     });
 
-    it('should migrate v4 normal DB (Session.environment_id exists) to v6', () => {
+    it('should migrate v4 normal DB (Session.environment_id exists) to v7', () => {
       const dbPath = join(testDir, 'v4-normal-db.db');
 
       // v4正常DB: Session.environment_idが既に存在する
@@ -1009,9 +1062,9 @@ describe('cli-utils', () => {
       // 確認
       const db2 = new Database(dbPath, { readonly: true });
 
-      // user_versionが6になっていることを確認
+      // user_versionが7になっていることを確認
       const row = db2.prepare('PRAGMA user_version').get() as { user_version: number };
-      expect(row.user_version).toBe(6);
+      expect(row.user_version).toBe(7);
 
       // Session.environment_idが引き続き存在することを確認
       const sessionColumns = db2.prepare("PRAGMA table_info('Session')").all() as { name: string }[];
@@ -1021,7 +1074,7 @@ describe('cli-utils', () => {
       db2.close();
     });
 
-    it('should migrate v5 DB to v6', () => {
+    it('should migrate v5 DB to v7', () => {
       const dbPath = join(testDir, 'v5-db.db');
 
       // v5のDBを作成（DeveloperSettings/SshKeyなし）
@@ -1107,9 +1160,9 @@ describe('cli-utils', () => {
       // 確認
       const db2 = new Database(dbPath, { readonly: true });
 
-      // user_versionが6になっていることを確認
+      // user_versionが7になっていることを確認
       const row = db2.prepare('PRAGMA user_version').get() as { user_version: number };
-      expect(row.user_version).toBe(6);
+      expect(row.user_version).toBe(7);
 
       // DeveloperSettingsテーブルが存在することを確認
       const tables = db2.prepare(
@@ -1144,6 +1197,174 @@ describe('cli-utils', () => {
       expect(sshColumnNames).toContain('private_key_encrypted');
       expect(sshColumnNames).toContain('encryption_iv');
       expect(sshColumnNames).toContain('has_passphrase');
+
+      db2.close();
+    });
+
+    it('should migrate v6 DB to v7 (adding NetworkFilter tables)', () => {
+      const dbPath = join(testDir, 'v6-db.db');
+
+      // v6のDBを作成（DeveloperSettings/SshKeyあり、NetworkFilterなし）
+      const Database = require('better-sqlite3');
+      const db = new Database(dbPath);
+      db.pragma('journal_mode = WAL');
+
+      db.exec(`
+        CREATE TABLE "Project" (
+          "id" text PRIMARY KEY NOT NULL,
+          "name" text NOT NULL,
+          "path" text NOT NULL,
+          "remote_url" text,
+          "claude_code_options" text NOT NULL DEFAULT '{}',
+          "custom_env_vars" text NOT NULL DEFAULT '{}',
+          "clone_location" text DEFAULT 'docker',
+          "docker_volume_id" text,
+          "environment_id" text,
+          "created_at" integer NOT NULL,
+          "updated_at" integer NOT NULL
+        );
+      `);
+      db.exec(`
+        CREATE TABLE "ExecutionEnvironment" (
+          "id" text PRIMARY KEY NOT NULL,
+          "name" text NOT NULL,
+          "type" text NOT NULL,
+          "description" text,
+          "config" text NOT NULL,
+          "auth_dir_path" text,
+          "created_at" integer NOT NULL,
+          "updated_at" integer NOT NULL
+        );
+      `);
+      db.exec(`
+        CREATE TABLE "Session" (
+          "id" text PRIMARY KEY NOT NULL,
+          "project_id" text NOT NULL REFERENCES "Project"("id") ON DELETE CASCADE,
+          "name" text NOT NULL,
+          "status" text NOT NULL,
+          "worktree_path" text NOT NULL,
+          "branch_name" text NOT NULL,
+          "resume_session_id" text,
+          "last_activity_at" integer,
+          "pr_url" text,
+          "pr_number" integer,
+          "pr_status" text,
+          "pr_updated_at" integer,
+          "docker_mode" integer NOT NULL DEFAULT 0,
+          "container_id" text,
+          "claude_code_options" text,
+          "custom_env_vars" text,
+          "environment_id" text REFERENCES "ExecutionEnvironment"("id") ON DELETE SET NULL,
+          "active_connections" integer NOT NULL DEFAULT 0,
+          "destroy_at" integer,
+          "session_state" text NOT NULL DEFAULT 'ACTIVE',
+          "created_at" integer NOT NULL,
+          "updated_at" integer NOT NULL
+        );
+      `);
+      db.exec(`CREATE INDEX IF NOT EXISTS "sessions_session_state_idx" ON "Session" ("session_state");`);
+      db.exec(`CREATE INDEX IF NOT EXISTS "sessions_destroy_at_idx" ON "Session" ("destroy_at");`);
+      db.exec(`CREATE INDEX IF NOT EXISTS "sessions_last_activity_at_idx" ON "Session" ("last_activity_at");`);
+      db.exec(`
+        CREATE TABLE "GitHubPAT" (
+          "id" text PRIMARY KEY NOT NULL,
+          "name" text NOT NULL,
+          "description" text,
+          "encrypted_token" text NOT NULL,
+          "is_active" integer NOT NULL DEFAULT 1,
+          "created_at" integer NOT NULL,
+          "updated_at" integer NOT NULL
+        );
+      `);
+      db.exec(`
+        CREATE TABLE "DeveloperSettings" (
+          "id" text PRIMARY KEY NOT NULL,
+          "scope" text NOT NULL,
+          "project_id" text REFERENCES "Project"("id") ON DELETE CASCADE,
+          "git_username" text,
+          "git_email" text,
+          "created_at" integer NOT NULL,
+          "updated_at" integer NOT NULL
+        );
+      `);
+      db.exec(`CREATE INDEX IF NOT EXISTS "developer_settings_scope_project_id_idx" ON "DeveloperSettings" ("scope", "project_id");`);
+      db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS "developer_settings_global_unique" ON "DeveloperSettings" ("scope") WHERE scope = 'GLOBAL';`);
+      db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS "developer_settings_project_unique" ON "DeveloperSettings" ("project_id") WHERE scope = 'PROJECT' AND project_id IS NOT NULL;`);
+      db.exec(`
+        CREATE TABLE "SshKey" (
+          "id" text PRIMARY KEY NOT NULL,
+          "name" text NOT NULL,
+          "public_key" text NOT NULL,
+          "private_key_encrypted" text NOT NULL,
+          "encryption_iv" text NOT NULL,
+          "has_passphrase" integer NOT NULL DEFAULT 0,
+          "created_at" integer NOT NULL,
+          "updated_at" integer NOT NULL
+        );
+      `);
+      db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS "ssh_key_name_unique" ON "SshKey" ("name");`);
+      db.exec('PRAGMA user_version = 6');
+      db.close();
+
+      // マイグレーション実行
+      const result = migrateDatabase(dbPath);
+      expect(result).toBe(true);
+
+      // 確認
+      const db2 = new Database(dbPath, { readonly: true });
+
+      // user_versionが7になっていることを確認
+      const row = db2.prepare('PRAGMA user_version').get() as { user_version: number };
+      expect(row.user_version).toBe(7);
+
+      // NetworkFilterConfigテーブルが作成されていることを確認
+      const tables = db2.prepare(
+        "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+      ).all() as { name: string }[];
+      const tableNames = tables.map((t: { name: string }) => t.name);
+      expect(tableNames).toContain('NetworkFilterConfig');
+      expect(tableNames).toContain('NetworkFilterRule');
+
+      // NetworkFilterConfigのカラム確認
+      const nfcColumns = db2.prepare("PRAGMA table_info('NetworkFilterConfig')").all() as {
+        name: string; type: string; notnull: number; dflt_value: string | null;
+      }[];
+      const nfcColumnNames = nfcColumns.map((c) => c.name);
+      expect(nfcColumnNames).toEqual([
+        'id', 'environment_id', 'enabled', 'created_at', 'updated_at',
+      ]);
+
+      const enabledCol = nfcColumns.find((c) => c.name === 'enabled');
+      expect(enabledCol?.notnull).toBe(1);
+      expect(enabledCol?.dflt_value).toBe('0');
+
+      // NetworkFilterRuleのカラム確認
+      const nfrColumns = db2.prepare("PRAGMA table_info('NetworkFilterRule')").all() as {
+        name: string; type: string; notnull: number; dflt_value: string | null;
+      }[];
+      const nfrColumnNames = nfrColumns.map((c) => c.name);
+      expect(nfrColumnNames).toEqual([
+        'id', 'environment_id', 'target', 'port', 'description', 'enabled', 'created_at', 'updated_at',
+      ]);
+
+      const nfrEnabledCol = nfrColumns.find((c) => c.name === 'enabled');
+      expect(nfrEnabledCol?.notnull).toBe(1);
+      expect(nfrEnabledCol?.dflt_value).toBe('1');
+
+      // NetworkFilterConfigのFKとUNIQUE確認
+      const nfcFks = db2.prepare("PRAGMA foreign_key_list('NetworkFilterConfig')").all() as {
+        table: string; from: string; to: string; on_delete: string;
+      }[];
+      const envFk = nfcFks.find((fk) => fk.from === 'environment_id');
+      expect(envFk?.table).toBe('ExecutionEnvironment');
+      expect(envFk?.on_delete).toBe('CASCADE');
+
+      // UNIQUE制約（environment_id）- PRAGMA index_listで自動インデックスを含めて確認
+      const nfcIndexList = db2.prepare(
+        "PRAGMA index_list('NetworkFilterConfig')"
+      ).all() as { name: string; unique: number; origin: string }[];
+      const uniqueIdx = nfcIndexList.find((idx) => idx.unique === 1);
+      expect(uniqueIdx).toBeDefined();
 
       db2.close();
     });
