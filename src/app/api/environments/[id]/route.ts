@@ -200,10 +200,14 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Environment not found' }, { status: 404 });
     }
 
-    logger.info('Deleting environment', { id, name: environment.name });
+    // Volume保持オプションの解析
+    const keepClaudeVolume = request.nextUrl.searchParams.get('keepClaudeVolume') === 'true';
+    const keepConfigVolume = request.nextUrl.searchParams.get('keepConfigVolume') === 'true';
+
+    logger.info('Deleting environment', { id, name: environment.name, keepClaudeVolume, keepConfigVolume });
 
     try {
-      await environmentService.delete(id);
+      await environmentService.delete(id, { keepClaudeVolume, keepConfigVolume });
     } catch (error) {
       if (error instanceof EnvironmentInUseError) {
         return NextResponse.json({ error: error.message }, { status: 409 });
