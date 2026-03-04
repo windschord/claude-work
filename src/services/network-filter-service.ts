@@ -80,6 +80,7 @@ const COMMON_SUBDOMAINS = ['www', 'api', 'raw', 'gist', 'cdn', 'static', 'assets
  * 既知サービスのIPレンジ（CIDRブロック）
  * ワイルドカードドメインで指定された場合、DNS解決に加えてこれらのCIDRも含める
  * 参考: https://api.github.com/meta
+ * 最終確認: 2026-03-04 (https://api.github.com/meta)
  */
 const KNOWN_SERVICE_CIDRS: Record<string, string[]> = {
   'github.com': [
@@ -99,7 +100,7 @@ const KNOWN_SERVICE_CIDRS: Record<string, string[]> = {
  */
 const SERVICE_SPECIFIC_SUBDOMAINS: Record<string, string[]> = {
   'github.com': ['codeload', 'objects', 'pkg', 'ghcr', 'copilot-proxy'],
-  'githubusercontent.com': ['raw', 'objects', 'avatars', 'user-images', 'camo'],
+  'githubusercontent.com': ['objects', 'avatars', 'user-images', 'camo'],
   'npmjs.org': ['registry'],
   'npmjs.com': ['registry'],
 };

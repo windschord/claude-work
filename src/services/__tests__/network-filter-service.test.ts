@@ -440,7 +440,12 @@ describe('NetworkFilterService', () => {
     let dnsResolve4Spy: ReturnType<typeof vi.spyOn>;
 
     beforeEach(() => {
-      // dns.resolve4 をモックしてネットワーク通信を回避
+      // vi.spyOn を使用する理由:
+      // このテストファイルはファイルトップレベルで vi.mock('@/lib/db') 等を使用しており、
+      // dns/promises に対しては describe ブロック単位でのモック切り替えが必要なため
+      // vi.spyOn + mockRestore パターンを採用している。
+      // network-filter-service-dns.test.ts は dns/promises を vi.mock でモジュールレベルでモックしており、
+      // テスト間でモック状態を共有する必要がない場合に適している。
       dnsResolve4Spy = vi.spyOn(dns, 'resolve4');
     });
 
