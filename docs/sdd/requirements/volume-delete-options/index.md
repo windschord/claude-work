@@ -67,7 +67,7 @@
 - `src/hooks/useEnvironments.ts` - deleteEnvironment にオプション引数追加
 
 **環境削除（バックエンド）:**
-- `src/app/api/environments/[id]/route.ts` - リクエストボディでVolume保持オプション受付
+- `src/app/api/environments/[id]/route.ts` - クエリパラメータでVolume保持オプション受付
 - `src/services/environment-service.ts` - delete()にVolume保持オプション追加
 
 **プロジェクト削除（フロントエンド）:**

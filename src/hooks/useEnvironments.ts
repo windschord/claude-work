@@ -55,7 +55,7 @@ export interface UseEnvironmentsReturn {
   fetchEnvironments: () => Promise<void>;
   createEnvironment: (input: CreateEnvironmentInput) => Promise<Environment>;
   updateEnvironment: (id: string, input: UpdateEnvironmentInput) => Promise<Environment>;
-  deleteEnvironment: (id: string) => Promise<void>;
+  deleteEnvironment: (id: string, volumeOptions?: { keepClaudeVolume?: boolean; keepConfigVolume?: boolean }) => Promise<void>;
   refreshEnvironment: (id: string) => Promise<Environment | null>;
   hostEnvironmentDisabled: boolean;
 }

@@ -44,7 +44,10 @@ export function DeleteProjectDialog({
     setIsLoading(true);
 
     try {
-      await deleteProject(project.id, { keepGitVolume: hasDockerVolume ? keepGitVolume : undefined });
+      await deleteProject(
+        project.id,
+        hasDockerVolume ? { keepGitVolume } : undefined
+      );
       await fetchProjects();
       setKeepGitVolume(false);
       onClose();

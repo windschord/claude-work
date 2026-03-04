@@ -76,7 +76,7 @@ describe('DeleteProjectDialog', () => {
     fireEvent.click(deleteButton);
 
     await waitFor(() => {
-      expect(mockDeleteProject).toHaveBeenCalledWith('1', { keepGitVolume: undefined });
+      expect(mockDeleteProject).toHaveBeenCalledWith('1', undefined);
       expect(mockOnClose).toHaveBeenCalled();
     });
   });
