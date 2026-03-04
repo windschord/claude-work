@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Environment, CreateEnvironmentInput, UpdateEnvironmentInput, EnvironmentVolumeOptions } from '@/hooks/useEnvironments';
+import type { Environment, CreateEnvironmentInput, UpdateEnvironmentInput, EnvironmentVolumeOptions } from '@/hooks/useEnvironments';
 import { EnvironmentCard } from './EnvironmentCard';
 import { EnvironmentForm } from './EnvironmentForm';
 import { DeleteEnvironmentDialog } from './DeleteEnvironmentDialog';
