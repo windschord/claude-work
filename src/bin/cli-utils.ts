@@ -21,8 +21,9 @@ import Database from 'better-sqlite3';
  *       Sessionインデックス (session_state, destroy_at, last_activity_at) を追加
  * - v5: Session.environment_id 欠落修復（v4マイグレーションでの漏れを修正）
  * - v6: DeveloperSettingsテーブル、SshKeyテーブル作成
+ * - v7: NetworkFilterConfig, NetworkFilterRuleテーブル作成
  */
-const CURRENT_DB_VERSION = 6;
+const CURRENT_DB_VERSION = 7;
 
 /**
  * Next.jsビルドが存在し、完全かどうかを確認
@@ -185,6 +186,12 @@ export function migrateDatabase(dbPath: string): boolean {
       if (version < 6) {
         migrateV5ToV6(db!);
         version = 6;
+      }
+
+      // バージョン 6 → 7: NetworkFilterConfig・NetworkFilterRuleテーブル作成
+      if (version < 7) {
+        migrateV6ToV7(db!);
+        version = 7;
       }
 
       // バージョン番号を更新
@@ -361,6 +368,31 @@ function createInitialTables(db: InstanceType<typeof Database>): void {
   `);
 
   db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS "ssh_key_name_unique" ON "SshKey" ("name");`);
+
+  // NetworkFilterConfig テーブル
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS "NetworkFilterConfig" (
+      "id" text PRIMARY KEY NOT NULL,
+      "environment_id" text NOT NULL UNIQUE REFERENCES "ExecutionEnvironment"("id") ON DELETE CASCADE,
+      "enabled" integer NOT NULL DEFAULT 0,
+      "created_at" integer NOT NULL,
+      "updated_at" integer NOT NULL
+    );
+  `);
+
+  // NetworkFilterRule テーブル
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS "NetworkFilterRule" (
+      "id" text PRIMARY KEY NOT NULL,
+      "environment_id" text NOT NULL REFERENCES "ExecutionEnvironment"("id") ON DELETE CASCADE,
+      "target" text NOT NULL,
+      "port" integer,
+      "description" text,
+      "enabled" integer NOT NULL DEFAULT 1,
+      "created_at" integer NOT NULL,
+      "updated_at" integer NOT NULL
+    );
+  `);
 }
 
 /**
@@ -472,6 +504,41 @@ function migrateV5ToV6(db: InstanceType<typeof Database>): void {
   `);
 
   db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS "ssh_key_name_unique" ON "SshKey" ("name");`);
+}
+
+/**
+ * NetworkFilterConfig・NetworkFilterRuleテーブルを作成（v6 → v7）
+ *
+ * Docker環境のネットワークフィルタリング設定を管理するテーブルを追加する。
+ * プロダクションDockerイメージにはdrizzle-kitが含まれていないため、
+ * このマイグレーションで自動作成する必要がある。
+ * IDとタイムスタンプはDrizzle ORM層で生成される。
+ */
+function migrateV6ToV7(db: InstanceType<typeof Database>): void {
+  console.log('Migrating to v7: Creating NetworkFilterConfig and NetworkFilterRule tables...');
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS "NetworkFilterConfig" (
+      "id" text PRIMARY KEY NOT NULL,
+      "environment_id" text NOT NULL UNIQUE REFERENCES "ExecutionEnvironment"("id") ON DELETE CASCADE,
+      "enabled" integer NOT NULL DEFAULT 0,
+      "created_at" integer NOT NULL,
+      "updated_at" integer NOT NULL
+    );
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS "NetworkFilterRule" (
+      "id" text PRIMARY KEY NOT NULL,
+      "environment_id" text NOT NULL REFERENCES "ExecutionEnvironment"("id") ON DELETE CASCADE,
+      "target" text NOT NULL,
+      "port" integer,
+      "description" text,
+      "enabled" integer NOT NULL DEFAULT 1,
+      "created_at" integer NOT NULL,
+      "updated_at" integer NOT NULL
+    );
+  `);
 }
 
 /**
