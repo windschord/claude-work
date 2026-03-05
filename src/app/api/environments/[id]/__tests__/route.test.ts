@@ -30,7 +30,7 @@ vi.mock('@/services/environment-service', () => ({
   environmentService: {
     findById: (id: string) => mockFindById(id),
     update: (id: string, input: unknown) => mockUpdate(id, input),
-    delete: (id: string) => mockDelete(id),
+    delete: (id: string, options?: unknown) => mockDelete(id, options),
     checkStatus: (id: string) => mockCheckStatus(id),
   },
 }));
@@ -347,7 +347,7 @@ describe('/api/environments/[id]', () => {
 
       expect(response.status).toBe(200);
       expect(data.success).toBe(true);
-      expect(mockDelete).toHaveBeenCalledWith('env-to-delete');
+      expect(mockDelete).toHaveBeenCalledWith('env-to-delete', { keepClaudeVolume: false, keepConfigVolume: false });
     });
 
     it('デフォルト環境も削除できる', async () => {
@@ -374,7 +374,88 @@ describe('/api/environments/[id]', () => {
 
       expect(response.status).toBe(200);
       expect(data.success).toBe(true);
-      expect(mockDelete).toHaveBeenCalledWith('host-default');
+      expect(mockDelete).toHaveBeenCalledWith('host-default', { keepClaudeVolume: false, keepConfigVolume: false });
+    });
+
+    it('keepClaudeVolume=trueのクエリパラメータがサービス層に渡る', async () => {
+      const environment = {
+        id: 'env-docker',
+        name: 'Docker Env',
+        type: 'DOCKER',
+        description: null,
+        config: '{}',
+        auth_dir_path: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      mockFindById.mockResolvedValue(environment);
+      mockDelete.mockResolvedValue(undefined);
+
+      const request = new NextRequest('http://localhost:3000/api/environments/env-docker?keepClaudeVolume=true', {
+        method: 'DELETE',
+      });
+
+      const response = await DELETE(request, { params: Promise.resolve({ id: 'env-docker' }) });
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(mockDelete).toHaveBeenCalledWith('env-docker', { keepClaudeVolume: true, keepConfigVolume: false });
+    });
+
+    it('keepConfigVolume=trueのクエリパラメータがサービス層に渡る', async () => {
+      const environment = {
+        id: 'env-docker',
+        name: 'Docker Env',
+        type: 'DOCKER',
+        description: null,
+        config: '{}',
+        auth_dir_path: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      mockFindById.mockResolvedValue(environment);
+      mockDelete.mockResolvedValue(undefined);
+
+      const request = new NextRequest('http://localhost:3000/api/environments/env-docker?keepConfigVolume=true', {
+        method: 'DELETE',
+      });
+
+      const response = await DELETE(request, { params: Promise.resolve({ id: 'env-docker' }) });
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(mockDelete).toHaveBeenCalledWith('env-docker', { keepClaudeVolume: false, keepConfigVolume: true });
+    });
+
+    it('両方のVolume保持オプションがサービス層に渡る', async () => {
+      const environment = {
+        id: 'env-docker',
+        name: 'Docker Env',
+        type: 'DOCKER',
+        description: null,
+        config: '{}',
+        auth_dir_path: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      mockFindById.mockResolvedValue(environment);
+      mockDelete.mockResolvedValue(undefined);
+
+      const request = new NextRequest('http://localhost:3000/api/environments/env-docker?keepClaudeVolume=true&keepConfigVolume=true', {
+        method: 'DELETE',
+      });
+
+      const response = await DELETE(request, { params: Promise.resolve({ id: 'env-docker' }) });
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(mockDelete).toHaveBeenCalledWith('env-docker', { keepClaudeVolume: true, keepConfigVolume: true });
     });
 
     it('存在しない環境の削除は404エラー', async () => {

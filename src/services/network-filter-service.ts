@@ -76,6 +76,35 @@ const DNS_CACHE_TTL_MS = 5 * 60 * 1000;
 // ワイルドカードドメインで解決を試行する一般的なサブドメイン
 const COMMON_SUBDOMAINS = ['www', 'api', 'raw', 'gist', 'cdn', 'static', 'assets', 'media'];
 
+/**
+ * 既知サービスのIPレンジ（CIDRブロック）
+ * ワイルドカードドメインで指定された場合、DNS解決に加えてこれらのCIDRも含める
+ * 参考: https://api.github.com/meta
+ * 最終確認: 2026-03-04 (https://api.github.com/meta)
+ */
+const KNOWN_SERVICE_CIDRS: Record<string, string[]> = {
+  'github.com': [
+    '140.82.112.0/20',  // GitHub
+    '192.30.252.0/22',  // GitHub
+    '185.199.108.0/22', // GitHub Pages/CDN
+    '143.55.64.0/20',   // GitHub
+  ],
+  'githubusercontent.com': [
+    '185.199.108.0/22', // GitHub content delivery
+  ],
+};
+
+/**
+ * サービス固有の追加サブドメイン
+ * COMMON_SUBDOMAINSに加えて解決を試みる
+ */
+const SERVICE_SPECIFIC_SUBDOMAINS: Record<string, string[]> = {
+  'github.com': ['codeload', 'objects', 'pkg', 'ghcr', 'copilot-proxy'],
+  'githubusercontent.com': ['objects', 'avatars', 'user-images', 'camo'],
+  'npmjs.org': ['registry'],
+  'npmjs.com': ['registry'],
+};
+
 // ==================== デフォルトテンプレート ====================
 
 const DEFAULT_TEMPLATES: DefaultTemplate[] = [
@@ -763,8 +792,14 @@ export class NetworkFilterService {
 
   /**
    * ワイルドカードドメインのベースドメインと一般的サブドメインを解決する
+   *
+   * 解決の流れ:
+   * 1. ベースドメイン自体を解決
+   * 2. COMMON_SUBDOMAINSとSERVICE_SPECIFIC_SUBDOMAINSをSetで重複排除し、Promise.allで並列解決
+   * 3. KNOWN_SERVICE_CIDRSの既知IPレンジを直接追加（DNS解決なし）
+   *
    * @param baseDomain - ベースドメイン（例: github.com）
-   * @returns 解決されたIPアドレスの配列
+   * @returns 解決されたIPアドレスおよびCIDRの配列
    */
   private async resolveWildcardDomain(baseDomain: string): Promise<string[]> {
     const allIps = new Set<string>();
@@ -773,11 +808,24 @@ export class NetworkFilterService {
     const baseIps = await this.resolveWithCache(baseDomain);
     baseIps.forEach((ip) => { allIps.add(ip); });
 
-    // 一般的なサブドメインも解決を試行
-    for (const subdomain of COMMON_SUBDOMAINS) {
-      const fqdn = `${subdomain}.${baseDomain}`;
-      const subIps = await this.resolveWithCache(fqdn);
-      subIps.forEach((ip) => { allIps.add(ip); });
+    // 一般的なサブドメインとサービス固有サブドメインを重複排除して並列解決
+    const candidateSubdomains = new Set([
+      ...COMMON_SUBDOMAINS,
+      ...(SERVICE_SPECIFIC_SUBDOMAINS[baseDomain] ?? []),
+    ]);
+
+    await Promise.all(
+      Array.from(candidateSubdomains).map(async (subdomain) => {
+        const fqdn = `${subdomain}.${baseDomain}`;
+        const subIps = await this.resolveWithCache(fqdn);
+        subIps.forEach((ip) => { allIps.add(ip); });
+      })
+    );
+
+    // 既知サービスのCIDRブロックを追加（DNS解決なし）
+    const knownCidrs = KNOWN_SERVICE_CIDRS[baseDomain];
+    if (knownCidrs) {
+      knownCidrs.forEach(cidr => { allIps.add(cidr); });
     }
 
     return Array.from(allIps);
