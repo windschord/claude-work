@@ -6,6 +6,12 @@ ClaudeWork は、Claude Code セッションをブラウザから管理するた
 
 ## スクリーンショット
 
+### Claude Code ターミナル
+
+ブラウザ上でClaude Codeをインタラクティブに操作できます。セッションごとに独立したDocker環境で実行されます。
+
+![Claude Code ターミナル](docs/images/claude-terminal.png)
+
 ### プロジェクト一覧
 
 プロジェクトとセッションを一覧で管理できます。
