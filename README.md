@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/images/logo.png" alt="ClaudeWork Logo" width="400">
+</p>
+
 # ClaudeWork
 
 > **注意**: このプロジェクトは開発中（Work In Progress）です。予告なく仕様が変更される可能性があります。
