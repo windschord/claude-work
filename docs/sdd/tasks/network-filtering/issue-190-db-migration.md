@@ -38,7 +38,7 @@ CURRENT_DB_VERSIONを7に更新し、v6→v7マイグレーションを追加。
 **受入基準**:
 - [x] 全テストがパス
 - [x] 既存テストが壊れていない
-- [x] CI全チェック通過
+- [x] CIチェック通過
 
 ## 依存関係
 
@@ -49,4 +49,3 @@ CURRENT_DB_VERSIONを7に更新し、v6→v7マイグレーションを追加。
 - 要件: `docs/sdd/requirements/network-filtering/issue-190-db-migration.md`
 - 設計: `docs/sdd/design/network-filtering/issue-190-db-migration.md`
 - Issue: #190
-- PR: https://github.com/windschord/claude-work/pull/198
