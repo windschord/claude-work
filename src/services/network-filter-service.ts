@@ -724,17 +724,17 @@ export class NetworkFilterService {
    * @throws FilterApplicationError iptablesが利用不可またはルール適用に失敗した場合
    */
   async applyFilter(environmentId: string, containerSubnet: string): Promise<void> {
-    // 1. フィルタリング設定を確認（ロック外で行い、無効時は即リターン）
-    const config = await this.getFilterConfig(environmentId);
-
-    // 2. フィルタリングが無効または設定がない場合はスキップ
-    if (!config || !config.enabled) {
-      logger.debug('フィルタリングが無効のためスキップ', { environmentId });
-      return;
-    }
-
     // 同一environmentIdの操作を直列化してiptablesチェインの競合状態を防ぐ
     return this.withFilterLock(environmentId, async () => {
+      // 1. フィルタリング設定を確認（ロック内で判定してTOCTOUを防ぐ）
+      const config = await this.getFilterConfig(environmentId);
+
+      // 2. フィルタリングが無効または設定がない場合はスキップ
+      if (!config || !config.enabled) {
+        logger.debug('フィルタリングが無効のためスキップ', { environmentId });
+        return;
+      }
+
       logger.info('フィルタリングの適用を開始します', { environmentId, containerSubnet });
 
       // 3. iptables利用可否チェック
