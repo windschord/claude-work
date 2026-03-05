@@ -801,7 +801,13 @@ export class DockerAdapter extends BasePTYAdapter {
         try {
           const docker = DockerClient.getInstance().getDockerInstance();
           const bridgeNetwork = docker.getNetwork('bridge');
-          await bridgeNetwork.connect({ Container: container.id });
+          const NETWORK_CONNECT_TIMEOUT_MS = 30_000;
+          await Promise.race([
+            bridgeNetwork.connect({ Container: container.id }),
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error(`Bridge network connect timed out after ${NETWORK_CONNECT_TIMEOUT_MS}ms`)), NETWORK_CONNECT_TIMEOUT_MS)
+            ),
+          ]);
           logger.info('DockerAdapter: Connected container to bridge network', {
             sessionId,
             containerId: container.id,
@@ -836,7 +842,13 @@ export class DockerAdapter extends BasePTYAdapter {
         //   - 完全なコンテナ単位の分離が必要な場合は、環境ごとに専用のDockerネットワークを
         //     作成する方式への移行が必要（将来の拡張候補）
         const containerSubnet = await this.getContainerSubnet(container);
-        await networkFilterService.applyFilter(this.config.environmentId, containerSubnet);
+        const FILTER_APPLY_TIMEOUT_MS = 30_000;
+        await Promise.race([
+          networkFilterService.applyFilter(this.config.environmentId, containerSubnet),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error(`Network filter apply timed out after ${FILTER_APPLY_TIMEOUT_MS}ms`)), FILTER_APPLY_TIMEOUT_MS)
+          ),
+        ]);
         filterApplied = true;
       } catch (filterError) {
         logger.error('Network filter application failed, stopping container', {
