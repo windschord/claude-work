@@ -93,7 +93,8 @@ vi.mock('@/lib/logger', () => ({
   },
 }));
 
-import { NetworkFilterService, ValidationError } from '../network-filter-service';
+import { NetworkFilterService, ValidationError, FilterApplicationError } from '../network-filter-service';
+import type { IptablesManager } from '../iptables-manager';
 
 describe('NetworkFilterService', () => {
   let service: NetworkFilterService;
@@ -624,6 +625,151 @@ describe('NetworkFilterService', () => {
 
       const result = await service.isFilterEnabled(envId);
       expect(result).toBe(false);
+    });
+  });
+
+  // ==================== applyFilter / removeFilter（mutex直列化テスト） ====================
+
+  describe('applyFilter / removeFilter mutex（直列化）', () => {
+    let mockIptablesManager: IptablesManager;
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+
+      // IptablesManagerのモック
+      mockIptablesManager = {
+        checkAvailability: vi.fn().mockResolvedValue(true),
+        setupFilterChain: vi.fn().mockResolvedValue(undefined),
+        removeFilterChain: vi.fn().mockResolvedValue(undefined),
+        listActiveChains: vi.fn().mockResolvedValue([]),
+        cleanupOrphanedChains: vi.fn().mockResolvedValue(undefined),
+      } as unknown as IptablesManager;
+    });
+
+    afterEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('同一environmentIdで2つのapplyFilterを同時呼び出しすると直列に実行される', async () => {
+      // フィルタリング設定: 有効
+      mockDbSelectGet.mockReturnValue({ id: 'config-1', environment_id: envId, enabled: true });
+      // ルール一覧: 空
+      mockDbSelectAll.mockReturnValue([]);
+
+      const executionOrder: number[] = [];
+
+      // setupFilterChainに遅延を追加して並行性を確認
+      let callCount = 0;
+      (mockIptablesManager.setupFilterChain as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+        const myOrder = ++callCount;
+        executionOrder.push(myOrder * 10); // 開始
+        await new Promise(r => setTimeout(r, 10));
+        executionOrder.push(myOrder * 10 + 1); // 終了
+      });
+
+      const serviceWithMock = new NetworkFilterService(mockIptablesManager);
+
+      // 同時に呼び出し
+      await Promise.all([
+        serviceWithMock.applyFilter(envId, '172.18.0.0/16'),
+        serviceWithMock.applyFilter(envId, '172.18.0.0/16'),
+      ]);
+
+      // 直列実行されていること: [10, 11, 20, 21] の順序（1つ目が完全に終わってから2つ目が始まる）
+      // 並列だと [10, 20, 11, 21] のような混在が発生する
+      expect(executionOrder).toEqual([10, 11, 20, 21]);
+    });
+
+    it('同一environmentIdでremoveFilterとapplyFilterを同時呼び出しすると直列に実行される', async () => {
+      // フィルタリング設定: 有効
+      mockDbSelectGet.mockReturnValue({ id: 'config-1', environment_id: envId, enabled: true });
+      // ルール一覧: 空
+      mockDbSelectAll.mockReturnValue([]);
+
+      const executionOrder: string[] = [];
+
+      (mockIptablesManager.removeFilterChain as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+        executionOrder.push('remove:start');
+        await new Promise(r => setTimeout(r, 10));
+        executionOrder.push('remove:end');
+      });
+
+      (mockIptablesManager.setupFilterChain as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+        executionOrder.push('apply:start');
+        await new Promise(r => setTimeout(r, 10));
+        executionOrder.push('apply:end');
+      });
+
+      const serviceWithMock = new NetworkFilterService(mockIptablesManager);
+
+      // removeFilterとapplyFilterを同時に呼び出し
+      await Promise.all([
+        serviceWithMock.removeFilter(envId),
+        serviceWithMock.applyFilter(envId, '172.18.0.0/16'),
+      ]);
+
+      // 直列実行されていること（removeが先）
+      expect(executionOrder[0]).toBe('remove:start');
+      expect(executionOrder[1]).toBe('remove:end');
+      expect(executionOrder[2]).toBe('apply:start');
+      expect(executionOrder[3]).toBe('apply:end');
+    });
+
+    it('異なるenvironmentIdでは並列実行される', async () => {
+      const envId2 = 'env-uuid-2';
+
+      // どちらの環境もフィルタリング有効
+      mockDbSelectGet.mockReturnValue({ id: 'config-1', environment_id: envId, enabled: true });
+      mockDbSelectAll.mockReturnValue([]);
+
+      const executionOrder: string[] = [];
+
+      (mockIptablesManager.setupFilterChain as ReturnType<typeof vi.fn>).mockImplementation(
+        async (currentEnvId: string) => {
+          executionOrder.push(`${currentEnvId}:start`);
+          await new Promise(r => setTimeout(r, 20));
+          executionOrder.push(`${currentEnvId}:end`);
+        }
+      );
+
+      const serviceWithMock = new NetworkFilterService(mockIptablesManager);
+
+      await Promise.all([
+        serviceWithMock.applyFilter(envId, '172.18.0.0/16'),
+        serviceWithMock.applyFilter(envId2, '172.19.0.0/16'),
+      ]);
+
+      // 異なるenvironmentIdなので両方のstartが先に来る（並列実行）
+      expect(executionOrder[0]).toContain(':start');
+      expect(executionOrder[1]).toContain(':start');
+      expect(executionOrder[2]).toContain(':end');
+      expect(executionOrder[3]).toContain(':end');
+    });
+
+    it('applyFilter内でエラーが発生してもmutexが解放され次の操作が実行できる', async () => {
+      // フィルタリング設定: 有効
+      mockDbSelectGet.mockReturnValue({ id: 'config-1', environment_id: envId, enabled: true });
+      mockDbSelectAll.mockReturnValue([]);
+
+      let callCount = 0;
+
+      (mockIptablesManager.setupFilterChain as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+        callCount++;
+        if (callCount === 1) {
+          throw new Error('iptables error');
+        }
+        // 2回目は成功
+      });
+
+      const serviceWithMock = new NetworkFilterService(mockIptablesManager);
+
+      // 1回目: エラー発生
+      await expect(serviceWithMock.applyFilter(envId, '172.18.0.0/16')).rejects.toThrow(FilterApplicationError);
+
+      // 2回目: エラー後もmutexが解放されて実行できる
+      await expect(serviceWithMock.applyFilter(envId, '172.18.0.0/16')).resolves.toBeUndefined();
+
+      expect(callCount).toBe(2);
     });
   });
 });
