@@ -742,6 +742,11 @@ export class DockerAdapter extends BasePTYAdapter {
       // ネットワークへ接続してから applyFilter() で iptables ルールを適用する。
       // これにより、container.start() 直後に任意のネットワークへ接続されることを防ぎつつ、
       // bridge 接続後から applyFilter() 完了までの無保護ウィンドウを最小化する。
+      // NOTE: isFilterEnabled() と applyFilter() はそれぞれ内部で getFilterConfig() を呼び出すため、
+      // フィルタ有効時にDB参照が二重に発生する。これは意図的な設計であり、以下の理由で許容している:
+      //   - applyFilter() は独立して呼び出されるケースもあるため、内部で設定の再取得が必要
+      //   - applyFilter() 内部での再取得は、適用時点での最新設定を保証する鮮度担保の役割も持つ
+      //   - SQLiteのローカルファイルアクセスのため、二重読み取りのパフォーマンス影響は無視できる
       const filterEnabled = await networkFilterService.isFilterEnabled(this.config.environmentId);
       if (filterEnabled) {
         // NetworkMode='none'はPortBindingsと非互換のため、ポートマッピングが設定されている場合はエラー
@@ -820,6 +825,16 @@ export class DockerAdapter extends BasePTYAdapter {
         // Docker Engine はnetwork.connect()完了時点でIPを即座に割り当てるため、
         // 通常はinspectでIP情報を取得可能。フォールバックが使われるケースは稀だが、
         // 詳細はgetContainerSubnet()メソッドおよび設計書の「既知の制約」セクションを参照。
+        //
+        // 既知の制約: サブネットベースのフィルタリングの影響範囲について
+        // containerSubnet は container.inspect() の IPPrefixLen から計算されるため、
+        // Dockerデフォルトbridgeネットワーク上の他コンテナにも同じサブネットが適用され得る。
+        // つまり、iptablesの -s ${containerSubnet} ルールは同一bridgeサブネット上の全コンテナに影響する。
+        // ただし、以下の理由で現時点では許容している:
+        //   - ClaudeWorkが管理するコンテナのみが対象であり、外部コンテナとの共存は想定外
+        //   - フィルタルールは環境ごとにユニークなチェイン名を使用するため、ルールの競合は発生しない
+        //   - 完全なコンテナ単位の分離が必要な場合は、環境ごとに専用のDockerネットワークを
+        //     作成する方式への移行が必要（将来の拡張候補）
         const containerSubnet = await this.getContainerSubnet(container);
         await networkFilterService.applyFilter(this.config.environmentId, containerSubnet);
         filterApplied = true;
