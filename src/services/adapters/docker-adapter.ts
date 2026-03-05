@@ -785,8 +785,13 @@ export class DockerAdapter extends BasePTYAdapter {
       await container.start();
 
       // Issue #193: フィルタリング有効時はbridgeネットワークへ接続（iptablesルール適用前）
-      // ネットワーク接続後すぐにiptablesルールを適用するため、Claude Codeが
-      // ネットワーク通信できるウィンドウを最小化する
+      // 既知の制約: bridge接続からapplyFilter()完了までの間はフィルタ未適用でネットワーク通信可能。
+      // これは設計上の既知の制約であり、以下の理由で許容している:
+      //   - コンテナは起動直後で初期化中のため、ユーザー入力はまだ受け付けていない
+      //   - waitForContainerReady()完了前のため、Claude Codeは操作可能な状態ではない
+      //   - DNS解決遅延がある場合は隙間が数秒に拡大する可能性があるが、
+      //     従来の「コンテナ起動時点から無保護」に比べ大幅に改善される
+      // 詳細: docs/sdd/design/network-filtering/issue-193-unprotected-window.md
       if (filterEnabled) {
         try {
           const docker = DockerClient.getInstance().getDockerInstance();
@@ -810,7 +815,11 @@ export class DockerAdapter extends BasePTYAdapter {
       // ネットワークフィルタリング適用（コンテナ起動後、ready待ち前）
       // フィルタリング無効の場合はnetworkFilterService内部でスキップされる
       try {
-        // コンテナのネットワーク設定からsubnetを動的に取得（失敗時はフォールバック）
+        // コンテナのネットワーク設定からsubnetを動的に取得
+        // getContainerSubnet()は取得失敗時に'172.17.0.0/16'にフォールバックする機構を持つ。
+        // Docker Engine はnetwork.connect()完了時点でIPを即座に割り当てるため、
+        // 通常はinspectでIP情報を取得可能。フォールバックが使われるケースは稀だが、
+        // 詳細はgetContainerSubnet()メソッドおよび設計書の「既知の制約」セクションを参照。
         const containerSubnet = await this.getContainerSubnet(container);
         await networkFilterService.applyFilter(this.config.environmentId, containerSubnet);
         filterApplied = true;
