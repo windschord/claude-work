@@ -820,6 +820,7 @@ export class DockerAdapter extends BasePTYAdapter {
           logger.error('DockerAdapter: Failed to connect container to bridge network', {
             sessionId,
             error: networkError instanceof Error ? networkError.message : String(networkError),
+            stack: networkError instanceof Error ? networkError.stack : undefined,
           });
           try { await container.stop({ t: 5 }); } catch { /* ignore */ }
           try { await container.remove({ force: true }); } catch { /* ignore */ }
@@ -848,13 +849,16 @@ export class DockerAdapter extends BasePTYAdapter {
         const containerSubnet = await this.getContainerSubnet(container);
         // タイムアウト制約: applyFilter内部のiptables-restore(execFile)およびDNS解決は
         // AbortSignalに対応していないため、タイムアウト時に実処理を中断できない。
-        // タイムアウト発生時はcatchブロックでcontainer.stop()+remove()を実行し、
-        // さらにremoveFilter()でiptablesチェインをクリーンアップするため、
-        // 遅延完了したapplyFilterが残したルールは確実に除去される。
+        // タイムアウト発生時はcatchブロックでcontainer.stop()+remove()を実行するため、
+        // 遅延完了した場合でもコンテナ自体が存在せず実質的に無害となる。
+        // また、applyFilterの遅延完了でiptablesルールが作成された場合も、
+        // 対象コンテナは既に削除済みのためトラフィックは発生しない。
+        // セッション終了時（stopSession/onExit）のremoveFilterで最終的にクリーンアップされる。
         const FILTER_APPLY_TIMEOUT_MS = 30_000;
+        const applyFilterPromise = networkFilterService.applyFilter(this.config.environmentId, containerSubnet);
         await new Promise<void>((resolve, reject) => {
           const timer = setTimeout(() => reject(new Error(`Network filter apply timed out after ${FILTER_APPLY_TIMEOUT_MS}ms`)), FILTER_APPLY_TIMEOUT_MS);
-          networkFilterService.applyFilter(this.config.environmentId, containerSubnet)
+          applyFilterPromise
             .then(() => { clearTimeout(timer); resolve(); })
             .catch((err: unknown) => { clearTimeout(timer); reject(err); });
         });
@@ -863,12 +867,18 @@ export class DockerAdapter extends BasePTYAdapter {
         logger.error('Network filter application failed, stopping container', {
           sessionId,
           error: filterError instanceof Error ? filterError.message : String(filterError),
+          stack: filterError instanceof Error ? filterError.stack : undefined,
         });
         try { await container.stop({ t: 5 }); } catch { /* ignore */ }
         try { await container.remove({ force: true }); } catch { /* ignore */ }
-        // タイムアウト等でapplyFilterが遅延完了した場合に備え、
-        // iptablesチェインのクリーンアップを試行する
-        try { await networkFilterService.removeFilter(this.config.environmentId); } catch { /* ignore */ }
+        // クリーンアップ: 他セッションがこの環境で稼働していない場合のみremoveFilterを実行。
+        // 他セッションが存在する場合はそのセッションのフィルタルールを消してしまうため、
+        // クリーンアップはそのセッションの終了時に委ねる。
+        const envId = this.config.environmentId;
+        const activeCount = this.activeSessionCount.get(envId) ?? 0;
+        if (activeCount === 0) {
+          try { await networkFilterService.removeFilter(envId); } catch { /* ignore */ }
+        }
         throw filterError;
       }
 
