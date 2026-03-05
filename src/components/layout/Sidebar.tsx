@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { useAppStore } from '@/store';
 import { useUIStore } from '@/store/ui';
 import { ProjectTreeItem } from './ProjectTreeItem';
@@ -211,7 +212,10 @@ export function Sidebar() {
         <div className="h-full flex flex-col">
           {/* ヘッダー */}
           <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200 dark:border-gray-700">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">プロジェクト</h2>
+            <div className="flex items-center gap-2">
+              <Image src="/images/logo-icon.png" alt="" width={28} height={28} aria-hidden />
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">プロジェクト</h2>
+            </div>
             <AddProjectButton onClick={() => setIsAddProjectModalOpen(true)} />
           </div>
 
