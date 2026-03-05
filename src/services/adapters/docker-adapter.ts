@@ -819,7 +819,7 @@ export class DockerAdapter extends BasePTYAdapter {
         } catch (networkError) {
           logger.error('DockerAdapter: Failed to connect container to bridge network', {
             sessionId,
-            error: networkError,
+            error: networkError instanceof Error ? networkError.message : String(networkError),
           });
           try { await container.stop({ t: 5 }); } catch { /* ignore */ }
           try { await container.remove({ force: true }); } catch { /* ignore */ }
@@ -862,7 +862,7 @@ export class DockerAdapter extends BasePTYAdapter {
       } catch (filterError) {
         logger.error('Network filter application failed, stopping container', {
           sessionId,
-          error: filterError,
+          error: filterError instanceof Error ? filterError.message : String(filterError),
         });
         try { await container.stop({ t: 5 }); } catch { /* ignore */ }
         try { await container.remove({ force: true }); } catch { /* ignore */ }
