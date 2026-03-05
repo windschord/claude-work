@@ -744,11 +744,14 @@ export class DockerAdapter extends BasePTYAdapter {
       // bridge 接続後から applyFilter() 完了までの無保護ウィンドウを最小化する。
       const filterEnabled = await networkFilterService.isFilterEnabled(this.config.environmentId);
       if (filterEnabled) {
+        // NetworkMode='none'はPortBindingsと非互換のため、ポートマッピングが設定されている場合はエラー
+        if (this.config.portMappings && this.config.portMappings.length > 0) {
+          throw new Error(
+            'Port mappings are not supported when network filtering is enabled'
+          );
+        }
         createOptions.HostConfig = createOptions.HostConfig ?? {};
         createOptions.HostConfig.NetworkMode = 'none';
-        // NetworkMode='none'とPortBindingsは非互換のため、フィルタリング有効時はポートマッピングを除去
-        delete createOptions.HostConfig.PortBindings;
-        delete createOptions.ExposedPorts;
         logger.info('DockerAdapter: Network filtering enabled, starting container with NetworkMode=none', {
           sessionId,
           environmentId: this.config.environmentId,

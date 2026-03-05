@@ -28,7 +28,7 @@
 6. container.start() ← ネットワークなしで起動（安全）
    ↓
 7. docker.getNetwork('bridge').connect({ Container: container.id })
-   ← bridgeネットワークに接続（iptablesルール適用前は通信可能だが、Claude Codeはまだ起動していない）
+   ← bridgeネットワークに接続（iptablesルール適用前は通信可能だが、起動直後で初期化中のため、ユーザー入力は未受付）
    ↓
 8. getContainerSubnet(container) ← bridge接続後にsubnetを取得
    ↓
@@ -52,9 +52,29 @@ waitForContainerReady()
 **残存する隙間**: step 7（bridge接続）からstep 9（applyFilter完了）までの間は、コンテナはネットワークに接続されているがiptablesルールがない状態。ただし：
 - step 6でコンテナは起動したばかりで、Claude Codeの初期化が完了していない
 - step 10のwaitForContainerReadyが完了するまでClaude Codeはユーザー入力を受け付けない
-- この隙間は数百ミリ秒から1秒程度であり、大幅に改善される
+- 通常この隙間は数百ミリ秒から1秒程度であり、大幅に改善される
+- ただし、applyFilter() 内でのDNS解決に時間がかかる場合、この隙間が数秒以上に拡大する可能性がある（DNS応答遅延・タイムアウトが発生した場合）
 
 これは完全なゼロリスクではないが、現状の「コンテナ起動から数秒間の無保護」と比べて大幅に改善される。
+
+## 既知の制約と将来の改善
+
+### 1. bridge接続からapplyFilter完了までの隙間（DNS解決遅延時の拡大）
+
+現状の設計では、step 7（bridge接続）からstep 9（applyFilter完了）の間は無保護ウィンドウが存在する。applyFilter() 内でDNS解決が行われる場合、DNS応答の遅延やタイムアウトにより、この隙間が数秒以上に拡大する可能性がある。
+
+**将来の緩和策候補**:
+- `container.pause()` / `container.unpause()` を活用し、bridge接続直後にコンテナをpauseして、applyFilter完了後にunpauseする
+- applyFilter() の事前DNS解決（コンテナ起動前にDNSを解決しておき、IPアドレス直接指定でiptablesルールを適用）
+
+### 2. getContainerSubnetのフォールバック値とズレの可能性
+
+`getContainerSubnet()` でsubnet取得に失敗した場合、デフォルト値 `172.17.0.0/16` にフォールバックする実装が存在する可能性がある。実際のDocker bridgeネットワークのsubnetがこのデフォルト値と異なる環境では、iptablesルールが正しく機能しない可能性がある。
+
+**将来の緩和策候補**:
+- subnet取得リトライロジックの追加
+- フォールバック時に警告ログを出力し、管理者が検知できるようにする
+- subnet取得失敗時はコンテナ起動を中断してエラーにする（セキュリティ優先）
 
 ## コンポーネント設計
 
