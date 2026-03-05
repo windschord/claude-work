@@ -735,13 +735,6 @@ export class NetworkFilterService {
 
     // 同一environmentIdの操作を直列化してiptablesチェインの競合状態を防ぐ
     return this.withFilterLock(environmentId, async () => {
-      // ロック取得後にフィルタ設定を再確認（設定変更との競合防止）
-      const currentConfig = await this.getFilterConfig(environmentId);
-      if (!currentConfig || !currentConfig.enabled) {
-        logger.debug('フィルタリングが無効のためスキップ（ロック取得後の再確認）', { environmentId });
-        return;
-      }
-
       logger.info('フィルタリングの適用を開始します', { environmentId, containerSubnet });
 
       // 3. iptables利用可否チェック
@@ -792,22 +785,10 @@ export class NetworkFilterService {
    * @param environmentId - 環境ID
    */
   async removeFilter(environmentId: string): Promise<void> {
-    // フィルタリング設定を確認（ロック外で行い、無効時は即リターン）
-    const config = await this.getFilterConfig(environmentId);
-    if (!config || !config.enabled) {
-      logger.debug('フィルタリングが無効のためクリーンアップをスキップ', { environmentId });
-      return;
-    }
-
     // 同一environmentIdの操作を直列化してiptablesチェインの競合状態を防ぐ
+    // NOTE: removeFilterは設定確認を行わない。フィルタリングが無効化された場合でも
+    // iptablesルールのクリーンアップは必要なため、常に実行する。
     return this.withFilterLock(environmentId, async () => {
-      // ロック取得後にフィルタ設定を再確認（設定変更との競合防止）
-      const currentConfig = await this.getFilterConfig(environmentId);
-      if (!currentConfig || !currentConfig.enabled) {
-        logger.debug('フィルタリングが無効のためクリーンアップをスキップ（ロック取得後の再確認）', { environmentId });
-        return;
-      }
-
       logger.info('フィルタリングのクリーンアップを開始します', { environmentId });
 
       try {
