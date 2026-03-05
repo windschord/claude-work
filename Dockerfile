@@ -84,8 +84,14 @@ RUN apt-get update \
        https://download.docker.com/linux/debian $(. /etc/os-release && echo $VERSION_CODENAME) stable" \
        > /etc/apt/sources.list.d/docker.list \
     && apt-get update \
-    && apt-get install -y --no-install-recommends docker-ce-cli iptables \
+    && apt-get install -y --no-install-recommends docker-ce-cli iptables sudo \
     && rm -rf /var/lib/apt/lists/*
+
+# nodeユーザーがnsenter + iptablesをpasswordless sudoで実行できるように設定
+# Docker Compose環境ではコンテナ独自のネットワーク名前空間にはDOCKER-USERが存在しない
+# nsenterでホストのネットワーク名前空間に入ってiptablesを操作する必要がある
+RUN echo "node ALL=(root) NOPASSWD: /usr/bin/nsenter" > /etc/sudoers.d/iptables-node \
+    && chmod 0440 /etc/sudoers.d/iptables-node
 
 ENV NODE_ENV=production
 ENV PORT=3000

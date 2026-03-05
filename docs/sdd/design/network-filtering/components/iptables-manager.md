@@ -145,8 +145,49 @@ COMMIT
 
 ### コマンド実行方式
 
-- **HOST環境**: `child_process.execFile('iptables', [...args])` で直接実行
-- **Docker Compose環境**: ClaudeWorkコンテナに`NET_ADMIN` capabilityが必要。`nsenter`経由でホストのネットワーク名前空間にアクセスするか、`--network=host`モードで実行
+- **HOST環境**: `child_process.execFile('iptables', [...args])` で直接実行（root権限が必要）
+- **Docker Compose環境**: `sudo nsenter -t 1 -n iptables` で実行
+
+#### Docker Compose環境での実行アーキテクチャ
+
+Docker Compose環境ではDOCKER-USERチェインはホストのネットワーク名前空間に存在する。コンテナ独自のネットワーク名前空間からはアクセスできないため、`nsenter`でホストの名前空間に入ってiptablesを操作する。
+
+```text
+ClaudeWorkコンテナ (node user)
+  └→ sudo nsenter -t 1 -n iptables ...
+       └→ ホストのネットワーク名前空間でiptablesを実行
+            └→ DOCKER-USERチェインにルールを追加
+```
+
+#### 必要な設定
+
+**docker-compose.yml:**
+```yaml
+pid: host          # nsenterでホストのPID 1の名前空間にアクセスするため
+cap_add:
+  - NET_ADMIN      # iptablesルールの操作に必要
+  - SYS_ADMIN      # nsenterで名前空間にアクセスするために必要
+  - SYS_PTRACE     # /proc/1/ns/netへのアクセスに必要
+security_opt:
+  - apparmor=unconfined  # AppArmorによるnsenterブロックを回避
+```
+
+**Dockerfile:**
+```dockerfile
+# sudoインストール + nodeユーザーにnsenterのpasswordless sudo許可
+RUN apt-get install -y sudo
+RUN echo "node ALL=(root) NOPASSWD: /usr/bin/nsenter" > /etc/sudoers.d/iptables-node
+```
+
+#### iptables-nft vs iptables-legacy
+
+ホストのDockerバージョンによって、DOCKER-USERチェインがnftablesまたはlegacy xtablesで管理されている。`nsenter`でホストの名前空間に入るため、ホストにインストールされているiptablesが使用される。コンテナ内のiptablesバイナリ（iptables-nft）がデフォルトで使用され、ホストのnftablesチェインにアクセスできる。
+
+#### IptablesManager の実行モード判定
+
+`RUNNING_IN_DOCKER` 環境変数で判定:
+- `true`: `sudo nsenter -t 1 -n iptables` 経由で実行
+- 未設定/false: `iptables` を直接実行（HOST環境）
 
 ### 冪等性の確保
 
