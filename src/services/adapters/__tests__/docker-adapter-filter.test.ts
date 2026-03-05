@@ -259,7 +259,7 @@ describe('DockerAdapter フィルタリング統合', () => {
         expect.stringContaining('Network filter'),
         expect.objectContaining({
           sessionId: 'session-1',
-          error: filterError,
+          error: filterError.message,
         })
       );
     });
