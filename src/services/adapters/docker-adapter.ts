@@ -801,6 +801,10 @@ export class DockerAdapter extends BasePTYAdapter {
         try {
           const docker = DockerClient.getInstance().getDockerInstance();
           const bridgeNetwork = docker.getNetwork('bridge');
+          // タイムアウト制約: dockerode APIはAbortSignalに対応していないため、
+          // タイムアウト時に実処理を中断することはできない。タイムアウト発生時は
+          // catchブロックでcontainer.stop()+remove()を実行するため、遅延完了した
+          // connect操作は実質的に無効化される（コンテナ自体が存在しなくなる）。
           const NETWORK_CONNECT_TIMEOUT_MS = 30_000;
           await new Promise<void>((resolve, reject) => {
             const timer = setTimeout(() => reject(new Error(`Bridge network connect timed out after ${NETWORK_CONNECT_TIMEOUT_MS}ms`)), NETWORK_CONNECT_TIMEOUT_MS);
@@ -842,6 +846,11 @@ export class DockerAdapter extends BasePTYAdapter {
         //   - 完全なコンテナ単位の分離が必要な場合は、環境ごとに専用のDockerネットワークを
         //     作成する方式への移行が必要（将来の拡張候補）
         const containerSubnet = await this.getContainerSubnet(container);
+        // タイムアウト制約: applyFilter内部のiptables-restore(execFile)およびDNS解決は
+        // AbortSignalに対応していないため、タイムアウト時に実処理を中断できない。
+        // タイムアウト発生時はcatchブロックでcontainer.stop()+remove()を実行し、
+        // さらにremoveFilter()でiptablesチェインをクリーンアップするため、
+        // 遅延完了したapplyFilterが残したルールは確実に除去される。
         const FILTER_APPLY_TIMEOUT_MS = 30_000;
         await new Promise<void>((resolve, reject) => {
           const timer = setTimeout(() => reject(new Error(`Network filter apply timed out after ${FILTER_APPLY_TIMEOUT_MS}ms`)), FILTER_APPLY_TIMEOUT_MS);
@@ -857,6 +866,9 @@ export class DockerAdapter extends BasePTYAdapter {
         });
         try { await container.stop({ t: 5 }); } catch { /* ignore */ }
         try { await container.remove({ force: true }); } catch { /* ignore */ }
+        // タイムアウト等でapplyFilterが遅延完了した場合に備え、
+        // iptablesチェインのクリーンアップを試行する
+        try { await networkFilterService.removeFilter(this.config.environmentId); } catch { /* ignore */ }
         throw filterError;
       }
 
