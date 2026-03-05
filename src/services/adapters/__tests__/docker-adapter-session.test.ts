@@ -7,6 +7,7 @@ vi.mock('@/services/network-filter-service', () => ({
   networkFilterService: {
     applyFilter: vi.fn().mockResolvedValue(undefined),
     removeFilter: vi.fn().mockResolvedValue(undefined),
+    isFilterEnabled: vi.fn().mockResolvedValue(false),
   },
 }));
 
