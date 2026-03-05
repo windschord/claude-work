@@ -804,7 +804,7 @@ export class DockerAdapter extends BasePTYAdapter {
           const NETWORK_CONNECT_TIMEOUT_MS = 30_000;
           await new Promise<void>((resolve, reject) => {
             const timer = setTimeout(() => reject(new Error(`Bridge network connect timed out after ${NETWORK_CONNECT_TIMEOUT_MS}ms`)), NETWORK_CONNECT_TIMEOUT_MS);
-            bridgeNetwork.connect({ Container: container.id })
+            bridgeNetwork.connect({ Container: container!.id })
               .then(() => { clearTimeout(timer); resolve(); })
               .catch((err: unknown) => { clearTimeout(timer); reject(err); });
           });
