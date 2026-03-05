@@ -363,6 +363,16 @@ export class NetworkFilterService {
   }
 
   /**
+   * フィルタリングが有効かどうかを確認するヘルパーメソッド
+   * @param environmentId - 環境ID
+   * @returns フィルタリングが有効な場合true、設定が存在しないまたは無効な場合false
+   */
+  async isFilterEnabled(environmentId: string): Promise<boolean> {
+    const config = await this.getFilterConfig(environmentId);
+    return config !== null && config.enabled;
+  }
+
+  /**
    * フィルタリングの有効/無効を切り替える（upsert）
    * @param environmentId - 環境ID
    * @param enabled - 有効/無効

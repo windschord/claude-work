@@ -1,8 +1,46 @@
+<p align="center">
+  <img src="docs/images/logo.webp" alt="ClaudeWork Logo" width="400">
+</p>
+
 # ClaudeWork
 
 > **注意**: このプロジェクトは開発中（Work In Progress）です。予告なく仕様が変更される可能性があります。
 
 ClaudeWork は、Claude Code セッションをブラウザから管理するための Web ベースツールです。複数のセッションを並列で実行し、Git worktree を使用して各セッションを独立した環境で管理します。
+
+## スクリーンショット
+
+### Claude Code ターミナル
+
+ブラウザ上でClaude Codeをインタラクティブに操作できます。セッションごとに独立したDocker環境で実行されます。
+
+![Claude Code ターミナル](docs/images/claude-terminal.png)
+
+### プロジェクト一覧
+
+プロジェクトとセッションを一覧で管理できます。
+
+| ライトモード | ダークモード |
+|:---:|:---:|
+| ![プロジェクト一覧（ライト）](docs/images/project-list.png) | ![プロジェクト一覧（ダーク）](docs/images/project-list-dark.png) |
+
+### セッション作成
+
+実行環境やClaude Codeオプションを指定してセッションを作成できます。
+
+![セッション作成](docs/images/create-session.png)
+
+### 設定画面
+
+アプリケーション設定、実行環境、GitHub PAT、開発ツール設定を管理できます。
+
+![設定](docs/images/settings.png)
+
+### 実行環境管理
+
+Docker、Host、SSH の実行環境を追加・編集・削除できます。
+
+![実行環境](docs/images/environments.png)
 
 ## 動作保証環境
 

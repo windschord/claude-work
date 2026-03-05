@@ -736,6 +736,32 @@ export class DockerAdapter extends BasePTYAdapter {
     let activeCountIncremented = false;
     let filterApplied = false;
     try {
+      // Issue #193: 無保護ウィンドウ修正
+      // フィルタリングが有効な場合、まずコンテナを NetworkMode: 'none' で起動して
+      // 起動直後のネットワークを無効化し、その後 container.start() の直後に bridge
+      // ネットワークへ接続してから applyFilter() で iptables ルールを適用する。
+      // これにより、container.start() 直後に任意のネットワークへ接続されることを防ぎつつ、
+      // bridge 接続後から applyFilter() 完了までの無保護ウィンドウを最小化する。
+      // NOTE: isFilterEnabled() と applyFilter() はそれぞれ内部で getFilterConfig() を呼び出すため、
+      // フィルタ有効時にDB参照が二重に発生する。これは意図的な設計であり、以下の理由で許容している:
+      //   - applyFilter() は独立して呼び出されるケースもあるため、内部で設定の再取得が必要
+      //   - applyFilter() 内部での再取得は、適用時点での最新設定を保証する鮮度担保の役割も持つ
+      //   - SQLiteのローカルファイルアクセスのため、二重読み取りのパフォーマンス影響は無視できる
+      const filterEnabled = await networkFilterService.isFilterEnabled(this.config.environmentId);
+      if (filterEnabled) {
+        // NetworkMode='none'はPortBindingsと非互換のため、ポートマッピングが設定されている場合はエラー
+        if (this.config.portMappings && this.config.portMappings.length > 0) {
+          throw new Error(
+            'Port mappings are not supported when network filtering is enabled'
+          );
+        }
+        createOptions.HostConfig = createOptions.HostConfig ?? {};
+        createOptions.HostConfig.NetworkMode = 'none';
+        logger.info('DockerAdapter: Network filtering enabled, starting container with NetworkMode=none', {
+          sessionId,
+          environmentId: this.config.environmentId,
+        });
+      }
       container = await DockerClient.getInstance().createContainer(createOptions);
 
       // Attach stream (hijack)
@@ -760,22 +786,99 @@ export class DockerAdapter extends BasePTYAdapter {
       ptyProcess.setStream(stream);
 
       // Start container after stream listeners are registered
+      // フィルタリング有効時はNetworkMode=noneのため、ネットワーク通信不可の状態で起動
       await container.start();
+
+      // Issue #193: フィルタリング有効時はbridgeネットワークへ接続（iptablesルール適用前）
+      // 既知の制約: bridge接続からapplyFilter()完了までの間はフィルタ未適用でネットワーク通信可能。
+      // これは設計上の既知の制約であり、以下の理由で許容している:
+      //   - コンテナは起動直後で初期化中のため、ユーザー入力はまだ受け付けていない
+      //   - waitForContainerReady()完了前のため、Claude Codeは操作可能な状態ではない
+      //   - DNS解決遅延がある場合は隙間が数秒に拡大する可能性があるが、
+      //     従来の「コンテナ起動時点から無保護」に比べ大幅に改善される
+      // 詳細: docs/sdd/design/network-filtering/issue-193-unprotected-window.md
+      if (filterEnabled) {
+        try {
+          const docker = DockerClient.getInstance().getDockerInstance();
+          const bridgeNetwork = docker.getNetwork('bridge');
+          // タイムアウト制約: dockerode APIはAbortSignalに対応していないため、
+          // タイムアウト時に実処理を中断することはできない。タイムアウト発生時は
+          // catchブロックでcontainer.stop()+remove()を実行するため、遅延完了した
+          // connect操作は実質的に無効化される（コンテナ自体が存在しなくなる）。
+          const NETWORK_CONNECT_TIMEOUT_MS = 30_000;
+          await new Promise<void>((resolve, reject) => {
+            const timer = setTimeout(() => reject(new Error(`Bridge network connect timed out after ${NETWORK_CONNECT_TIMEOUT_MS}ms`)), NETWORK_CONNECT_TIMEOUT_MS);
+            bridgeNetwork.connect({ Container: container!.id })
+              .then(() => { clearTimeout(timer); resolve(); })
+              .catch((err: unknown) => { clearTimeout(timer); reject(err); });
+          });
+          logger.info('DockerAdapter: Connected container to bridge network', {
+            sessionId,
+            containerId: container.id,
+          });
+        } catch (networkError) {
+          logger.error('DockerAdapter: Failed to connect container to bridge network', {
+            sessionId,
+            error: networkError instanceof Error ? networkError.message : String(networkError),
+            stack: networkError instanceof Error ? networkError.stack : undefined,
+          });
+          try { await container.stop({ t: 5 }); } catch { /* ignore */ }
+          try { await container.remove({ force: true }); } catch { /* ignore */ }
+          throw networkError;
+        }
+      }
 
       // ネットワークフィルタリング適用（コンテナ起動後、ready待ち前）
       // フィルタリング無効の場合はnetworkFilterService内部でスキップされる
       try {
-        // コンテナのネットワーク設定からsubnetを動的に取得（失敗時はフォールバック）
+        // コンテナのネットワーク設定からsubnetを動的に取得
+        // getContainerSubnet()は取得失敗時に'172.17.0.0/16'にフォールバックする機構を持つ。
+        // Docker Engine はnetwork.connect()完了時点でIPを即座に割り当てるため、
+        // 通常はinspectでIP情報を取得可能。フォールバックが使われるケースは稀だが、
+        // 詳細はgetContainerSubnet()メソッドおよび設計書の「既知の制約」セクションを参照。
+        //
+        // 既知の制約: サブネットベースのフィルタリングの影響範囲について
+        // containerSubnet は container.inspect() の IPPrefixLen から計算されるため、
+        // Dockerデフォルトbridgeネットワーク上の他コンテナにも同じサブネットが適用され得る。
+        // つまり、iptablesの -s ${containerSubnet} ルールは同一bridgeサブネット上の全コンテナに影響する。
+        // ただし、以下の理由で現時点では許容している:
+        //   - ClaudeWorkが管理するコンテナのみが対象であり、外部コンテナとの共存は想定外
+        //   - フィルタルールは環境ごとにユニークなチェイン名を使用するため、ルールの競合は発生しない
+        //   - 完全なコンテナ単位の分離が必要な場合は、環境ごとに専用のDockerネットワークを
+        //     作成する方式への移行が必要（将来の拡張候補）
         const containerSubnet = await this.getContainerSubnet(container);
-        await networkFilterService.applyFilter(this.config.environmentId, containerSubnet);
+        // タイムアウト制約: applyFilter内部のiptables-restore(execFile)およびDNS解決は
+        // AbortSignalに対応していないため、タイムアウト時に実処理を中断できない。
+        // タイムアウト発生時はcatchブロックでcontainer.stop()+remove()を実行するため、
+        // 遅延完了した場合でもコンテナ自体が存在せず実質的に無害となる。
+        // また、applyFilterの遅延完了でiptablesルールが作成された場合も、
+        // 対象コンテナは既に削除済みのためトラフィックは発生しない。
+        // セッション終了時（stopSession/onExit）のremoveFilterで最終的にクリーンアップされる。
+        const FILTER_APPLY_TIMEOUT_MS = 30_000;
+        const applyFilterPromise = networkFilterService.applyFilter(this.config.environmentId, containerSubnet);
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(() => reject(new Error(`Network filter apply timed out after ${FILTER_APPLY_TIMEOUT_MS}ms`)), FILTER_APPLY_TIMEOUT_MS);
+          applyFilterPromise
+            .then(() => { clearTimeout(timer); resolve(); })
+            .catch((err: unknown) => { clearTimeout(timer); reject(err); });
+        });
         filterApplied = true;
       } catch (filterError) {
         logger.error('Network filter application failed, stopping container', {
           sessionId,
-          error: filterError,
+          error: filterError instanceof Error ? filterError.message : String(filterError),
+          stack: filterError instanceof Error ? filterError.stack : undefined,
         });
         try { await container.stop({ t: 5 }); } catch { /* ignore */ }
         try { await container.remove({ force: true }); } catch { /* ignore */ }
+        // クリーンアップ: 他セッションがこの環境で稼働していない場合のみremoveFilterを実行。
+        // 他セッションが存在する場合はそのセッションのフィルタルールを消してしまうため、
+        // クリーンアップはそのセッションの終了時に委ねる。
+        const envId = this.config.environmentId;
+        const activeCount = this.activeSessionCount.get(envId) ?? 0;
+        if (activeCount === 0) {
+          try { await networkFilterService.removeFilter(envId); } catch { /* ignore */ }
+        }
         throw filterError;
       }
 
