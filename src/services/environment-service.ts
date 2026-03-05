@@ -20,6 +20,14 @@ export class EnvironmentInUseError extends Error {
 }
 
 /**
+ * 環境削除時のVolume保持オプション
+ */
+export interface DeleteEnvironmentOptions {
+  keepClaudeVolume?: boolean;
+  keepConfigVolume?: boolean;
+}
+
+/**
  * 環境状態
  */
 export interface EnvironmentStatus {
@@ -164,7 +172,7 @@ export class EnvironmentService {
    * 使用中のプロジェクトがある場合は EnvironmentInUseError をスロー
    * @param id - 環境ID
    */
-  async delete(id: string): Promise<void> {
+  async delete(id: string, options?: DeleteEnvironmentOptions): Promise<void> {
     const environment = await this.findById(id);
 
     if (!environment) {
@@ -228,14 +236,22 @@ export class EnvironmentService {
     // Docker環境の場合、名前付きVolumeまたはDockerfileディレクトリを削除（ベストエフォート）
     if (environment.type === 'DOCKER' && !environment.auth_dir_path) {
       // 名前付きVolumeを直接削除（auth_dir_pathがnull = 名前付きVolume使用）
+      // options で保持指定されたVolumeはスキップ
       try {
         const volumeNames = getConfigVolumeNames(id);
         const dockerClient = DockerClient.getInstance();
-        for (const volumeName of Object.values(volumeNames)) {
+        if (!options?.keepClaudeVolume) {
           try {
-            await dockerClient.removeVolume(volumeName);
+            await dockerClient.removeVolume(volumeNames.claudeVolume);
           } catch (error) {
-            logger.warn('設定Volume削除失敗', { volume: volumeName, error });
+            logger.warn('設定Volume削除失敗', { volume: volumeNames.claudeVolume, error });
+          }
+        }
+        if (!options?.keepConfigVolume) {
+          try {
+            await dockerClient.removeVolume(volumeNames.configClaudeVolume);
+          } catch (error) {
+            logger.warn('設定Volume削除失敗', { volume: volumeNames.configClaudeVolume, error });
           }
         }
       } catch (error) {

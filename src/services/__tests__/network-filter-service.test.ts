@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import dns from 'dns/promises';
 
 // vi.hoistedでモックを先に初期化
 const {
@@ -430,6 +431,164 @@ describe('NetworkFilterService', () => {
       expect(result.created).toBe(1);
       expect(result.skipped).toBe(1);
       expect(result.rules).toHaveLength(1);
+    });
+  });
+
+  // ==================== resolveWildcardDomain（resolveDomains経由）====================
+
+  describe('resolveDomains - ワイルドカードドメインの拡張解決', () => {
+    // IPv4 CIDR 判定用ヘルパー
+    const IPV4_CIDR_PATTERN = /^\d+\.\d+\.\d+\.\d+\/\d+$/;
+    const hasCidr = (ips: string[]) => ips.some(ip => IPV4_CIDR_PATTERN.test(ip));
+    let dnsResolve4Spy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      // vi.spyOn を使用する理由:
+      // このテストファイルはファイルトップレベルで vi.mock('@/lib/db') 等を使用しており、
+      // dns/promises に対しては describe ブロック単位でのモック切り替えが必要なため
+      // vi.spyOn + mockRestore パターンを採用している。
+      // network-filter-service-dns.test.ts は dns/promises を vi.mock でモジュールレベルでモックしており、
+      // テスト間でモック状態を共有する必要がない場合に適している。
+      dnsResolve4Spy = vi.spyOn(dns, 'resolve4');
+    });
+
+    afterEach(() => {
+      dnsResolve4Spy.mockRestore();
+    });
+
+    it('github.com ワイルドカードでサービス固有サブドメインが解決される', async () => {
+      // dns.resolve4 のモック: 各サブドメインに対して固有のIPを返す
+      dnsResolve4Spy.mockImplementation(async (domain: string) => {
+        const ipMap: Record<string, string[]> = {
+          'github.com': ['140.82.112.3'],
+          'codeload.github.com': ['140.82.112.10'],
+          'objects.github.com': ['140.82.112.11'],
+          'pkg.github.com': ['140.82.112.12'],
+          'ghcr.github.com': ['140.82.112.13'],
+          'copilot-proxy.github.com': ['140.82.112.14'],
+        };
+        const result = ipMap[domain as string];
+        if (!result) throw new Error(`NXDOMAIN: ${domain}`);
+        return result;
+      });
+
+      const githubWildcardRule = {
+        ...mockRule,
+        target: '*.github.com',
+        port: 443,
+      };
+
+      const resolved = await service.resolveDomains([githubWildcardRule]);
+
+      expect(resolved).toHaveLength(1);
+      const ips = resolved[0].ips;
+
+      // サービス固有サブドメインのIPが含まれる（モックで設定した全IPを検証）
+      expect(ips).toEqual(expect.arrayContaining([
+        '140.82.112.10', // codeload.github.com
+        '140.82.112.11', // objects.github.com
+        '140.82.112.12', // pkg.github.com
+        '140.82.112.13', // ghcr.github.com
+        '140.82.112.14', // copilot-proxy.github.com
+      ]));
+    });
+
+    it('github.com ワイルドカードで既知CIDRブロックが含まれる', async () => {
+      // dns.resolve4 のモック: ベースドメインのみ解決
+      dnsResolve4Spy.mockImplementation(async (domain: string) => {
+        if (domain === 'github.com') return ['140.82.112.3'];
+        throw new Error(`NXDOMAIN: ${domain}`);
+      });
+
+      const githubWildcardRule = {
+        ...mockRule,
+        target: '*.github.com',
+        port: 443,
+      };
+
+      const resolved = await service.resolveDomains([githubWildcardRule]);
+
+      expect(resolved).toHaveLength(1);
+      const ips = resolved[0].ips;
+
+      // 既知CIDRブロックが含まれる
+      expect(ips).toContain('140.82.112.0/20');
+      expect(ips).toContain('192.30.252.0/22');
+      expect(ips).toContain('185.199.108.0/22');
+      expect(ips).toContain('143.55.64.0/20');
+    });
+
+    it('githubusercontent.com ワイルドカードで固有サブドメインとCIDRが含まれる', async () => {
+      dnsResolve4Spy.mockImplementation(async (domain: string) => {
+        if (domain === 'githubusercontent.com') return ['185.199.108.1'];
+        if (domain === 'objects.githubusercontent.com') return ['185.199.108.2'];
+        if (domain === 'avatars.githubusercontent.com') return ['185.199.108.3'];
+        throw new Error(`NXDOMAIN: ${domain}`);
+      });
+
+      const rule = {
+        ...mockRule,
+        target: '*.githubusercontent.com',
+        port: 443,
+      };
+
+      const resolved = await service.resolveDomains([rule]);
+
+      expect(resolved).toHaveLength(1);
+      const ips = resolved[0].ips;
+
+      // オブジェクトとアバターのサブドメインIPが含まれる
+      expect(ips).toContain('185.199.108.2'); // objects
+      expect(ips).toContain('185.199.108.3'); // avatars
+      // CIDRが含まれる
+      expect(ips).toContain('185.199.108.0/22');
+    });
+
+    it('npmjs.org ワイルドカードで registry サブドメインが解決される', async () => {
+      dnsResolve4Spy.mockImplementation(async (domain: string) => {
+        if (domain === 'npmjs.org') return ['104.16.0.1'];
+        if (domain === 'registry.npmjs.org') return ['104.16.0.2'];
+        throw new Error(`NXDOMAIN: ${domain}`);
+      });
+
+      const rule = {
+        ...mockRule,
+        target: '*.npmjs.org',
+        port: 443,
+      };
+
+      const resolved = await service.resolveDomains([rule]);
+
+      expect(resolved).toHaveLength(1);
+      const ips = resolved[0].ips;
+
+      // registry サブドメインのIPが含まれる
+      expect(ips).toContain('104.16.0.2');
+      // 未知ドメインなのでCIDRは含まれない
+      expect(hasCidr(ips)).toBe(false);
+    });
+
+    it('未知ドメインのワイルドカードではCIDR追加なしで動作する', async () => {
+      dnsResolve4Spy.mockImplementation(async (domain: string) => {
+        if (domain === 'example.com') return ['93.184.216.34'];
+        throw new Error(`NXDOMAIN: ${domain}`);
+      });
+
+      const rule = {
+        ...mockRule,
+        target: '*.example.com',
+        port: 443,
+      };
+
+      const resolved = await service.resolveDomains([rule]);
+
+      expect(resolved).toHaveLength(1);
+      const ips = resolved[0].ips;
+
+      // ベースドメインのIPは含まれる
+      expect(ips).toContain('93.184.216.34');
+      // CIDRは含まれない
+      expect(hasCidr(ips)).toBe(false);
     });
   });
 });
