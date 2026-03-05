@@ -802,12 +802,12 @@ export class DockerAdapter extends BasePTYAdapter {
           const docker = DockerClient.getInstance().getDockerInstance();
           const bridgeNetwork = docker.getNetwork('bridge');
           const NETWORK_CONNECT_TIMEOUT_MS = 30_000;
-          await Promise.race([
-            bridgeNetwork.connect({ Container: container.id }),
-            new Promise<never>((_, reject) =>
-              setTimeout(() => reject(new Error(`Bridge network connect timed out after ${NETWORK_CONNECT_TIMEOUT_MS}ms`)), NETWORK_CONNECT_TIMEOUT_MS)
-            ),
-          ]);
+          await new Promise<void>((resolve, reject) => {
+            const timer = setTimeout(() => reject(new Error(`Bridge network connect timed out after ${NETWORK_CONNECT_TIMEOUT_MS}ms`)), NETWORK_CONNECT_TIMEOUT_MS);
+            bridgeNetwork.connect({ Container: container.id })
+              .then(() => { clearTimeout(timer); resolve(); })
+              .catch((err: unknown) => { clearTimeout(timer); reject(err); });
+          });
           logger.info('DockerAdapter: Connected container to bridge network', {
             sessionId,
             containerId: container.id,
@@ -843,12 +843,12 @@ export class DockerAdapter extends BasePTYAdapter {
         //     作成する方式への移行が必要（将来の拡張候補）
         const containerSubnet = await this.getContainerSubnet(container);
         const FILTER_APPLY_TIMEOUT_MS = 30_000;
-        await Promise.race([
-          networkFilterService.applyFilter(this.config.environmentId, containerSubnet),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error(`Network filter apply timed out after ${FILTER_APPLY_TIMEOUT_MS}ms`)), FILTER_APPLY_TIMEOUT_MS)
-          ),
-        ]);
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(() => reject(new Error(`Network filter apply timed out after ${FILTER_APPLY_TIMEOUT_MS}ms`)), FILTER_APPLY_TIMEOUT_MS);
+          networkFilterService.applyFilter(this.config.environmentId, containerSubnet)
+            .then(() => { clearTimeout(timer); resolve(); })
+            .catch((err: unknown) => { clearTimeout(timer); reject(err); });
+        });
         filterApplied = true;
       } catch (filterError) {
         logger.error('Network filter application failed, stopping container', {
