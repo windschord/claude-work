@@ -9,10 +9,10 @@
 
 | ID | タイトル | ステータス | 依存 | 推定工数 | 詳細 |
 |----|---------|-----------|------|---------|------|
-| TASK-001 | NetworkFilterService applyFilter処理順序修正 (Issue #207) | TODO | なし | 30min | [詳細](phase-1/TASK-001.md) @phase-1/TASK-001.md |
-| TASK-002 | セッション作成API docker_volume_idバリデーション追加 (Issue #208) | TODO | なし | 25min | [詳細](phase-1/TASK-002.md) @phase-1/TASK-002.md |
-| TASK-003 | DockerGitService getVolumeName docker_volume_id対応 (Issue #206) | TODO | なし | 40min | [詳細](phase-1/TASK-003.md) @phase-1/TASK-003.md |
-| TASK-004 | API呼び出し元のdockerVolumeId伝播修正 (Issue #206) | TODO | TASK-003 | 30min | [詳細](phase-1/TASK-004.md) @phase-1/TASK-004.md |
+| TASK-001 | NetworkFilterService applyFilter処理順序修正 (Issue #207) | DONE | なし | 30min | [詳細](phase-1/TASK-001.md) @phase-1/TASK-001.md |
+| TASK-002 | セッション作成API docker_volume_idバリデーション追加 (Issue #208) | DONE | なし | 25min | [詳細](phase-1/TASK-002.md) @phase-1/TASK-002.md |
+| TASK-003 | DockerGitService getVolumeName docker_volume_id対応 (Issue #206) | DONE | なし | 40min | [詳細](phase-1/TASK-003.md) @phase-1/TASK-003.md |
+| TASK-004 | API呼び出し元のdockerVolumeId伝播修正 (Issue #206) | DONE | TASK-003 | 30min | [詳細](phase-1/TASK-004.md) @phase-1/TASK-004.md |
 
 ## 並列実行グループ
 
@@ -33,9 +33,9 @@
 ## 進捗サマリ
 
 - 総タスク数: 4
-- 完了: 0
+- 完了: 4
 - 進行中: 0
-- TODO: 4
+- TODO: 0
 
 ## 逆順レビュー
 
