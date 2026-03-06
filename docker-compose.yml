@@ -9,6 +9,8 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     # ネットワークフィルタリング機能でホストのiptablesを操作するための権限設定
     # nsenterでホストのネットワーク名前空間に入り、DOCKER-USERチェーンにフィルタルールを追加する
+    # セキュリティ注意: これらの設定はコンテナからホストへのアクセス範囲を拡大する
+    # 詳細: docs/sdd/design/network-filtering/components/iptables-manager.md
     # NET_ADMIN: iptablesルールの操作に必要
     # SYS_ADMIN: nsenterでホストの名前空間にアクセスするために必要
     # SYS_PTRACE: /proc/1/ns/netへのアクセスに必要

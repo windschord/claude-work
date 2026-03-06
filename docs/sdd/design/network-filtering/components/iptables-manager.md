@@ -146,18 +146,23 @@ COMMIT
 ### コマンド実行方式
 
 - **HOST環境**: `child_process.execFile('iptables', [...args])` で直接実行（root権限が必要）
-- **Docker Compose環境**: `sudo nsenter -t 1 -n iptables` で実行
+- **Docker Compose環境**: `sudo iptables-host.sh iptables ...` で実行（制限付きヘルパースクリプト経由）
 
 #### Docker Compose環境での実行アーキテクチャ
 
-Docker Compose環境ではDOCKER-USERチェインはホストのネットワーク名前空間に存在する。コンテナ独自のネットワーク名前空間からはアクセスできないため、`nsenter`でホストの名前空間に入ってiptablesを操作する。
+Docker Compose環境ではDOCKER-USERチェインはホストのネットワーク名前空間に存在する。コンテナ独自のネットワーク名前空間からはアクセスできないため、制限付きヘルパースクリプトを介してホストの名前空間に入りiptablesを操作する。
 
 ```text
 ClaudeWorkコンテナ (node user)
-  └→ sudo nsenter -t 1 -n iptables ...
-       └→ ホストのネットワーク名前空間でiptablesを実行
-            └→ DOCKER-USERチェインにルールを追加
+  └→ sudo /usr/local/sbin/iptables-host.sh iptables ...
+       └→ ヘルパースクリプト: コマンド名を検証（iptables/iptables-restoreのみ許可）
+            └→ nsenter -t 1 -n -- iptables ...
+                 └→ ホストのネットワーク名前空間でiptablesを実行
 ```
+
+#### セキュリティ設計
+
+nodeユーザーに`nsenter`の直接sudo実行を許可すると、任意のコマンドをホスト名前空間で実行できてしまう。これを防ぐため、iptables/iptables-restoreのみを許可するヘルパースクリプト(`iptables-host.sh`)を介してnsenterを実行する。sudoers設定はこのヘルパースクリプトのみを許可する。
 
 #### 必要な設定
 
@@ -174,9 +179,18 @@ security_opt:
 
 **Dockerfile:**
 ```dockerfile
-# sudoインストール + nodeユーザーにnsenterのpasswordless sudo許可
-RUN apt-get install -y sudo
-RUN echo "node ALL=(root) NOPASSWD: /usr/bin/nsenter" > /etc/sudoers.d/iptables-node
+# 制限付きヘルパースクリプト（iptables/iptables-restoreのみ許可）
+COPY <<'HELPER' /usr/local/sbin/iptables-host.sh
+#!/bin/sh
+set -eu
+case "$1" in
+  iptables|iptables-restore) ;;
+  *) echo "Unsupported command: $1" >&2; exit 1 ;;
+esac
+exec /usr/bin/nsenter -t 1 -n -- "$@"
+HELPER
+# nodeユーザーにはこのヘルパーのみをpasswordless sudoで許可
+RUN echo "node ALL=(root) NOPASSWD: /usr/local/sbin/iptables-host.sh" > /etc/sudoers.d/iptables-node
 ```
 
 #### iptables-nft vs iptables-legacy

@@ -17,14 +17,25 @@
 runner stageで以下を実施:
 
 1. `sudo`パッケージを既存のapt-get installに追加
-2. nodeユーザーにnsenterのpasswordless sudo許可を設定
+2. 制限付きヘルパースクリプト(`iptables-host.sh`)の作成（iptables/iptables-restoreのみ許可）
+3. nodeユーザーにヘルパースクリプトのみpasswordless sudo許可
 
 ```dockerfile
 # sudoインストール（既存のapt-get installに追加）
 && apt-get install -y --no-install-recommends docker-ce-cli iptables sudo \
 
-# nodeユーザーがnsenter + iptablesをpasswordless sudoで実行できるように設定
-RUN echo "node ALL=(root) NOPASSWD: /usr/bin/nsenter" > /etc/sudoers.d/iptables-node \
+# 制限付きヘルパースクリプト（iptables/iptables-restoreのみ許可）
+COPY <<'HELPER' /usr/local/sbin/iptables-host.sh
+#!/bin/sh
+set -eu
+case "$1" in
+  iptables|iptables-restore) ;;
+  *) echo "Unsupported command: $1" >&2; exit 1 ;;
+esac
+exec /usr/bin/nsenter -t 1 -n -- "$@"
+HELPER
+# nodeユーザーにはこのヘルパーのみをpasswordless sudoで許可
+RUN echo "node ALL=(root) NOPASSWD: /usr/local/sbin/iptables-host.sh" > /etc/sudoers.d/iptables-node \
     && chmod 0440 /etc/sudoers.d/iptables-node
 ```
 
@@ -51,8 +62,8 @@ security_opt:
 
 **変更内容**:
 - `_useNsenter`フラグ追加（`RUNNING_IN_DOCKER`環境変数で判定）
-- `_iptables()`ヘルパー: Docker環境では `sudo nsenter -t 1 -n iptables` 経由で実行
-- `_iptablesRestore()`ヘルパー: Docker環境では `sudo nsenter -t 1 -n iptables-restore` 経由で実行
+- `_iptables()`ヘルパー: Docker環境では `sudo iptables-host.sh iptables` 経由で実行
+- `_iptablesRestore()`ヘルパー: Docker環境では `sudo iptables-host.sh iptables-restore` 経由で実行
 - 全てのiptables直接呼び出しをヘルパー経由に変更
 
 ### タスク4: 設計ドキュメント更新

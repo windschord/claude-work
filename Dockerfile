@@ -87,10 +87,22 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends docker-ce-cli iptables sudo \
     && rm -rf /var/lib/apt/lists/*
 
-# nodeユーザーがnsenter + iptablesをpasswordless sudoで実行できるように設定
+# iptables操作用の制限付きヘルパースクリプトを作成
+# nodeユーザーにnsenterの直接実行を許可せず、iptables/iptables-restoreのみに制限する
 # Docker Compose環境ではコンテナ独自のネットワーク名前空間にはDOCKER-USERが存在しない
 # nsenterでホストのネットワーク名前空間に入ってiptablesを操作する必要がある
-RUN echo "node ALL=(root) NOPASSWD: /usr/bin/nsenter" > /etc/sudoers.d/iptables-node \
+COPY <<'HELPER' /usr/local/sbin/iptables-host.sh
+#!/bin/sh
+set -eu
+case "$1" in
+  iptables|iptables-restore) ;;
+  *) echo "Unsupported command: $1" >&2; exit 1 ;;
+esac
+exec /usr/bin/nsenter -t 1 -n -- "$@"
+HELPER
+RUN chmod 0755 /usr/local/sbin/iptables-host.sh \
+    && chown root:root /usr/local/sbin/iptables-host.sh \
+    && echo "node ALL=(root) NOPASSWD: /usr/local/sbin/iptables-host.sh" > /etc/sudoers.d/iptables-node \
     && chmod 0440 /etc/sudoers.d/iptables-node
 
 ENV NODE_ENV=production

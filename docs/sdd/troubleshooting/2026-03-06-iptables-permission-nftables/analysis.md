@@ -78,7 +78,8 @@ FilterApplicationError: iptablesが利用不可のためフィルタリングを
 ### 1. Dockerfile変更
 
 - `sudo`パッケージのインストール追加
-- nodeユーザーにnsenterのpasswordless sudo許可設定
+- 制限付きヘルパースクリプト(`iptables-host.sh`)の作成（iptables/iptables-restoreのみ許可）
+- nodeユーザーにヘルパースクリプトのみpasswordless sudo許可（nsenterの直接実行は不許可）
 
 ### 2. docker-compose.yml変更
 
@@ -90,7 +91,7 @@ FilterApplicationError: iptablesが利用不可のためフィルタリングを
 
 - `_useNsenter`フラグ追加（`RUNNING_IN_DOCKER`環境変数で判定）
 - `_iptables()`と`_iptablesRestore()`ヘルパーメソッド追加
-- Docker環境では `sudo nsenter -t 1 -n iptables` 経由で実行
+- Docker環境では `sudo iptables-host.sh iptables` 経由で実行（制限付きヘルパースクリプト）
 
 ### 4. 設計ドキュメント更新
 

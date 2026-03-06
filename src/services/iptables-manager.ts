@@ -46,6 +46,7 @@ export interface ActiveChainInfo {
 }
 
 const CHAIN_PREFIX = 'CWFILTER-';
+const IPTABLES_HOST_HELPER = '/usr/local/sbin/iptables-host.sh';
 
 function buildChainName(envId: string): string {
   const hash = createHash('sha256').update(envId).digest('hex').slice(0, 12);
@@ -71,20 +72,27 @@ export class IptablesManager {
 
   constructor(execFileAsyncFn?: ExecFileAsyncFn, options?: { useNsenter?: boolean }) {
     this._execFileAsync = execFileAsyncFn ?? (execFileAsync as unknown as ExecFileAsyncFn);
-    // RUNNING_IN_DOCKER環境変数が設定されている場合はnsenter経由で実行
-    this._useNsenter = options?.useNsenter ?? (process.env.RUNNING_IN_DOCKER === 'true');
+    if (options?.useNsenter !== undefined) {
+      this._useNsenter = options.useNsenter;
+    } else if (execFileAsyncFn) {
+      // テスト等でexecFileAsyncFnが差し込まれる場合はデフォルトでnsenterを使用しない
+      this._useNsenter = false;
+    } else {
+      // RUNNING_IN_DOCKER環境変数が設定されている場合はnsenter経由で実行
+      this._useNsenter = process.env.RUNNING_IN_DOCKER === 'true';
+    }
   }
 
   /**
    * iptablesコマンドを実行するヘルパー
-   * Docker環境では sudo nsenter -t 1 -n iptables 経由で実行
+   * Docker環境では sudo iptables-host.sh iptables 経由で実行
    */
   private _iptables(args: string[], options?: { input?: string }): Promise<{ stdout: string; stderr: string }> {
     if (this._useNsenter) {
-      const nsenterArgs = ['nsenter', '-t', '1', '-n', 'iptables', ...args];
+      const helperArgs = [IPTABLES_HOST_HELPER, 'iptables', ...args];
       return options
-        ? this._execFileAsync('sudo', nsenterArgs, options)
-        : this._execFileAsync('sudo', nsenterArgs);
+        ? this._execFileAsync('sudo', helperArgs, options)
+        : this._execFileAsync('sudo', helperArgs);
     }
     return options
       ? this._execFileAsync('iptables', args, options)
@@ -93,14 +101,14 @@ export class IptablesManager {
 
   /**
    * iptables-restoreコマンドを実行するヘルパー
-   * Docker環境では sudo nsenter -t 1 -n iptables-restore 経由で実行
+   * Docker環境では sudo iptables-host.sh iptables-restore 経由で実行
    */
   private _iptablesRestore(args: string[], options?: { input?: string }): Promise<{ stdout: string; stderr: string }> {
     if (this._useNsenter) {
-      const nsenterArgs = ['nsenter', '-t', '1', '-n', 'iptables-restore', ...args];
+      const helperArgs = [IPTABLES_HOST_HELPER, 'iptables-restore', ...args];
       return options
-        ? this._execFileAsync('sudo', nsenterArgs, options)
-        : this._execFileAsync('sudo', nsenterArgs);
+        ? this._execFileAsync('sudo', helperArgs, options)
+        : this._execFileAsync('sudo', helperArgs);
     }
     return options
       ? this._execFileAsync('iptables-restore', args, options)
