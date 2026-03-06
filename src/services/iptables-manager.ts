@@ -2,6 +2,7 @@ import { createHash } from 'crypto';
 import { execFile, spawn } from 'child_process';
 import { promisify } from 'util';
 import { logger } from '../lib/logger';
+import { isRunningInDocker } from '../lib/environment-detect';
 
 const execFileAsyncBase = promisify(execFile);
 
@@ -46,6 +47,7 @@ export interface ActiveChainInfo {
 }
 
 const CHAIN_PREFIX = 'CWFILTER-';
+const IPTABLES_HOST_HELPER = '/usr/local/sbin/iptables-host.sh';
 
 function buildChainName(envId: string): string {
   const hash = createHash('sha256').update(envId).digest('hex').slice(0, 12);
@@ -60,12 +62,58 @@ type ExecFileAsyncFn = (
 
 /**
  * iptablesコマンドの実行を抽象化し、フィルタリングルールの生成・適用・クリーンアップを行う
+ *
+ * Docker Compose環境ではコンテナ独自のネットワーク名前空間にはDOCKER-USERチェインが存在しない。
+ * nsenterでホストのネットワーク名前空間に入り、iptablesを操作する。
+ * 非rootユーザー(node)で実行するため、制限付きヘルパースクリプト(iptables-host.sh)経由で呼び出す。
  */
 export class IptablesManager {
   private readonly _execFileAsync: ExecFileAsyncFn;
+  private readonly _useNsenter: boolean;
 
-  constructor(execFileAsyncFn?: ExecFileAsyncFn) {
+  constructor(execFileAsyncFn?: ExecFileAsyncFn, options?: { useNsenter?: boolean }) {
     this._execFileAsync = execFileAsyncFn ?? (execFileAsync as unknown as ExecFileAsyncFn);
+    if (options?.useNsenter !== undefined) {
+      this._useNsenter = options.useNsenter;
+    } else if (execFileAsyncFn) {
+      // テスト等でexecFileAsyncFnが差し込まれる場合はデフォルトでnsenterを使用しない
+      this._useNsenter = false;
+    } else {
+      // Docker環境ではヘルパースクリプト経由でnsenter実行
+      this._useNsenter = isRunningInDocker();
+    }
+  }
+
+  /**
+   * iptablesコマンドを実行するヘルパー
+   * Docker環境では sudo iptables-host.sh iptables 経由で実行
+   */
+  private _iptables(args: string[], options?: { input?: string }): Promise<{ stdout: string; stderr: string }> {
+    if (this._useNsenter) {
+      const sudoArgs = ['-n', IPTABLES_HOST_HELPER, 'iptables', ...args];
+      return options
+        ? this._execFileAsync('sudo', sudoArgs, options)
+        : this._execFileAsync('sudo', sudoArgs);
+    }
+    return options
+      ? this._execFileAsync('iptables', args, options)
+      : this._execFileAsync('iptables', args);
+  }
+
+  /**
+   * iptables-restoreコマンドを実行するヘルパー
+   * Docker環境では sudo iptables-host.sh iptables-restore 経由で実行
+   */
+  private _iptablesRestore(args: string[], options?: { input?: string }): Promise<{ stdout: string; stderr: string }> {
+    if (this._useNsenter) {
+      const sudoArgs = ['-n', IPTABLES_HOST_HELPER, 'iptables-restore', ...args];
+      return options
+        ? this._execFileAsync('sudo', sudoArgs, options)
+        : this._execFileAsync('sudo', sudoArgs);
+    }
+    return options
+      ? this._execFileAsync('iptables-restore', args, options)
+      : this._execFileAsync('iptables-restore', args);
   }
 
   /**
@@ -73,10 +121,10 @@ export class IptablesManager {
    */
   async checkAvailability(): Promise<boolean> {
     try {
-      await this._execFileAsync('iptables', ['--version']);
-      await this._execFileAsync('iptables-restore', ['--version']);
+      await this._iptables(['--version']);
+      await this._iptablesRestore(['--version']);
       // 権限確認: DOCKER-USERチェインへのアクセスを検証
-      await this._execFileAsync('iptables', ['-S', 'DOCKER-USER']);
+      await this._iptables(['-S', 'DOCKER-USER']);
       logger.debug('iptables and iptables-restore are available with sufficient permissions');
       return true;
     } catch (err) {
@@ -109,7 +157,7 @@ export class IptablesManager {
     const rules = this.generateIptablesRules(chainName, resolvedRules, containerSubnet);
     logger.debug('Applying iptables rules', { chainName, rules });
 
-    await this._execFileAsync('iptables-restore', ['--noflush'], { input: rules });
+    await this._iptablesRestore(['--noflush'], { input: rules });
 
     logger.info('Filter chain setup complete', { chainName });
   }
@@ -151,7 +199,7 @@ export class IptablesManager {
    * 現在アクティブなCWFILTERフィルタチェイン一覧を取得
    */
   async listActiveChains(): Promise<ActiveChainInfo[]> {
-    const { stdout } = await this._execFileAsync('iptables', ['-L', '-n']);
+    const { stdout } = await this._iptables(['-L', '-n']);
     return this._parseChains(stdout);
   }
 
@@ -205,7 +253,7 @@ export class IptablesManager {
     // DOCKER-USERからのジャンプルール削除
     // iptables -S DOCKER-USER でルール一覧を取得し、対象チェインへのジャンプを全て削除
     try {
-      const { stdout } = await this._execFileAsync('iptables', ['-S', 'DOCKER-USER']);
+      const { stdout } = await this._iptables(['-S', 'DOCKER-USER']);
       const jumpRules = stdout
         .split('\n')
         .filter((line) => line.includes(`-j ${chainName}`));
@@ -217,7 +265,7 @@ export class IptablesManager {
           .split(' ')
           .filter(Boolean);
         try {
-          await this._execFileAsync('iptables', deleteArgs);
+          await this._iptables(deleteArgs);
         } catch (err) {
           if (this._isNotFoundError(err)) {
             logger.debug('Jump rule already removed from DOCKER-USER', { chainName, rule });
@@ -236,7 +284,7 @@ export class IptablesManager {
 
     // チェイン内ルール全削除
     try {
-      await this._execFileAsync('iptables', ['-F', chainName]);
+      await this._iptables(['-F', chainName]);
     } catch (err) {
       if (this._isNotFoundError(err)) {
         logger.debug('Chain does not exist, skipping flush', { chainName });
@@ -247,7 +295,7 @@ export class IptablesManager {
 
     // チェイン削除
     try {
-      await this._execFileAsync('iptables', ['-X', chainName]);
+      await this._iptables(['-X', chainName]);
     } catch (err) {
       if (this._isNotFoundError(err)) {
         logger.debug('Chain does not exist, skipping delete', { chainName });

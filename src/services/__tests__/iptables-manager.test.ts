@@ -440,4 +440,117 @@ describe('IptablesManager', () => {
       expect(result[1].envIdPrefix).toBe('11223344');
     });
   });
+
+  // ============================================================
+  // nsenterモード（Docker Compose環境）
+  // ============================================================
+  describe('nsenterモード', () => {
+    let nsenterManager: IptablesManager;
+    let nsenterMockExec: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+      nsenterMockExec = vi.fn();
+      nsenterManager = new IptablesManager(nsenterMockExec, { useNsenter: true });
+    });
+
+    it('checkAvailabilityがヘルパースクリプト経由でiptablesを実行する', async () => {
+      nsenterMockExec.mockResolvedValue({ stdout: 'iptables v1.8.9', stderr: '' });
+
+      const result = await nsenterManager.checkAvailability();
+
+      expect(result).toBe(true);
+      expect(nsenterMockExec).toHaveBeenCalledWith(
+        'sudo',
+        ['-n', '/usr/local/sbin/iptables-host.sh', 'iptables', '--version']
+      );
+      expect(nsenterMockExec).toHaveBeenCalledWith(
+        'sudo',
+        ['-n', '/usr/local/sbin/iptables-host.sh', 'iptables-restore', '--version']
+      );
+      expect(nsenterMockExec).toHaveBeenCalledWith(
+        'sudo',
+        ['-n', '/usr/local/sbin/iptables-host.sh', 'iptables', '-S', 'DOCKER-USER']
+      );
+    });
+
+    it('setupFilterChainがヘルパースクリプト経由でiptables-restoreを実行する', async () => {
+      const envId = 'nsenter-test-env';
+
+      nsenterMockExec
+        .mockResolvedValueOnce({ stdout: 'Chain INPUT\n', stderr: '' }) // listActiveChains
+        .mockResolvedValue({ stdout: '', stderr: '' });
+
+      const resolvedRules = [{ ips: ['10.0.0.1'], port: 443 }];
+      await nsenterManager.setupFilterChain(envId, resolvedRules, '172.17.0.0/16');
+
+      const calls = nsenterMockExec.mock.calls;
+
+      // listActiveChains: sudo iptables-host.sh iptables -L -n
+      expect(calls[0]).toEqual([
+        'sudo',
+        ['-n', '/usr/local/sbin/iptables-host.sh', 'iptables', '-L', '-n'],
+      ]);
+
+      // iptables-restore: sudo iptables-host.sh iptables-restore --noflush
+      const restoreCall = calls.find(
+        (call: unknown[]) =>
+          call[0] === 'sudo' &&
+          Array.isArray(call[1]) &&
+          (call[1] as string[]).includes('iptables-restore')
+      );
+      expect(restoreCall).toBeDefined();
+      expect(restoreCall![1]).toContain('/usr/local/sbin/iptables-host.sh');
+      expect(restoreCall![1]).toContain('--noflush');
+    });
+
+    it('removeFilterChainがヘルパースクリプト経由で実行する', async () => {
+      const envId = 'nsenter-remove-env';
+      const chainName = expectedChainName(envId);
+
+      const dockerUserRules = [
+        '-P DOCKER-USER RETURN',
+        `-A DOCKER-USER -s 172.17.0.0/16 -j ${chainName}`,
+      ].join('\n');
+
+      nsenterMockExec
+        .mockResolvedValueOnce({ stdout: dockerUserRules, stderr: '' })
+        .mockResolvedValue({ stdout: '', stderr: '' });
+
+      await nsenterManager.removeFilterChain(envId);
+
+      const calls = nsenterMockExec.mock.calls;
+
+      // 全ての呼び出しがsudo -n経由であることを確認
+      for (const call of calls) {
+        expect(call[0]).toBe('sudo');
+        expect((call[1] as string[])[0]).toBe('-n');
+        expect((call[1] as string[])[1]).toBe('/usr/local/sbin/iptables-host.sh');
+      }
+    });
+
+    it('listActiveChainsがヘルパースクリプト経由で実行する', async () => {
+      const output = 'Chain CWFILTER-aabb (1 references)\n';
+      nsenterMockExec.mockResolvedValue({ stdout: output, stderr: '' });
+
+      const result = await nsenterManager.listActiveChains();
+
+      expect(nsenterMockExec).toHaveBeenCalledWith(
+        'sudo',
+        ['-n', '/usr/local/sbin/iptables-host.sh', 'iptables', '-L', '-n']
+      );
+      expect(result).toHaveLength(1);
+      expect(result[0].chainName).toBe('CWFILTER-aabb');
+    });
+
+    it('execFileAsyncFn指定時はデフォルトでuseNsenter=false', async () => {
+      const defaultManager = new IptablesManager(nsenterMockExec);
+      nsenterMockExec.mockResolvedValue({ stdout: 'v1.8.9', stderr: '' });
+
+      // iptables直接実行になることを確認（sudoではない）
+      await defaultManager.checkAvailability();
+
+      // 最初の呼び出しがiptables直接であることを確認
+      expect(nsenterMockExec.mock.calls[0][0]).toBe('iptables');
+    });
+  });
 });
