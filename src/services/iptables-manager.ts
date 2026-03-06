@@ -2,6 +2,7 @@ import { createHash } from 'crypto';
 import { execFile, spawn } from 'child_process';
 import { promisify } from 'util';
 import { logger } from '../lib/logger';
+import { isRunningInDocker } from '../lib/environment-detect';
 
 const execFileAsyncBase = promisify(execFile);
 
@@ -64,7 +65,7 @@ type ExecFileAsyncFn = (
  *
  * Docker Compose環境ではコンテナ独自のネットワーク名前空間にはDOCKER-USERチェインが存在しない。
  * nsenterでホストのネットワーク名前空間に入り、iptablesを操作する。
- * 非rootユーザー(node)で実行するため、sudo nsenter経由で呼び出す。
+ * 非rootユーザー(node)で実行するため、制限付きヘルパースクリプト(iptables-host.sh)経由で呼び出す。
  */
 export class IptablesManager {
   private readonly _execFileAsync: ExecFileAsyncFn;
@@ -78,8 +79,8 @@ export class IptablesManager {
       // テスト等でexecFileAsyncFnが差し込まれる場合はデフォルトでnsenterを使用しない
       this._useNsenter = false;
     } else {
-      // RUNNING_IN_DOCKER環境変数が設定されている場合はnsenter経由で実行
-      this._useNsenter = process.env.RUNNING_IN_DOCKER === 'true';
+      // Docker環境ではヘルパースクリプト経由でnsenter実行
+      this._useNsenter = isRunningInDocker();
     }
   }
 

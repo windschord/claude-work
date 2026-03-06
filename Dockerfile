@@ -95,10 +95,17 @@ COPY <<'HELPER' /usr/local/sbin/iptables-host.sh
 #!/bin/sh
 set -eu
 case "$1" in
-  iptables|iptables-restore) ;;
+  iptables) cmd=/usr/sbin/iptables ;;
+  iptables-restore) cmd=/usr/sbin/iptables-restore ;;
   *) echo "Unsupported command: $1" >&2; exit 1 ;;
 esac
-exec /usr/bin/nsenter -t 1 -n -- "$@"
+shift
+for arg in "$@"; do
+  case "$arg" in
+    --modprobe|--modprobe=*) echo "Forbidden option: $arg" >&2; exit 1 ;;
+  esac
+done
+exec /usr/bin/nsenter -t 1 -n -- "$cmd" "$@"
 HELPER
 RUN chmod 0755 /usr/local/sbin/iptables-host.sh \
     && chown root:root /usr/local/sbin/iptables-host.sh \
