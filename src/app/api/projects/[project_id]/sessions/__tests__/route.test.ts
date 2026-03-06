@@ -750,6 +750,7 @@ describe('POST /api/projects/[project_id]/sessions', () => {
 
       // clone_location=host の場合はボリュームバリデーションをスキップしてセッションが正常に作成される
       expect(response.status).toBe(201);
+      expect(mockGitService.createWorktree).toHaveBeenCalled();
       expect(mockDockerGitService.createWorktree).not.toHaveBeenCalled();
     });
   });
