@@ -98,7 +98,7 @@ export async function GET(
  * @param request - リクエストボディに以下を含むJSON:
  *   - `prompt`（オプション）: 初期プロンプト
  *   - `name`（オプション、未指定時は自動生成）: セッション名
- *   - `environment_id`（オプション）: 実行環境ID（プロジェクトの設定を使用するため現在は無視される）
+ *   - `environment_id`（オプション）: 実行環境ID。指定する場合は空でない文字列である必要があり、不正な値（非文字列・空文字）の場合は400エラーとなります。ただし、現在はプロジェクトに設定されたenvironment_idが常に使用されるため、この値で実行環境は切り替わりません。
  * @param params.project_id - プロジェクトID
  *
  * @returns
