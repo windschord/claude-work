@@ -711,14 +711,12 @@ export class NetworkFilterService {
    * コンテナ起動時にフィルタリングを適用する
    *
    * 処理フロー:
-   * 1. getFilterConfig(environmentId) でフィルタリング設定を確認
-   * 2. 無効なら即座にreturn
-   * 3. getRules(environmentId) でルール取得（enabledのみフィルタ）
-   * 4. 有効ルール0件なら早期return
-   * 5. IptablesManager.checkAvailability() で利用可否チェック → 利用不可ならエラー
-   * 6. resolveDomains(rules) でDNS解決
-   * 7. IptablesManager.setupFilterChain(envId, resolvedRules, subnet) でiptables適用
-   * 8. 失敗時は FilterApplicationError をスロー
+   * 1. getFilterConfig(environmentId) でフィルタリング設定を確認 → 無効なら即座にreturn
+   * 2. getRules(environmentId) でルール取得（enabledのみフィルタ）→ 0件なら早期return
+   * 3. IptablesManager.checkAvailability() で利用可否チェック → 利用不可ならエラー
+   * 4. resolveDomains(rules) でDNS解決
+   * 5. IptablesManager.setupFilterChain(envId, resolvedRules, subnet) でiptables適用
+   * 6. 失敗時は FilterApplicationError をスロー
    *
    * @param environmentId - 環境ID
    * @param containerSubnet - コンテナのサブネット（例: 172.18.0.0/16）
@@ -727,40 +725,36 @@ export class NetworkFilterService {
   async applyFilter(environmentId: string, containerSubnet: string): Promise<void> {
     // 同一environmentIdの操作を直列化してiptablesチェインの競合状態を防ぐ
     return this.withFilterLock(environmentId, async () => {
-      // 1. フィルタリング設定を確認（ロック内で判定してTOCTOUを防ぐ）
-      const config = await this.getFilterConfig(environmentId);
-
-      // 2. フィルタリングが無効または設定がない場合はスキップ
-      if (!config || !config.enabled) {
-        logger.debug('フィルタリングが無効のためスキップ', { environmentId });
-        return;
-      }
-
-      // 3. ルール取得（enabledのもののみ）
-      const allRules = await this.getRules(environmentId);
-      const enabledRules = allRules.filter((r) => r.enabled);
-
-      // 4. 有効なルールが0件の場合は早期リターン
-      if (enabledRules.length === 0) {
-        logger.info('有効なフィルタルールが0件のためスキップ', { environmentId });
-        return;
-      }
-
-      logger.info('フィルタリングの適用を開始します', { environmentId, containerSubnet });
-
-      // 5. iptables利用可否チェック
-      const available = await this.iptablesManager.checkAvailability();
-      if (!available) {
-        const errorMessage = `iptablesが利用不可のためフィルタリングを適用できません: environmentId=${environmentId}`;
-        logger.error('フィルタリング適用に失敗しました（iptables利用不可）', { environmentId });
-        throw new FilterApplicationError(errorMessage);
-      }
-
       try {
-        // 6. DNS解決
+        // 1. フィルタリング設定を確認（ロック内で判定してTOCTOUを防ぐ）→ 無効なら即座にreturn
+        const config = await this.getFilterConfig(environmentId);
+        if (!config || !config.enabled) {
+          logger.debug('フィルタリングが無効のためスキップ', { environmentId });
+          return;
+        }
+
+        // 2. ルール取得（enabledのもののみ）→ 0件なら早期return
+        const allRules = await this.getRules(environmentId);
+        const enabledRules = allRules.filter((r) => r.enabled);
+        if (enabledRules.length === 0) {
+          logger.info('有効なフィルタルールが0件のためスキップ', { environmentId });
+          return;
+        }
+
+        logger.info('フィルタリングの適用を開始します', { environmentId, containerSubnet });
+
+        // 3. iptables利用可否チェック
+        const available = await this.iptablesManager.checkAvailability();
+        if (!available) {
+          const errorMessage = `iptablesが利用不可のためフィルタリングを適用できません: environmentId=${environmentId}`;
+          logger.error('フィルタリング適用に失敗しました（iptables利用不可）', { environmentId });
+          throw new FilterApplicationError(errorMessage);
+        }
+
+        // 4. DNS解決
         const resolvedRules = await this.resolveDomains(enabledRules);
 
-        // 7. iptables適用
+        // 5. iptables適用
         await this.iptablesManager.setupFilterChain(environmentId, resolvedRules, containerSubnet);
 
         logger.info('フィルタリングの適用が完了しました', {

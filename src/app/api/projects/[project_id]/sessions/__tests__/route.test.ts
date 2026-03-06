@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
 // vi.hoisted()でモックオブジェクトを先に定義
-const { _mockDbSelect, _mockDbInsert, _mockDbUpdate, mockGitService, mockDockerService, mockEnvironmentService } = vi.hoisted(() => ({
+const { _mockDbSelect, _mockDbInsert, _mockDbUpdate, mockGitService, mockDockerService, mockEnvironmentService, mockDockerGitService } = vi.hoisted(() => ({
   _mockDbSelect: {
     from: vi.fn(),
   },
@@ -23,6 +23,9 @@ const { _mockDbSelect, _mockDbInsert, _mockDbUpdate, mockGitService, mockDockerS
   },
   mockEnvironmentService: {
     findById: vi.fn(),
+  },
+  mockDockerGitService: {
+    createWorktree: vi.fn(),
   },
 }));
 
@@ -113,6 +116,13 @@ vi.mock('@/services/docker-service', () => ({
   },
 }));
 
+// DockerGitServiceモック
+vi.mock('@/services/docker-git-service', () => ({
+  DockerGitService: class MockDockerGitService {
+    createWorktree = mockDockerGitService.createWorktree;
+  },
+}));
+
 // loggerモック
 vi.mock('@/lib/logger', () => ({
   logger: {
@@ -175,6 +185,7 @@ describe('POST /api/projects/[project_id]/sessions', () => {
     });
 
     mockGitService.createWorktree.mockReturnValue('/path/to/worktree');
+    mockDockerGitService.createWorktree.mockResolvedValue({ success: true, worktreePath: '/repo/.worktrees/session-name' });
 
     // デフォルト環境モック
     mockEnvironmentService.findById.mockResolvedValue({
@@ -706,8 +717,8 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         params: Promise.resolve({ project_id: 'project-1' }),
       });
 
-      // バリデーションは通過する（他のエラーは許容）
-      expect(response.status).not.toBe(400);
+      // バリデーションを通過しセッションが正常に作成される
+      expect(response.status).toBe(201);
     });
 
     it('clone_location=host の場合 docker_volume_id=null でもエラーにならない', async () => {
@@ -730,9 +741,8 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         params: Promise.resolve({ project_id: 'project-1' }),
       });
 
-      // clone_location=host の場合はボリュームバリデーションエラーにならない
-      const json = await response.json();
-      expect(json.error).not.toBe('Docker volume not configured');
+      // clone_location=host の場合はボリュームバリデーションをスキップしてセッションが正常に作成される
+      expect(response.status).toBe(201);
     });
   });
 

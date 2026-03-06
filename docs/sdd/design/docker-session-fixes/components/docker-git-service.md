@@ -57,7 +57,7 @@ interface GitWorktreeOptions {
 
 `getVolumeName()` を使う8メソッドすべてに `dockerVolumeId` を渡す。
 
-**パターンA: GitWorktreeOptions経由（createWorktree, deleteWorktree）**
+**パターンA: GitWorktreeOptions経由（createWorktreeのみ）**
 
 ```typescript
 async createWorktree(options: GitWorktreeOptions): Promise<GitOperationResult> {
@@ -67,9 +67,10 @@ async createWorktree(options: GitWorktreeOptions): Promise<GitOperationResult> {
 }
 ```
 
-**パターンB: メソッド引数追加（その他6メソッド）**
+**パターンB: メソッド引数追加（その他7メソッド）**
 
 各メソッドに `dockerVolumeId?: string | null` パラメータを追加:
+- `deleteWorktree(projectId, sessionName, dockerVolumeId?)`
 - `getDiffDetails(projectId, sessionName, baseBranch, dockerVolumeId?)`
 - `rebaseFromMain(projectId, sessionName, mainBranch, dockerVolumeId?)`
 - `squashMerge(projectId, sessionName, targetBranch, commitMessage, dockerVolumeId?)`

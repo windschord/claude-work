@@ -76,9 +76,9 @@ const result = await dockerGitService.createWorktree({
 
 ## 受入基準
 
-- [ ] 全7箇所のAPI呼び出しで `docker_volume_id` が渡されている
-- [ ] 既存テストがすべて通過
-- [ ] `npx vitest run` で全テスト通過
+- [x] 全7箇所のAPI呼び出しで `docker_volume_id` が渡されている
+- [x] 既存テストがすべて通過
+- [x] `npx vitest run` で全テスト通過
 
 ## 依存関係
 
@@ -90,4 +90,4 @@ TASK-003（DockerGitServiceのシグネチャ変更が必要）
 
 ## ステータス
 
-`TODO`
+`DONE`

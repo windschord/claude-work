@@ -115,13 +115,13 @@ private getVolumeName(projectId: string, dockerVolumeId?: string | null, project
 
 ## 受入基準
 
-- [ ] `getVolumeName()` が `dockerVolumeId` パラメータを受け取る
-- [ ] `dockerVolumeId` 指定時はその値を返す
-- [ ] `dockerVolumeId` がnull/未指定時はフォールバック値を返す
-- [ ] `GitWorktreeOptions` に `dockerVolumeId` フィールドが追加されている
-- [ ] 全8メソッドが `dockerVolumeId` を受け取り `getVolumeName()` に渡す
-- [ ] 既存テストがすべて通過（後方互換）
-- [ ] 新規テストが通過
+- [x] `getVolumeName()` が `dockerVolumeId` パラメータを受け取る
+- [x] `dockerVolumeId` 指定時はその値を返す
+- [x] `dockerVolumeId` がnull/未指定時はフォールバック値を返す
+- [x] `GitWorktreeOptions` に `dockerVolumeId` フィールドが追加されている
+- [x] 全8メソッドが `dockerVolumeId` を受け取り `getVolumeName()` に渡す
+- [x] 既存テストがすべて通過（後方互換）
+- [x] 新規テストが通過
 
 ## 依存関係
 
@@ -133,4 +133,4 @@ private getVolumeName(projectId: string, dockerVolumeId?: string | null, project
 
 ## ステータス
 
-`TODO`
+`DONE`

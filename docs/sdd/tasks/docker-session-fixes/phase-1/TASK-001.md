@@ -70,12 +70,12 @@ npx vitest run src/services/__tests__/network-filter-service-apply.test.ts
 
 ## 受入基準
 
-- [ ] `enabled: true` かつルール0件 → エラーなしで正常終了
-- [ ] `enabled: true` かつルール1件以上 → iptablesチェック実行
-- [ ] `enabled: false` → 従来通りスキップ
-- [ ] ルール0件で「有効なフィルタルールが0件のためスキップ」ログ出力
-- [ ] 既存テストがすべて通過
-- [ ] 新規テストが通過
+- [x] `enabled: true` かつルール0件 → エラーなしで正常終了
+- [x] `enabled: true` かつルール1件以上 → iptablesチェック実行
+- [x] `enabled: false` → 従来通りスキップ
+- [x] ルール0件で「有効なフィルタルールが0件のためスキップ」ログ出力
+- [x] 既存テストがすべて通過
+- [x] 新規テストが通過
 
 ## 依存関係
 
@@ -87,4 +87,4 @@ npx vitest run src/services/__tests__/network-filter-service-apply.test.ts
 
 ## ステータス
 
-`TODO`
+`DONE`

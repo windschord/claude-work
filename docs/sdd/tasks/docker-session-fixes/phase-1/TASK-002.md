@@ -86,12 +86,12 @@ if (project.clone_location === 'docker' && !project.docker_volume_id) {
 
 ## 受入基準
 
-- [ ] `clone_location=docker` / `docker_volume_id=null` → 400エラー
-- [ ] `clone_location=docker` / `docker_volume_id` 設定済み → バリデーション通過
-- [ ] `clone_location=host` / `docker_volume_id=null` → バリデーション通過
-- [ ] エラーメッセージが具体的で対処方法を含む
-- [ ] 既存テストがすべて通過
-- [ ] 新規テストが通過
+- [x] `clone_location=docker` / `docker_volume_id=null` → 400エラー
+- [x] `clone_location=docker` / `docker_volume_id` 設定済み → バリデーション通過
+- [x] `clone_location=host` / `docker_volume_id=null` → バリデーション通過
+- [x] エラーメッセージが具体的で対処方法を含む
+- [x] 既存テストがすべて通過
+- [x] 新規テストが通過
 
 ## 依存関係
 
@@ -103,4 +103,4 @@ if (project.clone_location === 'docker' && !project.docker_volume_id) {
 
 ## ステータス
 
-`TODO`
+`DONE`
