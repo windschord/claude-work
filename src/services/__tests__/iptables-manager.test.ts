@@ -541,12 +541,12 @@ describe('IptablesManager', () => {
       expect(result[0].chainName).toBe('CWFILTER-aabb');
     });
 
-    it('execFileAsyncFn指定時はデフォルトでuseNsenter=false', () => {
+    it('execFileAsyncFn指定時はデフォルトでuseNsenter=false', async () => {
       const defaultManager = new IptablesManager(nsenterMockExec);
       nsenterMockExec.mockResolvedValue({ stdout: 'v1.8.9', stderr: '' });
 
       // iptables直接実行になることを確認（sudoではない）
-      defaultManager.checkAvailability();
+      await defaultManager.checkAvailability();
 
       // 最初の呼び出しがiptables直接であることを確認
       expect(nsenterMockExec.mock.calls[0][0]).toBe('iptables');

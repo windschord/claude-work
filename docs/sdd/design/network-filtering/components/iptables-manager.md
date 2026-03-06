@@ -200,7 +200,7 @@ RUN echo "node ALL=(root) NOPASSWD: /usr/local/sbin/iptables-host.sh" > /etc/sud
 #### IptablesManager の実行モード判定
 
 `RUNNING_IN_DOCKER` 環境変数で判定:
-- `true`: `sudo nsenter -t 1 -n iptables` 経由で実行
+- `true`: `sudo /usr/local/sbin/iptables-host.sh iptables`（または `iptables-restore`）経由で実行
 - 未設定/false: `iptables` を直接実行（HOST環境）
 
 ### 冪等性の確保
