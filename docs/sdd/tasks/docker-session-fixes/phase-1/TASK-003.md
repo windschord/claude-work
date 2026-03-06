@@ -8,7 +8,18 @@
 
 ## 説明
 
-`DockerGitService.getVolumeName()` のシグネチャを変更し、`dockerVolumeId` パラメータを追加する。`GitWorktreeOptions` にも `dockerVolumeId` フィールドを追加する。`getVolumeName()` を利用するメソッド（`createWorktree`, `deleteWorktree`, `deleteRepository`, `getDiffDetails`, `rebaseFromMain`, `squashMerge`, `getCommits`, `reset`）の引数に `dockerVolumeId` を追加する（`createVolume()` は変更不要）。
+`DockerGitService.getVolumeName()` のシグネチャを変更し、`dockerVolumeId` パラメータを追加する。`GitWorktreeOptions` にも `dockerVolumeId` フィールドを追加する。
+
+`getVolumeName()` を利用する以下の8メソッドの引数に `dockerVolumeId` を追加する（`createVolume()` は変更不要）。
+
+- `createWorktree`
+- `deleteWorktree`
+- `deleteRepository`
+- `getDiffDetails`
+- `rebaseFromMain`
+- `squashMerge`
+- `getCommits`
+- `reset`
 
 ## 対象ファイル
 
