@@ -461,15 +461,15 @@ describe('IptablesManager', () => {
       expect(result).toBe(true);
       expect(nsenterMockExec).toHaveBeenCalledWith(
         'sudo',
-        ['/usr/local/sbin/iptables-host.sh', 'iptables', '--version']
+        ['-n', '/usr/local/sbin/iptables-host.sh', 'iptables', '--version']
       );
       expect(nsenterMockExec).toHaveBeenCalledWith(
         'sudo',
-        ['/usr/local/sbin/iptables-host.sh', 'iptables-restore', '--version']
+        ['-n', '/usr/local/sbin/iptables-host.sh', 'iptables-restore', '--version']
       );
       expect(nsenterMockExec).toHaveBeenCalledWith(
         'sudo',
-        ['/usr/local/sbin/iptables-host.sh', 'iptables', '-S', 'DOCKER-USER']
+        ['-n', '/usr/local/sbin/iptables-host.sh', 'iptables', '-S', 'DOCKER-USER']
       );
     });
 
@@ -488,7 +488,7 @@ describe('IptablesManager', () => {
       // listActiveChains: sudo iptables-host.sh iptables -L -n
       expect(calls[0]).toEqual([
         'sudo',
-        ['/usr/local/sbin/iptables-host.sh', 'iptables', '-L', '-n'],
+        ['-n', '/usr/local/sbin/iptables-host.sh', 'iptables', '-L', '-n'],
       ]);
 
       // iptables-restore: sudo iptables-host.sh iptables-restore --noflush
@@ -520,10 +520,11 @@ describe('IptablesManager', () => {
 
       const calls = nsenterMockExec.mock.calls;
 
-      // 全ての呼び出しがsudo経由であることを確認
+      // 全ての呼び出しがsudo -n経由であることを確認
       for (const call of calls) {
         expect(call[0]).toBe('sudo');
-        expect((call[1] as string[])[0]).toBe('/usr/local/sbin/iptables-host.sh');
+        expect((call[1] as string[])[0]).toBe('-n');
+        expect((call[1] as string[])[1]).toBe('/usr/local/sbin/iptables-host.sh');
       }
     });
 
@@ -535,7 +536,7 @@ describe('IptablesManager', () => {
 
       expect(nsenterMockExec).toHaveBeenCalledWith(
         'sudo',
-        ['/usr/local/sbin/iptables-host.sh', 'iptables', '-L', '-n']
+        ['-n', '/usr/local/sbin/iptables-host.sh', 'iptables', '-L', '-n']
       );
       expect(result).toHaveLength(1);
       expect(result[0].chainName).toBe('CWFILTER-aabb');

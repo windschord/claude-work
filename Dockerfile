@@ -105,6 +105,20 @@ for arg in "$@"; do
     --modprobe|--modprobe=*) echo "Forbidden option: $arg" >&2; exit 1 ;;
   esac
 done
+# チェイン名制限: DOCKER-USERとCWFILTER-プレフィックスのみ許可
+# iptables-restoreはstdin経由なのでこのチェック対象外
+if [ "$cmd" = "/usr/sbin/iptables" ]; then
+  chain_ok=false
+  for arg in "$@"; do
+    case "$arg" in
+      DOCKER-USER|CWFILTER-*) chain_ok=true ;;
+      --version|-L|-S) chain_ok=true; break ;;
+    esac
+  done
+  if [ "$chain_ok" = false ]; then
+    echo "Only DOCKER-USER and CWFILTER-* chains allowed" >&2; exit 1
+  fi
+fi
 exec /usr/bin/nsenter -t 1 -n -- "$cmd" "$@"
 HELPER
 RUN chmod 0755 /usr/local/sbin/iptables-host.sh \

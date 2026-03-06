@@ -90,10 +90,10 @@ export class IptablesManager {
    */
   private _iptables(args: string[], options?: { input?: string }): Promise<{ stdout: string; stderr: string }> {
     if (this._useNsenter) {
-      const helperArgs = [IPTABLES_HOST_HELPER, 'iptables', ...args];
+      const sudoArgs = ['-n', IPTABLES_HOST_HELPER, 'iptables', ...args];
       return options
-        ? this._execFileAsync('sudo', helperArgs, options)
-        : this._execFileAsync('sudo', helperArgs);
+        ? this._execFileAsync('sudo', sudoArgs, options)
+        : this._execFileAsync('sudo', sudoArgs);
     }
     return options
       ? this._execFileAsync('iptables', args, options)
@@ -106,10 +106,10 @@ export class IptablesManager {
    */
   private _iptablesRestore(args: string[], options?: { input?: string }): Promise<{ stdout: string; stderr: string }> {
     if (this._useNsenter) {
-      const helperArgs = [IPTABLES_HOST_HELPER, 'iptables-restore', ...args];
+      const sudoArgs = ['-n', IPTABLES_HOST_HELPER, 'iptables-restore', ...args];
       return options
-        ? this._execFileAsync('sudo', helperArgs, options)
-        : this._execFileAsync('sudo', helperArgs);
+        ? this._execFileAsync('sudo', sudoArgs, options)
+        : this._execFileAsync('sudo', sudoArgs);
     }
     return options
       ? this._execFileAsync('iptables-restore', args, options)
