@@ -71,10 +71,10 @@ async createWorktree(options: GitWorktreeOptions): Promise<GitOperationResult> {
 
 各メソッドに `dockerVolumeId?: string | null` パラメータを追加:
 - `deleteWorktree(projectId, sessionName, dockerVolumeId?)`
-- `getDiffDetails(projectId, sessionName, baseBranch, dockerVolumeId?)`
-- `rebaseFromMain(projectId, sessionName, mainBranch, dockerVolumeId?)`
-- `squashMerge(projectId, sessionName, targetBranch, commitMessage, dockerVolumeId?)`
-- `getCommits(projectId, sessionName, limit, dockerVolumeId?)`
+- `getDiffDetails(projectId, sessionName, dockerVolumeId?)`
+- `rebaseFromMain(projectId, sessionName, dockerVolumeId?)`
+- `squashMerge(projectId, sessionName, commitMessage, dockerVolumeId?)`
+- `getCommits(projectId, sessionName, dockerVolumeId?)`
 - `reset(projectId, sessionName, commitHash, dockerVolumeId?)`
 - `deleteRepository(projectId, dockerVolumeId?)`
 

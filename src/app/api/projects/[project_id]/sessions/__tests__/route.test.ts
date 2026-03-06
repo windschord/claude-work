@@ -695,6 +695,7 @@ describe('POST /api/projects/[project_id]/sessions', () => {
       const json = await response.json();
       expect(json.error).toBe('Docker volume not configured');
       expect(json.message).toContain('Dockerボリュームが設定されていません');
+      expect(mockDockerGitService.createWorktree).not.toHaveBeenCalled();
     });
 
     it('clone_location=docker かつ docker_volume_id が設定済みの場合は正常処理される', async () => {
@@ -719,6 +720,12 @@ describe('POST /api/projects/[project_id]/sessions', () => {
 
       // バリデーションを通過しセッションが正常に作成される
       expect(response.status).toBe(201);
+      expect(mockDockerGitService.createWorktree).toHaveBeenCalledWith(
+        expect.objectContaining({
+          projectId: 'project-1',
+          dockerVolumeId: 'cw-repo-test',
+        }),
+      );
     });
 
     it('clone_location=host の場合 docker_volume_id=null でもエラーにならない', async () => {
