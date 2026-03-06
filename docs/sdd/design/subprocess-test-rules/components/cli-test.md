@@ -49,7 +49,7 @@ expect(spawnSync).toHaveBeenCalledWith(
   expect.any(String),       // コマンド
   expect.any(Array),        // 引数
   expect.objectContaining({
-    cwd: expect.stringContaining(''),  // cwdが文字列であること
+    cwd: expect.any(String),
     stdio: 'inherit',
   })
 );
@@ -57,7 +57,7 @@ expect(spawnSync).toHaveBeenCalledWith(
 // envが渡される場合は追加検証
 const options = vi.mocked(spawnSync).mock.calls[0][2];
 expect(options?.cwd).toBeDefined();
-expect(options?.cwd).not.toBe('/tmp');  // process.cwd()ではないこと
+expect(options?.cwd).not.toBe(process.cwd());  // process.cwd()ではないこと
 ```
 
 ## 注意事項

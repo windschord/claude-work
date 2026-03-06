@@ -2,7 +2,7 @@
 
 ## 概要
 
-CLAUDE.mdに「Subprocess Testing Rules」セクションを追加し、spawnSync/execSyncテスト時のcwd/envアサーション必須ルールとprocess.cwd()使用時のコメント義務を記載する。
+CLAUDE.mdに「Subprocess Testing Rules」セクションを追加し、spawnSync/execSyncテスト時のcwdアサーション必須ルール（envは明示的に渡す場合のみ必須）とprocess.cwd()使用時のコメント義務を記載する。
 
 ## 関連ドキュメント
 
@@ -23,7 +23,7 @@ CLAUDE.mdに「Subprocess Testing Rules」セクションを追加し、spawnSyn
 
 ### spawnSync/execSync テストでの cwd・env 検証
 
-- `spawnSync`/`execSync` をモックするテストでは、`cwd` と `env` のアサーションを必須とする
+- `spawnSync`/`execSync` をモックするテストでは、`cwd` のアサーションを必須とし、`env` を明示的に渡している場合は `env` もアサートする
 - `expect.objectContaining()` は省略したキーをスルーするため、重要なオプション（`cwd`, `env`）は明示的に検証すること
 - 子プロセスの `cwd` に `process.cwd()` を使う場合は、使用意図を必ずコメントで明記すること。意図が書かれていない `cwd: process.cwd()` はコードレビューで指摘対象とする
 

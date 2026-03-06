@@ -339,10 +339,15 @@ export function restartDaemon(): void {
  * pm2プロセスの状態を表示
  */
 export function showStatus(): void {
-  childProcess.spawnSync(pm2Cmd, ['status'], {
+  const result = childProcess.spawnSync(pm2Cmd, ['status'], {
     cwd: projectRoot,
     stdio: 'inherit',
   });
+
+  if (result.error || result.status !== 0) {
+    console.error('Failed to show daemon status');
+    process.exit(1);
+  }
 }
 
 /**

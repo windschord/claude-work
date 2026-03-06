@@ -14,9 +14,9 @@ PR #110で修正した`syncSchema()`のバグ（systemd実行時に`drizzle-kit 
 
 | ID | タイトル | 優先度 | ステータス | リンク |
 |----|---------|--------|-----------|--------|
-| US-001 | subprocessテストでcwd/envアサーションを必須化 | 高 | 未着手 | [詳細](stories/US-001.md) @stories/US-001.md |
-| US-002 | CLAUDE.mdにプロセス実行テスト規則を追記 | 高 | 未着手 | [詳細](stories/US-002.md) @stories/US-002.md |
-| US-003 | process.cwd()使用時のコメント規則を設定 | 低 | 未着手 | [詳細](stories/US-003.md) @stories/US-003.md |
+| US-001 | subprocessテストでcwd/envアサーションを必須化 | 高 | DONE | [詳細](stories/US-001.md) @stories/US-001.md |
+| US-002 | CLAUDE.mdにプロセス実行テスト規則を追記 | 高 | DONE | [詳細](stories/US-002.md) @stories/US-002.md |
+| US-003 | process.cwd()使用時のコメント規則を設定 | 低 | DONE | [詳細](stories/US-003.md) @stories/US-003.md |
 
 ## 非機能要件
 
@@ -31,7 +31,7 @@ PR #110で修正した`syncSchema()`のバグ（systemd実行時に`drizzle-kit 
 | ファイル | 関数 | cwd指定 | テストでのcwdアサーション |
 |---------|------|---------|------------------------|
 | `src/services/git-service.ts` | 多数のspawnSync | worktreePath等を明示指定 | 統合テスト（実git操作） |
-| `src/bin/cli.ts` | spawnSync（build, pm2） | packageRoot等を明示指定 | 要確認 |
+| `src/bin/cli.ts` | spawnSync（build, pm2） | projectRoot を明示指定 | 検証済み（`src/bin/__tests__/cli.test.ts`） |
 | `src/lib/env-validation.ts` | execSync（which） | 未指定（cwdは不要） | cwdアサーションなし |
 
 ### スコープ外

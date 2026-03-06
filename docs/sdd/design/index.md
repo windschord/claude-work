@@ -16,7 +16,7 @@
 | [Docker環境ネットワークフィルタリング](network-filtering/index.md) | Dockerコンテナの外部通信をホワイトリスト方式でフィルタリング | 進行中 |
 | [Sandbox拡張イメージ](sandbox-extensions/index.md) | 言語別/ツール別Docker拡張イメージ（Python, Go, Rust, C++, Chrome DevTools） | 進行中 |
 | [Docker環境セッション作成バグ修正](docker-session-fixes/index.md) | Issue #206,#207,#208 のDocker環境セッション作成関連バグ修正 | 完了 |
-| [subprocessテスト検証規則](subprocess-test-rules/index.md) | subprocess の cwd/env をテストで検証する規則の整備 (Issue #111) | 進行中 |
+| [subprocessテスト検証規則](subprocess-test-rules/index.md) | subprocess の cwd/env をテストで検証する規則の整備 (Issue #111) | 完了 |
 
 ### 完了済み機能
 
