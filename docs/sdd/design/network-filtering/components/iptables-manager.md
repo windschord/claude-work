@@ -195,7 +195,7 @@ RUN echo "node ALL=(root) NOPASSWD: /usr/local/sbin/iptables-host.sh" > /etc/sud
 
 #### iptables-nft vs iptables-legacy
 
-ホストのDockerバージョンによって、DOCKER-USERチェインがnftablesまたはlegacy xtablesで管理されている。`nsenter`でホストの名前空間に入るため、ホストにインストールされているiptablesが使用される。コンテナ内のiptablesバイナリ（iptables-nft）がデフォルトで使用され、ホストのnftablesチェインにアクセスできる。
+ホストのDockerバージョンによって、DOCKER-USERチェインがnftablesまたはlegacy xtablesで管理される。`nsenter -t 1 -n` はネットワーク名前空間のみを切り替えるため、実行される `iptables` バイナリ自体はコンテナ側で解決される。結果として、コンテナのiptables-nftバイナリがホストネットワーク名前空間上のDOCKER-USERチェインへアクセスできる。
 
 #### IptablesManager の実行モード判定
 

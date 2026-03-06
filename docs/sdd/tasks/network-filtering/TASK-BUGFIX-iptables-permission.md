@@ -80,9 +80,10 @@ security_opt:
 
 1. ローカルでDockerイメージをビルド
 2. コンテナ起動して以下を確認:
-   - nodeユーザーで `sudo nsenter -t 1 -n iptables -S DOCKER-USER` が成功すること
+   - nodeユーザーで `sudo /usr/local/sbin/iptables-host.sh iptables -S DOCKER-USER` が成功すること
 3. NWフィルタを有効化してセッション起動
-4. `iptables -L CWFILTER-*` でルールが適用されていることを確認
-5. サンドボックスコンテナから通信テスト（許可先/非許可先）
+4. `iptables -L -n | grep '^Chain CWFILTER-'` でチェイン作成を確認
+5. `iptables -S DOCKER-USER | grep 'CWFILTER-'` でジャンプルールを確認
+6. サンドボックスコンテナから通信テスト（許可先/非許可先）
 
 **検証結果**: 全項目成功（分析レポート参照）
