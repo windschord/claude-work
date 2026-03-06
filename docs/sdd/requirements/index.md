@@ -18,6 +18,7 @@
 | [Docker環境ネットワークフィルタリング](network-filtering/index.md) | Dockerコンテナの外部通信をホワイトリスト方式でフィルタリング | 進行中 |
 | [サイドカーChrome DevTools MCP](chrome-sidecar/index.md) | セッション単位の独立Chromeサイドカーコンテナによるブラウザ検証 | 計画中 |
 | [Docker環境セッション作成バグ修正](docker-session-fixes/index.md) | Issue #206,#207,#208 のDocker環境セッション作成関連バグ修正 | 完了 |
+| [subprocessテスト検証規則](subprocess-test-rules/index.md) | subprocess の cwd/env をテストで検証する規則の整備 (Issue #111) | 進行中 |
 
 ### 完了済み機能
 

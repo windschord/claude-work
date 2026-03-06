@@ -17,7 +17,7 @@
  * - .nextディレクトリがない場合: 自動ビルド
  */
 
-import { spawn, spawnSync } from 'child_process';
+import * as childProcess from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import dotenv from 'dotenv';
@@ -31,7 +31,7 @@ import {
 const currentDir = __dirname;
 
 // プロジェクトルートを解決（dist/src/bin/ から3階層上）
-const projectRoot = path.resolve(currentDir, '..', '..', '..');
+export const projectRoot = path.resolve(currentDir, '..', '..', '..');
 
 // コマンドライン引数を取得
 const args = process.argv.slice(2);
@@ -198,10 +198,10 @@ function checkNextBuild(): boolean {
 /**
  * Next.jsをビルド
  */
-function buildNext(): boolean {
+export function buildNext(): boolean {
   console.log('Building Next.js application...');
 
-  const result = spawnSync(npmCmd, ['run', 'build:next'], {
+  const result = childProcess.spawnSync(npmCmd, ['run', 'build:next'], {
     cwd: projectRoot,
     stdio: 'inherit',
     env: { ...process.env, NODE_ENV: 'production' },
@@ -251,7 +251,7 @@ function startForeground(): void {
   const serverPath = path.resolve(currentDir, '..', '..', 'server.js');
 
   // サーバーをspawn（本番モードで実行、プロジェクトルートをcwdに設定）
-  const server = spawn('node', [serverPath], {
+  const server = childProcess.spawn('node', [serverPath], {
     stdio: 'inherit',
     cwd: projectRoot,
     env: { ...process.env, NODE_ENV: 'production', PORT },
@@ -272,13 +272,13 @@ function startForeground(): void {
 /**
  * pm2でバックグラウンド起動
  */
-function startDaemon(): void {
+export function startDaemon(): void {
   const PORT = process.env.PORT || '3000';
   console.log(`Starting ClaudeWork daemon on port ${PORT}...`);
 
   const ecosystemPath = path.join(projectRoot, 'ecosystem.config.js');
 
-  const result = spawnSync(pm2Cmd, ['start', ecosystemPath, '--only', PM2_APP_NAME], {
+  const result = childProcess.spawnSync(pm2Cmd, ['start', ecosystemPath, '--only', PM2_APP_NAME], {
     cwd: projectRoot,
     stdio: 'inherit',
     env: { ...process.env, NODE_ENV: 'production', PORT },
@@ -297,10 +297,10 @@ function startDaemon(): void {
 /**
  * pm2プロセスを停止
  */
-function stopDaemon(): void {
+export function stopDaemon(): void {
   console.log('Stopping ClaudeWork daemon...');
 
-  const result = spawnSync(pm2Cmd, ['stop', PM2_APP_NAME], {
+  const result = childProcess.spawnSync(pm2Cmd, ['stop', PM2_APP_NAME], {
     cwd: projectRoot,
     stdio: 'inherit',
   });
@@ -316,12 +316,12 @@ function stopDaemon(): void {
 /**
  * pm2プロセスを再起動
  */
-function restartDaemon(): void {
+export function restartDaemon(): void {
   console.log('Restarting ClaudeWork daemon...');
 
   const ecosystemPath = path.join(projectRoot, 'ecosystem.config.js');
 
-  const result = spawnSync(pm2Cmd, ['restart', ecosystemPath, '--only', PM2_APP_NAME], {
+  const result = childProcess.spawnSync(pm2Cmd, ['restart', ecosystemPath, '--only', PM2_APP_NAME], {
     cwd: projectRoot,
     stdio: 'inherit',
     env: { ...process.env, NODE_ENV: 'production' },
@@ -338,8 +338,8 @@ function restartDaemon(): void {
 /**
  * pm2プロセスの状態を表示
  */
-function showStatus(): void {
-  spawnSync(pm2Cmd, ['status'], {
+export function showStatus(): void {
+  childProcess.spawnSync(pm2Cmd, ['status'], {
     cwd: projectRoot,
     stdio: 'inherit',
   });
@@ -351,7 +351,7 @@ function showStatus(): void {
 function showLogs(): void {
   console.log('Showing logs (Ctrl+C to exit)...\n');
 
-  const logs = spawn(pm2Cmd, ['logs', PM2_APP_NAME, '--lines', '50'], {
+  const logs = childProcess.spawn(pm2Cmd, ['logs', PM2_APP_NAME, '--lines', '50'], {
     cwd: projectRoot,
     stdio: 'inherit',
   });
