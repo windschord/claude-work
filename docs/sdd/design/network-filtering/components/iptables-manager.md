@@ -145,8 +145,63 @@ COMMIT
 
 ### コマンド実行方式
 
-- **HOST環境**: `child_process.execFile('iptables', [...args])` で直接実行
-- **Docker Compose環境**: ClaudeWorkコンテナに`NET_ADMIN` capabilityが必要。`nsenter`経由でホストのネットワーク名前空間にアクセスするか、`--network=host`モードで実行
+- **HOST環境**: `child_process.execFile('iptables', [...args])` で直接実行（root権限が必要）
+- **Docker Compose環境**: `sudo /usr/local/sbin/iptables-host.sh iptables ...` で実行（制限付きヘルパースクリプト経由）
+
+#### Docker Compose環境での実行アーキテクチャ
+
+Docker Compose環境ではDOCKER-USERチェインはホストのネットワーク名前空間に存在する。コンテナ独自のネットワーク名前空間からはアクセスできないため、制限付きヘルパースクリプトを介してホストの名前空間に入りiptablesを操作する。
+
+```text
+ClaudeWorkコンテナ (node user)
+  └→ sudo /usr/local/sbin/iptables-host.sh iptables ...
+       └→ ヘルパースクリプト: コマンド名を検証（iptables/iptables-restoreのみ許可）
+            └→ nsenter -t 1 -n -- iptables ...
+                 └→ ホストのネットワーク名前空間でiptablesを実行
+```
+
+#### セキュリティ設計
+
+nodeユーザーに`nsenter`の直接sudo実行を許可すると、任意のコマンドをホスト名前空間で実行できてしまう。これを防ぐため、iptables/iptables-restoreのみを許可するヘルパースクリプト(`iptables-host.sh`)を介してnsenterを実行する。sudoers設定はこのヘルパースクリプトのみを許可する。
+
+#### 必要な設定
+
+**docker-compose.yml:**
+```yaml
+pid: host          # nsenterでホストのPID 1の名前空間にアクセスするため
+cap_add:
+  - NET_ADMIN      # iptablesルールの操作に必要
+  - SYS_ADMIN      # nsenterで名前空間にアクセスするために必要
+  - SYS_PTRACE     # /proc/1/ns/netへのアクセスに必要
+security_opt:
+  - apparmor=unconfined  # AppArmorによるnsenterブロックを回避
+```
+
+**Dockerfile:**
+```dockerfile
+# 制限付きヘルパースクリプト（iptables/iptables-restoreのみ許可）
+COPY <<'HELPER' /usr/local/sbin/iptables-host.sh
+#!/bin/sh
+set -eu
+case "$1" in
+  iptables|iptables-restore) ;;
+  *) echo "Unsupported command: $1" >&2; exit 1 ;;
+esac
+exec /usr/bin/nsenter -t 1 -n -- "$@"
+HELPER
+# nodeユーザーにはこのヘルパーのみをpasswordless sudoで許可
+RUN echo "node ALL=(root) NOPASSWD: /usr/local/sbin/iptables-host.sh" > /etc/sudoers.d/iptables-node
+```
+
+#### iptables-nft vs iptables-legacy
+
+ホストのDockerバージョンによって、DOCKER-USERチェインがnftablesまたはlegacy xtablesで管理される。`nsenter -t 1 -n` はネットワーク名前空間のみを切り替えるため、実行される `iptables` バイナリ自体はコンテナ側で解決される。結果として、コンテナのiptables-nftバイナリがホストネットワーク名前空間上のDOCKER-USERチェインへアクセスできる。
+
+#### IptablesManager の実行モード判定
+
+`isRunningInDocker()`（`RUNNING_IN_DOCKER`環境変数または`/.dockerenv`存在で判定）:
+- `true`: `sudo /usr/local/sbin/iptables-host.sh iptables`（または `iptables-restore`）経由で実行
+- 未設定/false: `iptables` を直接実行（HOST環境）
 
 ### 冪等性の確保
 

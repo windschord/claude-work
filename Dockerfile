@@ -84,8 +84,47 @@ RUN apt-get update \
        https://download.docker.com/linux/debian $(. /etc/os-release && echo $VERSION_CODENAME) stable" \
        > /etc/apt/sources.list.d/docker.list \
     && apt-get update \
-    && apt-get install -y --no-install-recommends docker-ce-cli iptables \
+    && apt-get install -y --no-install-recommends docker-ce-cli iptables sudo \
     && rm -rf /var/lib/apt/lists/*
+
+# iptables操作用の制限付きヘルパースクリプトを作成
+# nodeユーザーにnsenterの直接実行を許可せず、iptables/iptables-restoreのみに制限する
+# Docker Compose環境ではコンテナ独自のネットワーク名前空間にはDOCKER-USERが存在しない
+# nsenterでホストのネットワーク名前空間に入ってiptablesを操作する必要がある
+COPY <<'HELPER' /usr/local/sbin/iptables-host.sh
+#!/bin/sh
+set -eu
+case "$1" in
+  iptables) cmd=/usr/sbin/iptables ;;
+  iptables-restore) cmd=/usr/sbin/iptables-restore ;;
+  *) echo "Unsupported command: $1" >&2; exit 1 ;;
+esac
+shift
+for arg in "$@"; do
+  case "$arg" in
+    --modprobe|--modprobe=*) echo "Forbidden option: $arg" >&2; exit 1 ;;
+  esac
+done
+# チェイン名制限: DOCKER-USERとCWFILTER-プレフィックスのみ許可
+# iptables-restoreはstdin経由なのでこのチェック対象外
+if [ "$cmd" = "/usr/sbin/iptables" ]; then
+  chain_ok=false
+  for arg in "$@"; do
+    case "$arg" in
+      DOCKER-USER|CWFILTER-*) chain_ok=true ;;
+      --version|-L|-S) chain_ok=true; break ;;
+    esac
+  done
+  if [ "$chain_ok" = false ]; then
+    echo "Only DOCKER-USER and CWFILTER-* chains allowed" >&2; exit 1
+  fi
+fi
+exec /usr/bin/nsenter -t 1 -n -- "$cmd" "$@"
+HELPER
+RUN chmod 0755 /usr/local/sbin/iptables-host.sh \
+    && chown root:root /usr/local/sbin/iptables-host.sh \
+    && echo "node ALL=(root) NOPASSWD: /usr/local/sbin/iptables-host.sh" > /etc/sudoers.d/iptables-node \
+    && chmod 0440 /etc/sudoers.d/iptables-node
 
 ENV NODE_ENV=production
 ENV PORT=3000
