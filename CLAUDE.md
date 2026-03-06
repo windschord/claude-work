@@ -389,7 +389,7 @@ For detailed troubleshooting information, see `docs/sdd/troubleshooting/`.
 
 ### spawnSync/execSync テストでの cwd・env 検証
 
-- `spawnSync`/`execSync` をモックするテストでは、`cwd` と `env` のアサーションを必須とする
+- `spawnSync`/`execSync` をモックするテストでは、`cwd` のアサーションを必須とし、`env` を明示的に渡している場合は `env` もアサートする
 - `expect.objectContaining()` は省略したキーをスルーするため、重要なオプション（`cwd`, `env`）は明示的に検証すること
 - 子プロセスの `cwd` に `process.cwd()` を使う場合は、使用意図を必ずコメントで明記すること。意図が書かれていない `cwd: process.cwd()` はコードレビューで指摘対象とする
 

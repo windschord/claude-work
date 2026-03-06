@@ -13,8 +13,8 @@ subprocess の cwd/env をテストで検証する規則を整備し、CWDに依
 
 | ID | タイトル | ステータス | 依存 | 工数 | リンク |
 |----|---------|-----------|------|------|--------|
-| TASK-001 | CLAUDE.mdにプロセス実行テスト規則を追記 | TODO | なし | 10min | [詳細](TASK-001.md) @TASK-001.md |
-| TASK-002 | cli.tsのspawnSync呼び出しテストを追加 | TODO | なし | 30min | [詳細](TASK-002.md) @TASK-002.md |
+| TASK-001 | CLAUDE.mdにプロセス実行テスト規則を追記 | DONE | なし | 10min | [詳細](TASK-001.md) @TASK-001.md |
+| TASK-002 | cli.tsのspawnSync呼び出しテストを追加 | DONE | なし | 30min | [詳細](TASK-002.md) @TASK-002.md |
 
 ## 並列実行グループ
 
@@ -30,6 +30,6 @@ TASK-001とTASK-002は対象ファイルが異なるため並列実行可能。
 ## 進捗サマリ
 
 - 合計: 2タスク
-- TODO: 2
+- TODO: 0
 - IN_PROGRESS: 0
-- DONE: 0
+- DONE: 2

@@ -67,10 +67,10 @@ const result = spawnSync('cmd', args, {
 
 ## 受入基準
 
-- [ ] CLAUDE.mdに「Subprocess Testing Rules」セクションが追加されている
-- [ ] NG例とOK例がコードブロックで記載されている
-- [ ] process.cwd()使用時のコメント規則が記載されている
-- [ ] 既存セクションのフォーマットと統一されている
+- [x] CLAUDE.mdに「Subprocess Testing Rules」セクションが追加されている
+- [x] NG例とOK例がコードブロックで記載されている
+- [x] process.cwd()使用時のコメント規則が記載されている
+- [x] 既存セクションのフォーマットと統一されている
 
 ## 情報の明確性
 
@@ -85,4 +85,4 @@ const result = spawnSync('cmd', args, {
 
 ## ステータス
 
-TODO
+DONE

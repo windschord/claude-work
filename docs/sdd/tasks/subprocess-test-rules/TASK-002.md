@@ -133,15 +133,15 @@ npx vitest run src/bin/__tests__/cli.test.ts
 
 ## 受入基準
 
-- [ ] `src/bin/__tests__/cli.test.ts`が存在する
-- [ ] buildNext()のテストでcwdとenvが検証されている
-- [ ] startDaemon()のテストでcwdとenvが検証されている
-- [ ] stopDaemon()のテストでcwdが検証されている
-- [ ] restartDaemon()のテストでcwdとenvが検証されている
-- [ ] showStatus()のテストでcwdが検証されている
-- [ ] cwdがprocess.cwd()ではないことを検証するテストがある
-- [ ] `npx vitest run src/bin/__tests__/cli.test.ts`で全テスト通過
-- [ ] 既存テスト（`npm test`）に影響がない
+- [x] `src/bin/__tests__/cli.test.ts`が存在する
+- [x] buildNext()のテストでcwdとenvが検証されている
+- [x] startDaemon()のテストでcwdとenvが検証されている
+- [x] stopDaemon()のテストでcwdが検証されている
+- [x] restartDaemon()のテストでcwdとenvが検証されている
+- [x] showStatus()のテストでcwdが検証されている
+- [x] cwdがprocess.cwd()ではないことを検証するテストがある
+- [x] `npx vitest run src/bin/__tests__/cli.test.ts`で全テスト通過
+- [x] 既存テスト（`npm test`）に影響がない
 
 ## 情報の明確性
 
@@ -156,4 +156,4 @@ npx vitest run src/bin/__tests__/cli.test.ts
 
 ## ステータス
 
-TODO
+DONE
