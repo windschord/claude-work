@@ -146,7 +146,7 @@ COMMIT
 ### コマンド実行方式
 
 - **HOST環境**: `child_process.execFile('iptables', [...args])` で直接実行（root権限が必要）
-- **Docker Compose環境**: `sudo iptables-host.sh iptables ...` で実行（制限付きヘルパースクリプト経由）
+- **Docker Compose環境**: `sudo /usr/local/sbin/iptables-host.sh iptables ...` で実行（制限付きヘルパースクリプト経由）
 
 #### Docker Compose環境での実行アーキテクチャ
 
