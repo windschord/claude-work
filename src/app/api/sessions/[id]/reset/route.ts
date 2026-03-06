@@ -68,7 +68,7 @@ export async function POST(
     let result;
     if (targetSession.project.clone_location === 'docker') {
       const dockerGitService = new DockerGitService();
-      result = await dockerGitService.reset(targetSession.project.id, sessionName, trimmedCommitHash);
+      result = await dockerGitService.reset(targetSession.project.id, sessionName, trimmedCommitHash, targetSession.project.docker_volume_id);
     } else {
       const gitService = new GitService(targetSession.project.path, logger);
       result = gitService.reset(sessionName, trimmedCommitHash);

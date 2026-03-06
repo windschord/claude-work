@@ -659,6 +659,83 @@ describe('POST /api/projects/[project_id]/sessions', () => {
     });
   });
 
+  describe('POST - Docker volume validation', () => {
+    it('clone_location=docker かつ docker_volume_id=null の場合 400エラーを返す', async () => {
+      mockDb._mockSelectGet.mockReturnValue({
+        id: 'project-1',
+        name: 'Test Project',
+        path: '/path/to/project',
+        environment_id: 'env-docker-1',
+        clone_location: 'docker',
+        docker_volume_id: null,
+      });
+
+      const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: 'Hello Claude' }),
+      });
+
+      const response = await POST(request, {
+        params: Promise.resolve({ project_id: 'project-1' }),
+      });
+
+      expect(response.status).toBe(400);
+      const json = await response.json();
+      expect(json.error).toBe('Docker volume not configured');
+      expect(json.message).toContain('Dockerボリュームが設定されていません');
+    });
+
+    it('clone_location=docker かつ docker_volume_id が設定済みの場合は正常処理される', async () => {
+      mockDb._mockSelectGet.mockReturnValue({
+        id: 'project-1',
+        name: 'Test Project',
+        path: '/path/to/project',
+        environment_id: 'env-docker-1',
+        clone_location: 'docker',
+        docker_volume_id: 'cw-repo-test',
+      });
+
+      const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: 'Hello Claude' }),
+      });
+
+      const response = await POST(request, {
+        params: Promise.resolve({ project_id: 'project-1' }),
+      });
+
+      // バリデーションは通過する（他のエラーは許容）
+      expect(response.status).not.toBe(400);
+    });
+
+    it('clone_location=host の場合 docker_volume_id=null でもエラーにならない', async () => {
+      mockDb._mockSelectGet.mockReturnValue({
+        id: 'project-1',
+        name: 'Test Project',
+        path: '/path/to/project',
+        environment_id: 'env-docker-1',
+        clone_location: 'host',
+        docker_volume_id: null,
+      });
+
+      const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: 'Hello Claude' }),
+      });
+
+      const response = await POST(request, {
+        params: Promise.resolve({ project_id: 'project-1' }),
+      });
+
+      // clone_location=host の場合はボリュームバリデーションエラーにならない
+      const json = await response.json();
+      expect(json.error).not.toBe('Docker volume not configured');
+    });
+  });
+
   describe('worktree option', () => {
     it('should skip worktree creation when session claude_code_options has worktree: true', async () => {
       mockDb._mockSelectGet.mockReturnValue({

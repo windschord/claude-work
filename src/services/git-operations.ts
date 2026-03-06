@@ -31,6 +31,7 @@ export interface GitWorktreeOptions {
   projectId: string;
   sessionName: string;
   branchName: string;
+  dockerVolumeId?: string | null;
 }
 
 /**

@@ -144,7 +144,7 @@ export async function DELETE(
 
         if (targetSession.project.clone_location === 'docker') {
           const dockerGitService = new DockerGitService();
-          const result = await dockerGitService.deleteWorktree(targetSession.project.id, sessionName);
+          const result = await dockerGitService.deleteWorktree(targetSession.project.id, sessionName, targetSession.project.docker_volume_id);
           if (!result.success) {
             throw result.error || new Error('Failed to delete docker worktree');
           }

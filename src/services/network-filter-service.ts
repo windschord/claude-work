@@ -713,11 +713,12 @@ export class NetworkFilterService {
    * 処理フロー:
    * 1. getFilterConfig(environmentId) でフィルタリング設定を確認
    * 2. 無効なら即座にreturn
-   * 3. IptablesManager.checkAvailability() で利用可否チェック → 利用不可ならエラー
-   * 4. getRules(environmentId) でルール取得（enabledのみフィルタ）
-   * 5. resolveDomains(rules) でDNS解決
-   * 6. IptablesManager.setupFilterChain(envId, resolvedRules, subnet) でiptables適用
-   * 7. 失敗時は FilterApplicationError をスロー
+   * 3. getRules(environmentId) でルール取得（enabledのみフィルタ）
+   * 4. 有効ルール0件なら早期return
+   * 5. IptablesManager.checkAvailability() で利用可否チェック → 利用不可ならエラー
+   * 6. resolveDomains(rules) でDNS解決
+   * 7. IptablesManager.setupFilterChain(envId, resolvedRules, subnet) でiptables適用
+   * 8. 失敗時は FilterApplicationError をスロー
    *
    * @param environmentId - 環境ID
    * @param containerSubnet - コンテナのサブネット（例: 172.18.0.0/16）
@@ -735,9 +736,19 @@ export class NetworkFilterService {
         return;
       }
 
+      // 3. ルール取得（enabledのもののみ）
+      const allRules = await this.getRules(environmentId);
+      const enabledRules = allRules.filter((r) => r.enabled);
+
+      // 4. 有効なルールが0件の場合は早期リターン
+      if (enabledRules.length === 0) {
+        logger.info('有効なフィルタルールが0件のためスキップ', { environmentId });
+        return;
+      }
+
       logger.info('フィルタリングの適用を開始します', { environmentId, containerSubnet });
 
-      // 3. iptables利用可否チェック
+      // 5. iptables利用可否チェック
       const available = await this.iptablesManager.checkAvailability();
       if (!available) {
         const errorMessage = `iptablesが利用不可のためフィルタリングを適用できません: environmentId=${environmentId}`;
@@ -746,14 +757,10 @@ export class NetworkFilterService {
       }
 
       try {
-        // 4. ルール取得（enabledのもののみ）
-        const allRules = await this.getRules(environmentId);
-        const enabledRules = allRules.filter((r) => r.enabled);
-
-        // 5. DNS解決
+        // 6. DNS解決
         const resolvedRules = await this.resolveDomains(enabledRules);
 
-        // 6. iptables適用
+        // 7. iptables適用
         await this.iptablesManager.setupFilterChain(environmentId, resolvedRules, containerSubnet);
 
         logger.info('フィルタリングの適用が完了しました', {

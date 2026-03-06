@@ -63,7 +63,7 @@ export async function GET(
     let diff;
     if (targetSession.project.clone_location === 'docker') {
       const dockerGitService = new DockerGitService();
-      diff = await dockerGitService.getDiffDetails(targetSession.project.id, sessionName);
+      diff = await dockerGitService.getDiffDetails(targetSession.project.id, sessionName, targetSession.project.docker_volume_id);
     } else {
       const gitService = new GitService(targetSession.project.path, logger);
       diff = gitService.getDiffDetails(sessionName);

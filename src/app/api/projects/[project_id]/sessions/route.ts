@@ -243,6 +243,17 @@ export async function POST(
       environmentType: env.type,
     });
 
+    // Docker環境プロジェクトのボリュームIDバリデーション
+    if (project.clone_location === 'docker' && !project.docker_volume_id) {
+      return NextResponse.json(
+        {
+          error: 'Docker volume not configured',
+          message: 'このプロジェクトはDocker環境(clone_location=docker)ですが、Dockerボリュームが設定されていません。プロジェクトを削除して再作成してください。',
+        },
+        { status: 400 },
+      );
+    }
+
     // HOST環境の利用制限チェック（キャッシュ済みのtypeを使用してDB再クエリを回避）
     if (!isHostEnvironmentAllowed() && effectiveEnvironmentType === 'HOST') {
       return NextResponse.json(
@@ -307,6 +318,7 @@ export async function POST(
             projectId: project.id,
             sessionName: sessionName,
             branchName: branchName,
+            dockerVolumeId: project.docker_volume_id,
           });
 
           if (!result.success) {

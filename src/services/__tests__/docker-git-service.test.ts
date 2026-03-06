@@ -325,6 +325,116 @@ describe('DockerGitService', () => {
     });
   });
 
+  describe('getVolumeName - dockerVolumeId対応', () => {
+    it('dockerVolumeIdが指定された場合、createWorktreeがその値をボリューム名として使用する', async () => {
+      await dockerGitService.createWorktree({
+        projectId: 'test-project-id',
+        sessionName: 'test-session',
+        branchName: 'session/test-session',
+        dockerVolumeId: 'cw-repo-myproject',
+      });
+
+      expect(mockDockerClient.run).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(Array),
+        expect.any(Array),
+        expect.objectContaining({
+          HostConfig: expect.objectContaining({
+            Binds: expect.arrayContaining(['cw-repo-myproject:/repo']),
+          }),
+        })
+      );
+    });
+
+    it('dockerVolumeIdがnullの場合、createWorktreeがフォールバック値を使用する', async () => {
+      await dockerGitService.createWorktree({
+        projectId: 'test-project-id',
+        sessionName: 'test-session',
+        branchName: 'session/test-session',
+        dockerVolumeId: null,
+      });
+
+      expect(mockDockerClient.run).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(Array),
+        expect.any(Array),
+        expect.objectContaining({
+          HostConfig: expect.objectContaining({
+            Binds: expect.arrayContaining(['claude-repo-test-project-id:/repo']),
+          }),
+        })
+      );
+    });
+
+    it('dockerVolumeIdが未指定の場合、createWorktreeがフォールバック値を使用する（後方互換）', async () => {
+      await dockerGitService.createWorktree({
+        projectId: 'test-project-id',
+        sessionName: 'test-session',
+        branchName: 'session/test-session',
+      });
+
+      expect(mockDockerClient.run).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(Array),
+        expect.any(Array),
+        expect.objectContaining({
+          HostConfig: expect.objectContaining({
+            Binds: expect.arrayContaining(['claude-repo-test-project-id:/repo']),
+          }),
+        })
+      );
+    });
+
+    it('dockerVolumeIdが指定された場合、getDiffDetailsがその値をボリューム名として使用する', async () => {
+      mockDockerClient.run = mockRunWithStdout('');
+
+      await dockerGitService.getDiffDetails('test-project-id', 'test-session', 'cw-repo-myproject');
+
+      expect(mockDockerClient.run).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(Array),
+        expect.any(Array),
+        expect.objectContaining({
+          HostConfig: expect.objectContaining({
+            Binds: expect.arrayContaining(['cw-repo-myproject:/repo']),
+          }),
+        })
+      );
+    });
+
+    it('dockerVolumeIdがnullの場合、getDiffDetailsがフォールバック値を使用する', async () => {
+      mockDockerClient.run = mockRunWithStdout('');
+
+      await dockerGitService.getDiffDetails('test-project-id', 'test-session', null);
+
+      expect(mockDockerClient.run).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(Array),
+        expect.any(Array),
+        expect.objectContaining({
+          HostConfig: expect.objectContaining({
+            Binds: expect.arrayContaining(['claude-repo-test-project-id:/repo']),
+          }),
+        })
+      );
+    });
+
+    it('dockerVolumeIdが指定された場合、deleteWorktreeがその値をボリューム名として使用する', async () => {
+      await dockerGitService.deleteWorktree('test-project-id', 'test-session', 'cw-repo-myproject');
+
+      expect(mockDockerClient.run).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(Array),
+        expect.any(Array),
+        expect.objectContaining({
+          HostConfig: expect.objectContaining({
+            Binds: expect.arrayContaining(['cw-repo-myproject:/repo']),
+          }),
+        })
+      );
+    });
+  });
+
   describe('Volume命名規則', () => {
     it('projectNameを指定したcloneでcw-repo-{slug}形式のVolume名が使われる', async () => {
       const result = await dockerGitService.cloneRepository({
