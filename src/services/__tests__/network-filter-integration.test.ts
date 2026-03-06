@@ -357,18 +357,14 @@ describe('NetworkFilterService - 統合テスト', () => {
 
     mockDbSelectGet.mockReturnValueOnce(config);
     // ルール取得がiptablesチェック前に行われるため、有効なルールを返す必要がある
-    mockDbSelectAll.mockReturnValueOnce([{
-      id: 'rule-1',
-      environment_id: envId,
-      target: 'example.com',
-      port: 443,
-      protocol: 'tcp',
-      direction: 'outbound',
-      enabled: true,
-      description: 'test rule',
-      created_at: new Date(),
-      updated_at: new Date(),
-    }]);
+    mockDbSelectAll.mockReturnValueOnce([
+      makeRule({
+        id: 'rule-1',
+        target: 'example.com',
+        port: 443,
+        description: 'test rule',
+      }),
+    ]);
     mockCheckAvailability.mockResolvedValueOnce(false);
 
     await expect(service.applyFilter(envId, containerSubnet)).rejects.toThrow(FilterApplicationError);
