@@ -128,7 +128,7 @@ private getVolumeName(projectId: string, dockerVolumeId?: string | null, project
 
 - [x] `getVolumeName()` が `dockerVolumeId` パラメータを受け取る
 - [x] `dockerVolumeId` 指定時はその値を返す
-- [x] `dockerVolumeId` がnull/未指定時はフォールバック値を返す
+- [x] `dockerVolumeId` がnull/未指定時はフォールバック値を返す（優先順位: `dockerVolumeId` > `projectName`ベース生成 > `claude-repo-<projectId>`）
 - [x] `GitWorktreeOptions` に `dockerVolumeId` フィールドが追加されている
 - [x] 全8メソッドが `dockerVolumeId` を受け取り `getVolumeName()` に渡す
 - [x] 既存テストがすべて通過（後方互換）
