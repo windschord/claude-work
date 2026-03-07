@@ -124,7 +124,7 @@ describe('POST /api/sessions/[id]/rebase', () => {
 
     const response = await POST(request, { params: Promise.resolve({ id: dockerSession.id }) });
     expect(response.status).toBe(200);
-    expect(mockDockerRebaseFromMain).toHaveBeenCalledWith(dockerProject.id, 'docker-session');
+    expect(mockDockerRebaseFromMain).toHaveBeenCalledWith(dockerProject.id, 'docker-session', null);
     expect(mockRebaseFromMain).not.toHaveBeenCalled();
   });
 

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
 // vi.hoisted()でモックオブジェクトを先に定義
-const { _mockDbSelect, _mockDbInsert, _mockDbUpdate, mockGitService, mockDockerService, mockEnvironmentService } = vi.hoisted(() => ({
+const { _mockDbSelect, _mockDbInsert, _mockDbUpdate, mockGitService, mockDockerService, mockEnvironmentService, mockDockerGitService } = vi.hoisted(() => ({
   _mockDbSelect: {
     from: vi.fn(),
   },
@@ -23,6 +23,9 @@ const { _mockDbSelect, _mockDbInsert, _mockDbUpdate, mockGitService, mockDockerS
   },
   mockEnvironmentService: {
     findById: vi.fn(),
+  },
+  mockDockerGitService: {
+    createWorktree: vi.fn(),
   },
 }));
 
@@ -113,6 +116,13 @@ vi.mock('@/services/docker-service', () => ({
   },
 }));
 
+// DockerGitServiceモック
+vi.mock('@/services/docker-git-service', () => ({
+  DockerGitService: class MockDockerGitService {
+    createWorktree = mockDockerGitService.createWorktree;
+  },
+}));
+
 // loggerモック
 vi.mock('@/lib/logger', () => ({
   logger: {
@@ -175,6 +185,7 @@ describe('POST /api/projects/[project_id]/sessions', () => {
     });
 
     mockGitService.createWorktree.mockReturnValue('/path/to/worktree');
+    mockDockerGitService.createWorktree.mockResolvedValue({ success: true, worktreePath: '/repo/.worktrees/session-name' });
 
     // デフォルト環境モック
     mockEnvironmentService.findById.mockResolvedValue({
@@ -656,6 +667,91 @@ describe('POST /api/projects/[project_id]/sessions', () => {
       expect(response.status).toBe(400);
       const body = await response.json();
       expect(body.error).toContain('environment_id must be a non-empty string');
+    });
+  });
+
+  describe('POST - Docker volume validation', () => {
+    it('clone_location=docker かつ docker_volume_id=null の場合 400エラーを返す', async () => {
+      mockDb._mockSelectGet.mockReturnValue({
+        id: 'project-1',
+        name: 'Test Project',
+        path: '/path/to/project',
+        environment_id: 'env-docker-1',
+        clone_location: 'docker',
+        docker_volume_id: null,
+      });
+
+      const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: 'Hello Claude' }),
+      });
+
+      const response = await POST(request, {
+        params: Promise.resolve({ project_id: 'project-1' }),
+      });
+
+      expect(response.status).toBe(400);
+      const json = await response.json();
+      expect(json.error).toBe('Docker volume not configured');
+      expect(json.message).toContain('Dockerボリュームが設定されていません');
+      expect(mockDockerGitService.createWorktree).not.toHaveBeenCalled();
+    });
+
+    it('clone_location=docker かつ docker_volume_id が設定済みの場合は正常処理される', async () => {
+      mockDb._mockSelectGet.mockReturnValue({
+        id: 'project-1',
+        name: 'Test Project',
+        path: '/path/to/project',
+        environment_id: 'env-docker-1',
+        clone_location: 'docker',
+        docker_volume_id: 'cw-repo-test',
+      });
+
+      const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: 'Hello Claude' }),
+      });
+
+      const response = await POST(request, {
+        params: Promise.resolve({ project_id: 'project-1' }),
+      });
+
+      // バリデーションを通過しセッションが正常に作成される
+      expect(response.status).toBe(201);
+      expect(mockDockerGitService.createWorktree).toHaveBeenCalledWith(
+        expect.objectContaining({
+          projectId: 'project-1',
+          dockerVolumeId: 'cw-repo-test',
+        }),
+      );
+    });
+
+    it('clone_location=host の場合 docker_volume_id=null でもエラーにならない', async () => {
+      mockDb._mockSelectGet.mockReturnValue({
+        id: 'project-1',
+        name: 'Test Project',
+        path: '/path/to/project',
+        environment_id: 'env-docker-1',
+        clone_location: 'host',
+        docker_volume_id: null,
+      });
+
+      const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: 'Hello Claude' }),
+      });
+
+      const response = await POST(request, {
+        params: Promise.resolve({ project_id: 'project-1' }),
+      });
+
+      // clone_location=host の場合はボリュームバリデーションをスキップしてセッションが正常に作成される
+      expect(response.status).toBe(201);
+      expect(mockGitService.createWorktree).toHaveBeenCalled();
+      expect(mockDockerGitService.createWorktree).not.toHaveBeenCalled();
     });
   });
 

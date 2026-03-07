@@ -95,7 +95,7 @@ export async function POST(
     let result;
     if (targetSession.project.clone_location === 'docker') {
       const dockerGitService = new DockerGitService();
-      result = await dockerGitService.squashMerge(targetSession.project.id, sessionName, sanitizedMessage);
+      result = await dockerGitService.squashMerge(targetSession.project.id, sessionName, sanitizedMessage, targetSession.project.docker_volume_id);
     } else {
       const gitService = new GitService(targetSession.project.path, logger);
       result = gitService.squashMerge(sessionName, sanitizedMessage);

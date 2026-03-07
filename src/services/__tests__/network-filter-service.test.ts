@@ -653,8 +653,8 @@ describe('NetworkFilterService', () => {
     it('同一environmentIdで2つのapplyFilterを同時呼び出しすると直列に実行される', async () => {
       // フィルタリング設定: 有効
       mockDbSelectGet.mockReturnValue({ id: 'config-1', environment_id: envId, enabled: true });
-      // ルール一覧: 空
-      mockDbSelectAll.mockReturnValue([]);
+      // ルールが1件以上必要（0件だと早期リターンしてsetupFilterChainが呼ばれない）
+      mockDbSelectAll.mockReturnValue([mockRule]);
 
       const executionOrder: number[] = [];
 
@@ -683,8 +683,8 @@ describe('NetworkFilterService', () => {
     it('同一environmentIdでremoveFilterとapplyFilterを同時呼び出しすると直列に実行される', async () => {
       // フィルタリング設定: 有効
       mockDbSelectGet.mockReturnValue({ id: 'config-1', environment_id: envId, enabled: true });
-      // ルール一覧: 空
-      mockDbSelectAll.mockReturnValue([]);
+      // ルールが1件以上必要（0件だと早期リターンしてsetupFilterChainが呼ばれない）
+      mockDbSelectAll.mockReturnValue([mockRule]);
 
       const executionOrder: string[] = [];
 
@@ -720,7 +720,8 @@ describe('NetworkFilterService', () => {
 
       // どちらの環境もフィルタリング有効
       mockDbSelectGet.mockReturnValue({ id: 'config-1', environment_id: envId, enabled: true });
-      mockDbSelectAll.mockReturnValue([]);
+      // ルールが1件以上必要（0件だと早期リターンしてsetupFilterChainが呼ばれない）
+      mockDbSelectAll.mockReturnValue([mockRule]);
 
       const executionOrder: string[] = [];
 
@@ -749,7 +750,8 @@ describe('NetworkFilterService', () => {
     it('applyFilter内でエラーが発生してもmutexが解放され次の操作が実行できる', async () => {
       // フィルタリング設定: 有効
       mockDbSelectGet.mockReturnValue({ id: 'config-1', environment_id: envId, enabled: true });
-      mockDbSelectAll.mockReturnValue([]);
+      // ルールが1件以上必要（0件だと早期リターンしてsetupFilterChainが呼ばれない）
+      mockDbSelectAll.mockReturnValue([mockRule]);
 
       let callCount = 0;
 

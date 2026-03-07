@@ -250,23 +250,46 @@ describe('NetworkFilterService - applyFilter / removeFilter', () => {
       );
     });
 
-    // テスト5: ルールが0件の場合もsetupFilterChainが呼ばれる（DNS許可+デフォルトDROPのみ）
-    it('ルールが0件の場合もsetupFilterChainが呼ばれる', async () => {
+    // テスト5: ルールが0件の場合はiptablesチェックなしで正常終了する
+    it('enabled=true かつルール0件の場合、iptablesチェックなしで正常終了する', async () => {
       const config = makeConfig({ enabled: true });
 
       mockDbSelectGet.mockReturnValueOnce(config);
       mockDbSelectAll.mockReturnValueOnce([]);
-      vi.spyOn(service, 'resolveDomains').mockResolvedValueOnce([]);
 
       await service.applyFilter(envId, containerSubnet);
 
-      expect(mockSetupFilterChain).toHaveBeenCalledWith(envId, [], containerSubnet);
+      // iptablesチェックが呼ばれていないことを確認
+      expect(mockCheckAvailability).not.toHaveBeenCalled();
+      // setupFilterChainも呼ばれていないことを確認
+      expect(mockSetupFilterChain).not.toHaveBeenCalled();
+    });
+
+    // テスト12: enabled=true かつルール1件以上の場合、iptablesチェックが実行される
+    it('enabled=true かつルール1件以上の場合、iptablesチェックが実行される', async () => {
+      const config = makeConfig({ enabled: true });
+      const rule = makeRule();
+
+      mockDbSelectGet.mockReturnValueOnce(config);
+      mockDbSelectAll.mockReturnValueOnce([rule]);
+      vi.spyOn(service, 'resolveDomains').mockResolvedValueOnce([
+        { ips: ['1.2.3.4'], port: 443, originalTarget: 'api.anthropic.com' },
+      ]);
+
+      await service.applyFilter(envId, containerSubnet);
+
+      // iptablesチェックが呼ばれていることを確認
+      expect(mockCheckAvailability).toHaveBeenCalledOnce();
+      expect(mockSetupFilterChain).toHaveBeenCalledOnce();
     });
 
     // テスト6: iptablesが利用不可の場合にFilterApplicationErrorがスローされる
     it('iptablesが利用不可の場合にFilterApplicationErrorがスローされる', async () => {
       const config = makeConfig({ enabled: true });
+      const rule = makeRule();
       mockDbSelectGet.mockReturnValueOnce(config);
+      // ルール取得はiptablesチェック前に実行されるため、ルールが必要
+      mockDbSelectAll.mockReturnValueOnce([rule]);
 
       mockCheckAvailability.mockResolvedValueOnce(false);
 

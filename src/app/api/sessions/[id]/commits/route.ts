@@ -59,7 +59,7 @@ export async function GET(
     let commits;
     if (targetSession.project.clone_location === 'docker') {
       const dockerGitService = new DockerGitService();
-      commits = await dockerGitService.getCommits(targetSession.project.id, sessionName);
+      commits = await dockerGitService.getCommits(targetSession.project.id, sessionName, targetSession.project.docker_volume_id);
     } else {
       const gitService = new GitService(targetSession.project.path, logger);
       commits = gitService.getCommits(sessionName);

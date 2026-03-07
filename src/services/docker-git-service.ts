@@ -56,10 +56,14 @@ export class DockerGitService implements GitOperations {
 
   /**
    * Dockerボリューム名を生成
+   * dockerVolumeIdが指定された場合はその値を返す
    * projectNameが指定された場合は新命名規則(cw-repo-{slug})を使用
    * 未指定の場合は後方互換のためclaude-repo-{projectId}を使用
    */
-  private getVolumeName(projectId: string, projectName?: string): string {
+  private getVolumeName(projectId: string, dockerVolumeId?: string | null, projectName?: string): string {
+    if (dockerVolumeId) {
+      return dockerVolumeId;
+    }
     if (projectName) {
       return generateUniqueVolumeName('repo', projectName, [], projectId);
     }
@@ -77,7 +81,7 @@ export class DockerGitService implements GitOperations {
       const existingNames = await this.getExistingVolumeNames();
       volumeName = generateUniqueVolumeName('repo', projectName, existingNames, projectId);
     } else {
-      volumeName = this.getVolumeName(projectId);
+      volumeName = this.getVolumeName(projectId, undefined);
     }
 
     try {
@@ -423,9 +427,9 @@ export class DockerGitService implements GitOperations {
    * worktreeを作成する
    */
   async createWorktree(options: GitWorktreeOptions): Promise<GitOperationResult> {
-    const { projectId, sessionName, branchName } = options;
+    const { projectId, sessionName, branchName, dockerVolumeId } = options;
     this.validateSessionName(sessionName);
-    const volumeName = this.getVolumeName(projectId);
+    const volumeName = this.getVolumeName(projectId, dockerVolumeId);
 
     try {
       const auth = await this.buildAuthBindsAndEnv();
@@ -467,9 +471,9 @@ export class DockerGitService implements GitOperations {
   /**
    * worktreeを削除する
    */
-  async deleteWorktree(projectId: string, sessionName: string): Promise<GitOperationResult> {
+  async deleteWorktree(projectId: string, sessionName: string, dockerVolumeId?: string | null): Promise<GitOperationResult> {
     this.validateSessionName(sessionName);
-    const volumeName = this.getVolumeName(projectId);
+    const volumeName = this.getVolumeName(projectId, dockerVolumeId);
 
     try {
       const Binds = [`${volumeName}:/repo`];
@@ -580,8 +584,8 @@ export class DockerGitService implements GitOperations {
   /**
    * リポジトリを削除する（Dockerボリュームを削除）
    */
-  async deleteRepository(projectId: string): Promise<GitOperationResult> {
-    const volumeName = this.getVolumeName(projectId);
+  async deleteRepository(projectId: string, dockerVolumeId?: string | null): Promise<GitOperationResult> {
+    const volumeName = this.getVolumeName(projectId, dockerVolumeId);
 
     try {
       await this.deleteVolume(volumeName);
@@ -603,7 +607,7 @@ export class DockerGitService implements GitOperations {
   /**
    * ファイルごとの詳細なdiff情報を取得
    */
-  async getDiffDetails(projectId: string, sessionName: string): Promise<{
+  async getDiffDetails(projectId: string, sessionName: string, dockerVolumeId?: string | null): Promise<{
     files: Array<{
       path: string;
       status: 'added' | 'modified' | 'deleted';
@@ -616,7 +620,7 @@ export class DockerGitService implements GitOperations {
     totalDeletions: number;
   }> {
     this.validateSessionName(sessionName);
-    const volumeName = this.getVolumeName(projectId);
+    const volumeName = this.getVolumeName(projectId, dockerVolumeId);
     const worktreePath = `/repo/.worktrees/${sessionName}`;
     const Binds = [`${volumeName}:/repo`];
 
@@ -736,9 +740,9 @@ export class DockerGitService implements GitOperations {
   /**
    * mainブランチからリベースを実行
    */
-  async rebaseFromMain(projectId: string, sessionName: string): Promise<{ success: boolean; conflicts?: string[] }> {
+  async rebaseFromMain(projectId: string, sessionName: string, dockerVolumeId?: string | null): Promise<{ success: boolean; conflicts?: string[] }> {
     this.validateSessionName(sessionName);
-    const volumeName = this.getVolumeName(projectId);
+    const volumeName = this.getVolumeName(projectId, dockerVolumeId);
     const worktreePath = `/repo/.worktrees/${sessionName}`;
     const Binds = [`${volumeName}:/repo`];
 
@@ -786,9 +790,9 @@ export class DockerGitService implements GitOperations {
   /**
    * セッションブランチをmainにスカッシュマージ
    */
-  async squashMerge(projectId: string, sessionName: string, commitMessage: string): Promise<{ success: boolean; conflicts?: string[] }> {
+  async squashMerge(projectId: string, sessionName: string, commitMessage: string, dockerVolumeId?: string | null): Promise<{ success: boolean; conflicts?: string[] }> {
     this.validateSessionName(sessionName);
-    const volumeName = this.getVolumeName(projectId);
+    const volumeName = this.getVolumeName(projectId, dockerVolumeId);
     const Binds = [`${volumeName}:/repo`];
 
     // Note: We operate in /repo (main repo), not worktree
@@ -866,7 +870,7 @@ export class DockerGitService implements GitOperations {
   /**
    * セッションのコミット履歴を取得
    */
-  async getCommits(projectId: string, sessionName: string): Promise<Array<{
+  async getCommits(projectId: string, sessionName: string, dockerVolumeId?: string | null): Promise<Array<{
     hash: string;
     short_hash: string;
     message: string;
@@ -875,7 +879,7 @@ export class DockerGitService implements GitOperations {
     files_changed: number;
   }>> {
     this.validateSessionName(sessionName);
-    const volumeName = this.getVolumeName(projectId);
+    const volumeName = this.getVolumeName(projectId, dockerVolumeId);
     const worktreePath = `/repo/.worktrees/${sessionName}`;
     const Binds = [`${volumeName}:/repo`];
 
@@ -942,10 +946,10 @@ export class DockerGitService implements GitOperations {
   /**
    * 指定されたコミットにリセット
    */
-  async reset(projectId: string, sessionName: string, commitHash: string): Promise<{ success: boolean; error?: string }> {
+  async reset(projectId: string, sessionName: string, commitHash: string, dockerVolumeId?: string | null): Promise<{ success: boolean; error?: string }> {
     this.validateSessionName(sessionName);
     this.validateCommitHash(commitHash);
-    const volumeName = this.getVolumeName(projectId);
+    const volumeName = this.getVolumeName(projectId, dockerVolumeId);
     const worktreePath = `/repo/.worktrees/${sessionName}`;
     const Binds = [`${volumeName}:/repo`];
 
