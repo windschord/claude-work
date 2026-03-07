@@ -52,12 +52,12 @@ export interface GitOperations {
   /**
    * worktreeを削除する
    */
-  deleteWorktree(projectId: string, sessionName: string): Promise<GitOperationResult>;
+  deleteWorktree(projectId: string, sessionName: string, dockerVolumeId?: string | null): Promise<GitOperationResult>;
 
   /**
    * リポジトリを削除する
    */
-  deleteRepository(projectId: string): Promise<GitOperationResult>;
+  deleteRepository(projectId: string, dockerVolumeId?: string | null): Promise<GitOperationResult>;
 }
 
 /**
