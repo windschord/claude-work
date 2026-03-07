@@ -3,8 +3,8 @@
  *
  * 各関数が spawnSync を呼び出す際に cwd と env を正しく設定しているかを検証する。
  *
- * 注意: cli.ts はモジュールトップレベルで main() を呼び出す副作用がある。
- * そのため、child_process, fs, dotenv, cli-utils をモックしてから import する必要がある。
+ * 注意: child_process, fs, dotenv, cli-utils をモックしてから import する必要がある。
+ * cli.ts は require.main === module ガードにより、テスト時は main() が実行されない。
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -92,15 +92,16 @@ describe('cli.ts spawnSync cwd/env 検証', () => {
       expect(options?.env?.NODE_ENV).toBe('production');
     });
 
-    it('cwd が process.cwd() ではなく projectRoot である', () => {
+    it('cwd が __dirname ベースの projectRoot である', () => {
       buildNext();
 
       const calls = vi.mocked(childProcess.spawnSync).mock.calls;
       expect(calls.length).toBeGreaterThan(0);
       const options = calls[0][2] as { cwd?: string };
       expect(options?.cwd).toBeDefined();
-      expect(options?.cwd).not.toBe(process.cwd());
       expect(options?.cwd).toBe(projectRoot);
+      // projectRootはパッケージルートを指すこと
+      expect(options?.cwd).toContain('claude-work');
     });
   });
 
@@ -140,15 +141,16 @@ describe('cli.ts spawnSync cwd/env 検証', () => {
       delete process.env.PORT;
     });
 
-    it('cwd が process.cwd() ではなく projectRoot である', () => {
+    it('cwd が __dirname ベースの projectRoot である', () => {
       startDaemon();
 
       const calls = vi.mocked(childProcess.spawnSync).mock.calls;
       expect(calls.length).toBeGreaterThan(0);
       const options = calls[0][2] as { cwd?: string };
       expect(options?.cwd).toBeDefined();
-      expect(options?.cwd).not.toBe(process.cwd());
       expect(options?.cwd).toBe(projectRoot);
+      // projectRootはパッケージルートを指すこと
+      expect(options?.cwd).toContain('claude-work');
     });
   });
 
@@ -166,15 +168,16 @@ describe('cli.ts spawnSync cwd/env 検証', () => {
       );
     });
 
-    it('cwd が process.cwd() ではなく projectRoot である', () => {
+    it('cwd が __dirname ベースの projectRoot である', () => {
       stopDaemon();
 
       const calls = vi.mocked(childProcess.spawnSync).mock.calls;
       expect(calls.length).toBeGreaterThan(0);
       const options = calls[0][2] as { cwd?: string };
       expect(options?.cwd).toBeDefined();
-      expect(options?.cwd).not.toBe(process.cwd());
       expect(options?.cwd).toBe(projectRoot);
+      // projectRootはパッケージルートを指すこと
+      expect(options?.cwd).toContain('claude-work');
     });
   });
 
@@ -202,15 +205,16 @@ describe('cli.ts spawnSync cwd/env 検証', () => {
       expect(options?.env?.NODE_ENV).toBe('production');
     });
 
-    it('cwd が process.cwd() ではなく projectRoot である', () => {
+    it('cwd が __dirname ベースの projectRoot である', () => {
       restartDaemon();
 
       const calls = vi.mocked(childProcess.spawnSync).mock.calls;
       expect(calls.length).toBeGreaterThan(0);
       const options = calls[0][2] as { cwd?: string };
       expect(options?.cwd).toBeDefined();
-      expect(options?.cwd).not.toBe(process.cwd());
       expect(options?.cwd).toBe(projectRoot);
+      // projectRootはパッケージルートを指すこと
+      expect(options?.cwd).toContain('claude-work');
     });
   });
 
@@ -228,15 +232,16 @@ describe('cli.ts spawnSync cwd/env 検証', () => {
       );
     });
 
-    it('cwd が process.cwd() ではなく projectRoot である', () => {
+    it('cwd が __dirname ベースの projectRoot である', () => {
       showStatus();
 
       const calls = vi.mocked(childProcess.spawnSync).mock.calls;
       expect(calls.length).toBeGreaterThan(0);
       const options = calls[0][2] as { cwd?: string };
       expect(options?.cwd).toBeDefined();
-      expect(options?.cwd).not.toBe(process.cwd());
       expect(options?.cwd).toBe(projectRoot);
+      // projectRootはパッケージルートを指すこと
+      expect(options?.cwd).toContain('claude-work');
     });
   });
 });

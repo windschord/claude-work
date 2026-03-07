@@ -30,8 +30,16 @@ import {
 // CommonJSビルド時は__dirnameが利用可能
 const currentDir = __dirname;
 
-// プロジェクトルートを解決（dist/src/bin/ から3階層上）
-export const projectRoot = path.resolve(currentDir, '..', '..', '..');
+// プロジェクトルートを解決
+// ビルド済み: dist/src/bin/ から3階層上
+// ソース直接: src/bin/ から2階層上
+function resolveProjectRoot(): string {
+  if (currentDir.includes(path.join('dist', 'src', 'bin'))) {
+    return path.resolve(currentDir, '..', '..', '..');
+  }
+  return path.resolve(currentDir, '..', '..');
+}
+export const projectRoot = resolveProjectRoot();
 
 // コマンドライン引数を取得
 const args = process.argv.slice(2);
@@ -423,4 +431,8 @@ function main(): void {
   }
 }
 
-main();
+// CLIとして直接実行された場合のみmain()を呼び出す
+// モジュールとしてimportされた場合（テスト等）は実行しない
+if (require.main === module) {
+  main();
+}
