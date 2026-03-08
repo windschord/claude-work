@@ -283,6 +283,36 @@ describe('useNetworkFilter', () => {
     });
   });
 
+  describe('refetch', () => {
+    it('refetch呼び出しでルール一覧とフィルタ設定を再取得する', async () => {
+      const newRule = { ...sampleRule, id: 'rule-002', target: '*.github.com' };
+
+      mockFetch
+        .mockImplementationOnce(() => makeFetchResponse({ rules: [sampleRule] }))
+        .mockImplementationOnce(() => makeFetchResponse({ config: sampleConfig }))
+        .mockImplementationOnce(() => makeFetchResponse({ rules: [sampleRule, newRule] }))
+        .mockImplementationOnce(() => makeFetchResponse({ config: { ...sampleConfig, enabled: true } }));
+
+      const { result } = renderHook(() => useNetworkFilter('env-001'));
+
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      expect(result.current.rules).toHaveLength(1);
+      expect(result.current.filterConfig?.enabled).toBe(false);
+
+      await act(async () => {
+        await result.current.refetch();
+      });
+
+      await waitFor(() => {
+        expect(result.current.rules).toHaveLength(2);
+      });
+
+      expect(result.current.filterConfig?.enabled).toBe(true);
+      // 初期フェッチ2回 + refetch2回 = 4回
+      expect(mockFetch).toHaveBeenCalledTimes(4);
+    });
+  });
+
   describe('エラーハンドリング', () => {
     it('ルール一覧フェッチ失敗時にerror状態を設定する', async () => {
       mockFetch

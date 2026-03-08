@@ -28,6 +28,9 @@ export interface UseNetworkFilterReturn {
 
   // テスト
   testConnection: (target: string, port?: number) => Promise<TestResult>;
+
+  // 再フェッチ
+  refetch: () => Promise<void>;
 }
 
 /**
@@ -263,6 +266,13 @@ export function useNetworkFilter(environmentId: string): UseNetworkFilterReturn 
   }, [environmentId, fetchAll]);
 
   /**
+   * ルール一覧とフィルタ設定を再フェッチする
+   */
+  const refetch = useCallback(async (): Promise<void> => {
+    await fetchAll(environmentIdRef.current);
+  }, [fetchAll]);
+
+  /**
    * 通信テストを実行する
    */
   const testConnection = useCallback(async (target: string, port?: number): Promise<TestResult> => {
@@ -294,5 +304,6 @@ export function useNetworkFilter(environmentId: string): UseNetworkFilterReturn 
     getTemplates,
     applyTemplates,
     testConnection,
+    refetch,
   };
 }

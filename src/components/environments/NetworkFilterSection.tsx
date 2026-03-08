@@ -56,6 +56,7 @@ function NetworkFilterSectionInner({ environmentId }: NetworkFilterSectionInnerP
     deleteRule,
     toggleRule,
     toggleFilter,
+    refetch,
   } = useNetworkFilter(environmentId);
 
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -213,7 +214,10 @@ function NetworkFilterSectionInner({ environmentId }: NetworkFilterSectionInnerP
         isOpen={isTemplateDialogOpen}
         onClose={() => setIsTemplateDialogOpen(false)}
         environmentId={environmentId}
-        onApplied={() => setIsTemplateDialogOpen(false)}
+        onApplied={async () => {
+          await refetch();
+          setIsTemplateDialogOpen(false);
+        }}
       />
 
       {/* 通信テストダイアログ */}

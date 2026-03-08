@@ -1,6 +1,15 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NetworkFilterSection } from '../NetworkFilterSection';
+
+// NetworkTemplateDialogをモック（onAppliedコールバックのテスト用）
+let capturedOnApplied: (() => void) | null = null;
+vi.mock('../NetworkTemplateDialog', () => ({
+  NetworkTemplateDialog: (props: { isOpen: boolean; onApplied: () => void }) => {
+    capturedOnApplied = props.onApplied;
+    return props.isOpen ? <div data-testid="mock-template-dialog">Mock Template Dialog</div> : null;
+  },
+}));
 
 // useNetworkFilter をモック
 const mockCreateRule = vi.fn();
@@ -8,6 +17,8 @@ const mockUpdateRule = vi.fn();
 const mockDeleteRule = vi.fn();
 const mockToggleRule = vi.fn();
 const mockToggleFilter = vi.fn();
+
+const mockRefetch = vi.fn();
 
 const defaultMockHook = {
   rules: [],
@@ -22,6 +33,7 @@ const defaultMockHook = {
   getTemplates: vi.fn(),
   applyTemplates: vi.fn(),
   testConnection: vi.fn(),
+  refetch: mockRefetch,
 };
 
 vi.mock('@/hooks/useNetworkFilter', () => ({
@@ -235,6 +247,35 @@ describe('NetworkFilterSection', () => {
       );
 
       expect(screen.getByText(/読み込み中/)).toBeInTheDocument();
+    });
+  });
+
+  describe('テンプレート適用後のrefetch', () => {
+    it('テンプレート適用後にrefetchが呼ばれダイアログが閉じる', async () => {
+      mockRefetch.mockResolvedValue(undefined);
+
+      render(
+        <NetworkFilterSection environmentId="env-001" environmentType="DOCKER" />
+      );
+
+      // テンプレート適用ボタンをクリックしてダイアログを開く
+      const templateButton = screen.getByRole('button', { name: /テンプレートを適用/ });
+      fireEvent.click(templateButton);
+
+      // モックダイアログが表示されていることを確認
+      expect(screen.getByTestId('mock-template-dialog')).toBeInTheDocument();
+
+      // キャプチャしたonAppliedコールバックを発火
+      expect(capturedOnApplied).not.toBeNull();
+      await act(async () => {
+        await capturedOnApplied!();
+      });
+
+      // refetchが呼ばれたことを確認
+      expect(mockRefetch).toHaveBeenCalledTimes(1);
+
+      // ダイアログが閉じたことを確認
+      expect(screen.queryByTestId('mock-template-dialog')).not.toBeInTheDocument();
     });
   });
 
