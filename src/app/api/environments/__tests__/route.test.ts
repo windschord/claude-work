@@ -642,8 +642,14 @@ describe('/api/environments', () => {
             expect.objectContaining({ target: '*.npmjs.com', port: 443 }),
           ])
         );
-        // ルール適用後にフィルタリングが有効化される
+        // ルール適用後にフィルタリングが有効化される（順序が重要）
         expect(mockUpdateFilterConfig).toHaveBeenCalledWith('env-docker-new', true);
+        // 呼び出し順: createConfigVolumes → applyTemplates → updateFilterConfig
+        const configVolumesOrder = mockCreateConfigVolumes.mock.invocationCallOrder[0];
+        const applyOrder = mockApplyTemplates.mock.invocationCallOrder[0];
+        const enableOrder = mockUpdateFilterConfig.mock.invocationCallOrder[0];
+        expect(configVolumesOrder).toBeLessThan(applyOrder);
+        expect(applyOrder).toBeLessThan(enableOrder);
       });
 
       it('HOST環境作成時にはフィルタリング初期化が行われない', async () => {
