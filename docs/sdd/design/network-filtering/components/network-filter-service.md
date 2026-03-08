@@ -243,11 +243,11 @@ POST /api/environments (type: DOCKER)
 
 | カテゴリ | ルール | ポート |
 |---------|--------|-------|
-| Anthropic API | api.anthropic.com | 443 |
-| npm | *.npmjs.org, *.npmjs.com | 443 |
-| GitHub | *.github.com, *.githubusercontent.com | 443 |
-| PyPI | pypi.org, *.pythonhosted.org | 443 |
-| Docker Hub | *.docker.io, *.docker.com | 443 |
+| Anthropic API | `api.anthropic.com` | 443 |
+| npm | `*.npmjs.org`, `*.npmjs.com` | 443 |
+| GitHub | `*.github.com`, `*.githubusercontent.com` | 443 |
+| PyPI | `pypi.org`, `*.pythonhosted.org` | 443 |
+| Docker Hub | `*.docker.io`, `*.docker.com` | 443 |
 
 ### 既存環境への影響
 
