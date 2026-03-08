@@ -56,5 +56,5 @@ NetworkFilterSection
 
 ### テスト方針
 
-- `useNetworkFilter`の`refetch`関数が正しくルール一覧を再取得するテスト
-- `NetworkFilterSection`のテンプレート適用後に`refetch`が呼ばれるテスト
+- `useNetworkFilter`の`refetch`関数が正しくルール一覧を再取得するテスト（実装済み）
+- `NetworkFilterSection`のテンプレート適用後に`refetch`が呼ばれダイアログが閉じるテスト（実装済み）
