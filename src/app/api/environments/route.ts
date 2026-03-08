@@ -8,6 +8,7 @@ import { getEnvironmentsDir } from '@/lib/data-dir';
 import { validatePortMappings, validateVolumeMounts } from '@/lib/docker-config-validator';
 import { DockerClient } from '@/services/docker-client';
 import { isHostEnvironmentAllowed } from '@/lib/environment-detect';
+import { networkFilterService } from '@/services/network-filter-service';
 import { db } from '@/lib/db';
 import * as schema from '@/db/schema';
 import { sql } from 'drizzle-orm';
@@ -331,6 +332,20 @@ export async function POST(request: NextRequest) {
       try {
         await environmentService.createConfigVolumes(environment.id);
         logger.info('Config volumes created for Docker environment', { id: environment.id });
+
+        // デフォルトのネットワークフィルタリングルールを適用（ベストエフォート）
+        try {
+          await networkFilterService.updateFilterConfig(environment.id, true);
+          const templates = networkFilterService.getDefaultTemplates();
+          const allRules = templates.flatMap((t) => t.rules);
+          await networkFilterService.applyTemplates(environment.id, allRules);
+          logger.info('Default network filter rules applied', { id: environment.id });
+        } catch (filterError) {
+          logger.warn('Failed to apply default network filter rules (non-fatal)', {
+            environmentId: environment.id,
+            error: filterError,
+          });
+        }
       } catch (volumeError) {
         logger.error('Failed to create config volumes, rolling back environment', {
           environmentId: environment.id, error: volumeError,

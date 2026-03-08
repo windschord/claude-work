@@ -36,6 +36,11 @@ const mockCheckStatus = vi.fn();
 const mockCreateConfigVolumes = vi.fn();
 const mockDelete = vi.fn();
 
+// NetworkFilterService モック
+const mockUpdateFilterConfig = vi.fn();
+const mockGetDefaultTemplates = vi.fn();
+const mockApplyTemplates = vi.fn();
+
 vi.mock('@/services/environment-service', () => ({
   environmentService: {
     findAll: () => mockFindAll(),
@@ -43,6 +48,14 @@ vi.mock('@/services/environment-service', () => ({
     checkStatus: (id: string) => mockCheckStatus(id),
     createConfigVolumes: (id: string) => mockCreateConfigVolumes(id),
     delete: (id: string) => mockDelete(id),
+  },
+}));
+
+vi.mock('@/services/network-filter-service', () => ({
+  networkFilterService: {
+    updateFilterConfig: (...args: unknown[]) => mockUpdateFilterConfig(...args),
+    getDefaultTemplates: () => mockGetDefaultTemplates(),
+    applyTemplates: (...args: unknown[]) => mockApplyTemplates(...args),
   },
 }));
 
@@ -576,6 +589,125 @@ describe('/api/environments', () => {
       expect(response.status).toBe(201);
       expect(data.environment.id).toBe('env-host-ok');
       expect(mockCreate).toHaveBeenCalledTimes(1);
+    });
+
+    describe('Docker環境作成時のデフォルトネットワークフィルタリングルール適用', () => {
+      const defaultTemplates = [
+        { category: 'Anthropic API', rules: [{ target: 'api.anthropic.com', port: 443, description: 'Claude API' }] },
+        { category: 'npm', rules: [{ target: '*.npmjs.org', port: 443, description: 'npm registry' }, { target: '*.npmjs.com', port: 443, description: 'npm registry' }] },
+      ];
+
+      beforeEach(() => {
+        mockGetDefaultTemplates.mockReturnValue(defaultTemplates);
+        mockUpdateFilterConfig.mockResolvedValue({ id: 'config-1', environment_id: 'env-docker-new', enabled: true });
+        mockApplyTemplates.mockResolvedValue({ created: 3, skipped: 0, rules: [] });
+      });
+
+      it('DOCKER環境作成時にフィルタリングが有効化されデフォルトテンプレートが適用される', async () => {
+        const newEnvironment = {
+          id: 'env-docker-new',
+          name: 'Docker Env',
+          type: 'DOCKER',
+          description: null,
+          config: '{"imageName":"my-image","imageTag":"latest"}',
+          auth_dir_path: null,
+          created_at: new Date(),
+          updated_at: new Date(),
+        };
+
+        mockCreate.mockResolvedValue(newEnvironment);
+        mockCreateConfigVolumes.mockResolvedValue(undefined);
+
+        const request = new NextRequest('http://localhost:3000/api/environments', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: 'Docker Env',
+            type: 'DOCKER',
+            config: { imageName: 'my-image', imageTag: 'latest' },
+          }),
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        const response = await POST(request);
+
+        expect(response.status).toBe(201);
+        // フィルタリングが有効化される
+        expect(mockUpdateFilterConfig).toHaveBeenCalledWith('env-docker-new', true);
+        // デフォルトテンプレートが取得される
+        expect(mockGetDefaultTemplates).toHaveBeenCalled();
+        // テンプレートルールが適用される
+        expect(mockApplyTemplates).toHaveBeenCalledWith(
+          'env-docker-new',
+          expect.arrayContaining([
+            expect.objectContaining({ target: 'api.anthropic.com', port: 443 }),
+            expect.objectContaining({ target: '*.npmjs.org', port: 443 }),
+            expect.objectContaining({ target: '*.npmjs.com', port: 443 }),
+          ])
+        );
+      });
+
+      it('HOST環境作成時にはフィルタリング初期化が行われない', async () => {
+        const newEnvironment = {
+          id: 'env-host-new',
+          name: 'Host Env',
+          type: 'HOST',
+          description: null,
+          config: '{}',
+          auth_dir_path: null,
+          created_at: new Date(),
+          updated_at: new Date(),
+        };
+
+        mockCreate.mockResolvedValue(newEnvironment);
+
+        const request = new NextRequest('http://localhost:3000/api/environments', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: 'Host Env',
+            type: 'HOST',
+            config: {},
+          }),
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        const response = await POST(request);
+
+        expect(response.status).toBe(201);
+        expect(mockUpdateFilterConfig).not.toHaveBeenCalled();
+        expect(mockApplyTemplates).not.toHaveBeenCalled();
+      });
+
+      it('フィルタリング初期化失敗時もDocker環境作成は成功する（ベストエフォート）', async () => {
+        const newEnvironment = {
+          id: 'env-docker-filter-fail',
+          name: 'Docker Env',
+          type: 'DOCKER',
+          description: null,
+          config: '{"imageName":"my-image","imageTag":"latest"}',
+          auth_dir_path: null,
+          created_at: new Date(),
+          updated_at: new Date(),
+        };
+
+        mockCreate.mockResolvedValue(newEnvironment);
+        mockCreateConfigVolumes.mockResolvedValue(undefined);
+        mockUpdateFilterConfig.mockRejectedValue(new Error('Filter config failed'));
+
+        const request = new NextRequest('http://localhost:3000/api/environments', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: 'Docker Env',
+            type: 'DOCKER',
+            config: { imageName: 'my-image', imageTag: 'latest' },
+          }),
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        const response = await POST(request);
+
+        // 環境作成自体は成功する
+        expect(response.status).toBe(201);
+      });
     });
 
     describe('Dockerfile自動ビルド（imageSource=dockerfile）', () => {
