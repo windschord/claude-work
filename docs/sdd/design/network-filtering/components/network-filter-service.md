@@ -196,6 +196,76 @@ const DEFAULT_TEMPLATES: DefaultTemplate[] = [
 
 ---
 
+## Docker環境作成時のデフォルトルール自動適用（US-006）
+
+### 概要
+
+新規Docker環境作成時（`POST /api/environments`）に、ネットワークフィルタリングをデフォルト有効化し、全テンプレートルールを自動適用する。これにより手動でのテンプレート適用作業を省略し、セキュアなデフォルト設定で即座に使用開始できる。
+
+### 適用タイミング
+
+環境作成APIの `POST /api/environments` ハンドラ内、Config Volume作成の直後に実行する。
+
+```text
+POST /api/environments (type: DOCKER)
+  │
+  ├── environmentService.create()        // 環境レコード作成
+  ├── environmentService.createConfigVolumes()  // Config Volume作成
+  │
+  ├── [デフォルトルール自動適用] ★ここ★
+  │     ├── networkFilterService.updateFilterConfig(envId, true)
+  │     │     └── DB: INSERT NetworkFilterConfig (enabled: true)
+  │     ├── networkFilterService.getDefaultTemplates()
+  │     │     └── 全5カテゴリ（9ルール）を取得
+  │     ├── templates.flatMap(t => t.rules)  // ルール展開
+  │     └── networkFilterService.applyTemplates(envId, allRules)
+  │           └── DB: INSERT NetworkFilterRule（重複スキップ）
+  │
+  └── NextResponse.json({ environment }, { status: 201 })
+```
+
+### ベストエフォート方式
+
+フィルタリング初期化は **ベストエフォート** で実行する。失敗しても環境作成自体は成功とする。
+
+| 状況 | 動作 |
+|------|------|
+| 正常完了 | フィルタリング有効 + 9ルール適用、`logger.info` |
+| 初期化失敗 | `logger.warn`で記録、環境作成は成功（201応答） |
+| HOST/SSH環境 | 自動適用スキップ（`type === 'DOCKER'` 条件内で実行） |
+
+**根拠**: Config Volume作成はDocker APIに依存するため失敗しうる。フィルタリングはセキュリティ強化機能であり、その初期化失敗で環境作成全体を失敗させるのは過剰。ユーザーは後から手動でテンプレートを適用できる。
+
+### 適用されるデフォルトルール
+
+`getDefaultTemplates()` が返す全テンプレート（5カテゴリ、9ルール）:
+
+| カテゴリ | ルール | ポート |
+|---------|--------|-------|
+| Anthropic API | api.anthropic.com | 443 |
+| npm | *.npmjs.org, *.npmjs.com | 443 |
+| GitHub | *.github.com, *.githubusercontent.com | 443 |
+| PyPI | pypi.org, *.pythonhosted.org | 443 |
+| Docker Hub | *.docker.io, *.docker.com | 443 |
+
+### 既存環境への影響
+
+- 既存のDocker環境のフィルタリング設定は一切変更されない
+- サーバー起動時にデフォルトルールが上書きされることはない
+- 自動適用されたルールは通常のルールと同様に編集・削除・無効化が可能
+
+### テスト観点
+
+- [ ] 正常系: Docker環境作成時にフィルタリング有効化 + テンプレート適用
+- [ ] 正常系: HOST環境作成時にフィルタリング自動適用がスキップされる
+- [ ] 異常系: フィルタ初期化失敗時でも環境作成は成功する（ベストエフォート）
+
+### 関連要件
+
+- [REQ-009 / US-006](../../requirements/network-filtering/stories/US-006.md) @../../requirements/network-filtering/stories/US-006.md: Docker環境作成時のデフォルトルール自動適用
+
+---
+
 ## 依存関係
 
 ### 依存するコンポーネント
@@ -257,4 +327,5 @@ DockerAdapter.createSession()
 - [REQ-002](../../requirements/network-filtering/stories/US-002.md) @../../requirements/network-filtering/stories/US-002.md: コンテナ起動時の自動適用
 - [REQ-003](../../requirements/network-filtering/stories/US-003.md) @../../requirements/network-filtering/stories/US-003.md: デフォルトテンプレート
 - [REQ-004](../../requirements/network-filtering/stories/US-004.md) @../../requirements/network-filtering/stories/US-004.md: 状態確認・モニタリング
+- [REQ-009 / US-006](../../requirements/network-filtering/stories/US-006.md) @../../requirements/network-filtering/stories/US-006.md: Docker環境作成時のデフォルトルール自動適用
 - [NFR-SEC](../../requirements/network-filtering/nfr/security.md) @../../requirements/network-filtering/nfr/security.md: セキュリティ要件

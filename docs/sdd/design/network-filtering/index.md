@@ -125,6 +125,27 @@ DockerAdapter.createSession()
 | DEC-001 | iptables DOCKER-USER chain方式の採用 | 承認済 | [詳細](decisions/DEC-001.md) @decisions/DEC-001.md |
 | DEC-002 | ドメイン解決方式（起動時DNS解決 + 定期リフレッシュ） | 承認済 | [詳細](decisions/DEC-002.md) @decisions/DEC-002.md |
 
+## Docker環境作成時のデフォルトルール自動適用（US-006 / REQ-009）
+
+新規Docker環境作成時に、全テンプレートルール（5カテゴリ、9ルール）をベストエフォートで自動適用する。
+
+```text
+POST /api/environments (type: DOCKER)
+  │
+  ├── 環境レコード作成
+  ├── Config Volume作成
+  ├── ★ デフォルトルール自動適用 ★
+  │     ├── フィルタリング有効化 (enabled: true)
+  │     └── 全テンプレートルール一括適用（重複スキップ）
+  └── 201応答
+```
+
+- **ベストエフォート**: 初期化失敗時も環境作成は成功
+- **対象**: Docker環境のみ（HOST/SSHはスキップ）
+- **カスタマイズ可能**: 自動適用後にルールの編集・削除・無効化が可能
+
+詳細: [NetworkFilterService - デフォルトルール自動適用](components/network-filter-service.md#docker環境作成時のデフォルトルール自動適用us-006) @components/network-filter-service.md
+
 ## セキュリティ考慮事項
 
 - **デフォルト拒否**: フィルタリング有効時、ホワイトリスト外の全外部通信をDROP
