@@ -631,8 +631,6 @@ describe('/api/environments', () => {
         const response = await POST(request);
 
         expect(response.status).toBe(201);
-        // フィルタリングが有効化される
-        expect(mockUpdateFilterConfig).toHaveBeenCalledWith('env-docker-new', true);
         // デフォルトテンプレートが取得される
         expect(mockGetDefaultTemplates).toHaveBeenCalled();
         // テンプレートルールが適用される
@@ -644,6 +642,8 @@ describe('/api/environments', () => {
             expect.objectContaining({ target: '*.npmjs.com', port: 443 }),
           ])
         );
+        // ルール適用後にフィルタリングが有効化される
+        expect(mockUpdateFilterConfig).toHaveBeenCalledWith('env-docker-new', true);
       });
 
       it('HOST環境作成時にはフィルタリング初期化が行われない', async () => {
@@ -665,6 +665,37 @@ describe('/api/environments', () => {
           body: JSON.stringify({
             name: 'Host Env',
             type: 'HOST',
+            config: {},
+          }),
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        const response = await POST(request);
+
+        expect(response.status).toBe(201);
+        expect(mockUpdateFilterConfig).not.toHaveBeenCalled();
+        expect(mockApplyTemplates).not.toHaveBeenCalled();
+      });
+
+      it('SSH環境作成時にはフィルタリング初期化が行われない', async () => {
+        const newEnvironment = {
+          id: 'env-ssh-new',
+          name: 'SSH Env',
+          type: 'SSH',
+          description: null,
+          config: '{}',
+          auth_dir_path: null,
+          created_at: new Date(),
+          updated_at: new Date(),
+        };
+
+        mockCreate.mockResolvedValue(newEnvironment);
+
+        const request = new NextRequest('http://localhost:3000/api/environments', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: 'SSH Env',
+            type: 'SSH',
             config: {},
           }),
           headers: { 'Content-Type': 'application/json' },
@@ -707,6 +738,40 @@ describe('/api/environments', () => {
 
         // 環境作成自体は成功する
         expect(response.status).toBe(201);
+      });
+
+      it('テンプレート適用失敗時もDocker環境作成は成功する（ベストエフォート）', async () => {
+        const newEnvironment = {
+          id: 'env-docker-apply-fail',
+          name: 'Docker Env',
+          type: 'DOCKER',
+          description: null,
+          config: '{"imageName":"my-image","imageTag":"latest"}',
+          auth_dir_path: null,
+          created_at: new Date(),
+          updated_at: new Date(),
+        };
+
+        mockCreate.mockResolvedValue(newEnvironment);
+        mockCreateConfigVolumes.mockResolvedValue(undefined);
+        mockApplyTemplates.mockRejectedValue(new Error('Apply templates failed'));
+
+        const request = new NextRequest('http://localhost:3000/api/environments', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: 'Docker Env',
+            type: 'DOCKER',
+            config: { imageName: 'my-image', imageTag: 'latest' },
+          }),
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        const response = await POST(request);
+
+        // テンプレート適用失敗時も環境作成は成功する
+        expect(response.status).toBe(201);
+        // フィルタリングは有効化されない（ルール適用前に失敗したため）
+        expect(mockUpdateFilterConfig).not.toHaveBeenCalled();
       });
     });
 

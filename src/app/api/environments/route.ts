@@ -334,11 +334,12 @@ export async function POST(request: NextRequest) {
         logger.info('Config volumes created for Docker environment', { id: environment.id });
 
         // デフォルトのネットワークフィルタリングルールを適用（ベストエフォート）
+        // ルール適用後に有効化する（中間状態「enabled=true/ルール0件」を防止）
         try {
-          await networkFilterService.updateFilterConfig(environment.id, true);
           const templates = networkFilterService.getDefaultTemplates();
           const allRules = templates.flatMap((t) => t.rules);
           await networkFilterService.applyTemplates(environment.id, allRules);
+          await networkFilterService.updateFilterConfig(environment.id, true);
           logger.info('Default network filter rules applied', { id: environment.id });
         } catch (filterError) {
           logger.warn('Failed to apply default network filter rules (non-fatal)', {

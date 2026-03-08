@@ -213,13 +213,14 @@ POST /api/environments (type: DOCKER)
   ├── environmentService.createConfigVolumes()  // Config Volume作成
   │
   ├── [デフォルトルール自動適用] ★ここ★
-  │     ├── networkFilterService.updateFilterConfig(envId, true)
-  │     │     └── DB: INSERT NetworkFilterConfig (enabled: true)
   │     ├── networkFilterService.getDefaultTemplates()
   │     │     └── 全5カテゴリ（9ルール）を取得
   │     ├── templates.flatMap(t => t.rules)  // ルール展開
-  │     └── networkFilterService.applyTemplates(envId, allRules)
-  │           └── DB: INSERT NetworkFilterRule（重複スキップ）
+  │     ├── networkFilterService.applyTemplates(envId, allRules)
+  │     │     └── DB: INSERT NetworkFilterRule（重複スキップ）
+  │     └── networkFilterService.updateFilterConfig(envId, true)
+  │           └── DB: INSERT NetworkFilterConfig (enabled: true)
+  │           ※ ルール適用成功後に有効化（中間状態防止）
   │
   └── NextResponse.json({ environment }, { status: 201 })
 ```
