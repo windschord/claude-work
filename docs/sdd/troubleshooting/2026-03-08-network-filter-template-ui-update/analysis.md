@@ -39,7 +39,7 @@ NetworkFilterSection
 ### アプローチ: `useNetworkFilter`に`refetch`関数を公開
 
 1. `useNetworkFilter`フックに`refetch`関数を追加して返却
-2. `NetworkFilterSection`で`onApplied`コールバック内で`refetch()`を呼び出す
+2. `NetworkFilterSection`の`onApplied`コールバック内から`refetch()`を呼び出す
 3. `NetworkTemplateDialog`の独自API呼び出しは維持（created/skipped結果表示のため）
 
 ### 修正対象ファイル
