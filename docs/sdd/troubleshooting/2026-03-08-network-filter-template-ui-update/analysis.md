@@ -17,7 +17,7 @@
 
 ### コードフロー
 
-```
+```text
 NetworkFilterSection
   └── useNetworkFilter(environmentId) → rules状態を管理
   └── NetworkTemplateDialog

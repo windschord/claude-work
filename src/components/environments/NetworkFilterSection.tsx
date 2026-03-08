@@ -214,7 +214,10 @@ function NetworkFilterSectionInner({ environmentId }: NetworkFilterSectionInnerP
         isOpen={isTemplateDialogOpen}
         onClose={() => setIsTemplateDialogOpen(false)}
         environmentId={environmentId}
-        onApplied={() => { refetch(); setIsTemplateDialogOpen(false); }}
+        onApplied={async () => {
+          await refetch();
+          setIsTemplateDialogOpen(false);
+        }}
       />
 
       {/* 通信テストダイアログ */}

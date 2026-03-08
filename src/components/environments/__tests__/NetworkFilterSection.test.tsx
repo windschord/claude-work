@@ -9,6 +9,8 @@ const mockDeleteRule = vi.fn();
 const mockToggleRule = vi.fn();
 const mockToggleFilter = vi.fn();
 
+const mockRefetch = vi.fn();
+
 const defaultMockHook = {
   rules: [],
   filterConfig: { id: 'cfg-1', environment_id: 'env-001', enabled: false, created_at: new Date(), updated_at: new Date() },
@@ -22,6 +24,7 @@ const defaultMockHook = {
   getTemplates: vi.fn(),
   applyTemplates: vi.fn(),
   testConnection: vi.fn(),
+  refetch: mockRefetch,
 };
 
 vi.mock('@/hooks/useNetworkFilter', () => ({
