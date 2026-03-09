@@ -821,9 +821,8 @@ export class DockerAdapter extends BasePTYAdapter {
         this.sessions.delete(sessionId);
 
         // PTY終了時にコンテナがまだ実行中なら停止
-        let containerStopped = true;
         if (containerName && !shellMode) {
-          containerStopped = await this.stopContainer(containerName);
+          await this.stopContainer(containerName);
 
           // SSH鍵一時ファイルのクリーンアップ
           try {
