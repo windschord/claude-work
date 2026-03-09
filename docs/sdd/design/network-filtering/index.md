@@ -22,13 +22,15 @@
 
 ## アーキテクチャ概要
 
+> **注意**: iptables方式は廃止されました。現在はproxy方式（US-007, proxy-spec.md）への移行が予定されています。以下のアーキテクチャ図はiptables方式廃止前のものです。
+
 ```text
 ┌─────────────────────────────────────────────────────────────┐
 │                     ClaudeWork Server                        │
 │                                                              │
 │  ┌──────────────┐  ┌───────────────────┐  ┌──────────────┐ │
 │  │  Settings UI  │  │   API Routes      │  │ DockerAdapter│ │
-│  │ (Environment  │──│ /api/environments │──│ (Extended)   │ │
+│  │ (Environment  │──│ /api/environments │──│              │ │
 │  │  Filter Tab)  │  │ /[id]/rules       │  │              │ │
 │  └──────────────┘  └───────────────────┘  └──────┬───────┘ │
 │                              │                     │         │
@@ -38,67 +40,39 @@
 │                    └─────────┬─────────┘                    │
 │                              │                               │
 │                    ┌─────────┴─────────┐                    │
-│                    │  IptablesManager   │                    │
-│                    │ (iptables制御)     │                    │
-│                    └─────────┬─────────┘                    │
-│                              │                               │
-│                    ┌─────────┴─────────┐                    │
 │                    │     SQLite DB      │                    │
 │                    │ NetworkFilterRule   │                    │
 │                    └───────────────────┘                    │
 └─────────────────────────────────────────────────────────────┘
-                               │
-                    ┌──────────┴──────────┐
-                    │   Docker Engine     │
-                    │                     │
-                    │  ┌───────────────┐  │
-                    │  │ Custom Network│  │
-                    │  │ (filtered)    │  │
-                    │  └───────┬───────┘  │
-                    │          │          │
-                    │  ┌───────┴───────┐  │
-                    │  │  Sandbox      │  │
-                    │  │  Container    │  │
-                    │  └───────────────┘  │
-                    └─────────────────────┘
-                               │
-                      iptables DOCKER-USER chain
-                      (ホワイトリストルール適用)
 ```
 
-### コンテナ起動時のフロー
+### 移行状況
+
+iptables方式（IptablesManager + DockerAdapterによるフィルタ適用）は以下の理由で廃止されました:
+
+- Docker Compose環境でのホストiptablesへのアクセスに `pid: host`, `NET_ADMIN`, `SYS_ADMIN` 等の特権設定が必要で、セキュリティリスクが高い
+- コンテナネットワーク名前空間とホストネットワーク名前空間の分離による複雑な設定が必要
+
+proxy方式（US-007）への移行が予定されており、プロキシサーバーを経由してアウトバウンド通信を制御します。詳細は `proxy-spec.md` を参照してください。
+
+### 現在のコンテナ起動時のフロー
 
 ```text
 DockerAdapter.createSession()
   │
-  ├── NetworkFilterService.getFilterConfig(environmentId)
-  │     └── DB: NetworkFilterRule テーブルからルール取得
+  ├── コンテナ起動（ネットワークフィルタリングなし）
   │
-  ├── [フィルタリング有効の場合]
-  │     ├── IptablesManager.setupFilterChain(envId, rules)
-  │     │     ├── DNS解決（ドメイン → IP変換）
-  │     │     ├── iptables chain作成 (CWFILTER-<short-id>)
-  │     │     ├── DOCKER-USER chainにジャンプルール追加
-  │     │     ├── DNS通信(53番)を許可
-  │     │     ├── ホワイトリストIPを許可
-  │     │     └── デフォルトDROPルール追加
-  │     │
-  │     ├── Docker カスタムネットワーク作成/取得
-  │     └── コンテナをカスタムネットワークに接続
-  │
-  ├── コンテナ起動（既存フロー）
-  │
-  └── [フィルタリング無効の場合]
-        └── 従来通りのコンテナ起動（変更なし）
+  └── [フィルタリング有効の場合でも現時点ではフィルタリング適用なし]
+        → proxy方式実装後に対応予定
 ```
 
 ## コンポーネント一覧
 
-| コンポーネント名 | 目的 | 詳細リンク |
-|-----------------|------|-----------|
-| NetworkFilterService | フィルタリングルールの管理・DNS解決・フィルタ適用 | [詳細](components/network-filter-service.md) @components/network-filter-service.md |
-| IptablesManager | iptablesルールの生成・適用・クリーンアップ | [詳細](components/iptables-manager.md) @components/iptables-manager.md |
-| NetworkFilterUI | 設定画面のフィルタリングセクション | [詳細](components/network-filter-ui.md) @components/network-filter-ui.md |
+| コンポーネント名 | 目的 | ステータス | 詳細リンク |
+|-----------------|------|-----------|-----------|
+| NetworkFilterService | フィルタリングルールの管理・DNS解決 | 稼働中（applyFilter/removeFilter/cleanupOrphanedRules は廃止） | [詳細](components/network-filter-service.md) @components/network-filter-service.md |
+| IptablesManager | iptablesルールの生成・適用・クリーンアップ | **廃止済み**（ファイル削除済み） | [詳細](components/iptables-manager.md) @components/iptables-manager.md |
+| NetworkFilterUI | 設定画面のフィルタリングセクション | 稼働中 | [詳細](components/network-filter-ui.md) @components/network-filter-ui.md |
 
 ## API一覧
 
@@ -122,32 +96,23 @@ DockerAdapter.createSession()
 
 | ID | 決定内容 | ステータス | 詳細リンク |
 |----|---------|-----------|-----------|
-| DEC-001 | iptables DOCKER-USER chain方式の採用 | 承認済 | [詳細](decisions/DEC-001.md) @decisions/DEC-001.md |
-| DEC-002 | ドメイン解決方式（起動時DNS解決 + 定期リフレッシュ） | 承認済 | [詳細](decisions/DEC-002.md) @decisions/DEC-002.md |
+| DEC-001 | iptables DOCKER-USER chain方式の採用 | **廃止**（特権設定の複雑性によりproxy方式に移行予定） | [詳細](decisions/DEC-001.md) @decisions/DEC-001.md |
+| DEC-002 | ドメイン解決方式（起動時DNS解決 + 定期リフレッシュ） | 承認済（proxy方式でも継続予定） | [詳細](decisions/DEC-002.md) @decisions/DEC-002.md |
 
 ## セキュリティ考慮事項
 
-- **デフォルト拒否**: フィルタリング有効時、ホワイトリスト外の全外部通信をDROP
-- **フェイルセーフ**: iptablesルール適用失敗時はコンテナ起動を中止（制限なし起動はしない）
+> iptables方式廃止に伴い、以下の項目はproxy方式（US-007）で再設計予定です。
+
+- **デフォルト拒否**: フィルタリング有効時、ホワイトリスト外の全外部通信をDROP（proxy方式で実現予定）
 - **バイパス防止**: コンテナに`CAP_NET_ADMIN`を付与しない（既存の`CapDrop: ['ALL']`を維持）
-- **クリーンアップ保証**: コンテナ停止時・異常終了時・アプリ再起動時にiptablesルールを確実に削除
 - **DNS通信の許可**: ドメイン解決のためUDP/TCP 53番ポートは常時許可
-
-## パフォーマンス考慮事項
-
-- **DNS解決のキャッシュ**: ドメインのDNS解決結果をメモリ内にキャッシュし、コンテナ起動のオーバーヘッドを最小化
-- **iptablesルールの一括適用**: `iptables-restore`を使用してルールを一括で適用し、個別コマンド実行のオーバーヘッドを回避
-- **非同期DNS更新**: 長時間稼働コンテナに対して、バックグラウンドでDNS解決を定期リフレッシュ
 
 ## エラー処理戦略
 
 | エラー種別 | 発生条件 | 対処方法 |
 |-----------|---------|---------|
-| IptablesNotAvailable | iptablesコマンドが利用不可 | フィルタリング有効時はコンテナ起動を中止、エラーログ出力 |
-| DnsResolutionFailed | ドメインのDNS解決失敗 | 警告ログ出力、該当ルールをスキップしてコンテナ起動継続 |
-| NetworkCreationFailed | Dockerネットワーク作成失敗 | エラーログ出力、コンテナ起動を中止 |
+| DnsResolutionFailed | ドメインのDNS解決失敗 | 警告ログ出力、該当ルールをスキップ |
 | RuleValidationError | 不正なルール形式 | バリデーションエラーをUIに表示、保存を拒否 |
-| CleanupFailed | iptablesルールのクリーンアップ失敗 | 警告ログ出力、次回起動時に孤立ルールをクリーンアップ |
 
 ## CI/CD設計
 
