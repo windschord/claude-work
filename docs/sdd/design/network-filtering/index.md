@@ -105,14 +105,14 @@ DockerAdapter.createSession()
 
 - **デフォルト拒否**: フィルタリング有効時、ホワイトリスト外の全外部通信をDROP（proxy方式で実現予定）
 - **バイパス防止**: コンテナに`CAP_NET_ADMIN`を付与しない（既存の`CapDrop: ['ALL']`を維持）
-- **DNS通信の許可**: ドメイン解決のためUDP/TCP 53番ポートは常時許可
+- **DNS解決**: proxy方式ではproxyコンテナがDNS解決を行うため、Claudeコンテナから直接のDNS通信（UDP/TCP 53）は不要。具体的な許可要件はUS-007で確定予定
 
 ## エラー処理戦略
 
 | エラー種別 | 発生条件 | 対処方法 |
 |-----------|---------|---------|
-| DnsResolutionFailed | ドメインのDNS解決失敗 | 警告ログ出力、該当ルールをスキップ |
-| RuleValidationError | 不正なルール形式 | バリデーションエラーをUIに表示、保存を拒否 |
+| DnsResolutionFailed | ドメインのDNS解決失敗 | 警告ログ出力、該当ルールをスキップ。proxy方式ではproxyコンテナ側でDNS解決を行うため、ClaudeWork側での発生はルール登録時のプレビュー/検証時に限定される |
+| RuleValidationError | 不正なルール形式 | バリデーションエラーをUIに表示、保存を拒否。proxy方式でもUI保存前のクライアント側バリデーションとして継続利用 |
 
 ## CI/CD設計
 

@@ -806,22 +806,13 @@ export class DockerAdapter extends BasePTYAdapter {
 
         scrollbackBuffer.clear(sessionId);
 
-        // container_idをクリア
-        try {
-          db.update(schema.sessions)
-            .set({ container_id: null, updated_at: new Date() })
-            .where(eq(schema.sessions.id, sessionId))
-            .run();
-        } catch {
-          // セッションが既に削除されている場合は無視
-        }
-
         this.emit('exit', sessionId, { exitCode, signal } as PTYExitInfo);
         this.sessions.delete(sessionId);
 
         // PTY終了時にコンテナがまだ実行中なら停止
+        let containerStopped = true;
         if (containerName && !shellMode) {
-          await this.stopContainer(containerName);
+          containerStopped = await this.stopContainer(containerName);
 
           // SSH鍵一時ファイルのクリーンアップ
           try {
@@ -829,6 +820,23 @@ export class DockerAdapter extends BasePTYAdapter {
           } catch (error) {
             logger.error(`Error cleaning up SSH keys in onExit:`, error);
           }
+        }
+
+        // container_idをクリア（停止成功時のみ。失敗時はcleanupOrphanedContainersで再回収可能にする）
+        if (containerStopped) {
+          try {
+            db.update(schema.sessions)
+              .set({ container_id: null, updated_at: new Date() })
+              .where(eq(schema.sessions.id, sessionId))
+              .run();
+          } catch {
+            // セッションが既に削除されている場合は無視
+          }
+        } else {
+          logger.warn('DockerAdapter: Container stop failed, keeping container_id for cleanup', {
+            sessionId,
+            containerName,
+          });
         }
 
       });
@@ -895,8 +903,9 @@ export class DockerAdapter extends BasePTYAdapter {
       session.ptyProcess.kill();
 
       // Dockerコンテナを明示的に停止（shellModeではコンテナを止めない）
+      let containerStopped = true;
       if (!shellMode) {
-        await this.stopContainer(containerId);
+        containerStopped = await this.stopContainer(containerId);
 
         // SSH鍵一時ファイルのクリーンアップ
         try {
@@ -906,14 +915,21 @@ export class DockerAdapter extends BasePTYAdapter {
         }
       }
 
-      // container_idをクリア（同期実行）
-      try {
-        db.update(schema.sessions)
-          .set({ container_id: null, updated_at: new Date() })
-          .where(eq(schema.sessions.id, sessionId))
-          .run();
-      } catch {
-        // 失敗しても無視
+      // container_idをクリア（停止成功時のみ。失敗時はcleanupOrphanedContainersで再回収可能にする）
+      if (containerStopped) {
+        try {
+          db.update(schema.sessions)
+            .set({ container_id: null, updated_at: new Date() })
+            .where(eq(schema.sessions.id, sessionId))
+            .run();
+        } catch {
+          // 失敗しても無視
+        }
+      } else {
+        logger.warn('DockerAdapter: Container stop failed in destroySession, keeping container_id for cleanup', {
+          sessionId,
+          containerId,
+        });
       }
     }
   }

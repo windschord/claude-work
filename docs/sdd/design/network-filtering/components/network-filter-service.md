@@ -202,6 +202,10 @@ const DEFAULT_TEMPLATES: DefaultTemplate[] = [
 
 > iptables方式廃止後、DockerAdapterからのフィルタ適用ロジックは削除されました。
 > proxy方式（US-007）実装後に新しいフローが追加される予定です。
+>
+> **注意**: `getFilterConfig` / `updateFilterConfig`による`enabled`設定は現在もDBに保存されますが、
+> 実際の通信制御には反映されません。US-007（proxy方式）完了までフィルタリングは機能しないため、
+> `enabled: true`であっても通信は制限されません。
 
 ```text
 DockerAdapter.createSession()
