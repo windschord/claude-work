@@ -74,7 +74,7 @@ DockerAdapter.createSession()
 
 | コンポーネント名 | 目的 | ステータス | 詳細リンク |
 |-----------------|------|-----------|-----------|
-| NetworkFilterService | フィルタリングルールの管理・DNS解決 | 稼働中（applyFilter/removeFilter/cleanupOrphanedRules は廃止） | [詳細](components/network-filter-service.md) @components/network-filter-service.md |
+| NetworkFilterService | フィルタリングルールの管理・ルール登録時のDNS検証 | 稼働中（applyFilter/removeFilter/cleanupOrphanedRules は廃止） | [詳細](components/network-filter-service.md) @components/network-filter-service.md |
 | IptablesManager | iptablesルールの生成・適用・クリーンアップ | **廃止済み**（ファイル削除済み） | [詳細](components/iptables-manager.md) @components/iptables-manager.md |
 | NetworkFilterUI | 設定画面のフィルタリングセクション | 稼働中 | [詳細](components/network-filter-ui.md) @components/network-filter-ui.md |
 
@@ -101,15 +101,15 @@ DockerAdapter.createSession()
 | ID | 決定内容 | ステータス | 詳細リンク |
 |----|---------|-----------|-----------|
 | DEC-001 | iptables DOCKER-USER chain方式の採用 | **廃止**（特権設定の複雑性によりproxy方式に移行予定） | [詳細](decisions/DEC-001.md) @decisions/DEC-001.md |
-| DEC-002 | ドメイン解決方式（起動時DNS解決 + 定期リフレッシュ） | 承認済（proxy方式でも継続予定） | [詳細](decisions/DEC-002.md) @decisions/DEC-002.md |
+| DEC-002 | ドメイン解決方式（起動時DNS解決 + 定期リフレッシュ） | 要再検討（proxy方式ではproxyがドメイン名で直接フィルタするため、ClaudeWork側の事前DNS解決はルール検証用のみに縮小予定） | [詳細](decisions/DEC-002.md) @decisions/DEC-002.md |
 
 ## セキュリティ考慮事項
 
 > 以下はproxy方式（US-007）移行後のセキュリティ設計です。現時点ではフィルタリングは無効です。
 
 - **デフォルト拒否**: フィルタリング有効時、ホワイトリスト外の全外部通信をDROP（proxy方式で実現予定）
-- **バイパス防止**: 移行後、Claudeコンテナに`CapDrop: ['ALL']`を設定し`CAP_NET_ADMIN`を付与しない（現在のdocker-compose.ymlには未設定のため、proxy方式導入時に追加予定）
-- **DNS解決**: proxy方式ではproxyコンテナがDNS解決を行うため、Claudeコンテナから直接のDNS通信（UDP/TCP 53）は不要。具体的な許可要件はUS-007で確定予定
+- **バイパス防止**: 移行後、Claudeコンテナに`cap_drop: ['ALL']`を設定し`CAP_NET_ADMIN`を付与しない（現在のdocker-compose.ymlには未設定のため、proxy方式導入時に追加予定）
+- **DNS解決の責務分離**: proxy方式ではproxyコンテナが接続時にドメイン名で直接フィルタ・DNS解決を行う。ClaudeWork側のNetworkFilterServiceによるDNS解決はルール登録時の検証/プレビュー用途に限定され、実行時の通信制御には関与しない
 
 ## エラー処理戦略
 
