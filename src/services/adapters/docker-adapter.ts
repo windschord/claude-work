@@ -713,7 +713,6 @@ export class DockerAdapter extends BasePTYAdapter {
       ptyProcess.setStream(stream);
 
       // Start container after stream listeners are registered
-      // フィルタリング有効時はNetworkMode=noneのため、ネットワーク通信不可の状態で起動
       await container.start();
 
       const containerWorkDir = options?.dockerVolumeId ? workingDir : '/workspace';

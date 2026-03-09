@@ -1,7 +1,7 @@
 # IptablesManager
 
 > **廃止済み**: このコンポーネントは廃止されました。`src/services/iptables-manager.ts` は削除済みです。
-> proxy方式（US-007, proxy-spec.md）への移行が予定されています。
+> proxy方式（US-007）への移行が予定されています。仕様は別ブランチで策定中です。
 
 ## 概要（廃止前の記録）
 

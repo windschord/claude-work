@@ -98,22 +98,6 @@ vi.mock('dns/promises', () => ({
   },
 }));
 
-// IptablesManagerをモック
-vi.mock('../iptables-manager', () => {
-  const MockIptablesManager = vi.fn(function (this: Record<string, unknown>) {
-    this.checkAvailability = vi.fn().mockResolvedValue(true);
-    this.setupFilterChain = vi.fn().mockResolvedValue(undefined);
-    this.removeFilterChain = vi.fn().mockResolvedValue(undefined);
-  });
-  return {
-    IptablesManager: MockIptablesManager,
-    iptablesManager: {
-      checkAvailability: vi.fn().mockResolvedValue(true),
-      setupFilterChain: vi.fn().mockResolvedValue(undefined),
-      removeFilterChain: vi.fn().mockResolvedValue(undefined),
-    },
-  };
-});
 
 import { NetworkFilterService } from '../network-filter-service';
 
