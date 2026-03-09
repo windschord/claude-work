@@ -3,8 +3,6 @@ import type { NetworkFilterConfig, NetworkFilterRule } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
 import dns from 'dns/promises';
-import { IptablesManager, iptablesManager as defaultIptablesManager } from './iptables-manager';
-
 // ==================== エラークラス ====================
 
 /**
@@ -14,16 +12,6 @@ export class ValidationError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'ValidationError';
-  }
-}
-
-/**
- * フィルタリング適用エラー
- */
-export class FilterApplicationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'FilterApplicationError';
   }
 }
 
@@ -180,53 +168,6 @@ const DOMAIN_PATTERN = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a
  * フィルタリング適用のオーケストレーションを担当する
  */
 export class NetworkFilterService {
-
-  // ==================== IptablesManager ====================
-
-  private readonly iptablesManager: IptablesManager;
-
-  constructor(iptablesManagerInstance?: IptablesManager) {
-    this.iptablesManager = iptablesManagerInstance ?? defaultIptablesManager;
-  }
-
-  // ==================== フィルター操作のMutex（直列化） ====================
-
-  // 環境IDごとのmutex（applyFilter/removeFilterの直列化）
-  private filterMutex = new Map<string, Promise<void>>();
-
-  /**
-   * 環境IDごとにapplyFilter/removeFilterを直列化するPromise-based mutex
-   *
-   * 同一environmentIdで複数のセッションが同時にcreateSessionを呼ぶと、
-   * applyFilter内の_removeChain + iptables-restoreがアトミックでないため、
-   * iptablesチェインが一時的に存在しない状態が発生する。
-   * このmutexにより同一environmentIdの操作を直列化して競合状態を防ぐ。
-   *
-   * 異なるenvironmentId間は独立したmutexを持つため、並列実行は維持される。
-   *
-   * @param environmentId - 環境ID
-   * @param fn - 直列化して実行する非同期処理
-   * @returns fn の戻り値
-   */
-  private async withFilterLock<T>(environmentId: string, fn: () => Promise<T>): Promise<T> {
-    // 現在のmutex待ち（なければ即解決）
-    const current = this.filterMutex.get(environmentId) ?? Promise.resolve();
-
-    let resolve!: () => void;
-    const next = new Promise<void>(r => { resolve = r; });
-    this.filterMutex.set(environmentId, next);
-
-    try {
-      await current;
-      return await fn();
-    } finally {
-      resolve();
-      // 最後のpromiseなら削除（メモリリーク防止）
-      if (this.filterMutex.get(environmentId) === next) {
-        this.filterMutex.delete(environmentId);
-      }
-    }
-  }
 
   // ==================== DNSキャッシュ ====================
 
@@ -706,130 +647,6 @@ export class NetworkFilterService {
   }
 
   // ==================== フィルタリング適用・クリーンアップ ====================
-
-  /**
-   * コンテナ起動時にフィルタリングを適用する
-   *
-   * 処理フロー:
-   * 1. getFilterConfig(environmentId) でフィルタリング設定を確認 → 無効なら即座にreturn
-   * 2. getRules(environmentId) でルール取得（enabledのみフィルタ）→ 0件なら早期return
-   * 3. IptablesManager.checkAvailability() で利用可否チェック → 利用不可ならエラー
-   * 4. resolveDomains(rules) でDNS解決
-   * 5. IptablesManager.setupFilterChain(envId, resolvedRules, subnet) でiptables適用
-   * 6. 失敗時は FilterApplicationError をスロー
-   *
-   * @param environmentId - 環境ID
-   * @param containerSubnet - コンテナのサブネット（例: 172.18.0.0/16）
-   * @throws FilterApplicationError iptablesが利用不可またはルール適用に失敗した場合
-   */
-  async applyFilter(environmentId: string, containerSubnet: string): Promise<void> {
-    // 同一environmentIdの操作を直列化してiptablesチェインの競合状態を防ぐ
-    return this.withFilterLock(environmentId, async () => {
-      try {
-        // 1. フィルタリング設定を確認（ロック内で判定してTOCTOUを防ぐ）→ 無効なら即座にreturn
-        const config = await this.getFilterConfig(environmentId);
-        if (!config || !config.enabled) {
-          logger.debug('フィルタリングが無効のためスキップ', { environmentId });
-          return;
-        }
-
-        // 2. ルール取得（enabledのもののみ）→ 0件なら早期return
-        const allRules = await this.getRules(environmentId);
-        const enabledRules = allRules.filter((r) => r.enabled);
-        if (enabledRules.length === 0) {
-          logger.info('有効なフィルタルールが0件のためスキップ', { environmentId });
-          return;
-        }
-
-        logger.info('フィルタリングの適用を開始します', { environmentId, containerSubnet });
-
-        // 3. iptables利用可否チェック
-        const available = await this.iptablesManager.checkAvailability();
-        if (!available) {
-          const errorMessage = `iptablesが利用不可のためフィルタリングを適用できません: environmentId=${environmentId}`;
-          logger.error('フィルタリング適用に失敗しました（iptables利用不可）', { environmentId });
-          throw new FilterApplicationError(errorMessage);
-        }
-
-        // 4. DNS解決
-        const resolvedRules = await this.resolveDomains(enabledRules);
-
-        // 5. iptables適用
-        await this.iptablesManager.setupFilterChain(environmentId, resolvedRules, containerSubnet);
-
-        logger.info('フィルタリングの適用が完了しました', {
-          environmentId,
-          ruleCount: enabledRules.length,
-          resolvedCount: resolvedRules.length,
-        });
-      } catch (err) {
-        if (err instanceof FilterApplicationError) {
-          throw err;
-        }
-        const errorMessage = `フィルタリング適用中にエラーが発生しました: ${err instanceof Error ? err.message : String(err)}`;
-        logger.error('フィルタリング適用に失敗しました', {
-          environmentId,
-          error: err instanceof Error ? err.message : String(err),
-        });
-        throw new FilterApplicationError(errorMessage);
-      }
-    });
-  }
-
-  /**
-   * コンテナ停止時にフィルタリングルールをクリーンアップする
-   *
-   * 処理フロー:
-   * 1. IptablesManager.removeFilterChain(envId) でクリーンアップ
-   * 2. 失敗時は警告ログのみ（エラーにしない）
-   *
-   * @param environmentId - 環境ID
-   */
-  async removeFilter(environmentId: string): Promise<void> {
-    // 同一environmentIdの操作を直列化してiptablesチェインの競合状態を防ぐ
-    // NOTE: removeFilterは設定確認を行わない。フィルタリングが無効化された場合でも
-    // iptablesルールのクリーンアップは必要なため、常に実行する。
-    return this.withFilterLock(environmentId, async () => {
-      logger.info('フィルタリングのクリーンアップを開始します', { environmentId });
-
-      try {
-        await this.iptablesManager.removeFilterChain(environmentId);
-        logger.info('フィルタリングのクリーンアップが完了しました', { environmentId });
-      } catch (err) {
-        // クリーンアップ失敗は警告のみ（エラーにしない）
-        logger.warn('フィルタリングのクリーンアップ中に問題が発生しました（無視します）', {
-          environmentId,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
-    });
-  }
-
-  /**
-   * アプリケーション起動時に孤立したiptablesルールをクリーンアップする
-   *
-   * 処理フロー:
-   * 1. IptablesManager.checkAvailability() で利用可否チェック → 利用不可なら警告のみ
-   * 2. IptablesManager.cleanupOrphanedChains() で孤立チェインを削除
-   * 3. 失敗時は警告ログのみ（エラーにしない）
-   */
-  async cleanupOrphanedRules(): Promise<void> {
-    try {
-      // 1. iptables利用可否チェック
-      const available = await this.iptablesManager.checkAvailability();
-      if (!available) {
-        logger.warn('iptables is not available, skipping orphaned rules cleanup', {});
-        return;
-      }
-
-      // 2. 孤立チェインのクリーンアップ
-      await this.iptablesManager.cleanupOrphanedChains();
-
-      logger.info('Orphaned network filter rules cleanup completed', {});
-    } catch (error) {
-      logger.warn('Failed to cleanup orphaned network filter rules', { error });
-    }
-  }
 
   // ==================== DNS内部ヘルパー ====================
 
