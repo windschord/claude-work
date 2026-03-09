@@ -9,14 +9,14 @@
 - [x] ワイルドカード対応: `*.example.com` パターン
 - [x] 粒度: ドメイン/IPアドレス + ポート番号
 - [x] 適用範囲: 環境(ExecutionEnvironment)ごとに個別設定
-- [x] 実装方式: Docker カスタムネットワーク + iptables
+- [x] ~~実装方式: Docker カスタムネットワーク + iptables~~ (廃止 - proxy方式に移行予定)
 - [x] Docker Compose環境との共存が必要
 - [x] 技術スタック: 既存プロジェクト準拠（Next.js, TypeScript, SQLite, Drizzle ORM）
 - [x] セキュリティ要件: フェイルセーフ（適用失敗時は起動中止）、バイパス防止
 
 ### 不明/要確認の情報
 
-全て確認済み。不明な項目はありません。
+iptables方式は廃止済み。proxy方式（US-007）の詳細設計は別ブランチで策定中です。
 
 ---
 
