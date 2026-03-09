@@ -74,9 +74,9 @@ DockerAdapter.createSession()
 
 | コンポーネント名 | 目的 | ステータス | 詳細リンク |
 |-----------------|------|-----------|-----------|
-| NetworkFilterService | フィルタリングルールの管理・ルール登録時のDNS検証 | 稼働中（applyFilter/removeFilter/cleanupOrphanedRules は廃止） | [詳細](components/network-filter-service.md) @components/network-filter-service.md |
-| IptablesManager | iptablesルールの生成・適用・クリーンアップ | **廃止済み**（ファイル削除済み） | [詳細](components/iptables-manager.md) @components/iptables-manager.md |
-| NetworkFilterUI | 設定画面のフィルタリングセクション | 稼働中 | [詳細](components/network-filter-ui.md) @components/network-filter-ui.md |
+| NetworkFilterService | フィルタリングルールの管理・ルール登録時のDNS検証 | 稼働中（設定管理/DNS検証のみ。通信制御は未実装） | [詳細](components/network-filter-service.md) @components/network-filter-service.md |
+| IptablesManager | iptablesルールの生成・適用・クリーンアップ | **廃止済み**（ファイル削除済み。通信制御の代替実装なし） | [詳細](components/iptables-manager.md) @components/iptables-manager.md |
+| NetworkFilterUI | 設定画面のフィルタリングセクション | 稼働中（設定UIのみ。実フィルタは未適用） | [詳細](components/network-filter-ui.md) @components/network-filter-ui.md |
 
 ## API一覧
 
@@ -84,7 +84,7 @@ DockerAdapter.createSession()
 |---------------|---------|------|-----------|
 | /api/environments/[id]/network-rules | GET, POST | ルール一覧取得・追加 | [詳細](api/network-rules.md) @api/network-rules.md |
 | /api/environments/[id]/network-rules/[ruleId] | PUT, DELETE | ルール更新・削除 | [詳細](api/network-rules.md) @api/network-rules.md |
-| /api/environments/[id]/network-filter | GET, PUT | フィルタリング設定の取得・更新 | [詳細](api/network-rules.md) @api/network-rules.md |
+| /api/environments/[id]/network-filter | GET, PUT | フィルタリング設定の取得・更新（保存のみ。通信制御は未実装） | [詳細](api/network-rules.md) @api/network-rules.md |
 | /api/environments/[id]/network-filter/test | POST | 通信テスト（dry-run、参考値。実際の通信制御結果と異なる場合あり） | [詳細](api/network-rules.md) @api/network-rules.md |
 | /api/environments/[id]/network-rules/templates | GET | デフォルトテンプレート取得 | [詳細](api/network-rules.md) @api/network-rules.md |
 | /api/environments/[id]/network-rules/templates/apply | POST | テンプレート適用 | [詳細](api/network-rules.md) @api/network-rules.md |
