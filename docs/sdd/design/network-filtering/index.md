@@ -85,7 +85,7 @@ DockerAdapter.createSession()
 | /api/environments/[id]/network-rules | GET, POST | ルール一覧取得・追加 | [詳細](api/network-rules.md) @api/network-rules.md |
 | /api/environments/[id]/network-rules/[ruleId] | PUT, DELETE | ルール更新・削除 | [詳細](api/network-rules.md) @api/network-rules.md |
 | /api/environments/[id]/network-filter | GET, PUT | フィルタリング設定の取得・更新 | [詳細](api/network-rules.md) @api/network-rules.md |
-| /api/environments/[id]/network-filter/test | POST | 通信テスト（dry-run） | [詳細](api/network-rules.md) @api/network-rules.md |
+| /api/environments/[id]/network-filter/test | POST | 通信テスト（dry-run、参考値。実際の通信制御結果と異なる場合あり） | [詳細](api/network-rules.md) @api/network-rules.md |
 | /api/environments/[id]/network-rules/templates | GET | デフォルトテンプレート取得 | [詳細](api/network-rules.md) @api/network-rules.md |
 | /api/environments/[id]/network-rules/templates/apply | POST | テンプレート適用 | [詳細](api/network-rules.md) @api/network-rules.md |
 
@@ -115,7 +115,7 @@ DockerAdapter.createSession()
 
 | エラー種別 | 発生条件 | 対処方法 |
 |-----------|---------|---------|
-| DnsResolutionFailed | ドメインのDNS解決失敗 | 警告ログ出力、該当ルールをスキップ。proxy方式ではproxyコンテナ側でDNS解決を行うため、ClaudeWork側での発生はルール登録時のプレビュー/検証時に限定される |
+| DnsResolutionFailed | ドメインのDNS解決失敗 | 警告ログ出力、該当ルールをスキップ。proxy方式ではproxyコンテナ側でDNS解決を行うため、ClaudeWork側での発生はルール登録時のプレビュー/検証時に限定される。`/network-filter/test`の結果は文字列ベースのマッチングによる参考値であり、実際のproxy通信制御結果と一致しない場合がある |
 | RuleValidationError | 不正なルール形式 | バリデーションエラーをUIに表示、保存を拒否。proxy方式でもUI保存前のクライアント側バリデーションとして継続利用 |
 
 ## CI/CD設計
