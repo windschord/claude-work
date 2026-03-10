@@ -475,7 +475,7 @@ export class NetworkFilterService {
       return this.isValidIPv4(target);
     }
 
-    // IPv6アドレス（コロンを含む）: 未サポート（iptables-restoreはIPv4のみ）
+    // IPv6アドレス（コロンを含む）: 未サポート（IPv4のみ対応）
     if (target.includes(':') && IPV6_PATTERN.test(target)) {
       return false;
     }
@@ -662,7 +662,7 @@ export class NetworkFilterService {
     if (IPV4_CIDR_PATTERN.test(target)) return true;
     // IPv4アドレス
     if (IPV4_PATTERN.test(target)) return true;
-    // IPv6アドレス（コロンを含む）: 未サポート（iptables-restoreはIPv4のみ）
+    // IPv6アドレス（コロンを含む）: 未サポート（IPv4のみ対応）
     if (target.includes(':') && IPV6_PATTERN.test(target)) return false;
     return false;
   }
@@ -713,8 +713,7 @@ export class NetworkFilterService {
    * キャッシュヒット時はDNS解決を再実行しない
    * TTL超過時はDNS解決を再実行する
    *
-   * IPv6アドレスは除外する。iptables-restore はIPv4専用であり、
-   * ip6tablesは未実装のため、IPv6アドレスをルールに含めるとエラーになる。
+   * IPv6アドレスは除外する（IPv4のみ対応）。
    *
    * @param domain - 解決するドメイン名
    * @returns 解決されたIPv4アドレスの配列（失敗時は空配列）
@@ -729,7 +728,7 @@ export class NetworkFilterService {
       return cached.ips;
     }
 
-    // IPv4のみ解決する（iptables-restoreはIPv4専用。ip6tablesは未実装）
+    // IPv4のみ解決する（IPv6は未サポート）
     const ips: string[] = [];
 
     try {
