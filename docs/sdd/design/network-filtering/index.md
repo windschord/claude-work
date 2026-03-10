@@ -108,7 +108,8 @@ DockerAdapter.createSession()
 > 以下はproxy方式（US-007）移行後のセキュリティ設計です。現時点ではフィルタリングは無効です。
 
 - **デフォルト拒否**: フィルタリング有効時、ホワイトリスト外の全外部通信をDROP（proxy方式で実現予定）
-- **バイパス防止**: 移行後、Claudeコンテナに`cap_drop: ['ALL']`を設定し`CAP_NET_ADMIN`を付与しない（現在のdocker-compose.ymlには未設定のため、proxy方式導入時に追加予定）
+- **ネットワーク分離（主要な強制力）**: Claudeコンテナを Docker `--internal` ネットワークに接続し、proxy経由以外での直接egress（外部通信）を不可能にする。これがバイパス防止の主要メカニズム
+- **権限制限（補助的な防御層）**: 移行後、Claudeコンテナに`cap_drop: ['ALL']`を設定し`CAP_NET_ADMIN`を付与しない。権限昇格やネットワーク設定変更を防ぐ補助的措置（現在のdocker-compose.ymlには未設定のため、proxy方式導入時に追加予定）
 - **DNS解決の責務分離**: proxy方式ではproxyコンテナが接続時にドメイン名で直接フィルタ・DNS解決を行う。ClaudeWork側のNetworkFilterServiceによるDNS解決はルール登録時の検証/プレビュー用途に限定され、実行時の通信制御には関与しない
 
 ## エラー処理戦略
