@@ -50,6 +50,8 @@ export interface TestResult {
     port: number | null;
     description?: string;
   };
+  /** dry-run結果である旨の注記（実際の通信制御は未適用） */
+  note?: string;
 }
 
 // DNSキャッシュエントリの型
@@ -605,6 +607,8 @@ export class NetworkFilterService {
    * @returns TestResult - 許可/ブロック結果とマッチしたルール情報
    */
   async testConnection(environmentId: string, target: string, port?: number): Promise<TestResult> {
+    const DRY_RUN_NOTE = 'この結果はdry-run（参考値）です。実際の通信制御はproxy方式（US-007）実装後に有効になります。';
+
     // 入力ターゲットを正規化
     const normalizedTarget = this.normalizeTarget(target);
 
@@ -613,7 +617,7 @@ export class NetworkFilterService {
 
     // フィルタリングが無効、または設定がない場合は全て許可
     if (!config || !config.enabled) {
-      return { allowed: true };
+      return { allowed: true, note: DRY_RUN_NOTE };
     }
 
     // ルール一覧を取得
@@ -643,11 +647,12 @@ export class NetworkFilterService {
           port: rule.port,
           description: rule.description ?? undefined,
         },
+        note: DRY_RUN_NOTE,
       };
     }
 
     // マッチするルールなし = ブロック
-    return { allowed: false };
+    return { allowed: false, note: DRY_RUN_NOTE };
   }
 
   // ==================== DNS内部ヘルパー ====================
