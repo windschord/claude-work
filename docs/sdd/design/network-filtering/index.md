@@ -101,7 +101,7 @@ DockerAdapter.createSession()
 | ID | 決定内容 | ステータス | 詳細リンク |
 |----|---------|-----------|-----------|
 | DEC-001 | iptables DOCKER-USER chain方式の採用 | **廃止**（特権設定の複雑性によりproxy方式に移行予定） | [詳細](decisions/DEC-001.md) @decisions/DEC-001.md |
-| DEC-002 | ドメイン解決方式（起動時DNS解決 + 定期リフレッシュ） | 要再検討（proxy方式への移行に伴い見直し中） | [詳細](decisions/DEC-002.md) @decisions/DEC-002.md |
+| DEC-002 | ドメイン解決方式（起動時DNS解決 + 定期リフレッシュ） | **廃止予定**（proxy方式ではproxyが実行時にドメイン名で直接フィルタするため、ClaudeWork側の事前DNS解決はルール検証用のみに縮小。詳細はUS-007で確定） | [詳細](decisions/DEC-002.md) @decisions/DEC-002.md |
 
 ## セキュリティ考慮事項
 
