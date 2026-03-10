@@ -199,6 +199,7 @@ describe('/api/environments/[id]/network-filter および templates', () => {
           port: 443,
           description: 'Claude API',
         },
+        note: 'dry-run',
       });
 
       const request = new NextRequest(
@@ -217,11 +218,12 @@ describe('/api/environments/[id]/network-filter および templates', () => {
       expect(response.status).toBe(200);
       expect(data.result.allowed).toBe(true);
       expect(data.result.matchedRule).toBeDefined();
+      expect(data.result.note).toBe('dry-run');
       expect(mockTestConnection).toHaveBeenCalledWith('env-uuid', 'api.anthropic.com', 443);
     });
 
     it('ブロックされる宛先でallowed: falseを返す', async () => {
-      mockTestConnection.mockResolvedValue({ allowed: false });
+      mockTestConnection.mockResolvedValue({ allowed: false, note: 'dry-run' });
 
       const request = new NextRequest(
         'http://localhost:3000/api/environments/env-uuid/network-filter/test',
@@ -239,6 +241,7 @@ describe('/api/environments/[id]/network-filter および templates', () => {
       expect(response.status).toBe(200);
       expect(data.result.allowed).toBe(false);
       expect(data.result.matchedRule).toBeUndefined();
+      expect(data.result.note).toBe('dry-run');
       expect(mockTestConnection).toHaveBeenCalledWith('env-uuid', 'malicious.example.com', undefined);
     });
 

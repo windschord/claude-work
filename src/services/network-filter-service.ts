@@ -3,8 +3,6 @@ import type { NetworkFilterConfig, NetworkFilterRule } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
 import dns from 'dns/promises';
-import { IptablesManager, iptablesManager as defaultIptablesManager } from './iptables-manager';
-
 // ==================== エラークラス ====================
 
 /**
@@ -14,16 +12,6 @@ export class ValidationError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'ValidationError';
-  }
-}
-
-/**
- * フィルタリング適用エラー
- */
-export class FilterApplicationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'FilterApplicationError';
   }
 }
 
@@ -62,6 +50,8 @@ export interface TestResult {
     port: number | null;
     description?: string;
   };
+  /** dry-run結果である旨の注記（実際の通信制御は未適用） */
+  note: string;
 }
 
 // DNSキャッシュエントリの型
@@ -177,56 +167,9 @@ const DOMAIN_PATTERN = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a
  * NetworkFilterService
  *
  * ネットワークフィルタリングルールのCRUD管理、DNS解決、
- * フィルタリング適用のオーケストレーションを担当する
+ * フィルタリング設定の管理を担当する
  */
 export class NetworkFilterService {
-
-  // ==================== IptablesManager ====================
-
-  private readonly iptablesManager: IptablesManager;
-
-  constructor(iptablesManagerInstance?: IptablesManager) {
-    this.iptablesManager = iptablesManagerInstance ?? defaultIptablesManager;
-  }
-
-  // ==================== フィルター操作のMutex（直列化） ====================
-
-  // 環境IDごとのmutex（applyFilter/removeFilterの直列化）
-  private filterMutex = new Map<string, Promise<void>>();
-
-  /**
-   * 環境IDごとにapplyFilter/removeFilterを直列化するPromise-based mutex
-   *
-   * 同一environmentIdで複数のセッションが同時にcreateSessionを呼ぶと、
-   * applyFilter内の_removeChain + iptables-restoreがアトミックでないため、
-   * iptablesチェインが一時的に存在しない状態が発生する。
-   * このmutexにより同一environmentIdの操作を直列化して競合状態を防ぐ。
-   *
-   * 異なるenvironmentId間は独立したmutexを持つため、並列実行は維持される。
-   *
-   * @param environmentId - 環境ID
-   * @param fn - 直列化して実行する非同期処理
-   * @returns fn の戻り値
-   */
-  private async withFilterLock<T>(environmentId: string, fn: () => Promise<T>): Promise<T> {
-    // 現在のmutex待ち（なければ即解決）
-    const current = this.filterMutex.get(environmentId) ?? Promise.resolve();
-
-    let resolve!: () => void;
-    const next = new Promise<void>(r => { resolve = r; });
-    this.filterMutex.set(environmentId, next);
-
-    try {
-      await current;
-      return await fn();
-    } finally {
-      resolve();
-      // 最後のpromiseなら削除（メモリリーク防止）
-      if (this.filterMutex.get(environmentId) === next) {
-        this.filterMutex.delete(environmentId);
-      }
-    }
-  }
 
   // ==================== DNSキャッシュ ====================
 
@@ -534,7 +477,7 @@ export class NetworkFilterService {
       return this.isValidIPv4(target);
     }
 
-    // IPv6アドレス（コロンを含む）: 未サポート（iptables-restoreはIPv4のみ）
+    // IPv6アドレス（コロンを含む）: 未サポート（IPv4のみ対応）
     if (target.includes(':') && IPV6_PATTERN.test(target)) {
       return false;
     }
@@ -555,23 +498,6 @@ export class NetworkFilterService {
       const num = parseInt(octet, 10);
       return !isNaN(num) && num >= 0 && num <= 255;
     });
-  }
-
-  /**
-   * IPv6アドレスが有効な形式かを簡易検証する
-   * @param ip - IPv6アドレス文字列
-   * @returns 有効な場合true
-   */
-  private isValidIPv6(ip: string): boolean {
-    // :: を含む場合の簡易チェック
-    if (ip === '::' || ip === '::1') return true;
-
-    const parts = ip.split(':');
-    // ダブルコロン（::）を含む場合
-    if (ip.includes('::')) {
-      return parts.length <= 8;
-    }
-    return parts.length === 8 && parts.every(p => /^[0-9a-fA-F]{0,4}$/.test(p));
   }
 
   /**
@@ -654,12 +580,18 @@ export class NetworkFilterService {
 
   /**
    * 指定した宛先への通信が許可/ブロックされるかをdry-runで判定する
+   *
+   * 注意: この結果は文字列ベースのマッチングによる参考値です。
+   * proxy方式（US-007）実装後の実際の通信制御結果とは異なる場合があります。
+   *
    * @param environmentId - 環境ID
    * @param target - 通信先（ドメインまたはIP）
    * @param port - ポート番号（省略可）
    * @returns TestResult - 許可/ブロック結果とマッチしたルール情報
    */
   async testConnection(environmentId: string, target: string, port?: number): Promise<TestResult> {
+    const DRY_RUN_NOTE = 'この結果はdry-run（参考値）です。実際の通信制御はproxy方式（US-007）実装後に有効になります。';
+
     // 入力ターゲットを正規化
     const normalizedTarget = this.normalizeTarget(target);
 
@@ -668,7 +600,7 @@ export class NetworkFilterService {
 
     // フィルタリングが無効、または設定がない場合は全て許可
     if (!config || !config.enabled) {
-      return { allowed: true };
+      return { allowed: true, note: DRY_RUN_NOTE };
     }
 
     // ルール一覧を取得
@@ -698,137 +630,12 @@ export class NetworkFilterService {
           port: rule.port,
           description: rule.description ?? undefined,
         },
+        note: DRY_RUN_NOTE,
       };
     }
 
     // マッチするルールなし = ブロック
-    return { allowed: false };
-  }
-
-  // ==================== フィルタリング適用・クリーンアップ ====================
-
-  /**
-   * コンテナ起動時にフィルタリングを適用する
-   *
-   * 処理フロー:
-   * 1. getFilterConfig(environmentId) でフィルタリング設定を確認 → 無効なら即座にreturn
-   * 2. getRules(environmentId) でルール取得（enabledのみフィルタ）→ 0件なら早期return
-   * 3. IptablesManager.checkAvailability() で利用可否チェック → 利用不可ならエラー
-   * 4. resolveDomains(rules) でDNS解決
-   * 5. IptablesManager.setupFilterChain(envId, resolvedRules, subnet) でiptables適用
-   * 6. 失敗時は FilterApplicationError をスロー
-   *
-   * @param environmentId - 環境ID
-   * @param containerSubnet - コンテナのサブネット（例: 172.18.0.0/16）
-   * @throws FilterApplicationError iptablesが利用不可またはルール適用に失敗した場合
-   */
-  async applyFilter(environmentId: string, containerSubnet: string): Promise<void> {
-    // 同一environmentIdの操作を直列化してiptablesチェインの競合状態を防ぐ
-    return this.withFilterLock(environmentId, async () => {
-      try {
-        // 1. フィルタリング設定を確認（ロック内で判定してTOCTOUを防ぐ）→ 無効なら即座にreturn
-        const config = await this.getFilterConfig(environmentId);
-        if (!config || !config.enabled) {
-          logger.debug('フィルタリングが無効のためスキップ', { environmentId });
-          return;
-        }
-
-        // 2. ルール取得（enabledのもののみ）→ 0件なら早期return
-        const allRules = await this.getRules(environmentId);
-        const enabledRules = allRules.filter((r) => r.enabled);
-        if (enabledRules.length === 0) {
-          logger.info('有効なフィルタルールが0件のためスキップ', { environmentId });
-          return;
-        }
-
-        logger.info('フィルタリングの適用を開始します', { environmentId, containerSubnet });
-
-        // 3. iptables利用可否チェック
-        const available = await this.iptablesManager.checkAvailability();
-        if (!available) {
-          const errorMessage = `iptablesが利用不可のためフィルタリングを適用できません: environmentId=${environmentId}`;
-          logger.error('フィルタリング適用に失敗しました（iptables利用不可）', { environmentId });
-          throw new FilterApplicationError(errorMessage);
-        }
-
-        // 4. DNS解決
-        const resolvedRules = await this.resolveDomains(enabledRules);
-
-        // 5. iptables適用
-        await this.iptablesManager.setupFilterChain(environmentId, resolvedRules, containerSubnet);
-
-        logger.info('フィルタリングの適用が完了しました', {
-          environmentId,
-          ruleCount: enabledRules.length,
-          resolvedCount: resolvedRules.length,
-        });
-      } catch (err) {
-        if (err instanceof FilterApplicationError) {
-          throw err;
-        }
-        const errorMessage = `フィルタリング適用中にエラーが発生しました: ${err instanceof Error ? err.message : String(err)}`;
-        logger.error('フィルタリング適用に失敗しました', {
-          environmentId,
-          error: err instanceof Error ? err.message : String(err),
-        });
-        throw new FilterApplicationError(errorMessage);
-      }
-    });
-  }
-
-  /**
-   * コンテナ停止時にフィルタリングルールをクリーンアップする
-   *
-   * 処理フロー:
-   * 1. IptablesManager.removeFilterChain(envId) でクリーンアップ
-   * 2. 失敗時は警告ログのみ（エラーにしない）
-   *
-   * @param environmentId - 環境ID
-   */
-  async removeFilter(environmentId: string): Promise<void> {
-    // 同一environmentIdの操作を直列化してiptablesチェインの競合状態を防ぐ
-    // NOTE: removeFilterは設定確認を行わない。フィルタリングが無効化された場合でも
-    // iptablesルールのクリーンアップは必要なため、常に実行する。
-    return this.withFilterLock(environmentId, async () => {
-      logger.info('フィルタリングのクリーンアップを開始します', { environmentId });
-
-      try {
-        await this.iptablesManager.removeFilterChain(environmentId);
-        logger.info('フィルタリングのクリーンアップが完了しました', { environmentId });
-      } catch (err) {
-        // クリーンアップ失敗は警告のみ（エラーにしない）
-        logger.warn('フィルタリングのクリーンアップ中に問題が発生しました（無視します）', {
-          environmentId,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
-    });
-  }
-
-  /**
-   * アプリケーション起動時に孤立したiptablesルールをクリーンアップする
-   *
-   * 処理フロー:
-   * 1. IptablesManager.checkAvailability() で利用可否チェック → 利用不可なら警告のみ
-   * 2. IptablesManager.cleanupOrphanedChains() で孤立チェインを削除
-   * 3. 失敗時は警告ログのみ（エラーにしない）
-   */
-  async cleanupOrphanedRules(): Promise<void> {
-    try {
-      // 1. iptables利用可否チェック
-      const available = await this.iptablesManager.checkAvailability();
-      if (!available) {
-        logger.warn('iptables is not available, skipping orphaned rules cleanup', {});
-        return;
-      }
-
-      // 2. 孤立チェインのクリーンアップ
-      await this.iptablesManager.cleanupOrphanedChains();
-
-      logger.info('Orphaned network filter rules cleanup completed', {});
-    } catch (error) {
-      logger.warn('Failed to cleanup orphaned network filter rules', { error });
-    }
+    return { allowed: false, note: DRY_RUN_NOTE };
   }
 
   // ==================== DNS内部ヘルパー ====================
@@ -843,7 +650,7 @@ export class NetworkFilterService {
     if (IPV4_CIDR_PATTERN.test(target)) return true;
     // IPv4アドレス
     if (IPV4_PATTERN.test(target)) return true;
-    // IPv6アドレス（コロンを含む）: 未サポート（iptables-restoreはIPv4のみ）
+    // IPv6アドレス（コロンを含む）: 未サポート（IPv4のみ対応）
     if (target.includes(':') && IPV6_PATTERN.test(target)) return false;
     return false;
   }
@@ -894,8 +701,7 @@ export class NetworkFilterService {
    * キャッシュヒット時はDNS解決を再実行しない
    * TTL超過時はDNS解決を再実行する
    *
-   * IPv6アドレスは除外する。iptables-restore はIPv4専用であり、
-   * ip6tablesは未実装のため、IPv6アドレスをルールに含めるとエラーになる。
+   * IPv6アドレスは除外する（IPv4のみ対応）。
    *
    * @param domain - 解決するドメイン名
    * @returns 解決されたIPv4アドレスの配列（失敗時は空配列）
@@ -910,7 +716,7 @@ export class NetworkFilterService {
       return cached.ips;
     }
 
-    // IPv4のみ解決する（iptables-restoreはIPv4専用。ip6tablesは未実装）
+    // IPv4のみ解決する（IPv6は未サポート）
     const ips: string[] = [];
 
     try {

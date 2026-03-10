@@ -2,16 +2,22 @@
 
 ## 概要
 
-**目的**: ネットワークフィルタリングルールのCRUD管理、DNS解決、フィルタリング適用のオーケストレーション
+**目的**: ネットワークフィルタリングルールのCRUD管理、DNS解決、設定管理
 
 **責務**:
 - フィルタリングルールのCRUD操作（データベース永続化）
-- 環境ごとのフィルタリング有効/無効管理
+- 環境ごとのフィルタリング有効/無効設定の管理
 - ドメイン名のDNS解決とIPアドレスへの変換
-- コンテナ起動時のフィルタリング適用オーケストレーション
-- コンテナ停止時のクリーンアップオーケストレーション
 - デフォルトテンプレートの提供
 - 通信テスト（dry-run）の実行
+
+> **注意**: iptables方式廃止に伴い、以下のメソッドは削除されました:
+> - `applyFilter(environmentId, containerSubnet)`: コンテナ起動時のフィルタリング適用
+> - `removeFilter(environmentId)`: コンテナ停止時のクリーンアップ
+> - `cleanupOrphanedRules()`: 孤立iptablesルールのクリーンアップ（server.tsからの呼び出しも削除済み）
+>
+> また `FilterApplicationError` クラスおよびmutex（`withFilterLock`）も削除されました。
+> proxy方式（US-007）実装時にフィルタ適用ロジックは再設計されます。
 
 **ファイルパス**: `src/services/network-filter-service.ts`
 
@@ -85,32 +91,15 @@
 
 ---
 
-#### `applyFilter(environmentId: string, containerSubnet: string): Promise<void>`
+#### ~~`applyFilter(environmentId: string, containerSubnet: string): Promise<void>`~~ (廃止済み)
 
-**説明**: コンテナ起動時にフィルタリングを適用。IptablesManagerを呼び出してiptablesルールを設定する。
-
-**処理フロー**:
-1. 環境のフィルタリング設定を確認
-2. フィルタリングが無効なら何もしない
-3. ルール一覧を取得
-4. ドメインルールのDNS解決を実行
-5. IptablesManagerにルール適用を依頼
-6. 失敗時は例外をスローしてコンテナ起動を中止
-
-**パラメータ**:
-| 名前 | 型 | 必須 | 説明 |
-|------|-----|------|------|
-| environmentId | string | Yes | 環境ID |
-| containerSubnet | string | Yes | コンテナのサブネット（例: 172.18.0.0/16） |
-
-**例外**:
-- `FilterApplicationError`: iptablesルール適用に失敗
+> iptables方式廃止により削除されました。proxy方式（US-007）実装時に再設計予定。
 
 ---
 
-#### `removeFilter(environmentId: string): Promise<void>`
+#### ~~`removeFilter(environmentId: string): Promise<void>`~~ (廃止済み)
 
-**説明**: フィルタリングルールをクリーンアップ
+> iptables方式廃止により削除されました。
 
 ---
 
@@ -190,45 +179,38 @@ const DEFAULT_TEMPLATES: DefaultTemplate[] = [
 
 ---
 
-#### `cleanupOrphanedRules(): Promise<void>`
+#### ~~`cleanupOrphanedRules(): Promise<void>`~~ (廃止済み)
 
-**説明**: アプリケーション起動時に、孤立したiptablesルール（対応するコンテナが存在しないもの）をクリーンアップ
+> iptables方式廃止により削除されました。server.tsからの呼び出しも削除済み。
 
 ---
 
 ## 依存関係
 
 ### 依存するコンポーネント
-- [IptablesManager](iptables-manager.md) @iptables-manager.md: iptablesルールの実行
+- ~~[IptablesManager](iptables-manager.md)~~: **廃止済み**（削除済み）
 - Drizzle ORM (src/lib/db.ts): データベース操作
 - Node.js `dns` module: DNS解決
 
 ### 依存されるコンポーネント
-- DockerAdapter (src/services/adapters/docker-adapter.ts): コンテナ起動・停止時に呼び出し
+- ~~DockerAdapter (src/services/adapters/docker-adapter.ts)~~: フィルタ適用・解除の呼び出しは削除済み（ルール管理APIは引き続き利用）
 - API Routes: HTTP経由でのルール管理
 
 ## データフロー
 
-### コンテナ起動時のフィルタリング適用
+### コンテナ起動時のフィルタリング適用（現状：iptables廃止後）
+
+> iptables方式廃止後、DockerAdapterからのフィルタ適用ロジックは削除されました。
+> proxy方式（US-007）実装後に新しいフローが追加される予定です。
+>
+> **注意**: `getFilterConfig` / `updateFilterConfig`による`enabled`設定は現在もDBに保存されますが、
+> 実際の通信制御には反映されません。US-007（proxy方式）完了までフィルタリングは機能しないため、
+> `enabled: true`であっても通信は制限されません。
 
 ```text
 DockerAdapter.createSession()
   │
-  ├─→ NetworkFilterService.getFilterConfig(envId)
-  │     └─→ DB: SELECT FROM NetworkFilterConfig
-  │
-  ├─→ NetworkFilterService.applyFilter(envId, subnet)
-  │     ├─→ DB: SELECT FROM NetworkFilterRule WHERE environment_id = envId
-  │     ├─→ NetworkFilterService.resolveDomains(rules)
-  │     │     └─→ dns.resolve4() / dns.resolve6()
-  │     └─→ IptablesManager.setupFilterChain(envId, resolvedRules, subnet)
-  │           ├─→ exec: iptables -N CWFILTER-<id>
-  │           ├─→ exec: iptables -I DOCKER-USER -s <subnet> -j CWFILTER-<id>
-  │           ├─→ exec: iptables -A CWFILTER-<id> -p udp --dport 53 -j ACCEPT
-  │           ├─→ exec: iptables -A CWFILTER-<id> -d <ip> -p tcp --dport <port> -j ACCEPT
-  │           └─→ exec: iptables -A CWFILTER-<id> -j DROP
-  │
-  └─→ Docker: コンテナ起動
+  └─→ Docker: コンテナ起動（ネットワークフィルタリングなし）
 ```
 
 ## エラー処理
@@ -236,7 +218,7 @@ DockerAdapter.createSession()
 | エラー種別 | 発生条件 | 対処方法 |
 |-----------|---------|---------|
 | ValidationError | ルールの形式が不正 | エラーメッセージを返却、保存拒否 |
-| FilterApplicationError | iptablesルール適用失敗 | コンテナ起動を中止、エラーログ出力 |
+| ~~FilterApplicationError~~ | ~~iptablesルール適用失敗~~ | **廃止済み**（クラス削除） |
 | DnsResolutionError | DNS解決失敗 | 警告ログ出力、該当ルールをスキップ |
 
 ## テスト観点
@@ -248,7 +230,7 @@ DockerAdapter.createSession()
 - [ ] 正常系: 重複ルール検出・スキップ
 - [ ] 異常系: 不正なドメイン名/IPアドレスのバリデーション
 - [ ] 異常系: DNS解決失敗時のフォールバック
-- [ ] 異常系: iptables適用失敗時のフェイルセーフ
+- [ ] ~~異常系: iptables適用失敗時のフェイルセーフ~~ (廃止済み - proxy方式で再設計予定)
 - [ ] 境界値: ポート番号0, 65535, null
 
 ## 関連要件

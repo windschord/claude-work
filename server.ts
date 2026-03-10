@@ -20,7 +20,6 @@ import { ptySessionManager } from './src/services/pty-session-manager';
 import { validateSchemaIntegrity, formatValidationError } from './src/lib/schema-check';
 import { ensureEncryptionKey } from './src/lib/encryption-key-init';
 import { initializeEnvironmentDetection, isRunningInDocker, isHostEnvironmentAllowed } from './src/lib/environment-detect';
-import { networkFilterService } from './src/services/network-filter-service';
 
 // 環境変数を.envファイルから明示的にロード（PM2で設定されている場合はそちらを優先）
 const dotenvResult = dotenv.config();
@@ -281,6 +280,8 @@ app.prepare().then(() => {
       // セッション復元の失敗はクリティカルではないため、サーバーは継続
     }
 
+    // Note: cleanupOrphanedRules()（旧iptables方式）は廃止済み。
+    // iptablesルールの残骸がある場合は手動で `iptables -F CWFILTER-<id>` 等で削除してください。
     // 孤立したDockerコンテナのクリーンアップ（TASK-014）
     try {
       await DockerAdapter.cleanupOrphanedContainers(db);
@@ -288,13 +289,6 @@ app.prepare().then(() => {
     } catch (error) {
       logger.error('Failed to cleanup orphaned Docker containers', { error });
       // クリーンアップ失敗はクリティカルではないため、サーバーは継続
-    }
-
-    // 孤立したiptablesフィルタリングルールのクリーンアップ（TASK-012）
-    try {
-      await networkFilterService.cleanupOrphanedRules();
-    } catch (err) {
-      logger.warn('Network filter cleanup on startup failed', { error: err });
     }
 
     // アイドルタイムアウトチェッカーを開始

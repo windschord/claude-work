@@ -1,18 +1,15 @@
 # IptablesManager
 
-## 概要
+> **廃止済み**: このコンポーネントは廃止されました。`src/services/iptables-manager.ts` は削除済みです。
+> proxy方式（US-007）への移行が予定されています。仕様は別ブランチで策定中です。
+
+## 概要（廃止前の記録）
 
 **目的**: iptablesコマンドの実行を抽象化し、フィルタリングルールの生成・適用・クリーンアップを行う
 
-**責務**:
-- iptablesチェインの作成・削除
-- DOCKER-USER chainへのジャンプルール追加・削除
-- ホワイトリストルールのiptablesコマンド生成
-- ルールの一括適用（iptables-restore形式）
-- 孤立ルールのクリーンアップ
-- iptablesコマンドの利用可否チェック
+**廃止理由**: Docker Compose環境でのホストiptablesへのアクセスに `pid: host`, `NET_ADMIN`, `SYS_ADMIN`, `SYS_PTRACE` 等の特権設定が必要で、セキュリティリスクが高く設定の複雑性も大きいため廃止。proxy方式に移行予定。
 
-**ファイルパス**: `src/services/iptables-manager.ts`
+**ファイルパス**: `src/services/iptables-manager.ts` (削除済み)
 
 ---
 
