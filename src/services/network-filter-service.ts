@@ -501,23 +501,6 @@ export class NetworkFilterService {
   }
 
   /**
-   * IPv6アドレスが有効な形式かを簡易検証する
-   * @param ip - IPv6アドレス文字列
-   * @returns 有効な場合true
-   */
-  private isValidIPv6(ip: string): boolean {
-    // :: を含む場合の簡易チェック
-    if (ip === '::' || ip === '::1') return true;
-
-    const parts = ip.split(':');
-    // ダブルコロン（::）を含む場合
-    if (ip.includes('::')) {
-      return parts.length <= 8;
-    }
-    return parts.length === 8 && parts.every(p => /^[0-9a-fA-F]{0,4}$/.test(p));
-  }
-
-  /**
    * ポート番号を検証する
    * @param port - ポート番号（nullまたはundefinedの場合は有効）
    * @returns 有効な場合true
