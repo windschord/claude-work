@@ -51,7 +51,7 @@ export interface TestResult {
     description?: string;
   };
   /** dry-run結果である旨の注記（実際の通信制御は未適用） */
-  note?: string;
+  note: string;
 }
 
 // DNSキャッシュエントリの型

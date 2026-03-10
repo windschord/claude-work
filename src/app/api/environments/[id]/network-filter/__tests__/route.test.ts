@@ -199,6 +199,7 @@ describe('/api/environments/[id]/network-filter および templates', () => {
           port: 443,
           description: 'Claude API',
         },
+        note: 'dry-run',
       });
 
       const request = new NextRequest(
@@ -221,7 +222,7 @@ describe('/api/environments/[id]/network-filter および templates', () => {
     });
 
     it('ブロックされる宛先でallowed: falseを返す', async () => {
-      mockTestConnection.mockResolvedValue({ allowed: false });
+      mockTestConnection.mockResolvedValue({ allowed: false, note: 'dry-run' });
 
       const request = new NextRequest(
         'http://localhost:3000/api/environments/env-uuid/network-filter/test',
