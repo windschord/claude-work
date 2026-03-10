@@ -280,6 +280,8 @@ app.prepare().then(() => {
       // セッション復元の失敗はクリティカルではないため、サーバーは継続
     }
 
+    // Note: cleanupOrphanedRules()（旧iptables方式）は廃止済み。
+    // iptablesルールの残骸がある場合は手動で `iptables -F CWFILTER-<id>` 等で削除してください。
     // 孤立したDockerコンテナのクリーンアップ（TASK-014）
     try {
       await DockerAdapter.cleanupOrphanedContainers(db);

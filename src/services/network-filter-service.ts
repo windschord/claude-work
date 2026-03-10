@@ -165,7 +165,7 @@ const DOMAIN_PATTERN = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a
  * NetworkFilterService
  *
  * ネットワークフィルタリングルールのCRUD管理、DNS解決、
- * フィルタリング適用のオーケストレーションを担当する
+ * フィルタリング設定の管理を担当する
  */
 export class NetworkFilterService {
 
@@ -595,6 +595,10 @@ export class NetworkFilterService {
 
   /**
    * 指定した宛先への通信が許可/ブロックされるかをdry-runで判定する
+   *
+   * 注意: この結果は文字列ベースのマッチングによる参考値です。
+   * proxy方式（US-007）実装後の実際の通信制御結果とは異なる場合があります。
+   *
    * @param environmentId - 環境ID
    * @param target - 通信先（ドメインまたはIP）
    * @param port - ポート番号（省略可）

@@ -119,14 +119,24 @@ describe('DockerAdapter', () => {
   });
 
   describe('stopContainer', () => {
-    it('should use DockerClient.getContainer().stop()', async () => {
+    it('should use DockerClient.getContainer().stop() and return true on success', async () => {
       const mockContainer = { stop: vi.fn().mockResolvedValue(undefined) };
       mockDockerClient.getContainer.mockReturnValue(mockContainer);
 
-      await (adapter as any).stopContainer('container-1');
+      const result = await (adapter as any).stopContainer('container-1');
 
       expect(mockDockerClient.getContainer).toHaveBeenCalledWith('container-1');
       expect(mockContainer.stop).toHaveBeenCalledWith({ t: 10 });
+      expect(result).toBe(true);
+    });
+
+    it('should return false when stop fails', async () => {
+      const mockContainer = { stop: vi.fn().mockRejectedValue(new Error('stop failed')) };
+      mockDockerClient.getContainer.mockReturnValue(mockContainer);
+
+      const result = await (adapter as any).stopContainer('container-1');
+
+      expect(result).toBe(false);
     });
   });
 
