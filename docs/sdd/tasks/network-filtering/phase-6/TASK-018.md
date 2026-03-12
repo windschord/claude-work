@@ -108,6 +108,10 @@ interface TestResult {
 
 30分
 
+## 完了サマリー
+
+TestResult型にproxyStatusを追加し、testConnectionメソッドにProxyClientのhealthCheckを組み込んだ。proxy稼働中/未稼働に応じてproxyStatusを設定し、既存のdry-runマッチングロジックはprivateメソッドに切り出した。34テスト全通過。
+
 ## ステータス
 
-`IN_PROGRESS`
+`DONE`
