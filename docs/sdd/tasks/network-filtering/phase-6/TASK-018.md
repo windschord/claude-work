@@ -1,8 +1,8 @@
-# TASK-018: 通信テスト機能のproxy経由実テスト化
+# TASK-018: 通信テスト機能のproxy稼働状態確認統合
 
 ## 説明
 
-現在のdry-run（文字列マッチング）ベースの通信テストを、proxy経由の実テストに変更する。proxyが稼働中の場合はproxy APIを使ってテスト通信を行い、稼働していない場合は既存のdry-runにフォールバックする。
+現在のdry-run（文字列マッチング）ベースの通信テストに、proxy稼働状態確認（healthCheck）を組み合わせる。proxyが稼働中の場合はdry-run結果にproxyStatus: 'running'を付与し、稼働していない場合はproxyStatus: 'not_running'としてフォールバックする。実際のproxy経由通信テストは行わず、ルールマッチング結果 + proxy稼働状態を返す。
 
 - **対象ファイルパス**:
   - 実装: `src/services/network-filter-service.ts`（testConnectionメソッド修正）
@@ -21,7 +21,7 @@
 
 | 分類 | 内容 |
 |------|------|
-| 明示された情報 | proxy経由の実テストに変更する方針は確定 |
+| 明示された情報 | proxy稼働状態確認付きdry-runテストに変更する方針は確定 |
 | 不明/要確認の情報 | なし |
 
 ## 実装内容
@@ -41,9 +41,9 @@ async testConnection(environmentId: string, target: string, port?: number): Prom
     const proxyClient = new ProxyClient();
     await proxyClient.healthCheck();
 
-    // 一時的にテスト用ルールをproxyに設定し、通信可否を確認
-    // ※実装方式: 既存のdry-run（ルールマッチング）結果を返しつつ、
-    //   proxyの稼働状態をnoteに含める
+    // proxy稼働確認成功: dry-run（ルールマッチング）結果を返しつつ、
+    //   proxyの稼働状態をnoteとproxyStatusに含める
+    // ※実際のproxy経由通信テストは行わない（dry-run + healthCheckの組み合わせ）
     const dryRunResult = this.dryRunTest(environmentId, target, port);
     return {
       ...dryRunResult,
@@ -91,8 +91,8 @@ interface TestResult {
 
 ## 受入基準
 
-- [ ] proxy稼働時はproxyStatusが返される
-- [ ] proxy未稼働時はdry-runにフォールバック
+- [ ] proxy稼働時はproxyStatus: 'running'が返される
+- [ ] proxy未稼働時はproxyStatus: 'not_running'でdry-run結果にフォールバック
 - [ ] 既存のdry-runマッチングロジックが保持されている
 - [ ] TestResult型にproxyStatusが追加されている
 - [ ] テストが4つ以上

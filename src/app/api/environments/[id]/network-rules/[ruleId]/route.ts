@@ -100,7 +100,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     const rule = await networkFilterService.updateRule(ruleId, input);
-    await syncProxyRulesIfNeeded(id);
+    void syncProxyRulesIfNeeded(id);
 
     logger.info('Network filter rule updated', { environmentId: id, ruleId });
     return NextResponse.json({ rule });
@@ -152,7 +152,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     await networkFilterService.deleteRule(ruleId);
-    await syncProxyRulesIfNeeded(id);
+    void syncProxyRulesIfNeeded(id);
 
     logger.info('Network filter rule deleted', { environmentId: id, ruleId });
     return new NextResponse(null, { status: 204 });

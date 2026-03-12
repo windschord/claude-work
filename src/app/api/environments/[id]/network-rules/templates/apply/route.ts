@@ -85,7 +85,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     const result = await networkFilterService.applyTemplates(id, rules as CreateRuleInput[]);
-    await syncProxyRulesIfNeeded(id);
+    void syncProxyRulesIfNeeded(id);
 
     logger.info('Templates applied', {
       environmentId: id,

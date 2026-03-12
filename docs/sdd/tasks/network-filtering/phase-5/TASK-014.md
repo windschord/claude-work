@@ -41,7 +41,7 @@ NetworkFilterServiceからDNS解決関連の機能を削除し、コードを簡
 
 ### 削除する型
 - `DnsCacheEntry` interface
-- `ResolvedRule` interface（exportされているが外部使用なし。要確認）
+- `ResolvedRule` interface（exportされているがリポジトリ全体で外部使用なし。要確認）
 
 ### 削除するimport
 - `import dns from 'dns/promises';`
@@ -64,7 +64,7 @@ NetworkFilterServiceからDNS解決関連の機能を削除し、コードを簡
 
 ## 実装手順
 
-1. `ResolvedRule`型の外部使用箇所を確認（`grep -r "ResolvedRule" src/`）
+1. `ResolvedRule`型の外部使用箇所をリポジトリ全体で確認（`grep -r "ResolvedRule"`）
 2. DNS関連テストファイル削除: `src/services/__tests__/network-filter-service-dns.test.ts`
 3. `network-filter-service.test.ts` からDNS関連テスト削除
 4. `network-filter-service.ts` からDNS関連コード削除
@@ -83,7 +83,7 @@ NetworkFilterServiceからDNS解決関連の機能を削除し、コードを簡
 
 ## 依存関係
 
-なし（最初に着手可能）
+なし（最初に着手可能）。ただし、同一PRでproxy方式ルーティング（TASK-013等）が導入される前提
 
 ## 推定工数
 

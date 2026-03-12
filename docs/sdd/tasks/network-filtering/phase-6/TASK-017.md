@@ -41,25 +41,32 @@
 
 ```typescript
 // src/lib/proxy-sync.ts（新規作成）
+// AdapterFactoryはdynamic importで遅延ロードする。
+// 静的importするとnode-pty依存がNext.jsビルド時に解決されてしまい、
+// API routeのビルドが失敗するため。
 export async function syncProxyRulesIfNeeded(environmentId: string): Promise<void> {
   const filterEnabled = await networkFilterService.isFilterEnabled(environmentId);
   if (!filterEnabled) return;
 
-  // アクティブなDockerセッションからコンテナIPを取得
-  // AdapterFactory経由でDockerAdapterのアクティブセッション情報を取得
-  const adapter = adapterFactory.getAdapter(environmentId);
-  if (!(adapter instanceof DockerAdapter)) return;
+  // Dynamic import to avoid node-pty dependency at build time
+  const { AdapterFactory } = await import('@/services/adapter-factory');
+  const adapter = AdapterFactory.getDockerAdapterForEnvironment(environmentId);
+  if (!adapter) return;
 
-  const activeSessions = adapter.getActiveSessionsForEnvironment(environmentId);
+  const containerIPs = adapter.getActiveContainerIPs();
+  if (!containerIPs || containerIPs.length === 0) return;
+
   const proxyClient = new ProxyClient();
 
-  for (const session of activeSessions) {
-    if (session.containerIP) {
-      try {
-        await proxyClient.syncRules(session.containerIP, environmentId);
-      } catch (error) {
-        logger.warn('ルールの同期に失敗', { environmentId, containerIP: session.containerIP, error });
-      }
+  for (const ip of containerIPs) {
+    try {
+      await proxyClient.syncRules(ip, environmentId);
+    } catch (error) {
+      logger.warn('Failed to sync proxy rules for container', {
+        environmentId,
+        containerIP: ip,
+        error: error instanceof Error ? error.message : 'Unknown',
+      });
     }
   }
 }

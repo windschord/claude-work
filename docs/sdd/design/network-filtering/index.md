@@ -116,7 +116,7 @@ UI → API → NetworkFilterService.createRule/updateRule/deleteRule()
 
 | コンポーネント名 | 目的 | ステータス | 詳細リンク |
 |-----------------|------|-----------|-----------|
-| NetworkFilterService | フィルタリングルールのCRUD管理 | 稼働中（DNS解決機能は削除予定） | [詳細](components/network-filter-service.md) @components/network-filter-service.md |
+| NetworkFilterService | フィルタリングルールのCRUD管理 | 稼働中（DNS解決機能は削除済み） | [詳細](components/network-filter-service.md) @components/network-filter-service.md |
 | ProxyClient | network-filter-proxy Management APIクライアント | **新規** | [詳細](components/proxy-client.md) @components/proxy-client.md |
 | Docker Compose Proxy構成 | proxyサービス・internalネットワーク定義 | **新規** | [詳細](components/docker-compose-proxy.md) @components/docker-compose-proxy.md |
 | IptablesManager | iptablesルールの生成・適用・クリーンアップ | **廃止済み**（ファイル削除済み） | [詳細](components/iptables-manager.md) @components/iptables-manager.md |
@@ -129,7 +129,7 @@ UI → API → NetworkFilterService.createRule/updateRule/deleteRule()
 | /api/environments/[id]/network-rules | GET, POST | ルール一覧取得・追加 | [詳細](api/network-rules.md) @api/network-rules.md |
 | /api/environments/[id]/network-rules/[ruleId] | PUT, DELETE | ルール更新・削除 | [詳細](api/network-rules.md) @api/network-rules.md |
 | /api/environments/[id]/network-filter | GET, PUT | フィルタリング設定の取得・更新 | [詳細](api/network-rules.md) @api/network-rules.md |
-| /api/environments/[id]/network-filter/test | POST | 通信テスト（proxy経由の実テスト） | [詳細](api/network-rules.md) @api/network-rules.md |
+| /api/environments/[id]/network-filter/test | POST | 通信テスト（proxy稼働状態付きルールマッチング） | [詳細](api/network-rules.md) @api/network-rules.md |
 | /api/environments/[id]/network-rules/templates | GET | デフォルトテンプレート取得 | [詳細](api/network-rules.md) @api/network-rules.md |
 | /api/environments/[id]/network-rules/templates/apply | POST | テンプレート適用 | [詳細](api/network-rules.md) @api/network-rules.md |
 

@@ -105,7 +105,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     };
 
     const rule = await networkFilterService.createRule(id, input);
-    await syncProxyRulesIfNeeded(id);
+    void syncProxyRulesIfNeeded(id);
 
     logger.info('Network filter rule created', { environmentId: id, ruleId: rule.id });
     return NextResponse.json({ rule }, { status: 201 });

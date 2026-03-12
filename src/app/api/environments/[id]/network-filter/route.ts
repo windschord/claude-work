@@ -66,7 +66,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     const config = await networkFilterService.updateFilterConfig(id, enabled);
-    await syncProxyRulesIfNeeded(id);
+    void syncProxyRulesIfNeeded(id);
 
     logger.info('Filter config updated', { environmentId: id, enabled });
     return NextResponse.json({ config });

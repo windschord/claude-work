@@ -1,4 +1,3 @@
-import { networkFilterService } from '@/services/network-filter-service';
 import { logger } from '@/lib/logger';
 
 // ==================== 定数 ====================
@@ -61,7 +60,7 @@ export class ProxyValidationError extends Error {
  * network-filter-proxy Management APIと通信するHTTPクライアント
  *
  * - healthCheck: リトライなし
- * - setRules/deleteRules/syncRules: 最大3回リトライ（指数バックオフ 1s, 2s, 4s）
+ * - setRules/deleteRules/syncRules: 最大3回試行（2回リトライ、指数バックオフ 1s, 2s）
  * - 全API: タイムアウト5秒
  */
 export class ProxyClient {
@@ -255,6 +254,8 @@ export class ProxyClient {
    * @throws ProxyConnectionError proxyに接続できない場合
    */
   async syncRules(sourceIP: string, environmentId: string): Promise<void> {
+    // 循環依存を避けるためdynamic importを使用
+    const { networkFilterService } = await import('@/services/network-filter-service');
     const allRules = await networkFilterService.getRules(environmentId);
 
     const enabledRules = allRules.filter((rule) => rule.enabled === true);
@@ -303,9 +304,9 @@ export class ProxyClient {
   }
 
   /**
-   * 指数バックオフによるリトライ（最大3回）
+   * 指数バックオフによるリトライ（最大3回試行 = 初回 + 2回リトライ）
    *
-   * バックオフ: 1s, 2s, 4s
+   * バックオフ: 1s, 2s（MAX_RETRY_COUNT=3のため3回目の試行後はリトライなし）
    * ProxyValidationError はリトライしない（クライアントエラー）
    *
    * @param fn - 実行する非同期関数
