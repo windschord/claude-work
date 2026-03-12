@@ -138,4 +138,8 @@ interface DockerSession {
 
 ## ステータス
 
-`IN_PROGRESS`
+`DONE`
+
+## 完了サマリー
+
+DockerAdapterにフィルタリング統合を実装。buildContainerOptionsでネットワーク/プロキシ設定、createSessionでヘルスチェック・IP取得・ルール同期、destroySession/onExitでクリーンアップを追加。TDD: 10テスト追加、全24テストパス。
