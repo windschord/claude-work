@@ -1,27 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// networkFilterServiceのモック（vi.hoistedでモックを先に初期化）
-const {
-  mockGetRules,
-  mockIsFilterEnabled,
-} = vi.hoisted(() => ({
-  mockGetRules: vi.fn(),
-  mockIsFilterEnabled: vi.fn(),
-}));
-
-vi.mock('@/services/network-filter-service', () => ({
-  networkFilterService: {
-    getRules: mockGetRules,
-    isFilterEnabled: mockIsFilterEnabled,
-  },
-}));
-
 import {
   ProxyClient,
   ProxyConnectionError,
   ProxyValidationError,
   type ProxyHealthStatus,
-  type ProxyRuleSet,
   type ProxyRulesMap,
 } from '@/services/proxy-client';
 
@@ -197,147 +180,6 @@ describe('ProxyClient', () => {
           signal: expect.any(AbortSignal),
         })
       );
-    });
-  });
-
-  // ==================== syncRules ====================
-
-  describe('syncRules', () => {
-    it('DBのルールをproxy形式に変換してPUTで送信する', async () => {
-      const sourceIP = '172.20.0.3';
-      const environmentId = 'env-001';
-
-      mockGetRules.mockResolvedValueOnce([
-        {
-          id: 'rule-1',
-          environment_id: environmentId,
-          target: 'api.anthropic.com',
-          port: 443,
-          description: 'Claude API',
-          enabled: true,
-          created_at: new Date(),
-          updated_at: new Date(),
-        },
-        {
-          id: 'rule-2',
-          environment_id: environmentId,
-          target: '*.github.com',
-          port: 443,
-          description: 'GitHub',
-          enabled: true,
-          created_at: new Date(),
-          updated_at: new Date(),
-        },
-      ]);
-
-      const mockResponse: ProxyRuleSet = {
-        source_ip: sourceIP,
-        entries: [
-          { host: 'api.anthropic.com', port: 443 },
-          { host: '*.github.com', port: 443 },
-        ],
-        updated_at: '2026-01-01T00:00:00Z',
-      };
-
-      vi.mocked(fetch).mockResolvedValueOnce(
-        new Response(JSON.stringify(mockResponse), { status: 200 })
-      );
-
-      await client.syncRules(sourceIP, environmentId);
-
-      expect(mockGetRules).toHaveBeenCalledWith(environmentId);
-      expect(fetch).toHaveBeenCalledWith(
-        `${BASE_URL}/api/v1/rules/${sourceIP}`,
-        expect.objectContaining({
-          method: 'PUT',
-          body: JSON.stringify({
-            entries: [
-              { host: 'api.anthropic.com', port: 443 },
-              { host: '*.github.com', port: 443 },
-            ],
-          }),
-        })
-      );
-    });
-
-    it('port=nullのルールはproxy形式でportを省略する', async () => {
-      const sourceIP = '172.20.0.3';
-      const environmentId = 'env-001';
-
-      mockGetRules.mockResolvedValueOnce([
-        {
-          id: 'rule-1',
-          environment_id: environmentId,
-          target: 'api.anthropic.com',
-          port: null,
-          description: 'Claude API',
-          enabled: true,
-          created_at: new Date(),
-          updated_at: new Date(),
-        },
-      ]);
-
-      const mockResponse: ProxyRuleSet = {
-        source_ip: sourceIP,
-        entries: [{ host: 'api.anthropic.com' }],
-        updated_at: '2026-01-01T00:00:00Z',
-      };
-
-      vi.mocked(fetch).mockResolvedValueOnce(
-        new Response(JSON.stringify(mockResponse), { status: 200 })
-      );
-
-      await client.syncRules(sourceIP, environmentId);
-
-      const fetchCall = vi.mocked(fetch).mock.calls[0];
-      const body = JSON.parse(fetchCall[1]?.body as string);
-      expect(body.entries[0]).not.toHaveProperty('port');
-      expect(body.entries[0]).toEqual({ host: 'api.anthropic.com' });
-    });
-
-    it('enabled=falseのルールはproxy同期から除外する', async () => {
-      const sourceIP = '172.20.0.3';
-      const environmentId = 'env-001';
-
-      mockGetRules.mockResolvedValueOnce([
-        {
-          id: 'rule-1',
-          environment_id: environmentId,
-          target: 'api.anthropic.com',
-          port: 443,
-          description: 'Claude API',
-          enabled: true,
-          created_at: new Date(),
-          updated_at: new Date(),
-        },
-        {
-          id: 'rule-2',
-          environment_id: environmentId,
-          target: 'blocked.example.com',
-          port: 80,
-          description: 'Blocked',
-          enabled: false,
-          created_at: new Date(),
-          updated_at: new Date(),
-        },
-      ]);
-
-      const mockResponse: ProxyRuleSet = {
-        source_ip: sourceIP,
-        entries: [{ host: 'api.anthropic.com', port: 443 }],
-        updated_at: '2026-01-01T00:00:00Z',
-      };
-
-      vi.mocked(fetch).mockResolvedValueOnce(
-        new Response(JSON.stringify(mockResponse), { status: 200 })
-      );
-
-      await client.syncRules(sourceIP, environmentId);
-
-      const fetchCall = vi.mocked(fetch).mock.calls[0];
-      const body = JSON.parse(fetchCall[1]?.body as string);
-      expect(body.entries).toHaveLength(1);
-      expect(body.entries[0].host).toBe('api.anthropic.com');
     });
   });
 

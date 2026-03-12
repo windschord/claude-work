@@ -60,7 +60,7 @@ export class ProxyValidationError extends Error {
  * network-filter-proxy Management APIと通信するHTTPクライアント
  *
  * - healthCheck: リトライなし
- * - setRules/deleteRules/syncRules: 最大3回試行（2回リトライ、指数バックオフ 1s, 2s）
+ * - setRules/deleteRules: 最大3回試行（2回リトライ、指数バックオフ 1s, 2s）
  * - 全API: タイムアウト5秒
  */
 export class ProxyClient {
@@ -235,51 +235,6 @@ export class ProxyClient {
           `proxyがエラーを返しました: HTTP ${response.status}`
         );
       }
-    });
-  }
-
-  // ==================== ルール同期 ====================
-
-  /**
-   * ClaudeWork DBのルールをproxy APIにPUTで同期する（リトライあり）
-   *
-   * 処理フロー:
-   * 1. NetworkFilterServiceからenvironmentIdの全ルールを取得
-   * 2. enabled === true のルールのみフィルタ
-   * 3. ClaudeWork形式 -> proxy API形式に変換（target -> host, port -> port）
-   * 4. PUT /api/v1/rules/{sourceIP} で丸ごと置換
-   *
-   * @param sourceIP - コンテナの送信元IPアドレス
-   * @param environmentId - 環境ID
-   * @throws ProxyConnectionError proxyに接続できない場合
-   */
-  async syncRules(sourceIP: string, environmentId: string): Promise<void> {
-    // 循環依存を避けるためdynamic importを使用
-    const { networkFilterService } = await import('@/services/network-filter-service');
-    const allRules = await networkFilterService.getRules(environmentId);
-
-    const enabledRules = allRules.filter((rule) => rule.enabled === true);
-
-    const entries: ProxyRuleEntry[] = enabledRules.map((rule) => {
-      const entry: ProxyRuleEntry = { host: rule.target };
-      if (rule.port !== null && rule.port !== undefined) {
-        entry.port = rule.port;
-      }
-      return entry;
-    });
-
-    logger.info('proxyにルールを同期中', {
-      sourceIP,
-      environmentId,
-      ruleCount: entries.length,
-    });
-
-    await this.setRules(sourceIP, entries);
-
-    logger.info('proxyへのルール同期が完了しました', {
-      sourceIP,
-      environmentId,
-      ruleCount: entries.length,
     });
   }
 

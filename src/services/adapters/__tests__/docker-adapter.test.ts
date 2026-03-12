@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { DockerAdapter } from '../docker-adapter';
 
 // Mock DockerClient and fs.existsSync via hoisted to avoid linter issues
-const { mockDockerClient, mockExistsSync, mockIsFilterEnabled, mockProxyHealthCheck, mockProxySyncRules, mockProxyDeleteRules } = vi.hoisted(() => ({
+const { mockDockerClient, mockExistsSync, mockIsFilterEnabled, mockProxyHealthCheck, mockSyncRulesForContainer, mockProxyDeleteRules } = vi.hoisted(() => ({
   mockDockerClient: {
     inspectContainer: vi.fn(),
     getContainer: vi.fn(),
@@ -12,7 +12,7 @@ const { mockDockerClient, mockExistsSync, mockIsFilterEnabled, mockProxyHealthCh
   mockExistsSync: vi.fn().mockReturnValue(false),
   mockIsFilterEnabled: vi.fn(),
   mockProxyHealthCheck: vi.fn(),
-  mockProxySyncRules: vi.fn(),
+  mockSyncRulesForContainer: vi.fn(),
   mockProxyDeleteRules: vi.fn(),
 }));
 
@@ -29,10 +29,13 @@ vi.mock('@/services/network-filter-service', () => ({
   },
 }));
 
+vi.mock('@/lib/proxy-sync', () => ({
+  syncRulesForContainer: (...args: unknown[]) => mockSyncRulesForContainer(...args),
+}));
+
 vi.mock('@/services/proxy-client', () => {
   class MockProxyClient {
     healthCheck = mockProxyHealthCheck;
-    syncRules = mockProxySyncRules;
     deleteRules = mockProxyDeleteRules;
   }
   class MockProxyConnectionError extends Error {
@@ -326,7 +329,7 @@ describe('DockerAdapter', () => {
     it('フィルタリング有効時にproxyClient.healthCheckが呼ばれる', async () => {
       mockIsFilterEnabled.mockResolvedValue(true);
       mockProxyHealthCheck.mockResolvedValue({ status: 'healthy', uptime: 100, activeConnections: 0, ruleCount: 0 });
-      mockProxySyncRules.mockResolvedValue(undefined);
+      mockSyncRulesForContainer.mockResolvedValue(undefined);
       setupContainerMock('172.20.0.5');
 
       await adapter.createSession('session-1', '/workspace');
@@ -334,15 +337,19 @@ describe('DockerAdapter', () => {
       expect(mockProxyHealthCheck).toHaveBeenCalledTimes(1);
     });
 
-    it('フィルタリング有効時にコンテナ起動後にproxyClient.syncRulesが呼ばれる', async () => {
+    it('フィルタリング有効時にコンテナ起動後にsyncRulesForContainerが呼ばれる', async () => {
       mockIsFilterEnabled.mockResolvedValue(true);
       mockProxyHealthCheck.mockResolvedValue({ status: 'healthy', uptime: 100, activeConnections: 0, ruleCount: 0 });
-      mockProxySyncRules.mockResolvedValue(undefined);
+      mockSyncRulesForContainer.mockResolvedValue(undefined);
       setupContainerMock('172.20.0.5');
 
       await adapter.createSession('session-1', '/workspace');
 
-      expect(mockProxySyncRules).toHaveBeenCalledWith('172.20.0.5', 'env-1');
+      expect(mockSyncRulesForContainer).toHaveBeenCalledWith(
+        expect.any(Object),
+        '172.20.0.5',
+        'env-1',
+      );
     });
 
     it('proxyヘルスチェック失敗時はセッション作成がエラーになる（フェイルセーフ）', async () => {

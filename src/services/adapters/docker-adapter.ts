@@ -21,6 +21,7 @@ import type { PortMapping, VolumeMount } from '@/types/environment';
 import { getConfigVolumeNames } from '@/lib/docker-volume-utils';
 import { networkFilterService } from '@/services/network-filter-service';
 import { ProxyClient } from '@/services/proxy-client';
+import { syncRulesForContainer } from '@/lib/proxy-sync';
 
 export interface DockerAdapterConfig {
   environmentId: string;
@@ -766,7 +767,7 @@ export class DockerAdapter extends BasePTYAdapter {
         }
 
         // proxyにルールを同期
-        await proxyClient.syncRules(containerIP, this.config.environmentId);
+        await syncRulesForContainer(proxyClient, containerIP, this.config.environmentId);
 
         logger.info('DockerAdapter: Proxy rules synced for container', {
           sessionId,
