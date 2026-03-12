@@ -1,0 +1,94 @@
+# TASK-014: NetworkFilterServiceのDNS解決機能削除
+
+## 説明
+
+NetworkFilterServiceからDNS解決関連の機能を削除し、コードを簡素化する。proxyがドメインベースで直接フィルタリングするため、ClaudeWork側のDNS解決は不要。
+
+- **対象ファイルパス**:
+  - 実装: `src/services/network-filter-service.ts`（修正）
+  - テスト削除: `src/services/__tests__/network-filter-service-dns.test.ts`（ファイル削除）
+  - テスト修正: `src/services/__tests__/network-filter-service.test.ts`（DNS関連テスト削除）
+- **参照設計**: `docs/sdd/design/network-filtering/components/network-filter-service.md`
+
+## 技術的文脈
+
+- フレームワーク: Next.js 15, TypeScript
+- テスト: vitest
+- 参照すべき既存コード: `src/services/network-filter-service.ts`（現在805行）
+
+## 情報の明確性
+
+| 分類 | 内容 |
+|------|------|
+| 明示された情報 | DNS解決機能は全て削除。CRUD、バリデーション、テンプレート、testConnection（文字列ベース）は保持 |
+| 不明/要確認の情報 | なし |
+
+## 削除対象
+
+### 削除するメソッド・プロパティ
+- `dnsCache` プロパティ（Map）
+- `resolveDomains()` メソッド（publicメソッド）
+- `resolveWildcardDomain()` メソッド（private）
+- `resolveWithCache()` メソッド（private）
+- `clearExpiredCache()` メソッド（private）
+- `isIpOrCidr()` メソッド（private）- resolveDomains内でのみ使用
+
+### 削除する定数
+- `DNS_CACHE_TTL_MS`
+- `COMMON_SUBDOMAINS`
+- `KNOWN_SERVICE_CIDRS`
+- `SERVICE_SPECIFIC_SUBDOMAINS`
+
+### 削除する型
+- `DnsCacheEntry` interface
+- `ResolvedRule` interface（exportされているが外部使用なし。要確認）
+
+### 削除するimport
+- `import dns from 'dns/promises';`
+
+### 保持するメソッド（変更なし）
+- `getRules()`, `createRule()`, `updateRule()`, `deleteRule()`
+- `getFilterConfig()`, `isFilterEnabled()`, `updateFilterConfig()`
+- `getDefaultTemplates()`, `applyTemplates()`
+- `testConnection()` - dry-run通信テスト（文字列ベースマッチング）
+- `matchesTarget()` - ルールマッチング（testConnectionで使用）
+- `validateTarget()`, `validatePort()`, `isValidIPv4()`
+- `isIPv4InCidr()`, `ipToNumber()` - CIDRマッチング（matchesTargetで使用）
+- `normalizeTarget()`
+- `isDockerComposeEnvironment()`, `getFilterNetworkName()`
+
+### テストファイル
+- `network-filter-service-dns.test.ts`: **ファイル全体を削除**
+- `network-filter-service.test.ts`: DNS関連テスト（`resolveDomains`呼び出し等）があれば削除
+- `network-filter-service-compose.test.ts`: DNS関連テストがあれば削除
+
+## 実装手順
+
+1. `ResolvedRule`型の外部使用箇所を確認（`grep -r "ResolvedRule" src/`）
+2. DNS関連テストファイル削除: `src/services/__tests__/network-filter-service-dns.test.ts`
+3. `network-filter-service.test.ts` からDNS関連テスト削除
+4. `network-filter-service.ts` からDNS関連コード削除
+5. テスト実行: 残存テストが全て通過することを確認
+6. コミット
+
+## 受入基準
+
+- [ ] `dns` importが削除されている
+- [ ] `resolveDomains`, `resolveWildcardDomain`, `resolveWithCache`, `clearExpiredCache` メソッドが存在しない
+- [ ] DNS関連定数（COMMON_SUBDOMAINS等）が存在しない
+- [ ] `network-filter-service-dns.test.ts` が削除されている
+- [ ] CRUD、バリデーション、テンプレート、testConnection機能は正常動作
+- [ ] `npm test -- src/services/__tests__/network-filter-service.test.ts` で全テスト通過
+- [ ] ESLintエラーがゼロ
+
+## 依存関係
+
+なし（最初に着手可能）
+
+## 推定工数
+
+20分
+
+## ステータス
+
+`IN_PROGRESS`
