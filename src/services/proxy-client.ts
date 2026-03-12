@@ -97,7 +97,7 @@ export class ProxyClient {
       );
     }
 
-    return response.json() as Promise<ProxyHealthStatus>;
+    return this.parseJson<ProxyHealthStatus>(response);
   }
 
   // ==================== ルール取得 ====================
@@ -127,7 +127,7 @@ export class ProxyClient {
       );
     }
 
-    return response.json() as Promise<ProxyRulesMap>;
+    return this.parseJson<ProxyRulesMap>(response);
   }
 
   // ==================== ルール設定 ====================
@@ -177,7 +177,7 @@ export class ProxyClient {
         );
       }
 
-      return response.json() as Promise<ProxyRuleSet>;
+      return this.parseJson<ProxyRuleSet>(response);
     });
   }
 
@@ -284,6 +284,21 @@ export class ProxyClient {
   }
 
   // ==================== 内部ヘルパー ====================
+
+  /**
+   * レスポンスボディをJSONとしてパースする
+   * 不正なJSONの場合はProxyConnectionErrorをスローする
+   */
+  private async parseJson<T>(response: Response): Promise<T> {
+    try {
+      return await response.json() as T;
+    } catch (err) {
+      throw new ProxyConnectionError(
+        'proxyからの応答をパースできません',
+        err instanceof Error ? err : new Error(String(err))
+      );
+    }
+  }
 
   /**
    * タイムアウト付きfetch
