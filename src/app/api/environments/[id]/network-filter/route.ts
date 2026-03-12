@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { networkFilterService } from '@/services/network-filter-service';
 import { logger } from '@/lib/logger';
+import { syncProxyRulesIfNeeded } from '@/lib/proxy-sync';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -65,6 +66,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     const config = await networkFilterService.updateFilterConfig(id, enabled);
+    await syncProxyRulesIfNeeded(id);
 
     logger.info('Filter config updated', { environmentId: id, enabled });
     return NextResponse.json({ config });

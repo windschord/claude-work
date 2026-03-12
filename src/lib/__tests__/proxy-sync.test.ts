@@ -1,12 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // vi.hoisted でモック関数を先に初期化
-const { mockIsFilterEnabled, mockSyncRules, mockGetActiveContainerIPs, mockLoggerWarn, mockLoggerInfo } =
+const { mockIsFilterEnabled, mockSyncRules, mockGetActiveContainerIPs, mockGetDockerAdapterForEnvironment, mockLoggerWarn, mockLoggerInfo } =
   vi.hoisted(() => {
     return {
       mockIsFilterEnabled: vi.fn(),
       mockSyncRules: vi.fn(),
       mockGetActiveContainerIPs: vi.fn(),
+      mockGetDockerAdapterForEnvironment: vi.fn(),
       mockLoggerWarn: vi.fn(),
       mockLoggerInfo: vi.fn(),
     };
@@ -18,11 +19,12 @@ vi.mock('@/services/network-filter-service', () => ({
   },
 }));
 
-vi.mock('@/services/proxy-client', () => ({
-  ProxyClient: vi.fn().mockImplementation(() => ({
-    syncRules: mockSyncRules,
-  })),
-}));
+vi.mock('@/services/proxy-client', () => {
+  const ProxyClient = vi.fn(function (this: unknown) {
+    (this as any).syncRules = mockSyncRules;
+  });
+  return { ProxyClient };
+});
 
 vi.mock('@/lib/logger', () => ({
   logger: {
@@ -35,11 +37,8 @@ vi.mock('@/lib/logger', () => ({
 
 vi.mock('@/services/adapter-factory', () => ({
   AdapterFactory: {
-    getDockerAdapterForEnvironment: vi.fn().mockImplementation((environmentId: string) => {
-      return {
-        getActiveContainerIPs: () => mockGetActiveContainerIPs(environmentId),
-      };
-    }),
+    getDockerAdapterForEnvironment: (environmentId: string) =>
+      mockGetDockerAdapterForEnvironment(environmentId),
   },
 }));
 
@@ -48,6 +47,10 @@ import { syncProxyRulesIfNeeded } from '../proxy-sync';
 describe('syncProxyRulesIfNeeded', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // デフォルト: DockerAdapterはgetActiveContainerIPsを持つアダプターを返す
+    mockGetDockerAdapterForEnvironment.mockImplementation(() => ({
+      getActiveContainerIPs: () => mockGetActiveContainerIPs(),
+    }));
   });
 
   it('フィルタリング有効かつアクティブセッションありの場合、syncRulesが呼ばれる', async () => {
@@ -84,8 +87,7 @@ describe('syncProxyRulesIfNeeded', () => {
 
   it('DockerAdapterが取得できない場合、syncRulesが呼ばれない', async () => {
     mockIsFilterEnabled.mockResolvedValue(true);
-    const { AdapterFactory } = await import('@/services/adapter-factory');
-    vi.mocked(AdapterFactory.getDockerAdapterForEnvironment).mockReturnValue(null as any);
+    mockGetDockerAdapterForEnvironment.mockReturnValue(null);
 
     await syncProxyRulesIfNeeded('env-uuid');
 

@@ -111,6 +111,22 @@ export class DockerAdapter extends BasePTYAdapter {
     return getConfigVolumeNames(environmentId);
   }
 
+  /**
+   * アクティブなセッションのコンテナIPアドレス一覧を返す
+   *
+   * ルール変更時のproxy同期に使用する。
+   * containerIPが設定されていないセッション（非フィルタリングモード）は除外する。
+   */
+  getActiveContainerIPs(): string[] {
+    const ips: string[] = [];
+    for (const session of this.sessions.values()) {
+      if (session.containerIP) {
+        ips.push(session.containerIP);
+      }
+    }
+    return ips;
+  }
+
   constructor(config: DockerAdapterConfig) {
     super();
 

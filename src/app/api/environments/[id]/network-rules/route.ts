@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { networkFilterService, ValidationError } from '@/services/network-filter-service';
 import { logger } from '@/lib/logger';
+import { syncProxyRulesIfNeeded } from '@/lib/proxy-sync';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -104,6 +105,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     };
 
     const rule = await networkFilterService.createRule(id, input);
+    await syncProxyRulesIfNeeded(id);
 
     logger.info('Network filter rule created', { environmentId: id, ruleId: rule.id });
     return NextResponse.json({ rule }, { status: 201 });
