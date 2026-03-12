@@ -60,7 +60,7 @@ describe('ProxyClient', () => {
     });
 
     it('接続失敗時にProxyConnectionErrorをスローする', async () => {
-      vi.mocked(fetch).mockRejectedValueOnce(new TypeError('fetch failed'));
+      vi.mocked(fetch).mockRejectedValue(new TypeError('fetch failed'));
 
       await expect(client.healthCheck()).rejects.toThrow(ProxyConnectionError);
       await expect(client.healthCheck()).rejects.toThrow('proxyに接続できません');
