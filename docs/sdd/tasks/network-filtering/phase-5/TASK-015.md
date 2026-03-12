@@ -111,4 +111,8 @@ networks:
 
 ## ステータス
 
-`IN_PROGRESS`
+`DONE`
+
+## 完了サマリー
+
+docker-compose.yml に network-filter-proxy サービスと claudework-filter internal ネットワークを追加し、app サービスに依存関係と環境変数を設定した。docs/ENV_VARS.md に3つの新規環境変数を追記した。
