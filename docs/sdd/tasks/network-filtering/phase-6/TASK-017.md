@@ -107,4 +107,8 @@ export async function syncProxyRulesIfNeeded(environmentId: string): Promise<voi
 
 ## ステータス
 
-`IN_PROGRESS`
+`DONE`
+
+## 完了サマリー
+
+syncProxyRulesIfNeeded共通ヘルパーを実装。DockerAdapterにgetActiveContainerIPs()、AdapterFactoryにgetDockerAdapterForEnvironment()を追加し、5つのAPIルート（POST/PUT/DELETE network-rules、templates/apply、PUT network-filter）で同期呼び出しを追加。TDD: テスト6つ追加、network関連117テスト全通過。
