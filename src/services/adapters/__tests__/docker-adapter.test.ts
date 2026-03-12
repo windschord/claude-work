@@ -2,18 +2,44 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { DockerAdapter } from '../docker-adapter';
 
 // Mock DockerClient and fs.existsSync via hoisted to avoid linter issues
-const { mockDockerClient, mockExistsSync } = vi.hoisted(() => ({
+const { mockDockerClient, mockExistsSync, mockIsFilterEnabled, mockProxyHealthCheck, mockProxySyncRules, mockProxyDeleteRules } = vi.hoisted(() => ({
   mockDockerClient: {
     inspectContainer: vi.fn(),
     getContainer: vi.fn(),
     run: vi.fn(),
+    createContainer: vi.fn(),
   },
   mockExistsSync: vi.fn().mockReturnValue(false),
+  mockIsFilterEnabled: vi.fn(),
+  mockProxyHealthCheck: vi.fn(),
+  mockProxySyncRules: vi.fn(),
+  mockProxyDeleteRules: vi.fn(),
 }));
 
 vi.mock('../../docker-client', () => ({
   DockerClient: {
     getInstance: () => mockDockerClient,
+  },
+}));
+
+vi.mock('@/services/network-filter-service', () => ({
+  networkFilterService: {
+    isFilterEnabled: mockIsFilterEnabled,
+    getRules: vi.fn().mockResolvedValue([]),
+  },
+}));
+
+vi.mock('@/services/proxy-client', () => ({
+  ProxyClient: vi.fn().mockImplementation(() => ({
+    healthCheck: mockProxyHealthCheck,
+    syncRules: mockProxySyncRules,
+    deleteRules: mockProxyDeleteRules,
+  })),
+  ProxyConnectionError: class ProxyConnectionError extends Error {
+    constructor(message: string) {
+      super(message);
+      this.name = 'ProxyConnectionError';
+    }
   },
 }));
 
@@ -224,6 +250,192 @@ describe('DockerAdapter', () => {
       expect(namedVolumeBinds).toHaveLength(0);
 
       mockExistsSync.mockReturnValue(false);
+    });
+  });
+
+  describe('buildContainerOptions with network filtering', () => {
+    it('フィルタリング有効時にNetworkModeがclaudework-filterに設定される', () => {
+      const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { filterEnabled: true });
+      expect(createOptions.HostConfig.NetworkMode).toBe('claudework-filter');
+    });
+
+    it('フィルタリング有効時にHTTP_PROXYとHTTPS_PROXY環境変数が設定される', () => {
+      const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { filterEnabled: true });
+      const env = createOptions.Env as string[];
+      expect(env).toContain('HTTP_PROXY=http://network-filter-proxy:3128');
+      expect(env).toContain('HTTPS_PROXY=http://network-filter-proxy:3128');
+    });
+
+    it('フィルタリング無効時はNetworkModeが設定されない', () => {
+      const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { filterEnabled: false });
+      expect(createOptions.HostConfig.NetworkMode).toBeUndefined();
+    });
+
+    it('フィルタリング無効時にHTTP_PROXY/HTTPS_PROXY環境変数が設定されない', () => {
+      const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { filterEnabled: false });
+      const env = createOptions.Env as string[];
+      expect(env).not.toContain('HTTP_PROXY=http://network-filter-proxy:3128');
+      expect(env).not.toContain('HTTPS_PROXY=http://network-filter-proxy:3128');
+    });
+
+    it('PROXY_NETWORK_NAME環境変数が設定されている場合はそちらを使用する', () => {
+      process.env.PROXY_NETWORK_NAME = 'custom-filter-network';
+      try {
+        const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { filterEnabled: true });
+        expect(createOptions.HostConfig.NetworkMode).toBe('custom-filter-network');
+      } finally {
+        delete process.env.PROXY_NETWORK_NAME;
+      }
+    });
+  });
+
+  describe('createSession with network filtering', () => {
+    // createSessionのテスト用ヘルパー：コンテナモックを設定する
+    function setupContainerMock(containerIpAddress: string) {
+      const mockExec = { start: vi.fn().mockResolvedValue(undefined) };
+      const mockContainer = {
+        attach: vi.fn().mockResolvedValue({
+          on: vi.fn(),
+          pipe: vi.fn(),
+          write: vi.fn(),
+        }),
+        start: vi.fn().mockResolvedValue(undefined),
+        remove: vi.fn().mockResolvedValue(undefined),
+        exec: vi.fn().mockResolvedValue(mockExec),
+      };
+      mockDockerClient.createContainer.mockResolvedValue(mockContainer);
+      // waitForContainerReady用
+      mockDockerClient.inspectContainer.mockResolvedValue({
+        State: { Running: true },
+        NetworkSettings: {
+          Networks: {
+            'claudework-filter': { IPAddress: containerIpAddress },
+          },
+        },
+      });
+      mockDockerClient.getContainer.mockReturnValue({
+        exec: vi.fn().mockResolvedValue(mockExec),
+      });
+      return mockContainer;
+    }
+
+    it('フィルタリング有効時にproxyClient.healthCheckが呼ばれる', async () => {
+      mockIsFilterEnabled.mockResolvedValue(true);
+      mockProxyHealthCheck.mockResolvedValue({ status: 'healthy', uptime: 100, activeConnections: 0, ruleCount: 0 });
+      mockProxySyncRules.mockResolvedValue(undefined);
+      setupContainerMock('172.20.0.5');
+
+      await adapter.createSession('session-1', '/workspace');
+
+      expect(mockProxyHealthCheck).toHaveBeenCalledTimes(1);
+    });
+
+    it('フィルタリング有効時にコンテナ起動後にproxyClient.syncRulesが呼ばれる', async () => {
+      mockIsFilterEnabled.mockResolvedValue(true);
+      mockProxyHealthCheck.mockResolvedValue({ status: 'healthy', uptime: 100, activeConnections: 0, ruleCount: 0 });
+      mockProxySyncRules.mockResolvedValue(undefined);
+      setupContainerMock('172.20.0.5');
+
+      await adapter.createSession('session-1', '/workspace');
+
+      expect(mockProxySyncRules).toHaveBeenCalledWith('172.20.0.5', 'env-1');
+    });
+
+    it('proxyヘルスチェック失敗時はセッション作成がエラーになる（フェイルセーフ）', async () => {
+      mockIsFilterEnabled.mockResolvedValue(true);
+      mockProxyHealthCheck.mockRejectedValue(new Error('proxy unreachable'));
+      setupContainerMock('172.20.0.5');
+
+      await expect(adapter.createSession('session-1', '/workspace')).rejects.toThrow();
+    });
+
+    it('フィルタリング無効時はproxyClient.healthCheckが呼ばれない', async () => {
+      mockIsFilterEnabled.mockResolvedValue(false);
+      setupContainerMock('172.20.0.5');
+
+      await adapter.createSession('session-1', '/workspace');
+
+      expect(mockProxyHealthCheck).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('destroySession with network filtering cleanup', () => {
+    it('containerIPが保存されている場合、destroySession時にproxyClient.deleteRulesが呼ばれる', async () => {
+      mockProxyDeleteRules.mockResolvedValue(undefined);
+      const mockContainerStop = vi.fn().mockResolvedValue(undefined);
+      mockDockerClient.getContainer.mockReturnValue({ stop: vi.fn().mockResolvedValue(undefined) });
+
+      // セッションにcontainerIPを直接設定してテスト
+      const mockPty = {
+        kill: vi.fn(),
+        resize: vi.fn(),
+        write: vi.fn(),
+        onData: vi.fn(),
+        onExit: vi.fn(),
+      };
+      (adapter as any).sessions.set('session-cleanup', {
+        ptyProcess: mockPty,
+        workingDir: '/workspace',
+        containerId: 'container-id-1',
+        errorBuffer: '',
+        hasReceivedOutput: false,
+        shellMode: false,
+        containerIP: '172.20.0.5',
+      });
+
+      await adapter.destroySession('session-cleanup');
+
+      expect(mockProxyDeleteRules).toHaveBeenCalledWith('172.20.0.5');
+    });
+
+    it('containerIPがない場合はproxyClient.deleteRulesが呼ばれない', async () => {
+      mockDockerClient.getContainer.mockReturnValue({ stop: vi.fn().mockResolvedValue(undefined) });
+
+      const mockPty = {
+        kill: vi.fn(),
+        resize: vi.fn(),
+        write: vi.fn(),
+        onData: vi.fn(),
+        onExit: vi.fn(),
+      };
+      (adapter as any).sessions.set('session-no-ip', {
+        ptyProcess: mockPty,
+        workingDir: '/workspace',
+        containerId: 'container-id-2',
+        errorBuffer: '',
+        hasReceivedOutput: false,
+        shellMode: false,
+        // containerIP未設定
+      });
+
+      await adapter.destroySession('session-no-ip');
+
+      expect(mockProxyDeleteRules).not.toHaveBeenCalled();
+    });
+
+    it('deleteRules失敗時は警告のみでコンテナ停止は継続する', async () => {
+      mockProxyDeleteRules.mockRejectedValue(new Error('proxy unreachable'));
+      mockDockerClient.getContainer.mockReturnValue({ stop: vi.fn().mockResolvedValue(undefined) });
+
+      const mockPty = {
+        kill: vi.fn(),
+        resize: vi.fn(),
+        write: vi.fn(),
+        onData: vi.fn(),
+        onExit: vi.fn(),
+      };
+      (adapter as any).sessions.set('session-cleanup-fail', {
+        ptyProcess: mockPty,
+        workingDir: '/workspace',
+        containerId: 'container-id-3',
+        errorBuffer: '',
+        hasReceivedOutput: false,
+        shellMode: false,
+        containerIP: '172.20.0.6',
+      });
+
+      // エラーが伝播せず完了することを確認
+      await expect(adapter.destroySession('session-cleanup-fail')).resolves.not.toThrow();
     });
   });
 });
