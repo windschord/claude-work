@@ -107,4 +107,4 @@ export async function syncProxyRulesIfNeeded(environmentId: string): Promise<voi
 
 ## ステータス
 
-`TODO`
+`IN_PROGRESS`
