@@ -91,4 +91,8 @@ NetworkFilterServiceからDNS解決関連の機能を削除し、コードを簡
 
 ## ステータス
 
-`IN_PROGRESS`
+`DONE`
+
+## 完了サマリー
+
+DNS解決関連のコード（resolveDomains, resolveWildcardDomain, resolveWithCache, clearExpiredCache, isIpOrCidr, DnsCacheEntry, ResolvedRule, DNS_CACHE_TTL_MS, COMMON_SUBDOMAINS, KNOWN_SERVICE_CIDRS, SERVICE_SPECIFIC_SUBDOMAINS, dns import）をすべて削除した。テストファイルnetwork-filter-service-dns.test.tsも削除。全テスト（29件）通過。ESLintエラーなし。
