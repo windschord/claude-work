@@ -8,6 +8,7 @@ const {
   mockDbUpdateGet,
   mockDbDeleteRun,
   mockDbOnConflictGet,
+  mockProxyHealthCheck,
 } = vi.hoisted(() => ({
   mockDbSelectGet: vi.fn(),
   mockDbSelectAll: vi.fn(),
@@ -15,6 +16,7 @@ const {
   mockDbUpdateGet: vi.fn(),
   mockDbDeleteRun: vi.fn(),
   mockDbOnConflictGet: vi.fn(),
+  mockProxyHealthCheck: vi.fn(),
 }));
 
 // Drizzle DBのモック
@@ -90,6 +92,13 @@ vi.mock('@/lib/logger', () => ({
     error: vi.fn(),
     debug: vi.fn(),
   },
+}));
+
+// ProxyClientのモック
+vi.mock('@/services/proxy-client', () => ({
+  ProxyClient: vi.fn().mockImplementation(() => ({
+    healthCheck: mockProxyHealthCheck,
+  })),
 }));
 
 import { NetworkFilterService, ValidationError } from '../network-filter-service';
@@ -465,6 +474,100 @@ describe('NetworkFilterService', () => {
 
       const result = await service.isFilterEnabled(envId);
       expect(result).toBe(false);
+    });
+  });
+
+  // ==================== testConnection ====================
+
+  describe('testConnection', () => {
+    const enabledConfig = {
+      id: 'config-uuid-1',
+      environment_id: envId,
+      enabled: true,
+      created_at: new Date(),
+      updated_at: new Date(),
+    };
+
+    it('フィルタリングが無効の場合は全て許可（proxyStatus未設定）', async () => {
+      // getFilterConfig -> 無効
+      mockDbSelectGet.mockReturnValue({ ...enabledConfig, enabled: false });
+
+      const result = await service.testConnection(envId, 'example.com', 443);
+
+      expect(result.allowed).toBe(true);
+      expect(result.proxyStatus).toBeUndefined();
+      expect(result.note).toContain('フィルタリングが無効');
+    });
+
+    it('フィルタリング有効・proxy稼働中: proxyStatus="running"でマッチング結果を返す', async () => {
+      // getFilterConfig -> 有効
+      mockDbSelectGet.mockReturnValue(enabledConfig);
+      // getRules -> マッチするルールあり
+      mockDbSelectAll.mockReturnValue([mockRule]);
+      // ProxyClientのhealthCheckが成功
+      mockProxyHealthCheck.mockResolvedValue({
+        status: 'healthy',
+        uptime: 100,
+        activeConnections: 0,
+        ruleCount: 1,
+      });
+
+      const result = await service.testConnection(envId, 'api.anthropic.com', 443);
+
+      expect(result.allowed).toBe(true);
+      expect(result.matchedRule).toBeDefined();
+      expect(result.matchedRule?.target).toBe('api.anthropic.com');
+      expect(result.proxyStatus).toBe('running');
+      expect(result.note).toContain('proxy稼働中');
+    });
+
+    it('フィルタリング有効・proxy未稼働: proxyStatus="not_running"でdry-run結果を返す', async () => {
+      // getFilterConfig -> 有効
+      mockDbSelectGet.mockReturnValue(enabledConfig);
+      // getRules -> マッチするルールあり
+      mockDbSelectAll.mockReturnValue([mockRule]);
+      // ProxyClientのhealthCheckが失敗
+      mockProxyHealthCheck.mockRejectedValue(new Error('接続できません'));
+
+      const result = await service.testConnection(envId, 'api.anthropic.com', 443);
+
+      expect(result.allowed).toBe(true);
+      expect(result.proxyStatus).toBe('not_running');
+      expect(result.note).toContain('proxy未稼働');
+    });
+
+    it('フィルタリング有効・proxy稼働中・マッチなし: ブロック結果にproxyStatus="running"', async () => {
+      // getFilterConfig -> 有効
+      mockDbSelectGet.mockReturnValue(enabledConfig);
+      // getRules -> 空（マッチなし）
+      mockDbSelectAll.mockReturnValue([]);
+      // ProxyClientのhealthCheckが成功
+      mockProxyHealthCheck.mockResolvedValue({
+        status: 'healthy',
+        uptime: 100,
+        activeConnections: 0,
+        ruleCount: 0,
+      });
+
+      const result = await service.testConnection(envId, 'blocked.example.com', 443);
+
+      expect(result.allowed).toBe(false);
+      expect(result.matchedRule).toBeUndefined();
+      expect(result.proxyStatus).toBe('running');
+    });
+
+    it('フィルタリング有効・proxy未稼働・マッチなし: ブロック結果にproxyStatus="not_running"', async () => {
+      // getFilterConfig -> 有効
+      mockDbSelectGet.mockReturnValue(enabledConfig);
+      // getRules -> 空（マッチなし）
+      mockDbSelectAll.mockReturnValue([]);
+      // ProxyClientのhealthCheckが失敗
+      mockProxyHealthCheck.mockRejectedValue(new Error('接続できません'));
+
+      const result = await service.testConnection(envId, 'blocked.example.com', 443);
+
+      expect(result.allowed).toBe(false);
+      expect(result.proxyStatus).toBe('not_running');
     });
   });
 
