@@ -19,6 +19,8 @@ import Docker from 'dockerode';
 import * as fsPromises from 'fs/promises';
 import type { PortMapping, VolumeMount } from '@/types/environment';
 import { getConfigVolumeNames } from '@/lib/docker-volume-utils';
+import { networkFilterService } from '@/services/network-filter-service';
+import { ProxyClient } from '@/services/proxy-client';
 
 export interface DockerAdapterConfig {
   environmentId: string;
@@ -74,6 +76,7 @@ interface DockerSession {
   lastKnownCols?: number;
   lastKnownRows?: number;
   containerWorkDir?: string;  // コンテナ内の作業ディレクトリ（dockerVolumeId使用時はworkingDir、それ以外は'/workspace'）
+  containerIP?: string;        // フィルタリング用コンテナIPアドレス（proxyルールクリーンアップ用）
 }
 
 /**
@@ -276,6 +279,14 @@ export class DockerAdapter extends BasePTYAdapter {
        }
     }
 
+    // Network filtering: internalネットワークとproxy環境変数を設定
+    let networkMode: string | undefined;
+    if (options?.filterEnabled) {
+      networkMode = process.env.PROXY_NETWORK_NAME || 'claudework-filter';
+      Env.push('HTTP_PROXY=http://network-filter-proxy:3128');
+      Env.push('HTTPS_PROXY=http://network-filter-proxy:3128');
+    }
+
     const createOptions: Docker.ContainerCreateOptions = {
       name: containerName,
       Image: `${this.config.imageName}:${this.config.imageTag}`,
@@ -299,6 +310,7 @@ export class DockerAdapter extends BasePTYAdapter {
         // container.wait() may fail if the container is already removed.
         // The stopContainer() method handles 404 errors for this case.
         AutoRemove: true,
+        ...(networkMode !== undefined ? { NetworkMode: networkMode } : {}),
       },
       ExposedPorts,
     };
@@ -671,7 +683,12 @@ export class DockerAdapter extends BasePTYAdapter {
       throw error;
     }
 
-    const { createOptions, containerName } = this.buildContainerOptions(workingDir, options);
+    // フィルタリング有効フラグを事前に確認してbuildContainerOptionsに渡す
+    const filterEnabled = await networkFilterService.isFilterEnabled(this.config.environmentId);
+    const { createOptions, containerName } = this.buildContainerOptions(workingDir, {
+      ...options,
+      filterEnabled,
+    });
 
     // クライアントから渡されたターミナルサイズを使用（未指定時はデフォルト80x24）
     const initialCols = options?.cols ?? 80;
@@ -684,6 +701,7 @@ export class DockerAdapter extends BasePTYAdapter {
       image: `${this.config.imageName}:${this.config.imageTag}`,
       cols: initialCols,
       rows: initialRows,
+      filterEnabled,
     });
 
     let container: Docker.Container | undefined;
@@ -715,6 +733,32 @@ export class DockerAdapter extends BasePTYAdapter {
       // Start container after stream listeners are registered
       await container.start();
 
+      // フィルタリング有効時: proxyヘルスチェック、コンテナIP取得、ルール同期
+      let containerIP: string | undefined;
+      if (filterEnabled) {
+        const proxyClient = new ProxyClient();
+        // proxyヘルスチェック失敗時はセッション作成エラー（フェイルセーフ）
+        await proxyClient.healthCheck();
+
+        // コンテナIPアドレス取得
+        const networkName = process.env.PROXY_NETWORK_NAME || 'claudework-filter';
+        const containerInfo = await DockerClient.getInstance().inspectContainer(containerName);
+        containerIP = containerInfo.NetworkSettings?.Networks?.[networkName]?.IPAddress;
+
+        if (!containerIP) {
+          throw new Error(`Container IP not found on filter network '${networkName}'`);
+        }
+
+        // proxyにルールを同期
+        await proxyClient.syncRules(containerIP, this.config.environmentId);
+
+        logger.info('DockerAdapter: Proxy rules synced for container', {
+          sessionId,
+          containerIP,
+          environmentId: this.config.environmentId,
+        });
+      }
+
       const containerWorkDir = options?.dockerVolumeId ? workingDir : '/workspace';
       this.sessions.set(sessionId, {
         ptyProcess,
@@ -726,6 +770,7 @@ export class DockerAdapter extends BasePTYAdapter {
         lastKnownCols: initialCols,
         lastKnownRows: initialRows,
         containerWorkDir,
+        containerIP,
       });
 
       // コンテナ起動完了を待機（TASK-012）
@@ -807,6 +852,23 @@ export class DockerAdapter extends BasePTYAdapter {
         scrollbackBuffer.clear(sessionId);
 
         this.emit('exit', sessionId, { exitCode, signal } as PTYExitInfo);
+
+        // フィルタリングルールのクリーンアップ（クリーンアップ失敗は警告のみ、コンテナ停止を妨げない）
+        const exitingContainerIP = currentSession.containerIP;
+        if (exitingContainerIP) {
+          try {
+            const proxyClient = new ProxyClient();
+            await proxyClient.deleteRules(exitingContainerIP);
+            logger.info('DockerAdapter: Proxy rules cleaned up on exit', { sessionId, containerIP: exitingContainerIP });
+          } catch (error) {
+            logger.warn('DockerAdapter: Failed to cleanup proxy rules on exit', {
+              sessionId,
+              containerIP: exitingContainerIP,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            });
+          }
+        }
+
         this.sessions.delete(sessionId);
 
         // PTY終了時にコンテナがまだ実行中なら停止
@@ -893,7 +955,7 @@ export class DockerAdapter extends BasePTYAdapter {
   async destroySession(sessionId: string): Promise<void> {
     const session = this.sessions.get(sessionId);
     if (session) {
-      const { containerId, shellMode } = session;
+      const { containerId, shellMode, containerIP } = session;
       logger.info('DockerAdapter: Destroying session', { sessionId, containerId: session.containerId });
 
       scrollbackBuffer.clear(sessionId);
@@ -901,6 +963,21 @@ export class DockerAdapter extends BasePTYAdapter {
       // onExit側はsessionsにエントリがなければクリーンアップをスキップする
       this.sessions.delete(sessionId);
       session.ptyProcess.kill();
+
+      // フィルタリングルールのクリーンアップ（クリーンアップ失敗は警告のみ、コンテナ停止を妨げない）
+      if (containerIP) {
+        try {
+          const proxyClient = new ProxyClient();
+          await proxyClient.deleteRules(containerIP);
+          logger.info('DockerAdapter: Proxy rules cleaned up', { sessionId, containerIP });
+        } catch (error) {
+          logger.warn('DockerAdapter: Failed to cleanup proxy rules', {
+            sessionId,
+            containerIP,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      }
 
       // Dockerコンテナを明示的に停止（shellModeではコンテナを止めない）
       let containerStopped = true;

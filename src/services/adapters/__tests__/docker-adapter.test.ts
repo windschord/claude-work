@@ -29,19 +29,23 @@ vi.mock('@/services/network-filter-service', () => ({
   },
 }));
 
-vi.mock('@/services/proxy-client', () => ({
-  ProxyClient: vi.fn().mockImplementation(() => ({
-    healthCheck: mockProxyHealthCheck,
-    syncRules: mockProxySyncRules,
-    deleteRules: mockProxyDeleteRules,
-  })),
-  ProxyConnectionError: class ProxyConnectionError extends Error {
+vi.mock('@/services/proxy-client', () => {
+  class MockProxyClient {
+    healthCheck = mockProxyHealthCheck;
+    syncRules = mockProxySyncRules;
+    deleteRules = mockProxyDeleteRules;
+  }
+  class MockProxyConnectionError extends Error {
     constructor(message: string) {
       super(message);
       this.name = 'ProxyConnectionError';
     }
-  },
-}));
+  }
+  return {
+    ProxyClient: MockProxyClient,
+    ProxyConnectionError: MockProxyConnectionError,
+  };
+});
 
 // Mock other dependencies
 vi.mock('@/lib/db', () => ({
@@ -362,7 +366,6 @@ describe('DockerAdapter', () => {
   describe('destroySession with network filtering cleanup', () => {
     it('containerIPが保存されている場合、destroySession時にproxyClient.deleteRulesが呼ばれる', async () => {
       mockProxyDeleteRules.mockResolvedValue(undefined);
-      const mockContainerStop = vi.fn().mockResolvedValue(undefined);
       mockDockerClient.getContainer.mockReturnValue({ stop: vi.fn().mockResolvedValue(undefined) });
 
       // セッションにcontainerIPを直接設定してテスト
