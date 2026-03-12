@@ -175,6 +175,10 @@ describe('syncProxyRulesIfNeeded', () => {
   });
 
   it('フィルタリング無効の場合、setRulesが呼ばれない', async () => {
+    // フィルタ無効化時は即returnする設計。
+    // 既存コンテナのproxyルールはそのまま残るが、internalネットワーク+proxy環境で
+    // 起動済みのコンテナにはルール削除よりも維持が安全（削除するとproxy側デフォルト拒否で通信不能になる）。
+    // 新規コンテナはフィルタ無効のためdefaultネットワークで起動される。
     mockIsFilterEnabled.mockResolvedValue(false);
 
     await syncProxyRulesIfNeeded('env-uuid');

@@ -18,6 +18,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
 
+    if (!id || id.trim() === '') {
+      return NextResponse.json({ error: 'Environment id is required' }, { status: 400 });
+    }
+
     const config = await networkFilterService.getFilterConfig(id);
 
     // 未設定時はconfig: nullを返す（フロントエンド側でnullチェックする）
@@ -43,6 +47,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
+
+    if (!id || id.trim() === '') {
+      return NextResponse.json({ error: 'Environment id is required' }, { status: 400 });
+    }
 
     let body: unknown;
     try {

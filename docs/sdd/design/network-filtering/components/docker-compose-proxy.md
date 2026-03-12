@@ -207,7 +207,7 @@ DockerAdapter.stopSession() / container exit
 - **internalネットワーク**: Claudeコンテナからの直接外部通信を物理的に防止
 - **proxy経由のみ**: HTTP_PROXY設定により全通信がproxy経由
 - **CapDrop ALL**: 既存のセキュリティ設定（Claudeコンテナの全ケーパビリティ除去）は維持
-- **Management API**: defaultネットワーク経由でappからのみアクセス可能。Claudeコンテナはclaudework-filterネットワークのみのため、Management APIに直接アクセス不可（proxyの8080ポートはclaudework-filterネットワークでも到達可能だが、ルール変更には送信元IPの知識が必要で、自身のルールしか変更できない設計）
+- **Management API**: proxyはdefaultとclaudework-filterの両方に接続しているため、Claudeコンテナからもproxyの8080ポートに到達可能。これにより、ClaudeコンテナがManagement API経由で自身の許可リストを拡張するリスクがある（送信元IPを知れば`PUT /api/v1/rules/{selfIP}`でルール変更可能）。MVPではこれを許容するが、将来的にはManagement APIをdefaultネットワーク専用ポートにバインドするか、API認証を追加して対策する
 
 ### proxyバイパス防止
 

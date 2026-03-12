@@ -60,7 +60,7 @@ export async function syncProxyRulesIfNeeded(environmentId: string): Promise<voi
 
   for (const ip of containerIPs) {
     try {
-      await proxyClient.syncRules(ip, environmentId);
+      await syncRulesForContainer(proxyClient, ip, environmentId);
     } catch (error) {
       logger.warn('Failed to sync proxy rules for container', {
         environmentId,

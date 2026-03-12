@@ -64,7 +64,7 @@ NetworkFilterServiceからDNS解決関連の機能を削除し、コードを簡
 
 ## 実装手順
 
-1. `ResolvedRule`型の外部使用箇所をリポジトリ全体で確認（`grep -r "ResolvedRule"`）
+1. `ResolvedRule`型の外部使用箇所をリポジトリ全体で確認（`grep -r "ResolvedRule" .`、src/外のテスト・スクリプト含む）
 2. DNS関連テストファイル削除: `src/services/__tests__/network-filter-service-dns.test.ts`
 3. `network-filter-service.test.ts` からDNS関連テスト削除
 4. `network-filter-service.ts` からDNS関連コード削除
@@ -83,7 +83,7 @@ NetworkFilterServiceからDNS解決関連の機能を削除し、コードを簡
 
 ## 依存関係
 
-なし（最初に着手可能）。ただし、同一PRでproxy方式ルーティング（TASK-013等）が導入される前提
+TASK-013（ProxyClient）と同一PRで適用する前提。DNS解決削除はproxyがドメインベースで直接フィルタリングすることが前提のため、proxy方式導入前に単独で適用するとドメインルールが成立しなくなる
 
 ## 推定工数
 

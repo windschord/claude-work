@@ -26,14 +26,14 @@
 
 ### 公開API/メソッド
 
-#### `constructor(baseUrl: string)`
+#### `constructor(baseUrl?: string)`
 
 **説明**: ProxyClientのインスタンスを作成する
 
 **パラメータ**:
 | 名前 | 型 | 必須 | 説明 |
 |------|-----|------|------|
-| baseUrl | string | Yes | proxy Management APIのベースURL（例: `http://network-filter-proxy:8080`） |
+| baseUrl | string | No | proxy Management APIのベースURL。省略時は環境変数`PROXY_API_URL`またはデフォルト値`http://network-filter-proxy:8080`を使用 |
 
 ---
 
@@ -48,7 +48,7 @@
 
 **使用例**:
 ```typescript
-const client = new ProxyClient('http://network-filter-proxy:8080');
+const client = new ProxyClient(); // 環境変数からデフォルトURLを使用
 const health = await client.healthCheck();
 // { status: 'healthy', uptime: 3600, activeConnections: 5, ruleCount: 12 }
 ```
@@ -106,20 +106,17 @@ await client.setRules('172.20.0.3', [
 
 ---
 
-#### `syncRules(sourceIP: string, environmentId: string): Promise<void>`
+### ルール同期ヘルパー（ProxyClient外部）
 
-**説明**: ClaudeWork DBのルールをproxy APIにPUTで同期する。NetworkFilterServiceからルール一覧を取得し、有効なルールのみをproxy形式に変換して送信する。
+ルール同期ロジックはProxyClientの責務外として `src/lib/proxy-sync.ts` に配置:
 
-**パラメータ**:
-| 名前 | 型 | 必須 | 説明 |
-|------|-----|------|------|
-| sourceIP | string | Yes | コンテナの送信元IPアドレス |
-| environmentId | string | Yes | 環境ID |
+#### `syncRulesForContainer(client, sourceIP, environmentId): Promise<void>`
 
-**処理フロー**:
-1. NetworkFilterServiceからenvironmentIdの有効ルールを取得
-2. ClaudeWork形式 -> proxy API形式に変換（target -> host, port -> port）
-3. PUT /api/v1/rules/{sourceIP} で丸ごと置換
+**説明**: ClaudeWork DBのルールをproxy APIにPUTで同期する。NetworkFilterServiceからルール一覧を取得し、有効なルールのみをproxy形式に変換してProxyClient.setRulesで送信する。
+
+#### `syncProxyRulesIfNeeded(environmentId): Promise<void>`
+
+**説明**: 環境のフィルタリング状態を確認し、有効かつアクティブコンテナが存在する場合に全コンテナのルールを再同期するfire-and-forgetヘルパー。API層から呼び出される。
 
 ---
 
@@ -164,11 +161,12 @@ class ProxyValidationError extends Error {
 ## 依存関係
 
 ### 依存するコンポーネント
-- [NetworkFilterService](network-filter-service.md) @network-filter-service.md: ルール一覧取得（syncRules用）
+- なし（純粋なHTTPクライアント）
 
 ### 依存されるコンポーネント
-- DockerAdapter: コンテナ起動時のルール同期、停止時のルール削除
-- [NetworkFilterService](network-filter-service.md) @network-filter-service.md: ルール変更時のproxy同期、通信テスト
+- DockerAdapter: コンテナ起動時のルール同期（syncRulesForContainer経由）、停止時のルール削除
+- proxy-sync.ts: ルール変更時のproxy同期ヘルパー
+- [NetworkFilterService](network-filter-service.md) @network-filter-service.md: testConnectionのhealthCheck
 
 ## データフロー
 
@@ -227,7 +225,7 @@ ClaudeWork形式からproxy API形式への変換:
 ### リトライ戦略
 
 - ヘルスチェック: リトライなし（即時失敗）
-- ルール同期: 最大3回リトライ（指数バックオフ、初回1秒）
+- ルール設定/削除: 最大3回試行（初回 + 2回リトライ、指数バックオフ 1s, 2s）
 - タイムアウト: 5秒
 
 ## エラー処理

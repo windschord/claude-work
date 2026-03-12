@@ -130,15 +130,23 @@ describe('ProxyClient', () => {
     });
 
     it('接続失敗時にリトライし、最終的にProxyConnectionErrorをスローする', async () => {
-      vi.mocked(fetch)
-        .mockRejectedValueOnce(new TypeError('fetch failed'))
-        .mockRejectedValueOnce(new TypeError('fetch failed'))
-        .mockRejectedValueOnce(new TypeError('fetch failed'));
+      // バックオフ待機を即座に解決させてテスト時間を短縮
+      const originalSetTimeout = globalThis.setTimeout;
+      vi.stubGlobal('setTimeout', (fn: () => void) => originalSetTimeout(fn, 0));
 
-      await expect(client.setRules('172.20.0.3', [])).rejects.toThrow(ProxyConnectionError);
-      // 3回リトライ（計3回呼び出し）
-      expect(fetch).toHaveBeenCalledTimes(3);
-    }, 30000);
+      try {
+        vi.mocked(fetch)
+          .mockRejectedValueOnce(new TypeError('fetch failed'))
+          .mockRejectedValueOnce(new TypeError('fetch failed'))
+          .mockRejectedValueOnce(new TypeError('fetch failed'));
+
+        await expect(client.setRules('172.20.0.3', [])).rejects.toThrow(ProxyConnectionError);
+        // 3回試行（初回 + 2回リトライ）
+        expect(fetch).toHaveBeenCalledTimes(3);
+      } finally {
+        vi.stubGlobal('setTimeout', originalSetTimeout);
+      }
+    });
   });
 
   // ==================== deleteRules ====================
