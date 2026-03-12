@@ -96,9 +96,9 @@ vi.mock('@/lib/logger', () => ({
 
 // ProxyClientのモック
 vi.mock('@/services/proxy-client', () => ({
-  ProxyClient: vi.fn().mockImplementation(() => ({
-    healthCheck: mockProxyHealthCheck,
-  })),
+  ProxyClient: vi.fn(function () {
+    return { healthCheck: mockProxyHealthCheck };
+  }),
 }));
 
 import { NetworkFilterService, ValidationError } from '../network-filter-service';

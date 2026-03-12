@@ -2,6 +2,7 @@ import { db, schema } from '@/lib/db';
 import type { NetworkFilterConfig, NetworkFilterRule } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
+import { ProxyClient } from '@/services/proxy-client';
 // ==================== エラークラス ====================
 
 /**
@@ -42,8 +43,10 @@ export interface TestResult {
     port: number | null;
     description?: string;
   };
-  /** dry-run結果である旨の注記（実際の通信制御は未適用） */
+  /** 結果の注記 */
   note: string;
+  /** proxyの稼働状態（フィルタリング有効時のみ設定） */
+  proxyStatus?: 'running' | 'not_running';
 }
 
 // ==================== デフォルトテンプレート ====================
@@ -460,30 +463,18 @@ export class NetworkFilterService {
   }
 
   /**
-   * 指定した宛先への通信が許可/ブロックされるかをdry-runで判定する
-   *
-   * 注意: この結果は文字列ベースのマッチングによる参考値です。
-   * proxy方式（US-007）実装後の実際の通信制御結果とは異なる場合があります。
+   * 指定した宛先への通信が許可/ブロックされるかをルールマッチングで判定する（内部処理）
    *
    * @param environmentId - 環境ID
-   * @param target - 通信先（ドメインまたはIP）
+   * @param target - 通信先（正規化済みドメインまたはIP）
    * @param port - ポート番号（省略可）
-   * @returns TestResult - 許可/ブロック結果とマッチしたルール情報
+   * @returns TestResult（noteを除く）
    */
-  async testConnection(environmentId: string, target: string, port?: number): Promise<TestResult> {
-    const DRY_RUN_NOTE = 'この結果はdry-run（参考値）です。実際の通信制御はproxy方式（US-007）実装後に有効になります。';
-
-    // 入力ターゲットを正規化
-    const normalizedTarget = this.normalizeTarget(target);
-
-    // フィルタリング設定を確認
-    const config = await this.getFilterConfig(environmentId);
-
-    // フィルタリングが無効、または設定がない場合は全て許可
-    if (!config || !config.enabled) {
-      return { allowed: true, note: DRY_RUN_NOTE };
-    }
-
+  private async dryRunTest(
+    environmentId: string,
+    target: string,
+    port?: number
+  ): Promise<Omit<TestResult, 'note' | 'proxyStatus'>> {
     // ルール一覧を取得
     const rules = await this.getRules(environmentId);
 
@@ -492,7 +483,7 @@ export class NetworkFilterService {
       if (!rule.enabled) continue;
 
       // ターゲットのマッチング確認
-      const targetMatches = this.matchesTarget(normalizedTarget, rule.target);
+      const targetMatches = this.matchesTarget(target, rule.target);
       if (!targetMatches) continue;
 
       // ポートのマッチング確認
@@ -511,12 +502,58 @@ export class NetworkFilterService {
           port: rule.port,
           description: rule.description ?? undefined,
         },
-        note: DRY_RUN_NOTE,
       };
     }
 
     // マッチするルールなし = ブロック
-    return { allowed: false, note: DRY_RUN_NOTE };
+    return { allowed: false };
+  }
+
+  /**
+   * 指定した宛先への通信が許可/ブロックされるかを判定する
+   *
+   * フィルタリングが有効な場合はproxyのヘルスチェックを行い、
+   * proxy稼働状態をproxyStatusとして返す。
+   * proxy未稼働時は既存のルールマッチング（dry-run）にフォールバックする。
+   *
+   * @param environmentId - 環境ID
+   * @param target - 通信先（ドメインまたはIP）
+   * @param port - ポート番号（省略可）
+   * @returns TestResult - 許可/ブロック結果とマッチしたルール情報
+   */
+  async testConnection(environmentId: string, target: string, port?: number): Promise<TestResult> {
+    // 入力ターゲットを正規化
+    const normalizedTarget = this.normalizeTarget(target);
+
+    // フィルタリング設定を確認
+    const config = await this.getFilterConfig(environmentId);
+
+    // フィルタリングが無効、または設定がない場合は全て許可
+    if (!config || !config.enabled) {
+      return { allowed: true, note: 'フィルタリングが無効のため全て許可されます' };
+    }
+
+    // ルールマッチング（dry-run）を実行
+    const dryRunResult = await this.dryRunTest(environmentId, normalizedTarget, port);
+
+    // proxyのヘルスチェックを実行してproxy稼働状態を確認
+    const proxyClient = new ProxyClient();
+    try {
+      await proxyClient.healthCheck();
+      // proxy稼働中
+      return {
+        ...dryRunResult,
+        proxyStatus: 'running',
+        note: 'proxy稼働中。ルールマッチング結果です。実際のproxy通信制御はコンテナ起動時に適用されます。',
+      };
+    } catch {
+      // proxy未稼働の場合はdry-runにフォールバック
+      return {
+        ...dryRunResult,
+        proxyStatus: 'not_running',
+        note: 'proxy未稼働のためdry-run結果です。実際の通信制御はproxy起動後にコンテナで適用されます。',
+      };
+    }
   }
 
   /**
