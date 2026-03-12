@@ -137,4 +137,8 @@ class ProxyClient {
 
 ## ステータス
 
-`IN_PROGRESS`
+`DONE`
+
+## 完了サマリー
+
+ProxyClientクラスを新規作成。Node.js標準fetch、指数バックオフリトライ、5秒タイムアウトを実装。テスト16件全通過、ESLintエラーなし。
