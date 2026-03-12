@@ -9,74 +9,118 @@
 - [x] ワイルドカード対応: `*.example.com` パターン
 - [x] 粒度: ドメイン/IPアドレス + ポート番号
 - [x] 適用範囲: 環境(ExecutionEnvironment)ごとに個別設定
-- [x] ~~実装方式: Docker カスタムネットワーク + iptables~~ (廃止 - proxy方式に移行予定)
+- [x] 実装方式: network-filter-proxy（フォワードプロキシ） + Docker internalネットワーク
 - [x] Docker Compose環境との共存が必要
 - [x] 技術スタック: 既存プロジェクト準拠（Next.js, TypeScript, SQLite, Drizzle ORM）
 - [x] セキュリティ要件: フェイルセーフ（適用失敗時は起動中止）、バイパス防止
+- [x] proxyイメージ: ghcr.io/windschord/network-filter-proxy（プレビルド）
+- [x] DNS解決: proxy側で実行時に行う。ClaudeWork側のDNS解決機能は削除
 
 ### 不明/要確認の情報
 
-iptables方式は廃止済み。proxy方式（US-007）の詳細設計は別ブランチで策定中です。
+なし（全方針確定済み）
 
 ---
 
 ## アーキテクチャ概要
 
-> **注意**: iptables方式は廃止されました。現在はproxy方式（US-007）への移行が予定されています。
+### Proxy方式アーキテクチャ
 
-### 現在のアーキテクチャ（iptables廃止後）
-
-DockerAdapterからNetworkFilterServiceへの直接依存は削除済みです。NetworkFilterServiceはAPI経由でのルール管理（DNS検証含む）を担当します。
+network-filter-proxy をDocker Composeサービスとして起動し、ClaudeコンテナをDocker internalネットワークに接続することで、proxy経由以外の外部通信を物理的に防止する。
 
 ```text
-┌─────────────────────────────────────────────────────────────┐
-│                     ClaudeWork Server                        │
-│                                                              │
-│  ┌──────────────┐  ┌───────────────────┐  ┌──────────────┐ │
-│  │  Settings UI  │  │   API Routes      │  │ DockerAdapter│ │
-│  │ (Environment  │──│ /api/environments │  │ (フィルタ連携 │ │
-│  │  Filter Tab)  │  │ /[id]/rules       │  │  なし)       │ │
-│  └──────────────┘  └───────────────────┘  └──────────────┘ │
-│                              │                               │
-│                    ┌─────────┴─────────┐                    │
-│                    │NetworkFilterService│                    │
-│                    │ (Rule CRUD + DNS)  │                    │
-│                    └─────────┬─────────┘                    │
-│                              │                               │
-│                    ┌─────────┴─────────┐                    │
-│                    │     SQLite DB      │                    │
-│                    │ NetworkFilterRule   │                    │
-│                    └───────────────────┘                    │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│                        ClaudeWork Server (app)                        │
+│                                                                       │
+│  ┌──────────────┐  ┌───────────────────┐  ┌──────────────────────┐  │
+│  │  Settings UI  │  │   API Routes      │  │    DockerAdapter     │  │
+│  │ (Environment  │──│ /api/environments │  │ (フィルタ連携あり)    │  │
+│  │  Filter Tab)  │  │ /[id]/rules       │  │ - internal NW 接続   │  │
+│  └──────────────┘  └───────────────────┘  │ - HTTP_PROXY 設定    │  │
+│                              │             │ - ルール同期          │  │
+│                    ┌─────────┴─────────┐  └──────────┬───────────┘  │
+│                    │NetworkFilterService│             │               │
+│                    │ (Rule CRUD)       │             │               │
+│                    └─────────┬─────────┘             │               │
+│                              │                       │               │
+│                    ┌─────────┴─────────┐  ┌─────────┴───────────┐  │
+│                    │     SQLite DB      │  │    ProxyClient      │  │
+│                    │ NetworkFilterRule   │  │ (Management API通信) │  │
+│                    └───────────────────┘  └─────────┬───────────┘  │
+│                                                     │               │
+└─────────────────────────────────────────────────────┼───────────────┘
+                                                      │
+                                          default network (API: 8080)
+                                                      │
+                                          ┌───────────┴───────────┐
+                                          │ network-filter-proxy  │
+                                          │ :3128 (proxy)         │
+                                          │ :8080 (mgmt API)      │
+                                          └───────────┬───────────┘
+                                                      │
+                                     claudework-filter (internal, proxy: 3128)
+                                                      │
+                                          ┌───────────┴───────────┐
+                                          │   Claude Container    │
+                                          │ HTTP_PROXY=proxy:3128 │
+                                          │ (direct egress不可)   │
+                                          └───────────────────────┘
 ```
 
-### 移行状況
-
-iptables方式（IptablesManager + DockerAdapterによるフィルタ適用）は以下の理由で廃止されました:
-
-- Docker Compose環境でのホストiptablesへのアクセスに `pid: host`, `NET_ADMIN`, `SYS_ADMIN` 等の特権設定が必要で、セキュリティリスクが高い
-- コンテナネットワーク名前空間とホストネットワーク名前空間の分離による複雑な設定が必要
-
-proxy方式（US-007）への移行が予定されており、プロキシサーバーを経由してアウトバウンド通信を制御します。仕様は別ブランチで策定中です。
-
-### 現在のコンテナ起動時のフロー
+### コンテナ起動時のフロー
 
 ```text
 DockerAdapter.createSession()
   │
-  ├── コンテナ起動（ネットワークフィルタリングなし）
+  ├── isFilterEnabled(environmentId) → true の場合
+  │     │
+  │     ├── proxyClient.healthCheck() → proxy稼働確認
+  │     │     └── 失敗時: セッション作成エラー（フェイルセーフ）
+  │     │
+  │     ├── buildContainerOptions()
+  │     │     ├── NetworkMode: claudework-filter
+  │     │     └── Env: HTTP_PROXY, HTTPS_PROXY
+  │     │
+  │     ├── docker.createContainer() → container.start()
+  │     │
+  │     ├── container.inspect() → コンテナIPアドレス取得
+  │     │
+  │     └── proxyClient.syncRules(containerIP, environmentId)
+  │           └── DB→proxy APIにルール同期
   │
-  └── [フィルタリング有効の場合でも現時点ではフィルタリング適用なし]
-        → proxy方式実装後に対応予定
+  └── isFilterEnabled(environmentId) → false の場合
+        └── 現行通りdefaultネットワークでコンテナ起動
+```
+
+### コンテナ停止時のフロー
+
+```text
+DockerAdapter.stopSession() / container exit
+  │
+  └── [フィルタリング有効の場合]
+        └── proxyClient.deleteRules(containerIP)
+              └── proxyからルール削除（コンテナ分のみ）
+```
+
+### ルール変更時の同期フロー
+
+```text
+UI → API → NetworkFilterService.createRule/updateRule/deleteRule()
+  │
+  └── [フィルタリング有効 かつ 該当環境にアクティブコンテナがある場合]
+        └── proxyClient.syncRules(containerIP, environmentId)
+              └── DB全体を再同期（PUT /api/v1/rules/{sourceIP}で丸ごと置換）
 ```
 
 ## コンポーネント一覧
 
 | コンポーネント名 | 目的 | ステータス | 詳細リンク |
 |-----------------|------|-----------|-----------|
-| NetworkFilterService | フィルタリングルールの管理・ルール登録時のDNS検証 | 稼働中（設定管理/DNS検証のみ。通信制御は未実装） | [詳細](components/network-filter-service.md) @components/network-filter-service.md |
-| IptablesManager | iptablesルールの生成・適用・クリーンアップ | **廃止済み**（ファイル削除済み。通信制御の代替実装なし） | [詳細](components/iptables-manager.md) @components/iptables-manager.md |
-| NetworkFilterUI | 設定画面のフィルタリングセクション | 稼働中（設定UIのみ。実フィルタは未適用） | [詳細](components/network-filter-ui.md) @components/network-filter-ui.md |
+| NetworkFilterService | フィルタリングルールのCRUD管理 | 稼働中（DNS解決機能は削除予定） | [詳細](components/network-filter-service.md) @components/network-filter-service.md |
+| ProxyClient | network-filter-proxy Management APIクライアント | **新規** | [詳細](components/proxy-client.md) @components/proxy-client.md |
+| Docker Compose Proxy構成 | proxyサービス・internalネットワーク定義 | **新規** | [詳細](components/docker-compose-proxy.md) @components/docker-compose-proxy.md |
+| IptablesManager | iptablesルールの生成・適用・クリーンアップ | **廃止済み**（ファイル削除済み） | [詳細](components/iptables-manager.md) @components/iptables-manager.md |
+| NetworkFilterUI | 設定画面のフィルタリングセクション | 稼働中 | [詳細](components/network-filter-ui.md) @components/network-filter-ui.md |
 
 ## API一覧
 
@@ -84,8 +128,8 @@ DockerAdapter.createSession()
 |---------------|---------|------|-----------|
 | /api/environments/[id]/network-rules | GET, POST | ルール一覧取得・追加 | [詳細](api/network-rules.md) @api/network-rules.md |
 | /api/environments/[id]/network-rules/[ruleId] | PUT, DELETE | ルール更新・削除 | [詳細](api/network-rules.md) @api/network-rules.md |
-| /api/environments/[id]/network-filter | GET, PUT | フィルタリング設定の取得・更新（保存のみ。通信制御は未実装） | [詳細](api/network-rules.md) @api/network-rules.md |
-| /api/environments/[id]/network-filter/test | POST | 通信テスト（dry-run、参考値。実際の通信制御結果と異なる場合あり） | [詳細](api/network-rules.md) @api/network-rules.md |
+| /api/environments/[id]/network-filter | GET, PUT | フィルタリング設定の取得・更新 | [詳細](api/network-rules.md) @api/network-rules.md |
+| /api/environments/[id]/network-filter/test | POST | 通信テスト（proxy経由の実テスト） | [詳細](api/network-rules.md) @api/network-rules.md |
 | /api/environments/[id]/network-rules/templates | GET | デフォルトテンプレート取得 | [詳細](api/network-rules.md) @api/network-rules.md |
 | /api/environments/[id]/network-rules/templates/apply | POST | テンプレート適用 | [詳細](api/network-rules.md) @api/network-rules.md |
 
@@ -96,28 +140,41 @@ DockerAdapter.createSession()
 | NetworkFilterRule | フィルタリングルール | [詳細](database/schema.md#networkfilterrule) @database/schema.md |
 | NetworkFilterConfig | 環境ごとのフィルタリング設定 | [詳細](database/schema.md#networkfilterconfig) @database/schema.md |
 
+変更なし。既存スキーマをそのまま再利用する。
+
 ## 技術的決定事項
 
 | ID | 決定内容 | ステータス | 詳細リンク |
 |----|---------|-----------|-----------|
-| DEC-001 | iptables DOCKER-USER chain方式の採用 | **廃止**（特権設定の複雑性によりproxy方式に移行予定） | [詳細](decisions/DEC-001.md) @decisions/DEC-001.md |
-| DEC-002 | ドメイン解決方式（起動時DNS解決 + 定期リフレッシュ） | **廃止予定**（proxy方式ではproxyが実行時にドメイン名で直接フィルタするため、ClaudeWork側の事前DNS解決はルール検証用のみに縮小。詳細はUS-007で確定） | [詳細](decisions/DEC-002.md) @decisions/DEC-002.md |
+| DEC-001 | iptables DOCKER-USER chain方式の採用 | **廃止**（ホストiptablesへの影響問題） | [詳細](decisions/DEC-001.md) @decisions/DEC-001.md |
+| DEC-002 | ドメイン解決方式（起動時DNS解決 + 定期リフレッシュ） | **廃止**（proxyがドメインベースで直接フィルタ） | [詳細](decisions/DEC-002.md) @decisions/DEC-002.md |
+| DEC-003 | network-filter-proxy によるProxy方式の採用 | **承認済** | [詳細](decisions/DEC-003.md) @decisions/DEC-003.md |
+
+## upstream変更要件
+
+network-filter-proxyリポジトリへの変更が必要:
+
+| 項目 | 内容 | Issue |
+|------|------|-------|
+| API_BIND_ADDR環境変数 | Management APIのバインドアドレスを設定可能にする（デフォルト: 127.0.0.1、設定例: 0.0.0.0） | [#5](https://github.com/windschord/network-filter-proxy/issues/5) |
+| healthcheckコマンド | distrolessイメージにwget/curlがないため、ヘルスチェック用サブコマンド対応 | [#6](https://github.com/windschord/network-filter-proxy/issues/6) |
 
 ## セキュリティ考慮事項
 
-> 以下はproxy方式（US-007）移行後のセキュリティ設計です。現時点ではフィルタリングは無効です。
-
-- **デフォルト拒否**: フィルタリング有効時、ホワイトリスト外の全外部通信をDROP（proxy方式で実現予定）
-- **ネットワーク分離（主要な強制力）**: Claudeコンテナを Docker `--internal` ネットワークに接続し、proxy経由以外での直接egress（外部通信）を不可能にする。これがバイパス防止の主要メカニズム
-- **権限制限（補助的な防御層）**: サンドボックスコンテナ（Claudeコンテナ）はDockerAdapter側で`CapDrop: ['ALL']`および`SecurityOpt: ['no-new-privileges']`を既に設定済み。`CAP_NET_ADMIN`を含むすべてのケーパビリティが除去されており、権限昇格やネットワーク設定変更を防止する
-- **DNS解決の責務分離**: proxy方式ではproxyコンテナが接続時にドメイン名で直接フィルタ・DNS解決を行う。ClaudeWork側のNetworkFilterServiceによるDNS解決はルール登録時の検証/プレビュー用途に限定され、実行時の通信制御には関与しない
+- **デフォルト拒否**: proxyにルール未登録の送信元IPからの通信は403 Forbiddenで拒否
+- **ネットワーク分離（主要な強制力）**: Docker internalネットワークにより、Claudeコンテナからの直接外部通信を物理的に防止
+- **権限制限（補助的な防御層）**: `CapDrop: ['ALL']`および`SecurityOpt: ['no-new-privileges']`は維持
+- **DNS解決の責務分離**: proxyが接続時にドメイン名で直接フィルタ・DNS解決を実行。ClaudeWork側のDNS解決は不要（削除）
+- **Management APIアクセス制御**: proxyのManagement APIはdefaultネットワーク経由でappからのみアクセス。ClaudeコンテナはinternalネットワークのみのためManagement API経由のルール変更リスクは限定的
 
 ## エラー処理戦略
 
 | エラー種別 | 発生条件 | 対処方法 |
 |-----------|---------|---------|
-| DnsResolutionFailed | ドメインのDNS解決失敗 | 警告ログ出力、該当ルールをスキップ。proxy方式ではproxyコンテナ側でDNS解決を行うため、ClaudeWork側での発生はルール登録時のプレビュー/検証時に限定される。`/network-filter/test`の結果は文字列ベースのマッチングによる参考値であり、実際のproxy通信制御結果と一致しない場合がある |
-| RuleValidationError | 不正なルール形式 | バリデーションエラーをUIに表示、保存を拒否。proxy方式でもUI保存前のクライアント側バリデーションとして継続利用 |
+| ProxyConnectionError | proxyに接続できない | コンテナ起動中止（フェイルセーフ）、ログ出力 |
+| ProxyValidationError | proxy側でルール形式不正 | 該当ルールをスキップ、ログ出力 |
+| RuleValidationError | 不正なルール形式（ClaudeWork側バリデーション） | UIにエラー表示、保存を拒否 |
+| NetworkError | proxy APIタイムアウト | リトライ後にエラー伝播 |
 
 ## CI/CD設計
 

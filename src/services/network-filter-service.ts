@@ -2,7 +2,6 @@ import { db, schema } from '@/lib/db';
 import type { NetworkFilterConfig, NetworkFilterRule } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
-import dns from 'dns/promises';
 // ==================== エラークラス ====================
 
 /**
@@ -35,13 +34,6 @@ export interface DefaultTemplate {
   rules: { target: string; port: number; description: string }[];
 }
 
-export interface ResolvedRule {
-  ips: string[];
-  port: number | null;
-  description?: string;
-  originalTarget: string;
-}
-
 export interface TestResult {
   allowed: boolean;
   matchedRule?: {
@@ -53,47 +45,6 @@ export interface TestResult {
   /** dry-run結果である旨の注記（実際の通信制御は未適用） */
   note: string;
 }
-
-// DNSキャッシュエントリの型
-interface DnsCacheEntry {
-  ips: string[];
-  expiry: number;
-}
-
-// DNSキャッシュTTL: 5分（ミリ秒）
-const DNS_CACHE_TTL_MS = 5 * 60 * 1000;
-
-// ワイルドカードドメインで解決を試行する一般的なサブドメイン
-const COMMON_SUBDOMAINS = ['www', 'api', 'raw', 'gist', 'cdn', 'static', 'assets', 'media'];
-
-/**
- * 既知サービスのIPレンジ（CIDRブロック）
- * ワイルドカードドメインで指定された場合、DNS解決に加えてこれらのCIDRも含める
- * 参考: https://api.github.com/meta
- * 最終確認: 2026-03-04 (https://api.github.com/meta)
- */
-const KNOWN_SERVICE_CIDRS: Record<string, string[]> = {
-  'github.com': [
-    '140.82.112.0/20',  // GitHub
-    '192.30.252.0/22',  // GitHub
-    '185.199.108.0/22', // GitHub Pages/CDN
-    '143.55.64.0/20',   // GitHub
-  ],
-  'githubusercontent.com': [
-    '185.199.108.0/22', // GitHub content delivery
-  ],
-};
-
-/**
- * サービス固有の追加サブドメイン
- * COMMON_SUBDOMAINSに加えて解決を試みる
- */
-const SERVICE_SPECIFIC_SUBDOMAINS: Record<string, string[]> = {
-  'github.com': ['codeload', 'objects', 'pkg', 'ghcr', 'copilot-proxy'],
-  'githubusercontent.com': ['objects', 'avatars', 'user-images', 'camo'],
-  'npmjs.org': ['registry'],
-  'npmjs.com': ['registry'],
-};
 
 // ==================== デフォルトテンプレート ====================
 
@@ -166,14 +117,10 @@ const DOMAIN_PATTERN = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a
 /**
  * NetworkFilterService
  *
- * ネットワークフィルタリングルールのCRUD管理、DNS解決、
+ * ネットワークフィルタリングルールのCRUD管理、
  * フィルタリング設定の管理を担当する
  */
 export class NetworkFilterService {
-
-  // ==================== DNSキャッシュ ====================
-
-  private dnsCache = new Map<string, DnsCacheEntry>();
 
   // ==================== ターゲット正規化 ====================
 
@@ -512,72 +459,6 @@ export class NetworkFilterService {
     return Number.isInteger(port) && port >= 1 && port <= 65535;
   }
 
-  // ==================== DNS解決 ====================
-
-  /**
-   * ドメイン名を含むルールをDNS解決し、IPアドレスに変換する
-   * - IP/CIDR形式のルールはそのまま通過
-   * - 通常ドメインはIPv4で解決（ip6tables未実装のため）
-   * - ワイルドカードはベースドメインと一般的なサブドメインを解決
-   * - DNS解決失敗時は警告ログを出力してスキップ
-   * @param rules - 解決対象のルール一覧
-   * @returns IPアドレスに変換済みのルール
-   */
-  async resolveDomains(rules: NetworkFilterRule[]): Promise<ResolvedRule[]> {
-    const resolved: ResolvedRule[] = [];
-
-    for (const rule of rules) {
-      const target = rule.target;
-
-      // IPアドレスまたはCIDR形式はDNS解決不要
-      if (this.isIpOrCidr(target)) {
-        resolved.push({
-          ips: [target],
-          port: rule.port,
-          description: rule.description ?? undefined,
-          originalTarget: target,
-        });
-        continue;
-      }
-
-      // ワイルドカードドメインの処理
-      if (target.startsWith('*.')) {
-        const baseDomain = target.slice(2); // `*.`を除去
-        const ips = await this.resolveWildcardDomain(baseDomain);
-
-        if (ips.length === 0) {
-          logger.warn('ワイルドカードドメインの解決に失敗しました', { target });
-          continue;
-        }
-
-        resolved.push({
-          ips,
-          port: rule.port,
-          description: rule.description ?? undefined,
-          originalTarget: target,
-        });
-        continue;
-      }
-
-      // 通常ドメインの解決
-      const ips = await this.resolveWithCache(target);
-
-      if (ips.length === 0) {
-        logger.warn('ドメインの解決に失敗しました', { target });
-        continue;
-      }
-
-      resolved.push({
-        ips,
-        port: rule.port,
-        description: rule.description ?? undefined,
-        originalTarget: target,
-      });
-    }
-
-    return resolved;
-  }
-
   /**
    * 指定した宛先への通信が許可/ブロックされるかをdry-runで判定する
    *
@@ -636,117 +517,6 @@ export class NetworkFilterService {
 
     // マッチするルールなし = ブロック
     return { allowed: false, note: DRY_RUN_NOTE };
-  }
-
-  // ==================== DNS内部ヘルパー ====================
-
-  /**
-   * ターゲット文字列がIPアドレスまたはCIDR形式かを判定する
-   * @param target - 判定する文字列
-   * @returns IPまたはCIDRの場合true
-   */
-  private isIpOrCidr(target: string): boolean {
-    // CIDR形式
-    if (IPV4_CIDR_PATTERN.test(target)) return true;
-    // IPv4アドレス
-    if (IPV4_PATTERN.test(target)) return true;
-    // IPv6アドレス（コロンを含む）: 未サポート（IPv4のみ対応）
-    if (target.includes(':') && IPV6_PATTERN.test(target)) return false;
-    return false;
-  }
-
-  /**
-   * ワイルドカードドメインのベースドメインと一般的サブドメインを解決する
-   *
-   * 解決の流れ:
-   * 1. ベースドメイン自体を解決
-   * 2. COMMON_SUBDOMAINSとSERVICE_SPECIFIC_SUBDOMAINSをSetで重複排除し、Promise.allで並列解決
-   * 3. KNOWN_SERVICE_CIDRSの既知IPレンジを直接追加（DNS解決なし）
-   *
-   * @param baseDomain - ベースドメイン（例: github.com）
-   * @returns 解決されたIPアドレスおよびCIDRの配列
-   */
-  private async resolveWildcardDomain(baseDomain: string): Promise<string[]> {
-    const allIps = new Set<string>();
-
-    // ベースドメインを解決
-    const baseIps = await this.resolveWithCache(baseDomain);
-    baseIps.forEach((ip) => { allIps.add(ip); });
-
-    // 一般的なサブドメインとサービス固有サブドメインを重複排除して並列解決
-    const candidateSubdomains = new Set([
-      ...COMMON_SUBDOMAINS,
-      ...(SERVICE_SPECIFIC_SUBDOMAINS[baseDomain] ?? []),
-    ]);
-
-    await Promise.all(
-      Array.from(candidateSubdomains).map(async (subdomain) => {
-        const fqdn = `${subdomain}.${baseDomain}`;
-        const subIps = await this.resolveWithCache(fqdn);
-        subIps.forEach((ip) => { allIps.add(ip); });
-      })
-    );
-
-    // 既知サービスのCIDRブロックを追加（DNS解決なし）
-    const knownCidrs = KNOWN_SERVICE_CIDRS[baseDomain];
-    if (knownCidrs) {
-      knownCidrs.forEach(cidr => { allIps.add(cidr); });
-    }
-
-    return Array.from(allIps);
-  }
-
-  /**
-   * DNSキャッシュを使ってドメインを解決する
-   * キャッシュヒット時はDNS解決を再実行しない
-   * TTL超過時はDNS解決を再実行する
-   *
-   * IPv6アドレスは除外する（IPv4のみ対応）。
-   *
-   * @param domain - 解決するドメイン名
-   * @returns 解決されたIPv4アドレスの配列（失敗時は空配列）
-   */
-  private async resolveWithCache(domain: string): Promise<string[]> {
-    this.clearExpiredCache();
-    const now = Date.now();
-    const cached = this.dnsCache.get(domain);
-
-    // キャッシュヒット（TTL内）
-    if (cached && cached.expiry > now) {
-      return cached.ips;
-    }
-
-    // IPv4のみ解決する（IPv6は未サポート）
-    const ips: string[] = [];
-
-    try {
-      const v4Addrs = await dns.resolve4(domain);
-      ips.push(...v4Addrs);
-    } catch {
-      // IPv4解決失敗は無視
-    }
-
-    // 解決成功時はキャッシュに保存
-    if (ips.length > 0) {
-      this.dnsCache.set(domain, {
-        ips,
-        expiry: now + DNS_CACHE_TTL_MS,
-      });
-    }
-
-    return ips;
-  }
-
-  /**
-   * 期限切れキャッシュエントリを削除する
-   */
-  private clearExpiredCache(): void {
-    const now = Date.now();
-    for (const [domain, entry] of this.dnsCache.entries()) {
-      if (entry.expiry <= now) {
-        this.dnsCache.delete(domain);
-      }
-    }
   }
 
   /**
