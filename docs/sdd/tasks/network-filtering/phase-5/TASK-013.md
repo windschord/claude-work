@@ -105,7 +105,7 @@ syncRulesForContainerの処理フロー:
    - 異常系: 接続失敗時にProxyConnectionErrorをスローする
    - 異常系: バリデーション失敗（422）時にProxyValidationErrorをスローする
    - 異常系: タイムアウト時にリトライ後エラーをスローする
-   - （syncRulesForContainer/syncProxyRulesIfNeededのテストは src/lib/__tests__/proxy-sync.test.ts に配置）
+   - （syncRulesForContainer/syncProxyRulesIfNeededのテストは `src/lib/__tests__/proxy-sync.test.ts` に配置）
 2. テスト実行: 失敗を確認
 3. テストコミット
 4. 実装: `src/services/proxy-client.ts` を作成

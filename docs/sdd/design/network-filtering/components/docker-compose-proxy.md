@@ -207,7 +207,11 @@ DockerAdapter.stopSession() / container exit
 - **internalネットワーク**: Claudeコンテナからの直接外部通信を物理的に防止
 - **proxy経由のみ**: HTTP_PROXY設定により全通信がproxy経由
 - **CapDrop ALL**: 既存のセキュリティ設定（Claudeコンテナの全ケーパビリティ除去）は維持
-- **Management API**: proxyはdefaultとclaudework-filterの両方に接続しているため、Claudeコンテナからもproxyの8080ポートに到達可能。これにより、ClaudeコンテナがManagement API経由で自身の許可リストを拡張するリスクがある（送信元IPを知れば`PUT /api/v1/rules/{selfIP}`でルール変更可能）。MVPではこれを許容するが、将来的にはManagement APIをdefaultネットワーク専用ポートにバインドするか、API認証を追加して対策する
+- **Management API（既知のセキュリティ制約）**: proxyはdefaultとclaudework-filterの両方に接続しているため、Claudeコンテナからもproxyの8080ポートに到達可能。ClaudeコンテナがManagement API経由で自身の許可リストを拡張できる（`PUT /api/v1/rules/{selfIP}`）。この問題はフィルタリング機構のバイパスにつながるため、以下のいずれかで対策が必要:
+  1. upstream側でManagement APIのバインドアドレスをdefaultネットワークのIPに限定する
+  2. upstream側でManagement APIにトークン認証を追加する
+  3. proxyコンテナ内のiptablesでclaudework-filterからの8080アクセスをブロックする
+  - 対応Issue: upstream側の対策を起票予定。対策完了まではClaudeコンテナがManagement APIにアクセス可能な状態で運用する
 
 ### proxyバイパス防止
 
@@ -217,6 +221,7 @@ DockerAdapter.stopSession() / container exit
 | DNS直接クエリ | internalネットワークのため外部DNSに到達不可 |
 | IPアドレス直接指定 | internalネットワークのため直接egress不可。proxy経由でもIPベースのルールで制御可能 |
 | proxyの3128ポート以外での通信 | internalネットワークではproxy以外の外部ホストに到達不可 |
+| Management API経由のルール変更 | **未対策（既知の制約）**: Claudeコンテナからproxy:8080に到達可能。upstream側の対策が必要 |
 
 ## テスト観点
 
