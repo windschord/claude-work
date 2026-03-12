@@ -15,9 +15,8 @@ interface RouteParams {
  * - 500: サーバーエラー
  */
 export async function GET(request: NextRequest, { params }: RouteParams) {
+  const { id } = await params;
   try {
-    const { id } = await params;
-
     if (!id || id.trim() === '') {
       return NextResponse.json({ error: 'Environment id is required' }, { status: 400 });
     }
@@ -27,7 +26,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     // 未設定時はconfig: nullを返す（フロントエンド側でnullチェックする）
     return NextResponse.json({ config: config ?? null });
   } catch (error) {
-    const { id } = await params;
     logger.error('Failed to get filter config', { error, id });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
@@ -45,9 +43,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
  * - 500: サーバーエラー
  */
 export async function PUT(request: NextRequest, { params }: RouteParams) {
+  const { id } = await params;
   try {
-    const { id } = await params;
-
     if (!id || id.trim() === '') {
       return NextResponse.json({ error: 'Environment id is required' }, { status: 400 });
     }
@@ -79,7 +76,6 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     logger.info('Filter config updated', { environmentId: id, enabled });
     return NextResponse.json({ config });
   } catch (error) {
-    const { id } = await params;
     logger.error('Failed to update filter config', { error, id });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

@@ -5,6 +5,7 @@ import {
   ProxyConnectionError,
   ProxyValidationError,
   type ProxyHealthStatus,
+  type ProxyRuleSet,
   type ProxyRulesMap,
 } from '@/services/proxy-client';
 
@@ -45,8 +46,10 @@ describe('ProxyClient', () => {
     it('接続失敗時にProxyConnectionErrorをスローする', async () => {
       vi.mocked(fetch).mockRejectedValue(new TypeError('fetch failed'));
 
-      await expect(client.healthCheck()).rejects.toThrow(ProxyConnectionError);
-      await expect(client.healthCheck()).rejects.toThrow('proxyに接続できません');
+      const promise = client.healthCheck();
+      await expect(promise).rejects.toSatisfy((error: Error) => {
+        return error instanceof ProxyConnectionError && error.message === 'proxyに接続できません';
+      });
     });
 
     it('HTTP 500エラー時にProxyConnectionErrorをスローする', async () => {

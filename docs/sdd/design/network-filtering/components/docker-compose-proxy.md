@@ -92,7 +92,7 @@ services:
       - LOG_FORMAT=json
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8080/api/v1/health"]
+      test: ["CMD", "/filter-proxy", "healthcheck"]
       interval: 15s
       timeout: 5s
       retries: 3

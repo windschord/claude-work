@@ -75,21 +75,25 @@ class ProxyClient {
   setRules(sourceIP: string, entries: ProxyRuleEntry[]): Promise<ProxyRuleSet>
   deleteRules(sourceIP: string): Promise<void>
   deleteAllRules(): Promise<void>
-  syncRules(sourceIP: string, environmentId: string): Promise<void>
 }
+
+// ルール同期ロジックはProxyClientの責務外としてsrc/lib/proxy-sync.tsに配置:
+// syncRulesForContainer(client, sourceIP, environmentId): Promise<void>
+// syncProxyRulesIfNeeded(environmentId): Promise<void>
 ```
 
-### syncRulesの処理フロー
+### ルール同期ヘルパー（ProxyClient外部、src/lib/proxy-sync.ts）
 
+syncRulesForContainerの処理フロー:
 1. `networkFilterService.getRules(environmentId)` で有効ルール取得
 2. `enabled === true` のルールのみフィルタ
 3. ClaudeWork形式 -> proxy API形式に変換（`target` -> `host`, `port` -> `port`、`port === null`の場合は省略）
-4. `PUT /api/v1/rules/{sourceIP}` で送信
+4. `ProxyClient.setRules(sourceIP, entries)` で送信
 
 ### リトライ戦略
 
 - ヘルスチェック: リトライなし
-- ルール同期（setRules/deleteRules/syncRules）: 最大3回、指数バックオフ（1s, 2s, 4s）
+- ルール設定/削除（setRules/deleteRules）: 最大3回試行（初回 + 2回リトライ、指数バックオフ 1s, 2s）
 - 全APIコール: タイムアウト5秒
 
 ## 実装手順（TDD）
@@ -98,12 +102,10 @@ class ProxyClient {
    - 正常系: healthCheckが正常応答を返す
    - 正常系: setRulesがPUTリクエストを送信する
    - 正常系: deleteRulesがDELETEリクエストを送信する
-   - 正常系: syncRulesがDBルールをproxy形式に変換して送信する
-   - 正常系: port=nullのルールがport省略に変換される
    - 異常系: 接続失敗時にProxyConnectionErrorをスローする
    - 異常系: バリデーション失敗（422）時にProxyValidationErrorをスローする
    - 異常系: タイムアウト時にリトライ後エラーをスローする
-   - 異常系: syncRulesでフィルタリング無効時はルール同期しない
+   - （syncRulesForContainer/syncProxyRulesIfNeededのテストは src/lib/__tests__/proxy-sync.test.ts に配置）
 2. テスト実行: 失敗を確認
 3. テストコミット
 4. 実装: `src/services/proxy-client.ts` を作成
@@ -113,15 +115,14 @@ class ProxyClient {
 ### テストのモック戦略
 
 - `global.fetch` をモック（`vi.fn()`）
-- `networkFilterService.getRules` をモック（syncRulesテスト用）
-- `networkFilterService.isFilterEnabled` をモック
+- ルール同期テストは `src/lib/__tests__/proxy-sync.test.ts` で別途実施
 
 ## 受入基準
 
 - [ ] `src/services/proxy-client.ts` が存在する
 - [ ] TypeScriptの型定義（ProxyHealthStatus, ProxyRuleEntry等）がexportされている
 - [ ] ProxyConnectionError, ProxyValidationErrorがexportされている
-- [ ] ヘルスチェック、ルールCRUD、syncRulesが実装されている
+- [ ] ヘルスチェック、ルールCRUDが実装されている（ルール同期はsrc/lib/proxy-sync.tsに配置）
 - [ ] リトライロジック（指数バックオフ）が実装されている
 - [ ] テストが8つ以上ある
 - [ ] `npm test -- src/services/__tests__/proxy-client.test.ts` で全テスト通過

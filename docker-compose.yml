@@ -38,11 +38,10 @@ services:
       - PROXY_NETWORK_NAME=${PROXY_NETWORK_NAME:-claudework-filter}
     depends_on:
       network-filter-proxy:
-        # フェイルセーフ: proxyが正常に起動してからappを開始する。
-        # healthcheckにはupstreamのhealthcheckサブコマンド対応が必要
-        # (https://github.com/windschord/network-filter-proxy/issues/6)。
-        # upstream未対応時は condition: service_started に変更する。
-        condition: service_healthy
+        # proxyコンテナが起動してからappを開始する。
+        # upstream対応後(https://github.com/windschord/network-filter-proxy/issues/6)は
+        # condition: service_healthy に変更してより厳密なヘルスチェックを有効化できる。
+        condition: service_started
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "node", "scripts/healthcheck.js"]

@@ -106,7 +106,7 @@ export async function syncProxyRulesIfNeeded(environmentId: string): Promise<voi
 ## 依存関係
 
 - TASK-013（ProxyClient）
-- TASK-016（DockerAdapter、getActiveSessionsForEnvironment）
+- TASK-016（DockerAdapter、getActiveContainerIPs）
 
 ## 推定工数
 
