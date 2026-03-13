@@ -531,17 +531,16 @@ describe('Connection management', () => {
 
 ## Feature Specification Summary
 
-> **Note**: このセクションの件数は手動管理です。API/サービス追加時は件数も更新してください。
 > 生成元: `src/app/api/` (routes), `src/db/schema.ts` (tables), `src/services/` (services), `server.ts` (WebSocket)
 
-### API Endpoints (76 routes)
+### API Endpoints
 
-**Health & Settings (3)**
+**Health & Settings**
 - `GET /api/health`
 - `GET /api/settings/config`
 - `PUT /api/settings/config`
 
-**Projects (15)**
+**Projects**
 - `GET /api/projects` - 一覧
 - `POST /api/projects` - 作成
 - `GET /api/projects/[id]` - 詳細
@@ -558,7 +557,7 @@ describe('Connection management', () => {
 - `GET /api/projects/[id]/sessions` - セッション一覧
 - `POST /api/projects/[id]/sessions` - セッション作成
 
-**Sessions (19)**
+**Sessions**
 - `GET /api/sessions/[id]` - 詳細
 - `PATCH /api/sessions/[id]` - 更新
 - `DELETE /api/sessions/[id]` - 削除
@@ -579,12 +578,12 @@ describe('Connection management', () => {
 - `POST /api/sessions/[id]/run` - スクリプト実行
 - `POST /api/sessions/[id]/run/[runId]/stop` - スクリプト停止
 
-**Prompts (3)**
+**Prompts**
 - `GET /api/prompts` - 一覧
 - `POST /api/prompts` - 保存
 - `DELETE /api/prompts/[id]` - 削除
 
-**Execution Environments (11)**
+**Execution Environments**
 - `GET /api/environments` - 一覧
 - `POST /api/environments` - 作成
 - `GET /api/environments/[id]` - 詳細
@@ -597,7 +596,7 @@ describe('Connection management', () => {
 - `POST /api/environments/[id]/dockerfile` - Dockerfile作成・更新
 - `DELETE /api/environments/[id]/dockerfile` - Dockerfile削除
 
-**Network Filtering (9)**
+**Network Filtering**
 - `GET /api/environments/[id]/network-filter` - フィルタ設定取得
 - `PUT /api/environments/[id]/network-filter` - フィルタ設定更新
 - `POST /api/environments/[id]/network-filter/test` - フィルタテスト
@@ -608,31 +607,31 @@ describe('Connection management', () => {
 - `GET /api/environments/[id]/network-rules/templates` - テンプレート一覧
 - `POST /api/environments/[id]/network-rules/templates/apply` - テンプレート適用
 
-**GitHub PAT (5)**
+**GitHub PAT**
 - `GET /api/github-pat` - 一覧
 - `POST /api/github-pat` - 追加
 - `PATCH /api/github-pat/[id]` - 更新
 - `DELETE /api/github-pat/[id]` - 削除
 - `POST /api/github-pat/[id]/toggle` - 有効/無効切替
 
-**SSH Keys (3)**
+**SSH Keys**
 - `GET /api/ssh-keys` - 一覧
 - `POST /api/ssh-keys` - 追加
 - `DELETE /api/ssh-keys/[id]` - 削除
 
-**Developer Settings (5)**
+**Developer Settings**
 - `GET /api/developer-settings/global` - グローバルGit設定取得
 - `PUT /api/developer-settings/global` - グローバルGit設定更新
 - `GET /api/developer-settings/project/[projectId]` - プロジェクトGit設定取得
 - `PUT /api/developer-settings/project/[projectId]` - プロジェクトGit設定更新
 - `DELETE /api/developer-settings/project/[projectId]` - プロジェクトGit設定削除
 
-**Docker (3)**
+**Docker**
 - `GET /api/docker/images` - イメージ一覧
 - `GET /api/docker/volumes` - ボリューム一覧
 - `POST /api/docker/image-build` - イメージビルド
 
-### DB Schema (11 tables)
+### DB Schema
 
 | Table | Key Columns | 説明 |
 |-------|-------------|------|
@@ -648,7 +647,7 @@ describe('Connection management', () => {
 | NetworkFilterRule | id, environment_id, target, port, description, enabled | フィルタルール |
 | SshKey | id, name, public_key, private_key_encrypted | SSH鍵管理 |
 
-### WebSocket Endpoints (3)
+### WebSocket Endpoints
 
 | Path | Handler | 用途 |
 |------|---------|------|
@@ -656,9 +655,9 @@ describe('Connection management', () => {
 | `/ws/sessions/:sessionId` | SessionWebSocketHandler | セッションイベント・スクリプト実行 |
 | `/ws/terminal/:sessionId` | setupTerminalWebSocket | シェルターミナル |
 
-### Services (19 + 3 adapters)
+### Services
 
-**Core Services (6):**
+**Core Services:**
 - `pty-session-manager.ts` - Session-to-adapter mapping, Claude PTYライフサイクル管理
 - `process-lifecycle-manager.ts` - アイドルタイムアウト、graceful shutdown
 - `environment-service.ts` - ExecutionEnvironment CRUD・ライフサイクル
@@ -666,18 +665,18 @@ describe('Connection management', () => {
 - `scrollback-buffer.ts` - ターミナル出力バッファ (再接続時の復元用)
 - `run-script-manager.ts` - カスタムスクリプト実行
 
-**Git (3):**
+**Git:**
 - `git-service.ts` - Worktree作成/削除、rebase、squash merge、diff
 - `docker-git-service.ts` - Docker volume内のGit操作
 - `gh-cli.ts` - GitHub CLI wrapper (PR作成・ステータス)
 
-**Docker (4):**
+**Docker:**
 - `docker-service.ts` - イメージ、コンテナ、ボリューム管理
 - `docker-client.ts` - Dockerode singleton client
 - `docker-pty-adapter.ts` - DockerコンテナでのClaude PTY実行
 - `docker-pty-stream.ts` - Docker PTY I/Oストリーム管理
 
-**Security (6):**
+**Security:**
 - `encryption-service.ts` - AES-256-GCM暗号化/復号
 - `github-pat-service.ts` - GitHub PAT CRUD + 暗号化
 - `ssh-key-service.ts` - SSH鍵 CRUD + 暗号化
@@ -685,7 +684,7 @@ describe('Connection management', () => {
 - `network-filter-service.ts` - ネットワークフィルタリングルールCRUD
 - `proxy-client.ts` - network-filter-proxy API client
 
-**Adapters (3, src/services/adapters/):**
+**Adapters (src/services/adapters/):**
 - `base-adapter.ts` - EnvironmentAdapter基底クラス
 - `host-adapter.ts` - HOST環境 (ローカル実行)
 - `docker-adapter.ts` - DOCKER環境 (コンテナ実行)
