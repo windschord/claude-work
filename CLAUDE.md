@@ -555,7 +555,7 @@ describe('Connection management', () => {
 - `PUT /api/projects/[id]/scripts/[scriptId]` - スクリプト更新
 - `DELETE /api/projects/[id]/scripts/[scriptId]` - スクリプト削除
 - `GET /api/projects/[id]/sessions` - セッション一覧
-- `POST /api/projects/[id]/sessions` - セッション作成
+- `POST /api/projects/[id]/sessions` - セッション作成 (`environment_id` 必須、`docker_mode` は非推奨)
 
 **Sessions**
 - `GET /api/sessions/[id]` - 詳細
