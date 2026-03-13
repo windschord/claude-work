@@ -528,3 +528,125 @@ describe('Connection management', () => {
   });
 });
 ```
+
+## Feature Specification Summary
+
+### API Endpoints (77 routes)
+
+**Health & Settings (3)**
+- `GET/PUT /api/settings/config`, `GET /api/health`
+
+**Projects (17)**
+- CRUD: `GET/POST /api/projects`, `GET/PATCH/PUT/DELETE /api/projects/[id]`
+- Git: `POST /api/projects/clone`, `POST /api/projects/[id]/pull`, `GET /api/projects/[id]/branches`
+- Scripts: `GET/POST /api/projects/[id]/scripts`, `PUT/DELETE /api/projects/[id]/scripts/[scriptId]`
+- Sessions: `GET/POST /api/projects/[id]/sessions`
+
+**Sessions (18)**
+- CRUD: `GET/DELETE/PATCH /api/sessions/[id]`
+- Claude操作: `POST /api/sessions/[id]/input|approve|stop|resume`
+- Process: `GET/POST /api/sessions/[id]/process`
+- Git: `POST /api/sessions/[id]/rebase|reset|merge`
+- PR: `GET/POST /api/sessions/[id]/pr`
+- その他: `GET /api/sessions/[id]/messages|commits|diff`, `POST /api/sessions/[id]/run`, `POST /api/sessions/[id]/run/[run_id]/stop`
+
+**Prompts (3)**
+- `GET/POST /api/prompts`, `DELETE /api/prompts/[id]`
+
+**Execution Environments (11)**
+- CRUD: `GET/POST /api/environments`, `GET/PUT/DELETE /api/environments/[id]`
+- `POST /api/environments/[id]/apply`, `GET /api/environments/[id]/sessions`
+- `POST /api/environments/check-ports`
+- Dockerfile: `GET/POST/DELETE /api/environments/[id]/dockerfile`
+
+**Network Filtering (9)**
+- Config: `GET/PUT /api/environments/[id]/network-filter`, `POST .../test`
+- Rules: `GET/POST /api/environments/[id]/network-rules`, `PUT/DELETE .../[ruleId]`
+- Templates: `GET .../templates`, `POST .../templates/apply`
+
+**GitHub PAT (5)**
+- `GET/POST /api/github-pat`, `PATCH/DELETE /api/github-pat/[id]`, `POST /api/github-pat/[id]/toggle`
+
+**SSH Keys (3)**
+- `GET/POST /api/ssh-keys`, `DELETE /api/ssh-keys/[id]`
+
+**Developer Settings (5)**
+- `GET/PUT /api/developer-settings/global`
+- `GET/PUT/DELETE /api/developer-settings/project/[projectId]`
+
+**Docker (3)**
+- `GET /api/docker/images|volumes`, `POST /api/docker/image-build`
+
+### DB Schema (11 tables)
+
+| Table | Key Columns | 説明 |
+|-------|-------------|------|
+| Project | id, name, path, remote_url, clone_location, environment_id | プロジェクト管理 |
+| ExecutionEnvironment | id, name, type(HOST/DOCKER/SSH), config, auth_dir_path | 実行環境定義 |
+| Session | id, project_id, name, status, worktree_path, branch_name, environment_id, session_state | セッション管理 |
+| Message | id, session_id, role, content, sub_agents | チャット履歴 |
+| Prompt | id, content, used_count, last_used_at | プロンプト履歴 |
+| RunScript | id, project_id, name, command | カスタムスクリプト |
+| GitHubPAT | id, name, encrypted_token, is_active | GitHub PAT管理 |
+| DeveloperSettings | id, scope(GLOBAL/PROJECT), project_id, git_username, git_email | Git設定 |
+| NetworkFilterConfig | id, environment_id, enabled | ネットワークフィルタ設定 |
+| NetworkFilterRule | id, environment_id, target, port, description, enabled | フィルタルール |
+| SshKey | id, name, public_key, private_key_encrypted | SSH鍵管理 |
+
+### WebSocket Endpoints (3)
+
+| Path | Handler | 用途 |
+|------|---------|------|
+| `/ws/claude/:sessionId` | setupClaudeWebSocket | Claude Code PTYターミナル (raw I/O) |
+| `/ws/sessions/:sessionId` | SessionWebSocketHandler | セッションイベント・スクリプト実行 |
+| `/ws/terminal/:sessionId` | setupTerminalWebSocket | シェルターミナル |
+
+### Services (27 + 3 adapters)
+
+**Core Services:**
+- `pty-session-manager.ts` - Session-to-adapter mapping, Claude PTYライフサイクル管理
+- `process-lifecycle-manager.ts` - アイドルタイムアウト、graceful shutdown
+- `environment-service.ts` - ExecutionEnvironment CRUD・ライフサイクル
+- `adapter-factory.ts` - 環境タイプに応じたAdapter生成 (Host/Docker)
+- `scrollback-buffer.ts` - ターミナル出力バッファ (再接続時の復元用)
+- `run-script-manager.ts` - カスタムスクリプト実行
+
+**Git:**
+- `git-service.ts` - Worktree作成/削除、rebase、squash merge、diff
+- `docker-git-service.ts` - Docker volume内のGit操作
+- `gh-cli.ts` - GitHub CLI wrapper (PR作成・ステータス)
+
+**Docker:**
+- `docker-service.ts` - イメージ、コンテナ、ボリューム管理
+- `docker-client.ts` - Dockerode singleton client
+- `docker-pty-adapter.ts` - DockerコンテナでのClaude PTY実行
+- `docker-pty-stream.ts` - Docker PTY I/Oストリーム管理
+
+**Security:**
+- `encryption-service.ts` - AES-256-GCM暗号化/復号
+- `github-pat-service.ts` - GitHub PAT CRUD + 暗号化
+- `ssh-key-service.ts` - SSH鍵 CRUD + 暗号化
+- `auth-directory-manager.ts` - Docker環境の認証ディレクトリ管理
+- `network-filter-service.ts` - ネットワークフィルタリングルールCRUD
+- `proxy-client.ts` - network-filter-proxy API client
+
+**Adapters (src/services/adapters/):**
+- `base-adapter.ts` - EnvironmentAdapter基底クラス
+- `host-adapter.ts` - HOST環境 (ローカル実行)
+- `docker-adapter.ts` - DOCKER環境 (コンテナ実行)
+
+### Environment Variables
+
+**必須:**
+- `DATABASE_URL` - SQLite DB URL (Docker Compose: `file:/data/claudework.db`)
+
+**主要オプション:**
+- `PORT` (3000), `NODE_ENV`, `LOG_LEVEL` (info), `DATA_DIR` (./data)
+- `CLAUDE_CODE_PATH` - Claude CLIパス (自動検出)
+- `ENCRYPTION_KEY` - AES-256-GCM暗号化キー (Base64)
+- `ALLOWED_ORIGINS` - CORS許可オリジン (カンマ区切り)
+- `ALLOWED_PROJECT_DIRS` - プロジェクトディレクトリ制限
+- `ALLOW_HOST_ENVIRONMENT` - HOST実行環境許可
+- `PROCESS_IDLE_TIMEOUT_MINUTES` (0=無効) - アイドルプロセス自動停止
+- `PROXY_API_URL` - network-filter-proxy API URL
+- `DOCKER_IMAGE_NAME`, `DOCKER_IMAGE_TAG` - Docker環境イメージ設定
