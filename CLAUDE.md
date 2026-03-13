@@ -653,9 +653,9 @@ describe('Connection management', () => {
 | `/ws/sessions/:sessionId` | SessionWebSocketHandler | セッションイベント・スクリプト実行 |
 | `/ws/terminal/:sessionId` | setupTerminalWebSocket | シェルターミナル |
 
-### Services (27 + 3 adapters)
+### Services (19 + 3 adapters)
 
-**Core Services:**
+**Core Services (6):**
 - `pty-session-manager.ts` - Session-to-adapter mapping, Claude PTYライフサイクル管理
 - `process-lifecycle-manager.ts` - アイドルタイムアウト、graceful shutdown
 - `environment-service.ts` - ExecutionEnvironment CRUD・ライフサイクル
@@ -663,18 +663,18 @@ describe('Connection management', () => {
 - `scrollback-buffer.ts` - ターミナル出力バッファ (再接続時の復元用)
 - `run-script-manager.ts` - カスタムスクリプト実行
 
-**Git:**
+**Git (3):**
 - `git-service.ts` - Worktree作成/削除、rebase、squash merge、diff
 - `docker-git-service.ts` - Docker volume内のGit操作
 - `gh-cli.ts` - GitHub CLI wrapper (PR作成・ステータス)
 
-**Docker:**
+**Docker (4):**
 - `docker-service.ts` - イメージ、コンテナ、ボリューム管理
 - `docker-client.ts` - Dockerode singleton client
 - `docker-pty-adapter.ts` - DockerコンテナでのClaude PTY実行
 - `docker-pty-stream.ts` - Docker PTY I/Oストリーム管理
 
-**Security:**
+**Security (6):**
 - `encryption-service.ts` - AES-256-GCM暗号化/復号
 - `github-pat-service.ts` - GitHub PAT CRUD + 暗号化
 - `ssh-key-service.ts` - SSH鍵 CRUD + 暗号化
@@ -682,7 +682,7 @@ describe('Connection management', () => {
 - `network-filter-service.ts` - ネットワークフィルタリングルールCRUD
 - `proxy-client.ts` - network-filter-proxy API client
 
-**Adapters (src/services/adapters/):**
+**Adapters (3, src/services/adapters/):**
 - `base-adapter.ts` - EnvironmentAdapter基底クラス
 - `host-adapter.ts` - HOST環境 (ローカル実行)
 - `docker-adapter.ts` - DOCKER環境 (コンテナ実行)
