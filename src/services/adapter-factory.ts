@@ -91,6 +91,16 @@ export class AdapterFactory {
   }
 
   /**
+   * 環境IDでキャッシュ済みのDockerAdapterを取得する
+   *
+   * ルール変更時のproxy同期など、環境IDのみが手元にある場面で使用する。
+   * まだキャッシュされていない（セッションが未起動の）場合はnullを返す。
+   */
+  static getDockerAdapterForEnvironment(environmentId: string): DockerAdapter | null {
+    return this.dockerAdapters.get(environmentId) ?? null;
+  }
+
+  /**
    * キャッシュされたDockerAdapterを削除
    */
   static removeDockerAdapter(environmentId: string): void {

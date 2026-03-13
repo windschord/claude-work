@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { networkFilterService } from '@/services/network-filter-service';
 import { logger } from '@/lib/logger';
+import { syncProxyRulesIfNeeded } from '@/lib/proxy-sync';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -14,15 +15,17 @@ interface RouteParams {
  * - 500: サーバーエラー
  */
 export async function GET(request: NextRequest, { params }: RouteParams) {
+  const { id } = await params;
   try {
-    const { id } = await params;
+    if (!id || id.trim() === '') {
+      return NextResponse.json({ error: 'Environment id is required' }, { status: 400 });
+    }
 
     const config = await networkFilterService.getFilterConfig(id);
 
     // 未設定時はconfig: nullを返す（フロントエンド側でnullチェックする）
     return NextResponse.json({ config: config ?? null });
   } catch (error) {
-    const { id } = await params;
     logger.error('Failed to get filter config', { error, id });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
@@ -40,8 +43,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
  * - 500: サーバーエラー
  */
 export async function PUT(request: NextRequest, { params }: RouteParams) {
+  const { id } = await params;
   try {
-    const { id } = await params;
+    if (!id || id.trim() === '') {
+      return NextResponse.json({ error: 'Environment id is required' }, { status: 400 });
+    }
 
     let body: unknown;
     try {
@@ -65,11 +71,11 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     const config = await networkFilterService.updateFilterConfig(id, enabled);
+    void syncProxyRulesIfNeeded(id);
 
     logger.info('Filter config updated', { environmentId: id, enabled });
     return NextResponse.json({ config });
   } catch (error) {
-    const { id } = await params;
     logger.error('Failed to update filter config', { error, id });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

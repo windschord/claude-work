@@ -32,6 +32,13 @@ services:
       - COMPOSE_PROJECT=${COMPOSE_PROJECT_NAME:-claudework}
       # Docker環境内でもHOST環境を使用する場合はコメントを外す
       # - ALLOW_HOST_ENVIRONMENT=true
+      # network-filter-proxy Management API URL
+      - PROXY_API_URL=http://network-filter-proxy:8080
+      # Claudeコンテナを接続するinternalネットワーク名
+      - PROXY_NETWORK_NAME=${PROXY_NETWORK_NAME:-claudework-filter}
+    depends_on:
+      network-filter-proxy:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "node", "scripts/healthcheck.js"]
@@ -40,5 +47,36 @@ services:
       retries: 3
       start_period: 60s
 
+  network-filter-proxy:
+    image: ghcr.io/windschord/network-filter-proxy:v0.1.0-rc.2
+    container_name: claudework-filter-proxy
+    networks:
+      - default
+      - claudework-filter
+    environment:
+      # 既知のセキュリティ制約: API_BIND_ADDR=0.0.0.0 により Management API (8080) が
+      # claudework-filter ネットワーク側からも到達可能。Claudeコンテナが自身のルールを
+      # 変更してフィルタをバイパスできる可能性がある。
+      # 対策: upstream側でバインドアドレス制限またはトークン認証を追加予定。
+      # 詳細: docs/sdd/design/network-filtering/components/docker-compose-proxy.md
+      - API_BIND_ADDR=0.0.0.0
+      - LOG_LEVEL=${FILTER_LOG_LEVEL:-info}
+      - LOG_FORMAT=json
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/filter-proxy", "healthcheck"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
 volumes:
   claudework-data:
+
+networks:
+  claudework-filter:
+    internal: true
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
