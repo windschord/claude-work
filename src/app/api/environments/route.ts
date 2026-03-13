@@ -339,15 +339,23 @@ export async function POST(request: NextRequest) {
           const allRules = templates.flatMap(t => t.rules);
           const applyResult = await networkFilterService.applyTemplates(environment.id, allRules);
           if (applyResult.created > 0) {
-            await networkFilterService.updateFilterConfig(environment.id, true);
-            logger.info('Default network filtering rules applied', { id: environment.id, createdCount: applyResult.created });
+            try {
+              await networkFilterService.updateFilterConfig(environment.id, true);
+              logger.info('Default network filtering rules applied', { id: environment.id, createdCount: applyResult.created });
+            } catch (enableError) {
+              logger.warn('Default rules applied but failed to enable filtering', {
+                environmentId: environment.id,
+                createdCount: applyResult.created,
+                error: enableError,
+              });
+            }
           } else {
             logger.warn('Skip enabling network filtering because no rules were applied', {
               environmentId: environment.id,
             });
           }
         } catch (filterError) {
-          logger.warn('Failed to initialize default network filtering', {
+          logger.warn('Failed to apply default network filtering rules', {
             environmentId: environment.id,
             error: filterError,
           });

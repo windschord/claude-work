@@ -773,6 +773,40 @@ describe('/api/environments', () => {
         expect(mockUpdateFilterConfig).not.toHaveBeenCalled();
       });
 
+      it('updateFilterConfig失敗時もルール適用済みで201を返す（部分成功）', async () => {
+        const newEnvironment = {
+          id: 'env-docker-partial',
+          name: 'Docker Partial',
+          type: 'DOCKER',
+          description: null,
+          config: '{}',
+          auth_dir_path: null,
+          created_at: new Date(),
+          updated_at: new Date(),
+        };
+
+        mockCreate.mockResolvedValue(newEnvironment);
+        mockCreateConfigVolumes.mockResolvedValue(undefined);
+        mockGetDefaultTemplates.mockReturnValue(defaultTemplates);
+        mockApplyTemplates.mockResolvedValue({ created: 3, skipped: 0, rules: [] });
+        mockUpdateFilterConfig.mockRejectedValue(new Error('Config update failed'));
+
+        const request = new NextRequest('http://localhost:3000/api/environments', {
+          method: 'POST',
+          body: JSON.stringify({ name: 'Docker Partial', type: 'DOCKER', config: {} }),
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        const response = await POST(request);
+        const data = await response.json();
+
+        // 環境作成自体は成功する（ルール適用済み・有効化未完了の部分成功）
+        expect(response.status).toBe(201);
+        expect(data.environment.id).toBe('env-docker-partial');
+        expect(mockApplyTemplates).toHaveBeenCalledTimes(1);
+        expect(mockUpdateFilterConfig).toHaveBeenCalledTimes(1);
+      });
+
       it('テンプレート適用が0件の場合はフィルタリング有効化をスキップする', async () => {
         const newEnvironment = {
           id: 'env-docker-zero-rules',
