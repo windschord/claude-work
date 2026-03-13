@@ -132,6 +132,16 @@ describe('ProxyClient', () => {
         .rejects.toThrow(ProxyValidationError);
     });
 
+    it('4xxエラー時にリトライせずエラーをスローする', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        new Response('Not Found', { status: 404 })
+      );
+
+      await expect(client.setRules('172.20.0.3', [])).rejects.toThrow(ProxyValidationError);
+      // 4xxはリトライしない - 1回のみ呼ばれる
+      expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
     it('接続失敗時にリトライし、最終的にProxyConnectionErrorをスローする', async () => {
       // バックオフ待機を即座に解決させてテスト時間を短縮
       const originalSetTimeout = globalThis.setTimeout;
@@ -147,7 +157,7 @@ describe('ProxyClient', () => {
         // 3回試行（初回 + 2回リトライ）
         expect(fetch).toHaveBeenCalledTimes(3);
       } finally {
-        vi.stubGlobal('setTimeout', originalSetTimeout);
+        vi.unstubAllGlobals();
       }
     });
   });

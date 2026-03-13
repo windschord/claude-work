@@ -300,6 +300,13 @@ export class DockerAdapter extends BasePTYAdapter {
     let networkMode: string | undefined;
     if (options?.filterEnabled) {
       networkMode = process.env.PROXY_NETWORK_NAME || 'claudework-filter';
+      // Remove existing proxy env vars to prevent duplicates from customEnvVars
+      for (let i = Env.length - 1; i >= 0; i--) {
+        const key = Env[i].split('=', 1)[0];
+        if (/^(HTTP_PROXY|HTTPS_PROXY|ALL_PROXY|http_proxy|https_proxy|all_proxy)$/.test(key)) {
+          Env.splice(i, 1);
+        }
+      }
       Env.push('HTTP_PROXY=http://network-filter-proxy:3128');
       Env.push('HTTPS_PROXY=http://network-filter-proxy:3128');
     }
@@ -723,6 +730,7 @@ export class DockerAdapter extends BasePTYAdapter {
 
     let container: Docker.Container | undefined;
     let ptyProcess: DockerPTYStream | undefined;
+    let containerIP: string | undefined;
     try {
       container = await DockerClient.getInstance().createContainer(createOptions);
 
@@ -751,7 +759,6 @@ export class DockerAdapter extends BasePTYAdapter {
       await container.start();
 
       // フィルタリング有効時: proxyヘルスチェック、コンテナIP取得、ルール同期
-      let containerIP: string | undefined;
       if (filterEnabled) {
         const proxyClient = new ProxyClient();
         // proxyヘルスチェック失敗時はセッション作成エラー（フェイルセーフ）
@@ -937,6 +944,19 @@ export class DockerAdapter extends BasePTYAdapter {
       try { ptyProcess?.kill(); } catch { /* ignore */ }
       try { await container?.remove({ force: true }); } catch { /* ignore */ }
       this.cleanupSSHKeys().catch(() => { /* ignore */ });
+      if (containerIP) {
+        try {
+          const proxyClient = new ProxyClient();
+          await proxyClient.deleteRules(containerIP);
+          logger.info('DockerAdapter: Proxy rules cleaned up on createSession failure', { sessionId, containerIP });
+        } catch (cleanupError) {
+          logger.warn('DockerAdapter: Failed to cleanup proxy rules on createSession failure', {
+            sessionId,
+            containerIP,
+            error: cleanupError instanceof Error ? cleanupError.message : 'Unknown error',
+          });
+        }
+      }
 
       logger.error('DockerAdapter: Failed to create session', {
         sessionId,

@@ -57,6 +57,11 @@ services:
       - default
       - claudework-filter
     environment:
+      # 既知のセキュリティ制約: API_BIND_ADDR=0.0.0.0 により Management API (8080) が
+      # claudework-filter ネットワーク側からも到達可能。Claudeコンテナが自身のルールを
+      # 変更してフィルタをバイパスできる可能性がある。
+      # 対策: upstream側でバインドアドレス制限またはトークン認証を追加予定。
+      # 詳細: docs/sdd/design/network-filtering/components/docker-compose-proxy.md
       - API_BIND_ADDR=0.0.0.0
       - LOG_LEVEL=${FILTER_LOG_LEVEL:-info}
       - LOG_FORMAT=json

@@ -119,14 +119,14 @@ syncRulesForContainerの処理フロー:
 
 ## 受入基準
 
-- [ ] `src/services/proxy-client.ts` が存在する
-- [ ] TypeScriptの型定義（ProxyHealthStatus, ProxyRuleEntry等）がexportされている
-- [ ] ProxyConnectionError, ProxyValidationErrorがexportされている
-- [ ] ヘルスチェック、ルールCRUDが実装されている（ルール同期はsrc/lib/proxy-sync.tsに配置）
-- [ ] リトライロジック（指数バックオフ）が実装されている
-- [ ] テストが8つ以上ある
-- [ ] `npm test -- src/services/__tests__/proxy-client.test.ts` で全テスト通過
-- [ ] ESLintエラーがゼロ
+- [x] `src/services/proxy-client.ts` が存在する
+- [x] TypeScriptの型定義（ProxyHealthStatus, ProxyRuleEntry等）がexportされている
+- [x] ProxyConnectionError, ProxyValidationErrorがexportされている
+- [x] ヘルスチェック、ルールCRUDが実装されている（ルール同期はsrc/lib/proxy-sync.tsに配置）
+- [x] リトライロジック（指数バックオフ）が実装されている
+- [x] テストが8つ以上ある
+- [x] `npm test -- src/services/__tests__/proxy-client.test.ts` で全テスト通過
+- [x] ESLintエラーがゼロ
 
 ## 依存関係
 

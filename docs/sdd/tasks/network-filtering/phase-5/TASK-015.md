@@ -93,13 +93,13 @@ networks:
 
 ## 受入基準
 
-- [ ] `docker-compose.yml` に `network-filter-proxy` サービスが定義されている
-- [ ] `claudework-filter` ネットワークが `internal: true` で定義されている
-- [ ] `network-filter-proxy` が `default` と `claudework-filter` の両方のネットワークに接続されている
-- [ ] `app` サービスに `PROXY_API_URL` と `PROXY_NETWORK_NAME` 環境変数が追加されている
-- [ ] `app` サービスに `depends_on` が追加されている
-- [ ] `docs/ENV_VARS.md` に新規環境変数が記載されている
-- [ ] `docker compose config` でバリデーションが通る（Docker環境がある場合）
+- [x] `docker-compose.yml` に `network-filter-proxy` サービスが定義されている
+- [x] `claudework-filter` ネットワークが `internal: true` で定義されている
+- [x] `network-filter-proxy` が `default` と `claudework-filter` の両方のネットワークに接続されている
+- [x] `app` サービスに `PROXY_API_URL` と `PROXY_NETWORK_NAME` 環境変数が追加されている
+- [x] `app` サービスに `depends_on` が追加されている
+- [x] `docs/ENV_VARS.md` に新規環境変数が記載されている
+- [x] `docker compose config` でバリデーションが通る（Docker環境がある場合）
 
 ## 依存関係
 

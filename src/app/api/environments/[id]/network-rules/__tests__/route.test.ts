@@ -38,6 +38,14 @@ vi.mock('@/lib/logger', () => ({
   },
 }));
 
+const { mockSyncProxyRulesIfNeeded } = vi.hoisted(() => ({
+  mockSyncProxyRulesIfNeeded: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('@/lib/proxy-sync', () => ({
+  syncProxyRulesIfNeeded: (environmentId: string) => mockSyncProxyRulesIfNeeded(environmentId),
+}));
+
 // GET・POST は network-rules/route.ts からインポート
 // PUT・DELETE は network-rules/[ruleId]/route.ts からインポート
 import { GET, POST } from '../route';
@@ -154,6 +162,22 @@ describe('/api/environments/[id]/network-rules', () => {
       expect(response.status).toBe(400);
       expect(data.error).toBeTruthy();
     });
+
+    it('作成成功時にsyncProxyRulesIfNeededを呼び出す', async () => {
+      mockCreateRule.mockResolvedValue(baseRule);
+
+      const request = new NextRequest(
+        'http://localhost:3000/api/environments/env-uuid/network-rules',
+        {
+          method: 'POST',
+          body: JSON.stringify({ target: '*.github.com', port: 443, description: 'GitHub' }),
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+      await POST(request, { params: Promise.resolve({ id: 'env-uuid' }) });
+
+      expect(mockSyncProxyRulesIfNeeded).toHaveBeenCalledWith('env-uuid');
+    });
   });
 
   // ==================== PUT /api/environments/[id]/network-rules/[ruleId] ====================
@@ -203,6 +227,25 @@ describe('/api/environments/[id]/network-rules', () => {
       expect(response.status).toBe(404);
       expect(data.error).toBe('Rule not found');
     });
+
+    it('更新成功時にsyncProxyRulesIfNeededを呼び出す', async () => {
+      const updatedRule = { ...baseRule, target: 'api.anthropic.com' };
+      mockUpdateRule.mockResolvedValue(updatedRule);
+
+      const request = new NextRequest(
+        'http://localhost:3000/api/environments/env-uuid/network-rules/rule-uuid',
+        {
+          method: 'PUT',
+          body: JSON.stringify({ target: 'api.anthropic.com' }),
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+      await PUT(request, {
+        params: Promise.resolve({ id: 'env-uuid', ruleId: 'rule-uuid' }),
+      });
+
+      expect(mockSyncProxyRulesIfNeeded).toHaveBeenCalledWith('env-uuid');
+    });
   });
 
   // ==================== DELETE /api/environments/[id]/network-rules/[ruleId] ====================
@@ -237,6 +280,20 @@ describe('/api/environments/[id]/network-rules', () => {
 
       expect(response.status).toBe(404);
       expect(data.error).toBe('Rule not found');
+    });
+
+    it('削除成功時にsyncProxyRulesIfNeededを呼び出す', async () => {
+      mockDeleteRule.mockResolvedValue(undefined);
+
+      const request = new NextRequest(
+        'http://localhost:3000/api/environments/env-uuid/network-rules/rule-uuid',
+        { method: 'DELETE' }
+      );
+      await DELETE(request, {
+        params: Promise.resolve({ id: 'env-uuid', ruleId: 'rule-uuid' }),
+      });
+
+      expect(mockSyncProxyRulesIfNeeded).toHaveBeenCalledWith('env-uuid');
     });
   });
 });

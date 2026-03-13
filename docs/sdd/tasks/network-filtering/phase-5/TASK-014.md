@@ -73,13 +73,13 @@ NetworkFilterServiceからDNS解決関連の機能を削除し、コードを簡
 
 ## 受入基準
 
-- [ ] `dns` importが削除されている
-- [ ] `resolveDomains`, `resolveWildcardDomain`, `resolveWithCache`, `clearExpiredCache` メソッドが存在しない
-- [ ] DNS関連定数（COMMON_SUBDOMAINS等）が存在しない
-- [ ] `network-filter-service-dns.test.ts` が削除されている
-- [ ] CRUD、バリデーション、テンプレート、testConnection機能は正常動作
-- [ ] `npm test -- src/services/__tests__/network-filter-service.test.ts` で全テスト通過
-- [ ] ESLintエラーがゼロ
+- [x] `dns` importが削除されている
+- [x] `resolveDomains`, `resolveWildcardDomain`, `resolveWithCache`, `clearExpiredCache` メソッドが存在しない
+- [x] DNS関連定数（COMMON_SUBDOMAINS等）が存在しない
+- [x] `network-filter-service-dns.test.ts` が削除されている
+- [x] CRUD、バリデーション、テンプレート、testConnection機能は正常動作
+- [x] `npm test -- src/services/__tests__/network-filter-service.test.ts` で全テスト通過
+- [x] ESLintエラーがゼロ
 
 ## 依存関係
 

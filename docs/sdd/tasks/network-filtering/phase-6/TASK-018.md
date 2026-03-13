@@ -91,13 +91,13 @@ interface TestResult {
 
 ## 受入基準
 
-- [ ] proxy稼働時はproxyStatus: 'running'が返される
-- [ ] proxy未稼働時はproxyStatus: 'not_running'でdry-run結果にフォールバック
-- [ ] 既存のdry-runマッチングロジックが保持されている
-- [ ] TestResult型にproxyStatusが追加されている
-- [ ] テストが4つ以上
-- [ ] 既存テストが壊れていない
-- [ ] ESLintエラーがゼロ
+- [x] proxy稼働時はproxyStatus: 'running'が返される
+- [x] proxy未稼働時はproxyStatus: 'not_running'でdry-run結果にフォールバック
+- [x] 既存のdry-runマッチングロジックが保持されている
+- [x] TestResult型にproxyStatusが追加されている
+- [x] テストが4つ以上
+- [x] 既存テストが壊れていない
+- [x] ESLintエラーがゼロ
 
 ## 依存関係
 

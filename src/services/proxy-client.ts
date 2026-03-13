@@ -171,6 +171,12 @@ export class ProxyClient {
         throw new ProxyValidationError('ルールのバリデーションに失敗しました', details);
       }
 
+      if (response.status >= 400 && response.status < 500) {
+        throw new ProxyValidationError(
+          `proxyがクライアントエラーを返しました: HTTP ${response.status}`
+        );
+      }
+
       if (!response.ok) {
         throw new ProxyConnectionError(
           `proxyがエラーを返しました: HTTP ${response.status}`
@@ -203,6 +209,12 @@ export class ProxyClient {
         );
       }
 
+      if (response.status >= 400 && response.status < 500) {
+        throw new ProxyValidationError(
+          `proxyがクライアントエラーを返しました: HTTP ${response.status}`
+        );
+      }
+
       if (!response.ok) {
         throw new ProxyConnectionError(
           `proxyがエラーを返しました: HTTP ${response.status}`
@@ -227,6 +239,12 @@ export class ProxyClient {
         throw new ProxyConnectionError(
           'proxyに接続できません',
           err instanceof Error ? err : new Error(String(err))
+        );
+      }
+
+      if (response.status >= 400 && response.status < 500) {
+        throw new ProxyValidationError(
+          `proxyがクライアントエラーを返しました: HTTP ${response.status}`
         );
       }
 
