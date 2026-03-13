@@ -531,6 +531,9 @@ describe('Connection management', () => {
 
 ## Feature Specification Summary
 
+> **Note**: このセクションの件数は手動管理です。API/サービス追加時は件数も更新してください。
+> 生成元: `src/app/api/` (routes), `src/db/schema.ts` (tables), `src/services/` (services), `server.ts` (WebSocket)
+
 ### API Endpoints (76 routes)
 
 **Health & Settings (3)**
@@ -574,7 +577,7 @@ describe('Connection management', () => {
 - `GET /api/sessions/[id]/commits` - コミット一覧
 - `GET /api/sessions/[id]/diff` - diff取得
 - `POST /api/sessions/[id]/run` - スクリプト実行
-- `POST /api/sessions/[id]/run/[run_id]/stop` - スクリプト停止
+- `POST /api/sessions/[id]/run/[runId]/stop` - スクリプト停止
 
 **Prompts (3)**
 - `GET /api/prompts` - 一覧
