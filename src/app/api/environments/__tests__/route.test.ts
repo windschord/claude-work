@@ -649,9 +649,11 @@ describe('/api/environments', () => {
         expect(mockUpdateFilterConfig).toHaveBeenCalledTimes(1);
         expect(mockUpdateFilterConfig).toHaveBeenCalledWith('env-docker-filter', true);
 
-        // 呼び出し順序の検証: applyTemplates -> updateFilterConfig
+        // 呼び出し順序の検証: createConfigVolumes -> applyTemplates -> updateFilterConfig
+        const volumeOrder = mockCreateConfigVolumes.mock.invocationCallOrder[0];
         const applyOrder = mockApplyTemplates.mock.invocationCallOrder[0];
         const configOrder = mockUpdateFilterConfig.mock.invocationCallOrder[0];
+        expect(volumeOrder).toBeLessThan(applyOrder);
         expect(applyOrder).toBeLessThan(configOrder);
       });
 
