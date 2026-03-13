@@ -766,6 +766,38 @@ describe('/api/environments', () => {
         expect(mockApplyTemplates).toHaveBeenCalledTimes(1);
         expect(mockUpdateFilterConfig).not.toHaveBeenCalled();
       });
+
+      it('テンプレート適用が0件の場合はフィルタリング有効化をスキップする', async () => {
+        const newEnvironment = {
+          id: 'env-docker-zero-rules',
+          name: 'Docker Zero Rules',
+          type: 'DOCKER',
+          description: null,
+          config: '{}',
+          auth_dir_path: null,
+          created_at: new Date(),
+          updated_at: new Date(),
+        };
+
+        mockCreate.mockResolvedValue(newEnvironment);
+        mockCreateConfigVolumes.mockResolvedValue(undefined);
+        mockGetDefaultTemplates.mockReturnValue(defaultTemplates);
+        // 全件スキップ（既に同一ルールが存在するケース）
+        mockApplyTemplates.mockResolvedValue({ created: 0, skipped: 3, rules: [] });
+
+        const request = new NextRequest('http://localhost:3000/api/environments', {
+          method: 'POST',
+          body: JSON.stringify({ name: 'Docker Zero Rules', type: 'DOCKER', config: {} }),
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        const response = await POST(request);
+        expect(response.status).toBe(201);
+
+        // applyTemplatesは呼ばれるが、created=0なのでupdateFilterConfigは呼ばれない
+        expect(mockApplyTemplates).toHaveBeenCalledTimes(1);
+        expect(mockUpdateFilterConfig).not.toHaveBeenCalled();
+      });
     });
 
     describe('Dockerfile自動ビルド（imageSource=dockerfile）', () => {
