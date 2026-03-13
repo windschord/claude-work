@@ -66,12 +66,15 @@ services:
       - LOG_LEVEL=${FILTER_LOG_LEVEL:-info}
       - LOG_FORMAT=json
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "/filter-proxy", "healthcheck"]
-      interval: 15s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
+    # healthcheckサブコマンドはupstream対応待ち
+    # (https://github.com/windschord/network-filter-proxy/issues/6)
+    # 対応後に以下を有効化:
+    # healthcheck:
+    #   test: ["CMD", "/filter-proxy", "healthcheck"]
+    #   interval: 15s
+    #   timeout: 5s
+    #   retries: 3
+    #   start_period: 10s
 
 volumes:
   claudework-data:

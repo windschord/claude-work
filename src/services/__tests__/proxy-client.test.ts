@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import {
   ProxyClient,
@@ -17,6 +17,10 @@ describe('ProxyClient', () => {
     client = new ProxyClient(BASE_URL);
     vi.resetAllMocks();
     vi.stubGlobal('fetch', vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   // ==================== healthCheck ====================
