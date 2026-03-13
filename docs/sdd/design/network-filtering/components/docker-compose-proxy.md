@@ -13,7 +13,7 @@
 ## 情報の明確性
 
 ### 明示された情報
-- [x] ghcr.io/windschord/network-filter-proxyプレビルドイメージを使用
+- [x] ghcr.io/windschord/network-filter-proxy:v0.1.0-rc.2 プレビルドイメージを使用
 - [x] Docker internalネットワークでClaudeコンテナの直接egressを防止
 - [x] API_BIND_ADDR環境変数でManagement APIを0.0.0.0バインド
 
