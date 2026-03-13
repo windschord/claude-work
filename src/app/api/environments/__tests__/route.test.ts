@@ -81,6 +81,10 @@ const ALLOWED_BASE_DIR = path.resolve(process.cwd(), 'data', 'environments');
 describe('/api/environments', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // networkFilterServiceモックのデフォルト値（DOCKER系テストでflatMap例外を防止）
+    mockGetDefaultTemplates.mockReturnValue([]);
+    mockApplyTemplates.mockResolvedValue({ created: 0, skipped: 0, rules: [] });
+    mockUpdateFilterConfig.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
