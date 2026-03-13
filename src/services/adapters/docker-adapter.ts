@@ -307,8 +307,9 @@ export class DockerAdapter extends BasePTYAdapter {
           Env.splice(i, 1);
         }
       }
-      Env.push('HTTP_PROXY=http://network-filter-proxy:3128');
-      Env.push('HTTPS_PROXY=http://network-filter-proxy:3128');
+      const proxyListenUrl = process.env.PROXY_LISTEN_URL || 'http://network-filter-proxy:3128';
+      Env.push(`HTTP_PROXY=${proxyListenUrl}`);
+      Env.push(`HTTPS_PROXY=${proxyListenUrl}`);
     }
 
     const createOptions: Docker.ContainerCreateOptions = {
@@ -877,22 +878,6 @@ export class DockerAdapter extends BasePTYAdapter {
 
         this.emit('exit', sessionId, { exitCode, signal } as PTYExitInfo);
 
-        // フィルタリングルールのクリーンアップ（クリーンアップ失敗は警告のみ、コンテナ停止を妨げない）
-        const exitingContainerIP = currentSession.containerIP;
-        if (exitingContainerIP) {
-          try {
-            const proxyClient = new ProxyClient();
-            await proxyClient.deleteRules(exitingContainerIP);
-            logger.info('DockerAdapter: Proxy rules cleaned up on exit', { sessionId, containerIP: exitingContainerIP });
-          } catch (error) {
-            logger.warn('DockerAdapter: Failed to cleanup proxy rules on exit', {
-              sessionId,
-              containerIP: exitingContainerIP,
-              error: error instanceof Error ? error.message : 'Unknown error',
-            });
-          }
-        }
-
         this.sessions.delete(sessionId);
 
         // PTY終了時にコンテナがまだ実行中なら停止
@@ -923,6 +908,22 @@ export class DockerAdapter extends BasePTYAdapter {
             sessionId,
             containerName,
           });
+        }
+
+        // フィルタリングルールのクリーンアップ（コンテナ停止後にbest-effort、ブロックしない）
+        const exitingContainerIP = currentSession.containerIP;
+        if (exitingContainerIP) {
+          void new ProxyClient().deleteRules(exitingContainerIP)
+            .then(() => {
+              logger.info('DockerAdapter: Proxy rules cleaned up on exit', { sessionId, containerIP: exitingContainerIP });
+            })
+            .catch((error: unknown) => {
+              logger.warn('DockerAdapter: Failed to cleanup proxy rules on exit', {
+                sessionId,
+                containerIP: exitingContainerIP,
+                error: error instanceof Error ? error.message : 'Unknown error',
+              });
+            });
         }
 
       });
@@ -1001,21 +1002,6 @@ export class DockerAdapter extends BasePTYAdapter {
       this.sessions.delete(sessionId);
       session.ptyProcess.kill();
 
-      // フィルタリングルールのクリーンアップ（クリーンアップ失敗は警告のみ、コンテナ停止を妨げない）
-      if (containerIP) {
-        try {
-          const proxyClient = new ProxyClient();
-          await proxyClient.deleteRules(containerIP);
-          logger.info('DockerAdapter: Proxy rules cleaned up', { sessionId, containerIP });
-        } catch (error) {
-          logger.warn('DockerAdapter: Failed to cleanup proxy rules', {
-            sessionId,
-            containerIP,
-            error: error instanceof Error ? error.message : 'Unknown error',
-          });
-        }
-      }
-
       // Dockerコンテナを明示的に停止（shellModeではコンテナを止めない）
       let containerStopped = true;
       if (!shellMode) {
@@ -1044,6 +1030,21 @@ export class DockerAdapter extends BasePTYAdapter {
           sessionId,
           containerId,
         });
+      }
+
+      // フィルタリングルールのクリーンアップ（コンテナ停止後にbest-effort、ブロックしない）
+      if (containerIP) {
+        void new ProxyClient().deleteRules(containerIP)
+          .then(() => {
+            logger.info('DockerAdapter: Proxy rules cleaned up', { sessionId, containerIP });
+          })
+          .catch((error: unknown) => {
+            logger.warn('DockerAdapter: Failed to cleanup proxy rules', {
+              sessionId,
+              containerIP,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            });
+          });
       }
     }
   }

@@ -44,7 +44,7 @@ async testConnection(environmentId: string, target: string, port?: number): Prom
     // proxy稼働確認成功: dry-run（ルールマッチング）結果を返しつつ、
     //   proxyの稼働状態をnoteとproxyStatusに含める
     // ※実際のproxy経由通信テストは行わない（dry-run + healthCheckの組み合わせ）
-    const dryRunResult = this.dryRunTest(environmentId, target, port);
+    const dryRunResult = await this.dryRunTest(environmentId, target, port);
     return {
       ...dryRunResult,
       note: 'proxy稼働中。ルールマッチング結果です。実際のproxy通信制御はコンテナ起動時に適用されます。',
