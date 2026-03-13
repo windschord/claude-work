@@ -531,14 +531,14 @@ describe('Connection management', () => {
 
 ## Feature Specification Summary
 
-### API Endpoints (77 routes)
+### API Endpoints (76 routes)
 
 **Health & Settings (3)**
 - `GET /api/health`
 - `GET /api/settings/config`
 - `PUT /api/settings/config`
 
-**Projects (17)**
+**Projects (15)**
 - `GET /api/projects` - 一覧
 - `POST /api/projects` - 作成
 - `GET /api/projects/[id]` - 詳細
@@ -555,7 +555,7 @@ describe('Connection management', () => {
 - `GET /api/projects/[id]/sessions` - セッション一覧
 - `POST /api/projects/[id]/sessions` - セッション作成
 
-**Sessions (18)**
+**Sessions (19)**
 - `GET /api/sessions/[id]` - 詳細
 - `PATCH /api/sessions/[id]` - 更新
 - `DELETE /api/sessions/[id]` - 削除
