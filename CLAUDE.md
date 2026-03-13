@@ -534,48 +534,100 @@ describe('Connection management', () => {
 ### API Endpoints (77 routes)
 
 **Health & Settings (3)**
-- `GET/PUT /api/settings/config`, `GET /api/health`
+- `GET /api/health`
+- `GET /api/settings/config`
+- `PUT /api/settings/config`
 
 **Projects (17)**
-- CRUD: `GET/POST /api/projects`, `GET/PATCH/PUT/DELETE /api/projects/[id]`
-- Git: `POST /api/projects/clone`, `POST /api/projects/[id]/pull`, `GET /api/projects/[id]/branches`
-- Scripts: `GET/POST /api/projects/[id]/scripts`, `PUT/DELETE /api/projects/[id]/scripts/[scriptId]`
-- Sessions: `GET/POST /api/projects/[id]/sessions`
+- `GET /api/projects` - 一覧
+- `POST /api/projects` - 作成
+- `GET /api/projects/[id]` - 詳細
+- `PATCH /api/projects/[id]` - 部分更新
+- `PUT /api/projects/[id]` - 全体更新
+- `DELETE /api/projects/[id]` - 削除
+- `POST /api/projects/clone` - リポジトリクローン
+- `POST /api/projects/[id]/pull` - git pull
+- `GET /api/projects/[id]/branches` - ブランチ一覧
+- `GET /api/projects/[id]/scripts` - スクリプト一覧
+- `POST /api/projects/[id]/scripts` - スクリプト作成
+- `PUT /api/projects/[id]/scripts/[scriptId]` - スクリプト更新
+- `DELETE /api/projects/[id]/scripts/[scriptId]` - スクリプト削除
+- `GET /api/projects/[id]/sessions` - セッション一覧
+- `POST /api/projects/[id]/sessions` - セッション作成
 
 **Sessions (18)**
-- CRUD: `GET/DELETE/PATCH /api/sessions/[id]`
-- Claude操作: `POST /api/sessions/[id]/input|approve|stop|resume`
-- Process: `GET/POST /api/sessions/[id]/process`
-- Git: `POST /api/sessions/[id]/rebase|reset|merge`
-- PR: `GET/POST /api/sessions/[id]/pr`
-- その他: `GET /api/sessions/[id]/messages|commits|diff`, `POST /api/sessions/[id]/run`, `POST /api/sessions/[id]/run/[run_id]/stop`
+- `GET /api/sessions/[id]` - 詳細
+- `PATCH /api/sessions/[id]` - 更新
+- `DELETE /api/sessions/[id]` - 削除
+- `POST /api/sessions/[id]/input` - Claude入力送信
+- `POST /api/sessions/[id]/approve` - Claudeアクション承認
+- `POST /api/sessions/[id]/stop` - Claude停止
+- `POST /api/sessions/[id]/resume` - セッション再開
+- `GET /api/sessions/[id]/process` - プロセス状態取得
+- `POST /api/sessions/[id]/process` - プロセス管理 (start/stop/restart)
+- `POST /api/sessions/[id]/rebase` - git rebase
+- `POST /api/sessions/[id]/reset` - git reset
+- `POST /api/sessions/[id]/merge` - git merge
+- `GET /api/sessions/[id]/pr` - PR情報取得
+- `POST /api/sessions/[id]/pr` - PR作成・更新
+- `GET /api/sessions/[id]/messages` - メッセージ履歴
+- `GET /api/sessions/[id]/commits` - コミット一覧
+- `GET /api/sessions/[id]/diff` - diff取得
+- `POST /api/sessions/[id]/run` - スクリプト実行
+- `POST /api/sessions/[id]/run/[run_id]/stop` - スクリプト停止
 
 **Prompts (3)**
-- `GET/POST /api/prompts`, `DELETE /api/prompts/[id]`
+- `GET /api/prompts` - 一覧
+- `POST /api/prompts` - 保存
+- `DELETE /api/prompts/[id]` - 削除
 
 **Execution Environments (11)**
-- CRUD: `GET/POST /api/environments`, `GET/PUT/DELETE /api/environments/[id]`
-- `POST /api/environments/[id]/apply`, `GET /api/environments/[id]/sessions`
-- `POST /api/environments/check-ports`
-- Dockerfile: `GET/POST/DELETE /api/environments/[id]/dockerfile`
+- `GET /api/environments` - 一覧
+- `POST /api/environments` - 作成
+- `GET /api/environments/[id]` - 詳細
+- `PUT /api/environments/[id]` - 更新
+- `DELETE /api/environments/[id]` - 削除
+- `POST /api/environments/[id]/apply` - 変更適用
+- `GET /api/environments/[id]/sessions` - 使用セッション一覧
+- `POST /api/environments/check-ports` - ポート確認
+- `GET /api/environments/[id]/dockerfile` - Dockerfile取得
+- `POST /api/environments/[id]/dockerfile` - Dockerfile作成・更新
+- `DELETE /api/environments/[id]/dockerfile` - Dockerfile削除
 
 **Network Filtering (9)**
-- Config: `GET/PUT /api/environments/[id]/network-filter`, `POST .../test`
-- Rules: `GET/POST /api/environments/[id]/network-rules`, `PUT/DELETE .../[ruleId]`
-- Templates: `GET .../templates`, `POST .../templates/apply`
+- `GET /api/environments/[id]/network-filter` - フィルタ設定取得
+- `PUT /api/environments/[id]/network-filter` - フィルタ設定更新
+- `POST /api/environments/[id]/network-filter/test` - フィルタテスト
+- `GET /api/environments/[id]/network-rules` - ルール一覧
+- `POST /api/environments/[id]/network-rules` - ルール作成
+- `PUT /api/environments/[id]/network-rules/[ruleId]` - ルール更新
+- `DELETE /api/environments/[id]/network-rules/[ruleId]` - ルール削除
+- `GET /api/environments/[id]/network-rules/templates` - テンプレート一覧
+- `POST /api/environments/[id]/network-rules/templates/apply` - テンプレート適用
 
 **GitHub PAT (5)**
-- `GET/POST /api/github-pat`, `PATCH/DELETE /api/github-pat/[id]`, `POST /api/github-pat/[id]/toggle`
+- `GET /api/github-pat` - 一覧
+- `POST /api/github-pat` - 追加
+- `PATCH /api/github-pat/[id]` - 更新
+- `DELETE /api/github-pat/[id]` - 削除
+- `POST /api/github-pat/[id]/toggle` - 有効/無効切替
 
 **SSH Keys (3)**
-- `GET/POST /api/ssh-keys`, `DELETE /api/ssh-keys/[id]`
+- `GET /api/ssh-keys` - 一覧
+- `POST /api/ssh-keys` - 追加
+- `DELETE /api/ssh-keys/[id]` - 削除
 
 **Developer Settings (5)**
-- `GET/PUT /api/developer-settings/global`
-- `GET/PUT/DELETE /api/developer-settings/project/[projectId]`
+- `GET /api/developer-settings/global` - グローバルGit設定取得
+- `PUT /api/developer-settings/global` - グローバルGit設定更新
+- `GET /api/developer-settings/project/[projectId]` - プロジェクトGit設定取得
+- `PUT /api/developer-settings/project/[projectId]` - プロジェクトGit設定更新
+- `DELETE /api/developer-settings/project/[projectId]` - プロジェクトGit設定削除
 
 **Docker (3)**
-- `GET /api/docker/images|volumes`, `POST /api/docker/image-build`
+- `GET /api/docker/images` - イメージ一覧
+- `GET /api/docker/volumes` - ボリューム一覧
+- `POST /api/docker/image-build` - イメージビルド
 
 ### DB Schema (11 tables)
 
