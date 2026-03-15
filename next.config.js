@@ -8,6 +8,14 @@ const transitiveBundleExcludes = ['ssh2', 'cpu-features'];
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  async rewrites() {
+    return [
+      {
+        source: '/api/registry-firewall/ui/:path*',
+        destination: `${process.env.REGISTRY_FIREWALL_URL || 'http://registry-firewall:8080'}/ui/:path*`,
+      },
+    ];
+  },
   // Server-side only packages (native modules that can't be bundled)
   serverExternalPackages: serverOnlyPackages,
   // Exclude frontend directory from build (used by Syncthing sync)

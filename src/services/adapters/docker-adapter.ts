@@ -312,6 +312,29 @@ export class DockerAdapter extends BasePTYAdapter {
       Env.push(`HTTPS_PROXY=${proxyListenUrl}`);
     }
 
+    // Registry Firewall: パッケージマネージャーのレジストリ設定注入
+    if (options?.registryFirewallEnabled && !options?.shellMode) {
+      const rfHost = process.env.REGISTRY_FIREWALL_URL || 'http://claudework-registry-firewall:8080';
+
+      // pip (環境変数で設定)
+      Env.push(`PIP_INDEX_URL=${rfHost}/pypi/simple/`);
+      Env.push(`PIP_TRUSTED_HOST=claudework-registry-firewall`);
+
+      // go (環境変数で設定)
+      Env.push(`GOPROXY=${rfHost}/go/,direct`);
+
+      // npm/cargoは環境変数だけでは設定不可 → Entrypointをshell経由に変更
+      const setupCommands = [
+        `npm config set registry ${rfHost}/npm/`,
+        `mkdir -p ~/.cargo && cat > ~/.cargo/config.toml << 'TOML'\n[registries.claudework]\nindex = "sparse+${rfHost}/cargo/"\n[source.crates-io]\nreplace-with = "claudework"\nTOML`,
+      ];
+
+      // 元のEntrypoint+Cmdをshell経由で実行
+      const originalCmd = [...Entrypoint, ...(Cmd.length > 0 ? Cmd : [])];
+      Entrypoint = ['/bin/sh', '-c'];
+      Cmd.splice(0, Cmd.length, setupCommands.join(' && ') + ' && exec ' + originalCmd.join(' '));
+    }
+
     const createOptions: Docker.ContainerCreateOptions = {
       name: containerName,
       Image: `${this.config.imageName}:${this.config.imageTag}`,
