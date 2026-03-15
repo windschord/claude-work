@@ -114,11 +114,6 @@ export function validatePATFormat(token: string): ValidationResult {
 }
 
 /**
- * PAT名のバリデーション
- * - 1文字以上50文字以下
- * - 必須フィールド
- */
-/**
  * メールアドレスの基本的なバリデーション
  * ReDoS対策: 長さ制限 + 各パートを分割して検証
  * ドメイン部分は各ラベルが英数字・ハイフンで構成され、先頭・末尾がハイフンでないことを検証
@@ -140,6 +135,11 @@ export function isValidEmail(email: string): boolean {
   return true;
 }
 
+/**
+ * PAT名のバリデーション
+ * - 1文字以上50文字以下
+ * - 必須フィールド
+ */
 export function validatePATName(name: string): ValidationResult {
   const errors: string[] = [];
   const trimmed = name.trim();

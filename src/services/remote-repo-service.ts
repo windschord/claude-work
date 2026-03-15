@@ -1,6 +1,6 @@
 import { spawn, spawnSync } from 'child_process';
 import { join, basename, isAbsolute } from 'path';
-import { existsSync, mkdirSync } from 'fs';
+import { existsSync, mkdirSync, realpathSync } from 'fs';
 import { logger } from '../lib/logger';
 import { getReposDir } from '@/lib/data-dir';
 import { sanitizePath, isSafePathComponent, isWithinBase } from '@/lib/path-safety';
@@ -210,7 +210,10 @@ export class RemoteRepoService {
             return { success: false, path: '', error: '不正なリポジトリ名です' };
           }
           const base = baseDir ? sanitizePath(baseDir) : getReposDir();
-          if (baseDir && !isWithinBase(base, getReposDir())) {
+          // シンボリックリンク対策: 既に存在するパスは実体パスに解決して検証
+          const resolvedBase = existsSync(base) ? realpathSync(base) : base;
+          const resolvedReposDir = existsSync(getReposDir()) ? realpathSync(getReposDir()) : getReposDir();
+          if (baseDir && !isWithinBase(resolvedBase, resolvedReposDir)) {
             return { success: false, path: '', error: '指定されたベースディレクトリは許可されていません' };
           }
           if (!existsSync(base)) {
@@ -259,7 +262,10 @@ export class RemoteRepoService {
         return { success: false, path: '', error: '不正なリポジトリ名です' };
       }
       const base = baseDir ? sanitizePath(baseDir) : getReposDir();
-      if (baseDir && !isWithinBase(base, getReposDir())) {
+      // シンボリックリンク対策: 既に存在するパスは実体パスに解決して検証
+      const resolvedBase = existsSync(base) ? realpathSync(base) : base;
+      const resolvedReposDir = existsSync(getReposDir()) ? realpathSync(getReposDir()) : getReposDir();
+      if (baseDir && !isWithinBase(resolvedBase, resolvedReposDir)) {
         return { success: false, path: '', error: '指定されたベースディレクトリは許可されていません' };
       }
 
@@ -357,6 +363,10 @@ export class RemoteRepoService {
    * @returns pull結果
    */
   async pull(repoPath: string, environmentId?: string): Promise<PullResult> {
+    if (!isAbsolute(repoPath)) {
+      return { success: false, updated: false, message: '', error: 'repoPath は絶対パスで指定してください' };
+    }
+
     // environmentIdが指定されている場合はDockerAdapter経由で実行
     if (environmentId) {
       try {
@@ -528,6 +538,10 @@ export class RemoteRepoService {
    * @returns ブランチ一覧
    */
   async getBranches(repoPath: string, environmentId?: string): Promise<Branch[]> {
+    if (!isAbsolute(repoPath)) {
+      return [];
+    }
+
     // environmentIdが指定されている場合はDockerAdapter経由で実行
     if (environmentId) {
       try {
@@ -615,6 +629,10 @@ export class RemoteRepoService {
    * @returns デフォルトブランチ名
    */
   async getDefaultBranch(repoPath: string): Promise<string> {
+    if (!isAbsolute(repoPath)) {
+      return 'main';
+    }
+
     const safePath = sanitizePath(repoPath);
 
     // origin/HEAD からデフォルトブランチを取得
