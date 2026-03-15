@@ -122,8 +122,18 @@ export class RemoteRepoService {
     // ローカルリポジトリパスのチェック（テスト・開発用）
     // 絶対パスで.gitディレクトリが存在する場合は許可
     if (trimmedUrl.startsWith('/')) {
-      const safePath = sanitizePath(trimmedUrl);
-      if (existsSync(join(safePath, '.git'))) {
+      // パストラバーサル防止: .. を含むパスを拒否
+      if (trimmedUrl.includes('..')) {
+        return { valid: false, error: 'パスにパストラバーサルが含まれています' };
+      }
+      // spawnSync で安全にGitリポジトリか確認（ファイルシステムパスを直接使わない）
+      const checkResult = spawnSync('git', ['rev-parse', '--git-dir'], {
+        cwd: trimmedUrl,
+        encoding: 'utf-8',
+        timeout: 5_000,
+        env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+      });
+      if (checkResult.status === 0) {
         return { valid: true };
       }
     }
