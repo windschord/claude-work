@@ -75,6 +75,9 @@ volumes:
 
 networks:
   claudework-filter:
+    # Docker Composeのプロジェクト名プレフィックスを付けず固定名を使用
+    # PROXY_NETWORK_NAME環境変数のデフォルト値と一致させる
+    name: claudework-filter
     internal: true
     driver: bridge
     ipam:
