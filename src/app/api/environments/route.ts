@@ -167,9 +167,9 @@ export async function POST(request: NextRequest) {
     // Docker環境でDockerfileビルドが指定されている場合
     if (type === 'DOCKER' && config?.imageSource === 'dockerfile') {
       // dockerfilePathのバリデーション
-      if (!config.dockerfilePath) {
+      if (typeof config.dockerfilePath !== 'string' || config.dockerfilePath.trim() === '') {
         return NextResponse.json(
-          { error: 'dockerfilePath is required when imageSource is dockerfile' },
+          { error: 'dockerfilePath is required when imageSource is dockerfile and must be a non-empty string' },
           { status: 400 }
         );
       }

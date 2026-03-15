@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from 'child_process';
-import { join, basename } from 'path';
+import { join, basename, isAbsolute } from 'path';
 import { existsSync, mkdirSync, realpathSync } from 'fs';
 import { logger } from '../lib/logger';
 import { getReposDir } from '@/lib/data-dir';
@@ -120,8 +120,11 @@ export class RemoteRepoService {
     }
 
     // ローカルリポジトリパスのチェック（テスト・開発用）
-    // 絶対パスで.gitディレクトリが存在する場合は許可
+    // ALLOW_LOCAL_REPO_URL=true の場合のみ許可
     if (trimmedUrl.startsWith('/')) {
+      if (process.env.ALLOW_LOCAL_REPO_URL !== 'true') {
+        return { valid: false, error: 'ローカルリポジトリURLは許可されていません。ALLOW_LOCAL_REPO_URL=true を設定してください' };
+      }
       // パストラバーサル防止: .. を含むパスを拒否
       if (trimmedUrl.includes('..')) {
         return { valid: false, error: 'パスにパストラバーサルが含まれています' };
@@ -200,6 +203,9 @@ export class RemoteRepoService {
         // clone先パスを決定
         let clonePath: string;
         if (targetDir) {
+          if (!isAbsolute(targetDir)) {
+            return { success: false, path: '', error: 'targetDir は絶対パスで指定してください' };
+          }
           clonePath = sanitizePath(targetDir);
         } else {
           const repoName = name || this.extractRepoName(url);
@@ -242,6 +248,9 @@ export class RemoteRepoService {
     // clone先パスを決定
     let clonePath: string;
     if (targetDir) {
+      if (!isAbsolute(targetDir)) {
+        return { success: false, path: '', error: 'targetDir は絶対パスで指定してください' };
+      }
       clonePath = sanitizePath(targetDir);
     } else {
       const repoName = name || this.extractRepoName(url);

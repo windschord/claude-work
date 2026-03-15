@@ -256,6 +256,9 @@ export async function PUT(
 
     // path のバリデーション
     if (newPath !== undefined) {
+      if (typeof newPath !== 'string') {
+        return NextResponse.json({ error: 'path must be a string' }, { status: 400 });
+      }
       // パストラバーサル防止: 正規化
       const safePath = sanitizePath(newPath);
       if (!existsSync(safePath)) {

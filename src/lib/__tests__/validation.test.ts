@@ -6,6 +6,7 @@ import {
   validateTimeoutMinutes,
   validatePATFormat,
   validatePATName,
+  isValidEmail,
 } from '../validation';
 import type { ValidationResult } from '../validation';
 
@@ -144,6 +145,49 @@ describe('validation', () => {
       const result = validatePATFormat('bad!');
       expect(result.valid).toBe(false);
       expect(result.errors.length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  describe('isValidEmail', () => {
+    it('有効なメールアドレスを受け入れる', () => {
+      expect(isValidEmail('user@example.com')).toBe(true);
+      expect(isValidEmail('user@sub.example.com')).toBe(true);
+      expect(isValidEmail('user+tag@example.com')).toBe(true);
+    });
+
+    it('ドメイン部分に連続ドットを含むアドレスを拒否する', () => {
+      expect(isValidEmail('user@foo..bar')).toBe(false);
+    });
+
+    it('ドメインがドットで始まるアドレスを拒否する', () => {
+      expect(isValidEmail('user@.foo')).toBe(false);
+      expect(isValidEmail('user@.foo.com')).toBe(false);
+    });
+
+    it('ドメインにTLDが無いアドレスを拒否する', () => {
+      expect(isValidEmail('user@localhost')).toBe(false);
+    });
+
+    it('@が無いアドレスを拒否する', () => {
+      expect(isValidEmail('userexample.com')).toBe(false);
+    });
+
+    it('空文字列を拒否する', () => {
+      expect(isValidEmail('')).toBe(false);
+    });
+
+    it('254文字を超えるアドレスを拒否する', () => {
+      const longLocal = 'a'.repeat(64);
+      const longDomain = 'b'.repeat(250) + '.com';
+      expect(isValidEmail(`${longLocal}@${longDomain}`)).toBe(false);
+    });
+
+    it('ドメインラベルがハイフンで始まる場合を拒否する', () => {
+      expect(isValidEmail('user@-example.com')).toBe(false);
+    });
+
+    it('ドメインラベルがハイフンで終わる場合を拒否する', () => {
+      expect(isValidEmail('user@example-.com')).toBe(false);
     });
   });
 
