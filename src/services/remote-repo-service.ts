@@ -1,6 +1,6 @@
 import { spawn, spawnSync } from 'child_process';
 import { join, basename } from 'path';
-import { existsSync, mkdirSync } from 'fs';
+import { existsSync, mkdirSync, realpathSync } from 'fs';
 import { logger } from '../lib/logger';
 import { getReposDir } from '@/lib/data-dir';
 import { sanitizePath, isSafePathComponent } from '@/lib/path-safety';
@@ -126,15 +126,14 @@ export class RemoteRepoService {
       if (trimmedUrl.includes('..')) {
         return { valid: false, error: 'パスにパストラバーサルが含まれています' };
       }
-      // spawnSync で安全にGitリポジトリか確認（ファイルシステムパスを直接使わない）
-      const checkResult = spawnSync('git', ['rev-parse', '--git-dir'], {
-        cwd: trimmedUrl,
-        encoding: 'utf-8',
-        timeout: 5_000,
-        env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
-      });
-      if (checkResult.status === 0) {
-        return { valid: true };
+      try {
+        // realpathSync でシンボリックリンクを解決し正規化
+        const canonicalPath = realpathSync(trimmedUrl);
+        if (existsSync(join(canonicalPath, '.git'))) {
+          return { valid: true };
+        }
+      } catch {
+        // パスが存在しない場合は無視
       }
     }
 
