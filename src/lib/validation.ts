@@ -114,6 +114,28 @@ export function validatePATFormat(token: string): ValidationResult {
 }
 
 /**
+ * メールアドレスの基本的なバリデーション
+ * ReDoS対策: 長さ制限 + 各パートを分割して検証
+ * ドメイン部分は各ラベルが英数字・ハイフンで構成され、先頭・末尾がハイフンでないことを検証
+ */
+export function isValidEmail(email: string): boolean {
+  if (email.length > 254) return false;
+  const parts = email.split('@');
+  if (parts.length !== 2) return false;
+  const [local, domain] = parts;
+  if (!local || local.length > 64 || !domain || domain.length > 253) return false;
+  if (!/^[^\s@]+$/.test(local)) return false;
+  // ドメインをラベル単位で検証: 各ラベルは1文字以上の英数字・ハイフンで、先頭・末尾がハイフンでない
+  const labels = domain.split('.');
+  if (labels.length < 2) return false;
+  for (const label of labels) {
+    if (!label || label.length > 63) return false;
+    if (!/^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$/.test(label)) return false;
+  }
+  return true;
+}
+
+/**
  * PAT名のバリデーション
  * - 1文字以上50文字以下
  * - 必須フィールド

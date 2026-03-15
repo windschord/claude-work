@@ -7,6 +7,12 @@ vi.mock('../adapter-factory', () => ({
   },
 }));
 
+// getReposDirをモック化してテスト用の一時ディレクトリを返すようにする
+let mockReposDir = '';
+vi.mock('@/lib/data-dir', () => ({
+  getReposDir: () => mockReposDir,
+}));
+
 import { RemoteRepoService } from '../remote-repo-service';
 import { mkdtempSync, rmSync, existsSync, mkdirSync } from 'fs';
 import { tmpdir } from 'os';
@@ -23,8 +29,14 @@ describe('RemoteRepoService', () => {
     // NOTE: このテストはローカルgitリポジトリを直接使用する統合的なアプローチを採用しています。
     // ネットワーク通信は不要で、ローカルファイルシステム上でのgit操作のみを検証します。
     // Docker経由の操作（environmentId指定時）はAdapterFactoryをvi.mockでモック化しています。
+
+    // ローカルリポジトリURLをテストで使用するため環境変数を設定
+    process.env.ALLOW_LOCAL_REPO_URL = 'true';
+
     // テスト用の一時ディレクトリを作成
     testDir = mkdtempSync(join(tmpdir(), 'remote-repo-test-'));
+    // getReposDirのモックをtestDirに設定（isWithinBaseチェック用）
+    mockReposDir = testDir;
 
     // テスト用のGitリポジトリを作成（clone元として使用）
     testRepoPath = join(testDir, 'source-repo');
@@ -52,6 +64,7 @@ describe('RemoteRepoService', () => {
 
   afterAll(() => {
     rmSync(testDir, { recursive: true, force: true });
+    delete process.env.ALLOW_LOCAL_REPO_URL;
   });
 
   describe('validateRemoteUrl', () => {
@@ -106,6 +119,23 @@ describe('RemoteRepoService', () => {
     it('should reject HTTP (non-HTTPS) URLs', () => {
       const result = service.validateRemoteUrl('http://github.com/user/repo.git');
       expect(result.valid).toBe(false);
+    });
+
+    it('should reject local paths when ALLOW_LOCAL_REPO_URL is not set', () => {
+      const originalValue = process.env.ALLOW_LOCAL_REPO_URL;
+      delete process.env.ALLOW_LOCAL_REPO_URL;
+      try {
+        const result = service.validateRemoteUrl(testRepoPath);
+        expect(result.valid).toBe(false);
+        expect(result.error).toContain('ローカルリポジトリURLは許可されていません');
+      } finally {
+        process.env.ALLOW_LOCAL_REPO_URL = originalValue;
+      }
+    });
+
+    it('should accept local paths when ALLOW_LOCAL_REPO_URL is true', () => {
+      const result = service.validateRemoteUrl(testRepoPath);
+      expect(result.valid).toBe(true);
     });
   });
 
@@ -190,6 +220,16 @@ describe('RemoteRepoService', () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toBeDefined();
+    });
+
+    it('should reject relative targetDir', async () => {
+      const result = await service.clone({
+        url: 'git@github.com:user/repo.git',
+        targetDir: 'relative/path',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('絶対パス');
     });
 
     it('should handle directory name conflicts with suffix', async () => {

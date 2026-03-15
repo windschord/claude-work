@@ -1,10 +1,13 @@
 import { spawn, spawnSync } from 'child_process';
-import { join, basename, resolve } from 'path';
-import { existsSync, mkdirSync } from 'fs';
+import { join, basename, isAbsolute } from 'path';
+import { existsSync, mkdirSync, realpathSync } from 'fs';
 import { logger } from '../lib/logger';
 import { getReposDir } from '@/lib/data-dir';
+import { sanitizePath, isSafePathComponent, isWithinBase } from '@/lib/path-safety';
 import { EnvironmentService } from './environment-service';
 import type { DockerAdapter } from './adapters/docker-adapter';
+
+const GIT_PROCESS_TIMEOUT_MS = 120_000; // 2分
 
 /**
  * Clone操作のオプション
@@ -119,9 +122,19 @@ export class RemoteRepoService {
     }
 
     // ローカルリポジトリパスのチェック（テスト・開発用）
-    // 絶対パスで.gitディレクトリが存在する場合は許可
-    if (trimmedUrl.startsWith('/') && existsSync(join(trimmedUrl, '.git'))) {
-      return { valid: true };
+    // ALLOW_LOCAL_REPO_URL=true の場合のみ許可
+    if (trimmedUrl.startsWith('/')) {
+      if (process.env.ALLOW_LOCAL_REPO_URL !== 'true') {
+        return { valid: false, error: 'ローカルリポジトリURLは許可されていません。ALLOW_LOCAL_REPO_URL=true を設定してください' };
+      }
+      // パストラバーサル防止: .. を含むパスを拒否
+      if (trimmedUrl.includes('..')) {
+        return { valid: false, error: 'パスにパストラバーサルが含まれています' };
+      }
+      // isGitRepository でGitリポジトリかを検証（ファイルシステム直接操作を回避）
+      if (this.isGitRepository(sanitizePath(trimmedUrl))) {
+        return { valid: true };
+      }
     }
 
     return { valid: false, error: '有効なGitリポジトリURLを入力してください（SSH: git@... または HTTPS: https://...）' };
@@ -134,10 +147,14 @@ export class RemoteRepoService {
    * @returns リポジトリ名
    */
   extractRepoName(url: string): string {
-    // 末尾のスラッシュを除去
-    let cleaned = url.replace(/\/+$/, '');
+    // 末尾のスラッシュを除去（ReDoS対策: 1回の slice で処理）
+    let end = url.length;
+    while (end > 0 && url[end - 1] === '/') end--;
+    let cleaned = url.slice(0, end);
     // .git サフィックスを除去
-    cleaned = cleaned.replace(/\.git$/, '');
+    if (cleaned.endsWith('.git')) {
+      cleaned = cleaned.slice(0, -4);
+    }
 
     // SSH URL: git@host:path/to/repo
     if (cleaned.includes(':') && cleaned.startsWith('git@')) {
@@ -180,12 +197,25 @@ export class RemoteRepoService {
         }
 
         // clone先パスを決定
+        // targetDir は呼び出し元の API レイヤー（clone/route.ts）で ALLOWED_PROJECT_DIRS チェック済み
         let clonePath: string;
         if (targetDir) {
-          clonePath = resolve(targetDir);
+          if (!isAbsolute(targetDir)) {
+            return { success: false, path: '', error: 'targetDir は絶対パスで指定してください' };
+          }
+          clonePath = sanitizePath(targetDir);
         } else {
           const repoName = name || this.extractRepoName(url);
-          const base = baseDir || getReposDir();
+          if (!isSafePathComponent(repoName)) {
+            return { success: false, path: '', error: '不正なリポジトリ名です' };
+          }
+          const base = baseDir ? sanitizePath(baseDir) : getReposDir();
+          // シンボリックリンク対策: 既に存在するパスは実体パスに解決して検証
+          const resolvedBase = existsSync(base) ? realpathSync(base) : base;
+          const resolvedReposDir = existsSync(getReposDir()) ? realpathSync(getReposDir()) : getReposDir();
+          if (baseDir && !isWithinBase(resolvedBase, resolvedReposDir)) {
+            return { success: false, path: '', error: '指定されたベースディレクトリは許可されていません' };
+          }
           if (!existsSync(base)) {
             mkdirSync(base, { recursive: true });
           }
@@ -219,12 +249,25 @@ export class RemoteRepoService {
     }
 
     // clone先パスを決定
+    // targetDir は呼び出し元の API レイヤー（clone/route.ts）で ALLOWED_PROJECT_DIRS チェック済み
     let clonePath: string;
     if (targetDir) {
-      clonePath = resolve(targetDir);
+      if (!isAbsolute(targetDir)) {
+        return { success: false, path: '', error: 'targetDir は絶対パスで指定してください' };
+      }
+      clonePath = sanitizePath(targetDir);
     } else {
       const repoName = name || this.extractRepoName(url);
-      const base = baseDir || getReposDir();
+      if (!isSafePathComponent(repoName)) {
+        return { success: false, path: '', error: '不正なリポジトリ名です' };
+      }
+      const base = baseDir ? sanitizePath(baseDir) : getReposDir();
+      // シンボリックリンク対策: 既に存在するパスは実体パスに解決して検証
+      const resolvedBase = existsSync(base) ? realpathSync(base) : base;
+      const resolvedReposDir = existsSync(getReposDir()) ? realpathSync(getReposDir()) : getReposDir();
+      if (baseDir && !isWithinBase(resolvedBase, resolvedReposDir)) {
+        return { success: false, path: '', error: '指定されたベースディレクトリは許可されていません' };
+      }
 
       // ベースディレクトリが存在しない場合は作成
       if (!existsSync(base)) {
@@ -241,7 +284,16 @@ export class RemoteRepoService {
 
     // git clone を実行
     return new Promise((resolve) => {
-      const cloneProcess = spawn('git', ['clone', url, clonePath], {
+      let settled = false;
+      const finish = (result: CloneResult) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        resolve(result);
+      };
+
+      // -- を使用してURLやパスがgitオプションとして解釈されることを防止
+      const cloneProcess = spawn('git', ['clone', '--', url, clonePath], {
         env: {
           ...process.env,
           GIT_TERMINAL_PROMPT: '0', // インタラクティブプロンプトを抑止
@@ -249,6 +301,10 @@ export class RemoteRepoService {
       });
 
       let stderr = '';
+      const timeout = setTimeout(() => {
+        cloneProcess.kill('SIGTERM');
+        finish({ success: false, path: clonePath, error: 'cloneがタイムアウトしました' });
+      }, GIT_PROCESS_TIMEOUT_MS);
 
       cloneProcess.stderr.on('data', (data) => {
         stderr += data.toString();
@@ -257,16 +313,16 @@ export class RemoteRepoService {
       cloneProcess.on('close', (code) => {
         if (code === 0) {
           logger.info('Repository cloned successfully', { url, clonePath });
-          resolve({ success: true, path: clonePath });
+          finish({ success: true, path: clonePath });
         } else {
           logger.error('Failed to clone repository', { url, clonePath, stderr });
-          resolve({ success: false, path: clonePath, error: stderr || 'cloneに失敗しました' });
+          finish({ success: false, path: clonePath, error: stderr || 'cloneに失敗しました' });
         }
       });
 
       cloneProcess.on('error', (err) => {
         logger.error('Clone process error', { url, error: err.message });
-        resolve({ success: false, path: clonePath, error: err.message });
+        finish({ success: false, path: clonePath, error: err.message });
       });
     });
   }
@@ -279,7 +335,8 @@ export class RemoteRepoService {
    * @returns 重複しないパス
    */
   private getUniqueClonePath(baseDir: string, repoName: string): string {
-    let clonePath = join(baseDir, repoName);
+    const safeBase = sanitizePath(baseDir);
+    let clonePath = sanitizePath(join(safeBase, repoName));
 
     if (!existsSync(clonePath)) {
       return clonePath;
@@ -288,7 +345,7 @@ export class RemoteRepoService {
     // 重複する場合はサフィックスを追加
     let counter = 1;
     while (existsSync(clonePath)) {
-      clonePath = join(baseDir, `${repoName}-${counter}`);
+      clonePath = sanitizePath(join(safeBase, `${repoName}-${counter}`));
       counter++;
     }
 
@@ -306,6 +363,10 @@ export class RemoteRepoService {
    * @returns pull結果
    */
   async pull(repoPath: string, environmentId?: string): Promise<PullResult> {
+    if (!isAbsolute(repoPath)) {
+      return { success: false, updated: false, message: '', error: 'repoPath は絶対パスで指定してください' };
+    }
+
     // environmentIdが指定されている場合はDockerAdapter経由で実行
     if (environmentId) {
       try {
@@ -340,8 +401,10 @@ export class RemoteRepoService {
         };
       }
     }
+    const safePath = sanitizePath(repoPath);
+
     // Gitリポジトリかどうか確認
-    const isGitRepo = this.isGitRepository(repoPath);
+    const isGitRepo = this.isGitRepository(safePath);
     if (!isGitRepo) {
       return {
         success: false,
@@ -352,18 +415,40 @@ export class RemoteRepoService {
     }
 
     return new Promise((resolve) => {
+      let settled = false;
+      const finish = (result: PullResult) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(fetchTimeout);
+        clearTimeout(pullTimeout);
+        resolve(result);
+      };
+
+      let pullTimeout: ReturnType<typeof setTimeout>;
+
       // fetch first
       const fetchProcess = spawn('git', ['fetch'], {
-        cwd: repoPath,
+        cwd: safePath,
         env: {
           ...process.env,
           GIT_TERMINAL_PROMPT: '0',
         },
       });
 
+      const fetchTimeout = setTimeout(() => {
+        fetchProcess.kill('SIGTERM');
+        finish({
+          success: false,
+          updated: false,
+          message: '',
+          error: 'fetchがタイムアウトしました',
+        });
+      }, GIT_PROCESS_TIMEOUT_MS);
+
       fetchProcess.on('close', (fetchCode) => {
+        clearTimeout(fetchTimeout);
         if (fetchCode !== 0) {
-          resolve({
+          finish({
             success: false,
             updated: false,
             message: '',
@@ -374,12 +459,22 @@ export class RemoteRepoService {
 
         // pull with fast-forward only
         const pullProcess = spawn('git', ['pull', '--ff-only'], {
-          cwd: repoPath,
+          cwd: safePath,
           env: {
             ...process.env,
             GIT_TERMINAL_PROMPT: '0',
           },
         });
+
+        pullTimeout = setTimeout(() => {
+          pullProcess.kill('SIGTERM');
+          finish({
+            success: false,
+            updated: false,
+            message: '',
+            error: 'pullがタイムアウトしました',
+          });
+        }, GIT_PROCESS_TIMEOUT_MS);
 
         let stdout = '';
         let stderr = '';
@@ -396,14 +491,14 @@ export class RemoteRepoService {
           if (code === 0) {
             const updated = !stdout.includes('Already up to date');
             logger.info('Repository pulled successfully', { repoPath, updated });
-            resolve({
+            finish({
               success: true,
               updated,
               message: updated ? '更新しました' : '既に最新です',
             });
           } else {
             logger.error('Failed to pull repository', { repoPath, stderr });
-            resolve({
+            finish({
               success: false,
               updated: false,
               message: '',
@@ -413,7 +508,7 @@ export class RemoteRepoService {
         });
 
         pullProcess.on('error', (err) => {
-          resolve({
+          finish({
             success: false,
             updated: false,
             message: '',
@@ -423,7 +518,7 @@ export class RemoteRepoService {
       });
 
       fetchProcess.on('error', (err) => {
-        resolve({
+        finish({
           success: false,
           updated: false,
           message: '',
@@ -443,6 +538,10 @@ export class RemoteRepoService {
    * @returns ブランチ一覧
    */
   async getBranches(repoPath: string, environmentId?: string): Promise<Branch[]> {
+    if (!isAbsolute(repoPath)) {
+      return [];
+    }
+
     // environmentIdが指定されている場合はDockerAdapter経由で実行
     if (environmentId) {
       try {
@@ -465,7 +564,9 @@ export class RemoteRepoService {
         return [];
       }
     }
-    if (!this.isGitRepository(repoPath)) {
+    const safePath = sanitizePath(repoPath);
+
+    if (!this.isGitRepository(safePath)) {
       return [];
     }
 
@@ -476,7 +577,7 @@ export class RemoteRepoService {
 
     // ローカルブランチを取得
     const localResult = spawnSync('git', ['branch', '--format=%(refname:short)'], {
-      cwd: repoPath,
+      cwd: safePath,
       encoding: 'utf-8',
     });
 
@@ -496,7 +597,7 @@ export class RemoteRepoService {
 
     // リモートブランチを取得
     const remoteResult = spawnSync('git', ['branch', '-r', '--format=%(refname:short)'], {
-      cwd: repoPath,
+      cwd: safePath,
       encoding: 'utf-8',
     });
 
@@ -528,9 +629,15 @@ export class RemoteRepoService {
    * @returns デフォルトブランチ名
    */
   async getDefaultBranch(repoPath: string): Promise<string> {
+    if (!isAbsolute(repoPath)) {
+      return 'main';
+    }
+
+    const safePath = sanitizePath(repoPath);
+
     // origin/HEAD からデフォルトブランチを取得
     const result = spawnSync('git', ['symbolic-ref', 'refs/remotes/origin/HEAD'], {
-      cwd: repoPath,
+      cwd: safePath,
       encoding: 'utf-8',
     });
 
@@ -542,7 +649,7 @@ export class RemoteRepoService {
 
     // フォールバック: 現在のブランチを確認
     const currentResult = spawnSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
-      cwd: repoPath,
+      cwd: safePath,
       encoding: 'utf-8',
     });
 
@@ -560,17 +667,22 @@ export class RemoteRepoService {
    * @param path - 確認するパス
    * @returns Gitリポジトリの場合true
    */
-  private isGitRepository(path: string): boolean {
-    const result = spawnSync('git', ['rev-parse', '--git-dir'], {
-      cwd: path,
-      encoding: 'utf-8',
-      env: {
-        ...process.env,
-        GIT_TERMINAL_PROMPT: '0',
-      },
-    });
+  private isGitRepository(repoPath: string): boolean {
+    try {
+      // -C オプションでディレクトリを指定（cwd にユーザー入力を渡すことを回避）
+      const result = spawnSync('git', ['-C', repoPath, 'rev-parse', '--git-dir'], {
+        encoding: 'utf-8',
+        timeout: 5_000,
+        env: {
+          ...process.env,
+          GIT_TERMINAL_PROMPT: '0',
+        },
+      });
 
-    return result.status === 0;
+      return result.status === 0;
+    } catch {
+      return false;
+    }
   }
 }
 

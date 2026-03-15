@@ -178,7 +178,7 @@ describe('/api/docker/image-build', () => {
       const data = await response.json();
 
       expect(response.status).toBe(400);
-      expect(data.error).toBe('dockerfilePath is required');
+      expect(data.error).toBe('dockerfilePath is required and must be a string');
     });
 
     it('should return 400 when imageName is missing', async () => {
@@ -191,7 +191,7 @@ describe('/api/docker/image-build', () => {
       const data = await response.json();
 
       expect(response.status).toBe(400);
-      expect(data.error).toBe('imageName is required');
+      expect(data.error).toBe('imageName is required and must be a string');
     });
 
     it('should return 400 for invalid imageName format', async () => {

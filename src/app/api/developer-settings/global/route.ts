@@ -1,14 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DeveloperSettingsService } from '@/services/developer-settings-service';
 import { logger } from '@/lib/logger';
+import { isValidEmail } from '@/lib/validation';
 
 const service = new DeveloperSettingsService();
-
-// メールアドレスの基本的なバリデーション
-function isValidEmail(email: string): boolean {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
-}
 
 // リクエストボディのバリデーション
 function validateSettingsInput(body: Record<string, unknown>): {

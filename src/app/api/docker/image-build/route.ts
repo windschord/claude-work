@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
 import { getEnvironmentsDir } from '@/lib/data-dir';
 import { DockerClient } from '@/services/docker-client';
+import { sanitizePath } from '@/lib/path-safety';
 
 // 許可されたベースディレクトリ
 const ALLOWED_BASE_DIRS = [
@@ -50,11 +51,14 @@ export async function POST(request: NextRequest) {
   const { dockerfilePath, imageName, imageTag = 'latest' } = await request.json();
 
   // バリデーション
-  if (!dockerfilePath) {
-    return NextResponse.json({ error: 'dockerfilePath is required' }, { status: 400 });
+  if (!dockerfilePath || typeof dockerfilePath !== 'string') {
+    return NextResponse.json({ error: 'dockerfilePath is required and must be a string' }, { status: 400 });
   }
-  if (!imageName) {
-    return NextResponse.json({ error: 'imageName is required' }, { status: 400 });
+  if (!imageName || typeof imageName !== 'string') {
+    return NextResponse.json({ error: 'imageName is required and must be a string' }, { status: 400 });
+  }
+  if (typeof imageTag !== 'string') {
+    return NextResponse.json({ error: 'imageTag must be a string' }, { status: 400 });
   }
 
   // イメージ名/タグのバリデーション
@@ -72,7 +76,7 @@ export async function POST(request: NextRequest) {
   }
 
   // dockerfilePathを絶対パスに変換（getEnvironmentsDir()基準）
-  const resolvedDockerfilePath = path.resolve(getEnvironmentsDir(), dockerfilePath);
+  const resolvedDockerfilePath = sanitizePath(path.resolve(getEnvironmentsDir(), dockerfilePath));
 
   // パストラバーサル対策: 許可されたディレクトリかチェック
   if (!isPathAllowed(resolvedDockerfilePath)) {

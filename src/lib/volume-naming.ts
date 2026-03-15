@@ -29,11 +29,20 @@ const DOCKER_VOLUME_NAME_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/;
  * 6. 結果が空の場合、空文字列を返す
  */
 export function generateSlug(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]/g, '-')
-    .replace(/-{2,}/g, '-')
-    .replace(/^-+|-+$/g, '');
+  // ReDoS対策: 各ステップを分割して安全に処理
+  const lowered = name.toLowerCase();
+  const replaced = lowered.replace(/[^a-z0-9._-]/g, '-');
+  // 連続ハイフンを1つに統合
+  const deduped = replaced.replace(/-{2,}/g, '-');
+  // 先頭・末尾のハイフンを除去（個別に処理してReDoSを回避）
+  let result = deduped;
+  while (result.startsWith('-')) {
+    result = result.slice(1);
+  }
+  while (result.endsWith('-')) {
+    result = result.slice(0, -1);
+  }
+  return result;
 }
 
 /**

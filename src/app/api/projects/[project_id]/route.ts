@@ -5,6 +5,7 @@ import { logger } from '@/lib/logger';
 import { existsSync } from 'fs';
 import { spawnSync } from 'child_process';
 import { ClaudeOptionsService } from '@/services/claude-options-service';
+import { sanitizePath } from '@/lib/path-safety';
 import { DockerClient } from '@/services/docker-client';
 
 /**
@@ -255,12 +256,17 @@ export async function PUT(
 
     // path のバリデーション
     if (newPath !== undefined) {
-      if (!existsSync(newPath)) {
+      if (typeof newPath !== 'string') {
+        return NextResponse.json({ error: 'path must be a string' }, { status: 400 });
+      }
+      // パストラバーサル防止: 正規化
+      const safePath = sanitizePath(newPath);
+      if (!existsSync(safePath)) {
         return NextResponse.json({ error: 'Path does not exist' }, { status: 400 });
       }
 
       const result = spawnSync('git', ['rev-parse', '--git-dir'], {
-        cwd: newPath,
+        cwd: safePath,
         encoding: 'utf-8',
         timeout: 10_000,
         env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
@@ -272,11 +278,13 @@ export async function PUT(
 
       // 重複チェック
       const existing = db.select().from(schema.projects)
-        .where(eq(schema.projects.path, newPath))
+        .where(eq(schema.projects.path, safePath))
         .get();
       if (existing && existing.id !== project_id) {
         return NextResponse.json({ error: 'A project with this path already exists' }, { status: 409 });
       }
+      // サニタイズ済みパスで上書き
+      newPath = safePath;
     }
 
     // 更新データの構築

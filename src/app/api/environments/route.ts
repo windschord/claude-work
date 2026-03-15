@@ -8,6 +8,7 @@ import { getEnvironmentsDir } from '@/lib/data-dir';
 import { validatePortMappings, validateVolumeMounts } from '@/lib/docker-config-validator';
 import { DockerClient } from '@/services/docker-client';
 import { isHostEnvironmentAllowed } from '@/lib/environment-detect';
+import { sanitizePath } from '@/lib/path-safety';
 import { networkFilterService } from '@/services/network-filter-service';
 import { db } from '@/lib/db';
 import * as schema from '@/db/schema';
@@ -166,15 +167,15 @@ export async function POST(request: NextRequest) {
     // Docker環境でDockerfileビルドが指定されている場合
     if (type === 'DOCKER' && config?.imageSource === 'dockerfile') {
       // dockerfilePathのバリデーション
-      if (!config.dockerfilePath) {
+      if (typeof config.dockerfilePath !== 'string' || config.dockerfilePath.trim() === '') {
         return NextResponse.json(
-          { error: 'dockerfilePath is required when imageSource is dockerfile' },
+          { error: 'dockerfilePath is required when imageSource is dockerfile and must be a non-empty string' },
           { status: 400 }
         );
       }
 
       // dockerfilePathを絶対パスに変換（getEnvironmentsDir()基準）
-      const resolvedDockerfilePath = path.resolve(getEnvironmentsDir(), config.dockerfilePath);
+      const resolvedDockerfilePath = sanitizePath(path.resolve(getEnvironmentsDir(), config.dockerfilePath));
 
       // パストラバーサル対策: 許可されたディレクトリかチェック
       if (!isPathAllowed(resolvedDockerfilePath)) {
