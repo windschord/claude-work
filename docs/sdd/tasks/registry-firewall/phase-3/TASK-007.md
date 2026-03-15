@@ -26,4 +26,4 @@ ENV_VARS.mdとCLAUDE.mdにregistry-firewall関連の情報を追加する。
 
 **依存関係**: TASK-001~006
 **推定工数**: 15分
-**ステータス**: `TODO`
+**ステータス**: `DONE`

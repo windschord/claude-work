@@ -82,7 +82,7 @@ async rewrites() {
 
 ## ファイル構成
 
-```
+```text
 src/app/api/registry-firewall/
 ├── health/
 │   └── route.ts

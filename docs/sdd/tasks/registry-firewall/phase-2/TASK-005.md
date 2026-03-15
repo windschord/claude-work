@@ -44,4 +44,4 @@ DockerAdapterの`buildContainerOptions`にregistry-firewallのレジストリプ
 
 **依存関係**: TASK-002(CreateSessionOptions型)
 **推定工数**: 35分
-**ステータス**: `TODO`
+**ステータス**: `DONE`
