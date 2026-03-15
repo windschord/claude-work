@@ -439,13 +439,18 @@ describe('DockerAdapter', () => {
     });
 
     it('REGISTRY_FIREWALL_URL環境変数が設定されている場合はそちらを使用する', () => {
+      const original = process.env.REGISTRY_FIREWALL_URL;
       process.env.REGISTRY_FIREWALL_URL = 'http://custom-firewall:9090';
       try {
         const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { registryFirewallEnabled: true });
         const env = createOptions.Env as string[];
         expect(env).toContain('PIP_INDEX_URL=http://custom-firewall:9090/pypi/simple/');
       } finally {
-        delete process.env.REGISTRY_FIREWALL_URL;
+        if (original === undefined) {
+          delete process.env.REGISTRY_FIREWALL_URL;
+        } else {
+          process.env.REGISTRY_FIREWALL_URL = original;
+        }
       }
     });
   });
