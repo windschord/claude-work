@@ -88,6 +88,18 @@ describe('GET /api/registry-firewall/blocks', () => {
       expect(response.status).toBe(200);
       expect(mockGetBlocks).toHaveBeenCalledWith(1);
     });
+
+    it('limitが非数値の場合、デフォルト値10が使用される', async () => {
+      const mockBlocks = { blocks: [], total: 0 };
+      mockGetBlocks.mockResolvedValueOnce(mockBlocks);
+      mockGetHealth.mockResolvedValueOnce({ status: 'healthy' });
+
+      const request = new NextRequest('http://localhost/api/registry-firewall/blocks?limit=abc');
+      const response = await GET(request);
+
+      expect(response.status).toBe(200);
+      expect(mockGetBlocks).toHaveBeenCalledWith(10);
+    });
   });
 
   describe('registry-firewall停止時', () => {

@@ -385,7 +385,7 @@ describe('DockerAdapter', () => {
       expect(env).toContain('PIP_TRUSTED_HOST=claudework-registry-firewall');
     });
 
-    it('registryFirewallEnabled=true時にGPROXY環境変数が注入される', () => {
+    it('registryFirewallEnabled=true時にGOPROXY環境変数が注入される', () => {
       const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { registryFirewallEnabled: true });
       const env = createOptions.Env as string[];
       expect(env).toContain(`GOPROXY=${rfHost}/go/,direct`);
@@ -394,7 +394,7 @@ describe('DockerAdapter', () => {
     it('registryFirewallEnabled=true時にEntrypointにnpm config setコマンドが含まれる', () => {
       const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { registryFirewallEnabled: true });
       const cmd = createOptions.Cmd as string[];
-      expect(cmd[0]).toContain(`npm config set registry ${rfHost}/npm/`);
+      expect(cmd[0]).toContain(`npm config set registry '${rfHost}/npm/'`);
     });
 
     it('registryFirewallEnabled=true時にEntrypointにcargo config作成コマンドが含まれる', () => {

@@ -315,7 +315,12 @@ export class DockerAdapter extends BasePTYAdapter {
     // Registry Firewall: パッケージマネージャーのレジストリ設定注入
     if (options?.registryFirewallEnabled && !options?.shellMode) {
       const rfHost = process.env.REGISTRY_FIREWALL_URL || 'http://claudework-registry-firewall:8080';
-      const rfHostname = new URL(rfHost).hostname;
+      let rfHostname: string;
+      try {
+        rfHostname = new URL(rfHost).hostname;
+      } catch {
+        rfHostname = 'claudework-registry-firewall';
+      }
 
       // pip (環境変数で設定)
       Env.push(`PIP_INDEX_URL=${rfHost}/pypi/simple/`);
@@ -325,8 +330,9 @@ export class DockerAdapter extends BasePTYAdapter {
       Env.push(`GOPROXY=${rfHost}/go/,direct`);
 
       // npm/cargoは環境変数だけでは設定不可 → Entrypointをshell経由に変更
+      // rfHostはURLとして検証済み(上のtry-catchで検証)。シェルメタ文字対策としてnpmコマンドはシングルクォートで囲む
       const setupCommands = [
-        `npm config set registry ${rfHost}/npm/`,
+        `npm config set registry '${rfHost}/npm/'`,
         `mkdir -p ~/.cargo && cat > ~/.cargo/config.toml << 'TOML'\n[registries.claudework]\nindex = "sparse+${rfHost}/cargo/"\n[source.crates-io]\nreplace-with = "claudework"\nTOML`,
       ];
 

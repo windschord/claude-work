@@ -69,7 +69,7 @@ registry-firewallの管理UIトップページへリダイレクト。
 **実装方法**: Next.jsのrewrites設定でプロキシ
 
 ```typescript
-// next.config.ts
+// next.config.js
 async rewrites() {
   return [
     {
@@ -90,4 +90,4 @@ src/app/api/registry-firewall/
     └── route.ts
 ```
 
-UIプロキシはnext.config.tsのrewritesで処理。
+UIプロキシはnext.config.jsのrewritesで処理。
