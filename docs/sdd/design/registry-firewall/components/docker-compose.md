@@ -124,7 +124,8 @@ appサービスの`depends_on`にregistry-firewallを追加:
       network-filter-proxy:
         condition: service_healthy
       registry-firewall:
-        condition: service_healthy
+        # NFR-AVA-001: registry-firewall停止時もapp起動可能にするためservice_startedを使用
+        condition: service_started
 ```
 
 ## 環境変数一覧
