@@ -278,6 +278,14 @@ export class RemoteRepoService {
 
     // git clone を実行
     return new Promise((resolve) => {
+      let settled = false;
+      const finish = (result: CloneResult) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        resolve(result);
+      };
+
       // -- を使用してURLやパスがgitオプションとして解釈されることを防止
       const cloneProcess = spawn('git', ['clone', '--', url, clonePath], {
         env: {
@@ -289,7 +297,7 @@ export class RemoteRepoService {
       let stderr = '';
       const timeout = setTimeout(() => {
         cloneProcess.kill('SIGTERM');
-        resolve({ success: false, path: clonePath, error: 'cloneがタイムアウトしました' });
+        finish({ success: false, path: clonePath, error: 'cloneがタイムアウトしました' });
       }, GIT_PROCESS_TIMEOUT_MS);
 
       cloneProcess.stderr.on('data', (data) => {
@@ -297,20 +305,18 @@ export class RemoteRepoService {
       });
 
       cloneProcess.on('close', (code) => {
-        clearTimeout(timeout);
         if (code === 0) {
           logger.info('Repository cloned successfully', { url, clonePath });
-          resolve({ success: true, path: clonePath });
+          finish({ success: true, path: clonePath });
         } else {
           logger.error('Failed to clone repository', { url, clonePath, stderr });
-          resolve({ success: false, path: clonePath, error: stderr || 'cloneに失敗しました' });
+          finish({ success: false, path: clonePath, error: stderr || 'cloneに失敗しました' });
         }
       });
 
       cloneProcess.on('error', (err) => {
-        clearTimeout(timeout);
         logger.error('Clone process error', { url, error: err.message });
-        resolve({ success: false, path: clonePath, error: err.message });
+        finish({ success: false, path: clonePath, error: err.message });
       });
     });
   }
@@ -399,6 +405,17 @@ export class RemoteRepoService {
     }
 
     return new Promise((resolve) => {
+      let settled = false;
+      const finish = (result: PullResult) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(fetchTimeout);
+        clearTimeout(pullTimeout);
+        resolve(result);
+      };
+
+      let pullTimeout: ReturnType<typeof setTimeout>;
+
       // fetch first
       const fetchProcess = spawn('git', ['fetch'], {
         cwd: safePath,
@@ -410,7 +427,7 @@ export class RemoteRepoService {
 
       const fetchTimeout = setTimeout(() => {
         fetchProcess.kill('SIGTERM');
-        resolve({
+        finish({
           success: false,
           updated: false,
           message: '',
@@ -421,7 +438,7 @@ export class RemoteRepoService {
       fetchProcess.on('close', (fetchCode) => {
         clearTimeout(fetchTimeout);
         if (fetchCode !== 0) {
-          resolve({
+          finish({
             success: false,
             updated: false,
             message: '',
@@ -439,9 +456,9 @@ export class RemoteRepoService {
           },
         });
 
-        const pullTimeout = setTimeout(() => {
+        pullTimeout = setTimeout(() => {
           pullProcess.kill('SIGTERM');
-          resolve({
+          finish({
             success: false,
             updated: false,
             message: '',
@@ -461,18 +478,17 @@ export class RemoteRepoService {
         });
 
         pullProcess.on('close', (code) => {
-          clearTimeout(pullTimeout);
           if (code === 0) {
             const updated = !stdout.includes('Already up to date');
             logger.info('Repository pulled successfully', { repoPath, updated });
-            resolve({
+            finish({
               success: true,
               updated,
               message: updated ? '更新しました' : '既に最新です',
             });
           } else {
             logger.error('Failed to pull repository', { repoPath, stderr });
-            resolve({
+            finish({
               success: false,
               updated: false,
               message: '',
@@ -482,8 +498,7 @@ export class RemoteRepoService {
         });
 
         pullProcess.on('error', (err) => {
-          clearTimeout(pullTimeout);
-          resolve({
+          finish({
             success: false,
             updated: false,
             message: '',
@@ -493,8 +508,7 @@ export class RemoteRepoService {
       });
 
       fetchProcess.on('error', (err) => {
-        clearTimeout(fetchTimeout);
-        resolve({
+        finish({
           success: false,
           updated: false,
           message: '',
