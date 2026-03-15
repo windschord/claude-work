@@ -1,4 +1,4 @@
-import { resolve, normalize, sep } from 'path';
+import { resolve, normalize, sep, relative } from 'path';
 
 /**
  * パスを正規化し、パストラバーサル攻撃を防止する
@@ -26,7 +26,9 @@ export function sanitizePath(inputPath: string): string {
 export function isWithinBase(targetPath: string, baseDir: string): boolean {
   const resolvedTarget = sanitizePath(targetPath);
   const resolvedBase = sanitizePath(baseDir);
-  return resolvedTarget === resolvedBase || resolvedTarget.startsWith(resolvedBase + sep);
+  if (resolvedTarget === resolvedBase) return true;
+  const rel = relative(resolvedBase, resolvedTarget);
+  return rel !== '' && !rel.startsWith('..' + sep) && !rel.startsWith('..');
 }
 
 /**

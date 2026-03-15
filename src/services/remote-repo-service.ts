@@ -145,11 +145,10 @@ export class RemoteRepoService {
    * @returns リポジトリ名
    */
   extractRepoName(url: string): string {
-    // 末尾のスラッシュを除去（ReDoS対策: trimEnd相当の処理）
-    let cleaned = url;
-    while (cleaned.endsWith('/')) {
-      cleaned = cleaned.slice(0, -1);
-    }
+    // 末尾のスラッシュを除去（ReDoS対策: 1回の slice で処理）
+    let end = url.length;
+    while (end > 0 && url[end - 1] === '/') end--;
+    let cleaned = url.slice(0, end);
     // .git サフィックスを除去
     if (cleaned.endsWith('.git')) {
       cleaned = cleaned.slice(0, -4);

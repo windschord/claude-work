@@ -54,8 +54,11 @@ export async function POST(request: NextRequest) {
   if (!dockerfilePath || typeof dockerfilePath !== 'string') {
     return NextResponse.json({ error: 'dockerfilePath is required and must be a string' }, { status: 400 });
   }
-  if (!imageName) {
-    return NextResponse.json({ error: 'imageName is required' }, { status: 400 });
+  if (!imageName || typeof imageName !== 'string') {
+    return NextResponse.json({ error: 'imageName is required and must be a string' }, { status: 400 });
+  }
+  if (typeof imageTag !== 'string') {
+    return NextResponse.json({ error: 'imageTag must be a string' }, { status: 400 });
   }
 
   // イメージ名/タグのバリデーション
