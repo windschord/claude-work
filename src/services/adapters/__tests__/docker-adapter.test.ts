@@ -426,6 +426,9 @@ describe('DockerAdapter', () => {
       expect(env).toContain('HTTPS_PROXY=http://network-filter-proxy:3128');
       expect(env).toContain(`PIP_INDEX_URL=${rfHost}/pypi/simple/`);
       expect(env).toContain(`GOPROXY=${rfHost}/go/,direct`);
+      // registry-firewallホストはNO_PROXYに追加される
+      expect(env.some((e: string) => e.startsWith('NO_PROXY='))).toBe(true);
+      expect(env.some((e: string) => e.startsWith('no_proxy='))).toBe(true);
     });
 
     it('shellMode時にレジストリ設定を注入しない', () => {
