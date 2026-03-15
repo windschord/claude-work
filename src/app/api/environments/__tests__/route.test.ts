@@ -53,6 +53,19 @@ vi.mock('fs/promises', async () => {
   };
 });
 
+// Mock network-filter-service
+const mockGetDefaultTemplates = vi.fn();
+const mockApplyTemplates = vi.fn();
+const mockUpdateFilterConfig = vi.fn();
+
+vi.mock('@/services/network-filter-service', () => ({
+  networkFilterService: {
+    getDefaultTemplates: () => mockGetDefaultTemplates(),
+    applyTemplates: (envId: string, rules: unknown[]) => mockApplyTemplates(envId, rules),
+    updateFilterConfig: (envId: string, enabled: boolean) => mockUpdateFilterConfig(envId, enabled),
+  },
+}));
+
 vi.mock('@/lib/logger', () => ({
   logger: {
     info: vi.fn(),
@@ -68,6 +81,10 @@ const ALLOWED_BASE_DIR = path.resolve(process.cwd(), 'data', 'environments');
 describe('/api/environments', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // networkFilterServiceモックのデフォルト値（DOCKER系テストでflatMap例外を防止）
+    mockGetDefaultTemplates.mockReturnValue([]);
+    mockApplyTemplates.mockResolvedValue({ created: 0, skipped: 0, rules: [] });
+    mockUpdateFilterConfig.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -576,6 +593,251 @@ describe('/api/environments', () => {
       expect(response.status).toBe(201);
       expect(data.environment.id).toBe('env-host-ok');
       expect(mockCreate).toHaveBeenCalledTimes(1);
+    });
+
+    describe('デフォルトネットワークフィルタリング自動適用', () => {
+      const defaultTemplates = [
+        {
+          category: 'Anthropic API',
+          rules: [{ target: 'api.anthropic.com', port: 443, description: 'Claude API' }],
+        },
+        {
+          category: 'npm',
+          rules: [
+            { target: '*.npmjs.org', port: 443, description: 'npm registry' },
+            { target: '*.npmjs.com', port: 443, description: 'npm registry' },
+          ],
+        },
+      ];
+
+      it('DOCKER環境作成時にフィルタリングが有効化されテンプレートが適用される', async () => {
+        const newEnvironment = {
+          id: 'env-docker-filter',
+          name: 'Docker Filter Env',
+          type: 'DOCKER',
+          description: null,
+          config: '{}',
+          auth_dir_path: null,
+          created_at: new Date(),
+          updated_at: new Date(),
+        };
+
+        mockCreate.mockResolvedValue(newEnvironment);
+        mockCreateConfigVolumes.mockResolvedValue(undefined);
+        mockGetDefaultTemplates.mockReturnValue(defaultTemplates);
+        mockApplyTemplates.mockResolvedValue({ created: 3, skipped: 0, rules: [] });
+        mockUpdateFilterConfig.mockResolvedValue({ environment_id: 'env-docker-filter', enabled: true });
+
+        const request = new NextRequest('http://localhost:3000/api/environments', {
+          method: 'POST',
+          body: JSON.stringify({ name: 'Docker Filter Env', type: 'DOCKER', config: {} }),
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        const response = await POST(request);
+        expect(response.status).toBe(201);
+
+        // applyTemplates が先に呼ばれ、その後 updateFilterConfig が呼ばれる
+        expect(mockGetDefaultTemplates).toHaveBeenCalledTimes(1);
+        expect(mockApplyTemplates).toHaveBeenCalledTimes(1);
+        expect(mockApplyTemplates).toHaveBeenCalledWith(
+          'env-docker-filter',
+          expect.arrayContaining([
+            expect.objectContaining({ target: 'api.anthropic.com', port: 443 }),
+          ])
+        );
+        expect(mockUpdateFilterConfig).toHaveBeenCalledTimes(1);
+        expect(mockUpdateFilterConfig).toHaveBeenCalledWith('env-docker-filter', true);
+
+        // 呼び出し順序の検証: createConfigVolumes -> applyTemplates -> updateFilterConfig
+        const volumeOrder = mockCreateConfigVolumes.mock.invocationCallOrder[0];
+        const applyOrder = mockApplyTemplates.mock.invocationCallOrder[0];
+        const configOrder = mockUpdateFilterConfig.mock.invocationCallOrder[0];
+        expect(volumeOrder).toBeLessThan(applyOrder);
+        expect(applyOrder).toBeLessThan(configOrder);
+      });
+
+      it('HOST環境作成時はフィルタリング初期化をスキップする', async () => {
+        const newEnvironment = {
+          id: 'env-host-no-filter',
+          name: 'Host No Filter',
+          type: 'HOST',
+          description: null,
+          config: '{}',
+          auth_dir_path: null,
+          created_at: new Date(),
+          updated_at: new Date(),
+        };
+
+        mockCreate.mockResolvedValue(newEnvironment);
+
+        const request = new NextRequest('http://localhost:3000/api/environments', {
+          method: 'POST',
+          body: JSON.stringify({ name: 'Host No Filter', type: 'HOST', config: {} }),
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        const response = await POST(request);
+        expect(response.status).toBe(201);
+        expect(mockGetDefaultTemplates).not.toHaveBeenCalled();
+        expect(mockApplyTemplates).not.toHaveBeenCalled();
+        expect(mockUpdateFilterConfig).not.toHaveBeenCalled();
+      });
+
+      it('SSH環境作成時はフィルタリング初期化をスキップする', async () => {
+        const newEnvironment = {
+          id: 'env-ssh-no-filter',
+          name: 'SSH No Filter',
+          type: 'SSH',
+          description: null,
+          config: '{"host":"example.com"}',
+          auth_dir_path: null,
+          created_at: new Date(),
+          updated_at: new Date(),
+        };
+
+        mockCreate.mockResolvedValue(newEnvironment);
+
+        const request = new NextRequest('http://localhost:3000/api/environments', {
+          method: 'POST',
+          body: JSON.stringify({ name: 'SSH No Filter', type: 'SSH', config: { host: 'example.com' } }),
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        const response = await POST(request);
+        expect(response.status).toBe(201);
+        expect(mockGetDefaultTemplates).not.toHaveBeenCalled();
+        expect(mockApplyTemplates).not.toHaveBeenCalled();
+        expect(mockUpdateFilterConfig).not.toHaveBeenCalled();
+      });
+
+      it('フィルタリング初期化失敗時もベストエフォートで201を返す', async () => {
+        const newEnvironment = {
+          id: 'env-docker-filter-fail',
+          name: 'Docker Filter Fail',
+          type: 'DOCKER',
+          description: null,
+          config: '{}',
+          auth_dir_path: null,
+          created_at: new Date(),
+          updated_at: new Date(),
+        };
+
+        mockCreate.mockResolvedValue(newEnvironment);
+        mockCreateConfigVolumes.mockResolvedValue(undefined);
+        mockGetDefaultTemplates.mockReturnValue(defaultTemplates);
+        mockApplyTemplates.mockRejectedValue(new Error('Database error'));
+
+        const request = new NextRequest('http://localhost:3000/api/environments', {
+          method: 'POST',
+          body: JSON.stringify({ name: 'Docker Filter Fail', type: 'DOCKER', config: {} }),
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        const response = await POST(request);
+        const data = await response.json();
+
+        // 環境作成自体は成功する
+        expect(response.status).toBe(201);
+        expect(data.environment.id).toBe('env-docker-filter-fail');
+      });
+
+      it('テンプレート適用失敗時はupdateFilterConfigを呼ばない', async () => {
+        const newEnvironment = {
+          id: 'env-docker-no-enable',
+          name: 'Docker No Enable',
+          type: 'DOCKER',
+          description: null,
+          config: '{}',
+          auth_dir_path: null,
+          created_at: new Date(),
+          updated_at: new Date(),
+        };
+
+        mockCreate.mockResolvedValue(newEnvironment);
+        mockCreateConfigVolumes.mockResolvedValue(undefined);
+        mockGetDefaultTemplates.mockReturnValue(defaultTemplates);
+        mockApplyTemplates.mockRejectedValue(new Error('Apply failed'));
+
+        const request = new NextRequest('http://localhost:3000/api/environments', {
+          method: 'POST',
+          body: JSON.stringify({ name: 'Docker No Enable', type: 'DOCKER', config: {} }),
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        const response = await POST(request);
+        expect(response.status).toBe(201);
+
+        // applyTemplatesが失敗したため、updateFilterConfigは呼ばれない
+        expect(mockApplyTemplates).toHaveBeenCalledTimes(1);
+        expect(mockUpdateFilterConfig).not.toHaveBeenCalled();
+      });
+
+      it('updateFilterConfig失敗時もルール適用済みで201を返す（部分成功）', async () => {
+        const newEnvironment = {
+          id: 'env-docker-partial',
+          name: 'Docker Partial',
+          type: 'DOCKER',
+          description: null,
+          config: '{}',
+          auth_dir_path: null,
+          created_at: new Date(),
+          updated_at: new Date(),
+        };
+
+        mockCreate.mockResolvedValue(newEnvironment);
+        mockCreateConfigVolumes.mockResolvedValue(undefined);
+        mockGetDefaultTemplates.mockReturnValue(defaultTemplates);
+        mockApplyTemplates.mockResolvedValue({ created: 3, skipped: 0, rules: [] });
+        mockUpdateFilterConfig.mockRejectedValue(new Error('Config update failed'));
+
+        const request = new NextRequest('http://localhost:3000/api/environments', {
+          method: 'POST',
+          body: JSON.stringify({ name: 'Docker Partial', type: 'DOCKER', config: {} }),
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        const response = await POST(request);
+        const data = await response.json();
+
+        // 環境作成自体は成功する（ルール適用済み・有効化未完了の部分成功）
+        expect(response.status).toBe(201);
+        expect(data.environment.id).toBe('env-docker-partial');
+        expect(mockApplyTemplates).toHaveBeenCalledTimes(1);
+        expect(mockUpdateFilterConfig).toHaveBeenCalledTimes(1);
+      });
+
+      it('テンプレート適用が0件の場合はフィルタリング有効化をスキップする', async () => {
+        const newEnvironment = {
+          id: 'env-docker-zero-rules',
+          name: 'Docker Zero Rules',
+          type: 'DOCKER',
+          description: null,
+          config: '{}',
+          auth_dir_path: null,
+          created_at: new Date(),
+          updated_at: new Date(),
+        };
+
+        mockCreate.mockResolvedValue(newEnvironment);
+        mockCreateConfigVolumes.mockResolvedValue(undefined);
+        mockGetDefaultTemplates.mockReturnValue(defaultTemplates);
+        // 全件スキップ（既に同一ルールが存在するケース）
+        mockApplyTemplates.mockResolvedValue({ created: 0, skipped: 3, rules: [] });
+
+        const request = new NextRequest('http://localhost:3000/api/environments', {
+          method: 'POST',
+          body: JSON.stringify({ name: 'Docker Zero Rules', type: 'DOCKER', config: {} }),
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        const response = await POST(request);
+        expect(response.status).toBe(201);
+
+        // applyTemplatesは呼ばれるが、created=0なのでupdateFilterConfigは呼ばれない
+        expect(mockApplyTemplates).toHaveBeenCalledTimes(1);
+        expect(mockUpdateFilterConfig).not.toHaveBeenCalled();
+      });
     });
 
     describe('Dockerfile自動ビルド（imageSource=dockerfile）', () => {

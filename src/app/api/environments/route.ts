@@ -8,6 +8,7 @@ import { getEnvironmentsDir } from '@/lib/data-dir';
 import { validatePortMappings, validateVolumeMounts } from '@/lib/docker-config-validator';
 import { DockerClient } from '@/services/docker-client';
 import { isHostEnvironmentAllowed } from '@/lib/environment-detect';
+import { networkFilterService } from '@/services/network-filter-service';
 import { db } from '@/lib/db';
 import * as schema from '@/db/schema';
 import { sql } from 'drizzle-orm';
@@ -331,6 +332,34 @@ export async function POST(request: NextRequest) {
       try {
         await environmentService.createConfigVolumes(environment.id);
         logger.info('Config volumes created for Docker environment', { id: environment.id });
+
+        // デフォルトネットワークフィルタリングルールを自動適用（ベストエフォート）
+        try {
+          const templates = networkFilterService.getDefaultTemplates();
+          const allRules = templates.flatMap(t => t.rules);
+          const applyResult = await networkFilterService.applyTemplates(environment.id, allRules);
+          if (applyResult.created > 0) {
+            try {
+              await networkFilterService.updateFilterConfig(environment.id, true);
+              logger.info('Default network filtering rules applied', { id: environment.id, createdCount: applyResult.created });
+            } catch (enableError) {
+              logger.warn('Default rules applied but failed to enable filtering', {
+                environmentId: environment.id,
+                createdCount: applyResult.created,
+                error: enableError,
+              });
+            }
+          } else {
+            logger.warn('Skip enabling network filtering because no rules were applied', {
+              environmentId: environment.id,
+            });
+          }
+        } catch (filterError) {
+          logger.warn('Failed to apply default network filtering rules', {
+            environmentId: environment.id,
+            error: filterError,
+          });
+        }
       } catch (volumeError) {
         logger.error('Failed to create config volumes, rolling back environment', {
           environmentId: environment.id, error: volumeError,
