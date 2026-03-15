@@ -22,6 +22,8 @@ export interface CreateSessionOptions {
   dockerVolumeId?: string;
   /** フィルタリング有効フラグ（DockerAdapter内部でbuildContainerOptionsに渡す用） */
   filterEnabled?: boolean;
+  /** registry-firewall有効フラグ（パッケージマネージャーのレジストリ設定注入用） */
+  registryFirewallEnabled?: boolean;
 }
 
 /**

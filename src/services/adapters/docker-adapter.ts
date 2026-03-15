@@ -169,7 +169,7 @@ export class DockerAdapter extends BasePTYAdapter {
     const Env: string[] = [];
     const PortBindings: any = {};
     const ExposedPorts: any = {};
-    const Cmd: string[] = [];
+    let Cmd: string[] = [];
     let Entrypoint: string[] = [];
 
     // Workspace mount
@@ -310,6 +310,49 @@ export class DockerAdapter extends BasePTYAdapter {
       const proxyListenUrl = process.env.PROXY_LISTEN_URL || 'http://network-filter-proxy:3128';
       Env.push(`HTTP_PROXY=${proxyListenUrl}`);
       Env.push(`HTTPS_PROXY=${proxyListenUrl}`);
+    }
+
+    // Registry Firewall: パッケージマネージャーのレジストリ設定注入
+    if (options?.registryFirewallEnabled && !options?.shellMode) {
+      const rfHost = process.env.REGISTRY_FIREWALL_URL || 'http://claudework-registry-firewall:8080';
+      let rfHostname: string;
+      try {
+        rfHostname = new URL(rfHost).hostname;
+      } catch {
+        rfHostname = 'claudework-registry-firewall';
+      }
+
+      // filterEnabled併用時: registry-firewallへの通信をHTTP_PROXYから除外
+      if (options?.filterEnabled) {
+        Env.push(`NO_PROXY=${rfHostname}`);
+        Env.push(`no_proxy=${rfHostname}`);
+      }
+
+      // pip (環境変数で設定)
+      Env.push(`PIP_INDEX_URL=${rfHost}/pypi/simple/`);
+      Env.push(`PIP_TRUSTED_HOST=${rfHostname}`);
+
+      // go (環境変数で設定)
+      Env.push(`GOPROXY=${rfHost}/go/,direct`);
+
+      // npm/cargoは環境変数だけでは設定不可 → Entrypointをshell経由に変更
+      // rfHostはURLとして検証済み(上のtry-catchで検証)。シェルメタ文字対策としてnpmコマンドはシングルクォートで囲む
+      const cargoConfig = [
+        '[registries.claudework]',
+        `index = "sparse+${rfHost}/cargo/"`,
+        '[source.crates-io]',
+        'replace-with = "claudework"',
+      ].join('\n');
+      const setupScript = [
+        `npm config set registry '${rfHost}/npm/'`,
+        `mkdir -p ~/.cargo`,
+        `printf '%s\\n' '${cargoConfig}' > ~/.cargo/config.toml`,
+      ].join(' && ');
+
+      // 元のEntrypoint+Cmdをpositional parametersで安全にexec
+      const originalCmd = [...Entrypoint, ...(Cmd.length > 0 ? Cmd : [])];
+      Entrypoint = ['/bin/sh', '-c'];
+      Cmd = [setupScript + ' && exec "$@"', '--', ...originalCmd];
     }
 
     const createOptions: Docker.ContainerCreateOptions = {

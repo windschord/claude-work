@@ -370,6 +370,94 @@ describe('DockerAdapter', () => {
     });
   });
 
+  describe('buildContainerOptions with registry firewall', () => {
+    const rfHost = 'http://claudework-registry-firewall:8080';
+
+    it('registryFirewallEnabled=true時にPIP_INDEX_URLが注入される', () => {
+      const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { registryFirewallEnabled: true });
+      const env = createOptions.Env as string[];
+      expect(env).toContain(`PIP_INDEX_URL=${rfHost}/pypi/simple/`);
+    });
+
+    it('registryFirewallEnabled=true時にPIP_TRUSTED_HOSTが注入される', () => {
+      const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { registryFirewallEnabled: true });
+      const env = createOptions.Env as string[];
+      expect(env).toContain('PIP_TRUSTED_HOST=claudework-registry-firewall');
+    });
+
+    it('registryFirewallEnabled=true時にGOPROXY環境変数が注入される', () => {
+      const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { registryFirewallEnabled: true });
+      const env = createOptions.Env as string[];
+      expect(env).toContain(`GOPROXY=${rfHost}/go/,direct`);
+    });
+
+    it('registryFirewallEnabled=true時にEntrypointにnpm config setコマンドが含まれる', () => {
+      const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { registryFirewallEnabled: true });
+      const cmd = createOptions.Cmd as string[];
+      expect(cmd[0]).toContain(`npm config set registry '${rfHost}/npm/'`);
+    });
+
+    it('registryFirewallEnabled=true時にEntrypointにcargo config作成コマンドが含まれる', () => {
+      const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { registryFirewallEnabled: true });
+      const cmd = createOptions.Cmd as string[];
+      expect(cmd[0]).toContain('~/.cargo/config.toml');
+    });
+
+    it('registryFirewallEnabled=true時にEntrypointが/bin/sh -cに変更される', () => {
+      const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { registryFirewallEnabled: true });
+      expect(createOptions.Entrypoint).toEqual(['/bin/sh', '-c']);
+    });
+
+    it('registryFirewallEnabled=false時にレジストリ設定が注入されない', () => {
+      const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { registryFirewallEnabled: false });
+      const env = createOptions.Env as string[];
+      expect(env.some((e: string) => e.startsWith('PIP_INDEX_URL='))).toBe(false);
+      expect(env.some((e: string) => e.startsWith('GOPROXY='))).toBe(false);
+      expect(createOptions.Entrypoint).toEqual(['claude']);
+    });
+
+    it('filterEnabledとregistryFirewallEnabledの両方が有効な場合、HTTP_PROXYとレジストリ設定の両方が設定される', () => {
+      const { createOptions } = (adapter as any).buildContainerOptions('/workspace', {
+        filterEnabled: true,
+        registryFirewallEnabled: true,
+      });
+      const env = createOptions.Env as string[];
+      expect(env).toContain('HTTP_PROXY=http://network-filter-proxy:3128');
+      expect(env).toContain('HTTPS_PROXY=http://network-filter-proxy:3128');
+      expect(env).toContain(`PIP_INDEX_URL=${rfHost}/pypi/simple/`);
+      expect(env).toContain(`GOPROXY=${rfHost}/go/,direct`);
+      // registry-firewallホストはNO_PROXYに追加される
+      expect(env.some((e: string) => e.startsWith('NO_PROXY='))).toBe(true);
+      expect(env.some((e: string) => e.startsWith('no_proxy='))).toBe(true);
+    });
+
+    it('shellMode時にレジストリ設定を注入しない', () => {
+      const { createOptions } = (adapter as any).buildContainerOptions('/workspace', {
+        registryFirewallEnabled: true,
+        shellMode: true,
+      });
+      const env = createOptions.Env as string[];
+      expect(env.some((e: string) => e.startsWith('PIP_INDEX_URL='))).toBe(false);
+      expect(createOptions.Entrypoint).toEqual(['/bin/sh']);
+    });
+
+    it('REGISTRY_FIREWALL_URL環境変数が設定されている場合はそちらを使用する', () => {
+      const original = process.env.REGISTRY_FIREWALL_URL;
+      process.env.REGISTRY_FIREWALL_URL = 'http://custom-firewall:9090';
+      try {
+        const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { registryFirewallEnabled: true });
+        const env = createOptions.Env as string[];
+        expect(env).toContain('PIP_INDEX_URL=http://custom-firewall:9090/pypi/simple/');
+      } finally {
+        if (original === undefined) {
+          delete process.env.REGISTRY_FIREWALL_URL;
+        } else {
+          process.env.REGISTRY_FIREWALL_URL = original;
+        }
+      }
+    });
+  });
+
   describe('destroySession with network filtering cleanup', () => {
     it('containerIPが保存されている場合、destroySession時にproxyClient.deleteRulesが呼ばれる', async () => {
       mockProxyDeleteRules.mockResolvedValue(undefined);
