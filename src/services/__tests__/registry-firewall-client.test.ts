@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import {
   RegistryFirewallClient,
-  getRegistryFirewallClient,
   type RegistryFirewallHealthResponse,
   type BlockLogsResponse,
 } from '@/services/registry-firewall-client';

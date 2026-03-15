@@ -62,16 +62,13 @@ export class RegistryFirewallClient {
    * タイムアウトや接続エラー時は { status: 'stopped' } を返す(例外をスローしない)。
    */
   async getHealth(): Promise<RegistryFirewallHealthResponse> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
-
       const response = await fetch(`${this.baseUrl}/health`, {
         headers: this.getHeaders(),
         signal: controller.signal,
       });
-
-      clearTimeout(timeoutId);
 
       if (response.status === 401 || response.status === 403) {
         logger.warn('Registry firewall authentication failed', { status: response.status });
@@ -88,6 +85,8 @@ export class RegistryFirewallClient {
     } catch (error) {
       logger.debug('Registry firewall health check error', { error });
       return { status: 'stopped' };
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 
@@ -98,10 +97,9 @@ export class RegistryFirewallClient {
    * エラー時は空のレスポンスを返す(例外をスローしない)。
    */
   async getBlocks(limit?: number): Promise<BlockLogsResponse> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
-
       const params = new URLSearchParams();
       if (limit !== undefined) {
         params.set('limit', String(limit));
@@ -114,8 +112,6 @@ export class RegistryFirewallClient {
         signal: controller.signal,
       });
 
-      clearTimeout(timeoutId);
-
       if (!response.ok) {
         logger.warn('Registry firewall blocks fetch failed', { status: response.status });
         return { blocks: [], total: 0 };
@@ -126,6 +122,8 @@ export class RegistryFirewallClient {
     } catch (error) {
       logger.debug('Registry firewall blocks fetch error', { error });
       return { blocks: [], total: 0 };
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 }

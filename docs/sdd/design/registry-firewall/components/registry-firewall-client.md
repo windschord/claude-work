@@ -50,9 +50,6 @@ export class RegistryFirewallClient {
 
   /** ブロックログ取得 */
   async getBlocks(limit?: number): Promise<BlockLogsResponse>;
-
-  /** UIプロキシ用: パスをそのまま転送 */
-  async proxyRequest(path: string, options?: RequestInit): Promise<Response>;
 }
 ```
 

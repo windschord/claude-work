@@ -53,7 +53,7 @@ export function useRegistryFirewall(): UseRegistryFirewallReturn {
     try {
       const [healthRes, blocksRes, configRes] = await Promise.all([
         fetch('/api/registry-firewall/health'),
-        fetch('/api/registry-firewall/blocks?limit=5'),
+        fetch('/api/registry-firewall/blocks?limit=10'),
         fetch('/api/settings/config'),
       ]);
 
