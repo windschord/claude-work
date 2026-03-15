@@ -60,7 +60,7 @@ Claude Code can run in different execution environments:
 - Docker is the default execution environment for security and isolation
 - Each Docker environment has isolated authentication directory (`data/environments/<env-id>/`)
 - Sessions can specify which environment to use via `environment_id`
-- Legacy `docker_mode` parameter is deprecated but still supported for backward compatibility
+- Legacy `docker_mode` parameter is no longer supported (DB column exists but API ignores it)
 - Default Docker environment is auto-created on server startup
 - SSH keys are mounted read-only from `~/.ssh/` for private repository access
 
@@ -528,3 +528,180 @@ describe('Connection management', () => {
   });
 });
 ```
+
+## Feature Specification Summary
+
+> 生成元: `src/app/api/` (routes), `src/db/schema.ts` (tables), `src/services/` (services), `server.ts` (WebSocket)
+> 更新手順: 上記ディレクトリの変更時に、該当セクションを手動で更新する
+
+### API Endpoints
+
+**Health & Settings**
+- `GET /api/health`
+- `GET /api/settings/config`
+- `PUT /api/settings/config`
+
+**Projects**
+- `GET /api/projects` - 一覧
+- `POST /api/projects` - 作成
+- `GET /api/projects/:id` - 詳細
+- `PATCH /api/projects/:id` - 部分更新
+- `PUT /api/projects/:id` - 全体更新
+- `DELETE /api/projects/:id` - 削除
+- `POST /api/projects/clone` - リポジトリクローン
+- `POST /api/projects/:id/pull` - git pull
+- `GET /api/projects/:id/branches` - ブランチ一覧
+- `GET /api/projects/:id/scripts` - スクリプト一覧
+- `POST /api/projects/:id/scripts` - スクリプト作成
+- `PUT /api/projects/:id/scripts/:scriptId` - スクリプト更新
+- `DELETE /api/projects/:id/scripts/:scriptId` - スクリプト削除
+- `GET /api/projects/:id/sessions` - セッション一覧
+- `POST /api/projects/:id/sessions` - セッション作成 (`environment_id` はプロジェクト設定から自動適用)
+
+**Sessions**
+- `GET /api/sessions/:id` - 詳細
+- `PATCH /api/sessions/:id` - 更新
+- `DELETE /api/sessions/:id` - 削除
+- `POST /api/sessions/:id/input` - Claude入力送信
+- `POST /api/sessions/:id/approve` - Claudeアクション承認
+- `POST /api/sessions/:id/stop` - Claude停止
+- `POST /api/sessions/:id/resume` - セッション再開
+- `GET /api/sessions/:id/process` - プロセス状態取得
+- `POST /api/sessions/:id/process` - プロセス管理 (start/stop/restart)
+- `POST /api/sessions/:id/rebase` - git rebase
+- `POST /api/sessions/:id/reset` - git reset
+- `POST /api/sessions/:id/merge` - git merge
+- `GET /api/sessions/:id/pr` - PR情報取得
+- `POST /api/sessions/:id/pr` - PR作成・更新
+- `GET /api/sessions/:id/messages` - メッセージ履歴
+- `GET /api/sessions/:id/commits` - コミット一覧
+- `GET /api/sessions/:id/diff` - diff取得
+- `POST /api/sessions/:id/run` - スクリプト実行
+- `POST /api/sessions/:id/run/:runId/stop` - スクリプト停止
+
+**Prompts**
+- `GET /api/prompts` - 一覧
+- `POST /api/prompts` - 保存
+- `DELETE /api/prompts/:id` - 削除
+
+**Execution Environments**
+- `GET /api/environments` - 一覧
+- `POST /api/environments` - 作成
+- `GET /api/environments/:id` - 詳細
+- `PUT /api/environments/:id` - 更新
+- `DELETE /api/environments/:id` - 削除
+- `POST /api/environments/:id/apply` - 変更適用
+- `GET /api/environments/:id/sessions` - 使用セッション一覧
+- `POST /api/environments/check-ports` - ポート確認
+- `GET /api/environments/:id/dockerfile` - Dockerfile取得
+- `POST /api/environments/:id/dockerfile` - Dockerfile作成・更新
+- `DELETE /api/environments/:id/dockerfile` - Dockerfile削除
+
+**Network Filtering**
+- `GET /api/environments/:id/network-filter` - フィルタ設定取得
+- `PUT /api/environments/:id/network-filter` - フィルタ設定更新
+- `POST /api/environments/:id/network-filter/test` - フィルタテスト
+- `GET /api/environments/:id/network-rules` - ルール一覧
+- `POST /api/environments/:id/network-rules` - ルール作成
+- `PUT /api/environments/:id/network-rules/:ruleId` - ルール更新
+- `DELETE /api/environments/:id/network-rules/:ruleId` - ルール削除
+- `GET /api/environments/:id/network-rules/templates` - テンプレート一覧
+- `POST /api/environments/:id/network-rules/templates/apply` - テンプレート適用
+
+**GitHub PAT**
+- `GET /api/github-pat` - 一覧
+- `POST /api/github-pat` - 追加
+- `PATCH /api/github-pat/:id` - 更新
+- `DELETE /api/github-pat/:id` - 削除
+- `POST /api/github-pat/:id/toggle` - 有効/無効切替
+
+**SSH Keys**
+- `GET /api/ssh-keys` - 一覧
+- `POST /api/ssh-keys` - 追加
+- `DELETE /api/ssh-keys/:id` - 削除
+
+**Developer Settings**
+- `GET /api/developer-settings/global` - グローバルGit設定取得
+- `PUT /api/developer-settings/global` - グローバルGit設定更新
+- `GET /api/developer-settings/project/:projectId` - プロジェクトGit設定取得
+- `PUT /api/developer-settings/project/:projectId` - プロジェクトGit設定更新
+- `DELETE /api/developer-settings/project/:projectId` - プロジェクトGit設定削除
+
+**Docker**
+- `GET /api/docker/images` - イメージ一覧
+- `GET /api/docker/volumes` - ボリューム一覧
+- `POST /api/docker/image-build` - イメージビルド
+
+### DB Schema
+
+| Table | Key Columns | 説明 |
+|-------|-------------|------|
+| Project | id, name, path, remote_url, clone_location, environment_id | プロジェクト管理 |
+| ExecutionEnvironment | id, name, type(HOST/DOCKER/SSH), config, auth_dir_path | 実行環境定義 |
+| Session | id, project_id, name, status, worktree_path, branch_name, environment_id, session_state | セッション管理 |
+| Message | id, session_id, role, content, sub_agents | チャット履歴 |
+| Prompt | id, content, used_count, last_used_at | プロンプト履歴 |
+| RunScript | id, project_id, name, command | カスタムスクリプト |
+| GitHubPAT | id, name, encrypted_token, is_active | GitHub PAT管理 |
+| DeveloperSettings | id, scope(GLOBAL/PROJECT), project_id, git_username, git_email | Git設定 |
+| NetworkFilterConfig | id, environment_id, enabled | ネットワークフィルタ設定 |
+| NetworkFilterRule | id, environment_id, target, port, description, enabled | フィルタルール |
+| SshKey | id, name, public_key, private_key_encrypted | SSH鍵管理 |
+
+### WebSocket Endpoints
+
+| Path | Handler | 用途 |
+|------|---------|------|
+| `/ws/claude/:sessionId` | setupClaudeWebSocket | Claude Code PTYターミナル (raw I/O) |
+| `/ws/sessions/:sessionId` | SessionWebSocketHandler | セッションイベント・スクリプト実行 |
+| `/ws/terminal/:sessionId` | setupTerminalWebSocket | シェルターミナル |
+
+### Services
+
+**Core Services:**
+- `pty-session-manager.ts` - Session-to-adapter mapping, Claude PTYライフサイクル管理
+- `process-lifecycle-manager.ts` - アイドルタイムアウト、graceful shutdown
+- `environment-service.ts` - ExecutionEnvironment CRUD・ライフサイクル
+- `adapter-factory.ts` - 環境タイプに応じたAdapter生成 (Host/Docker)
+- `scrollback-buffer.ts` - ターミナル出力バッファ (再接続時の復元用)
+- `run-script-manager.ts` - カスタムスクリプト実行
+
+**Git:**
+- `git-service.ts` - Worktree作成/削除、rebase、squash merge、diff
+- `docker-git-service.ts` - Docker volume内のGit操作
+- `gh-cli.ts` - GitHub CLI wrapper (PR作成・ステータス)
+
+**Docker:**
+- `docker-service.ts` - イメージ、コンテナ、ボリューム管理
+- `docker-client.ts` - Dockerode singleton client
+- `docker-pty-adapter.ts` - DockerコンテナでのClaude PTY実行
+- `docker-pty-stream.ts` - Docker PTY I/Oストリーム管理
+
+**Security:**
+- `encryption-service.ts` - AES-256-GCM暗号化/復号
+- `github-pat-service.ts` - GitHub PAT CRUD + 暗号化
+- `ssh-key-service.ts` - SSH鍵 CRUD + 暗号化
+- `auth-directory-manager.ts` - Docker環境の認証ディレクトリ管理
+- `network-filter-service.ts` - ネットワークフィルタリングルールCRUD
+- `proxy-client.ts` - network-filter-proxy API client
+
+**Adapters (src/services/adapters/):**
+- `base-adapter.ts` - EnvironmentAdapter基底クラス
+- `host-adapter.ts` - HOST環境 (ローカル実行)
+- `docker-adapter.ts` - DOCKER環境 (コンテナ実行)
+
+### Environment Variables
+
+**必須:**
+- `DATABASE_URL` - SQLite DB URL (Docker Compose: `file:/data/claudework.db`)
+
+**主要オプション:**
+- `PORT` (3000), `NODE_ENV`, `LOG_LEVEL` (info), `DATA_DIR` (./data)
+- `CLAUDE_CODE_PATH` - Claude CLIパス (自動検出)
+- `ENCRYPTION_KEY` - AES-256-GCM暗号化キー (Base64)
+- `ALLOWED_ORIGINS` - CORS許可オリジン (カンマ区切り)
+- `ALLOWED_PROJECT_DIRS` - プロジェクトディレクトリ制限
+- `ALLOW_HOST_ENVIRONMENT` - HOST実行環境許可
+- `PROCESS_IDLE_TIMEOUT_MINUTES` (0=無効) - アイドルプロセス自動停止
+- `PROXY_API_URL` - network-filter-proxy API URL
+- `DOCKER_IMAGE_NAME`, `DOCKER_IMAGE_TAG` - Docker環境イメージ設定
