@@ -195,6 +195,7 @@ export class RemoteRepoService {
         }
 
         // clone先パスを決定
+        // targetDir は呼び出し元の API レイヤー（clone/route.ts）で ALLOWED_PROJECT_DIRS チェック済み
         let clonePath: string;
         if (targetDir) {
           if (!isAbsolute(targetDir)) {
@@ -240,6 +241,7 @@ export class RemoteRepoService {
     }
 
     // clone先パスを決定
+    // targetDir は呼び出し元の API レイヤー（clone/route.ts）で ALLOWED_PROJECT_DIRS チェック済み
     let clonePath: string;
     if (targetDir) {
       if (!isAbsolute(targetDir)) {
@@ -369,8 +371,10 @@ export class RemoteRepoService {
         };
       }
     }
+    const safePath = sanitizePath(repoPath);
+
     // Gitリポジトリかどうか確認
-    const isGitRepo = this.isGitRepository(repoPath);
+    const isGitRepo = this.isGitRepository(safePath);
     if (!isGitRepo) {
       return {
         success: false,
@@ -383,7 +387,7 @@ export class RemoteRepoService {
     return new Promise((resolve) => {
       // fetch first
       const fetchProcess = spawn('git', ['fetch'], {
-        cwd: repoPath,
+        cwd: safePath,
         env: {
           ...process.env,
           GIT_TERMINAL_PROMPT: '0',
@@ -403,7 +407,7 @@ export class RemoteRepoService {
 
         // pull with fast-forward only
         const pullProcess = spawn('git', ['pull', '--ff-only'], {
-          cwd: repoPath,
+          cwd: safePath,
           env: {
             ...process.env,
             GIT_TERMINAL_PROMPT: '0',
@@ -494,7 +498,9 @@ export class RemoteRepoService {
         return [];
       }
     }
-    if (!this.isGitRepository(repoPath)) {
+    const safePath = sanitizePath(repoPath);
+
+    if (!this.isGitRepository(safePath)) {
       return [];
     }
 
@@ -505,7 +511,7 @@ export class RemoteRepoService {
 
     // ローカルブランチを取得
     const localResult = spawnSync('git', ['branch', '--format=%(refname:short)'], {
-      cwd: repoPath,
+      cwd: safePath,
       encoding: 'utf-8',
     });
 
@@ -525,7 +531,7 @@ export class RemoteRepoService {
 
     // リモートブランチを取得
     const remoteResult = spawnSync('git', ['branch', '-r', '--format=%(refname:short)'], {
-      cwd: repoPath,
+      cwd: safePath,
       encoding: 'utf-8',
     });
 
@@ -557,9 +563,11 @@ export class RemoteRepoService {
    * @returns デフォルトブランチ名
    */
   async getDefaultBranch(repoPath: string): Promise<string> {
+    const safePath = sanitizePath(repoPath);
+
     // origin/HEAD からデフォルトブランチを取得
     const result = spawnSync('git', ['symbolic-ref', 'refs/remotes/origin/HEAD'], {
-      cwd: repoPath,
+      cwd: safePath,
       encoding: 'utf-8',
     });
 
@@ -571,7 +579,7 @@ export class RemoteRepoService {
 
     // フォールバック: 現在のブランチを確認
     const currentResult = spawnSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
-      cwd: repoPath,
+      cwd: safePath,
       encoding: 'utf-8',
     });
 
