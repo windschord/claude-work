@@ -44,4 +44,4 @@ AppConfigに`registry_firewall_enabled`フィールドを追加し、Settings Co
 
 **依存関係**: なし
 **推定工数**: 25分
-**ステータス**: `TODO`
+**ステータス**: `DONE`

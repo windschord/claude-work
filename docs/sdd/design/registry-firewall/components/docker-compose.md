@@ -69,7 +69,7 @@ logging:
   format: json
 
 auth:
-  enabled: false
+  enabled: true
 
 database:
   path: "/data/db/registry-firewall.db"
