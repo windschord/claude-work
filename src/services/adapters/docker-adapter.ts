@@ -315,23 +315,17 @@ export class DockerAdapter extends BasePTYAdapter {
     // Registry Firewall: パッケージマネージャーのレジストリ設定注入
     if (options?.registryFirewallEnabled && !options?.shellMode) {
       const rfHost = process.env.REGISTRY_FIREWALL_URL || 'http://claudework-registry-firewall:8080';
-
-      // filterEnabled併用時: registry-firewallへの通信をHTTP_PROXYから除外
-      if (options?.filterEnabled) {
-        let rfHostForNoProxy: string;
-        try {
-          rfHostForNoProxy = new URL(rfHost).hostname;
-        } catch {
-          rfHostForNoProxy = 'claudework-registry-firewall';
-        }
-        Env.push(`NO_PROXY=${rfHostForNoProxy}`);
-        Env.push(`no_proxy=${rfHostForNoProxy}`);
-      }
       let rfHostname: string;
       try {
         rfHostname = new URL(rfHost).hostname;
       } catch {
         rfHostname = 'claudework-registry-firewall';
+      }
+
+      // filterEnabled併用時: registry-firewallへの通信をHTTP_PROXYから除外
+      if (options?.filterEnabled) {
+        Env.push(`NO_PROXY=${rfHostname}`);
+        Env.push(`no_proxy=${rfHostname}`);
       }
 
       // pip (環境変数で設定)
