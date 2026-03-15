@@ -130,7 +130,7 @@ export class RemoteRepoService {
         return { valid: false, error: 'パスにパストラバーサルが含まれています' };
       }
       // isGitRepository でGitリポジトリかを検証（ファイルシステム直接操作を回避）
-      if (this.isGitRepository(trimmedUrl)) {
+      if (this.isGitRepository(sanitizePath(trimmedUrl))) {
         return { valid: true };
       }
     }
@@ -590,16 +590,20 @@ export class RemoteRepoService {
    * @returns Gitリポジトリの場合true
    */
   private isGitRepository(path: string): boolean {
-    const result = spawnSync('git', ['rev-parse', '--git-dir'], {
-      cwd: path,
-      encoding: 'utf-8',
-      env: {
-        ...process.env,
-        GIT_TERMINAL_PROMPT: '0',
-      },
-    });
+    try {
+      const result = spawnSync('git', ['rev-parse', '--git-dir'], {
+        cwd: path,
+        encoding: 'utf-8',
+        env: {
+          ...process.env,
+          GIT_TERMINAL_PROMPT: '0',
+        },
+      });
 
-    return result.status === 0;
+      return result.status === 0;
+    } catch {
+      return false;
+    }
   }
 }
 
