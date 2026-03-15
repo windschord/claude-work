@@ -56,6 +56,10 @@ const DEFAULT_TEMPLATES: DefaultTemplate[] = [
     category: 'Anthropic API',
     rules: [
       { target: 'api.anthropic.com', port: 443, description: 'Claude API' },
+      { target: 'statsig.anthropic.com', port: 443, description: 'Claude telemetry' },
+      { target: 'sentry.io', port: 443, description: 'Error reporting' },
+      { target: '*.sentry.io', port: 443, description: 'Error reporting' },
+      { target: 'platform.claude.com', port: 443, description: 'Claude authentication' },
     ],
   },
   {
@@ -68,6 +72,7 @@ const DEFAULT_TEMPLATES: DefaultTemplate[] = [
   {
     category: 'GitHub',
     rules: [
+      { target: 'github.com', port: 443, description: 'GitHub' },
       { target: '*.github.com', port: 443, description: 'GitHub' },
       { target: '*.githubusercontent.com', port: 443, description: 'GitHub content' },
     ],
