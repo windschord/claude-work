@@ -6,7 +6,8 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const limitStr = searchParams.get('limit');
-    const limit = limitStr ? Math.min(Math.max(parseInt(limitStr, 10), 1), 100) : 10;
+    const parsed = parseInt(limitStr ?? '', 10);
+    const limit = limitStr && Number.isFinite(parsed) ? Math.min(Math.max(parsed, 1), 100) : 10;
 
     const client = getRegistryFirewallClient();
     const health = await client.getHealth();

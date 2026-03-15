@@ -44,7 +44,7 @@ services:
       network-filter-proxy:
         condition: service_healthy
       registry-firewall:
-        condition: service_healthy
+        condition: service_started
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "node", "scripts/healthcheck.js"]

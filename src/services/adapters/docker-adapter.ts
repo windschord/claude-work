@@ -169,7 +169,7 @@ export class DockerAdapter extends BasePTYAdapter {
     const Env: string[] = [];
     const PortBindings: any = {};
     const ExposedPorts: any = {};
-    const Cmd: string[] = [];
+    let Cmd: string[] = [];
     let Entrypoint: string[] = [];
 
     // Workspace mount
@@ -315,10 +315,11 @@ export class DockerAdapter extends BasePTYAdapter {
     // Registry Firewall: パッケージマネージャーのレジストリ設定注入
     if (options?.registryFirewallEnabled && !options?.shellMode) {
       const rfHost = process.env.REGISTRY_FIREWALL_URL || 'http://claudework-registry-firewall:8080';
+      const rfHostname = new URL(rfHost).hostname;
 
       // pip (環境変数で設定)
       Env.push(`PIP_INDEX_URL=${rfHost}/pypi/simple/`);
-      Env.push(`PIP_TRUSTED_HOST=claudework-registry-firewall`);
+      Env.push(`PIP_TRUSTED_HOST=${rfHostname}`);
 
       // go (環境変数で設定)
       Env.push(`GOPROXY=${rfHost}/go/,direct`);
@@ -329,10 +330,10 @@ export class DockerAdapter extends BasePTYAdapter {
         `mkdir -p ~/.cargo && cat > ~/.cargo/config.toml << 'TOML'\n[registries.claudework]\nindex = "sparse+${rfHost}/cargo/"\n[source.crates-io]\nreplace-with = "claudework"\nTOML`,
       ];
 
-      // 元のEntrypoint+Cmdをshell経由で実行
+      // 元のEntrypoint+Cmdをpositional parametersで安全にexec
       const originalCmd = [...Entrypoint, ...(Cmd.length > 0 ? Cmd : [])];
       Entrypoint = ['/bin/sh', '-c'];
-      Cmd.splice(0, Cmd.length, setupCommands.join(' && ') + ' && exec ' + originalCmd.join(' '));
+      Cmd = [setupCommands.join(' && ') + ' && exec "$@"', '--', ...originalCmd];
     }
 
     const createOptions: Docker.ContainerCreateOptions = {

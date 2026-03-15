@@ -65,7 +65,7 @@ describe('GET /api/registry-firewall/blocks', () => {
     it('limitパラメータありでブロックログを200で返す', async () => {
       const request = createRequest({ limit: '20' });
       const response = await GET(request);
-      const json = await response.json();
+      await response.json();
 
       expect(response.status).toBe(200);
       expect(mockGetBlocks).toHaveBeenCalledWith(20);
@@ -74,7 +74,7 @@ describe('GET /api/registry-firewall/blocks', () => {
     it('limitが最大値(100)を超える場合は100に丸める', async () => {
       const request = createRequest({ limit: '200' });
       const response = await GET(request);
-      const json = await response.json();
+      await response.json();
 
       expect(response.status).toBe(200);
       expect(mockGetBlocks).toHaveBeenCalledWith(100);
@@ -83,7 +83,7 @@ describe('GET /api/registry-firewall/blocks', () => {
     it('limitが最小値(1)を下回る場合は1に丸める', async () => {
       const request = createRequest({ limit: '0' });
       const response = await GET(request);
-      const json = await response.json();
+      await response.json();
 
       expect(response.status).toBe(200);
       expect(mockGetBlocks).toHaveBeenCalledWith(1);
