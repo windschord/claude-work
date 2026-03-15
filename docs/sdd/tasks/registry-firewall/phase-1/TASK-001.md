@@ -28,13 +28,17 @@ docker-compose.ymlにregistry-firewallサービスを追加し、設定ファイ
 
 ## 受入基準
 
-- [ ] `configs/registry-firewall.yaml` が存在し、5レジストリ(npm, pypi, go, cargo, docker)が設定されている
-- [ ] `docker-compose.yml` に `registry-firewall` サービスが定義されている
-- [ ] registry-firewallが `claudework-filter` と `default` の両ネットワークに接続
-- [ ] ヘルスチェックが設定されている
-- [ ] `app` サービスに `REGISTRY_FIREWALL_URL` 環境変数が追加されている
-- [ ] `registry-firewall-data` ボリュームが追加されている
+- [x] `configs/registry-firewall.yaml` が存在し、5レジストリ(npm, pypi, go, cargo, docker)が設定されている
+- [x] `docker-compose.yml` に `registry-firewall` サービスが定義されている
+- [x] registry-firewallが `claudework-filter` と `default` の両ネットワークに接続
+- [x] ヘルスチェックが設定されている
+- [x] `app` サービスに `REGISTRY_FIREWALL_URL` 環境変数が追加されている
+- [x] `registry-firewall-data` ボリュームが追加されている
 
 **依存関係**: なし
 **推定工数**: 20分
-**ステータス**: `TODO`
+**ステータス**: `DONE`
+
+## 完了サマリー
+
+docker-compose.ymlにregistry-firewallサービスを追加し、configs/registry-firewall.yamlを新規作成した。5レジストリ(npm/pypi/go/cargo/docker)のプロキシ設定、OSV/OpenSSFセキュリティフィルタリング、キャッシュ・DB設定を含む。

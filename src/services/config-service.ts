@@ -8,6 +8,7 @@ import { logger } from '@/lib/logger';
 export interface AppConfig {
   git_clone_timeout_minutes?: number;
   debug_mode_keep_volumes?: boolean;
+  registry_firewall_enabled?: boolean;
 }
 
 /**
@@ -16,6 +17,7 @@ export interface AppConfig {
 const DEFAULT_CONFIG: Required<AppConfig> = {
   git_clone_timeout_minutes: 5,
   debug_mode_keep_volumes: false,
+  registry_firewall_enabled: true,
 };
 
 /**
@@ -43,6 +45,7 @@ export class ConfigService {
       this.config = {
         git_clone_timeout_minutes: loadedConfig.git_clone_timeout_minutes ?? DEFAULT_CONFIG.git_clone_timeout_minutes,
         debug_mode_keep_volumes: loadedConfig.debug_mode_keep_volumes ?? DEFAULT_CONFIG.debug_mode_keep_volumes,
+        registry_firewall_enabled: loadedConfig.registry_firewall_enabled ?? DEFAULT_CONFIG.registry_firewall_enabled,
       };
 
       logger.info('Configuration loaded', { config: this.config });
@@ -104,6 +107,13 @@ export class ConfigService {
    */
   getDebugModeKeepVolumes(): boolean {
     return this.config.debug_mode_keep_volumes;
+  }
+
+  /**
+   * レジストリファイアウォールが有効かどうか
+   */
+  getRegistryFirewallEnabled(): boolean {
+    return this.config.registry_firewall_enabled;
   }
 
   /**

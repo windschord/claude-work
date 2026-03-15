@@ -1,0 +1,53 @@
+server:
+  listen: "0.0.0.0:8080"
+  request_timeout_secs: 30
+
+logging:
+  level: "${RUST_LOG}"
+  format: json
+
+auth:
+  enabled: false
+
+database:
+  path: "/data/db/registry-firewall.db"
+
+cache:
+  enabled: true
+  backend: filesystem
+  filesystem:
+    path: "/data/cache"
+    max_size_gb: 10
+
+registries:
+  - name: npm
+    type: npm
+    upstream: "https://registry.npmjs.org"
+    path_prefix: "/npm"
+  - name: pypi
+    type: pypi
+    upstream: "https://pypi.org"
+    path_prefix: "/pypi"
+  - name: go
+    type: go
+    upstream: "https://proxy.golang.org"
+    path_prefix: "/go"
+  - name: cargo
+    type: cargo
+    upstream: "https://index.crates.io"
+    path_prefix: "/cargo"
+  - name: docker
+    type: docker
+    upstream: "https://registry-1.docker.io"
+    path_prefix: "/docker"
+
+security:
+  sources:
+    - type: osv
+      enabled: true
+      sync_interval_secs: 3600
+    - type: openssf_malicious_packages
+      enabled: true
+      sync_interval_secs: 3600
+  custom_blocklist:
+    enabled: true

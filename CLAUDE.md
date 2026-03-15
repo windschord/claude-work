@@ -632,6 +632,11 @@ describe('Connection management', () => {
 - `GET /api/docker/volumes` - ボリューム一覧
 - `POST /api/docker/image-build` - イメージビルド
 
+**Registry Firewall**
+- `GET /api/registry-firewall/health` - ヘルスステータス取得
+- `GET /api/registry-firewall/blocks` - ブロックログ取得
+- `GET /api/registry-firewall/ui/*` - 管理UIプロキシ(Next.js rewrites)
+
 ### DB Schema
 
 | Table | Key Columns | 説明 |
@@ -684,6 +689,7 @@ describe('Connection management', () => {
 - `auth-directory-manager.ts` - Docker環境の認証ディレクトリ管理
 - `network-filter-service.ts` - ネットワークフィルタリングルールCRUD
 - `proxy-client.ts` - network-filter-proxy API client
+- `registry-firewall-client.ts` - Registry Firewall API client
 
 **Adapters (src/services/adapters/):**
 - `base-adapter.ts` - EnvironmentAdapter基底クラス
@@ -705,3 +711,6 @@ describe('Connection management', () => {
 - `PROCESS_IDLE_TIMEOUT_MINUTES` (0=無効) - アイドルプロセス自動停止
 - `PROXY_API_URL` - network-filter-proxy API URL
 - `DOCKER_IMAGE_NAME`, `DOCKER_IMAGE_TAG` - Docker環境イメージ設定
+- `REGISTRY_FIREWALL_URL` - registry-firewall API URL
+- `REGISTRY_FIREWALL_API_TOKEN` - registry-firewall API認証トークン
+- `REGISTRY_FIREWALL_LOG_LEVEL` (info) - registry-firewallログレベル

@@ -7,6 +7,7 @@ vi.mock('@/services/config-service', () => ({
     getConfig: vi.fn(() => ({
       git_clone_timeout_minutes: 5,
       debug_mode_keep_volumes: false,
+      registry_firewall_enabled: true,
     })),
     save: vi.fn(),
   })),
@@ -41,7 +42,17 @@ describe('GET /api/settings/config', () => {
     expect(data.config).toEqual({
       git_clone_timeout_minutes: 5,
       debug_mode_keep_volumes: false,
+      registry_firewall_enabled: true,
     });
+  });
+
+  it('registry_firewall_enabledが含まれる', async () => {
+    const response = await GET();
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.config).toHaveProperty('registry_firewall_enabled');
+    expect(data.config.registry_firewall_enabled).toBe(true);
   });
 
   it('エラー時は500を返す', async () => {
@@ -166,6 +177,51 @@ describe('PUT /api/settings/config', () => {
     expect(response.status).toBe(400);
     const data = await response.json();
     expect(data.error).toBe('debug_mode_keep_volumes must be a boolean');
+  });
+
+  it('registry_firewall_enabledを更新できる', async () => {
+    const { getConfigService } = await import('@/services/config-service');
+    const mockSave = vi.fn();
+    vi.mocked(getConfigService).mockReturnValue({
+      getConfig: vi.fn(() => ({
+        git_clone_timeout_minutes: 5,
+        debug_mode_keep_volumes: false,
+        registry_firewall_enabled: false,
+      })),
+      save: mockSave,
+    } as any);
+
+    const request = new NextRequest('http://localhost/api/settings/config', {
+      method: 'PUT',
+      body: JSON.stringify({
+        registry_firewall_enabled: false,
+      }),
+    });
+
+    const response = await PUT(request);
+
+    expect(response.status).toBe(200);
+    expect(mockSave).toHaveBeenCalledWith({
+      registry_firewall_enabled: false,
+    });
+
+    const data = await response.json();
+    expect(data.config.registry_firewall_enabled).toBe(false);
+  });
+
+  it('registry_firewall_enabledがbooleanでない場合は400を返す', async () => {
+    const request = new NextRequest('http://localhost/api/settings/config', {
+      method: 'PUT',
+      body: JSON.stringify({
+        registry_firewall_enabled: 'true',
+      }),
+    });
+
+    const response = await PUT(request);
+
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error).toBe('registry_firewall_enabled must be a boolean');
   });
 
   it('保存失敗時は500を返す', async () => {
