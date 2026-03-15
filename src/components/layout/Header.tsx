@@ -51,7 +51,7 @@ export function Header() {
           onClick={handleLogoClick}
           className="flex items-center gap-2 text-xl font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
         >
-          <Image src="/images/logo-icon.png" alt="" width={28} height={28} aria-hidden />
+          <Image src="/images/logo-icon.png" alt="" width={28} height={28} aria-hidden="true" />
           ClaudeWork
         </button>
       </div>
