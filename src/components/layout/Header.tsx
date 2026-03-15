@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { Menu, Settings } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { ThemeToggle } from '@/components/common/ThemeToggle';
@@ -48,8 +49,9 @@ export function Header() {
         {/* ロゴ */}
         <button
           onClick={handleLogoClick}
-          className="text-xl font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+          className="flex items-center gap-2 text-xl font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
         >
+          <Image src="/images/logo-icon.png" alt="" width={28} height={28} aria-hidden />
           ClaudeWork
         </button>
       </div>
