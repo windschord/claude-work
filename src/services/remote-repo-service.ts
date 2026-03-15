@@ -589,11 +589,12 @@ export class RemoteRepoService {
    * @param path - 確認するパス
    * @returns Gitリポジトリの場合true
    */
-  private isGitRepository(path: string): boolean {
+  private isGitRepository(repoPath: string): boolean {
     try {
-      const result = spawnSync('git', ['rev-parse', '--git-dir'], {
-        cwd: path,
+      // -C オプションでディレクトリを指定（cwd にユーザー入力を渡すことを回避）
+      const result = spawnSync('git', ['-C', repoPath, 'rev-parse', '--git-dir'], {
         encoding: 'utf-8',
+        timeout: 5_000,
         env: {
           ...process.env,
           GIT_TERMINAL_PROMPT: '0',
