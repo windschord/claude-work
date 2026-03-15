@@ -1,8 +1,9 @@
 import { spawn, spawnSync } from 'child_process';
-import { join, basename, resolve } from 'path';
+import { join, basename } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { logger } from '../lib/logger';
 import { getReposDir } from '@/lib/data-dir';
+import { sanitizePath, isSafePathComponent } from '@/lib/path-safety';
 import { EnvironmentService } from './environment-service';
 import type { DockerAdapter } from './adapters/docker-adapter';
 
@@ -120,8 +121,11 @@ export class RemoteRepoService {
 
     // ローカルリポジトリパスのチェック（テスト・開発用）
     // 絶対パスで.gitディレクトリが存在する場合は許可
-    if (trimmedUrl.startsWith('/') && existsSync(join(trimmedUrl, '.git'))) {
-      return { valid: true };
+    if (trimmedUrl.startsWith('/')) {
+      const safePath = sanitizePath(trimmedUrl);
+      if (existsSync(join(safePath, '.git'))) {
+        return { valid: true };
+      }
     }
 
     return { valid: false, error: '有効なGitリポジトリURLを入力してください（SSH: git@... または HTTPS: https://...）' };
@@ -134,10 +138,15 @@ export class RemoteRepoService {
    * @returns リポジトリ名
    */
   extractRepoName(url: string): string {
-    // 末尾のスラッシュを除去
-    let cleaned = url.replace(/\/+$/, '');
+    // 末尾のスラッシュを除去（ReDoS対策: trimEnd相当の処理）
+    let cleaned = url;
+    while (cleaned.endsWith('/')) {
+      cleaned = cleaned.slice(0, -1);
+    }
     // .git サフィックスを除去
-    cleaned = cleaned.replace(/\.git$/, '');
+    if (cleaned.endsWith('.git')) {
+      cleaned = cleaned.slice(0, -4);
+    }
 
     // SSH URL: git@host:path/to/repo
     if (cleaned.includes(':') && cleaned.startsWith('git@')) {
@@ -182,10 +191,13 @@ export class RemoteRepoService {
         // clone先パスを決定
         let clonePath: string;
         if (targetDir) {
-          clonePath = resolve(targetDir);
+          clonePath = sanitizePath(targetDir);
         } else {
           const repoName = name || this.extractRepoName(url);
-          const base = baseDir || getReposDir();
+          if (!isSafePathComponent(repoName)) {
+            return { success: false, path: '', error: '不正なリポジトリ名です' };
+          }
+          const base = baseDir ? sanitizePath(baseDir) : getReposDir();
           if (!existsSync(base)) {
             mkdirSync(base, { recursive: true });
           }
@@ -221,10 +233,13 @@ export class RemoteRepoService {
     // clone先パスを決定
     let clonePath: string;
     if (targetDir) {
-      clonePath = resolve(targetDir);
+      clonePath = sanitizePath(targetDir);
     } else {
       const repoName = name || this.extractRepoName(url);
-      const base = baseDir || getReposDir();
+      if (!isSafePathComponent(repoName)) {
+        return { success: false, path: '', error: '不正なリポジトリ名です' };
+      }
+      const base = baseDir ? sanitizePath(baseDir) : getReposDir();
 
       // ベースディレクトリが存在しない場合は作成
       if (!existsSync(base)) {
@@ -241,7 +256,8 @@ export class RemoteRepoService {
 
     // git clone を実行
     return new Promise((resolve) => {
-      const cloneProcess = spawn('git', ['clone', url, clonePath], {
+      // -- を使用してURLやパスがgitオプションとして解釈されることを防止
+      const cloneProcess = spawn('git', ['clone', '--', url, clonePath], {
         env: {
           ...process.env,
           GIT_TERMINAL_PROMPT: '0', // インタラクティブプロンプトを抑止
@@ -279,7 +295,8 @@ export class RemoteRepoService {
    * @returns 重複しないパス
    */
   private getUniqueClonePath(baseDir: string, repoName: string): string {
-    let clonePath = join(baseDir, repoName);
+    const safeBase = sanitizePath(baseDir);
+    let clonePath = sanitizePath(join(safeBase, repoName));
 
     if (!existsSync(clonePath)) {
       return clonePath;
@@ -288,7 +305,7 @@ export class RemoteRepoService {
     // 重複する場合はサフィックスを追加
     let counter = 1;
     while (existsSync(clonePath)) {
-      clonePath = join(baseDir, `${repoName}-${counter}`);
+      clonePath = sanitizePath(join(safeBase, `${repoName}-${counter}`));
       counter++;
     }
 

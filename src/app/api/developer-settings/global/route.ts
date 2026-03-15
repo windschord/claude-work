@@ -5,9 +5,16 @@ import { logger } from '@/lib/logger';
 const service = new DeveloperSettingsService();
 
 // メールアドレスの基本的なバリデーション
+// ReDoS対策: 長さ制限 + 各パートを固定長量指定子で制約
 function isValidEmail(email: string): boolean {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
+  if (email.length > 254) return false;
+  const parts = email.split('@');
+  if (parts.length !== 2) return false;
+  const [local, domain] = parts;
+  if (!local || local.length > 64 || !domain || domain.length > 253) return false;
+  if (!/^[^\s@]+$/.test(local)) return false;
+  if (!/^[^\s@]+\.[^\s@]+$/.test(domain)) return false;
+  return true;
 }
 
 // リクエストボディのバリデーション

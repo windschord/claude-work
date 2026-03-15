@@ -8,6 +8,7 @@ import { getEnvironmentsDir } from '@/lib/data-dir';
 import { validatePortMappings, validateVolumeMounts } from '@/lib/docker-config-validator';
 import { DockerClient } from '@/services/docker-client';
 import { isHostEnvironmentAllowed } from '@/lib/environment-detect';
+import { sanitizePath } from '@/lib/path-safety';
 import { networkFilterService } from '@/services/network-filter-service';
 import { db } from '@/lib/db';
 import * as schema from '@/db/schema';
@@ -174,7 +175,7 @@ export async function POST(request: NextRequest) {
       }
 
       // dockerfilePathを絶対パスに変換（getEnvironmentsDir()基準）
-      const resolvedDockerfilePath = path.resolve(getEnvironmentsDir(), config.dockerfilePath);
+      const resolvedDockerfilePath = sanitizePath(path.resolve(getEnvironmentsDir(), config.dockerfilePath));
 
       // パストラバーサル対策: 許可されたディレクトリかチェック
       if (!isPathAllowed(resolvedDockerfilePath)) {

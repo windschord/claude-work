@@ -5,6 +5,7 @@ import { spawnSync } from 'child_process';
 import { basename, relative, resolve } from 'path';
 import { realpathSync } from 'fs';
 import { logger } from '@/lib/logger';
+import { sanitizePath } from '@/lib/path-safety';
 
 /**
  * GET /api/projects - プロジェクト一覧取得
@@ -124,7 +125,7 @@ export async function POST(request: NextRequest) {
     // パストラバーサル攻撃を防ぐため、絶対パスに正規化
     let absolutePath: string;
     try {
-      absolutePath = realpathSync(resolve(projectPath));
+      absolutePath = realpathSync(sanitizePath(projectPath));
     } catch (error) {
       logger.warn('Invalid path', { path: projectPath, error });
       return NextResponse.json({ error: '有効なパスを入力してください' }, { status: 400 });

@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
 import { getEnvironmentsDir } from '@/lib/data-dir';
 import { DockerClient } from '@/services/docker-client';
+import { sanitizePath } from '@/lib/path-safety';
 
 // 許可されたベースディレクトリ
 const ALLOWED_BASE_DIRS = [
@@ -72,7 +73,7 @@ export async function POST(request: NextRequest) {
   }
 
   // dockerfilePathを絶対パスに変換（getEnvironmentsDir()基準）
-  const resolvedDockerfilePath = path.resolve(getEnvironmentsDir(), dockerfilePath);
+  const resolvedDockerfilePath = sanitizePath(path.resolve(getEnvironmentsDir(), dockerfilePath));
 
   // パストラバーサル対策: 許可されたディレクトリかチェック
   if (!isPathAllowed(resolvedDockerfilePath)) {

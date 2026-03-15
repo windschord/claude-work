@@ -3,9 +3,10 @@ import { db, schema } from '@/lib/db';
 import { eq } from 'drizzle-orm';
 import { remoteRepoService } from '@/services/remote-repo-service';
 import { getReposDir } from '@/lib/data-dir';
-import { relative, resolve, join } from 'path';
+import { relative, resolve } from 'path';
 import { realpathSync, existsSync, mkdirSync } from 'fs';
 import { logger } from '@/lib/logger';
+import { sanitizePath } from '@/lib/path-safety';
 import { DockerGitService } from '@/services/docker-git-service';
 import { GitHubPATService } from '@/services/github-pat-service';
 import { validateCloneLocation, validateProjectName } from '@/lib/validation';
@@ -216,8 +217,8 @@ export async function POST(request: NextRequest) {
     if (targetDir) {
       // ユーザー指定のディレクトリ
       // 親ディレクトリが存在するか確認（clone先自体は存在してはいけない）
-      const resolvedTargetDir = resolve(targetDir);
-      const parentDir = join(resolvedTargetDir, '..');
+      const resolvedTargetDir = sanitizePath(targetDir);
+      const parentDir = resolve(resolvedTargetDir, '..');
 
       try {
         // 親ディレクトリが存在しない場合は作成
