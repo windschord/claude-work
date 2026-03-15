@@ -60,7 +60,7 @@ Claude Code can run in different execution environments:
 - Docker is the default execution environment for security and isolation
 - Each Docker environment has isolated authentication directory (`data/environments/<env-id>/`)
 - Sessions can specify which environment to use via `environment_id`
-- Legacy `docker_mode` parameter is deprecated but still supported for backward compatibility
+- Legacy `docker_mode` parameter is no longer supported (DB column exists but API ignores it)
 - Default Docker environment is auto-created on server startup
 - SSH keys are mounted read-only from `~/.ssh/` for private repository access
 
@@ -556,7 +556,7 @@ describe('Connection management', () => {
 - `PUT /api/projects/:id/scripts/:scriptId` - スクリプト更新
 - `DELETE /api/projects/:id/scripts/:scriptId` - スクリプト削除
 - `GET /api/projects/:id/sessions` - セッション一覧
-- `POST /api/projects/:id/sessions` - セッション作成 (`environment_id` 必須、`docker_mode` は非推奨)
+- `POST /api/projects/:id/sessions` - セッション作成 (`environment_id` はプロジェクト設定から自動適用)
 
 **Sessions**
 - `GET /api/sessions/:id` - 詳細
