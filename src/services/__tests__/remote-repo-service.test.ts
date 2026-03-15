@@ -7,6 +7,12 @@ vi.mock('../adapter-factory', () => ({
   },
 }));
 
+// getReposDirをモック化してテスト用の一時ディレクトリを返すようにする
+let mockReposDir = '';
+vi.mock('@/lib/data-dir', () => ({
+  getReposDir: () => mockReposDir,
+}));
+
 import { RemoteRepoService } from '../remote-repo-service';
 import { mkdtempSync, rmSync, existsSync, mkdirSync } from 'fs';
 import { tmpdir } from 'os';
@@ -29,6 +35,8 @@ describe('RemoteRepoService', () => {
 
     // テスト用の一時ディレクトリを作成
     testDir = mkdtempSync(join(tmpdir(), 'remote-repo-test-'));
+    // getReposDirのモックをtestDirに設定（isWithinBaseチェック用）
+    mockReposDir = testDir;
 
     // テスト用のGitリポジトリを作成（clone元として使用）
     testRepoPath = join(testDir, 'source-repo');

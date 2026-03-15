@@ -3,9 +3,11 @@ import { join, basename, isAbsolute } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { logger } from '../lib/logger';
 import { getReposDir } from '@/lib/data-dir';
-import { sanitizePath, isSafePathComponent } from '@/lib/path-safety';
+import { sanitizePath, isSafePathComponent, isWithinBase } from '@/lib/path-safety';
 import { EnvironmentService } from './environment-service';
 import type { DockerAdapter } from './adapters/docker-adapter';
+
+const GIT_PROCESS_TIMEOUT_MS = 120_000; // 2分
 
 /**
  * Clone操作のオプション
@@ -208,6 +210,9 @@ export class RemoteRepoService {
             return { success: false, path: '', error: '不正なリポジトリ名です' };
           }
           const base = baseDir ? sanitizePath(baseDir) : getReposDir();
+          if (baseDir && !isWithinBase(base, getReposDir())) {
+            return { success: false, path: '', error: '指定されたベースディレクトリは許可されていません' };
+          }
           if (!existsSync(base)) {
             mkdirSync(base, { recursive: true });
           }
@@ -254,6 +259,9 @@ export class RemoteRepoService {
         return { success: false, path: '', error: '不正なリポジトリ名です' };
       }
       const base = baseDir ? sanitizePath(baseDir) : getReposDir();
+      if (baseDir && !isWithinBase(base, getReposDir())) {
+        return { success: false, path: '', error: '指定されたベースディレクトリは許可されていません' };
+      }
 
       // ベースディレクトリが存在しない場合は作成
       if (!existsSync(base)) {
@@ -279,12 +287,17 @@ export class RemoteRepoService {
       });
 
       let stderr = '';
+      const timeout = setTimeout(() => {
+        cloneProcess.kill('SIGTERM');
+        resolve({ success: false, path: clonePath, error: 'cloneがタイムアウトしました' });
+      }, GIT_PROCESS_TIMEOUT_MS);
 
       cloneProcess.stderr.on('data', (data) => {
         stderr += data.toString();
       });
 
       cloneProcess.on('close', (code) => {
+        clearTimeout(timeout);
         if (code === 0) {
           logger.info('Repository cloned successfully', { url, clonePath });
           resolve({ success: true, path: clonePath });
@@ -295,6 +308,7 @@ export class RemoteRepoService {
       });
 
       cloneProcess.on('error', (err) => {
+        clearTimeout(timeout);
         logger.error('Clone process error', { url, error: err.message });
         resolve({ success: false, path: clonePath, error: err.message });
       });
@@ -394,7 +408,18 @@ export class RemoteRepoService {
         },
       });
 
+      const fetchTimeout = setTimeout(() => {
+        fetchProcess.kill('SIGTERM');
+        resolve({
+          success: false,
+          updated: false,
+          message: '',
+          error: 'fetchがタイムアウトしました',
+        });
+      }, GIT_PROCESS_TIMEOUT_MS);
+
       fetchProcess.on('close', (fetchCode) => {
+        clearTimeout(fetchTimeout);
         if (fetchCode !== 0) {
           resolve({
             success: false,
@@ -414,6 +439,16 @@ export class RemoteRepoService {
           },
         });
 
+        const pullTimeout = setTimeout(() => {
+          pullProcess.kill('SIGTERM');
+          resolve({
+            success: false,
+            updated: false,
+            message: '',
+            error: 'pullがタイムアウトしました',
+          });
+        }, GIT_PROCESS_TIMEOUT_MS);
+
         let stdout = '';
         let stderr = '';
 
@@ -426,6 +461,7 @@ export class RemoteRepoService {
         });
 
         pullProcess.on('close', (code) => {
+          clearTimeout(pullTimeout);
           if (code === 0) {
             const updated = !stdout.includes('Already up to date');
             logger.info('Repository pulled successfully', { repoPath, updated });
@@ -446,6 +482,7 @@ export class RemoteRepoService {
         });
 
         pullProcess.on('error', (err) => {
+          clearTimeout(pullTimeout);
           resolve({
             success: false,
             updated: false,
@@ -456,6 +493,7 @@ export class RemoteRepoService {
       });
 
       fetchProcess.on('error', (err) => {
+        clearTimeout(fetchTimeout);
         resolve({
           success: false,
           updated: false,
