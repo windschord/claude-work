@@ -75,6 +75,9 @@ volumes:
 
 networks:
   claudework-filter:
+    # Docker Composeのプロジェクト名プレフィックスを付けず、PROXY_NETWORK_NAMEと同じ値を使用
+    # 複数インスタンス運用時はPROXY_NETWORK_NAMEを変更してネットワーク名の衝突を回避する
+    name: ${PROXY_NETWORK_NAME:-claudework-filter}
     internal: true
     driver: bridge
     ipam:
