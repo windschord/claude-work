@@ -145,5 +145,20 @@ export function getConfigService(): ConfigService {
 export async function initializeConfigService(): Promise<ConfigService> {
   const service = getConfigService();
   await service.load();
+  configLoaded = true;
+  return service;
+}
+
+/**
+ * 設定がロード済みであることを保証してConfigServiceを返す（lazy load）
+ */
+let configLoaded = false;
+
+export async function ensureConfigLoaded(): Promise<ConfigService> {
+  const service = getConfigService();
+  if (!configLoaded) {
+    await service.load();
+    configLoaded = true;
+  }
   return service;
 }

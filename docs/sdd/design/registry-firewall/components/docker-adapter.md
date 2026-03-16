@@ -26,11 +26,11 @@ interface CreateSessionOptions {
 ```typescript
 // Registry Firewall: パッケージマネージャーのレジストリ設定
 if (options?.registryFirewallEnabled) {
-  const rfHost = process.env.REGISTRY_FIREWALL_URL || 'http://claudework-registry-firewall:8080';
+  const rfHost = process.env.REGISTRY_FIREWALL_URL || 'http://registry-firewall:8080';
 
   // pip (環境変数で設定)
   Env.push(`PIP_INDEX_URL=${rfHost}/pypi/simple/`);
-  Env.push(`PIP_TRUSTED_HOST=claudework-registry-firewall`);
+  Env.push(`PIP_TRUSTED_HOST=registry-firewall`);
 
   // go (環境変数で設定)
   Env.push(`GOPROXY=${rfHost}/go/,direct`);
@@ -59,6 +59,12 @@ if (options?.registryFirewallEnabled && !options?.shellMode) {
   Env.push(`PIP_TRUSTED_HOST=${rfHostname}`);
   Env.push(`GOPROXY=${rfHost}/go/,direct`);
 
+  // filterEnabled併用時: registry-firewallへの通信をHTTP_PROXYから除外
+  if (options?.filterEnabled) {
+    Env.push(`NO_PROXY=${rfHostname}`);
+    Env.push(`no_proxy=${rfHostname}`);
+  }
+
   // npm/cargoはprintf方式で設定ファイルを生成
   const setupScript = [
     `npm config set registry '${rfHost}/npm/'`,
@@ -75,7 +81,7 @@ if (options?.registryFirewallEnabled && !options?.shellMode) {
 ### 既存network-filter-proxyとの共存
 
 - `filterEnabled`と`registryFirewallEnabled`は独立したフラグ
-- `registryFirewallEnabled`単独でもclaudework-filterネットワークに接続(registry-firewallへの到達性確保)
+- `registryFirewallEnabled`単独ではNetworkModeを変更しない。registry-firewallはdocker-compose.ymlのdefaultネットワークにも接続しているため、コンテナがデフォルトのブリッジネットワークにいればregistry-firewallに到達可能
 - 両方が有効の場合:
   - HTTP_PROXY/HTTPS_PROXY → network-filter-proxy(一般的なHTTP通信)
   - NO_PROXY → registry-firewallホスト名(プロキシをバイパス)

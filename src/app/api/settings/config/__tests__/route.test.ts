@@ -3,7 +3,7 @@ import { GET, PUT } from '../route';
 import { NextRequest } from 'next/server';
 
 vi.mock('@/services/config-service', () => ({
-  getConfigService: vi.fn(() => ({
+  ensureConfigLoaded: vi.fn(async () => ({
     getConfig: vi.fn(() => ({
       git_clone_timeout_minutes: 5,
       debug_mode_keep_volumes: false,
@@ -56,8 +56,8 @@ describe('GET /api/settings/config', () => {
   });
 
   it('エラー時は500を返す', async () => {
-    const { getConfigService } = await import('@/services/config-service');
-    vi.mocked(getConfigService).mockReturnValue({
+    const { ensureConfigLoaded } = await import('@/services/config-service');
+    vi.mocked(ensureConfigLoaded).mockResolvedValue({
       getConfig: vi.fn(() => {
         throw new Error('Config error');
       }),
@@ -77,9 +77,9 @@ describe('PUT /api/settings/config', () => {
   });
 
   it('設定を更新できる', async () => {
-    const { getConfigService } = await import('@/services/config-service');
+    const { ensureConfigLoaded } = await import('@/services/config-service');
     const mockSave = vi.fn();
-    vi.mocked(getConfigService).mockReturnValue({
+    vi.mocked(ensureConfigLoaded).mockResolvedValue({
       getConfig: vi.fn(() => ({
         git_clone_timeout_minutes: 10,
         debug_mode_keep_volumes: true,
@@ -111,9 +111,9 @@ describe('PUT /api/settings/config', () => {
   });
 
   it('部分的な更新が可能', async () => {
-    const { getConfigService } = await import('@/services/config-service');
+    const { ensureConfigLoaded } = await import('@/services/config-service');
     const mockSave = vi.fn();
-    vi.mocked(getConfigService).mockReturnValue({
+    vi.mocked(ensureConfigLoaded).mockResolvedValue({
       getConfig: vi.fn(() => ({
         git_clone_timeout_minutes: 15,
         debug_mode_keep_volumes: false,
@@ -180,9 +180,9 @@ describe('PUT /api/settings/config', () => {
   });
 
   it('registry_firewall_enabledを更新できる', async () => {
-    const { getConfigService } = await import('@/services/config-service');
+    const { ensureConfigLoaded } = await import('@/services/config-service');
     const mockSave = vi.fn();
-    vi.mocked(getConfigService).mockReturnValue({
+    vi.mocked(ensureConfigLoaded).mockResolvedValue({
       getConfig: vi.fn(() => ({
         git_clone_timeout_minutes: 5,
         debug_mode_keep_volumes: false,
@@ -225,8 +225,8 @@ describe('PUT /api/settings/config', () => {
   });
 
   it('保存失敗時は500を返す', async () => {
-    const { getConfigService } = await import('@/services/config-service');
-    vi.mocked(getConfigService).mockReturnValue({
+    const { ensureConfigLoaded } = await import('@/services/config-service');
+    vi.mocked(ensureConfigLoaded).mockResolvedValue({
       getConfig: vi.fn(() => ({
         git_clone_timeout_minutes: 5,
         debug_mode_keep_volumes: false,

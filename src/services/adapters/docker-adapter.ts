@@ -296,10 +296,13 @@ export class DockerAdapter extends BasePTYAdapter {
        }
     }
 
-    // Network filtering / Registry Firewall: internalネットワーク設定
-    // filterEnabledまたはregistryFirewallEnabledの場合、claudework-filterネットワークに接続
+    // Network filtering: internalネットワーク設定
+    // filterEnabledの場合のみclaudework-filterネットワークに接続する。
+    // registryFirewallEnabled単独ではNetworkModeを変更しない。
+    // registry-firewallはdocker-compose.ymlのdefaultネットワークにも接続しているため、
+    // コンテナがデフォルトのブリッジネットワークにいればregistry-firewallに到達可能。
     let networkMode: string | undefined;
-    if (options?.filterEnabled || (options?.registryFirewallEnabled && !options?.shellMode)) {
+    if (options?.filterEnabled) {
       networkMode = process.env.PROXY_NETWORK_NAME || 'claudework-filter';
     }
     if (options?.filterEnabled) {

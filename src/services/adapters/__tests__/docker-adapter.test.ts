@@ -429,6 +429,18 @@ describe('DockerAdapter', () => {
       // registry-firewallホストはNO_PROXYに追加される
       expect(env.some((e: string) => e.startsWith('NO_PROXY='))).toBe(true);
       expect(env.some((e: string) => e.startsWith('no_proxy='))).toBe(true);
+      // filterEnabled+registryFirewallEnabledの場合はNetworkModeがclaudework-filterに設定される
+      expect(createOptions.HostConfig.NetworkMode).toBe('claudework-filter');
+    });
+
+    it('registryFirewallEnabled単独（filterEnabled=false）の場合、NetworkModeが設定されない', () => {
+      const { createOptions } = (adapter as any).buildContainerOptions('/workspace', {
+        filterEnabled: false,
+        registryFirewallEnabled: true,
+      });
+      // registryFirewallEnabled単独ではNetworkModeを変更しない
+      // registry-firewallはdefaultネットワーク経由で到達可能
+      expect(createOptions.HostConfig.NetworkMode).toBeUndefined();
     });
 
     it('shellMode時にレジストリ設定を注入しない', () => {
