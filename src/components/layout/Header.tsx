@@ -49,10 +49,9 @@ export function Header() {
         {/* ロゴ */}
         <button
           onClick={handleLogoClick}
-          className="flex items-center gap-2 text-xl font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+          className="flex items-center hover:opacity-80 transition-opacity"
         >
-          <Image src="/images/logo-icon.png" alt="" width={28} height={28} aria-hidden="true" />
-          ClaudeWork
+          <Image src="/images/logo-icon.png" alt="ClaudeWork" width={48} height={48} className="h-12 w-12" />
         </button>
       </div>
 

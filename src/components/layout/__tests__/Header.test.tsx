@@ -36,7 +36,7 @@ describe('Header', () => {
     render(<Header />);
 
     // ロゴが表示される
-    expect(screen.getByText('ClaudeWork')).toBeInTheDocument();
+    expect(screen.getByAltText('ClaudeWork')).toBeInTheDocument();
   });
 
   it('モバイルでハンバーガーメニューが表示される', () => {
@@ -76,8 +76,8 @@ describe('Header', () => {
 
     render(<Header />);
 
-    const logos = screen.getAllByText('ClaudeWork');
-    fireEvent.click(logos[0]);
+    const logo = screen.getByAltText('ClaudeWork');
+    fireEvent.click(logo);
 
     expect(mockPush).toHaveBeenCalledWith('/');
   });
