@@ -39,6 +39,7 @@ export function Header() {
       <div className="flex items-center gap-4">
         {/* ハンバーガーメニュー（モバイル時のみ表示） */}
         <button
+          type="button"
           onClick={handleToggleSidebar}
           className="md:hidden p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
           aria-label="メニュー"
@@ -48,10 +49,12 @@ export function Header() {
 
         {/* ロゴ */}
         <button
+          type="button"
           onClick={handleLogoClick}
           className="flex items-center hover:opacity-80 transition-opacity"
+          aria-label="ホーム"
         >
-          <Image src="/images/logo-icon.png" alt="ClaudeWork" width={48} height={48} className="h-12 w-12" />
+          <Image src="/images/logo-icon.png" alt="" width={48} height={48} className="h-12 w-12" aria-hidden="true" />
         </button>
       </div>
 
@@ -59,6 +62,7 @@ export function Header() {
       <div className="flex items-center gap-2">
         {/* 設定ページへのリンク */}
         <button
+          type="button"
           onClick={handleNavigateToSettings}
           className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
           aria-label="設定"
