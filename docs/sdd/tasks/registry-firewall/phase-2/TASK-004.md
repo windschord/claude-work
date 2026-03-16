@@ -33,11 +33,11 @@ registry-firewallのヘルスステータスとブロックログを取得する
 
 ## 受入基準
 
-- [ ] GET /api/registry-firewall/health が正常にレスポンスを返す
-- [ ] GET /api/registry-firewall/blocks がブロックログを返す
-- [ ] blocks APIに `limit` クエリパラメータが対応
-- [ ] registry-firewall停止時に適切なエラーレスポンスを返す
-- [ ] テストが全て通過
+- [x] GET /api/registry-firewall/health が正常にレスポンスを返す
+- [x] GET /api/registry-firewall/blocks がブロックログを返す
+- [x] blocks APIに `limit` クエリパラメータが対応
+- [x] registry-firewall停止時に適切なエラーレスポンスを返す
+- [x] テストが全て通過
 
 **依存関係**: TASK-003
 **推定工数**: 25分

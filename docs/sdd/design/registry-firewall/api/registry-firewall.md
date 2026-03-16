@@ -53,12 +53,14 @@ registry-firewallのブロックログを返す。
 }
 ```
 
-**レスポンス (503, registry-firewall停止時)**:
+**レスポンス (200, registry-firewall停止時)**:
 ```json
 {
-  "error": "Registry firewall is not available"
+  "blocks": [],
+  "total": 0
 }
 ```
+registry-firewallが停止している場合、`getBlocks()`は空配列を返す(503ではなく200)。
 
 ### GET /api/registry-firewall/ui
 

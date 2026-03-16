@@ -34,13 +34,13 @@ DockerAdapterの`buildContainerOptions`にregistry-firewallのレジストリプ
 
 ## 受入基準
 
-- [ ] `registryFirewallEnabled=true`時にPIP_INDEX_URL, GOPROXY等が注入される
-- [ ] npm config setコマンドがEntrypointに含まれる
-- [ ] cargo config.tomlの作成コマンドがEntrypointに含まれる
-- [ ] `registryFirewallEnabled=false`時に設定が注入されない
-- [ ] `filterEnabled`と共存(HTTP_PROXY + レジストリ設定の両方が設定される)
-- [ ] shellMode時はレジストリ設定を注入しない
-- [ ] テストが全て通過
+- [x] `registryFirewallEnabled=true`時にPIP_INDEX_URL, GOPROXY等が注入される
+- [x] npm config setコマンドがEntrypointに含まれる
+- [x] cargo config.tomlの作成コマンドがEntrypointに含まれる
+- [x] `registryFirewallEnabled=false`時に設定が注入されない
+- [x] `filterEnabled`と共存(HTTP_PROXY + レジストリ設定の両方が設定される)
+- [x] shellMode時はレジストリ設定を注入しない
+- [x] テストが全て通過
 
 **依存関係**: TASK-002(CreateSessionOptions型)
 **推定工数**: 35分

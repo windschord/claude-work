@@ -33,13 +33,13 @@ registry-firewallのAPIと通信するクライアントモジュールを作成
 
 ## 受入基準
 
-- [ ] `RegistryFirewallClient` クラスが存在
-- [ ] `getHealth()` が正常時に `{ status: 'healthy', registries: [...] }` を返す
-- [ ] `getHealth()` がタイムアウト/接続エラー時に `{ status: 'stopped' }` を返す
-- [ ] `getBlocks(limit)` がブロックログを返す
-- [ ] APIトークンが設定されている場合、Authorizationヘッダーが付与される
-- [ ] シングルトンパターンで提供される
-- [ ] テストが全て通過
+- [x] `RegistryFirewallClient` クラスが存在
+- [x] `getHealth()` が正常時に `{ status: 'healthy', registries: [...] }` を返す
+- [x] `getHealth()` がタイムアウト/接続エラー時に `{ status: 'stopped' }` を返す
+- [x] `getBlocks(limit)` がブロックログを返す
+- [x] APIトークンが設定されている場合、Authorizationヘッダーが付与される
+- [x] シングルトンパターンで提供される
+- [x] テストが全て通過
 
 **依存関係**: なし
 **推定工数**: 30分

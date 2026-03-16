@@ -21,8 +21,8 @@ ENV_VARS.mdとCLAUDE.mdにregistry-firewall関連の情報を追加する。
 
 ## 受入基準
 
-- [ ] `docs/ENV_VARS.md` にregistry-firewall関連の環境変数が記載されている
-- [ ] `CLAUDE.md` のAPI Endpoints、Services、Environment Variablesが更新されている
+- [x] `docs/ENV_VARS.md` にregistry-firewall関連の環境変数が記載されている
+- [x] `CLAUDE.md` のAPI Endpoints、Services、Environment Variablesが更新されている
 
 **依存関係**: TASK-001~006
 **推定工数**: 15分

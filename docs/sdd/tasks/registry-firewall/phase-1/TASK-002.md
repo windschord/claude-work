@@ -35,12 +35,12 @@ AppConfigに`registry_firewall_enabled`フィールドを追加し、Settings Co
 
 ## 受入基準
 
-- [ ] `AppConfig` に `registry_firewall_enabled?: boolean` が追加されている
-- [ ] `DEFAULT_CONFIG` に `registry_firewall_enabled: true` が設定されている
-- [ ] `getRegistryFirewallEnabled()` メソッドが追加されている
-- [ ] PUT /api/settings/config で `registry_firewall_enabled` の更新が可能
-- [ ] `registry_firewall_enabled` が boolean 以外の場合は400エラー
-- [ ] テストが全て通過
+- [x] `AppConfig` に `registry_firewall_enabled?: boolean` が追加されている
+- [x] `DEFAULT_CONFIG` に `registry_firewall_enabled: true` が設定されている
+- [x] `getRegistryFirewallEnabled()` メソッドが追加されている
+- [x] PUT /api/settings/config で `registry_firewall_enabled` の更新が可能
+- [x] `registry_firewall_enabled` が boolean 以外の場合は400エラー
+- [x] テストが全て通過
 
 **依存関係**: なし
 **推定工数**: 25分
