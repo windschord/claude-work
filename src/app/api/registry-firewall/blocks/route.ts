@@ -10,13 +10,10 @@ export async function GET(request: NextRequest) {
     const limit = limitStr && Number.isFinite(parsed) ? Math.min(Math.max(parsed, 1), 100) : 10;
 
     const client = getRegistryFirewallClient();
-    const health = await client.getHealth();
-
-    if (health.status === 'stopped') {
-      return NextResponse.json({ error: 'Registry firewall is not available' }, { status: 503 });
-    }
-
     const blocks = await client.getBlocks(limit);
+
+    // getBlocks()がエラー時は空配列を返す(例外をスローしない)ため、
+    // registry-firewall停止時は blocks.total === 0 かつ blocks.blocks === [] となる
     return NextResponse.json(blocks);
   } catch (error) {
     logger.error('Failed to get registry firewall blocks', { error });

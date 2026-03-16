@@ -2,12 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 import { GET } from '../route';
 
-const mockGetHealth = vi.fn();
 const mockGetBlocks = vi.fn();
 
 vi.mock('@/services/registry-firewall-client', () => ({
   getRegistryFirewallClient: () => ({
-    getHealth: () => mockGetHealth(),
     getBlocks: (limit?: number) => mockGetBlocks(limit),
   }),
 }));
@@ -34,7 +32,6 @@ function createRequest(searchParams?: Record<string, string>) {
 describe('GET /api/registry-firewall/blocks', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetHealth.mockResolvedValue({ status: 'healthy' });
     mockGetBlocks.mockResolvedValue({
       blocks: [
         {
@@ -90,9 +87,7 @@ describe('GET /api/registry-firewall/blocks', () => {
     });
 
     it('limitが非数値の場合、デフォルト値10が使用される', async () => {
-      const mockBlocks = { blocks: [], total: 0 };
-      mockGetBlocks.mockResolvedValueOnce(mockBlocks);
-      mockGetHealth.mockResolvedValueOnce({ status: 'healthy' });
+      mockGetBlocks.mockResolvedValueOnce({ blocks: [], total: 0 });
 
       const request = new NextRequest('http://localhost/api/registry-firewall/blocks?limit=abc');
       const response = await GET(request);
@@ -100,34 +95,21 @@ describe('GET /api/registry-firewall/blocks', () => {
       expect(response.status).toBe(200);
       expect(mockGetBlocks).toHaveBeenCalledWith(10);
     });
-  });
 
-  describe('registry-firewall停止時', () => {
-    it('getHealthがstoppedを返す場合、503を返す', async () => {
-      mockGetHealth.mockResolvedValue({ status: 'stopped' });
+    it('registry-firewall停止時は空のブロックログを返す', async () => {
+      mockGetBlocks.mockResolvedValueOnce({ blocks: [], total: 0 });
 
       const request = createRequest();
       const response = await GET(request);
       const json = await response.json();
 
-      expect(response.status).toBe(503);
-      expect(json).toHaveProperty('error');
-      expect(mockGetBlocks).not.toHaveBeenCalled();
+      expect(response.status).toBe(200);
+      expect(json.blocks).toEqual([]);
+      expect(json.total).toBe(0);
     });
   });
 
   describe('エラー系', () => {
-    it('getHealthが例外をスローした場合、500を返す', async () => {
-      mockGetHealth.mockRejectedValue(new Error('Unexpected error'));
-
-      const request = createRequest();
-      const response = await GET(request);
-      const json = await response.json();
-
-      expect(response.status).toBe(500);
-      expect(json).toHaveProperty('error');
-    });
-
     it('getBlocksが例外をスローした場合、500を返す', async () => {
       mockGetBlocks.mockRejectedValue(new Error('Unexpected error'));
 
