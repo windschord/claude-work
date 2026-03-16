@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { ExternalLink, Loader2, ShieldCheck } from 'lucide-react';
 import { useRegistryFirewall } from '@/hooks/useRegistryFirewall';
 
@@ -28,14 +29,20 @@ function getStatusIndicator(status: 'healthy' | 'unhealthy' | 'stopped' | undefi
  */
 export function RegistryFirewallStatus() {
   const { health, blocks, enabled, isLoading, error, toggleEnabled } = useRegistryFirewall();
+  const [toggleError, setToggleError] = useState<string | null>(null);
+  const [toggling, setToggling] = useState(false);
 
   const { color: statusColor, label: statusLabel } = getStatusIndicator(health?.status);
 
   const handleToggle = async () => {
+    setToggleError(null);
+    setToggling(true);
     try {
       await toggleEnabled(!enabled);
-    } catch {
-      // エラーは無視（UIでエラー表示しない - 操作失敗はトースト通知が適切だが、今回は簡易実装）
+    } catch (e) {
+      setToggleError(e instanceof Error ? e.message : '設定の更新に失敗しました');
+    } finally {
+      setToggling(false);
     }
   };
 
@@ -59,13 +66,13 @@ export function RegistryFirewallStatus() {
         )}
 
         {/* エラー表示 */}
-        {error && !isLoading && (
+        {(error || toggleError) && !isLoading && (
           <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
-            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+            <p className="text-sm text-red-600 dark:text-red-400">{toggleError || error}</p>
           </div>
         )}
 
-        {!isLoading && (
+        {!isLoading && !error && (
           <>
             {/* Registry Firewallヘッダー行 */}
             <div className="flex items-center justify-between mb-3">
@@ -90,7 +97,8 @@ export function RegistryFirewallStatus() {
                   role="switch"
                   aria-checked={enabled}
                   onClick={handleToggle}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                  disabled={toggling}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
                     enabled
                       ? 'bg-blue-500'
                       : 'bg-gray-300 dark:bg-gray-600'

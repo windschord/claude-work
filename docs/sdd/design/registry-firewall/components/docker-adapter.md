@@ -49,24 +49,37 @@ npmとcargoは環境変数だけでは設定できないため、コンテナ起
 
 ```typescript
 if (options?.registryFirewallEnabled && !options?.shellMode) {
-  // Entrypointをshell経由に変更して、先に設定コマンドを実行
-  const setupCommands = [
-    `npm config set registry ${rfHost}/npm/`,
-    `mkdir -p ~/.cargo && cat > ~/.cargo/config.toml << 'TOML'\n[registries.claudework]\nindex = "sparse+${rfHost}/cargo/"\n[source.crates-io]\nreplace-with = "claudework"\nTOML`,
-  ];
-  const originalCmd = Entrypoint.concat(Cmd.length > 0 ? Cmd : []);
+  const rfHost = process.env.REGISTRY_FIREWALL_URL || 'http://registry-firewall:8080';
+  // URL検証。無効な場合はスキップ
+  let rfHostname: string;
+  try { rfHostname = new URL(rfHost).hostname; } catch { /* skip */ return; }
+
+  // 重複env varを除去してから注入
+  Env.push(`PIP_INDEX_URL=${rfHost}/pypi/simple/`);
+  Env.push(`PIP_TRUSTED_HOST=${rfHostname}`);
+  Env.push(`GOPROXY=${rfHost}/go/,direct`);
+
+  // npm/cargoはprintf方式で設定ファイルを生成
+  const setupScript = [
+    `npm config set registry '${rfHost}/npm/'`,
+    `mkdir -p ~/.cargo`,
+    `printf '%s\\n' '...' > ~/.cargo/config.toml`,
+  ].join(' && ');
+
+  const originalCmd = [...Entrypoint, ...(Cmd.length > 0 ? Cmd : [])];
   Entrypoint = ['/bin/sh', '-c'];
-  Cmd = [setupCommands.join(' && ') + ' && exec ' + originalCmd.join(' ')];
+  Cmd = [setupScript + ' && exec "$@"', '--', ...originalCmd];
 }
 ```
 
 ### 既存network-filter-proxyとの共存
 
 - `filterEnabled`と`registryFirewallEnabled`は独立したフラグ
+- `registryFirewallEnabled`単独でもclaudework-filterネットワークに接続(registry-firewallへの到達性確保)
 - 両方が有効の場合:
   - HTTP_PROXY/HTTPS_PROXY → network-filter-proxy(一般的なHTTP通信)
+  - NO_PROXY → registry-firewallホスト名(プロキシをバイパス)
   - パッケージマネージャー設定 → registry-firewall(パッケージレジストリ)
-- パッケージマネージャーはレジストリURLを直接指定するため、HTTP_PROXYの影響を受けない
 
 ### registryFirewallEnabledフラグの取得
 
