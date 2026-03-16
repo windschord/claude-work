@@ -153,9 +153,9 @@ export function RegistryFirewallStatus() {
                       </tr>
                     </thead>
                     <tbody>
-                      {blocks.map((block, index) => (
+                      {blocks.map((block) => (
                         <tr
-                          key={index}
+                          key={`${block.timestamp}-${block.package_name}-${block.registry}`}
                           className="text-gray-700 dark:text-gray-300 border-b border-gray-100 dark:border-gray-700 last:border-0"
                         >
                           <td className="py-1 pr-3 whitespace-nowrap">

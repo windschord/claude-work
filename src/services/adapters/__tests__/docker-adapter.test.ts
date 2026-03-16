@@ -371,7 +371,7 @@ describe('DockerAdapter', () => {
   });
 
   describe('buildContainerOptions with registry firewall', () => {
-    const rfHost = 'http://claudework-registry-firewall:8080';
+    const rfHost = 'http://registry-firewall:8080';
 
     it('registryFirewallEnabled=true時にPIP_INDEX_URLが注入される', () => {
       const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { registryFirewallEnabled: true });
@@ -382,7 +382,7 @@ describe('DockerAdapter', () => {
     it('registryFirewallEnabled=true時にPIP_TRUSTED_HOSTが注入される', () => {
       const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { registryFirewallEnabled: true });
       const env = createOptions.Env as string[];
-      expect(env).toContain('PIP_TRUSTED_HOST=claudework-registry-firewall');
+      expect(env).toContain('PIP_TRUSTED_HOST=registry-firewall');
     });
 
     it('registryFirewallEnabled=true時にGOPROXY環境変数が注入される', () => {

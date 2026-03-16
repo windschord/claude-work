@@ -296,10 +296,13 @@ export class DockerAdapter extends BasePTYAdapter {
        }
     }
 
-    // Network filtering: internalネットワークとproxy環境変数を設定
+    // Network filtering / Registry Firewall: internalネットワーク設定
+    // filterEnabledまたはregistryFirewallEnabledの場合、claudework-filterネットワークに接続
     let networkMode: string | undefined;
-    if (options?.filterEnabled) {
+    if (options?.filterEnabled || (options?.registryFirewallEnabled && !options?.shellMode)) {
       networkMode = process.env.PROXY_NETWORK_NAME || 'claudework-filter';
+    }
+    if (options?.filterEnabled) {
       // Remove existing proxy env vars to prevent duplicates from customEnvVars
       for (let i = Env.length - 1; i >= 0; i--) {
         const key = Env[i].split('=', 1)[0];
@@ -314,7 +317,7 @@ export class DockerAdapter extends BasePTYAdapter {
 
     // Registry Firewall: パッケージマネージャーのレジストリ設定注入
     if (options?.registryFirewallEnabled && !options?.shellMode) {
-      const rfHost = process.env.REGISTRY_FIREWALL_URL || 'http://claudework-registry-firewall:8080';
+      const rfHost = process.env.REGISTRY_FIREWALL_URL || 'http://registry-firewall:8080';
       let rfHostname: string;
       let rfUrlValid = true;
       try {
@@ -341,6 +344,15 @@ export class DockerAdapter extends BasePTYAdapter {
           } else {
             Env.push(`NO_PROXY=${rfHostname}`);
             Env.push(`no_proxy=${rfHostname}`);
+          }
+        }
+
+        // 既存の重複env varを除去(customEnvVarsからの重複防止)
+        const rfEnvKeys = ['PIP_INDEX_URL', 'PIP_TRUSTED_HOST', 'GOPROXY'];
+        for (let i = Env.length - 1; i >= 0; i--) {
+          const key = Env[i].split('=', 1)[0];
+          if (rfEnvKeys.includes(key)) {
+            Env.splice(i, 1);
           }
         }
 

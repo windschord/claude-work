@@ -23,7 +23,7 @@ registry-firewallのヘルスステータスとブロックログを取得する
 1. テスト作成: health/route.test.ts
    - GET: 正常レスポンス、registry-firewall停止時
 2. テスト作成: blocks/route.test.ts
-   - GET: 正常レスポンス(limitパラメータ)、registry-firewall停止時(503)
+   - GET: 正常レスポンス(limitパラメータ)、registry-firewall停止時(空配列200)
 3. テスト実行: 失敗を確認
 4. テストコミット
 5. 実装: health/route.ts - `getRegistryFirewallClient().getHealth()` を呼び出し

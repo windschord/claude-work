@@ -73,7 +73,7 @@ if (options?.registryFirewallEnabled && !options?.shellMode) {
 セッション作成時(`createSession`)で、ConfigServiceから設定を取得:
 
 ```typescript
-// セッション作成API (src/app/api/projects/[id]/sessions/route.ts)
+// PTYSessionManager.createSession (src/services/pty-session-manager.ts)
 const configService = getConfigService();
 const config = configService.getConfig();
 
