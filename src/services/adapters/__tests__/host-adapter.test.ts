@@ -78,12 +78,12 @@ describe('HostAdapter', () => {
 
   describe('constructor', () => {
     it('should register data event handler on ptyManager', () => {
-      // ptyManager emitter should have 'data' listener registered
-      expect(mockPtyManagerObj.listenerCount('data')).toBeGreaterThan(0);
+      // ptyManager emitter should have exactly 1 'data' listener registered
+      expect(mockPtyManagerObj.listenerCount('data')).toBe(1);
     });
 
     it('should register exit event handler on ptyManager', () => {
-      expect(mockPtyManagerObj.listenerCount('exit')).toBeGreaterThan(0);
+      expect(mockPtyManagerObj.listenerCount('exit')).toBe(1);
     });
 
     it('should forward ptyManager data events for shell sessions', () => {
@@ -104,8 +104,8 @@ describe('HostAdapter', () => {
       const dataHandler = vi.fn();
       hostAdapter.on('data', dataHandler);
 
-      // Emit data from ptyManager for a different session
-      mockPtyManagerObj.emit('data', 'unknown-session', 'output data');
+      // Emit data for existing non-shell session
+      mockPtyManagerObj.emit('data', 'claude-1', 'output data');
       expect(dataHandler).not.toHaveBeenCalled();
     });
 
@@ -397,8 +397,8 @@ describe('HostAdapter', () => {
       (mockPtyInstance.kill as any).mockImplementation(() => { throw new Error('kill failed'); });
 
       // Re-create should try to destroy first, and handle the error
-      hostAdapter.createSession('session-1', '/path/to/work2');
-      // Should not throw
+      expect(() => hostAdapter.createSession('session-1', '/path/to/work2')).not.toThrow();
+      expect(hostAdapter.hasSession('session-1')).toBe(true);
     });
   });
 

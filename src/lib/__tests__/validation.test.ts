@@ -238,16 +238,14 @@ describe('validation', () => {
     });
 
     it('ちょうど255文字のアドレスは拒否する（境界値）', () => {
-      // Build a 255-char email
-      const _local = 'a'.repeat(10);
-      // domain = repeated labels to reach total 255
-      const _labelPart = 'b'.repeat(63);
-      // 10 + 1(@) + domain = 255 => domain = 244
-      // 244 = 63 + 1(.) + 63 + 1(.) + 63 + 1(.) + 51 + 1(.) => too complex
-      // Simple approach: just check > 254
-      const longEmail = 'a'.repeat(64) + '@' + 'b'.repeat(63) + '.' + 'c'.repeat(63) + '.' + 'd'.repeat(60) + '.com';
-      expect(longEmail.length).toBeGreaterThan(254);
-      expect(isValidEmail(longEmail)).toBe(false);
+      // 255文字のメールを有効なラベル構成で構築
+      // local(64) + @(1) + domain(190) = 255
+      // domain: 63 + 1(.) + 63 + 1(.) + 58 + 1(.) + 3(com) = 190
+      const local = 'a'.repeat(64);
+      const domain = ['b'.repeat(63), 'c'.repeat(63), 'd'.repeat(58), 'com'].join('.');
+      const email = `${local}@${domain}`;
+      expect(email.length).toBe(255);
+      expect(isValidEmail(email)).toBe(false);
     });
 
     it('複数の@を含むアドレスを拒否する', () => {

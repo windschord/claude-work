@@ -59,7 +59,7 @@ describe('RunScriptManager', () => {
       }),
       emit: vi.fn((event, ...args) => {
         const handlers = eventHandlers.get(event) || [];
-        handlers.forEach((handler) => handler(...args));
+        handlers.forEach((handler) => { handler(...args); });
         return true;
       }),
       removeListener: vi.fn((event, callback) => {
@@ -79,7 +79,7 @@ describe('RunScriptManager', () => {
       // Emit spawn event asynchronously to simulate real process behavior
       setTimeout(() => {
         const spawnHandlers = eventHandlers.get('spawn') || [];
-        spawnHandlers.forEach((handler) => handler());
+        spawnHandlers.forEach((handler) => { handler(); });
       }, 0);
       return mockChildProcess as unknown as ChildProcess;
     });
@@ -275,7 +275,7 @@ describe('RunScriptManager', () => {
       mockSpawn.mockImplementation(() => {
         setTimeout(() => {
           const errorHandlers = eventHandlers.get('error') || [];
-          errorHandlers.forEach((handler) => handler(new Error('spawn ENOENT')));
+          errorHandlers.forEach((handler) => { handler(new Error('spawn ENOENT')); });
         }, 0);
         return mockChildProcess as unknown as ChildProcess;
       });
@@ -294,7 +294,7 @@ describe('RunScriptManager', () => {
       mockSpawn.mockImplementation(() => {
         setTimeout(() => {
           const spawnHandlers = eventHandlers.get('spawn') || [];
-          spawnHandlers.forEach((handler) => handler());
+          spawnHandlers.forEach((handler) => { handler(); });
         }, 0);
         return noPidProcess as unknown as ChildProcess;
       });
