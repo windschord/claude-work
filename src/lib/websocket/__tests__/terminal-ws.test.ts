@@ -326,12 +326,10 @@ describe('Terminal WebSocket', () => {
       localWss.emit('connection', ws, createMockReq('session-1'));
       for (let i = 0; i < 5; i++) await flush();
 
-      if (messageHandler) {
-        messageHandler(Buffer.from(JSON.stringify({ type: 'resize', data: { cols: 100, rows: 50 } })));
-        expect(mockPtyManager.resize).toHaveBeenCalledWith('session-1-terminal', 100, 50);
-      } else {
-        expect(mockPtyManager.createPTY).toHaveBeenCalled();
-      }
+      // ハンドラーが必ず登録されることを確認
+      expect(messageHandler).not.toBeNull();
+      messageHandler!(Buffer.from(JSON.stringify({ type: 'resize', data: { cols: 100, rows: 50 } })));
+      expect(mockPtyManager.resize).toHaveBeenCalledWith('session-1-terminal', 100, 50);
     });
 
     it('should forward input to adapter when using environment', async () => {
