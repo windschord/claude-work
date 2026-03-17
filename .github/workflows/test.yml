@@ -234,8 +234,8 @@ jobs:
     - name: Get changed files for mutation testing
       id: changed-files
       run: |
-        # PRのベースブランチとの差分から対象ファイルを取得
-        CHANGED_FILES=$(git diff --name-only --diff-filter=ACMR origin/${{ github.base_ref }}...HEAD -- \
+        # PRのベースコミットとの差分から対象ファイルを取得（SHA指定で確実に動作）
+        CHANGED_FILES=$(git diff --name-only --diff-filter=ACMR ${{ github.event.pull_request.base.sha }}...${{ github.sha }} -- \
           'src/services/**/*.ts' 'src/lib/**/*.ts' | \
           grep -v '__tests__' | \
           grep -v '\.test\.ts$' | \
