@@ -178,11 +178,12 @@ describe('useRegistryFirewall', () => {
       expect(result.current.enabled).toBe(false);
       expect(mockFetch).toHaveBeenCalledWith('/api/settings/config', expect.objectContaining({
         method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ registry_firewall_enabled: false }),
       }));
     });
 
-    it('API失敗時にエラーをスローする', async () => {
+    it('API失敗時にエラーをスローしenabledが変化しない', async () => {
       mockFetch
         .mockImplementationOnce(() => makeFetchResponse(sampleHealth))
         .mockImplementationOnce(() => makeFetchResponse({ blocks: [] }))
@@ -200,6 +201,9 @@ describe('useRegistryFirewall', () => {
           await result.current.toggleEnabled(false);
         })
       ).rejects.toThrow();
+
+      // 失敗時は状態を変更しない
+      expect(result.current.enabled).toBe(true);
     });
   });
 
