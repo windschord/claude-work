@@ -224,9 +224,9 @@ describe('validation', () => {
 
     it('ちょうど255文字のアドレスは拒否する（境界値）', () => {
       // Build a 255-char email
-      const local = 'a'.repeat(10);
+      const _local = 'a'.repeat(10);
       // domain = repeated labels to reach total 255
-      const labelPart = 'b'.repeat(63);
+      const _labelPart = 'b'.repeat(63);
       // 10 + 1(@) + domain = 255 => domain = 244
       // 244 = 63 + 1(.) + 63 + 1(.) + 63 + 1(.) + 51 + 1(.) => too complex
       // Simple approach: just check > 254

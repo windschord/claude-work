@@ -334,7 +334,7 @@ describe('RunScriptManager', () => {
         command: 'npm test',
       };
 
-      const runId = await runScriptManager.runScript(options);
+      const _runId = await runScriptManager.runScript(options);
 
       return new Promise<void>((resolve) => {
         runScriptManager.once('exit', (data) => {

@@ -3,7 +3,7 @@
  * モジュール読み込み時の環境変数検証、ファイルパス処理、
  * シングルトンパターンの動作を検証する。
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 
 // モジュールが既にロード済みなので、直接importしてテストする
 import { db, schema } from '../db';

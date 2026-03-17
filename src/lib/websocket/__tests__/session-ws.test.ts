@@ -46,7 +46,7 @@ vi.mock('../../../services/process-lifecycle-manager', () => ({
 }));
 
 import { SessionWebSocketHandler } from '../session-ws';
-import { ConnectionManager } from '../connection-manager';
+
 import { db } from '@/lib/db';
 
 // Mock WebSocket
@@ -101,7 +101,7 @@ describe('SessionWebSocketHandler', () => {
     it('should forward output events as run_script_log', () => {
       // Re-create handler to attach listeners
       const cm = createMockConnectionManager();
-      const h = new SessionWebSocketHandler(cm);
+      const _h = new SessionWebSocketHandler(cm);
 
       mockRunScriptManager.emit('output', {
         runId: 'run-1',
@@ -123,7 +123,7 @@ describe('SessionWebSocketHandler', () => {
 
     it('should forward error events as run_script_log with error level', () => {
       const cm = createMockConnectionManager();
-      const h = new SessionWebSocketHandler(cm);
+      const _h = new SessionWebSocketHandler(cm);
 
       mockRunScriptManager.emit('error', {
         runId: 'run-1',
@@ -144,7 +144,7 @@ describe('SessionWebSocketHandler', () => {
 
     it('should forward exit events as run_script_exit', () => {
       const cm = createMockConnectionManager();
-      const h = new SessionWebSocketHandler(cm);
+      const _h = new SessionWebSocketHandler(cm);
 
       mockRunScriptManager.emit('exit', {
         runId: 'run-1',
@@ -170,7 +170,7 @@ describe('SessionWebSocketHandler', () => {
   describe('ProcessLifecycleManager event forwarding', () => {
     it('should forward processPaused events', () => {
       const cm = createMockConnectionManager();
-      const h = new SessionWebSocketHandler(cm);
+      const _h = new SessionWebSocketHandler(cm);
 
       (mockLifecycleManager as EventEmitter).emit('processPaused', 'session-1', 'idle_timeout');
 
@@ -193,7 +193,7 @@ describe('SessionWebSocketHandler', () => {
 
     it('should forward processResumed events', () => {
       const cm = createMockConnectionManager();
-      const h = new SessionWebSocketHandler(cm);
+      const _h = new SessionWebSocketHandler(cm);
 
       (mockLifecycleManager as EventEmitter).emit('processResumed', 'session-1', true);
 
@@ -215,7 +215,7 @@ describe('SessionWebSocketHandler', () => {
 
     it('should forward serverShutdown events to all clients', () => {
       const cm = createMockConnectionManager();
-      const h = new SessionWebSocketHandler(cm);
+      const _h = new SessionWebSocketHandler(cm);
 
       (mockLifecycleManager as EventEmitter).emit('serverShutdown', 'SIGTERM');
 

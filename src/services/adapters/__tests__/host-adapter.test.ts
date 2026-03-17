@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { EventEmitter } from 'events';
 import type { IPty } from 'node-pty';
 
@@ -38,7 +38,7 @@ vi.mock('@/lib/logger', () => ({
 }));
 
 import { HostAdapter } from '../host-adapter';
-import { ptyManager } from '../../pty-manager';
+import '../../pty-manager';
 import * as pty from 'node-pty';
 
 const mockPtyManager = mockPtyManagerObj as any;

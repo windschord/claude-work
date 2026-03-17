@@ -287,7 +287,7 @@ describe('ConfigService', () => {
       await fs.writeFile(testConfigPath, JSON.stringify({ git_clone_timeout_minutes: 10 }), 'utf-8');
 
       // readFileをモックして非ENOENTエラーを発生させる
-      const origReadFile = fs.readFile;
+      const _origReadFile = fs.readFile;
       vi.spyOn(fs, 'readFile').mockRejectedValueOnce(Object.assign(new Error('Permission denied'), { code: 'EACCES' }));
 
       await configService.load();
