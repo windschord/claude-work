@@ -197,8 +197,8 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
       }
 
       // Registry Firewall有効フラグをConfigServiceから取得（未ロードの場合はlazy loadする）
-      const configService = await ensureConfigLoaded();
-      const registryFirewallEnabled = configService.getRegistryFirewallEnabled();
+      const configService = await ensureConfigLoaded()
+      const registryFirewallEnabled = configService.getRegistryFirewallEnabled()
 
       // アダプター経由でセッション作成
       await adapter.createSession(

@@ -335,7 +335,7 @@ export class DockerAdapter extends BasePTYAdapter {
 
       if (rfUrlValid) {
         // registry-firewallへの通信をHTTP_PROXYから除外
-        // NO_PROXYとno_proxyをそれぞれ独立して処理（重複排除）
+        // NO_PROXYとno_proxyをそれぞれ独立して処理（大文字・小文字両方を設定）
         for (const proxyKey of ['NO_PROXY', 'no_proxy'] as const) {
           const existingIdx = Env.findIndex(e => e.startsWith(`${proxyKey}=`));
           if (existingIdx >= 0) {

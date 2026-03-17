@@ -127,8 +127,8 @@ export class RegistryFirewallClient {
       }
 
       const data = await response.json();
-      // ランタイム型検証: blocksフィールドの存在を確認
-      if (typeof data === 'object' && data !== null && Array.isArray(data.blocks)) {
+      // ランタイム型検証: blocksフィールドとtotalフィールドの存在・型を確認
+      if (typeof data === 'object' && data !== null && Array.isArray(data.blocks) && typeof data.total === 'number') {
         return data as BlockLogsResponse;
       }
       logger.warn('Registry firewall blocks response has unexpected shape', { data });
