@@ -142,11 +142,13 @@ describe('useRegistryFirewall', () => {
       expect(signalArg.signal.aborted).toBe(true);
 
       // 保留中のPromiseを解決しても安全(setStateが呼ばれない)
-      resolvers.forEach(resolve => resolve({
-        ok: true,
-        status: 200,
-        json: () => Promise.resolve({}),
-      }));
+      resolvers.forEach((resolve) => {
+        resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({}),
+        });
+      });
     });
 
     it('healthレスポンスが失敗した場合はstoppedステータスを設定する', async () => {
