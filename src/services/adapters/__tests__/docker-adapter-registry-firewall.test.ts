@@ -93,6 +93,18 @@ vi.mock('node-pty', () => ({
   spawn: vi.fn(),
 }));
 
+vi.mock('child_process', () => ({
+  execSync: vi.fn(),
+  spawnSync: vi.fn(),
+  exec: vi.fn(),
+  spawn: vi.fn(),
+}));
+
+vi.mock('ws', () => ({
+  default: vi.fn(),
+  WebSocket: vi.fn(),
+}));
+
 // Mock tar-fs to prevent real file streaming
 vi.mock('tar-fs', () => ({
   default: {
@@ -139,26 +151,32 @@ describe('DockerAdapter registry firewall', () => {
   describe('buildContainerOptions with registry firewall', () => {
     const rfHost = 'http://registry-firewall:8080';
 
+    /** buildContainerOptionsを呼び出してcreateOptionsを返すヘルパー */
+    function buildOptions(opts: Record<string, unknown>) {
+      const { createOptions } = (adapter as any).buildContainerOptions('/workspace', opts);
+      return createOptions;
+    }
+
     it('registryFirewallEnabled+filterEnabled時にPIP_INDEX_URLが注入される', () => {
-      const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { registryFirewallEnabled: true, filterEnabled: true });
+      const createOptions = buildOptions({ registryFirewallEnabled: true, filterEnabled: true });
       const env = createOptions.Env as string[];
       expect(env).toContain(`PIP_INDEX_URL=${rfHost}/pypi/simple/`);
     });
 
     it('registryFirewallEnabled+filterEnabled時にPIP_TRUSTED_HOSTが注入される', () => {
-      const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { registryFirewallEnabled: true, filterEnabled: true });
+      const createOptions = buildOptions({ registryFirewallEnabled: true, filterEnabled: true });
       const env = createOptions.Env as string[];
       expect(env).toContain('PIP_TRUSTED_HOST=registry-firewall');
     });
 
     it('registryFirewallEnabled+filterEnabled時にGOPROXY環境変数が注入される', () => {
-      const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { registryFirewallEnabled: true, filterEnabled: true });
+      const createOptions = buildOptions({ registryFirewallEnabled: true, filterEnabled: true });
       const env = createOptions.Env as string[];
       expect(env).toContain(`GOPROXY=${rfHost}/go/,direct`);
     });
 
     it('registryFirewallEnabled+filterEnabled時にEntrypointにnpm config setコマンドが含まれる', () => {
-      const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { registryFirewallEnabled: true, filterEnabled: true });
+      const createOptions = buildOptions({ registryFirewallEnabled: true, filterEnabled: true });
       const cmd = createOptions.Cmd as string[];
       const env = createOptions.Env as string[];
       expect(cmd[0]).toContain('npm config set registry "$__RF_HOST/npm/"');
@@ -166,18 +184,18 @@ describe('DockerAdapter registry firewall', () => {
     });
 
     it('registryFirewallEnabled+filterEnabled時にEntrypointにcargo config作成コマンドが含まれる', () => {
-      const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { registryFirewallEnabled: true, filterEnabled: true });
+      const createOptions = buildOptions({ registryFirewallEnabled: true, filterEnabled: true });
       const cmd = createOptions.Cmd as string[];
       expect(cmd[0]).toContain('~/.cargo/config.toml');
     });
 
     it('registryFirewallEnabled+filterEnabled時にEntrypointが/bin/sh -cに変更される', () => {
-      const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { registryFirewallEnabled: true, filterEnabled: true });
+      const createOptions = buildOptions({ registryFirewallEnabled: true, filterEnabled: true });
       expect(createOptions.Entrypoint).toEqual(['/bin/sh', '-c']);
     });
 
     it('registryFirewallEnabled=false時にレジストリ設定が注入されない', () => {
-      const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { registryFirewallEnabled: false });
+      const createOptions = buildOptions({ registryFirewallEnabled: false });
       const env = createOptions.Env as string[];
       expect(env.some((e: string) => e.startsWith('PIP_INDEX_URL='))).toBe(false);
       expect(env.some((e: string) => e.startsWith('GOPROXY='))).toBe(false);
@@ -185,7 +203,7 @@ describe('DockerAdapter registry firewall', () => {
     });
 
     it('filterEnabledとregistryFirewallEnabledの両方が有効な場合、HTTP_PROXYとレジストリ設定の両方が設定される', () => {
-      const { createOptions } = (adapter as any).buildContainerOptions('/workspace', {
+      const createOptions = buildOptions({
         filterEnabled: true,
         registryFirewallEnabled: true,
       });
@@ -202,7 +220,7 @@ describe('DockerAdapter registry firewall', () => {
     });
 
     it('registryFirewallEnabled単独（filterEnabled=false）の場合、レジストリ設定が注入されない', () => {
-      const { createOptions } = (adapter as any).buildContainerOptions('/workspace', {
+      const createOptions = buildOptions({
         filterEnabled: false,
         registryFirewallEnabled: true,
       });
@@ -215,7 +233,7 @@ describe('DockerAdapter registry firewall', () => {
     });
 
     it('shellMode時にレジストリ設定を注入しない', () => {
-      const { createOptions } = (adapter as any).buildContainerOptions('/workspace', {
+      const createOptions = buildOptions({
         registryFirewallEnabled: true,
         filterEnabled: true,
         shellMode: true,
@@ -229,7 +247,7 @@ describe('DockerAdapter registry firewall', () => {
       const original = process.env.REGISTRY_FIREWALL_URL;
       process.env.REGISTRY_FIREWALL_URL = 'http://custom-firewall:9090';
       try {
-        const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { registryFirewallEnabled: true, filterEnabled: true });
+        const createOptions = buildOptions({ registryFirewallEnabled: true, filterEnabled: true });
         const env = createOptions.Env as string[];
         expect(env).toContain('PIP_INDEX_URL=http://custom-firewall:9090/pypi/simple/');
       } finally {

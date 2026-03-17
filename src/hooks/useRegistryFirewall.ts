@@ -129,7 +129,8 @@ export function useRegistryFirewall(): UseRegistryFirewallReturn {
    * データを再取得する
    */
   const refetch = useCallback(async (): Promise<void> => {
-    await fetchAllRef.current();
+    const controller = new AbortController();
+    await fetchAllRef.current(controller.signal);
   }, []);
 
   return {
