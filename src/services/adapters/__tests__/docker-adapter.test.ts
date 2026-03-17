@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { DockerAdapter } from '../docker-adapter';
 
 // Mock DockerClient and fs.existsSync via hoisted to avoid linter issues
-const { mockDockerClient, mockExistsSync, mockIsFilterEnabled, mockProxyHealthCheck, mockSyncRulesForContainer, mockProxyDeleteRules } = vi.hoisted(() => ({
+const { mockDockerClient, mockExistsSync, mockIsFilterEnabled, mockProxyHealthCheck, mockSyncRulesForContainer, mockProxyDeleteRules, mockRfGetHealth } = vi.hoisted(() => ({
   mockDockerClient: {
     inspectContainer: vi.fn(),
     getContainer: vi.fn(),
@@ -14,6 +14,7 @@ const { mockDockerClient, mockExistsSync, mockIsFilterEnabled, mockProxyHealthCh
   mockProxyHealthCheck: vi.fn(),
   mockSyncRulesForContainer: vi.fn(),
   mockProxyDeleteRules: vi.fn(),
+  mockRfGetHealth: vi.fn().mockResolvedValue({ status: 'healthy' }),
 }));
 
 vi.mock('../../docker-client', () => ({
@@ -49,6 +50,12 @@ vi.mock('@/services/proxy-client', () => {
     ProxyConnectionError: MockProxyConnectionError,
   };
 });
+
+vi.mock('@/services/registry-firewall-client', () => ({
+  RegistryFirewallClient: vi.fn().mockImplementation(() => ({
+    getHealth: mockRfGetHealth,
+  })),
+}));
 
 // Mock other dependencies
 vi.mock('@/lib/db', () => ({

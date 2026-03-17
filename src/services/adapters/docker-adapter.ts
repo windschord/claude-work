@@ -22,6 +22,7 @@ import { getConfigVolumeNames } from '@/lib/docker-volume-utils';
 import { networkFilterService } from '@/services/network-filter-service';
 import { ProxyClient } from '@/services/proxy-client';
 import { syncRulesForContainer } from '@/lib/proxy-sync';
+import { RegistryFirewallClient } from '@/services/registry-firewall-client';
 
 export interface DockerAdapterConfig {
   environmentId: string;
@@ -796,9 +797,28 @@ export class DockerAdapter extends BasePTYAdapter {
       }
     }
 
+    // registry-firewall稼働確認: 到達できなければレジストリ設定注入を無効化
+    let registryFirewallEnabled = options?.registryFirewallEnabled ?? false;
+    if (registryFirewallEnabled && filterEnabled && process.env.REGISTRY_FIREWALL_URL) {
+      const rfClient = new RegistryFirewallClient();
+      const health = await rfClient.getHealth();
+      if (health.status !== 'healthy') {
+        logger.warn(
+          'DockerAdapter: registry-firewallが利用できないため、レジストリ設定注入をスキップします',
+          {
+            sessionId,
+            environmentId: this.config.environmentId,
+            firewallStatus: health.status,
+          }
+        );
+        registryFirewallEnabled = false;
+      }
+    }
+
     const { createOptions, containerName } = this.buildContainerOptions(workingDir, {
       ...options,
       filterEnabled,
+      registryFirewallEnabled,
     });
 
     // クライアントから渡されたターミナルサイズを使用（未指定時はデフォルト80x24）
@@ -878,8 +898,8 @@ export class DockerAdapter extends BasePTYAdapter {
                 error: syncError instanceof Error ? syncError.message : 'Unknown error',
               }
             );
-            // ルール同期失敗時はcontainerIPをクリアして、onExitでの削除試行を抑制
-            containerIP = undefined;
+            // containerIPは保持する: proxy側でルールが部分的に反映されている可能性があるため、
+            // onExit時にdeleteRulesで確実にクリーンアップする
           }
         }
       }
