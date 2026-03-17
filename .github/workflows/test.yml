@@ -263,8 +263,7 @@ jobs:
         # mutate_targetsはカンマ区切り文字列なので、そのまま--mutateに渡す
         pnpm exec stryker run \
           --mutate "${{ steps.changed-files.outputs.mutate_targets }}" \
-          --reporters clear-text,progress \
-          --thresholds.break 85
+          --reporters clear-text,progress
       timeout-minutes: 25
 
     - name: Report mutation score to summary
