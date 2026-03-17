@@ -42,7 +42,9 @@ export class ProxyConnectionError extends Error {
 }
 
 /**
- * proxyへのリクエストのバリデーションエラー（422レスポンス）
+ * proxyへのリクエストのクライアントエラー（4xxレスポンス）
+ * - 422: バリデーションエラー（details付き）
+ * - その他4xx: 一般的なクライアントエラー
  */
 export class ProxyValidationError extends Error {
   constructor(
@@ -138,11 +140,11 @@ export class ProxyClient {
    * @param sourceIP - コンテナの送信元IPアドレス
    * @param entries - 許可するホスト一覧
    * @returns ProxyRuleSet
-   * @throws ProxyValidationError ルール形式が不正な場合（422）
+   * @throws ProxyValidationError クライアントエラー（4xx）の場合。422はdetails付き
    * @throws ProxyConnectionError proxyに接続できない場合
    */
   async setRules(sourceIP: string, entries: ProxyRuleEntry[]): Promise<ProxyRuleSet> {
-    const url = `${this.baseUrl}/api/v1/rules/${sourceIP}`;
+    const url = `${this.baseUrl}/api/v1/rules/${encodeURIComponent(sourceIP)}`;
     const body = JSON.stringify({ entries });
 
     return this.withRetry(async () => {
@@ -193,10 +195,11 @@ export class ProxyClient {
    * 指定した送信元IPのルールを削除する（リトライあり）
    *
    * @param sourceIP - コンテナの送信元IPアドレス
+   * @throws ProxyValidationError クライアントエラー（4xx）の場合
    * @throws ProxyConnectionError proxyに接続できない場合
    */
   async deleteRules(sourceIP: string): Promise<void> {
-    const url = `${this.baseUrl}/api/v1/rules/${sourceIP}`;
+    const url = `${this.baseUrl}/api/v1/rules/${encodeURIComponent(sourceIP)}`;
 
     await this.withRetry(async () => {
       let response: Response;
@@ -226,6 +229,7 @@ export class ProxyClient {
   /**
    * proxyの全ルールを削除する（リトライあり）
    *
+   * @throws ProxyValidationError クライアントエラー（4xx）の場合
    * @throws ProxyConnectionError proxyに接続できない場合
    */
   async deleteAllRules(): Promise<void> {

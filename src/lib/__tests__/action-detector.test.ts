@@ -46,6 +46,30 @@ describe('stripAnsi', () => {
     const input = '\u001b[32m\u001b]0;Title\u0007Green\u001b[0m';
     expect(stripAnsi(input)).toBe('Green');
   });
+
+  it('SS2シーケンス（ESC N）の後の複数文字をすべて除去する', () => {
+    // ESC N + 'ab' + 'Y' -> 原本は全除去して'X'のみ残る
+    // mutant [^\u001b] (starなし)だと'bY'が残る
+    const input = 'X\u001bNabY';
+    expect(stripAnsi(input)).toBe('X');
+  });
+
+  it('SS3シーケンス（ESC O）の後の複数文字をすべて除去する', () => {
+    const input = 'X\u001bOxyZ';
+    expect(stripAnsi(input)).toBe('X');
+  });
+
+  it('ESC N に続く非ESC文字をすべて消費する（非ESC文字クラスのテスト）', () => {
+    // mutant [\u001b]* (ESCだけマッチ)だと'ab'が残る
+    const input = 'Start\u001bNab';
+    expect(stripAnsi(input)).toBe('Start');
+  });
+
+  it('ESC Nパターンが正しくマッチする（文字クラス[NOc_^]のテスト）', () => {
+    // mutant [^NOc_^]だとESC Nにマッチしないため除去されない
+    const input = '\u001bNxyz';
+    expect(stripAnsi(input)).toBe('');
+  });
 });
 
 describe('detectActionRequest', () => {
@@ -118,6 +142,37 @@ describe('detectActionRequest', () => {
     const text = 'Do you allow this? Allow|Deny';
     expect(detectActionRequest(text)).toBe(true);
   });
+
+  it('Allow / Deny パターンでスペースを含む区切りを検出する', () => {
+    // \s* mutant (allow \S* / deny): スペースが非空白に変わると失敗するケース
+    const text = 'Select one: Allow / Deny option here';
+    expect(detectActionRequest(text)).toBe(true);
+  });
+
+  it('Allow/Deny パターンでスペースなしも検出する', () => {
+    const text = 'Options: Allow/Deny choice here';
+    expect(detectActionRequest(text)).toBe(true);
+  });
+
+  it('continue? (y/n) パターン（スペースあり）を検出する', () => {
+    const text = 'Do you want to continue? (y/n)';
+    expect(detectActionRequest(text)).toBe(true);
+  });
+
+  it('continue?(y/n) パターン（スペースなし）を検出する', () => {
+    const text = 'Do you want to continue?(y/n)';
+    expect(detectActionRequest(text)).toBe(true);
+  });
+
+  it('proceed? (y/n) パターン（スペースあり）を検出する', () => {
+    const text = 'Should we proceed? (y/n) please confirm';
+    expect(detectActionRequest(text)).toBe(true);
+  });
+
+  it('proceed?(y/n) パターン（スペースなし）を検出する', () => {
+    const text = 'Should we proceed?(y/n) please respond';
+    expect(detectActionRequest(text)).toBe(true);
+  });
 });
 
 describe('createCooldownChecker', () => {
@@ -158,6 +213,20 @@ describe('createCooldownChecker', () => {
     expect(shouldNotify()).toBe(false);
 
     vi.advanceTimersByTime(600);
+    expect(shouldNotify()).toBe(true);
+  });
+
+  it('クールダウン期間がちょうど経過した時はまだfalseを返す（> vs >=の境界）', () => {
+    const shouldNotify = createCooldownChecker(5000);
+
+    expect(shouldNotify()).toBe(true);
+
+    // ちょうど5000ms経過 -> まだクールダウン中（> であって >= ではない）
+    vi.advanceTimersByTime(5000);
+    expect(shouldNotify()).toBe(false);
+
+    // 1ms追加で経過 -> クールダウン解除
+    vi.advanceTimersByTime(1);
     expect(shouldNotify()).toBe(true);
   });
 

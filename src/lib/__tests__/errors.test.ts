@@ -1,5 +1,15 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { handleApiError, ApiError, createErrorResponse } from '../errors';
+
+// loggerをモック
+vi.mock('../logger', () => ({
+  logger: {
+    error: vi.fn(),
+    warn: vi.fn(),
+    info: vi.fn(),
+    debug: vi.fn(),
+  },
+}));
 
 describe('Error Handling', () => {
   let originalEnv: string | undefined;
@@ -27,6 +37,42 @@ describe('Error Handling', () => {
       expect(data).toHaveProperty('code');
     });
 
+    it('should handle ApiError instances with correct statusCode', async () => {
+      const error = new ApiError('Not found', 'NOT_FOUND', 404);
+      const response = handleApiError(error);
+      const data = await response.json();
+
+      expect(response.status).toBe(404);
+      expect(data.error).toBe('Not found');
+      expect(data.code).toBe('NOT_FOUND');
+    });
+
+    it('should handle ApiError with context logging', async () => {
+      const { logger } = await import('../logger');
+      const error = new ApiError('Bad request', 'BAD_REQUEST', 400);
+      handleApiError(error, 'test-api');
+
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('in test-api'),
+        expect.objectContaining({
+          message: 'Bad request',
+          code: 'BAD_REQUEST',
+          statusCode: 400,
+        })
+      );
+    });
+
+    it('should handle ApiError without context', async () => {
+      const { logger } = await import('../logger');
+      const error = new ApiError('Error', 'ERR', 500);
+      handleApiError(error);
+
+      expect(logger.error).toHaveBeenCalledWith(
+        'API Error',
+        expect.objectContaining({ message: 'Error' })
+      );
+    });
+
     it('should include stack trace in development', async () => {
       process.env.NODE_ENV = 'development';
       const error = new Error('Test error');
@@ -45,6 +91,29 @@ describe('Error Handling', () => {
       expect(data).not.toHaveProperty('stack');
     });
 
+    it('should use error.name as code for generic Error', async () => {
+      const error = new Error('Test error');
+      const response = handleApiError(error);
+      const data = await response.json();
+
+      expect(data.code).toBe('Error');
+    });
+
+    it('should log Error with name and stack', async () => {
+      const { logger } = await import('../logger');
+      const error = new Error('Test error');
+      handleApiError(error, 'ctx');
+
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('in ctx'),
+        expect.objectContaining({
+          message: 'Test error',
+          name: 'Error',
+          stack: expect.any(String),
+        })
+      );
+    });
+
     it('should handle unknown errors', async () => {
       const response = handleApiError('Some string error');
       const data = await response.json();
@@ -52,6 +121,26 @@ describe('Error Handling', () => {
       expect(response.status).toBe(500);
       expect(data).toHaveProperty('error', 'An unknown error occurred');
       expect(data).toHaveProperty('code', 'UNKNOWN_ERROR');
+    });
+
+    it('should log unknown error with context', async () => {
+      const { logger } = await import('../logger');
+      handleApiError(42, 'number-ctx');
+
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('in number-ctx'),
+        expect.objectContaining({ error: 42 })
+      );
+    });
+
+    it('should log unknown error without context', async () => {
+      const { logger } = await import('../logger');
+      handleApiError(null);
+
+      expect(logger.error).toHaveBeenCalledWith(
+        'Unknown error',
+        expect.objectContaining({ error: null })
+      );
     });
 
     it('should include context in log', async () => {
@@ -105,6 +194,22 @@ describe('Error Handling', () => {
       const data = await response.json();
 
       expect(data).not.toHaveProperty('stack');
+    });
+
+    it('should use NODE_ENV to determine isDevelopment when not explicitly passed', async () => {
+      process.env.NODE_ENV = 'production';
+      const error = new ApiError('Test error', 'TEST_ERROR', 400);
+      const response = createErrorResponse(error);
+      const data = await response.json();
+      expect(data).not.toHaveProperty('stack');
+    });
+
+    it('should include stack when NODE_ENV is not production (default)', async () => {
+      process.env.NODE_ENV = 'development';
+      const error = new ApiError('Test error', 'TEST_ERROR', 400);
+      const response = createErrorResponse(error);
+      const data = await response.json();
+      expect(data).toHaveProperty('stack');
     });
   });
 });

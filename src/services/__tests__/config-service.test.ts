@@ -1,15 +1,17 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { ConfigService } from '../config-service';
+import { ConfigService, getConfigService, initializeConfigService } from '../config-service';
 import fs from 'fs/promises';
 import path from 'path';
 import { tmpdir } from 'os';
 
+const mockLogger = vi.hoisted(() => ({
+  info: vi.fn(),
+  error: vi.fn(),
+  warn: vi.fn(),
+}));
+
 vi.mock('@/lib/logger', () => ({
-  logger: {
-    info: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
-  },
+  logger: mockLogger,
 }));
 
 describe('ConfigService', () => {
@@ -17,6 +19,7 @@ describe('ConfigService', () => {
   let configService: ConfigService;
 
   beforeEach(async () => {
+    vi.clearAllMocks();
     // 一時ディレクトリに設定ファイルを作成
     const testDir = path.join(tmpdir(), `config-test-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
@@ -228,6 +231,162 @@ describe('ConfigService', () => {
 
       const config = configService.getConfig();
       expect(config.registry_firewall_enabled).toBe(false);
+    });
+  });
+
+  describe('constructor defaults', () => {
+    it('configPathが指定されない場合のデフォルトパスを使用', () => {
+      const service = new ConfigService();
+      expect(service).toBeInstanceOf(ConfigService);
+      const config = service.getConfig();
+      expect(config.git_clone_timeout_minutes).toBe(5);
+      expect(config.debug_mode_keep_volumes).toBe(false);
+    });
+  });
+
+  describe('load logging', () => {
+    it('設定ファイル読み込み成功時にlogger.infoが呼ばれる', async () => {
+      const testConfig = {
+        git_clone_timeout_minutes: 10,
+        debug_mode_keep_volumes: true,
+      };
+      await fs.mkdir(path.dirname(testConfigPath), { recursive: true });
+      await fs.writeFile(testConfigPath, JSON.stringify(testConfig), 'utf-8');
+      await configService.load();
+
+      expect(mockLogger.info).toHaveBeenCalledWith('Configuration loaded', {
+        config: expect.objectContaining({
+          git_clone_timeout_minutes: 10,
+          debug_mode_keep_volumes: true,
+        }),
+      });
+    });
+
+    it('設定ファイルが存在しない場合にlogger.infoが呼ばれる', async () => {
+      await configService.load();
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        'Configuration file not found, using defaults',
+        { configPath: testConfigPath }
+      );
+    });
+
+    it('不正なJSON読み込み時にlogger.errorが呼ばれる', async () => {
+      await fs.mkdir(path.dirname(testConfigPath), { recursive: true });
+      await fs.writeFile(testConfigPath, 'invalid json', 'utf-8');
+      await configService.load();
+
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Failed to load configuration, using defaults',
+        { error: expect.any(SyntaxError) }
+      );
+    });
+
+    it('ENOENT以外のエラーでもデフォルト値が使用される', async () => {
+      // パーミッションエラーなどをシミュレート
+      await fs.mkdir(path.dirname(testConfigPath), { recursive: true });
+      await fs.writeFile(testConfigPath, JSON.stringify({ git_clone_timeout_minutes: 10 }), 'utf-8');
+
+      // readFileをモックして非ENOENTエラーを発生させる
+      const _origReadFile = fs.readFile;
+      vi.spyOn(fs, 'readFile').mockRejectedValueOnce(Object.assign(new Error('Permission denied'), { code: 'EACCES' }));
+
+      await configService.load();
+      const config = configService.getConfig();
+      expect(config.git_clone_timeout_minutes).toBe(5);
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Failed to load configuration, using defaults',
+        expect.any(Object)
+      );
+
+      vi.mocked(fs.readFile).mockRestore();
+    });
+  });
+
+  describe('save error handling', () => {
+    it('保存失敗時にエラーがスローされる', async () => {
+      vi.spyOn(fs, 'mkdir').mockRejectedValueOnce(new Error('Permission denied'));
+
+      await expect(configService.save({ git_clone_timeout_minutes: 10 })).rejects.toThrow('Failed to save configuration');
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Failed to save configuration',
+        { error: expect.any(Error) }
+      );
+    });
+  });
+
+  describe('save logging', () => {
+    it('保存成功時にlogger.infoが呼ばれる', async () => {
+      await configService.load();
+      await configService.save({ git_clone_timeout_minutes: 20 });
+
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        'Configuration saved',
+        { config: expect.objectContaining({ git_clone_timeout_minutes: 20 }) }
+      );
+    });
+  });
+
+  describe('getConfigService', () => {
+    it('シングルトンインスタンスを返す', () => {
+      // getConfigServiceのシングルトンをリセットするために動的importを使う
+      const service1 = getConfigService();
+      const service2 = getConfigService();
+      expect(service1).toBe(service2);
+    });
+
+    it('ConfigServiceインスタンスを返す', () => {
+      const service = getConfigService();
+      expect(service).toBeInstanceOf(ConfigService);
+    });
+  });
+
+  describe('initializeConfigService', () => {
+    it('ConfigServiceを初期化して返す', async () => {
+      const service = await initializeConfigService();
+      expect(service).toBeInstanceOf(ConfigService);
+    });
+  });
+
+  describe('save merges with existing config', () => {
+    it('既存の設定値を維持しつつ新しい値をマージする', async () => {
+      await configService.load();
+      await configService.save({ git_clone_timeout_minutes: 15 });
+
+      // debug_mode_keep_volumesはデフォルト値のまま
+      expect(configService.getConfig().debug_mode_keep_volumes).toBe(false);
+      expect(configService.getConfig().git_clone_timeout_minutes).toBe(15);
+
+      // 2回目のsaveでdebug_mode_keep_volumesだけ変更
+      await configService.save({ debug_mode_keep_volumes: true });
+      expect(configService.getConfig().git_clone_timeout_minutes).toBe(15);
+      expect(configService.getConfig().debug_mode_keep_volumes).toBe(true);
+    });
+  });
+
+  describe('save writes valid JSON', () => {
+    it('保存されたファイルはフォーマットされたJSONである', async () => {
+      await configService.load();
+      await configService.save({ git_clone_timeout_minutes: 7 });
+
+      const content = await fs.readFile(testConfigPath, 'utf-8');
+      // 2スペースインデントであること
+      expect(content).toContain('  ');
+      const parsed = JSON.parse(content);
+      expect(parsed.git_clone_timeout_minutes).toBe(7);
+    });
+  });
+
+  describe('getGitCloneTimeoutMs calculation', () => {
+    it('分をミリ秒に正しく変換する (1分 = 60000ms)', async () => {
+      await configService.load();
+      await configService.save({ git_clone_timeout_minutes: 1 });
+      expect(configService.getGitCloneTimeoutMs()).toBe(60000);
+    });
+
+    it('0分の場合は0msを返す', async () => {
+      await configService.load();
+      await configService.save({ git_clone_timeout_minutes: 0 });
+      expect(configService.getGitCloneTimeoutMs()).toBe(0);
     });
   });
 });

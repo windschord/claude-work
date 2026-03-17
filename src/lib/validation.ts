@@ -124,6 +124,7 @@ export function isValidEmail(email: string): boolean {
   if (parts.length !== 2) return false;
   const [local, domain] = parts;
   if (!local || local.length > 64 || !domain || domain.length > 253) return false;
+  if (local.startsWith('.') || local.endsWith('.') || local.includes('..')) return false;
   if (!/^[^\s@]+$/.test(local)) return false;
   // ドメインをラベル単位で検証: 各ラベルは1文字以上の英数字・ハイフンで、先頭・末尾がハイフンでない
   const labels = domain.split('.');

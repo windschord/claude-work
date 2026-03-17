@@ -1,46 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { setupTerminalWebSocket } from '../terminal-ws';
-
-// モック定義
-const mockSession = {
-  id: 'session-1',
-  worktree_path: '/path/to/worktree',
-  environment_id: null,
-  docker_mode: false,
-};
-
-const mockHostEnvironment = {
-  id: 'env-host-1',
-  name: 'Host Environment',
-  type: 'HOST' as const,
-  config: null,
-};
-
-const mockDockerEnvironment = {
-  id: 'env-docker-1',
-  name: 'Docker Environment',
-  type: 'DOCKER' as const,
-  config: JSON.stringify({
-    imageName: 'claude-code-env',
-    imageTag: 'v1.0',
-    authDirPath: '/data/environments/env-docker-1',
-  }),
-};
-
-// dbモック (Drizzle)
-vi.mock('@/lib/db', () => ({
-  db: {
-    query: {
-      sessions: {
-        findFirst: vi.fn(),
-      },
-    },
-  },
-  schema: {
-    sessions: { id: 'id' },
-    projects: { id: 'id', environment_id: 'environment_id' },
-  },
-}));
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { EventEmitter } from 'events';
 
 // loggerモック
 vi.mock('@/lib/logger', () => ({
@@ -52,43 +11,55 @@ vi.mock('@/lib/logger', () => ({
   },
 }));
 
-// ptyManagerモック
-vi.mock('@/services/pty-manager', () => ({
-  ptyManager: {
-    createPTY: vi.fn(),
-    write: vi.fn(),
-    resize: vi.fn(),
-    kill: vi.fn(),
-    hasSession: vi.fn().mockReturnValue(false),
-    on: vi.fn(),
-    off: vi.fn(),
+// dbモック
+const mockFindFirst = vi.fn();
+vi.mock('@/lib/db', () => ({
+  db: {
+    query: {
+      sessions: {
+        findFirst: (...args: any[]) => mockFindFirst(...args),
+      },
+    },
+  },
+  schema: {
+    sessions: { id: 'id' },
+    projects: { id: 'id', environment_id: 'environment_id' },
   },
 }));
 
-// environmentServiceモック
+vi.mock('drizzle-orm', () => ({
+  eq: vi.fn((a, b) => ({ field: a, value: b })),
+}));
+
+// ptyManagerモック (hoisted)
+const { mockPtyManager } = vi.hoisted(() => {
+  const { EventEmitter } = require('events');
+  const emitter = new EventEmitter();
+  return {
+    mockPtyManager: Object.assign(emitter, {
+      createPTY: vi.fn(),
+      write: vi.fn(),
+      resize: vi.fn(),
+      kill: vi.fn(),
+      hasSession: vi.fn().mockReturnValue(false),
+    }),
+  };
+});
+vi.mock('@/services/pty-manager', () => ({
+  ptyManager: mockPtyManager,
+}));
+
 vi.mock('@/services/environment-service', () => ({
   environmentService: {
     findById: vi.fn(),
-    getDefault: vi.fn(),
   },
 }));
 
-// AdapterFactoryモック
-const mockDockerAdapter = {
+const mockAdapter = {
   createSession: vi.fn(),
   write: vi.fn(),
   resize: vi.fn(),
-  destroySession: vi.fn(),
-  hasSession: vi.fn().mockReturnValue(false),
-  on: vi.fn(),
-  off: vi.fn(),
-};
-
-const mockHostAdapter = {
-  createSession: vi.fn(),
-  write: vi.fn(),
-  resize: vi.fn(),
-  destroySession: vi.fn(),
+  destroySession: vi.fn().mockResolvedValue(undefined),
   hasSession: vi.fn().mockReturnValue(false),
   on: vi.fn(),
   off: vi.fn(),
@@ -96,29 +67,102 @@ const mockHostAdapter = {
 
 vi.mock('@/services/adapter-factory', () => ({
   AdapterFactory: {
-    getAdapter: vi.fn((env) => {
-      if (env.type === 'DOCKER') {
-        return mockDockerAdapter;
-      }
-      return mockHostAdapter;
-    }),
+    getAdapter: vi.fn(() => mockAdapter),
   },
 }));
 
-/**
- * ターミナルWebSocketのユニットテスト
- *
- * Note: WebSocket統合テストは実際のサーバーインスタンスが必要なため、
- * E2Eテストで実施します。ここでは関数のエクスポートと基本的な検証のみ実施します。
- */
+// ConnectionManagerモック (hoisted)
+const { mockCM } = vi.hoisted(() => ({
+  mockCM: {
+    addConnection: vi.fn(),
+    removeConnection: vi.fn(),
+    getConnectionCount: vi.fn().mockReturnValue(0),
+    broadcast: vi.fn(),
+    broadcastAll: vi.fn(),
+    getConnections: vi.fn().mockReturnValue([]),
+    closeAllConnections: vi.fn(),
+    cleanup: vi.fn(),
+    hasHandler: vi.fn().mockReturnValue(false),
+    getHandler: vi.fn(),
+    registerHandler: vi.fn(),
+    unregisterHandler: vi.fn(),
+    on: vi.fn(),
+    off: vi.fn(),
+    emit: vi.fn(),
+  },
+}));
+vi.mock('../connection-manager', () => ({
+  ConnectionManager: {
+    getInstance: () => mockCM,
+  },
+}));
+
+import { setupTerminalWebSocket } from '../terminal-ws';
+import { environmentService } from '@/services/environment-service';
+
+async function flush(): Promise<void> {
+  // Drain microtasks and macrotasks
+  await new Promise(resolve => setImmediate(resolve));
+  await new Promise(resolve => setImmediate(resolve));
+}
+
+async function waitForListener(ws: EventEmitter, event: string, maxTries = 10): Promise<void> {
+  for (let i = 0; i < maxTries; i++) {
+    if (ws.listenerCount(event) > 0) return;
+    await flush();
+  }
+  throw new Error(`Listener '${event}' was not registered in time`);
+}
+
+function createMockWs(): any {
+  const ws = new EventEmitter() as any;
+  ws.send = vi.fn();
+  ws.close = vi.fn();
+  ws.readyState = 1;
+  return ws;
+}
+
+function createMockWss(): any {
+  return new EventEmitter() as any;
+}
+
+function createMockReq(sessionId: string): any {
+  return {
+    url: `/ws/terminal/${sessionId}`,
+    headers: { host: 'localhost:3000' },
+  };
+}
+
+const mockSession = {
+  id: 'session-1',
+  worktree_path: '/path/to/worktree',
+  environment_id: null,
+  project: null,
+};
+
+const mockSessionWithEnv = {
+  id: 'session-1',
+  worktree_path: '/path/to/worktree',
+  environment_id: 'env-1',
+  project: { environment_id: null },
+};
+
+const mockHostEnv = {
+  id: 'env-1',
+  name: 'Host',
+  type: 'HOST',
+  config: null,
+};
+
 describe('Terminal WebSocket', () => {
+  let wss: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
-  });
-
-  afterEach(() => {
-    vi.clearAllMocks();
+    wss = createMockWss();
+    mockPtyManager.hasSession.mockReturnValue(false);
+    mockAdapter.hasSession.mockReturnValue(false);
+    mockCM.hasHandler.mockReturnValue(false);
   });
 
   it('should export setupTerminalWebSocket function', () => {
@@ -126,191 +170,307 @@ describe('Terminal WebSocket', () => {
     expect(typeof setupTerminalWebSocket).toBe('function');
   });
 
-  it('should accept WebSocketServer and path parameters', () => {
-    // 関数のシグネチャを検証
-    expect(setupTerminalWebSocket.length).toBe(2);
+  it('should register connection handler on WSS', () => {
+    setupTerminalWebSocket(wss, '/ws/terminal');
+    expect(wss.listenerCount('connection')).toBe(1);
   });
 
-  describe('environment adapter selection', () => {
-    // 環境アダプター選択ロジックのユニットテスト
-    // 実際のWebSocket接続は統合テストで検証
+  describe('connection handling', () => {
+    it('should close when session not found in DB', async () => {
+      setupTerminalWebSocket(wss, '/ws/terminal');
+      mockFindFirst.mockResolvedValue(null);
 
-    it('should use the correct adapter based on session environment_id', async () => {
-      const { db } = await import('@/lib/db');
-      const { environmentService } = await import('@/services/environment-service');
-      const { AdapterFactory } = await import('@/services/adapter-factory');
-
-      // Docker環境のセッション
-      const dockerSession = {
-        ...mockSession,
-        environment_id: 'env-docker-1',
-      };
-
-      vi.mocked(db.query.sessions.findFirst).mockResolvedValue(dockerSession);
-      vi.mocked(environmentService.findById).mockResolvedValue(mockDockerEnvironment);
-
-      // アダプター取得の検証
-      const adapter = AdapterFactory.getAdapter(mockDockerEnvironment);
-      expect(adapter).toBe(mockDockerAdapter);
+      const ws = createMockWs();
+      wss.emit('connection', ws, createMockReq('session-1'));
+      await flush();
+      expect(ws.close).toHaveBeenCalledWith(1008, 'Session not found');
     });
 
-    it('should use HostAdapter for HOST environment', async () => {
-      const { AdapterFactory } = await import('@/services/adapter-factory');
+    it('should create PTY using ptyManager when no environment_id', async () => {
+      setupTerminalWebSocket(wss, '/ws/terminal');
+      mockFindFirst.mockResolvedValue(mockSession);
 
-      const adapter = AdapterFactory.getAdapter(mockHostEnvironment);
-      expect(adapter).toBe(mockHostAdapter);
+      const ws = createMockWs();
+      wss.emit('connection', ws, createMockReq('session-1'));
+      await flush();
+
+      expect(mockPtyManager.createPTY).toHaveBeenCalledWith(
+        'session-1-terminal',
+        '/path/to/worktree'
+      );
     });
 
-    it('should use DockerAdapter for DOCKER environment', async () => {
-      const { AdapterFactory } = await import('@/services/adapter-factory');
+    it('should create PTY using adapter when environment_id is set', async () => {
+      setupTerminalWebSocket(wss, '/ws/terminal');
+      mockFindFirst.mockResolvedValue(mockSessionWithEnv);
+      vi.mocked(environmentService.findById).mockResolvedValue(mockHostEnv as any);
 
-      const adapter = AdapterFactory.getAdapter(mockDockerEnvironment);
-      expect(adapter).toBe(mockDockerAdapter);
-    });
-  });
+      const ws = createMockWs();
+      wss.emit('connection', ws, createMockReq('session-1'));
+      await flush();
 
-  describe('terminalSessionId generation', () => {
-    it('should generate terminalSessionId with TERMINAL_SESSION_SUFFIX constant', () => {
-      const sessionId = 'test-session-123';
-      const TERMINAL_SESSION_SUFFIX = '-terminal';
-      const expectedTerminalSessionId = 'test-session-123-terminal';
-
-      // terminalSessionIdの生成ロジックをテスト
-      // 実際の実装: const terminalSessionId = `${sessionId}${TERMINAL_SESSION_SUFFIX}`;
-      const terminalSessionId = `${sessionId}${TERMINAL_SESSION_SUFFIX}`;
-      expect(terminalSessionId).toBe(expectedTerminalSessionId);
-    });
-  });
-
-  describe('adapter createSession options', () => {
-    it('should call adapter.createSession with shellMode: true for Docker environment', async () => {
-      const { environmentService } = await import('@/services/environment-service');
-      const { AdapterFactory } = await import('@/services/adapter-factory');
-
-      vi.mocked(environmentService.findById).mockResolvedValue(mockDockerEnvironment);
-
-      const adapter = AdapterFactory.getAdapter(mockDockerEnvironment);
-
-      // shellMode: true でセッション作成が呼ばれることを検証
-      const terminalSessionId = 'session-1-terminal';
-      const workingDir = '/path/to/worktree';
-
-      await adapter.createSession(terminalSessionId, workingDir, undefined, {
-        shellMode: true,
-      });
-
-      expect(mockDockerAdapter.createSession).toHaveBeenCalledWith(
-        terminalSessionId,
-        workingDir,
+      expect(mockAdapter.createSession).toHaveBeenCalledWith(
+        'session-1-terminal',
+        '/path/to/worktree',
         undefined,
         { shellMode: true }
       );
     });
 
-    it('should call adapter.createSession with shellMode: true for Host environment', async () => {
-      const { AdapterFactory } = await import('@/services/adapter-factory');
+    it('should close when environment not found', async () => {
+      setupTerminalWebSocket(wss, '/ws/terminal');
+      mockFindFirst.mockResolvedValue(mockSessionWithEnv);
+      vi.mocked(environmentService.findById).mockResolvedValue(null as any);
 
-      const adapter = AdapterFactory.getAdapter(mockHostEnvironment);
+      const ws = createMockWs();
+      wss.emit('connection', ws, createMockReq('session-1'));
+      await flush();
 
-      const terminalSessionId = 'session-1-terminal';
-      const workingDir = '/path/to/worktree';
+      expect(ws.close).toHaveBeenCalledWith(1008, 'Environment not found');
+    });
 
-      await adapter.createSession(terminalSessionId, workingDir, undefined, {
-        shellMode: true,
-      });
+    it('should add connection to ConnectionManager', async () => {
+      setupTerminalWebSocket(wss, '/ws/terminal');
+      mockFindFirst.mockResolvedValue(mockSession);
 
-      expect(mockHostAdapter.createSession).toHaveBeenCalledWith(
-        terminalSessionId,
-        workingDir,
-        undefined,
-        { shellMode: true }
+      const ws = createMockWs();
+      wss.emit('connection', ws, createMockReq('session-1'));
+      await flush();
+
+      expect(mockCM.addConnection).toHaveBeenCalledWith('session-1-terminal', ws);
+    });
+
+    it('should skip PTY creation if session already exists', async () => {
+      setupTerminalWebSocket(wss, '/ws/terminal');
+      mockFindFirst.mockResolvedValue(mockSession);
+      mockPtyManager.hasSession.mockReturnValue(true);
+
+      const ws = createMockWs();
+      wss.emit('connection', ws, createMockReq('session-1'));
+      await flush();
+
+      expect(mockPtyManager.createPTY).not.toHaveBeenCalled();
+    });
+
+    it('should handle PTY creation error', async () => {
+      setupTerminalWebSocket(wss, '/ws/terminal');
+      mockFindFirst.mockResolvedValue(mockSession);
+      mockPtyManager.createPTY.mockImplementationOnce(() => { throw new Error('PTY failed'); });
+
+      const ws = createMockWs();
+      wss.emit('connection', ws, createMockReq('session-1'));
+      await flush();
+
+      expect(ws.send).toHaveBeenCalledWith(expect.stringContaining('PTY creation failed'));
+      expect(ws.close).toHaveBeenCalledWith(1000, 'PTY creation failed');
+    });
+
+    it('should handle DB error', async () => {
+      setupTerminalWebSocket(wss, '/ws/terminal');
+      mockFindFirst.mockRejectedValue(new Error('DB error'));
+
+      const ws = createMockWs();
+      wss.emit('connection', ws, createMockReq('session-1'));
+      await flush();
+
+      expect(ws.close).toHaveBeenCalledWith(1011, 'Internal server error');
+    });
+  });
+
+  describe('message handling', () => {
+    async function setupConnection(session: any = mockSession) {
+      // Create a fresh WSS for each connection to avoid interference
+      const localWss = createMockWss();
+      setupTerminalWebSocket(localWss, '/ws/terminal');
+      mockFindFirst.mockResolvedValue(session);
+      if (session === mockSessionWithEnv) {
+        vi.mocked(environmentService.findById).mockResolvedValue(mockHostEnv as any);
+      }
+
+      const ws = createMockWs();
+      localWss.emit('connection', ws, createMockReq('session-1'));
+      // Wait for message handler to be registered before returning
+      await waitForListener(ws, 'message');
+      return ws;
+    }
+
+    it('should forward input to ptyManager (via connection handler)', async () => {
+      const localWss = createMockWss();
+      setupTerminalWebSocket(localWss, '/ws/terminal');
+      mockFindFirst.mockResolvedValue(mockSession);
+
+      const ws = createMockWs();
+      localWss.emit('connection', ws, createMockReq('session-1'));
+      await waitForListener(ws, 'message');
+
+      ws.emit('message', Buffer.from(JSON.stringify({ type: 'input', data: 'test' })));
+      expect(mockPtyManager.write).toHaveBeenCalledWith('session-1-terminal', 'test');
+    });
+
+    it('should forward resize to ptyManager (via connection handler)', async () => {
+      const localWss = createMockWss();
+      setupTerminalWebSocket(localWss, '/ws/terminal');
+      mockFindFirst.mockResolvedValue(mockSession);
+
+      const ws = createMockWs();
+      localWss.emit('connection', ws, createMockReq('session-1'));
+      await waitForListener(ws, 'message');
+
+      ws.emit('message', Buffer.from(JSON.stringify({ type: 'resize', data: { cols: 100, rows: 50 } })));
+      expect(mockPtyManager.resize).toHaveBeenCalledWith('session-1-terminal', 100, 50);
+    });
+
+    it('should forward input to adapter when using environment', async () => {
+      const ws = await setupConnection(mockSessionWithEnv);
+      ws.emit('message', Buffer.from(JSON.stringify({ type: 'input', data: 'hello' })));
+      expect(mockAdapter.write).toHaveBeenCalledWith('session-1-terminal', 'hello');
+    });
+
+    it('should forward resize to adapter when using environment', async () => {
+      const ws = await setupConnection(mockSessionWithEnv);
+      ws.emit('message', Buffer.from(JSON.stringify({ type: 'resize', data: { cols: 80, rows: 24 } })));
+      expect(mockAdapter.resize).toHaveBeenCalledWith('session-1-terminal', 80, 24);
+    });
+
+    it('should ignore messages without type', async () => {
+      const ws = await setupConnection();
+      ws.emit('message', Buffer.from(JSON.stringify({ noType: true })));
+      expect(mockPtyManager.write).not.toHaveBeenCalled();
+    });
+
+    it('should ignore input with non-string data', async () => {
+      const ws = await setupConnection();
+      ws.emit('message', Buffer.from(JSON.stringify({ type: 'input', data: 123 })));
+      expect(mockPtyManager.write).not.toHaveBeenCalled();
+    });
+
+    it('should reject resize with cols=0', async () => {
+      const ws = await setupConnection();
+      ws.emit('message', Buffer.from(JSON.stringify({ type: 'resize', data: { cols: 0, rows: 24 } })));
+      expect(mockPtyManager.resize).not.toHaveBeenCalled();
+    });
+
+    it('should reject resize with cols>1000', async () => {
+      const ws = await setupConnection();
+      ws.emit('message', Buffer.from(JSON.stringify({ type: 'resize', data: { cols: 1001, rows: 24 } })));
+      expect(mockPtyManager.resize).not.toHaveBeenCalled();
+    });
+
+    it('should reject resize with rows>1000', async () => {
+      const ws = await setupConnection();
+      ws.emit('message', Buffer.from(JSON.stringify({ type: 'resize', data: { cols: 80, rows: 1001 } })));
+      expect(mockPtyManager.resize).not.toHaveBeenCalled();
+    });
+
+    it('should reject resize with non-finite values', async () => {
+      const ws = await setupConnection();
+      ws.emit('message', Buffer.from(JSON.stringify({ type: 'resize', data: { cols: Infinity, rows: 24 } })));
+      expect(mockPtyManager.resize).not.toHaveBeenCalled();
+    });
+
+    it('should handle unknown message type', async () => {
+      const ws = await setupConnection();
+      ws.emit('message', Buffer.from(JSON.stringify({ type: 'unknown' })));
+      expect(mockPtyManager.write).not.toHaveBeenCalled();
+    });
+
+    it('should handle invalid JSON', async () => {
+      const ws = await setupConnection();
+      ws.emit('message', Buffer.from('not json'));
+      expect(mockPtyManager.write).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('cleanup on close', () => {
+    it('should remove connection on WS close', async () => {
+      const localWss = createMockWss();
+      setupTerminalWebSocket(localWss, '/ws/terminal');
+      mockFindFirst.mockResolvedValue(mockSession);
+
+      const ws = createMockWs();
+      localWss.emit('connection', ws, createMockReq('session-1'));
+      await waitForListener(ws, 'close');
+
+      ws.emit('close');
+      expect(mockCM.removeConnection).toHaveBeenCalledWith('session-1-terminal', ws);
+    });
+  });
+
+  describe('session ID extraction', () => {
+    it('should extract session ID from URL path', async () => {
+      setupTerminalWebSocket(wss, '/ws/terminal');
+      mockFindFirst.mockResolvedValue(mockSession);
+
+      const ws = createMockWs();
+      wss.emit('connection', ws, createMockReq('abc-123'));
+      await flush();
+
+      expect(mockPtyManager.createPTY).toHaveBeenCalledWith(
+        'abc-123-terminal',
+        expect.any(String)
       );
     });
   });
 
-  describe('legacy ptyManager mode', () => {
-    it('should use ptyManager when environment_id is not set', async () => {
-      const { ptyManager } = await import('@/services/pty-manager');
+  describe('event handler registration', () => {
+    it('should register data/exit/error handlers for legacy mode', async () => {
+      setupTerminalWebSocket(wss, '/ws/terminal');
+      mockFindFirst.mockResolvedValue(mockSession);
 
-      // environment_idがnullのセッション
-      const sessionWithoutEnv = {
-        ...mockSession,
+      const ws = createMockWs();
+      wss.emit('connection', ws, createMockReq('session-1'));
+      await flush();
+
+      expect(mockCM.registerHandler).toHaveBeenCalledWith('session-1-terminal', 'data', expect.any(Function));
+      expect(mockCM.registerHandler).toHaveBeenCalledWith('session-1-terminal', 'exit', expect.any(Function));
+      expect(mockCM.registerHandler).toHaveBeenCalledWith('session-1-terminal', 'error', expect.any(Function));
+    });
+
+    it('should register adapter event handlers for environment mode', async () => {
+      setupTerminalWebSocket(wss, '/ws/terminal');
+      mockFindFirst.mockResolvedValue(mockSessionWithEnv);
+      vi.mocked(environmentService.findById).mockResolvedValue(mockHostEnv as any);
+
+      const ws = createMockWs();
+      wss.emit('connection', ws, createMockReq('session-1'));
+      await flush();
+
+      expect(mockAdapter.on).toHaveBeenCalledWith('data', expect.any(Function));
+      expect(mockAdapter.on).toHaveBeenCalledWith('exit', expect.any(Function));
+      expect(mockAdapter.on).toHaveBeenCalledWith('error', expect.any(Function));
+    });
+
+    it('should not re-register handlers if already registered', async () => {
+      setupTerminalWebSocket(wss, '/ws/terminal');
+      mockFindFirst.mockResolvedValue(mockSession);
+      mockCM.hasHandler.mockReturnValue(true);
+      mockPtyManager.hasSession.mockReturnValue(true);
+
+      const ws = createMockWs();
+      wss.emit('connection', ws, createMockReq('session-1'));
+      await flush();
+
+      expect(mockCM.registerHandler).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('project environment fallback', () => {
+    it('should use project environment_id when session has none', async () => {
+      setupTerminalWebSocket(wss, '/ws/terminal');
+      const sessionWithProjectEnv = {
+        id: 'session-1',
+        worktree_path: '/path',
         environment_id: null,
+        project: { environment_id: 'proj-env-1' },
       };
+      mockFindFirst.mockResolvedValue(sessionWithProjectEnv);
+      vi.mocked(environmentService.findById).mockResolvedValue(mockHostEnv as any);
 
-      // ptyManagerが使用されることを検証
-      const terminalSessionId = `${sessionWithoutEnv.id}-terminal`;
-      ptyManager.createPTY(terminalSessionId, sessionWithoutEnv.worktree_path);
+      const ws = createMockWs();
+      wss.emit('connection', ws, createMockReq('session-1'));
+      await flush();
 
-      expect(ptyManager.createPTY).toHaveBeenCalledWith(
-        terminalSessionId,
-        sessionWithoutEnv.worktree_path
-      );
-    });
-  });
-
-  describe('cleanup on disconnect', () => {
-    it('should destroy adapter session on WebSocket close', async () => {
-      const { AdapterFactory } = await import('@/services/adapter-factory');
-
-      const adapter = AdapterFactory.getAdapter(mockDockerEnvironment);
-      const terminalSessionId = 'session-1-terminal';
-
-      // セッション破棄が呼ばれることを検証
-      adapter.destroySession(terminalSessionId);
-
-      expect(mockDockerAdapter.destroySession).toHaveBeenCalledWith(terminalSessionId);
-    });
-
-    it('should kill ptyManager session on WebSocket close', async () => {
-      const { ptyManager } = await import('@/services/pty-manager');
-
-      const terminalSessionId = 'session-1-terminal';
-
-      // ptyManagerのkillが呼ばれることを検証
-      ptyManager.kill(terminalSessionId);
-
-      expect(ptyManager.kill).toHaveBeenCalledWith(terminalSessionId);
-    });
-  });
-
-  describe('adapter event handlers', () => {
-    it('should register data, exit, and error event handlers for adapter', async () => {
-      const { AdapterFactory } = await import('@/services/adapter-factory');
-
-      const adapter = AdapterFactory.getAdapter(mockDockerEnvironment);
-
-      // data, exit, error イベントを登録
-      const dataHandler = vi.fn();
-      const exitHandler = vi.fn();
-      const errorHandler = vi.fn();
-
-      adapter.on('data', dataHandler);
-      adapter.on('exit', exitHandler);
-      adapter.on('error', errorHandler);
-
-      expect(mockDockerAdapter.on).toHaveBeenCalledWith('data', dataHandler);
-      expect(mockDockerAdapter.on).toHaveBeenCalledWith('exit', exitHandler);
-      expect(mockDockerAdapter.on).toHaveBeenCalledWith('error', errorHandler);
-    });
-
-    it('should unregister all event handlers on cleanup', async () => {
-      const { AdapterFactory } = await import('@/services/adapter-factory');
-
-      const adapter = AdapterFactory.getAdapter(mockDockerEnvironment);
-
-      // イベントハンドラー解除
-      const dataHandler = vi.fn();
-      const exitHandler = vi.fn();
-      const errorHandler = vi.fn();
-
-      adapter.off('data', dataHandler);
-      adapter.off('exit', exitHandler);
-      adapter.off('error', errorHandler);
-
-      expect(mockDockerAdapter.off).toHaveBeenCalledWith('data', dataHandler);
-      expect(mockDockerAdapter.off).toHaveBeenCalledWith('exit', exitHandler);
-      expect(mockDockerAdapter.off).toHaveBeenCalledWith('error', errorHandler);
+      expect(environmentService.findById).toHaveBeenCalledWith('proj-env-1');
     });
   });
 });

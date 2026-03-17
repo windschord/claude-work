@@ -420,11 +420,11 @@ export class RemoteRepoService {
         if (settled) return;
         settled = true;
         clearTimeout(fetchTimeout);
-        clearTimeout(pullTimeout);
+        if (pullTimeout !== undefined) clearTimeout(pullTimeout);
         resolve(result);
       };
 
-      let pullTimeout: ReturnType<typeof setTimeout>;
+      let pullTimeout: ReturnType<typeof setTimeout> | undefined;
 
       // fetch first
       const fetchProcess = spawn('git', ['fetch'], {

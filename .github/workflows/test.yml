@@ -214,11 +214,73 @@ jobs:
         include-hidden-files: true
         retention-days: 1
 
+  # Mutation testing - runs only on PRs for changed files
+  mutation-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.event_name == 'pull_request'
+
+    env:
+      DATABASE_URL: file:./data/test.db
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # diff計算のため
+
+    - name: Setup project
+      uses: ./.github/actions/setup
+
+    - name: Get changed files for mutation testing
+      id: changed-files
+      run: |
+        # PRのベースコミットとの差分から対象ファイルを取得（SHA指定で確実に動作）
+        RAW_CHANGED_FILES=$(git diff --name-only --diff-filter=ACMR ${{ github.event.pull_request.base.sha }}...${{ github.sha }} -- \
+          'src/services/**/*.ts' 'src/lib/**/*.ts') || {
+          echo "::error::git diff failed while collecting mutation targets"
+          exit 1
+        }
+        CHANGED_FILES=$(printf '%s\n' "$RAW_CHANGED_FILES" | \
+          grep -Ev '(__tests__|\.test\.ts$|\.spec\.ts$)' || true)
+
+        if [ -z "$CHANGED_FILES" ]; then
+          echo "No mutation test target files changed"
+          echo "has_targets=false" >> $GITHUB_OUTPUT
+        else
+          echo "Changed files for mutation testing:"
+          echo "$CHANGED_FILES"
+          # Stryker --mutate形式に変換 (カンマ区切り)
+          MUTATE_TARGETS=$(echo "$CHANGED_FILES" | tr '\n' ',' | sed 's/,$//')
+          echo "mutate_targets=$MUTATE_TARGETS" >> $GITHUB_OUTPUT
+          echo "has_targets=true" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Run mutation testing
+      if: steps.changed-files.outputs.has_targets == 'true'
+      run: |
+        # 動的にmutate対象を指定してStrykerを実行
+        # break: 85でスコア85%未満なら失敗
+        # mutate_targetsはカンマ区切り文字列なので、そのまま--mutateに渡す
+        pnpm exec stryker run \
+          --mutate "${{ steps.changed-files.outputs.mutate_targets }}" \
+          --reporters clear-text,progress \
+          --thresholds.break 85
+      timeout-minutes: 25
+
+    - name: Report mutation score to summary
+      if: always() && steps.changed-files.outputs.has_targets == 'true'
+      run: |
+        echo "## Mutation Testing Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Target files:** ${{ steps.changed-files.outputs.mutate_targets }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Threshold:** 85%" >> $GITHUB_STEP_SUMMARY
+
   # Final check - ensures all jobs passed
   ci-check:
     runs-on: ubuntu-latest
     timeout-minutes: 1
-    needs: [lint, test-backend, test-frontend, test-e2e, build]
+    needs: [lint, test-backend, test-frontend, test-e2e, build, mutation-test]
     if: always()
 
     steps:
@@ -230,6 +292,12 @@ jobs:
            [ "${{ needs.test-e2e.result }}" != "success" ] || \
            [ "${{ needs.build.result }}" != "success" ]; then
           echo "One or more jobs failed"
+          exit 1
+        fi
+        # mutation-test is only run on PRs, so skipped is acceptable
+        if [ "${{ needs.mutation-test.result }}" != "success" ] && \
+           [ "${{ needs.mutation-test.result }}" != "skipped" ]; then
+          echo "Mutation test job failed"
           exit 1
         fi
         echo "All jobs passed successfully"

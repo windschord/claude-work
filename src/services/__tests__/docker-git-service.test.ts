@@ -31,12 +31,15 @@ vi.mock('fs/promises', async () => {
   };
 });
 
+const mockLogger = vi.hoisted(() => ({
+  info: vi.fn(),
+  error: vi.fn(),
+  warn: vi.fn(),
+  debug: vi.fn(),
+}));
+
 vi.mock('@/lib/logger', () => ({
-  logger: {
-    info: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
-  },
+  logger: mockLogger,
 }));
 
 vi.mock('@/services/config-service', () => ({
@@ -485,6 +488,394 @@ describe('DockerGitService', () => {
 
       expect(result.success).toBe(true);
       expect(mockDockerClient.createVolume).toHaveBeenCalledWith('cw-repo-my-project');
+    });
+  });
+
+  describe('cloneRepository', () => {
+    it('clone成功時にsuccess:trueとvolumeNameを返す', async () => {
+      const result = await dockerGitService.cloneRepository({
+        url: 'https://github.com/user/repo.git',
+        projectId: 'test-project-id',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.volumeName).toBe('claude-repo-test-project-id');
+    });
+
+    it('clone失敗時にボリュームを削除してエラーをスローする', async () => {
+      mockDockerClient.run.mockResolvedValue({ StatusCode: 128 });
+
+      await expect(
+        dockerGitService.cloneRepository({
+          url: 'https://github.com/user/repo.git',
+          projectId: 'proj-fail',
+        })
+      ).rejects.toThrow();
+
+      expect(mockDockerClient.removeVolume).toHaveBeenCalledWith('claude-repo-proj-fail');
+    });
+
+    it('SSHキー認証時にBindsが追加される', async () => {
+      const fs = await import('fs/promises');
+      vi.mocked(fs.access).mockResolvedValue(undefined);
+
+      const result = await dockerGitService.cloneRepository({
+        url: 'git@github.com:user/repo.git',
+        projectId: 'ssh-test',
+      });
+
+      expect(result.success).toBe(true);
+    });
+  });
+
+  describe('createWorktree', () => {
+    it('worktree作成成功時にsuccess:trueを返す', async () => {
+      const result = await dockerGitService.createWorktree({
+        projectId: 'proj-1',
+        sessionName: 'test-session',
+        branchName: 'session/test-session',
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('worktree作成失敗時にエラーをスローする', async () => {
+      mockDockerClient.run.mockResolvedValue({ StatusCode: 1 });
+
+      await expect(
+        dockerGitService.createWorktree({
+          projectId: 'proj-1',
+          sessionName: 'test-session',
+          branchName: 'session/test-session',
+        })
+      ).rejects.toThrow();
+    });
+  });
+
+  describe('deleteWorktree', () => {
+    it('worktree削除成功時にsuccess:trueを返す', async () => {
+      const result = await dockerGitService.deleteWorktree('proj-1', 'test-session');
+      expect(result.success).toBe(true);
+    });
+
+    it('dockerVolumeId指定時にそのIDを使用する', async () => {
+      const result = await dockerGitService.deleteWorktree('proj-1', 'test-session', 'custom-vol');
+      expect(result.success).toBe(true);
+      expect(mockDockerClient.run).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(Array),
+        expect.any(Array),
+        expect.objectContaining({
+          HostConfig: expect.objectContaining({
+            Binds: expect.arrayContaining(['custom-vol:/repo']),
+          }),
+        })
+      );
+    });
+  });
+
+  describe('deleteRepository', () => {
+    it('ボリューム削除成功時にsuccess:trueを返す', async () => {
+      const result = await dockerGitService.deleteRepository('proj-1');
+      expect(result.success).toBe(true);
+      expect(mockDockerClient.removeVolume).toHaveBeenCalledWith('claude-repo-proj-1');
+    });
+
+    it('dockerVolumeId指定時にそのIDを使用する', async () => {
+      const result = await dockerGitService.deleteRepository('proj-1', 'custom-vol');
+      expect(result.success).toBe(true);
+      expect(mockDockerClient.removeVolume).toHaveBeenCalledWith('custom-vol');
+    });
+
+    it('ボリューム削除失敗時にsuccess:falseを返す', async () => {
+      mockDockerClient.removeVolume.mockRejectedValue(new Error('volume not found'));
+
+      const result = await dockerGitService.deleteRepository('proj-1');
+      expect(result.success).toBe(false);
+      expect(result.error).toBeDefined();
+    });
+  });
+
+  describe('createVolume', () => {
+    it('ボリューム作成成功時にボリューム名を返す', async () => {
+      const result = await dockerGitService.createVolume('proj-1');
+      expect(result).toBe('claude-repo-proj-1');
+      expect(mockDockerClient.createVolume).toHaveBeenCalledWith('claude-repo-proj-1');
+    });
+
+    it('projectName指定時に新命名規則を使用する', async () => {
+      const result = await dockerGitService.createVolume('proj-1', 'My Project');
+      expect(result).toBe('cw-repo-my-project');
+    });
+
+    it('ボリューム作成失敗時にGitOperationErrorをスローする', async () => {
+      mockDockerClient.createVolume.mockRejectedValue(new Error('failed'));
+
+      await expect(dockerGitService.createVolume('proj-1')).rejects.toThrow('Failed to create Docker volume');
+    });
+  });
+
+  describe('deleteVolume', () => {
+    it('ボリューム削除成功時に正常終了する', async () => {
+      await expect(dockerGitService.deleteVolume('test-vol')).resolves.toBeUndefined();
+      expect(mockDockerClient.removeVolume).toHaveBeenCalledWith('test-vol');
+    });
+
+    it('ボリューム削除失敗時にGitOperationErrorをスローする', async () => {
+      mockDockerClient.removeVolume.mockRejectedValue(new Error('failed'));
+
+      await expect(dockerGitService.deleteVolume('test-vol')).rejects.toThrow('Failed to delete Docker volume');
+    });
+  });
+
+  describe('squashMerge error cases', () => {
+    it('コンフリクト時にsuccess:falseとconflictsを返す', async () => {
+      let callCount = 0;
+      mockDockerClient.run.mockImplementation(
+        (_image: string, _cmd: string[], streams: any[], _options: any) => {
+          callCount++;
+          if (callCount === 1) {
+            // merge失敗
+            return Promise.resolve({ StatusCode: 1 });
+          }
+          if (callCount === 2) {
+            // conflict files
+            const stdoutStream = Array.isArray(streams) ? streams[0] : streams;
+            if (stdoutStream?.write) stdoutStream.write('conflict1.ts\n');
+            return Promise.resolve({ StatusCode: 0 });
+          }
+          // merge --abort
+          return Promise.resolve({ StatusCode: 0 });
+        }
+      );
+
+      const result = await dockerGitService.squashMerge('proj-1', 'test-session', 'Merge');
+      expect(result.success).toBe(false);
+      expect(result.conflicts).toEqual(['conflict1.ts']);
+    });
+  });
+
+  describe('getDiffDetails status handling', () => {
+    it('Addedステータスのファイルを正しくパースする', async () => {
+      const newContentB64 = Buffer.from('new file content').toString('base64');
+      const gitOutput = [
+        '===FILE_START===',
+        'PATH:src/new-file.ts',
+        'STATUS:A',
+        '===OLD_CONTENT_B64===',
+        '',
+        '===OLD_CONTENT_B64_END===',
+        '===NEW_CONTENT_B64===',
+        newContentB64,
+        '===NEW_CONTENT_B64_END===',
+        '===NUMSTAT_START===',
+        '10\t0\tsrc/new-file.ts',
+        '===FILE_END===',
+      ].join('\n');
+
+      mockDockerClient.run = mockRunWithStdout(gitOutput);
+
+      const result = await dockerGitService.getDiffDetails('proj-1', 'test-session');
+      expect(result.files).toHaveLength(1);
+      expect(result.files[0].status).toBe('added');
+      expect(result.files[0].additions).toBe(10);
+      expect(result.files[0].deletions).toBe(0);
+    });
+
+    it('Deletedステータスのファイルを正しくパースする', async () => {
+      const oldContentB64 = Buffer.from('deleted content').toString('base64');
+      const gitOutput = [
+        '===FILE_START===',
+        'PATH:src/deleted.ts',
+        'STATUS:D',
+        '===OLD_CONTENT_B64===',
+        oldContentB64,
+        '===OLD_CONTENT_B64_END===',
+        '===NEW_CONTENT_B64===',
+        '',
+        '===NEW_CONTENT_B64_END===',
+        '===NUMSTAT_START===',
+        '0\t5\tsrc/deleted.ts',
+        '===FILE_END===',
+      ].join('\n');
+
+      mockDockerClient.run = mockRunWithStdout(gitOutput);
+
+      const result = await dockerGitService.getDiffDetails('proj-1', 'test-session');
+      expect(result.files).toHaveLength(1);
+      expect(result.files[0].status).toBe('deleted');
+      expect(result.files[0].additions).toBe(0);
+      expect(result.files[0].deletions).toBe(5);
+      expect(result.totalDeletions).toBe(5);
+    });
+
+    it('複数ファイルの差分情報を正しくパースする', async () => {
+      const content1 = Buffer.from('content1').toString('base64');
+      const content2 = Buffer.from('content2').toString('base64');
+      const gitOutput = [
+        '===FILE_START===',
+        'PATH:file1.ts',
+        'STATUS:M',
+        '===OLD_CONTENT_B64===',
+        content1,
+        '===OLD_CONTENT_B64_END===',
+        '===NEW_CONTENT_B64===',
+        content2,
+        '===NEW_CONTENT_B64_END===',
+        '===NUMSTAT_START===',
+        '3\t1\tfile1.ts',
+        '===FILE_END===',
+        '===FILE_START===',
+        'PATH:file2.ts',
+        'STATUS:A',
+        '===OLD_CONTENT_B64===',
+        '',
+        '===OLD_CONTENT_B64_END===',
+        '===NEW_CONTENT_B64===',
+        content2,
+        '===NEW_CONTENT_B64_END===',
+        '===NUMSTAT_START===',
+        '5\t0\tfile2.ts',
+        '===FILE_END===',
+      ].join('\n');
+
+      mockDockerClient.run = mockRunWithStdout(gitOutput);
+
+      const result = await dockerGitService.getDiffDetails('proj-1', 'test-session');
+      expect(result.files).toHaveLength(2);
+      expect(result.totalAdditions).toBe(8);
+      expect(result.totalDeletions).toBe(1);
+    });
+  });
+
+  describe('getCommits with file changes', () => {
+    it('numstatの行をfiles_changedとしてカウントする', async () => {
+      const NUL = '\0';
+      const gitOutput = [
+        `hash1${NUL}h1${NUL}Commit 1${NUL}Author${NUL}2026-01-01T00:00:00+00:00`,
+        ' 10\t5\tfile1.ts',
+        ' -\t-\tbinary-file.png',
+      ].join('\n');
+
+      mockDockerClient.run = mockRunWithStdout(gitOutput);
+
+      const commits = await dockerGitService.getCommits('proj-1', 'test-session');
+      expect(commits).toHaveLength(1);
+      expect(commits[0].files_changed).toBe(2);
+    });
+  });
+
+  describe('logging', () => {
+    it('cloneRepository成功時にログを記録する', async () => {
+      await dockerGitService.cloneRepository({
+        url: 'https://github.com/user/repo.git',
+        projectId: 'log-test',
+      });
+
+      expect(mockLogger.info).toHaveBeenCalled();
+    });
+
+    it('createVolume成功時にログを記録する', async () => {
+      await dockerGitService.createVolume('log-vol-test');
+
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        '[docker] Creating Docker volume',
+        expect.objectContaining({ volumeName: 'claude-repo-log-vol-test' })
+      );
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        '[docker] Docker volume created',
+        expect.objectContaining({ volumeName: 'claude-repo-log-vol-test' })
+      );
+    });
+
+    it('createVolume失敗時にエラーログを記録する', async () => {
+      mockDockerClient.createVolume.mockRejectedValue(new Error('disk full'));
+
+      try {
+        await dockerGitService.createVolume('log-vol-fail');
+      } catch {
+        // expected
+      }
+
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        '[docker] Failed to create Docker volume',
+        expect.objectContaining({ volumeName: 'claude-repo-log-vol-fail' })
+      );
+    });
+  });
+
+  describe('validateSessionName', () => {
+    it('ドット(.)のみの名前を拒否する', async () => {
+      await expect(
+        dockerGitService.getCommits('proj-1', '.')
+      ).rejects.toThrow('Invalid session name');
+    });
+
+    it('ドットドット(..)を含む名前を拒否する', async () => {
+      await expect(
+        dockerGitService.getCommits('proj-1', 'test..session')
+      ).rejects.toThrow('Invalid session name');
+    });
+
+    it('有効な名前を受け付ける', async () => {
+      mockDockerClient.run = mockRunWithStdout('');
+      // valid session names should not throw
+      await expect(
+        dockerGitService.getCommits('proj-1', 'valid-session_name.1')
+      ).resolves.toBeDefined();
+    });
+  });
+
+  describe('validateCommitHash', () => {
+    it('有効なコミットハッシュを受け付ける', async () => {
+      // 短いハッシュ (4文字)
+      const result = await dockerGitService.reset('proj-1', 'test-session', 'abcd');
+      expect(result).toBeDefined();
+    });
+
+    it('40文字のフルハッシュを受け付ける', async () => {
+      const fullHash = 'a'.repeat(40);
+      const result = await dockerGitService.reset('proj-1', 'test-session', fullHash);
+      expect(result).toBeDefined();
+    });
+  });
+
+  describe('reset with dockerVolumeId', () => {
+    it('dockerVolumeIdを使用してリセットする', async () => {
+      const result = await dockerGitService.reset('proj-1', 'test-session', 'abc123', 'custom-vol');
+      expect(result.success).toBe(true);
+      expect(mockDockerClient.run).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(Array),
+        expect.any(Array),
+        expect.objectContaining({
+          HostConfig: expect.objectContaining({
+            Binds: expect.arrayContaining(['custom-vol:/repo']),
+          }),
+        })
+      );
+    });
+  });
+
+  describe('rebaseFromMain with dockerVolumeId', () => {
+    it('dockerVolumeIdを使用してリベースする', async () => {
+      const result = await dockerGitService.rebaseFromMain('proj-1', 'test-session', 'custom-vol');
+      expect(result.success).toBe(true);
+    });
+  });
+
+  describe('squashMerge with dockerVolumeId', () => {
+    it('dockerVolumeIdを使用してマージする', async () => {
+      const result = await dockerGitService.squashMerge('proj-1', 'test-session', 'Merge msg', 'custom-vol');
+      expect(result.success).toBe(true);
+    });
+  });
+
+  describe('getCommits with dockerVolumeId', () => {
+    it('dockerVolumeIdを使用してコミット取得する', async () => {
+      mockDockerClient.run = mockRunWithStdout('');
+      const commits = await dockerGitService.getCommits('proj-1', 'test-session', 'custom-vol');
+      expect(commits).toEqual([]);
     });
   });
 });

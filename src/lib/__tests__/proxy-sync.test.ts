@@ -99,6 +99,52 @@ describe('syncRulesForContainer', () => {
     ]);
   });
 
+  it('port=undefinedのルールもproxy形式でportを省略する', async () => {
+    mockGetRules.mockResolvedValueOnce([
+      {
+        id: 'rule-1',
+        environment_id: 'env-001',
+        target: 'api.example.com',
+        port: undefined,
+        description: 'Example API',
+        enabled: true,
+        created_at: new Date(),
+        updated_at: new Date(),
+      },
+    ]);
+
+    await syncRulesForContainer(client, '172.20.0.3', 'env-001');
+
+    expect(mockSetRules).toHaveBeenCalledWith('172.20.0.3', [
+      { host: 'api.example.com' },
+    ]);
+  });
+
+  it('同期時にログメッセージが出力される', async () => {
+    mockGetRules.mockResolvedValueOnce([
+      {
+        id: 'rule-1',
+        environment_id: 'env-001',
+        target: 'api.example.com',
+        port: 443,
+        enabled: true,
+        created_at: new Date(),
+        updated_at: new Date(),
+      },
+    ]);
+
+    await syncRulesForContainer(client, '172.20.0.3', 'env-001');
+
+    expect(mockLoggerInfo).toHaveBeenCalledWith(
+      expect.stringContaining('同期中'),
+      expect.objectContaining({ sourceIP: '172.20.0.3', environmentId: 'env-001' })
+    );
+    expect(mockLoggerInfo).toHaveBeenCalledWith(
+      expect.stringContaining('完了'),
+      expect.objectContaining({ sourceIP: '172.20.0.3', environmentId: 'env-001' })
+    );
+  });
+
   it('port=nullのルールはproxy形式でportを省略する', async () => {
     mockGetRules.mockResolvedValueOnce([
       {
@@ -172,6 +218,11 @@ describe('syncProxyRulesIfNeeded', () => {
 
     expect(mockIsFilterEnabled).toHaveBeenCalledWith('env-uuid');
     expect(mockSetRules).toHaveBeenCalledTimes(2);
+    // 各コンテナの同期成功ログが出力される
+    expect(mockLoggerInfo).toHaveBeenCalledWith(
+      expect.stringContaining('synced'),
+      expect.objectContaining({ environmentId: 'env-uuid', containerIP: '192.168.1.10' })
+    );
   });
 
   it('フィルタリング無効の場合、setRulesが呼ばれない', async () => {
@@ -194,6 +245,15 @@ describe('syncProxyRulesIfNeeded', () => {
     await syncProxyRulesIfNeeded('env-uuid');
 
     expect(mockIsFilterEnabled).toHaveBeenCalledWith('env-uuid');
+    expect(mockSetRules).not.toHaveBeenCalled();
+  });
+
+  it('containerIPsがnullの場合、setRulesが呼ばれない', async () => {
+    mockIsFilterEnabled.mockResolvedValue(true);
+    mockGetActiveContainerIPs.mockReturnValue(null);
+
+    await syncProxyRulesIfNeeded('env-uuid');
+
     expect(mockSetRules).not.toHaveBeenCalled();
   });
 
