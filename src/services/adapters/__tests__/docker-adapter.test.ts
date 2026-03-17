@@ -360,9 +360,11 @@ describe('DockerAdapter', () => {
     it('proxyヘルスチェック失敗時はセッション作成がエラーになる（フェイルセーフ）', async () => {
       mockIsFilterEnabled.mockResolvedValue(true);
       mockProxyHealthCheck.mockRejectedValue(new Error('proxy unreachable'));
-      setupContainerMock('172.20.0.5');
+      const mockContainer = setupContainerMock('172.20.0.5');
 
       await expect(adapter.createSession('session-1', '/workspace')).rejects.toThrow();
+      // コンテナはhealthCheckの前に作成されるが、失敗時にクリーンアップされる
+      expect(mockContainer.remove).toHaveBeenCalledWith({ force: true });
     });
 
     it('フィルタリング無効時はproxyClient.healthCheckが呼ばれない', async () => {
@@ -430,7 +432,8 @@ describe('DockerAdapter', () => {
 
     it('deleteRules失敗時は警告のみでコンテナ停止は継続する', async () => {
       mockProxyDeleteRules.mockRejectedValue(new Error('proxy unreachable'));
-      mockDockerClient.getContainer.mockReturnValue({ stop: vi.fn().mockResolvedValue(undefined) });
+      const stop = vi.fn().mockResolvedValue(undefined);
+      mockDockerClient.getContainer.mockReturnValue({ stop });
 
       const mockPty = {
         kill: vi.fn(),
@@ -451,6 +454,7 @@ describe('DockerAdapter', () => {
 
       // エラーが伝播せず完了することを確認
       await expect(adapter.destroySession('session-cleanup-fail')).resolves.not.toThrow();
+      expect(stop).toHaveBeenCalled();
     });
   });
 });

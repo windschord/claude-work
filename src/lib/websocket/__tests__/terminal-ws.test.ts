@@ -247,7 +247,7 @@ describe('Terminal WebSocket', () => {
     it('should handle PTY creation error', async () => {
       setupTerminalWebSocket(wss, '/ws/terminal');
       mockFindFirst.mockResolvedValue(mockSession);
-      mockPtyManager.createPTY.mockImplementation(() => { throw new Error('PTY failed'); });
+      mockPtyManager.createPTY.mockImplementationOnce(() => { throw new Error('PTY failed'); });
 
       const ws = createMockWs();
       wss.emit('connection', ws, createMockReq('session-1'));
