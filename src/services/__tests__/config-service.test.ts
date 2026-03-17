@@ -174,4 +174,60 @@ describe('ConfigService', () => {
       expect(config1).toEqual(config2);
     });
   });
+
+  describe('getRegistryFirewallEnabled', () => {
+    it('デフォルト値がtrueである', async () => {
+      await configService.load();
+      expect(configService.getRegistryFirewallEnabled()).toBe(true);
+    });
+
+    it('設定したフラグ値を取得できる', async () => {
+      await configService.load();
+      await configService.save({ registry_firewall_enabled: false });
+      expect(configService.getRegistryFirewallEnabled()).toBe(false);
+    });
+
+    it('save/loadで値が保持される', async () => {
+      await configService.load();
+      await configService.save({ registry_firewall_enabled: false });
+
+      const newConfigService = new ConfigService(testConfigPath);
+      await newConfigService.load();
+      expect(newConfigService.getRegistryFirewallEnabled()).toBe(false);
+    });
+  });
+
+  describe('registry_firewall_enabled のデフォルト値とロード', () => {
+    it('設定ファイルが存在しない場合、registry_firewall_enabledのデフォルト値はtrue', async () => {
+      await configService.load();
+      const config = configService.getConfig();
+      expect(config.registry_firewall_enabled).toBe(true);
+    });
+
+    it('部分的な設定ファイルの場合、registry_firewall_enabledはデフォルト値のtrueを使用する', async () => {
+      const partialConfig = {
+        git_clone_timeout_minutes: 15,
+      };
+
+      await fs.mkdir(path.dirname(testConfigPath), { recursive: true });
+      await fs.writeFile(testConfigPath, JSON.stringify(partialConfig), 'utf-8');
+      await configService.load();
+
+      const config = configService.getConfig();
+      expect(config.registry_firewall_enabled).toBe(true);
+    });
+
+    it('設定ファイルからregistry_firewall_enabledを読み込む', async () => {
+      const testConfig = {
+        registry_firewall_enabled: false,
+      };
+
+      await fs.mkdir(path.dirname(testConfigPath), { recursive: true });
+      await fs.writeFile(testConfigPath, JSON.stringify(testConfig), 'utf-8');
+      await configService.load();
+
+      const config = configService.getConfig();
+      expect(config.registry_firewall_enabled).toBe(false);
+    });
+  });
 });

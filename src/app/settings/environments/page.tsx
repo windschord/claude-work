@@ -4,6 +4,7 @@ import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useEnvironments } from '@/hooks/useEnvironments';
 import { EnvironmentList } from '@/components/environments/EnvironmentList';
+import { RegistryFirewallStatus } from '@/components/environments/RegistryFirewallStatus';
 import { BackButton } from '@/components/settings/BackButton';
 
 function EnvironmentsSettingsContent() {
@@ -27,6 +28,8 @@ function EnvironmentsSettingsContent() {
       <div className="p-6 pb-0">
         <BackButton />
       </div>
+
+      <RegistryFirewallStatus />
 
       <EnvironmentList
         environments={environments}
