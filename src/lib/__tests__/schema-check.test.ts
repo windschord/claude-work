@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Database from 'better-sqlite3';
+import { getTableName, getTableColumns } from 'drizzle-orm';
+import * as schema from '@/db/schema';
 import { validateSchemaIntegrity, formatValidationError } from '../schema-check';
 
 describe('validateSchemaIntegrity', () => {
@@ -121,6 +123,46 @@ describe('validateSchemaIntegrity', () => {
 
     expect(beforeVersion.user_version).toEqual(afterVersion.user_version);
   });
+
+  it('全カラムが揃っている場合はvalid=trueを返す', () => {
+    // 完全なスキーマに合わせたDBを作成
+    const fullDb = new Database(':memory:');
+    const tables = [
+      schema.projects,
+      schema.sessions,
+      schema.executionEnvironments,
+      schema.messages,
+      schema.prompts,
+      schema.runScripts,
+      schema.githubPats,
+    ];
+
+    for (const table of tables) {
+      const tableName = getTableName(table);
+      const columns = getTableColumns(table);
+      const colDefs = Object.values(columns).map((col: { name: string; dataType: string }) => {
+        let sqlType = 'TEXT';
+        if (col.dataType === 'number') sqlType = 'INTEGER';
+        return `${col.name} ${sqlType}`;
+      });
+      fullDb.exec(`CREATE TABLE ${tableName} (${colDefs.join(', ')})`);
+    }
+
+    const result = validateSchemaIntegrity(fullDb);
+    expect(result.valid).toBe(true);
+    expect(result.missingColumns).toHaveLength(0);
+    fullDb.close();
+  });
+
+  it('actualColumnNamesに含まれないカラムだけがmissingColumnsに入る', () => {
+    const result = validateSchemaIntegrity(db);
+    // Projectテーブルにはid, name, pathがある
+    const projectMissing = result.missingColumns.filter(c => c.table === 'Project');
+    // id, name, pathは含まれていないはず
+    expect(projectMissing.some(c => c.column === 'id')).toBe(false);
+    expect(projectMissing.some(c => c.column === 'name')).toBe(false);
+    expect(projectMissing.some(c => c.column === 'path')).toBe(false);
+  });
 });
 
 describe('formatValidationError', () => {
@@ -153,5 +195,68 @@ describe('formatValidationError', () => {
     expect(message).toContain('active_connections');
     expect(message).toContain('destroy_at');
     expect(message).toContain('npx drizzle-kit push');
+  });
+
+  it('エラーメッセージが改行で結合されている', () => {
+    const result = {
+      valid: false,
+      missingColumns: [
+        { table: 'Project', column: 'test_col', expectedType: 'text' },
+      ],
+      checkedTables: ['Project'],
+      timestamp: new Date(),
+    };
+
+    const message = formatValidationError(result);
+    expect(message).toContain('\n');
+    // 改行で分割して行数が複数あることを確認
+    const lines = message.split('\n');
+    expect(lines.length).toBeGreaterThan(5);
+  });
+
+  it('罫線と修復方法を含む', () => {
+    const result = {
+      valid: false,
+      missingColumns: [
+        { table: 'Project', column: 'test_col', expectedType: 'text' },
+      ],
+      checkedTables: ['Project'],
+      timestamp: new Date(),
+    };
+
+    const message = formatValidationError(result);
+    // 罫線
+    expect(message).toContain('╔');
+    expect(message).toContain('╚');
+    // 修復方法
+    expect(message).toContain('修復方法');
+    expect(message).toContain('npx drizzle-kit push');
+    expect(message).toContain('npx claude-work');
+    expect(message).toContain('不足しているカラム');
+    expect(message).toContain('スキーマを同期する');
+    expect(message).toContain('自動マイグレーション');
+  });
+
+  it('複数テーブルのエラーをグループ化する', () => {
+    const result = {
+      valid: false,
+      missingColumns: [
+        { table: 'Project', column: 'col_a', expectedType: 'text' },
+        { table: 'Session', column: 'col_b', expectedType: 'integer' },
+        { table: 'Project', column: 'col_c', expectedType: 'text' },
+      ],
+      checkedTables: ['Project', 'Session'],
+      timestamp: new Date(),
+    };
+
+    const message = formatValidationError(result);
+    expect(message).toContain('Project');
+    expect(message).toContain('Session');
+    expect(message).toContain('col_a');
+    expect(message).toContain('col_b');
+    expect(message).toContain('col_c');
+    // expectedTypeも含まれるか
+    expect(message).toContain('(text)');
+    expect(message).toContain('(integer)');
   });
 });

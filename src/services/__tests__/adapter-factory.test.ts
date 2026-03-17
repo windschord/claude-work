@@ -30,6 +30,7 @@ vi.mock('@/lib/logger', () => ({
 import { AdapterFactory } from '../adapter-factory';
 import { HostAdapter } from '../adapters/host-adapter';
 import { DockerAdapter } from '../adapters/docker-adapter';
+import { logger } from '@/lib/logger';
 
 describe('AdapterFactory', () => {
   beforeEach(() => {
@@ -59,6 +60,10 @@ describe('AdapterFactory', () => {
 
       expect(adapter).toBeDefined();
       expect(HostAdapter).toHaveBeenCalledTimes(1);
+      // ログメッセージの検証
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.stringContaining('HostAdapter')
+      );
     });
 
     it('HostAdapterはシングルトンとして返される', () => {
@@ -117,6 +122,15 @@ describe('AdapterFactory', () => {
         imageTag: 'v1',
         authDirPath: '/data/environments/env-docker-1',
       });
+      // ログメッセージの検証
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.stringContaining('DockerAdapter'),
+        expect.objectContaining({
+          environmentId: 'env-docker-1',
+          imageName: 'my-image',
+          imageTag: 'v1',
+        })
+      );
     });
 
     it('DockerAdapterは環境IDごとにシングルトン', () => {
@@ -252,15 +266,28 @@ describe('AdapterFactory', () => {
       AdapterFactory.getAdapter(environment);
       expect(AdapterFactory.getDockerAdapterCount()).toBe(1);
 
+      vi.clearAllMocks();
+
       // 削除
       AdapterFactory.removeDockerAdapter('env-docker-remove');
       expect(AdapterFactory.getDockerAdapterCount()).toBe(0);
+      // ログメッセージの検証
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.stringContaining('Removing'),
+        expect.objectContaining({ environmentId: 'env-docker-remove' })
+      );
     });
 
     it('存在しない環境IDを削除しても何も起きない', () => {
+      vi.clearAllMocks();
       expect(() => {
         AdapterFactory.removeDockerAdapter('non-existent-id');
       }).not.toThrow();
+      // 存在しない場合はログが出力されない
+      expect(logger.info).not.toHaveBeenCalledWith(
+        expect.stringContaining('Removing'),
+        expect.anything()
+      );
     });
 
     it('削除後に同じ環境を取得すると新しいアダプターが作成される', () => {
@@ -324,6 +351,14 @@ describe('AdapterFactory', () => {
   });
 
   describe('reset', () => {
+    it('リセット時にログが出力される', () => {
+      vi.clearAllMocks();
+      AdapterFactory.reset();
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.stringContaining('Resetting')
+      );
+    });
+
     it('全てのアダプターをリセットする', () => {
       const hostEnv: ExecutionEnvironment = {
         id: 'env-host-reset',
@@ -366,6 +401,107 @@ describe('AdapterFactory', () => {
 
       expect(HostAdapter).toHaveBeenCalledTimes(2);
       expect(DockerAdapter).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('getDockerAdapterForEnvironment', () => {
+    it('キャッシュ済みのDockerAdapterを返す', () => {
+      const environment: ExecutionEnvironment = {
+        id: 'env-docker-cached',
+        name: 'Docker Cached',
+        type: 'DOCKER',
+        description: null,
+        config: JSON.stringify({ imageName: 'my-image', imageTag: 'v1' }),
+        auth_dir_path: '/data/environments/env-docker-cached',
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      // まだキャッシュされていない
+      expect(AdapterFactory.getDockerAdapterForEnvironment('env-docker-cached')).toBeNull();
+
+      // アダプターを作成してキャッシュ
+      const adapter = AdapterFactory.getAdapter(environment);
+
+      // キャッシュから取得
+      const cached = AdapterFactory.getDockerAdapterForEnvironment('env-docker-cached');
+      expect(cached).toBe(adapter);
+    });
+
+    it('存在しない環境IDにはnullを返す', () => {
+      expect(AdapterFactory.getDockerAdapterForEnvironment('non-existent')).toBeNull();
+    });
+  });
+
+  describe('getAdapter - invalid config JSON', () => {
+    it('configが不正なJSONの場合はデフォルト値を使用し警告ログを出力する', () => {
+      const environment: ExecutionEnvironment = {
+        id: 'env-docker-invalid-json',
+        name: 'Docker Invalid JSON',
+        type: 'DOCKER',
+        description: null,
+        config: 'not-valid-json{',
+        auth_dir_path: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      const adapter = AdapterFactory.getAdapter(environment);
+      expect(adapter).toBeDefined();
+      // デフォルトのイメージ名が使用される
+      expect(DockerAdapter).toHaveBeenCalledWith(
+        expect.objectContaining({
+          imageName: 'ghcr.io/windschord/claude-work-sandbox',
+          imageTag: 'latest',
+        })
+      );
+      // 警告ログが出力される
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Invalid config JSON'),
+        expect.objectContaining({ environmentId: 'env-docker-invalid-json' })
+      );
+    });
+
+    it('configがnullの場合はデフォルト値を使用する', () => {
+      const environment: ExecutionEnvironment = {
+        id: 'env-docker-null-config',
+        name: 'Docker Null Config',
+        type: 'DOCKER',
+        description: null,
+        config: null as unknown as string,
+        auth_dir_path: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      const adapter = AdapterFactory.getAdapter(environment);
+      expect(adapter).toBeDefined();
+    });
+  });
+
+  describe('getAdapter - DOCKER with portMappings/volumeMounts', () => {
+    it('configにportMappingsとvolumeMountsがある場合、それらがDockerAdapterに渡される', () => {
+      const portMappings = [{ hostPort: 8080, containerPort: 3000, protocol: 'tcp' as const }];
+      const volumeMounts = [{ hostPath: '/data', containerPath: '/data', accessMode: 'rw' as const }];
+      const environment: ExecutionEnvironment = {
+        id: 'env-docker-ports-vols',
+        name: 'Docker With Ports',
+        type: 'DOCKER',
+        description: null,
+        config: JSON.stringify({ imageName: 'my-image', imageTag: 'v1', portMappings, volumeMounts }),
+        auth_dir_path: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      AdapterFactory.getAdapter(environment);
+
+      expect(DockerAdapter).toHaveBeenCalledWith(
+        expect.objectContaining({
+          portMappings,
+          volumeMounts,
+        })
+      );
     });
   });
 

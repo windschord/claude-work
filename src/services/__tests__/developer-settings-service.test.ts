@@ -105,6 +105,25 @@ describe('DeveloperSettingsService', () => {
     service = new DeveloperSettingsService();
   });
 
+  // ==================== SettingsNotFoundError ====================
+
+  describe('SettingsNotFoundError', () => {
+    it('nameプロパティが正しい', () => {
+      const error = new SettingsNotFoundError('GLOBAL');
+      expect(error.name).toBe('SettingsNotFoundError');
+    });
+
+    it('projectIdがある場合のメッセージ', () => {
+      const error = new SettingsNotFoundError('PROJECT', 'proj-123');
+      expect(error.message).toBe('Settings not found: project proj-123');
+    });
+
+    it('projectIdがない場合のメッセージ', () => {
+      const error = new SettingsNotFoundError('GLOBAL');
+      expect(error.message).toBe('Settings not found: GLOBAL');
+    });
+  });
+
   // ==================== getGlobalSettings ====================
 
   describe('getGlobalSettings', () => {
@@ -259,6 +278,9 @@ describe('DeveloperSettingsService', () => {
       await expect(
         service.deleteProjectSettings('non-existent-project')
       ).rejects.toThrow(SettingsNotFoundError);
+      await expect(
+        service.deleteProjectSettings('non-existent-project')
+      ).rejects.toThrow(/Settings not found: project non-existent-project/);
     });
   });
 

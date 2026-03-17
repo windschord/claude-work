@@ -33,6 +33,24 @@ describe('session-name-generator', () => {
       }
       expect(names.size).toBeGreaterThan(1);
     });
+
+    it('Math.randomの値に応じて異なる要素が選ばれる（* vs / 演算子テスト）', () => {
+      // Math.random() * length -> 大きい値 -> リストの後ろの要素
+      // Math.random() / length -> 非常に小さい値 -> 常に最初の要素
+      const mockRandom = vi.spyOn(Math, 'random').mockReturnValue(0.99);
+
+      try {
+        const name = generateSessionName();
+        const parts = name.split('-');
+        // 0.99 * 51 = 50.49 -> floor = 50 -> リストの最後の方の要素
+        // 0.99 / 51 = 0.019... -> floor = 0 -> 常に最初の要素 ('swift')
+        // adjective が 'swift' (最初)ではないことを確認
+        expect(parts[0]).not.toBe(ADJECTIVES[0]);
+        expect(parts[1]).not.toBe(ANIMALS[0]);
+      } finally {
+        mockRandom.mockRestore();
+      }
+    });
   });
 
   describe('generateUniqueSessionName', () => {
@@ -60,6 +78,24 @@ describe('session-name-generator', () => {
 
         // タイムスタンプ形式の名前が返されることを確認
         expect(name).toMatch(/^session-\d+$/);
+      } finally {
+        mockRandom.mockRestore();
+      }
+    });
+
+    it('maxAttempts回のリトライ後にタイムスタンプ名を返す（< vs <= の境界テスト）', () => {
+      let callCount = 0;
+      const mockRandom = vi.spyOn(Math, 'random').mockImplementation(() => {
+        callCount++;
+        return 0; // 常に 'swift-panda' を生成
+      });
+
+      try {
+        const existingNames = ['swift-panda'];
+        generateUniqueSessionName(existingNames, 5);
+        // maxAttempts=5 の場合、generateSessionName は正確に5回呼ばれる（< だから 0,1,2,3,4）
+        // 各呼び出しで Math.random が2回呼ばれる（adjective + animal）
+        expect(callCount).toBe(10); // 5 attempts * 2 random calls
       } finally {
         mockRandom.mockRestore();
       }

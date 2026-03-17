@@ -138,6 +138,16 @@ describe('notification-service', () => {
       });
     });
 
+    it('設定がnullの場合（localStorageに値なし）デフォルト値を返す', () => {
+      // localStorageのgetItemがnullを返す（デフォルト状態）
+      mockLocalStorage.clear();
+      const result = getSettings();
+      expect(result.onTaskComplete).toBe(true);
+      expect(result.onPermissionRequest).toBe(true);
+      expect(result.onError).toBe(true);
+      expect(result.onActionRequired).toBe(true);
+    });
+
     it('不正なJSON形式の場合デフォルト値を返す', () => {
       mockLocalStorage.setItem(
         'claudework:notification-settings',
@@ -152,6 +162,77 @@ describe('notification-service', () => {
         onError: true,
         onActionRequired: true,
       });
+    });
+
+    it('保存された設定にonTaskCompleteが非boolean型の場合デフォルト値を返す', () => {
+      mockLocalStorage.setItem(
+        'claudework:notification-settings',
+        JSON.stringify({
+          onTaskComplete: 'yes',
+          onPermissionRequest: true,
+          onError: true,
+          onActionRequired: true,
+        })
+      );
+      const result = getSettings();
+      expect(result).toEqual({
+        onTaskComplete: true,
+        onPermissionRequest: true,
+        onError: true,
+        onActionRequired: true,
+      });
+    });
+
+    it('保存された設定にonPermissionRequestが非boolean型の場合デフォルト値を返す', () => {
+      mockLocalStorage.setItem(
+        'claudework:notification-settings',
+        JSON.stringify({
+          onTaskComplete: false,
+          onPermissionRequest: 1,
+          onError: true,
+          onActionRequired: true,
+        })
+      );
+      const result = getSettings();
+      expect(result).toEqual({
+        onTaskComplete: true,
+        onPermissionRequest: true,
+        onError: true,
+        onActionRequired: true,
+      });
+    });
+
+    it('保存された設定にonErrorが非boolean型の場合デフォルト値を返す', () => {
+      mockLocalStorage.setItem(
+        'claudework:notification-settings',
+        JSON.stringify({
+          onTaskComplete: false,
+          onPermissionRequest: true,
+          onError: 'no',
+          onActionRequired: true,
+        })
+      );
+      const result = getSettings();
+      expect(result).toEqual({
+        onTaskComplete: true,
+        onPermissionRequest: true,
+        onError: true,
+        onActionRequired: true,
+      });
+    });
+
+    it('保存された設定にonActionRequiredが未定義の場合trueがデフォルトとして追加される', () => {
+      mockLocalStorage.setItem(
+        'claudework:notification-settings',
+        JSON.stringify({
+          onTaskComplete: false,
+          onPermissionRequest: true,
+          onError: true,
+        })
+      );
+      const result = getSettings();
+      expect(result.onActionRequired).toBe(true);
+      expect(result.onTaskComplete).toBe(false);
     });
   });
 
@@ -168,6 +249,31 @@ describe('notification-service', () => {
 
       const stored = mockLocalStorage.getItem('claudework:notification-settings');
       expect(stored).toBe(JSON.stringify(settings));
+    });
+
+    it('localStorageへの保存が失敗してもエラーを投げない', () => {
+      const originalSetItem = mockLocalStorage.setItem;
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      // setItemが例外をスローするように一時的に変更
+      (mockLocalStorage as any).setItem = () => { throw new Error('QuotaExceeded'); };
+
+      expect(() => {
+        saveSettings({
+          onTaskComplete: true,
+          onPermissionRequest: true,
+          onError: true,
+          onActionRequired: true,
+        });
+      }).not.toThrow();
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to save'),
+        expect.any(Error)
+      );
+
+      // 元に戻す
+      (mockLocalStorage as any).setItem = originalSetItem;
+      consoleSpy.mockRestore();
     });
   });
 
@@ -234,6 +340,18 @@ describe('notification-service', () => {
       expect(mockGain.connect).toHaveBeenCalledWith(mockAudioContext.destination);
       expect(mockOscillator.start).toHaveBeenCalled();
       expect(mockOscillator.stop).toHaveBeenCalled();
+    });
+
+    it('oscillatorのonendedコールバックでAudioContextが閉じられる', () => {
+      playNotificationSound();
+
+      // onendedコールバックが設定されていることを確認
+      expect(mockOscillator.onended).toBeDefined();
+      // onendedを手動で呼び出す
+      if (mockOscillator.onended) {
+        mockOscillator.onended();
+      }
+      expect(mockAudioContext.close).toHaveBeenCalled();
     });
 
     it('AudioContextが利用できない場合エラーを投げない', () => {
@@ -476,6 +594,25 @@ describe('notification-service', () => {
       sendNotification(event);
 
       expect(toast.error).toHaveBeenCalledWith('Test Session: エラーが発生しました');
+    });
+
+    it('エラータイプのOS通知でタイトルに「エラー発生」とセッション名が含まれる', () => {
+      const event: NotificationEvent = {
+        type: 'error',
+        sessionId: 'session-err',
+        sessionName: 'ErrorSession',
+        message: 'Something went wrong',
+      };
+
+      sendNotification(event);
+
+      // getTitle の error case: `エラー発生: ${event.sessionName}`
+      expect(mockNotification).toHaveBeenCalledWith(
+        'エラー発生: ErrorSession',
+        expect.objectContaining({
+          body: 'Something went wrong',
+        })
+      );
     });
 
     // Task 43.19: actionRequiredイベントタイプのテスト

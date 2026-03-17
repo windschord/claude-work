@@ -9,6 +9,8 @@ const {
   mockDbDeleteRun,
   mockEncrypt,
   mockDecrypt,
+  mockInsertValues,
+  mockUpdateSet,
 } = vi.hoisted(() => ({
   mockDbSelectGet: vi.fn(),
   mockDbSelectAll: vi.fn(),
@@ -17,6 +19,8 @@ const {
   mockDbDeleteRun: vi.fn(),
   mockEncrypt: vi.fn(),
   mockDecrypt: vi.fn(),
+  mockInsertValues: vi.fn(),
+  mockUpdateSet: vi.fn(),
 }));
 
 // Drizzle DBのモック
@@ -36,14 +40,14 @@ vi.mock('@/lib/db', () => ({
       })),
     })),
     insert: vi.fn(() => ({
-      values: vi.fn(() => ({
+      values: mockInsertValues.mockImplementation(() => ({
         returning: vi.fn(() => ({
           get: mockDbInsertGet,
         })),
       })),
     })),
     update: vi.fn(() => ({
-      set: vi.fn(() => ({
+      set: mockUpdateSet.mockImplementation(() => ({
         where: vi.fn(() => ({
           returning: vi.fn(() => ({
             get: mockDbUpdateGet,
@@ -141,6 +145,74 @@ describe('GitHubPATService', () => {
           token: 'ghp_test_token_xxxx',
         })
       ).rejects.toThrow(PATEncryptionError);
+    });
+
+    it('暗号化エラーメッセージにエラー内容が含まれる', async () => {
+      mockEncrypt.mockRejectedValue(new Error('Key is invalid'));
+
+      await expect(
+        service.create({
+          name: 'My PAT',
+          token: 'ghp_test_token_xxxx',
+        })
+      ).rejects.toThrow('Failed to encrypt PAT: Key is invalid');
+    });
+
+    it('暗号化でError以外がスローされた場合Unknown errorメッセージになる', async () => {
+      mockEncrypt.mockRejectedValue('not an error object');
+
+      await expect(
+        service.create({
+          name: 'My PAT',
+          token: 'ghp_test_token_xxxx',
+        })
+      ).rejects.toThrow('Failed to encrypt PAT: Unknown error');
+    });
+
+    it('descriptionが未指定の場合nullとして保存される', async () => {
+      mockEncrypt.mockResolvedValue('iv:authTag:encrypted');
+      mockDbInsertGet.mockReturnValue({
+        ...mockPATRecord,
+        description: null,
+      });
+
+      const result = await service.create({
+        name: 'My GitHub PAT',
+        token: 'ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+      });
+
+      expect(result.description).toBeNull();
+    });
+
+    it('DB insert時に正しい値が渡される', async () => {
+      mockEncrypt.mockResolvedValue('encrypted-value');
+      mockDbInsertGet.mockReturnValue(mockPATRecord);
+
+      await service.create({
+        name: 'Test PAT',
+        token: 'ghp_test',
+        description: 'Test desc',
+      });
+
+      expect(mockInsertValues).toHaveBeenCalledWith({
+        name: 'Test PAT',
+        description: 'Test desc',
+        encrypted_token: 'encrypted-value',
+      });
+    });
+
+    it('description ?? nullの評価が正しい', async () => {
+      mockEncrypt.mockResolvedValue('encrypted-value');
+      mockDbInsertGet.mockReturnValue({ ...mockPATRecord, description: null });
+
+      await service.create({
+        name: 'Test PAT',
+        token: 'ghp_test',
+      });
+
+      expect(mockInsertValues).toHaveBeenCalledWith(
+        expect.objectContaining({ description: null })
+      );
     });
   });
 
@@ -251,6 +323,89 @@ describe('GitHubPATService', () => {
         service.update('non-existent-id', { name: 'New Name' })
       ).rejects.toThrow(PATNotFoundError);
     });
+
+    it('トークンを更新する場合は暗号化する', async () => {
+      mockDbSelectGet.mockReturnValue(mockPATRecord);
+      mockEncrypt.mockResolvedValue('new-encrypted-token');
+      mockDbUpdateGet.mockReturnValue({
+        ...mockPATRecord,
+        encrypted_token: 'new-encrypted-token',
+        updated_at: new Date('2026-02-13T14:00:00Z'),
+      });
+
+      await service.update('pat-uuid-1', { token: 'ghp_new_token' });
+
+      expect(mockEncrypt).toHaveBeenCalledWith('ghp_new_token');
+    });
+
+    it('トークン暗号化に失敗した場合、PATEncryptionErrorをスローする', async () => {
+      mockDbSelectGet.mockReturnValue(mockPATRecord);
+      mockEncrypt.mockRejectedValue(new Error('Encryption failed'));
+
+      await expect(
+        service.update('pat-uuid-1', { token: 'ghp_new_token' })
+      ).rejects.toThrow(PATEncryptionError);
+    });
+
+    it('トークン暗号化失敗時にError以外のオブジェクトがスローされても処理できる', async () => {
+      mockDbSelectGet.mockReturnValue(mockPATRecord);
+      mockEncrypt.mockRejectedValue('string error');
+
+      await expect(
+        service.update('pat-uuid-1', { token: 'ghp_new_token' })
+      ).rejects.toThrow(PATEncryptionError);
+      await expect(
+        service.update('pat-uuid-1', { token: 'ghp_new_token' })
+      ).rejects.toThrow('Unknown error');
+    });
+
+    it('名前のみの更新時にsetに正しい値が渡される', async () => {
+      mockDbSelectGet.mockReturnValue(mockPATRecord);
+      mockDbUpdateGet.mockReturnValue({ ...mockPATRecord, name: 'New Name' });
+
+      await service.update('pat-uuid-1', { name: 'New Name' });
+
+      expect(mockUpdateSet).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'New Name' })
+      );
+      // encryptedTokenは含まれない (tokenを更新しないため)
+      const setArg = mockUpdateSet.mock.calls[0][0];
+      expect(setArg).not.toHaveProperty('encrypted_token');
+    });
+
+    it('トークン更新時にencrypted_tokenがsetに含まれる', async () => {
+      mockDbSelectGet.mockReturnValue(mockPATRecord);
+      mockEncrypt.mockResolvedValue('new-encrypted');
+      mockDbUpdateGet.mockReturnValue({ ...mockPATRecord, encrypted_token: 'new-encrypted' });
+
+      await service.update('pat-uuid-1', { token: 'ghp_new' });
+
+      expect(mockUpdateSet).toHaveBeenCalledWith(
+        expect.objectContaining({ encrypted_token: 'new-encrypted' })
+      );
+    });
+
+    it('説明の更新時にdescriptionがsetに含まれる', async () => {
+      mockDbSelectGet.mockReturnValue(mockPATRecord);
+      mockDbUpdateGet.mockReturnValue({ ...mockPATRecord, description: 'New desc' });
+
+      await service.update('pat-uuid-1', { description: 'New desc' });
+
+      expect(mockUpdateSet).toHaveBeenCalledWith(
+        expect.objectContaining({ description: 'New desc' })
+      );
+    });
+
+    it('更新時にupdated_atが設定される', async () => {
+      mockDbSelectGet.mockReturnValue(mockPATRecord);
+      mockDbUpdateGet.mockReturnValue(mockPATRecord);
+
+      await service.update('pat-uuid-1', { name: 'Updated' });
+
+      expect(mockUpdateSet).toHaveBeenCalledWith(
+        expect.objectContaining({ updated_at: expect.any(Date) })
+      );
+    });
   });
 
   describe('delete', () => {
@@ -300,6 +455,39 @@ describe('GitHubPATService', () => {
 
       await expect(service.toggleActive('non-existent-id')).rejects.toThrow(PATNotFoundError);
     });
+
+    it('有効なPATの場合、is_activeをfalseに設定する', async () => {
+      mockDbSelectGet.mockReturnValue({ ...mockPATRecord, is_active: true });
+      mockDbUpdateGet.mockReturnValue({ ...mockPATRecord, is_active: false });
+
+      await service.toggleActive('pat-uuid-1');
+
+      expect(mockUpdateSet).toHaveBeenCalledWith(
+        expect.objectContaining({ is_active: false })
+      );
+    });
+
+    it('無効なPATの場合、is_activeをtrueに設定する', async () => {
+      mockDbSelectGet.mockReturnValue({ ...mockPATRecord, is_active: false });
+      mockDbUpdateGet.mockReturnValue({ ...mockPATRecord, is_active: true });
+
+      await service.toggleActive('pat-uuid-1');
+
+      expect(mockUpdateSet).toHaveBeenCalledWith(
+        expect.objectContaining({ is_active: true })
+      );
+    });
+
+    it('toggleActive時にupdated_atが設定される', async () => {
+      mockDbSelectGet.mockReturnValue(mockPATRecord);
+      mockDbUpdateGet.mockReturnValue({ ...mockPATRecord, is_active: false });
+
+      await service.toggleActive('pat-uuid-1');
+
+      expect(mockUpdateSet).toHaveBeenCalledWith(
+        expect.objectContaining({ updated_at: expect.any(Date) })
+      );
+    });
   });
 
   describe('decryptToken', () => {
@@ -324,6 +512,44 @@ describe('GitHubPATService', () => {
       mockDecrypt.mockRejectedValue(new Error('Decryption failed'));
 
       await expect(service.decryptToken('pat-uuid-1')).rejects.toThrow(PATEncryptionError);
+    });
+
+    it('復号化エラーメッセージにエラー内容が含まれる', async () => {
+      mockDbSelectGet.mockReturnValue(mockPATRecord);
+      mockDecrypt.mockRejectedValue(new Error('Invalid key'));
+
+      await expect(service.decryptToken('pat-uuid-1')).rejects.toThrow('Failed to decrypt PAT: Invalid key');
+    });
+
+    it('復号化でError以外がスローされた場合Unknown errorメッセージになる', async () => {
+      mockDbSelectGet.mockReturnValue(mockPATRecord);
+      mockDecrypt.mockRejectedValue(42);
+
+      await expect(service.decryptToken('pat-uuid-1')).rejects.toThrow('Failed to decrypt PAT: Unknown error');
+    });
+  });
+
+  describe('Error classes', () => {
+    it('PATNotFoundErrorのnameプロパティが正しい', () => {
+      const error = new PATNotFoundError('test-id');
+      expect(error.name).toBe('PATNotFoundError');
+      expect(error.message).toBe('PAT not found: test-id');
+    });
+
+    it('PATEncryptionErrorのnameプロパティが正しい', () => {
+      const error = new PATEncryptionError('encryption failed');
+      expect(error.name).toBe('PATEncryptionError');
+      expect(error.message).toBe('encryption failed');
+    });
+
+    it('PATNotFoundErrorはErrorのインスタンスである', () => {
+      const error = new PATNotFoundError('test-id');
+      expect(error).toBeInstanceOf(Error);
+    });
+
+    it('PATEncryptionErrorはErrorのインスタンスである', () => {
+      const error = new PATEncryptionError('msg');
+      expect(error).toBeInstanceOf(Error);
     });
   });
 });
