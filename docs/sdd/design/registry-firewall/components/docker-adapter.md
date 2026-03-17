@@ -64,11 +64,12 @@ if (options?.registryFirewallEnabled && options?.filterEnabled && !options?.shel
   Env.push(`NO_PROXY=${rfHostname}`);
   Env.push(`no_proxy=${rfHostname}`);
 
-  // npm/cargoはprintf方式で設定ファイルを生成
+  // npm/cargoは環境変数経由で設定（シェルインジェクション防止）
+  Env.push(`__RF_HOST=${rfHost}`);
   const setupScript = [
-    `npm config set registry '${rfHost}/npm/'`,
-    `mkdir -p ~/.cargo`,
-    `printf '%s\\n' '...' > ~/.cargo/config.toml`,
+    'npm config set registry "$__RF_HOST/npm/"',
+    'mkdir -p ~/.cargo',
+    'printf \'...\\n\' "$__RF_HOST" > ~/.cargo/config.toml',
   ].join(' && ');
 
   const originalCmd = [...Entrypoint, ...(Cmd.length > 0 ? Cmd : [])];

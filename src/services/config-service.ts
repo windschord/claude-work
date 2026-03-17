@@ -143,6 +143,11 @@ export function getConfigService(): ConfigService {
 }
 
 /**
+ * 設定がロード済みかどうかのフラグ
+ */
+let configLoaded = false;
+
+/**
  * ConfigServiceを初期化（設定ファイルを読み込む）
  */
 export async function initializeConfigService(): Promise<ConfigService> {
@@ -155,7 +160,6 @@ export async function initializeConfigService(): Promise<ConfigService> {
 /**
  * 設定がロード済みであることを保証してConfigServiceを返す（lazy load）
  */
-let configLoaded = false;
 
 export async function ensureConfigLoaded(): Promise<ConfigService> {
   const service = getConfigService();

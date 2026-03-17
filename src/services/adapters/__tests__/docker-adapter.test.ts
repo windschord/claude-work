@@ -394,7 +394,9 @@ describe('DockerAdapter', () => {
     it('registryFirewallEnabled+filterEnabled時にEntrypointにnpm config setコマンドが含まれる', () => {
       const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { registryFirewallEnabled: true, filterEnabled: true });
       const cmd = createOptions.Cmd as string[];
-      expect(cmd[0]).toContain(`npm config set registry '${rfHost}/npm/'`);
+      const env = createOptions.Env as string[];
+      expect(cmd[0]).toContain('npm config set registry "$__RF_HOST/npm/"');
+      expect(env).toContain(`__RF_HOST=${rfHost}`);
     });
 
     it('registryFirewallEnabled+filterEnabled時にEntrypointにcargo config作成コマンドが含まれる', () => {

@@ -362,16 +362,12 @@ export class DockerAdapter extends BasePTYAdapter {
         Env.push(`GOPROXY=${rfHost}/go/,direct`);
 
         // npm/cargoは環境変数だけでは設定不可 → Entrypointをshell経由に変更
-        const cargoConfig = [
-          '[registries.claudework]',
-          `index = "sparse+${rfHost}/cargo/"`,
-          '[source.crates-io]',
-          'replace-with = "claudework"',
-        ].join('\n');
+        // シェルインジェクション防止: rfHostを環境変数経由で参照し、シェル文字列に直接埋め込まない
+        Env.push(`__RF_HOST=${rfHost}`);
         const setupScript = [
-          `npm config set registry '${rfHost}/npm/'`,
-          `mkdir -p ~/.cargo`,
-          `printf '%s\\n' '${cargoConfig}' > ~/.cargo/config.toml`,
+          'npm config set registry "$__RF_HOST/npm/"',
+          'mkdir -p ~/.cargo',
+          'printf \'[registries.claudework]\\nindex = "sparse+%s/cargo/"\\n[source.crates-io]\\nreplace-with = "claudework"\\n\' "$__RF_HOST" > ~/.cargo/config.toml',
         ].join(' && ');
 
         // 元のEntrypoint+Cmdをpositional parametersで安全にexec

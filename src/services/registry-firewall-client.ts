@@ -41,8 +41,7 @@ export class RegistryFirewallClient {
 
   constructor() {
     this.baseUrl = process.env.REGISTRY_FIREWALL_URL || 'http://registry-firewall:8080';
-    const token = process.env.REGISTRY_FIREWALL_API_TOKEN || '';
-    this.apiToken = token || undefined;
+    this.apiToken = process.env.REGISTRY_FIREWALL_API_TOKEN || undefined;
     this.timeout = DEFAULT_TIMEOUT_MS;
   }
 
