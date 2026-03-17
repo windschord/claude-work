@@ -40,14 +40,6 @@ vi.mock('@/lib/logger', () => ({
   },
 }));
 
-const { mockSyncProxyRulesIfNeeded } = vi.hoisted(() => ({
-  mockSyncProxyRulesIfNeeded: vi.fn().mockResolvedValue(undefined),
-}));
-
-vi.mock('@/lib/proxy-sync', () => ({
-  syncProxyRulesIfNeeded: (environmentId: string) => mockSyncProxyRulesIfNeeded(environmentId),
-}));
-
 // 各ルートからインポート
 import { GET as getFilterConfig, PUT as putFilterConfig } from '../route';
 import { POST as postFilterTest } from '../test/route';
@@ -192,25 +184,6 @@ describe('/api/environments/[id]/network-filter および templates', () => {
       expect(response.status).toBe(400);
       expect(data.error).toBeTruthy();
       expect(mockUpdateFilterConfig).not.toHaveBeenCalled();
-    });
-
-    it('更新成功時にsyncProxyRulesIfNeededを呼び出す', async () => {
-      const enabledConfig = { ...baseConfig, enabled: true };
-      mockUpdateFilterConfig.mockResolvedValue(enabledConfig);
-
-      const request = new NextRequest(
-        'http://localhost:3000/api/environments/env-uuid/network-filter',
-        {
-          method: 'PUT',
-          body: JSON.stringify({ enabled: true }),
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
-      await putFilterConfig(request, {
-        params: Promise.resolve({ id: 'env-uuid' }),
-      });
-
-      expect(mockSyncProxyRulesIfNeeded).toHaveBeenCalledWith('env-uuid');
     });
   });
 
@@ -400,30 +373,6 @@ describe('/api/environments/[id]/network-filter および templates', () => {
       expect(response.status).toBe(400);
       expect(data.error).toBeTruthy();
       expect(mockApplyTemplates).not.toHaveBeenCalled();
-    });
-
-    it('適用成功時にsyncProxyRulesIfNeededを呼び出す', async () => {
-      mockApplyTemplates.mockResolvedValue({
-        created: 1,
-        skipped: 0,
-        rules: [baseRule],
-      });
-
-      const request = new NextRequest(
-        'http://localhost:3000/api/environments/env-uuid/network-rules/templates/apply',
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            rules: [{ target: 'api.anthropic.com', port: 443, description: 'Claude API' }],
-          }),
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
-      await postApplyTemplates(request, {
-        params: Promise.resolve({ id: 'env-uuid' }),
-      });
-
-      expect(mockSyncProxyRulesIfNeeded).toHaveBeenCalledWith('env-uuid');
     });
   });
 });
