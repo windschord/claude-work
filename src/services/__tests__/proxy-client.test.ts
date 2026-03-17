@@ -245,9 +245,12 @@ describe('ProxyClient', () => {
         new Response(JSON.stringify(errorBody), { status: 422 })
       );
 
-      const error = await client.setRules('172.20.0.3', [{ host: 'invalid' }]).catch((e) => e);
-      expect(error).toBeInstanceOf(ProxyValidationError);
-      expect(error.details).toEqual(errorBody.details);
+      const promise = client.setRules('172.20.0.3', [{ host: 'invalid' }]);
+      await expect(promise).rejects.toSatisfy((error: unknown) => {
+        expect(error).toBeInstanceOf(ProxyValidationError);
+        expect((error as ProxyValidationError).details).toEqual(errorBody.details);
+        return true;
+      });
     });
 
     it('リトライ後に成功する場合', async () => {
@@ -342,6 +345,7 @@ describe('ProxyClient', () => {
       try {
         vi.mocked(fetch).mockResolvedValue(new Response('Error', { status: 500 }));
         await expect(client.deleteRules('172.20.0.3')).rejects.toThrow(/HTTP 500/);
+        expect(vi.mocked(fetch)).toHaveBeenCalledTimes(3);
       } finally {
         vi.unstubAllGlobals();
       }
@@ -400,9 +404,12 @@ describe('ProxyClient', () => {
       vi.stubGlobal('setTimeout', (fn: () => void) => originalSetTimeout(fn, 0));
       try {
         vi.mocked(fetch).mockResolvedValue(new Response('Error', { status: 500 }));
-        const error = await client.deleteAllRules().catch((e) => e);
-        expect(error).toBeInstanceOf(ProxyConnectionError);
-        expect(error).not.toBeInstanceOf(ProxyValidationError);
+        const promise = client.deleteAllRules();
+        await expect(promise).rejects.toSatisfy((error: unknown) => {
+          expect(error).toBeInstanceOf(ProxyConnectionError);
+          expect(error).not.toBeInstanceOf(ProxyValidationError);
+          return true;
+        });
       } finally {
         vi.unstubAllGlobals();
       }
@@ -428,9 +435,12 @@ describe('ProxyClient', () => {
         new Response('not json{{', { status: 200, headers: { 'Content-Type': 'text/plain' } })
       );
 
-      const error = await client.healthCheck().catch((e) => e);
-      expect(error).toBeInstanceOf(ProxyConnectionError);
-      expect(error.message).toMatch(/パースできません/);
+      const promise = client.healthCheck();
+      await expect(promise).rejects.toSatisfy((error: unknown) => {
+        expect(error).toBeInstanceOf(ProxyConnectionError);
+        expect((error as ProxyConnectionError).message).toMatch(/パースできません/);
+        return true;
+      });
     });
   });
 
