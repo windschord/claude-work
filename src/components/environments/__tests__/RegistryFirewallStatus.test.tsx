@@ -93,7 +93,7 @@ describe('RegistryFirewallStatus', () => {
     it('異常ステータスが表示される', () => {
       mockUseRegistryFirewall.mockReturnValue({
         ...defaultMockHook,
-        health: { status: 'unhealthy' },
+        health: { status: 'unhealthy', registries: ['npm', 'PyPI', 'Go', 'Cargo', 'Docker'] },
       });
 
       render(<RegistryFirewallStatus />);
@@ -104,7 +104,7 @@ describe('RegistryFirewallStatus', () => {
     it('停止中ステータスが表示される', () => {
       mockUseRegistryFirewall.mockReturnValue({
         ...defaultMockHook,
-        health: { status: 'stopped' },
+        health: { status: 'stopped', registries: ['npm', 'PyPI', 'Go', 'Cargo', 'Docker'] },
       });
 
       render(<RegistryFirewallStatus />);

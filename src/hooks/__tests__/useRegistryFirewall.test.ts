@@ -77,6 +77,25 @@ describe('useRegistryFirewall', () => {
       expect(mockFetch).toHaveBeenCalledWith('/api/settings/config');
     });
 
+    it('同一propsの再レンダーで再取得しない', async () => {
+      mockFetch
+        .mockImplementationOnce(() => makeFetchResponse(sampleHealth))
+        .mockImplementationOnce(() => makeFetchResponse({ blocks: sampleBlocks }))
+        .mockImplementationOnce(() => makeFetchResponse(sampleConfig));
+
+      const { result, rerender } = renderHook(() => useRegistryFirewall());
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+
+      // 再レンダーしてもfetchは増えない
+      rerender();
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+    });
+
     it('healthレスポンスが失敗した場合はstoppedステータスを設定する', async () => {
       mockFetch
         .mockImplementationOnce(() => makeFetchResponse({}, 500))
