@@ -73,6 +73,7 @@ describe('HostAdapter', () => {
 
   afterEach(() => {
     hostAdapter.removeAllListeners();
+    mockPtyManagerObj.removeAllListeners();
   });
 
   describe('constructor', () => {
