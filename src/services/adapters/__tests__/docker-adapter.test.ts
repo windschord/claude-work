@@ -410,6 +410,8 @@ describe('DockerAdapter', () => {
         } else {
           process.env.REGISTRY_FIREWALL_URL = originalRfUrl;
         }
+        // モック実装をデフォルトに戻す
+        mockRfGetHealth.mockResolvedValue({ status: 'healthy' });
       }
     });
 
