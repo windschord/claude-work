@@ -106,6 +106,14 @@ async function flush(): Promise<void> {
   await new Promise(resolve => setImmediate(resolve));
 }
 
+async function waitForListener(ws: EventEmitter, event: string, maxTries = 10): Promise<void> {
+  for (let i = 0; i < maxTries; i++) {
+    if (ws.listenerCount(event) > 0) return;
+    await flush();
+  }
+  throw new Error(`Listener '${event}' was not registered in time`);
+}
+
 function createMockWs(): any {
   const ws = new EventEmitter() as any;
   ws.send = vi.fn();
@@ -287,26 +295,16 @@ describe('Terminal WebSocket', () => {
       return ws;
     }
 
-    // TODO: 非同期コールバック内のハンドラー登録がテスト環境で完了しないため、skip
-    // WSの接続コールバック内のaddConnectionが非同期で完了する前にテストが進行してしまう
-    it.skip('should forward input to ptyManager (via connection handler)', async () => {
+    it('should forward input to ptyManager (via connection handler)', async () => {
       const localWss = createMockWss();
       setupTerminalWebSocket(localWss, '/ws/terminal');
       mockFindFirst.mockResolvedValue(mockSession);
 
       const ws = createMockWs();
-      let messageHandler: Function | null = null;
-      const originalOn = ws.on.bind(ws);
-      ws.on = vi.fn((event: string, handler: Function) => {
-        if (event === 'message') messageHandler = handler;
-        return originalOn(event, handler);
-      });
-
       localWss.emit('connection', ws, createMockReq('session-1'));
-      for (let i = 0; i < 5; i++) await flush();
+      await waitForListener(ws, 'message');
 
-      expect(messageHandler).not.toBeNull();
-      messageHandler!(Buffer.from(JSON.stringify({ type: 'input', data: 'test' })));
+      ws.emit('message', Buffer.from(JSON.stringify({ type: 'input', data: 'test' })));
       expect(mockPtyManager.write).toHaveBeenCalledWith('session-1-terminal', 'test');
     });
 
@@ -394,25 +392,16 @@ describe('Terminal WebSocket', () => {
   });
 
   describe('cleanup on close', () => {
-    // TODO: 非同期コールバック内のハンドラー登録がテスト環境で完了しないため、skip
-    it.skip('should remove connection on WS close', async () => {
+    it('should remove connection on WS close', async () => {
       const localWss = createMockWss();
       setupTerminalWebSocket(localWss, '/ws/terminal');
       mockFindFirst.mockResolvedValue(mockSession);
 
       const ws = createMockWs();
-      let closeHandler: Function | null = null;
-      const originalOn = ws.on.bind(ws);
-      ws.on = vi.fn((event: string, handler: Function) => {
-        if (event === 'close') closeHandler = handler;
-        return originalOn(event, handler);
-      });
-
       localWss.emit('connection', ws, createMockReq('session-1'));
-      for (let i = 0; i < 5; i++) await flush();
+      await waitForListener(ws, 'close');
 
-      expect(closeHandler).not.toBeNull();
-      closeHandler!();
+      ws.emit('close');
       expect(mockCM.removeConnection).toHaveBeenCalledWith('session-1-terminal', ws);
     });
   });

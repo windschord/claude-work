@@ -140,7 +140,7 @@ export class ProxyClient {
    * @param sourceIP - コンテナの送信元IPアドレス
    * @param entries - 許可するホスト一覧
    * @returns ProxyRuleSet
-   * @throws ProxyValidationError ルール形式が不正な場合（422）
+   * @throws ProxyValidationError クライアントエラー（4xx）の場合。422はdetails付き
    * @throws ProxyConnectionError proxyに接続できない場合
    */
   async setRules(sourceIP: string, entries: ProxyRuleEntry[]): Promise<ProxyRuleSet> {
@@ -195,6 +195,7 @@ export class ProxyClient {
    * 指定した送信元IPのルールを削除する（リトライあり）
    *
    * @param sourceIP - コンテナの送信元IPアドレス
+   * @throws ProxyValidationError クライアントエラー（4xx）の場合
    * @throws ProxyConnectionError proxyに接続できない場合
    */
   async deleteRules(sourceIP: string): Promise<void> {
@@ -228,6 +229,7 @@ export class ProxyClient {
   /**
    * proxyの全ルールを削除する（リトライあり）
    *
+   * @throws ProxyValidationError クライアントエラー（4xx）の場合
    * @throws ProxyConnectionError proxyに接続できない場合
    */
   async deleteAllRules(): Promise<void> {

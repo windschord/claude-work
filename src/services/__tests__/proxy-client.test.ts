@@ -146,6 +146,27 @@ describe('ProxyClient', () => {
       expect(result).toEqual(mockResponse);
     });
 
+    it('IPv6アドレスがURLエンコードされてリクエストされる', async () => {
+      const ipv6 = '2001:db8::1';
+      const entries = [{ host: 'api.anthropic.com', port: 443 }];
+      const mockResponse: ProxyRuleSet = {
+        source_ip: ipv6,
+        entries,
+        updated_at: '2026-01-01T00:00:00Z',
+      };
+
+      vi.mocked(fetch).mockResolvedValueOnce(
+        new Response(JSON.stringify(mockResponse), { status: 200 })
+      );
+
+      await client.setRules(ipv6, entries);
+
+      expect(fetch).toHaveBeenCalledWith(
+        `${BASE_URL}/api/v1/rules/${encodeURIComponent(ipv6)}`,
+        expect.objectContaining({ method: 'PUT' })
+      );
+    });
+
     it('422レスポンス時にProxyValidationErrorをスローする', async () => {
       const errorBody = {
         details: [{ field: 'entries[0].host', message: 'Invalid host format' }],
@@ -273,6 +294,20 @@ describe('ProxyClient', () => {
           method: 'DELETE',
           signal: expect.any(AbortSignal),
         })
+      );
+    });
+
+    it('IPv6アドレスがURLエンコードされてリクエストされる', async () => {
+      const ipv6 = '2001:db8::1';
+      vi.mocked(fetch).mockResolvedValueOnce(
+        new Response(null, { status: 204 })
+      );
+
+      await client.deleteRules(ipv6);
+
+      expect(fetch).toHaveBeenCalledWith(
+        `${BASE_URL}/api/v1/rules/${encodeURIComponent(ipv6)}`,
+        expect.objectContaining({ method: 'DELETE' })
       );
     });
 
