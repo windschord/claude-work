@@ -45,17 +45,21 @@ export function useRegistryFirewall(): UseRegistryFirewallReturn {
   /**
    * ヘルス・ブロックログ・設定を並列取得して状態を更新する。
    * useRefで保持し、useEffectからはref経由で呼び出す（依存配列を安全に保つため）。
+   * AbortSignalを受け取り、アンマウント後のsetStateを防止する。
    */
-  const fetchAllRef = useRef(async (): Promise<void> => {
+  const fetchAllRef = useRef(async (signal?: AbortSignal): Promise<void> => {
     setIsLoading(true);
     setError(null);
 
     try {
       const [healthRes, blocksRes, configRes] = await Promise.all([
-        fetch('/api/registry-firewall/health'),
-        fetch('/api/registry-firewall/blocks?limit=10'),
-        fetch('/api/settings/config'),
+        fetch('/api/registry-firewall/health', { signal }),
+        fetch('/api/registry-firewall/blocks?limit=10', { signal }),
+        fetch('/api/settings/config', { signal }),
       ]);
+
+      // abort済みの場合はsetStateしない
+      if (signal?.aborted) return;
 
       // ヘルス
       if (healthRes.ok) {
@@ -84,16 +88,23 @@ export function useRegistryFirewall(): UseRegistryFirewallReturn {
         setEnabled(registryFirewallEnabled !== false);
       }
     } catch (err) {
+      // AbortErrorはアンマウントによるキャンセルなので無視する
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      if (signal?.aborted) return;
       const errorMessage = err instanceof Error ? err.message : 'データの取得に失敗しました';
       setError(errorMessage);
     } finally {
-      setIsLoading(false);
+      if (!signal?.aborted) {
+        setIsLoading(false);
+      }
     }
   });
 
-  // マウント時にデータを取得する
+  // マウント時にデータを取得し、アンマウント時にabortする
   useEffect(() => {
-    fetchAllRef.current();
+    const controller = new AbortController();
+    fetchAllRef.current(controller.signal);
+    return () => controller.abort();
   }, []);
 
   /**

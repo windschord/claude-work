@@ -72,9 +72,9 @@ describe('useRegistryFirewall', () => {
 
       // 3つのAPIを呼び出し
       expect(mockFetch).toHaveBeenCalledTimes(3);
-      expect(mockFetch).toHaveBeenCalledWith('/api/registry-firewall/health');
-      expect(mockFetch).toHaveBeenCalledWith('/api/registry-firewall/blocks?limit=10');
-      expect(mockFetch).toHaveBeenCalledWith('/api/settings/config');
+      expect(mockFetch).toHaveBeenCalledWith('/api/registry-firewall/health', expect.objectContaining({ signal: expect.any(AbortSignal) }));
+      expect(mockFetch).toHaveBeenCalledWith('/api/registry-firewall/blocks?limit=10', expect.objectContaining({ signal: expect.any(AbortSignal) }));
+      expect(mockFetch).toHaveBeenCalledWith('/api/settings/config', expect.objectContaining({ signal: expect.any(AbortSignal) }));
     });
 
     it('同一propsの再レンダーで再取得しない', async () => {

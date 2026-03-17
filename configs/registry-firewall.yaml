@@ -7,7 +7,9 @@ logging:
   format: json
 
 auth:
-  enabled: true
+  # 認証を有効にする場合は enabled: true に変更し、
+  # REGISTRY_FIREWALL_API_TOKEN 環境変数を .env に設定すること
+  enabled: false
 
 database:
   path: "/data/db/registry-firewall.db"

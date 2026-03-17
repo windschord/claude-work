@@ -67,6 +67,8 @@ services:
     environment:
       - REGISTRY_FIREWALL_CONFIG=/config/config.yaml
       - RUST_LOG=${REGISTRY_FIREWALL_LOG_LEVEL:-info}
+      # API認証トークン（appサービスのREGISTRY_FIREWALL_API_TOKENと共有）
+      - REGISTRY_FIREWALL_API_TOKEN=${REGISTRY_FIREWALL_API_TOKEN:-}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
