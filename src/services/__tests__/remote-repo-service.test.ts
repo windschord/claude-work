@@ -24,12 +24,15 @@ describe('RemoteRepoService', () => {
   let service: RemoteRepoService;
   let testDir: string;
   let testRepoPath: string;
+  let originalAllowLocalRepoUrl: string | undefined;
 
   beforeAll(() => {
     // NOTE: このテストはローカルgitリポジトリを直接使用する統合的なアプローチを採用しています。
     // ネットワーク通信は不要で、ローカルファイルシステム上でのgit操作のみを検証します。
     // Docker経由の操作（environmentId指定時）はAdapterFactoryをvi.mockでモック化しています。
 
+    // 元の値を退避
+    originalAllowLocalRepoUrl = process.env.ALLOW_LOCAL_REPO_URL;
     // ローカルリポジトリURLをテストで使用するため環境変数を設定
     process.env.ALLOW_LOCAL_REPO_URL = 'true';
 
@@ -64,7 +67,11 @@ describe('RemoteRepoService', () => {
 
   afterAll(() => {
     rmSync(testDir, { recursive: true, force: true });
-    delete process.env.ALLOW_LOCAL_REPO_URL;
+    if (originalAllowLocalRepoUrl === undefined) {
+      delete process.env.ALLOW_LOCAL_REPO_URL;
+    } else {
+      process.env.ALLOW_LOCAL_REPO_URL = originalAllowLocalRepoUrl;
+    }
   });
 
   describe('validateRemoteUrl', () => {

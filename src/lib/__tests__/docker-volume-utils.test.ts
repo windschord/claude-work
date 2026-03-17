@@ -43,9 +43,10 @@ describe('getConfigVolumeNames', () => {
     expect(result.configClaudeVolume).toMatch(/^claude-config-configclaude-/);
   });
 
-  it('environmentIdがtrimされずそのままVolume名に含まれる', () => {
+  it('environmentId由来の空白を含むVolume名を生成しない', () => {
     const result = getConfigVolumeNames('  spaced  ');
-    // trim()はバリデーションのみに使われ、Volume名生成にはそのまま使われる
-    expect(result.claudeVolume).toBe('claude-config-claude-  spaced  ');
+    // Docker Volume名に空白が含まれないことを検証
+    expect(result.claudeVolume).not.toContain(' ');
+    expect(result.configClaudeVolume).not.toContain(' ');
   });
 });

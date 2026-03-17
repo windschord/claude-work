@@ -141,12 +141,11 @@ describe('DockerPTYStream', () => {
     stream.on('exit', exitSpy);
     
     mockStream.emit('end');
-    
-    // Allow async checkExit to run
-    await new Promise(resolve => setTimeout(resolve, 10));
-    
-    expect(mockContainer.inspect).toHaveBeenCalled();
-    expect(exitSpy).toHaveBeenCalledWith({ exitCode: 0, signal: 0 });
+
+    await vi.waitFor(() => {
+      expect(mockContainer.inspect).toHaveBeenCalled();
+      expect(exitSpy).toHaveBeenCalledWith({ exitCode: 0, signal: 0 });
+    });
   });
 
   it('should kill container', () => {
@@ -225,11 +224,10 @@ describe('DockerPTYStream', () => {
 
     mockStream.emit('close');
 
-    // Allow async checkExit to run
-    await new Promise(resolve => setTimeout(resolve, 10));
-
-    expect(mockContainer.inspect).toHaveBeenCalled();
-    expect(exitSpy).toHaveBeenCalledWith({ exitCode: 0, signal: 0 });
+    await vi.waitFor(() => {
+      expect(mockContainer.inspect).toHaveBeenCalled();
+      expect(exitSpy).toHaveBeenCalledWith({ exitCode: 0, signal: 0 });
+    });
   });
 
   describe('constructor validation', () => {
@@ -286,10 +284,10 @@ describe('DockerPTYStream', () => {
 
       mockStream.emit('end');
 
-      await new Promise(resolve => setTimeout(resolve, 10));
-
-      expect(mockExec.inspect).toHaveBeenCalled();
-      expect(exitSpy).toHaveBeenCalledWith({ exitCode: 0, signal: 0 });
+      await vi.waitFor(() => {
+        expect(mockExec.inspect).toHaveBeenCalled();
+        expect(exitSpy).toHaveBeenCalledWith({ exitCode: 0, signal: 0 });
+      });
     });
 
     it('should handle exec exit code from inspect', async () => {
@@ -309,9 +307,9 @@ describe('DockerPTYStream', () => {
 
       mockStream.emit('end');
 
-      await new Promise(resolve => setTimeout(resolve, 10));
-
-      expect(exitSpy).toHaveBeenCalledWith({ exitCode: 42, signal: 0 });
+      await vi.waitFor(() => {
+        expect(exitSpy).toHaveBeenCalledWith({ exitCode: 42, signal: 0 });
+      });
     });
 
     it('should handle null exec exit code as 0', async () => {
@@ -331,9 +329,9 @@ describe('DockerPTYStream', () => {
 
       mockStream.emit('end');
 
-      await new Promise(resolve => setTimeout(resolve, 10));
-
-      expect(exitSpy).toHaveBeenCalledWith({ exitCode: 0, signal: 0 });
+      await vi.waitFor(() => {
+        expect(exitSpy).toHaveBeenCalledWith({ exitCode: 0, signal: 0 });
+      });
     });
   });
 
@@ -355,9 +353,9 @@ describe('DockerPTYStream', () => {
 
       mockStream.emit('end');
 
-      await new Promise(resolve => setTimeout(resolve, 10));
-
-      expect(exitSpy).toHaveBeenCalledWith({ exitCode: 137, signal: 0 });
+      await vi.waitFor(() => {
+        expect(exitSpy).toHaveBeenCalledWith({ exitCode: 137, signal: 0 });
+      });
     });
 
     it('should handle null container exit code as 0', async () => {
@@ -377,9 +375,9 @@ describe('DockerPTYStream', () => {
 
       mockStream.emit('end');
 
-      await new Promise(resolve => setTimeout(resolve, 10));
-
-      expect(exitSpy).toHaveBeenCalledWith({ exitCode: 0, signal: 0 });
+      await vi.waitFor(() => {
+        expect(exitSpy).toHaveBeenCalledWith({ exitCode: 0, signal: 0 });
+      });
     });
   });
 
@@ -401,9 +399,9 @@ describe('DockerPTYStream', () => {
 
       mockStream.emit('end');
 
-      await new Promise(resolve => setTimeout(resolve, 10));
-
-      expect(exitSpy).toHaveBeenCalledWith({ exitCode: 1, signal: 0 });
+      await vi.waitFor(() => {
+        expect(exitSpy).toHaveBeenCalledWith({ exitCode: 1, signal: 0 });
+      });
     });
   });
 
@@ -424,9 +422,9 @@ describe('DockerPTYStream', () => {
       mockStream.emit('end');
       mockStream.emit('close');
 
-      await new Promise(resolve => setTimeout(resolve, 10));
-
-      expect(exitSpy).toHaveBeenCalledTimes(1);
+      await vi.waitFor(() => {
+        expect(exitSpy).toHaveBeenCalledTimes(1);
+      });
     });
 
     it('should only emit exit once for error+end', async () => {
@@ -445,9 +443,9 @@ describe('DockerPTYStream', () => {
       mockStream.emit('error', new Error('test'));
       mockStream.emit('end');
 
-      await new Promise(resolve => setTimeout(resolve, 10));
-
-      expect(exitSpy).toHaveBeenCalledTimes(1);
+      await vi.waitFor(() => {
+        expect(exitSpy).toHaveBeenCalledTimes(1);
+      });
     });
   });
 
@@ -669,7 +667,9 @@ describe('DockerPTYStream', () => {
       // Should not throw
       stream.kill();
       // Wait for the rejected promise to be caught
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await vi.waitFor(() => {
+        expect(mockContainer.kill).toHaveBeenCalled();
+      });
     });
   });
 
@@ -685,11 +685,11 @@ describe('DockerPTYStream', () => {
       });
 
       stream.resize(100, 30);
-      // Wait for the rejected promise to be caught
-      await new Promise(resolve => setTimeout(resolve, 10));
       // cols and rows should still be updated
-      expect(stream.cols).toBe(100);
-      expect(stream.rows).toBe(30);
+      await vi.waitFor(() => {
+        expect(stream.cols).toBe(100);
+        expect(stream.rows).toBe(30);
+      });
     });
 
     it('should handle exec resize rejection gracefully', async () => {
@@ -703,7 +703,9 @@ describe('DockerPTYStream', () => {
       });
 
       stream.resize(100, 30);
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await vi.waitFor(() => {
+        expect(mockExec.resize).toHaveBeenCalled();
+      });
     });
 
     it('should handle synchronous error during resize', () => {
@@ -769,9 +771,9 @@ describe('DockerPTYStream', () => {
       stream.setStream(mockStream);
       mockStream.emit('end');
 
-      await new Promise(resolve => setTimeout(resolve, 10));
-
-      expect(mockLogger.error).toHaveBeenCalledWith('DockerPTYStream: Failed to check exit code', { error: inspectError });
+      await vi.waitFor(() => {
+        expect(mockLogger.error).toHaveBeenCalledWith('DockerPTYStream: Failed to check exit code', { error: inspectError });
+      });
     });
 
     it('should log warn on resize failure', async () => {
@@ -786,9 +788,10 @@ describe('DockerPTYStream', () => {
       });
 
       stream.resize(100, 30);
-      await new Promise(resolve => setTimeout(resolve, 10));
 
-      expect(mockLogger.warn).toHaveBeenCalledWith('DockerPTYStream: Failed to resize container', { error: resizeError });
+      await vi.waitFor(() => {
+        expect(mockLogger.warn).toHaveBeenCalledWith('DockerPTYStream: Failed to resize container', { error: resizeError });
+      });
     });
 
     it('should log warn on exec resize failure', async () => {
@@ -803,9 +806,10 @@ describe('DockerPTYStream', () => {
       });
 
       stream.resize(100, 30);
-      await new Promise(resolve => setTimeout(resolve, 10));
 
-      expect(mockLogger.warn).toHaveBeenCalledWith('DockerPTYStream: Failed to resize exec', { error: resizeError });
+      await vi.waitFor(() => {
+        expect(mockLogger.warn).toHaveBeenCalledWith('DockerPTYStream: Failed to resize exec', { error: resizeError });
+      });
     });
 
     it('should log warn on synchronous resize error', () => {
@@ -874,12 +878,13 @@ describe('DockerPTYStream', () => {
       });
 
       stream.kill();
-      await new Promise(resolve => setTimeout(resolve, 10));
 
-      expect(mockLogger.debug).toHaveBeenCalledWith(
-        'DockerPTYStream: Failed to kill container (may be already stopped)',
-        { error: expect.any(Error) }
-      );
+      await vi.waitFor(() => {
+        expect(mockLogger.debug).toHaveBeenCalledWith(
+          'DockerPTYStream: Failed to kill container (may be already stopped)',
+          { error: expect.any(Error) }
+        );
+      });
     });
   });
 

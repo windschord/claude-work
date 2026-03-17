@@ -42,7 +42,9 @@ export class ProxyConnectionError extends Error {
 }
 
 /**
- * proxyへのリクエストのバリデーションエラー（422レスポンス）
+ * proxyへのリクエストのクライアントエラー（4xxレスポンス）
+ * - 422: バリデーションエラー（details付き）
+ * - その他4xx: 一般的なクライアントエラー
  */
 export class ProxyValidationError extends Error {
   constructor(
@@ -142,7 +144,7 @@ export class ProxyClient {
    * @throws ProxyConnectionError proxyに接続できない場合
    */
   async setRules(sourceIP: string, entries: ProxyRuleEntry[]): Promise<ProxyRuleSet> {
-    const url = `${this.baseUrl}/api/v1/rules/${sourceIP}`;
+    const url = `${this.baseUrl}/api/v1/rules/${encodeURIComponent(sourceIP)}`;
     const body = JSON.stringify({ entries });
 
     return this.withRetry(async () => {
@@ -196,7 +198,7 @@ export class ProxyClient {
    * @throws ProxyConnectionError proxyに接続できない場合
    */
   async deleteRules(sourceIP: string): Promise<void> {
-    const url = `${this.baseUrl}/api/v1/rules/${sourceIP}`;
+    const url = `${this.baseUrl}/api/v1/rules/${encodeURIComponent(sourceIP)}`;
 
     await this.withRetry(async () => {
       let response: Response;

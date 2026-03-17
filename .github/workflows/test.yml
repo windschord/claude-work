@@ -258,14 +258,9 @@ jobs:
       run: |
         # 動的にmutate対象を指定してStrykerを実行
         # break: 85でスコア85%未満なら失敗
-        IFS=',' read -ra FILES <<< "${{ steps.changed-files.outputs.mutate_targets }}"
-        MUTATE_ARGS=""
-        for f in "${FILES[@]}"; do
-          MUTATE_ARGS="$MUTATE_ARGS \"$f\""
-        done
-
+        # mutate_targetsはカンマ区切り文字列なので、そのまま--mutateに渡す
         pnpm exec stryker run \
-          --mutate $MUTATE_ARGS \
+          --mutate "${{ steps.changed-files.outputs.mutate_targets }}" \
           --reporters clear-text,progress \
           --thresholds.break 85
       timeout-minutes: 25

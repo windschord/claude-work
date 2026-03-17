@@ -166,7 +166,10 @@ describe('gh-cli service', () => {
       expect(mockExecFileSync).toHaveBeenCalledWith(
         'gh',
         ['pr', 'view', '789', '--json', 'state,merged'],
-        expect.any(Object)
+        expect.objectContaining({
+          cwd: '/repo',
+          encoding: 'utf-8',
+        })
       );
     });
   });

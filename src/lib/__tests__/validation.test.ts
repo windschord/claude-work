@@ -183,6 +183,18 @@ describe('validation', () => {
       expect(isValidEmail('user+tag@example.com')).toBe(true);
     });
 
+    it('ローカル部分の先頭ドットを拒否する', () => {
+      expect(isValidEmail('.abc@example.com')).toBe(false);
+    });
+
+    it('ローカル部分の末尾ドットを拒否する', () => {
+      expect(isValidEmail('abc.@example.com')).toBe(false);
+    });
+
+    it('ローカル部分の連続ドットを拒否する', () => {
+      expect(isValidEmail('a..b@example.com')).toBe(false);
+    });
+
     it('ドメイン部分に連続ドットを含むアドレスを拒否する', () => {
       expect(isValidEmail('user@foo..bar')).toBe(false);
     });
@@ -211,15 +223,18 @@ describe('validation', () => {
     });
 
     it('ちょうど254文字のアドレスは受け入れる（境界値）', () => {
-      // local@domain.com: local = 'a'.repeat(X), domain needs to fill to 254 total
-      // 254 = local.length + 1(@) + domain.length
+      // 254文字のメールを有効なラベル構成で構築
+      // local(64) + @(1) + domain(189) = 254
       const local = 'a'.repeat(64);
-      const domainBase = 'b'.repeat(254 - 64 - 1 - 4); // -4 for '.com'
-      const domain = domainBase + '.com';
+      // domain: 63文字ラベル x 2 + 59文字ラベル + .com = 63+1+63+1+59+1+3 = 191 (調整)
+      // 254 - 64 - 1 = 189 (domainの長さ)
+      // 189 = 63 + 1(.) + 63 + 1(.) + 57 + 1(.) + 3(com) = 189
+      const label63 = 'b'.repeat(63);
+      const label57 = 'c'.repeat(57);
+      const domain = `${label63}.${label63}.${label57}.com`;
       const email = `${local}@${domain}`;
       expect(email.length).toBe(254);
-      // Domain labels max 63 chars - domainBase is 185 chars, over 63
-      // Need to split into valid labels
+      expect(isValidEmail(email)).toBe(true);
     });
 
     it('ちょうど255文字のアドレスは拒否する（境界値）', () => {

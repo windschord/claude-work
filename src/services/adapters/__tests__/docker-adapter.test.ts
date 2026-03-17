@@ -286,12 +286,17 @@ describe('DockerAdapter', () => {
     });
 
     it('PROXY_NETWORK_NAME環境変数が設定されている場合はそちらを使用する', () => {
+      const originalProxyNetworkName = process.env.PROXY_NETWORK_NAME;
       process.env.PROXY_NETWORK_NAME = 'custom-filter-network';
       try {
         const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { filterEnabled: true });
         expect(createOptions.HostConfig.NetworkMode).toBe('custom-filter-network');
       } finally {
-        delete process.env.PROXY_NETWORK_NAME;
+        if (originalProxyNetworkName === undefined) {
+          delete process.env.PROXY_NETWORK_NAME;
+        } else {
+          process.env.PROXY_NETWORK_NAME = originalProxyNetworkName;
+        }
       }
     });
   });

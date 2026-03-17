@@ -36,8 +36,11 @@ describe('PTYManager', () => {
     rmSync(testWorkingDir, { recursive: true, force: true });
   });
 
+  let envSnapshot: NodeJS.ProcessEnv;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    envSnapshot = { ...process.env };
   });
 
   afterEach(() => {
@@ -45,6 +48,10 @@ describe('PTYManager', () => {
     if (ptyManager.hasSession(testSessionId)) {
       ptyManager.kill(testSessionId);
     }
+    // 環境変数を復元
+    process.env = envSnapshot;
+    // イベントリスナーのクリーンアップ
+    ptyManager.removeAllListeners();
   });
 
   describe('createPTY', () => {
@@ -58,8 +65,7 @@ describe('PTYManager', () => {
       expect(ptyManager.hasSession(testSessionId)).toBe(true);
     });
 
-    it('should throw if creating duplicate session concurrently', () => {
-      // Simulate creating flag being set
+    it('should allow recreating existing session (kills existing first)', () => {
       ptyManager.createPTY(testSessionId, testWorkingDir);
       // Second call will kill existing and recreate (no error since not in creating set)
       expect(() => ptyManager.createPTY(testSessionId, testWorkingDir)).not.toThrow();
@@ -92,7 +98,7 @@ describe('PTYManager', () => {
       const dataHandler = mockOnData.mock.calls[0][0];
 
       const emittedData: string[] = [];
-      ptyManager.on('data', (sid: string, data: string) => {
+      ptyManager.once('data', (sid: string, data: string) => {
         if (sid === testSessionId) emittedData.push(data);
       });
 
@@ -130,7 +136,7 @@ describe('PTYManager', () => {
       });
 
       let emittedError: any = null;
-      ptyManager.on('error', (sid: string, err: any) => {
+      ptyManager.once('error', (sid: string, err: any) => {
         if (sid === testSessionId) emittedError = err;
       });
 
@@ -360,12 +366,10 @@ describe('PTYManager', () => {
   });
 
   describe('concurrent creation guard', () => {
-    it('should throw when creation is already in progress', async () => {
+    it('should clear creating flag after spawn failure', async () => {
       const pty = await import('node-pty');
-      // Make spawn throw to leave the creating flag set (it gets cleaned up in catch)
+      // spawn失敗時にcreatingフラグがクリアされることを検証
       vi.mocked(pty.spawn).mockImplementationOnce(() => {
-        // Simulate a delayed creation - but actually the creating flag
-        // is set before spawn and cleared after. We need a different approach.
         throw new Error('test');
       });
 
@@ -375,9 +379,16 @@ describe('PTYManager', () => {
         // Expected - spawn throws
       }
 
-      // The creating flag should have been cleared in the catch block
-      // So we can't test the "in progress" path this way.
-      // Instead, test that the creating flag works by checking the error path
+      // creatingフラグがクリアされているため、再度作成可能であることを確認
+      vi.mocked(pty.spawn).mockImplementation(() => ({
+        onData: mockOnData,
+        onExit: mockOnExit,
+        write: mockWrite,
+        resize: mockResize,
+        kill: mockKill,
+        pid: 12345,
+      }) as any);
+      expect(() => ptyManager.createPTY(testSessionId, testWorkingDir)).not.toThrow();
     });
   });
 
