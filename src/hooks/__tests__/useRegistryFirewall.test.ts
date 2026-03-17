@@ -36,6 +36,33 @@ function makeFetchResponse(data: unknown, status = 200) {
   });
 }
 
+/**
+ * 初期fetch3連続モックのセットアップヘルパー
+ */
+function setupInitialFetchMocks(
+  overrides: {
+    healthData?: unknown;
+    blocksData?: unknown;
+    configData?: unknown;
+    healthStatus?: number;
+    blocksStatus?: number;
+    configStatus?: number;
+  } = {},
+) {
+  const {
+    healthData = sampleHealth,
+    blocksData = { blocks: sampleBlocks },
+    configData = sampleConfig,
+    healthStatus = 200,
+    blocksStatus = 200,
+    configStatus = 200,
+  } = overrides;
+  mockFetch
+    .mockImplementationOnce(() => makeFetchResponse(healthData, healthStatus))
+    .mockImplementationOnce(() => makeFetchResponse(blocksData, blocksStatus))
+    .mockImplementationOnce(() => makeFetchResponse(configData, configStatus));
+}
+
 describe('useRegistryFirewall', () => {
   beforeEach(() => {
     mockFetch.mockClear();
@@ -51,10 +78,7 @@ describe('useRegistryFirewall', () => {
 
   describe('初期化', () => {
     it('マウント時にhealth・blocks・configを並列取得する', async () => {
-      mockFetch
-        .mockImplementationOnce(() => makeFetchResponse(sampleHealth))
-        .mockImplementationOnce(() => makeFetchResponse({ blocks: sampleBlocks }))
-        .mockImplementationOnce(() => makeFetchResponse(sampleConfig));
+      setupInitialFetchMocks();
 
       const { result } = renderHook(() => useRegistryFirewall());
 
@@ -78,10 +102,7 @@ describe('useRegistryFirewall', () => {
     });
 
     it('同一propsの再レンダーで再取得しない', async () => {
-      mockFetch
-        .mockImplementationOnce(() => makeFetchResponse(sampleHealth))
-        .mockImplementationOnce(() => makeFetchResponse({ blocks: sampleBlocks }))
-        .mockImplementationOnce(() => makeFetchResponse(sampleConfig));
+      setupInitialFetchMocks();
 
       const { result, rerender } = renderHook(() => useRegistryFirewall());
 
@@ -96,11 +117,40 @@ describe('useRegistryFirewall', () => {
       expect(mockFetch).toHaveBeenCalledTimes(3);
     });
 
+    it('アンマウント時にAbortControllerでリクエストがキャンセルされる', async () => {
+      // 遅延するfetchをモック
+      let resolvers: Array<(v: unknown) => void> = [];
+      mockFetch.mockImplementation(() => new Promise(resolve => {
+        resolvers.push(resolve);
+      }));
+
+      const { unmount } = renderHook(() => useRegistryFirewall());
+
+      // fetchが呼ばれたことを確認
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+
+      // AbortSignalが渡されていることを確認
+      const signalArg = mockFetch.mock.calls[0][1];
+      expect(signalArg).toHaveProperty('signal');
+      expect(signalArg.signal).toBeInstanceOf(AbortSignal);
+      expect(signalArg.signal.aborted).toBe(false);
+
+      // アンマウント
+      unmount();
+
+      // アンマウント後にシグナルがabortされている
+      expect(signalArg.signal.aborted).toBe(true);
+
+      // 保留中のPromiseを解決しても安全(setStateが呼ばれない)
+      resolvers.forEach(resolve => resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({}),
+      }));
+    });
+
     it('healthレスポンスが失敗した場合はstoppedステータスを設定する', async () => {
-      mockFetch
-        .mockImplementationOnce(() => makeFetchResponse({}, 500))
-        .mockImplementationOnce(() => makeFetchResponse({ blocks: [] }))
-        .mockImplementationOnce(() => makeFetchResponse(sampleConfig));
+      setupInitialFetchMocks({ healthData: {}, healthStatus: 500 });
 
       const { result } = renderHook(() => useRegistryFirewall());
 
@@ -112,10 +162,7 @@ describe('useRegistryFirewall', () => {
     });
 
     it('blocksレスポンスが失敗した場合は空配列を設定する', async () => {
-      mockFetch
-        .mockImplementationOnce(() => makeFetchResponse(sampleHealth))
-        .mockImplementationOnce(() => makeFetchResponse({}, 500))
-        .mockImplementationOnce(() => makeFetchResponse(sampleConfig));
+      setupInitialFetchMocks({ blocksData: {}, blocksStatus: 500 });
 
       const { result } = renderHook(() => useRegistryFirewall());
 
@@ -127,10 +174,7 @@ describe('useRegistryFirewall', () => {
     });
 
     it('blocksレスポンスが配列でない場合は空配列を設定する', async () => {
-      mockFetch
-        .mockImplementationOnce(() => makeFetchResponse(sampleHealth))
-        .mockImplementationOnce(() => makeFetchResponse({ blocks: 'invalid' }))
-        .mockImplementationOnce(() => makeFetchResponse(sampleConfig));
+      setupInitialFetchMocks({ blocksData: { blocks: 'invalid' } });
 
       const { result } = renderHook(() => useRegistryFirewall());
 
@@ -142,10 +186,10 @@ describe('useRegistryFirewall', () => {
     });
 
     it('registry_firewall_enabledがfalseの場合はenabledをfalseに設定する', async () => {
-      mockFetch
-        .mockImplementationOnce(() => makeFetchResponse(sampleHealth))
-        .mockImplementationOnce(() => makeFetchResponse({ blocks: [] }))
-        .mockImplementationOnce(() => makeFetchResponse({ config: { registry_firewall_enabled: false } }));
+      setupInitialFetchMocks({
+        blocksData: { blocks: [] },
+        configData: { config: { registry_firewall_enabled: false } },
+      });
 
       const { result } = renderHook(() => useRegistryFirewall());
 
@@ -159,11 +203,8 @@ describe('useRegistryFirewall', () => {
 
   describe('toggleEnabled', () => {
     it('有効/無効を切り替えてAPIを呼び出す', async () => {
-      mockFetch
-        .mockImplementationOnce(() => makeFetchResponse(sampleHealth))
-        .mockImplementationOnce(() => makeFetchResponse({ blocks: [] }))
-        .mockImplementationOnce(() => makeFetchResponse(sampleConfig))
-        .mockImplementationOnce(() => makeFetchResponse({}));
+      setupInitialFetchMocks({ blocksData: { blocks: [] } });
+      mockFetch.mockImplementationOnce(() => makeFetchResponse({}));
 
       const { result } = renderHook(() => useRegistryFirewall());
 
@@ -184,11 +225,8 @@ describe('useRegistryFirewall', () => {
     });
 
     it('API失敗時にエラーをスローしenabledが変化しない', async () => {
-      mockFetch
-        .mockImplementationOnce(() => makeFetchResponse(sampleHealth))
-        .mockImplementationOnce(() => makeFetchResponse({ blocks: [] }))
-        .mockImplementationOnce(() => makeFetchResponse(sampleConfig))
-        .mockImplementationOnce(() => makeFetchResponse({ error: '設定の更新に失敗しました' }, 500));
+      setupInitialFetchMocks({ blocksData: { blocks: [] } });
+      mockFetch.mockImplementationOnce(() => makeFetchResponse({ error: '設定の更新に失敗しました' }, 500));
 
       const { result } = renderHook(() => useRegistryFirewall());
 
@@ -219,10 +257,9 @@ describe('useRegistryFirewall', () => {
         },
       ];
 
+      setupInitialFetchMocks();
+      // refetch用のモック
       mockFetch
-        .mockImplementationOnce(() => makeFetchResponse(sampleHealth))
-        .mockImplementationOnce(() => makeFetchResponse({ blocks: sampleBlocks }))
-        .mockImplementationOnce(() => makeFetchResponse(sampleConfig))
         .mockImplementationOnce(() => makeFetchResponse(sampleHealth))
         .mockImplementationOnce(() => makeFetchResponse({ blocks: updatedBlocks }))
         .mockImplementationOnce(() => makeFetchResponse(sampleConfig));
