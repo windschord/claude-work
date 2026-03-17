@@ -81,7 +81,16 @@ export class RegistryFirewallClient {
       }
 
       const data = await response.json();
-      return data as RegistryFirewallHealthResponse;
+      // ランタイム型検証: statusフィールドの存在と値を確認
+      if (
+        typeof data === 'object' && data !== null &&
+        typeof data.status === 'string' &&
+        ['healthy', 'unhealthy', 'stopped'].includes(data.status)
+      ) {
+        return data as RegistryFirewallHealthResponse;
+      }
+      logger.warn('Registry firewall health response has unexpected shape', { data });
+      return { status: 'unhealthy' };
     } catch (error) {
       logger.debug('Registry firewall health check error', { error });
       return { status: 'stopped' };
@@ -118,7 +127,12 @@ export class RegistryFirewallClient {
       }
 
       const data = await response.json();
-      return data as BlockLogsResponse;
+      // ランタイム型検証: blocksフィールドの存在を確認
+      if (typeof data === 'object' && data !== null && Array.isArray(data.blocks)) {
+        return data as BlockLogsResponse;
+      }
+      logger.warn('Registry firewall blocks response has unexpected shape', { data });
+      return { blocks: [], total: 0 };
     } catch (error) {
       logger.debug('Registry firewall blocks fetch error', { error });
       return { blocks: [], total: 0 };
