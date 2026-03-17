@@ -229,6 +229,13 @@ export function NetworkTestDialog({
                   </div>
                 )}
 
+                {/* 注記表示 */}
+                {testResult?.note && (
+                  <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">
+                    {testResult.note}
+                  </p>
+                )}
+
                 {/* ボタン */}
                 <div className="flex gap-3 justify-end">
                   <button

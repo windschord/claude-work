@@ -367,6 +367,13 @@ describe('DockerAdapter', () => {
 
       // proxyが利用不可のためルール同期は呼ばれない
       expect(mockSyncRulesForContainer).not.toHaveBeenCalled();
+
+      // 回帰防止: proxy未達時はコンテナにproxy設定が注入されないことを確認
+      const createContainerCall = mockDockerClient.createContainer.mock.calls[0][0];
+      const env = createContainerCall.Env as string[];
+      expect(env.some((e: string) => e.startsWith('HTTP_PROXY='))).toBe(false);
+      expect(env.some((e: string) => e.startsWith('HTTPS_PROXY='))).toBe(false);
+      expect(createContainerCall.HostConfig.NetworkMode).toBeUndefined();
     });
 
     it('フィルタリング無効時はproxyClient.healthCheckが呼ばれない', async () => {

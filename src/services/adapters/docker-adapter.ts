@@ -322,7 +322,7 @@ export class DockerAdapter extends BasePTYAdapter {
     // filterEnabledが必要: claudework-filterネットワーク経由でregistry-firewallに到達するため
     // REGISTRY_FIREWALL_URLが未設定の場合はスキップ（サービス未稼働環境への対応）
     if (options?.registryFirewallEnabled && options?.filterEnabled && !options?.shellMode && process.env.REGISTRY_FIREWALL_URL) {
-      const rfHost = process.env.REGISTRY_FIREWALL_URL || 'http://registry-firewall:8080';
+      const rfHost = process.env.REGISTRY_FIREWALL_URL!;
       let rfHostname: string;
       let rfUrlValid = true;
       try {
@@ -774,8 +774,28 @@ export class DockerAdapter extends BasePTYAdapter {
       throw error;
     }
 
-    // フィルタリング有効フラグを事前に確認してbuildContainerOptionsに渡す
-    const filterEnabled = await networkFilterService.isFilterEnabled(this.config.environmentId);
+    // フィルタリング有効フラグを事前に確認
+    let filterEnabled = await networkFilterService.isFilterEnabled(this.config.environmentId);
+
+    // proxy稼働確認: filterEnabled時にproxyが利用できなければフィルタリングを無効化
+    // buildContainerOptionsの前に行う（コンテナにproxy設定を焼き込まないため）
+    if (filterEnabled) {
+      const proxyClient = new ProxyClient();
+      try {
+        await proxyClient.healthCheck();
+      } catch (healthCheckError) {
+        logger.warn(
+          'DockerAdapter: ネットワークフィルタリングプロキシが利用できないため、フィルタリングなしで起動します',
+          {
+            sessionId,
+            environmentId: this.config.environmentId,
+            error: healthCheckError instanceof Error ? healthCheckError.message : 'Unknown error',
+          }
+        );
+        filterEnabled = false;
+      }
+    }
+
     const { createOptions, containerName } = this.buildContainerOptions(workingDir, {
       ...options,
       filterEnabled,
@@ -825,59 +845,41 @@ export class DockerAdapter extends BasePTYAdapter {
       // Start container after stream listeners are registered
       await container.start();
 
-      // フィルタリング有効時: proxyヘルスチェック、コンテナIP取得、ルール同期
-      // proxy未稼働時はフィルタリングなしで起動を続行する（graceful degradation）
+      // フィルタリング有効時: コンテナIP取得、ルール同期
+      // （proxyヘルスチェックはbuildContainerOptions前で実施済み）
       if (filterEnabled) {
         const proxyClient = new ProxyClient();
-        let proxyAvailable = false;
+        // コンテナIPアドレス取得
+        const networkName = process.env.PROXY_NETWORK_NAME || 'claudework-filter';
+        const containerInfo = await DockerClient.getInstance().inspectContainer(containerName);
+        containerIP = containerInfo.NetworkSettings?.Networks?.[networkName]?.IPAddress;
 
-        try {
-          await proxyClient.healthCheck();
-          proxyAvailable = true;
-        } catch (healthCheckError) {
-          logger.warn(
-            'DockerAdapter: ネットワークフィルタリングプロキシが利用できないため、フィルタリングなしで起動します',
-            {
+        if (!containerIP) {
+          logger.warn('DockerAdapter: Container IP not found on filter network, skipping proxy rule sync', {
+            sessionId,
+            networkName,
+          });
+        } else {
+          // proxyにルールを同期
+          try {
+            await syncRulesForContainer(proxyClient, containerIP, this.config.environmentId);
+            logger.info('DockerAdapter: Proxy rules synced for container', {
               sessionId,
+              containerIP,
               environmentId: this.config.environmentId,
-              error: healthCheckError instanceof Error ? healthCheckError.message : 'Unknown error',
-            }
-          );
-        }
-
-        if (proxyAvailable) {
-          // コンテナIPアドレス取得
-          const networkName = process.env.PROXY_NETWORK_NAME || 'claudework-filter';
-          const containerInfo = await DockerClient.getInstance().inspectContainer(containerName);
-          containerIP = containerInfo.NetworkSettings?.Networks?.[networkName]?.IPAddress;
-
-          if (!containerIP) {
-            logger.warn('DockerAdapter: Container IP not found on filter network, skipping proxy rule sync', {
-              sessionId,
-              networkName,
             });
-          } else {
-            // proxyにルールを同期
-            try {
-              await syncRulesForContainer(proxyClient, containerIP, this.config.environmentId);
-              logger.info('DockerAdapter: Proxy rules synced for container', {
+          } catch (syncError) {
+            logger.warn(
+              'DockerAdapter: Proxyへのルール同期に失敗しました。フィルタリングなしで続行します',
+              {
                 sessionId,
                 containerIP,
                 environmentId: this.config.environmentId,
-              });
-            } catch (syncError) {
-              logger.warn(
-                'DockerAdapter: Proxyへのルール同期に失敗しました。フィルタリングなしで続行します',
-                {
-                  sessionId,
-                  containerIP,
-                  environmentId: this.config.environmentId,
-                  error: syncError instanceof Error ? syncError.message : 'Unknown error',
-                }
-              );
-              // ルール同期失敗時はcontainerIPをクリアして、onExitでの削除試行を抑制
-              containerIP = undefined;
-            }
+                error: syncError instanceof Error ? syncError.message : 'Unknown error',
+              }
+            );
+            // ルール同期失敗時はcontainerIPをクリアして、onExitでの削除試行を抑制
+            containerIP = undefined;
           }
         }
       }

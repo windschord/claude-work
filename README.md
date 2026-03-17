@@ -115,10 +115,15 @@ curl -fsSL -O https://raw.githubusercontent.com/windschord/claude-work/main/dock
 # 3. (Linux のみ) .env で docker.sock のアクセス権を設定
 echo "DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)" > .env
 
-# 4. 起動
+# 4. 起動（以下のいずれかを選択）
+
+# 通常起動（claude-work のみ）
 docker compose up -d
 
-# セキュリティ機能（registry-firewall + network-filter-proxy）付きで起動
+# または、セキュリティ機能（registry-firewall + network-filter-proxy）付きで起動
+# .env に以下を追記してから実行:
+#   PROXY_API_URL=http://network-filter-proxy:8080
+#   REGISTRY_FIREWALL_URL=http://registry-firewall:8080
 docker compose --profile security up -d
 ```
 
