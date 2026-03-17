@@ -75,6 +75,32 @@ Docker、Host、SSH の実行環境を追加・編集・削除できます。
 
 ### クイックスタート
 
+#### Docker Run（最小構成）
+
+`docker-compose.yml` を用意せず、1コマンドで起動できます。`DATABASE_URL`、`NODE_ENV`、`PORT` 等の環境変数はイメージのデフォルト値が使用されるため、指定不要です。
+
+```bash
+docker run -d --name claude-work \
+  -p 3000:3000 \
+  -v claudework-data:/data \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  ghcr.io/windschord/claude-work:latest
+```
+
+> **Linux環境では**、Dockerソケットのアクセス権設定が必要な場合があります:
+> ```bash
+> docker run -d --name claude-work \
+>   -p 3000:3000 \
+>   -v claudework-data:/data \
+>   -v /var/run/docker.sock:/var/run/docker.sock \
+>   --group-add $(stat -c '%g' /var/run/docker.sock) \
+>   ghcr.io/windschord/claude-work:latest
+> ```
+
+起動後、ブラウザで `http://localhost:3000` にアクセスしてください。
+
+#### Docker Compose（推奨）
+
 git clone 不要で、`docker-compose.yml` を作成するだけで起動できます。
 
 > **Linux環境の場合**: 起動前に `stat -c '%g' /var/run/docker.sock` の実行結果（数値）を `DOCKER_GID` に設定してください（例: `DOCKER_GID=999`）。詳細は [セットアップガイド](docs/SETUP.md) を参照してください。
@@ -91,6 +117,9 @@ echo "DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)" > .env
 
 # 4. 起動
 docker compose up -d
+
+# セキュリティ機能（registry-firewall + network-filter-proxy）付きで起動
+docker compose --profile security up -d
 ```
 
 ブラウザで `http://localhost:3000` を開きます。

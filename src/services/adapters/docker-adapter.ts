@@ -320,7 +320,8 @@ export class DockerAdapter extends BasePTYAdapter {
 
     // Registry Firewall: パッケージマネージャーのレジストリ設定注入
     // filterEnabledが必要: claudework-filterネットワーク経由でregistry-firewallに到達するため
-    if (options?.registryFirewallEnabled && options?.filterEnabled && !options?.shellMode) {
+    // REGISTRY_FIREWALL_URLが未設定の場合はスキップ（サービス未稼働環境への対応）
+    if (options?.registryFirewallEnabled && options?.filterEnabled && !options?.shellMode && process.env.REGISTRY_FIREWALL_URL) {
       const rfHost = process.env.REGISTRY_FIREWALL_URL || 'http://registry-firewall:8080';
       let rfHostname: string;
       let rfUrlValid = true;
@@ -825,28 +826,60 @@ export class DockerAdapter extends BasePTYAdapter {
       await container.start();
 
       // フィルタリング有効時: proxyヘルスチェック、コンテナIP取得、ルール同期
+      // proxy未稼働時はフィルタリングなしで起動を続行する（graceful degradation）
       if (filterEnabled) {
         const proxyClient = new ProxyClient();
-        // proxyヘルスチェック失敗時はセッション作成エラー（フェイルセーフ）
-        await proxyClient.healthCheck();
+        let proxyAvailable = false;
 
-        // コンテナIPアドレス取得
-        const networkName = process.env.PROXY_NETWORK_NAME || 'claudework-filter';
-        const containerInfo = await DockerClient.getInstance().inspectContainer(containerName);
-        containerIP = containerInfo.NetworkSettings?.Networks?.[networkName]?.IPAddress;
-
-        if (!containerIP) {
-          throw new Error(`Container IP not found on filter network '${networkName}'`);
+        try {
+          await proxyClient.healthCheck();
+          proxyAvailable = true;
+        } catch (healthCheckError) {
+          logger.warn(
+            'DockerAdapter: ネットワークフィルタリングプロキシが利用できないため、フィルタリングなしで起動します',
+            {
+              sessionId,
+              environmentId: this.config.environmentId,
+              error: healthCheckError instanceof Error ? healthCheckError.message : 'Unknown error',
+            }
+          );
         }
 
-        // proxyにルールを同期
-        await syncRulesForContainer(proxyClient, containerIP, this.config.environmentId);
+        if (proxyAvailable) {
+          // コンテナIPアドレス取得
+          const networkName = process.env.PROXY_NETWORK_NAME || 'claudework-filter';
+          const containerInfo = await DockerClient.getInstance().inspectContainer(containerName);
+          containerIP = containerInfo.NetworkSettings?.Networks?.[networkName]?.IPAddress;
 
-        logger.info('DockerAdapter: Proxy rules synced for container', {
-          sessionId,
-          containerIP,
-          environmentId: this.config.environmentId,
-        });
+          if (!containerIP) {
+            logger.warn('DockerAdapter: Container IP not found on filter network, skipping proxy rule sync', {
+              sessionId,
+              networkName,
+            });
+          } else {
+            // proxyにルールを同期
+            try {
+              await syncRulesForContainer(proxyClient, containerIP, this.config.environmentId);
+              logger.info('DockerAdapter: Proxy rules synced for container', {
+                sessionId,
+                containerIP,
+                environmentId: this.config.environmentId,
+              });
+            } catch (syncError) {
+              logger.warn(
+                'DockerAdapter: Proxyへのルール同期に失敗しました。フィルタリングなしで続行します',
+                {
+                  sessionId,
+                  containerIP,
+                  environmentId: this.config.environmentId,
+                  error: syncError instanceof Error ? syncError.message : 'Unknown error',
+                }
+              );
+              // ルール同期失敗時はcontainerIPをクリアして、onExitでの削除試行を抑制
+              containerIP = undefined;
+            }
+          }
+        }
       }
 
       const containerWorkDir = options?.dockerVolumeId ? workingDir : '/workspace';

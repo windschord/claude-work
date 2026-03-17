@@ -357,14 +357,16 @@ describe('DockerAdapter', () => {
       );
     });
 
-    it('proxyヘルスチェック失敗時はセッション作成がエラーになる（フェイルセーフ）', async () => {
+    it('proxyヘルスチェック失敗時はフィルタリングなしでセッション作成が続行する（graceful degradation）', async () => {
       mockIsFilterEnabled.mockResolvedValue(true);
       mockProxyHealthCheck.mockRejectedValue(new Error('proxy unreachable'));
       const mockContainer = setupContainerMock('172.20.0.5');
 
-      await expect(adapter.createSession('session-1', '/workspace')).rejects.toThrow();
-      // コンテナはhealthCheckの前に作成されるが、失敗時にクリーンアップされる
-      expect(mockContainer.remove).toHaveBeenCalledWith({ force: true });
+      // proxy未稼働でもセッション作成は成功する
+      await expect(adapter.createSession('session-1', '/workspace')).resolves.not.toThrow();
+
+      // proxyが利用不可のためルール同期は呼ばれない
+      expect(mockSyncRulesForContainer).not.toHaveBeenCalled();
     });
 
     it('フィルタリング無効時はproxyClient.healthCheckが呼ばれない', async () => {
