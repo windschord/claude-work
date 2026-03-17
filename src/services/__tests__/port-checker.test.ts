@@ -237,6 +237,56 @@ describe('PortChecker', () => {
       expect(results[1].status).toBe('unknown');
     });
 
+    it('環境のconfigが不正なJSONの場合、未検出ポートはunknownにフォールバック', async () => {
+      mockDbSelectAll.mockReturnValue([
+        {
+          id: 'env-bad-json',
+          name: 'BadJsonEnv',
+          type: 'DOCKER',
+          config: 'invalid-json{',
+        },
+      ]);
+
+      const results = await portChecker.checkClaudeWorkPorts([9000]);
+
+      expect(results).toHaveLength(1);
+      expect(results[0].port).toBe(9000);
+      expect(results[0].status).toBe('unknown');
+    });
+
+    it('環境のconfigがnullの場合もフォールバックする', async () => {
+      mockDbSelectAll.mockReturnValue([
+        {
+          id: 'env-null-config',
+          name: 'NullConfigEnv',
+          type: 'DOCKER',
+          config: null,
+        },
+      ]);
+
+      const results = await portChecker.checkClaudeWorkPorts([9000]);
+
+      expect(results).toHaveLength(1);
+      // configがnullの場合、JSON.parse(null || '{}')は '{}'を解析 -> portMappings undefined -> available
+      expect(results[0].status).toBe('available');
+    });
+
+    it('portMappingsがundefinedの環境はスキップする', async () => {
+      mockDbSelectAll.mockReturnValue([
+        {
+          id: 'env-no-mappings',
+          name: 'NoMappingsEnv',
+          type: 'DOCKER',
+          config: JSON.stringify({}),
+        },
+      ]);
+
+      const results = await portChecker.checkClaudeWorkPorts([9000]);
+
+      expect(results).toHaveLength(1);
+      expect(results[0].status).toBe('available');
+    });
+
     it('他環境にポートマッピングがない場合はavailableを返す', async () => {
       mockDbSelectAll.mockReturnValue([
         {
@@ -257,7 +307,7 @@ describe('PortChecker', () => {
     });
   });
 
-  describe('checkSinglePort - CW unknown', () => {
+  describe('checkSinglePort', () => {
     it('ClaudeWorkでunknownの場合はunknownを返す', async () => {
       const mockServer = createMockServerSuccess();
       mockCreateServer.mockReturnValue(mockServer);
@@ -270,6 +320,87 @@ describe('PortChecker', () => {
 
       expect(result.port).toBe(8080);
       expect(result.status).toBe('unknown');
+    });
+
+    it('OSで利用可能かつClaudeWorkでin_useの場合、in_useを返す', async () => {
+      // OS: available
+      const mockServer = createMockServerSuccess();
+      mockCreateServer.mockReturnValue(mockServer);
+      // CW: in_use
+      mockDbSelectAll.mockReturnValue([
+        {
+          id: 'env-other',
+          name: 'OtherEnv',
+          type: 'DOCKER',
+          config: JSON.stringify({
+            portMappings: [{ hostPort: 8080, containerPort: 80 }],
+          }),
+        },
+      ]);
+
+      const result = await portChecker.checkSinglePort(8080);
+
+      expect(result.port).toBe(8080);
+      expect(result.status).toBe('in_use');
+      expect(result.source).toBe('claudework');
+    });
+
+    it('OSでin_useの場合はClaudeWork結果に関わらずin_useを返す', async () => {
+      // OS: in_use
+      const mockServer = createMockServerError('EADDRINUSE');
+      mockCreateServer.mockReturnValue(mockServer);
+      // CW: available
+      mockDbSelectAll.mockReturnValue([]);
+
+      const result = await portChecker.checkSinglePort(8080);
+
+      expect(result.port).toBe(8080);
+      expect(result.status).toBe('in_use');
+      expect(result.source).toBe('os');
+    });
+
+    it('OSでunknownかつClaudeWorkでavailableの場合、unknownを返す', async () => {
+      // OS: unknown (EACCES)
+      const mockServer = createMockServerError('EACCES');
+      mockCreateServer.mockReturnValue(mockServer);
+      // CW: available
+      mockDbSelectAll.mockReturnValue([]);
+
+      const result = await portChecker.checkSinglePort(8080);
+
+      expect(result.port).toBe(8080);
+      expect(result.status).toBe('unknown');
+    });
+
+    it('OSでavailableかつClaudeWorkでavailableの場合、availableを返す', async () => {
+      const mockServer = createMockServerSuccess();
+      mockCreateServer.mockReturnValue(mockServer);
+      mockDbSelectAll.mockReturnValue([]);
+
+      const result = await portChecker.checkSinglePort(8080);
+
+      expect(result.port).toBe(8080);
+      expect(result.status).toBe('available');
+    });
+
+    it('excludeEnvironmentIdを指定できる', async () => {
+      const mockServer = createMockServerSuccess();
+      mockCreateServer.mockReturnValue(mockServer);
+      mockDbSelectAll.mockReturnValue([
+        {
+          id: 'env-self',
+          name: 'SelfEnv',
+          type: 'DOCKER',
+          config: JSON.stringify({
+            portMappings: [{ hostPort: 8080, containerPort: 80 }],
+          }),
+        },
+      ]);
+
+      const result = await portChecker.checkSinglePort(8080, 'env-self');
+
+      expect(result.port).toBe(8080);
+      expect(result.status).toBe('available');
     });
   });
 

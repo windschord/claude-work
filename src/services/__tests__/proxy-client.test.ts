@@ -89,6 +89,28 @@ describe('ProxyClient', () => {
       );
       expect(result).toEqual(mockRules);
     });
+
+    it('接続失敗時にProxyConnectionErrorをスローする', async () => {
+      vi.mocked(fetch).mockRejectedValue(new TypeError('fetch failed'));
+
+      await expect(client.getAllRules()).rejects.toThrow(ProxyConnectionError);
+    });
+
+    it('HTTP 500エラー時にProxyConnectionErrorをスローする', async () => {
+      vi.mocked(fetch).mockResolvedValue(
+        new Response('Internal Server Error', { status: 500 })
+      );
+
+      await expect(client.getAllRules()).rejects.toThrow(ProxyConnectionError);
+    });
+
+    it('HTTP 500エラーメッセージにステータスコードを含む', async () => {
+      vi.mocked(fetch).mockResolvedValue(
+        new Response('Internal Server Error', { status: 500 })
+      );
+
+      await expect(client.getAllRules()).rejects.toThrow(/HTTP 500/);
+    });
   });
 
   // ==================== setRules ====================
@@ -164,6 +186,73 @@ describe('ProxyClient', () => {
         vi.unstubAllGlobals();
       }
     });
+
+    it('HTTP 500エラー時にリトライし、最終的にProxyConnectionErrorをスローする', async () => {
+      const originalSetTimeout = globalThis.setTimeout;
+      vi.stubGlobal('setTimeout', (fn: () => void) => originalSetTimeout(fn, 0));
+
+      try {
+        vi.mocked(fetch)
+          .mockResolvedValueOnce(new Response('Error', { status: 500 }))
+          .mockResolvedValueOnce(new Response('Error', { status: 500 }))
+          .mockResolvedValueOnce(new Response('Error', { status: 500 }));
+
+        await expect(client.setRules('172.20.0.3', [])).rejects.toThrow(ProxyConnectionError);
+        expect(fetch).toHaveBeenCalledTimes(3);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
+    it('422レスポンスでJSON解析失敗時もProxyValidationErrorをスローする', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        new Response('not json', {
+          status: 422,
+          headers: { 'Content-Type': 'text/plain' },
+        })
+      );
+
+      await expect(client.setRules('172.20.0.3', [{ host: 'test' }]))
+        .rejects.toThrow(ProxyValidationError);
+    });
+
+    it('422レスポンスのdetailsが保持される', async () => {
+      const errorBody = {
+        details: [{ field: 'entries[0].host', message: 'Invalid' }],
+      };
+      vi.mocked(fetch).mockResolvedValueOnce(
+        new Response(JSON.stringify(errorBody), { status: 422 })
+      );
+
+      try {
+        await client.setRules('172.20.0.3', [{ host: 'invalid' }]);
+      } catch (err) {
+        expect(err).toBeInstanceOf(ProxyValidationError);
+        expect((err as ProxyValidationError).details).toEqual(errorBody.details);
+      }
+    });
+
+    it('リトライ後に成功する場合', async () => {
+      const originalSetTimeout = globalThis.setTimeout;
+      vi.stubGlobal('setTimeout', (fn: () => void) => originalSetTimeout(fn, 0));
+
+      try {
+        const mockResponse: ProxyRuleSet = {
+          source_ip: '172.20.0.3',
+          entries: [],
+          updated_at: '2026-01-01T00:00:00Z',
+        };
+        vi.mocked(fetch)
+          .mockRejectedValueOnce(new TypeError('fetch failed'))
+          .mockResolvedValueOnce(new Response(JSON.stringify(mockResponse), { status: 200 }));
+
+        const result = await client.setRules('172.20.0.3', []);
+        expect(result).toEqual(mockResponse);
+        expect(fetch).toHaveBeenCalledTimes(2);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
   });
 
   // ==================== deleteRules ====================
@@ -186,6 +275,45 @@ describe('ProxyClient', () => {
         })
       );
     });
+
+    it('接続失敗時にProxyConnectionErrorをスローする', async () => {
+      const originalSetTimeout = globalThis.setTimeout;
+      vi.stubGlobal('setTimeout', (fn: () => void) => originalSetTimeout(fn, 0));
+      try {
+        vi.mocked(fetch)
+          .mockRejectedValueOnce(new TypeError('fail'))
+          .mockRejectedValueOnce(new TypeError('fail'))
+          .mockRejectedValueOnce(new TypeError('fail'));
+        await expect(client.deleteRules('172.20.0.3')).rejects.toThrow('proxyに接続できません');
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
+    it('4xxエラー時にProxyValidationErrorをスローしメッセージにステータスを含む', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        new Response('Not Found', { status: 404 })
+      );
+      await expect(client.deleteRules('172.20.0.3')).rejects.toThrow(/HTTP 404/);
+    });
+
+    it('400エラー時にProxyValidationErrorをスローする', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        new Response('Bad Request', { status: 400 })
+      );
+      await expect(client.deleteRules('172.20.0.3')).rejects.toThrow(ProxyValidationError);
+    });
+
+    it('5xxエラー時にリトライし、ProxyConnectionErrorをスローしメッセージにステータスを含む', async () => {
+      const originalSetTimeout = globalThis.setTimeout;
+      vi.stubGlobal('setTimeout', (fn: () => void) => originalSetTimeout(fn, 0));
+      try {
+        vi.mocked(fetch).mockResolvedValue(new Response('Error', { status: 500 }));
+        await expect(client.deleteRules('172.20.0.3')).rejects.toThrow(/HTTP 500/);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
   });
 
   // ==================== deleteAllRules ====================
@@ -206,9 +334,120 @@ describe('ProxyClient', () => {
         })
       );
     });
+
+    it('接続失敗時にProxyConnectionErrorをスローする', async () => {
+      const originalSetTimeout = globalThis.setTimeout;
+      vi.stubGlobal('setTimeout', (fn: () => void) => originalSetTimeout(fn, 0));
+      try {
+        vi.mocked(fetch)
+          .mockRejectedValueOnce(new TypeError('fail'))
+          .mockRejectedValueOnce(new TypeError('fail'))
+          .mockRejectedValueOnce(new TypeError('fail'));
+        await expect(client.deleteAllRules()).rejects.toThrow('proxyに接続できません');
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
+    it('4xxエラー時にProxyValidationErrorをスローしメッセージにステータスを含む', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        new Response('Bad Request', { status: 400 })
+      );
+      await expect(client.deleteAllRules()).rejects.toThrow(/HTTP 400/);
+    });
+
+    it('499エラー時にProxyValidationErrorをスローする', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        new Response('Error', { status: 499 })
+      );
+      await expect(client.deleteAllRules()).rejects.toThrow(ProxyValidationError);
+    });
+
+    it('500エラー時はProxyValidationErrorではなくProxyConnectionErrorをスローする', async () => {
+      const originalSetTimeout = globalThis.setTimeout;
+      vi.stubGlobal('setTimeout', (fn: () => void) => originalSetTimeout(fn, 0));
+      try {
+        vi.mocked(fetch).mockResolvedValue(new Response('Error', { status: 500 }));
+        await expect(client.deleteAllRules()).rejects.toThrow(ProxyConnectionError);
+        await expect(client.deleteAllRules()).rejects.not.toThrow(ProxyValidationError);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
+    it('5xxエラーメッセージにステータスを含む', async () => {
+      const originalSetTimeout = globalThis.setTimeout;
+      vi.stubGlobal('setTimeout', (fn: () => void) => originalSetTimeout(fn, 0));
+      try {
+        vi.mocked(fetch).mockResolvedValue(new Response('Error', { status: 502 }));
+        await expect(client.deleteAllRules()).rejects.toThrow(/HTTP 502/);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
   });
 
   // ==================== エラークラス ====================
+
+  describe('parseJson error handling', () => {
+    it('不正なJSONレスポンスでProxyConnectionErrorをスローする', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        new Response('not json{{', { status: 200, headers: { 'Content-Type': 'text/plain' } })
+      );
+
+      await expect(client.healthCheck()).rejects.toThrow(ProxyConnectionError);
+      vi.mocked(fetch).mockResolvedValueOnce(
+        new Response('not json{{', { status: 200, headers: { 'Content-Type': 'text/plain' } })
+      );
+      await expect(client.healthCheck()).rejects.toThrow(/パースできません/);
+    });
+  });
+
+  describe('healthCheck error messages', () => {
+    it('HTTP エラーメッセージにステータスコードを含む', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        new Response('Error', { status: 503 })
+      );
+      await expect(client.healthCheck()).rejects.toThrow(/HTTP 503/);
+    });
+
+    it('接続エラーメッセージが正しい', async () => {
+      vi.mocked(fetch).mockRejectedValueOnce(new TypeError('fail'));
+      await expect(client.healthCheck()).rejects.toThrow('proxyに接続できません');
+    });
+
+    it('非Errorの例外もProxyConnectionErrorにラップされる', async () => {
+      vi.mocked(fetch).mockRejectedValueOnce('string error');
+      await expect(client.healthCheck()).rejects.toThrow(ProxyConnectionError);
+    });
+  });
+
+  describe('setRules error messages', () => {
+    it('4xxクライアントエラーメッセージにステータスコードを含む', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        new Response('Bad Request', { status: 400 })
+      );
+      await expect(client.setRules('172.20.0.3', [])).rejects.toThrow(/HTTP 400/);
+    });
+
+    it('422エラーメッセージが正しい', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        new Response('{}', { status: 422 })
+      );
+      await expect(client.setRules('172.20.0.3', [])).rejects.toThrow('ルールのバリデーションに失敗しました');
+    });
+
+    it('5xxエラーメッセージにステータスコードを含む', async () => {
+      const originalSetTimeout = globalThis.setTimeout;
+      vi.stubGlobal('setTimeout', (fn: () => void) => originalSetTimeout(fn, 0));
+      try {
+        vi.mocked(fetch).mockResolvedValue(new Response('Error', { status: 500 }));
+        await expect(client.setRules('172.20.0.3', [])).rejects.toThrow(/HTTP 500/);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+  });
 
   describe('ProxyConnectionError', () => {
     it('nameがProxyConnectionErrorである', () => {

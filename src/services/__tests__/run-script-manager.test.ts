@@ -153,7 +153,7 @@ describe('RunScriptManager', () => {
   });
 
   describe('stop', () => {
-    it('should stop running process', async () => {
+    it('should stop running process with SIGTERM', async () => {
       const options: RunOptions = {
         sessionId: 'test-session',
         workingDirectory: '/path/to/worktree',
@@ -163,13 +163,84 @@ describe('RunScriptManager', () => {
       const runId = await runScriptManager.runScript(options);
       await runScriptManager.stop(runId);
 
-      expect(mockChildProcess.kill).toHaveBeenCalled();
+      expect(mockChildProcess.kill).toHaveBeenCalledWith('SIGTERM');
+      // ステータスがstoppingに変更される
+      const status = runScriptManager.getStatus(runId);
+      expect(status?.status).toBe('stopping');
     });
 
     it('should throw error if run_id not found', async () => {
       await expect(runScriptManager.stop('non-existent-run-id')).rejects.toThrow(
         'Run script non-existent-run-id not found'
       );
+    });
+
+    it('should set kill timeout for SIGKILL after stop', async () => {
+      const options: RunOptions = {
+        sessionId: 'test-session',
+        workingDirectory: '/path/to/worktree',
+        command: 'npm test',
+      };
+
+      const runId = await runScriptManager.runScript(options);
+
+      // setTimeout をスパイして、タイムアウトが設定されることを確認
+      const setTimeoutSpy = vi.spyOn(global, 'setTimeout');
+      await runScriptManager.stop(runId);
+
+      expect(mockChildProcess.kill).toHaveBeenCalledWith('SIGTERM');
+      // 5秒のタイムアウトが設定される
+      expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 5000);
+
+      setTimeoutSpy.mockRestore();
+    });
+
+    it('should send SIGKILL when timeout fires and process still exists', async () => {
+      // setTimeoutのコールバックを即座に実行するようにモック
+      let timeoutCallback: (() => void) | null = null;
+      const originalSetTimeout = globalThis.setTimeout;
+      vi.spyOn(global, 'setTimeout').mockImplementation((fn: any, delay: any) => {
+        if (delay === 5000) {
+          timeoutCallback = fn;
+          return 999 as any;
+        }
+        return originalSetTimeout(fn, delay);
+      });
+
+      const options: RunOptions = {
+        sessionId: 'test-session',
+        workingDirectory: '/path/to/worktree',
+        command: 'npm test',
+      };
+
+      const runId = await runScriptManager.runScript(options);
+      await runScriptManager.stop(runId);
+
+      // タイムアウトコールバックを手動実行
+      expect(timeoutCallback).not.toBeNull();
+      timeoutCallback!();
+
+      expect(mockChildProcess.kill).toHaveBeenCalledWith('SIGKILL');
+
+      vi.restoreAllMocks();
+    });
+
+    it('should clear kill timeout when process exits during stop', async () => {
+      const clearTimeoutSpy = vi.spyOn(global, 'clearTimeout');
+      const options: RunOptions = {
+        sessionId: 'test-session',
+        workingDirectory: '/path/to/worktree',
+        command: 'npm test',
+      };
+
+      const runId = await runScriptManager.runScript(options);
+      await runScriptManager.stop(runId);
+
+      // プロセスが終了するとclearTimeoutが呼ばれる
+      mockChildProcess.emit('exit', 0, null);
+
+      expect(clearTimeoutSpy).toHaveBeenCalled();
+      clearTimeoutSpy.mockRestore();
     });
   });
 
@@ -196,6 +267,92 @@ describe('RunScriptManager', () => {
         pid: 12345,
         status: 'running',
       });
+    });
+  });
+
+  describe('spawn error handling', () => {
+    it('should reject when spawn emits error', async () => {
+      mockSpawn.mockImplementation(() => {
+        setTimeout(() => {
+          const errorHandlers = eventHandlers.get('error') || [];
+          errorHandlers.forEach((handler) => handler(new Error('spawn ENOENT')));
+        }, 0);
+        return mockChildProcess as unknown as ChildProcess;
+      });
+
+      const options: RunOptions = {
+        sessionId: 'test-session',
+        workingDirectory: '/path/to/worktree',
+        command: 'invalid-command',
+      };
+
+      await expect(runScriptManager.runScript(options)).rejects.toThrow('spawn ENOENT');
+    });
+
+    it('should reject when childProc.pid is undefined after spawn', async () => {
+      const noPidProcess = { ...mockChildProcess, pid: undefined };
+      mockSpawn.mockImplementation(() => {
+        setTimeout(() => {
+          const spawnHandlers = eventHandlers.get('spawn') || [];
+          spawnHandlers.forEach((handler) => handler());
+        }, 0);
+        return noPidProcess as unknown as ChildProcess;
+      });
+
+      const options: RunOptions = {
+        sessionId: 'test-session',
+        workingDirectory: '/path/to/worktree',
+        command: 'npm test',
+      };
+
+      await expect(runScriptManager.runScript(options)).rejects.toThrow(/Failed to spawn/);
+    });
+  });
+
+  describe('process exit cleanup', () => {
+    it('should remove process from map on exit', async () => {
+      const options: RunOptions = {
+        sessionId: 'test-session',
+        workingDirectory: '/path/to/worktree',
+        command: 'npm test',
+      };
+
+      const runId = await runScriptManager.runScript(options);
+      expect(runScriptManager.getStatus(runId)).not.toBeNull();
+
+      // プロセス終了
+      mockChildProcess.emit('exit', 0, null);
+
+      // Map from 削除される
+      expect(runScriptManager.getStatus(runId)).toBeNull();
+    });
+
+    it('should set status to stopped on exit', async () => {
+      const options: RunOptions = {
+        sessionId: 'test-session',
+        workingDirectory: '/path/to/worktree',
+        command: 'npm test',
+      };
+
+      const runId = await runScriptManager.runScript(options);
+
+      return new Promise<void>((resolve) => {
+        runScriptManager.once('exit', (data) => {
+          expect(data.exitCode).toBe(1);
+          expect(data.signal).toBe('SIGTERM');
+          resolve();
+        });
+
+        mockChildProcess.emit('exit', 1, 'SIGTERM');
+      });
+    });
+  });
+
+  describe('singleton', () => {
+    it('should return the same instance', () => {
+      const instance1 = RunScriptManager.getInstance();
+      const instance2 = RunScriptManager.getInstance();
+      expect(instance1).toBe(instance2);
     });
   });
 
