@@ -383,6 +383,36 @@ describe('DockerAdapter', () => {
       expect(createContainerCall.HostConfig.NetworkMode).toBeUndefined();
     });
 
+    it('registry-firewall未稼働時はレジストリ設定が注入されない（graceful degradation）', async () => {
+      mockIsFilterEnabled.mockResolvedValue(true);
+      mockProxyHealthCheck.mockResolvedValue({ status: 'healthy', uptime: 100, activeConnections: 0, ruleCount: 0 });
+      mockSyncRulesForContainer.mockResolvedValue(undefined);
+      mockRfGetHealth.mockResolvedValue({ status: 'stopped' });
+      const originalRfUrl = process.env.REGISTRY_FIREWALL_URL;
+      process.env.REGISTRY_FIREWALL_URL = 'http://registry-firewall:8080';
+      setupContainerMock('172.20.0.5');
+
+      try {
+        await adapter.createSession('session-1', '/workspace', {
+          registryFirewallEnabled: true,
+        });
+
+        // registry-firewall未稼働のため、レジストリ設定が注入されないことを確認
+        const createContainerCall = mockDockerClient.createContainer.mock.calls[0][0];
+        const env = createContainerCall.Env as string[];
+        expect(env.some((e: string) => e.startsWith('PIP_INDEX_URL='))).toBe(false);
+        expect(env.some((e: string) => e.startsWith('GOPROXY='))).toBe(false);
+        // proxy自体は稼働しているのでフィルタリング設定は有効
+        expect(env.some((e: string) => e.startsWith('HTTP_PROXY='))).toBe(true);
+      } finally {
+        if (originalRfUrl === undefined) {
+          delete process.env.REGISTRY_FIREWALL_URL;
+        } else {
+          process.env.REGISTRY_FIREWALL_URL = originalRfUrl;
+        }
+      }
+    });
+
     it('フィルタリング無効時はproxyClient.healthCheckが呼ばれない', async () => {
       mockIsFilterEnabled.mockResolvedValue(false);
       setupContainerMock('172.20.0.5');
