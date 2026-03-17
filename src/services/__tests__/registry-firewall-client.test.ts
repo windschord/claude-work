@@ -13,7 +13,7 @@ describe('RegistryFirewallClient', () => {
     vi.resetAllMocks();
     vi.unstubAllEnvs();
     vi.stubGlobal('fetch', vi.fn());
-    // シングルトンをリセットするためにモジュールをリセット
+    // テストごとに新しいインスタンスを作成（シングルトンは使用しない）
     client = new RegistryFirewallClient();
   });
 

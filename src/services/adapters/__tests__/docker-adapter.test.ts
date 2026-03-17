@@ -373,38 +373,38 @@ describe('DockerAdapter', () => {
   describe('buildContainerOptions with registry firewall', () => {
     const rfHost = 'http://registry-firewall:8080';
 
-    it('registryFirewallEnabled=true時にPIP_INDEX_URLが注入される', () => {
-      const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { registryFirewallEnabled: true });
+    it('registryFirewallEnabled+filterEnabled時にPIP_INDEX_URLが注入される', () => {
+      const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { registryFirewallEnabled: true, filterEnabled: true });
       const env = createOptions.Env as string[];
       expect(env).toContain(`PIP_INDEX_URL=${rfHost}/pypi/simple/`);
     });
 
-    it('registryFirewallEnabled=true時にPIP_TRUSTED_HOSTが注入される', () => {
-      const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { registryFirewallEnabled: true });
+    it('registryFirewallEnabled+filterEnabled時にPIP_TRUSTED_HOSTが注入される', () => {
+      const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { registryFirewallEnabled: true, filterEnabled: true });
       const env = createOptions.Env as string[];
       expect(env).toContain('PIP_TRUSTED_HOST=registry-firewall');
     });
 
-    it('registryFirewallEnabled=true時にGOPROXY環境変数が注入される', () => {
-      const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { registryFirewallEnabled: true });
+    it('registryFirewallEnabled+filterEnabled時にGOPROXY環境変数が注入される', () => {
+      const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { registryFirewallEnabled: true, filterEnabled: true });
       const env = createOptions.Env as string[];
       expect(env).toContain(`GOPROXY=${rfHost}/go/,direct`);
     });
 
-    it('registryFirewallEnabled=true時にEntrypointにnpm config setコマンドが含まれる', () => {
-      const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { registryFirewallEnabled: true });
+    it('registryFirewallEnabled+filterEnabled時にEntrypointにnpm config setコマンドが含まれる', () => {
+      const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { registryFirewallEnabled: true, filterEnabled: true });
       const cmd = createOptions.Cmd as string[];
       expect(cmd[0]).toContain(`npm config set registry '${rfHost}/npm/'`);
     });
 
-    it('registryFirewallEnabled=true時にEntrypointにcargo config作成コマンドが含まれる', () => {
-      const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { registryFirewallEnabled: true });
+    it('registryFirewallEnabled+filterEnabled時にEntrypointにcargo config作成コマンドが含まれる', () => {
+      const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { registryFirewallEnabled: true, filterEnabled: true });
       const cmd = createOptions.Cmd as string[];
       expect(cmd[0]).toContain('~/.cargo/config.toml');
     });
 
-    it('registryFirewallEnabled=true時にEntrypointが/bin/sh -cに変更される', () => {
-      const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { registryFirewallEnabled: true });
+    it('registryFirewallEnabled+filterEnabled時にEntrypointが/bin/sh -cに変更される', () => {
+      const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { registryFirewallEnabled: true, filterEnabled: true });
       expect(createOptions.Entrypoint).toEqual(['/bin/sh', '-c']);
     });
 
@@ -433,19 +433,23 @@ describe('DockerAdapter', () => {
       expect(createOptions.HostConfig.NetworkMode).toBe('claudework-filter');
     });
 
-    it('registryFirewallEnabled単独（filterEnabled=false）の場合、NetworkModeが設定されない', () => {
+    it('registryFirewallEnabled単独（filterEnabled=false）の場合、レジストリ設定が注入されない', () => {
       const { createOptions } = (adapter as any).buildContainerOptions('/workspace', {
         filterEnabled: false,
         registryFirewallEnabled: true,
       });
-      // registryFirewallEnabled単独ではNetworkModeを変更しない
-      // registry-firewallはdefaultネットワーク経由で到達可能
+      const env = createOptions.Env as string[];
+      // filterEnabledがfalseの場合、claudework-filterネットワーク経由でregistry-firewallに到達できないため
+      // レジストリ設定は注入されない
+      expect(env.some((e: string) => e.startsWith('PIP_INDEX_URL='))).toBe(false);
+      expect(env.some((e: string) => e.startsWith('GOPROXY='))).toBe(false);
       expect(createOptions.HostConfig.NetworkMode).toBeUndefined();
     });
 
     it('shellMode時にレジストリ設定を注入しない', () => {
       const { createOptions } = (adapter as any).buildContainerOptions('/workspace', {
         registryFirewallEnabled: true,
+        filterEnabled: true,
         shellMode: true,
       });
       const env = createOptions.Env as string[];
@@ -457,7 +461,7 @@ describe('DockerAdapter', () => {
       const original = process.env.REGISTRY_FIREWALL_URL;
       process.env.REGISTRY_FIREWALL_URL = 'http://custom-firewall:9090';
       try {
-        const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { registryFirewallEnabled: true });
+        const { createOptions } = (adapter as any).buildContainerOptions('/workspace', { registryFirewallEnabled: true, filterEnabled: true });
         const env = createOptions.Env as string[];
         expect(env).toContain('PIP_INDEX_URL=http://custom-firewall:9090/pypi/simple/');
       } finally {

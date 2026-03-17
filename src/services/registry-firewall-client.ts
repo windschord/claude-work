@@ -30,7 +30,8 @@ const DEFAULT_TIMEOUT_MS = 2000; // NFR-AVA-002: 2秒タイムアウト
 /**
  * Registry Firewall APIクライアント
  *
- * registry-firewallのヘルスチェック、ブロックログ取得、UIプロキシを提供する。
+ * registry-firewallのヘルスチェック、ブロックログ取得を提供する。
+ * UIプロキシはnext.config.jsのrewrites設定で実現している。
  * エラー時は例外をスローせず、安全なデフォルト値を返す。
  */
 export class RegistryFirewallClient {

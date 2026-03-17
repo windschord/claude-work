@@ -298,9 +298,9 @@ export class DockerAdapter extends BasePTYAdapter {
 
     // Network filtering: internalネットワーク設定
     // filterEnabledの場合のみclaudework-filterネットワークに接続する。
-    // registryFirewallEnabled単独ではNetworkModeを変更しない。
-    // registry-firewallはdocker-compose.ymlのdefaultネットワークにも接続しているため、
-    // コンテナがデフォルトのブリッジネットワークにいればregistry-firewallに到達可能。
+    // registry-firewallはclaudework-filterネットワークに接続しているため、
+    // registryFirewallEnabledもfilterEnabledが必要（DockerAPIで作成したコンテナは
+    // composeのdefaultネットワークに参加しないため、サービス名での名前解決ができない）。
     let networkMode: string | undefined;
     if (options?.filterEnabled) {
       networkMode = process.env.PROXY_NETWORK_NAME || 'claudework-filter';
@@ -319,7 +319,8 @@ export class DockerAdapter extends BasePTYAdapter {
     }
 
     // Registry Firewall: パッケージマネージャーのレジストリ設定注入
-    if (options?.registryFirewallEnabled && !options?.shellMode) {
+    // filterEnabledが必要: claudework-filterネットワーク経由でregistry-firewallに到達するため
+    if (options?.registryFirewallEnabled && options?.filterEnabled && !options?.shellMode) {
       const rfHost = process.env.REGISTRY_FIREWALL_URL || 'http://registry-firewall:8080';
       let rfHostname: string;
       let rfUrlValid = true;
@@ -333,20 +334,14 @@ export class DockerAdapter extends BasePTYAdapter {
       }
 
       if (rfUrlValid) {
-        // filterEnabled併用時: registry-firewallへの通信をHTTP_PROXYから除外
-        if (options?.filterEnabled) {
-          const existing = Env.find(e => e.startsWith('NO_PROXY='));
-          if (existing) {
-            const idx = Env.indexOf(existing);
-            Env[idx] = `${existing},${rfHostname}`;
-            const existingLower = Env.find(e => e.startsWith('no_proxy='));
-            if (existingLower) {
-              const idxLower = Env.indexOf(existingLower);
-              Env[idxLower] = `${existingLower},${rfHostname}`;
-            }
+        // registry-firewallへの通信をHTTP_PROXYから除外
+        // NO_PROXYとno_proxyをそれぞれ独立して処理（重複排除）
+        for (const proxyKey of ['NO_PROXY', 'no_proxy'] as const) {
+          const existingIdx = Env.findIndex(e => e.startsWith(`${proxyKey}=`));
+          if (existingIdx >= 0) {
+            Env[existingIdx] = `${Env[existingIdx]},${rfHostname}`;
           } else {
-            Env.push(`NO_PROXY=${rfHostname}`);
-            Env.push(`no_proxy=${rfHostname}`);
+            Env.push(`${proxyKey}=${rfHostname}`);
           }
         }
 

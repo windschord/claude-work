@@ -48,7 +48,8 @@ npmとcargoは環境変数だけでは設定できないため、コンテナ起
 方式: Entrypointの前にshellコマンドで設定を注入
 
 ```typescript
-if (options?.registryFirewallEnabled && !options?.shellMode) {
+// filterEnabledが必要: claudework-filterネットワーク経由でregistry-firewallに到達するため
+if (options?.registryFirewallEnabled && options?.filterEnabled && !options?.shellMode) {
   const rfHost = process.env.REGISTRY_FIREWALL_URL || 'http://registry-firewall:8080';
   // URL検証。無効な場合はスキップ
   let rfHostname: string;
@@ -59,11 +60,9 @@ if (options?.registryFirewallEnabled && !options?.shellMode) {
   Env.push(`PIP_TRUSTED_HOST=${rfHostname}`);
   Env.push(`GOPROXY=${rfHost}/go/,direct`);
 
-  // filterEnabled併用時: registry-firewallへの通信をHTTP_PROXYから除外
-  if (options?.filterEnabled) {
-    Env.push(`NO_PROXY=${rfHostname}`);
-    Env.push(`no_proxy=${rfHostname}`);
-  }
+  // registry-firewallへの通信をHTTP_PROXYから除外
+  Env.push(`NO_PROXY=${rfHostname}`);
+  Env.push(`no_proxy=${rfHostname}`);
 
   // npm/cargoはprintf方式で設定ファイルを生成
   const setupScript = [
@@ -80,9 +79,9 @@ if (options?.registryFirewallEnabled && !options?.shellMode) {
 
 ### 既存network-filter-proxyとの共存
 
-- `filterEnabled`と`registryFirewallEnabled`は独立したフラグ
-- `registryFirewallEnabled`単独ではNetworkModeを変更しない。registry-firewallはdocker-compose.ymlのdefaultネットワークにも接続しているため、コンテナがデフォルトのブリッジネットワークにいればregistry-firewallに到達可能
-- 両方が有効の場合:
+- `registryFirewallEnabled`は`filterEnabled`と組み合わせて使用する（単独では無効）
+- DockerAPIで作成したコンテナはcomposeのdefaultネットワークに参加しないため、`claudework-filter`ネットワーク経由でのみregistry-firewallに到達可能
+- `filterEnabled`が有効の場合:
   - HTTP_PROXY/HTTPS_PROXY → network-filter-proxy(一般的なHTTP通信)
   - NO_PROXY → registry-firewallホスト名(プロキシをバイパス)
   - パッケージマネージャー設定 → registry-firewall(パッケージレジストリ)

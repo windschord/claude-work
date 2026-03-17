@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 export interface RegistryFirewallHealth {
   status: 'healthy' | 'unhealthy' | 'stopped';
@@ -32,7 +32,6 @@ export interface UseRegistryFirewallReturn extends RegistryFirewallState {
  * Registry Firewall状態管理フック
  *
  * registry-firewallのヘルス・ブロックログ・有効/無効設定を管理する。
- * useEffect依存配列にはprimitiveな値のみを含める（CLAUDE.mdガイドライン準拠）。
  *
  * @returns health/blocks/enabled状態と操作関数
  */
@@ -44,9 +43,10 @@ export function useRegistryFirewall(): UseRegistryFirewallReturn {
   const [error, setError] = useState<string | null>(null);
 
   /**
-   * ヘルス・ブロックログ・設定を並列取得して状態を更新する
+   * ヘルス・ブロックログ・設定を並列取得して状態を更新する。
+   * useRefで保持し、useEffectからはref経由で呼び出す（依存配列を安全に保つため）。
    */
-  const fetchAll = useCallback(async (): Promise<void> => {
+  const fetchAllRef = useRef(async (): Promise<void> => {
     setIsLoading(true);
     setError(null);
 
@@ -62,7 +62,6 @@ export function useRegistryFirewall(): UseRegistryFirewallReturn {
         const healthData = await healthRes.json();
         setHealth(healthData as RegistryFirewallHealth);
       } else {
-        // registry-firewallが停止している場合
         setHealth({ status: 'stopped' });
       }
 
@@ -90,13 +89,12 @@ export function useRegistryFirewall(): UseRegistryFirewallReturn {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  });
 
   // マウント時にデータを取得する
-  // NOTE: fetchAllをdepsに含めないのはCLAUDE.mdガイドライン準拠（primitive値のみ）
   useEffect(() => {
-    fetchAll();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    fetchAllRef.current();
+  }, []);
 
   /**
    * registry_firewall_enabledの有効/無効を切り替える
@@ -120,8 +118,8 @@ export function useRegistryFirewall(): UseRegistryFirewallReturn {
    * データを再取得する
    */
   const refetch = useCallback(async (): Promise<void> => {
-    await fetchAll();
-  }, [fetchAll]);
+    await fetchAllRef.current();
+  }, []);
 
   return {
     health,
