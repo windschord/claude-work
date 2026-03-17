@@ -834,7 +834,7 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode, 
                               htmlFor="skip-permissions"
                               className="text-sm font-medium text-gray-700 dark:text-gray-300"
                             >
-                              パーミッション確認をスキップ
+                              パーミッション確認スキップ
                             </label>
                             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                               --dangerously-skip-permissions フラグを有効にします
@@ -862,7 +862,7 @@ export function EnvironmentForm({ isOpen, onClose, onSubmit, environment, mode, 
                         </div>
                         {skipPermissions && (
                           <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
-                            この設定を有効にすると、Claude Codeが確認なしでツールを実行します。信頼できるコードベースでのみ使用してください。
+                            Claude Codeが確認なしでツールを実行します。信頼できるコードベースでのみ使用してください。
                           </p>
                         )}
                       </div>
