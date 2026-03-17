@@ -235,11 +235,13 @@ jobs:
       id: changed-files
       run: |
         # PRのベースコミットとの差分から対象ファイルを取得（SHA指定で確実に動作）
-        CHANGED_FILES=$(git diff --name-only --diff-filter=ACMR ${{ github.event.pull_request.base.sha }}...${{ github.sha }} -- \
-          'src/services/**/*.ts' 'src/lib/**/*.ts' | \
-          grep -v '__tests__' | \
-          grep -v '\.test\.ts$' | \
-          grep -v '\.spec\.ts$' || true)
+        RAW_CHANGED_FILES=$(git diff --name-only --diff-filter=ACMR ${{ github.event.pull_request.base.sha }}...${{ github.sha }} -- \
+          'src/services/**/*.ts' 'src/lib/**/*.ts') || {
+          echo "::error::git diff failed while collecting mutation targets"
+          exit 1
+        }
+        CHANGED_FILES=$(printf '%s\n' "$RAW_CHANGED_FILES" | \
+          grep -Ev '(__tests__|\.test\.ts$|\.spec\.ts$)' || true)
 
         if [ -z "$CHANGED_FILES" ]; then
           echo "No mutation test target files changed"
