@@ -245,12 +245,9 @@ describe('ProxyClient', () => {
         new Response(JSON.stringify(errorBody), { status: 422 })
       );
 
-      try {
-        await client.setRules('172.20.0.3', [{ host: 'invalid' }]);
-      } catch (err) {
-        expect(err).toBeInstanceOf(ProxyValidationError);
-        expect((err as ProxyValidationError).details).toEqual(errorBody.details);
-      }
+      const error = await client.setRules('172.20.0.3', [{ host: 'invalid' }]).catch((e) => e);
+      expect(error).toBeInstanceOf(ProxyValidationError);
+      expect(error.details).toEqual(errorBody.details);
     });
 
     it('リトライ後に成功する場合', async () => {
@@ -403,8 +400,9 @@ describe('ProxyClient', () => {
       vi.stubGlobal('setTimeout', (fn: () => void) => originalSetTimeout(fn, 0));
       try {
         vi.mocked(fetch).mockResolvedValue(new Response('Error', { status: 500 }));
-        await expect(client.deleteAllRules()).rejects.toThrow(ProxyConnectionError);
-        await expect(client.deleteAllRules()).rejects.not.toThrow(ProxyValidationError);
+        const error = await client.deleteAllRules().catch((e) => e);
+        expect(error).toBeInstanceOf(ProxyConnectionError);
+        expect(error).not.toBeInstanceOf(ProxyValidationError);
       } finally {
         vi.unstubAllGlobals();
       }
@@ -430,11 +428,9 @@ describe('ProxyClient', () => {
         new Response('not json{{', { status: 200, headers: { 'Content-Type': 'text/plain' } })
       );
 
-      await expect(client.healthCheck()).rejects.toThrow(ProxyConnectionError);
-      vi.mocked(fetch).mockResolvedValueOnce(
-        new Response('not json{{', { status: 200, headers: { 'Content-Type': 'text/plain' } })
-      );
-      await expect(client.healthCheck()).rejects.toThrow(/パースできません/);
+      const error = await client.healthCheck().catch((e) => e);
+      expect(error).toBeInstanceOf(ProxyConnectionError);
+      expect(error.message).toMatch(/パースできません/);
     });
   });
 

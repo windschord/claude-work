@@ -289,9 +289,8 @@ describe('Terminal WebSocket', () => {
 
       const ws = createMockWs();
       localWss.emit('connection', ws, createMockReq('session-1'));
-      // Wait for all async operations to complete
-      await flush();
-      await flush();
+      // Wait for message handler to be registered before returning
+      await waitForListener(ws, 'message');
       return ws;
     }
 
@@ -314,19 +313,10 @@ describe('Terminal WebSocket', () => {
       mockFindFirst.mockResolvedValue(mockSession);
 
       const ws = createMockWs();
-      let messageHandler: Function | null = null;
-      const originalOn = ws.on.bind(ws);
-      ws.on = vi.fn((event: string, handler: Function) => {
-        if (event === 'message') messageHandler = handler;
-        return originalOn(event, handler);
-      });
-
       localWss.emit('connection', ws, createMockReq('session-1'));
-      for (let i = 0; i < 5; i++) await flush();
+      await waitForListener(ws, 'message');
 
-      // ハンドラーが必ず登録されることを確認
-      expect(messageHandler).not.toBeNull();
-      messageHandler!(Buffer.from(JSON.stringify({ type: 'resize', data: { cols: 100, rows: 50 } })));
+      ws.emit('message', Buffer.from(JSON.stringify({ type: 'resize', data: { cols: 100, rows: 50 } })));
       expect(mockPtyManager.resize).toHaveBeenCalledWith('session-1-terminal', 100, 50);
     });
 
