@@ -890,7 +890,7 @@ export class DockerAdapter extends BasePTYAdapter {
             });
           } catch (syncError) {
             logger.warn(
-              'DockerAdapter: Proxyへのルール同期に失敗しました。フィルタリングなしで続行します',
+              'DockerAdapter: Proxyへのルール同期に失敗しました。ルール未適用のままセッションを続行します',
               {
                 sessionId,
                 containerIP,
