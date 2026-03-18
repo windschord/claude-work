@@ -23,6 +23,7 @@ const { _mockDbSelect, _mockDbInsert, _mockDbUpdate, mockGitService, mockDockerS
   },
   mockEnvironmentService: {
     findById: vi.fn(),
+    findByProjectId: vi.fn(),
   },
   mockDockerGitService: {
     createWorktree: vi.fn(),
@@ -187,8 +188,8 @@ describe('POST /api/projects/[project_id]/sessions', () => {
     mockGitService.createWorktree.mockReturnValue('/path/to/worktree');
     mockDockerGitService.createWorktree.mockResolvedValue({ success: true, worktreePath: '/repo/.worktrees/session-name' });
 
-    // デフォルト環境モック
-    mockEnvironmentService.findById.mockResolvedValue({
+    // デフォルト環境モック（findByProjectId を使用）
+    mockEnvironmentService.findByProjectId.mockResolvedValue({
       id: 'env-docker-1',
       name: 'Docker Env',
       type: 'DOCKER',
@@ -237,13 +238,9 @@ describe('POST /api/projects/[project_id]/sessions', () => {
       expect(mockDockerService.imageExists).not.toHaveBeenCalled();
     });
 
-    it('should return 400 when dockerMode=true but project has no environment_id', async () => {
-      mockDb._mockSelectGet.mockReturnValue({
-        id: 'project-1',
-        name: 'Test Project',
-        path: '/path/to/project',
-        environment_id: null,
-      });
+    it('should return 400 when project has no associated environment', async () => {
+      // findByProjectId が null を返す場合（環境未設定）
+      mockEnvironmentService.findByProjectId.mockResolvedValue(null);
 
       const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
         method: 'POST',
@@ -370,8 +367,8 @@ describe('POST /api/projects/[project_id]/sessions', () => {
     });
   });
 
-  describe('environment_id parameter', () => {
-    it('should accept environment_id parameter and create session with it', async () => {
+  describe('environment lookup via project (1対1関係)', () => {
+    it('should create session using project environment (findByProjectId)', async () => {
       const mockEnvironment = {
         id: 'env-docker-1',
         name: 'Docker Env',
@@ -383,15 +380,7 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         updated_at: new Date(),
       };
 
-      // プロジェクトに environment_id を設定
-      mockDb._mockSelectGet.mockReturnValue({
-        id: 'project-1',
-        name: 'Test Project',
-        path: '/path/to/project',
-        environment_id: 'env-docker-1',
-      });
-
-      mockEnvironmentService.findById.mockResolvedValue(mockEnvironment);
+      mockEnvironmentService.findByProjectId.mockResolvedValue(mockEnvironment);
       mockDb._mockInsertGet.mockReturnValue({
         id: 'session-1',
         project_id: 'project-1',
@@ -414,44 +403,15 @@ describe('POST /api/projects/[project_id]/sessions', () => {
       });
 
       expect(response.status).toBe(201);
-      expect(mockEnvironmentService.findById).toHaveBeenCalledWith('env-docker-1');
+      // findByProjectId がプロジェクトIDで呼ばれる
+      expect(mockEnvironmentService.findByProjectId).toHaveBeenCalledWith('project-1');
+      // findById は呼ばれない（project経由で環境を取得するため）
+      expect(mockEnvironmentService.findById).not.toHaveBeenCalled();
     });
 
-    it('should return 400 when project environment_id references non-existent environment', async () => {
-      // プロジェクトに存在しない environment_id を設定
-      mockDb._mockSelectGet.mockReturnValue({
-        id: 'project-1',
-        name: 'Test Project',
-        path: '/path/to/project',
-        environment_id: 'non-existent',
-      });
-
-      mockEnvironmentService.findById.mockResolvedValue(null);
-
-      const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: 'Hello Claude' }),
-      });
-
-      const response = await POST(request, {
-        params: Promise.resolve({ project_id: 'project-1' }),
-      });
-
-      // プロジェクトのenvironment_idが存在しない環境を参照している場合は400エラー
-      expect(response.status).toBe(400);
-      const json = await response.json();
-      expect(json.error).toBe('プロジェクトに設定された実行環境が見つかりません');
-      expect(mockEnvironmentService.findById).toHaveBeenCalledWith('non-existent');
-    });
-
-    it('should return 400 when project has no environment_id', async () => {
-      mockDb._mockSelectGet.mockReturnValue({
-        id: 'project-1',
-        name: 'Test Project',
-        path: '/path/to/project',
-        environment_id: null,
-      });
+    it('should return 400 when project has no associated environment', async () => {
+      // findByProjectId が null を返す場合（環境未設定）
+      mockEnvironmentService.findByProjectId.mockResolvedValue(null);
 
       const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
         method: 'POST',
@@ -468,7 +428,7 @@ describe('POST /api/projects/[project_id]/sessions', () => {
       expect(json.error).toContain('実行環境が設定されていません');
     });
 
-    it('project environment_id takes priority over dockerMode parameter', async () => {
+    it('should use HOST type environment when project has HOST environment', async () => {
       const mockEnvironment = {
         id: 'env-host-1',
         name: 'Host Env',
@@ -480,15 +440,7 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         updated_at: new Date(),
       };
 
-      // プロジェクトに environment_id を設定
-      mockDb._mockSelectGet.mockReturnValue({
-        id: 'project-1',
-        name: 'Test Project',
-        path: '/path/to/project',
-        environment_id: 'env-host-1',
-      });
-
-      mockEnvironmentService.findById.mockResolvedValue(mockEnvironment);
+      mockEnvironmentService.findByProjectId.mockResolvedValue(mockEnvironment);
       mockDb._mockInsertGet.mockReturnValue({
         id: 'session-1',
         project_id: 'project-1',
@@ -500,14 +452,10 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         container_id: null,
       });
 
-      // dockerMode=trueでもプロジェクトのenvironment_idが優先
       const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: 'Hello Claude',
-          dockerMode: true,
-        }),
+        body: JSON.stringify({ prompt: 'Hello Claude' }),
       });
 
       const response = await POST(request, {
@@ -515,111 +463,12 @@ describe('POST /api/projects/[project_id]/sessions', () => {
       });
 
       expect(response.status).toBe(201);
-      // dockerModeが指定されてもproject.environment_idがあればDocker診断は呼ばれない
+      // dockerModeが指定されてもDocker診断は呼ばれない
       expect(mockDockerService.diagnoseDockerError).not.toHaveBeenCalled();
     });
 
-    it('should return 400 when using dockerMode without project environment_id', async () => {
-      mockDb._mockSelectGet.mockReturnValue({
-        id: 'project-1',
-        name: 'Test Project',
-        path: '/path/to/project',
-        environment_id: null,
-      });
-
-      const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: 'Hello Claude', dockerMode: true }),
-      });
-
-      const response = await POST(request, {
-        params: Promise.resolve({ project_id: 'project-1' }),
-      });
-
-      expect(response.status).toBe(400);
-      const json = await response.json();
-      expect(json.error).toContain('実行環境が設定されていません');
-    });
-
-    it('should return 400 when project has no environment_id regardless of request environment_id', async () => {
-      mockDb._mockSelectGet.mockReturnValue({
-        id: 'project-1',
-        name: 'Test Project',
-        path: '/path/to/project',
-        environment_id: null,
-      });
-
-      const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: 'Hello Claude', environment_id: 'env-docker-req' }),
-      });
-
-      const response = await POST(request, {
-        params: Promise.resolve({ project_id: 'project-1' }),
-      });
-
-      expect(response.status).toBe(400);
-      expect(mockEnvironmentService.findById).not.toHaveBeenCalled();
-    });
-
-    it('should return 400 when project has no environment_id even with non-existent request environment_id', async () => {
-      mockDb._mockSelectGet.mockReturnValue({
-        id: 'project-1',
-        name: 'Test Project',
-        path: '/path/to/project',
-        environment_id: null,
-        clone_location: null,
-      });
-
-      const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: 'Hello Claude', environment_id: 'non-existent-req' }),
-      });
-
-      const response = await POST(request, {
-        params: Promise.resolve({ project_id: 'project-1' }),
-      });
-
-      expect(response.status).toBe(400);
-      expect(mockEnvironmentService.findById).not.toHaveBeenCalled();
-    });
-
-    it('project environment_id takes priority over requestEnvironmentId', async () => {
-      const projectEnvironment = {
-        id: 'env-project',
-        name: 'Project Env',
-        type: 'HOST',
-        description: null,
-        config: '{}',
-        auth_dir_path: null,
-        created_at: new Date(),
-        updated_at: new Date(),
-      };
-
-      // プロジェクトに environment_id を設定
-      mockDb._mockSelectGet.mockReturnValue({
-        id: 'project-1',
-        name: 'Test Project',
-        path: '/path/to/project',
-        environment_id: 'env-project',
-      });
-
-      mockEnvironmentService.findById.mockResolvedValue(projectEnvironment);
-      mockDb._mockInsertGet.mockReturnValue({
-        id: 'session-1',
-        project_id: 'project-1',
-        name: 'happy-panda',
-        status: 'initializing',
-        worktree_path: '/path/to/worktree',
-        branch_name: 'session/session-123',
-        docker_mode: false,
-        container_id: null,
-      });
-
-      // リクエストにも environment_id を指定するが、プロジェクトの方が優先される
+    it('environment_id in request body is ignored (uses project environment instead)', async () => {
+      // リクエストに environment_id があっても無視され、findByProjectId が使われる
       const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -631,42 +480,10 @@ describe('POST /api/projects/[project_id]/sessions', () => {
       });
 
       expect(response.status).toBe(201);
-      // プロジェクトの environment_id で findById が呼ばれる
-      expect(mockEnvironmentService.findById).toHaveBeenCalledWith('env-project');
-      // リクエストの environment_id では呼ばれない（プロジェクトのが優先されて処理が終わるため）
-      expect(mockEnvironmentService.findById).not.toHaveBeenCalledWith('env-request-should-be-ignored');
-    });
-
-    it('should return 400 when environment_id is not a string', async () => {
-      const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: 'Hello Claude', environment_id: 123 }),
-      });
-
-      const response = await POST(request, {
-        params: Promise.resolve({ project_id: 'project-1' }),
-      });
-
-      expect(response.status).toBe(400);
-      const body = await response.json();
-      expect(body.error).toContain('environment_id must be a non-empty string');
-    });
-
-    it('should return 400 when environment_id is an empty string', async () => {
-      const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: 'Hello Claude', environment_id: '' }),
-      });
-
-      const response = await POST(request, {
-        params: Promise.resolve({ project_id: 'project-1' }),
-      });
-
-      expect(response.status).toBe(400);
-      const body = await response.json();
-      expect(body.error).toContain('environment_id must be a non-empty string');
+      // findByProjectId がプロジェクトIDで呼ばれる
+      expect(mockEnvironmentService.findByProjectId).toHaveBeenCalledWith('project-1');
+      // findById は呼ばれない
+      expect(mockEnvironmentService.findById).not.toHaveBeenCalled();
     });
   });
 

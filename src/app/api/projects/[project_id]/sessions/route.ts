@@ -98,14 +98,14 @@ export async function GET(
  * @param request - リクエストボディに以下を含むJSON:
  *   - `prompt`（オプション）: 初期プロンプト
  *   - `name`（オプション、未指定時は自動生成）: セッション名
- *   - `environment_id`（オプション）: 実行環境ID。指定する場合は空でない文字列である必要があり、不正な値（非文字列・空文字）の場合は400エラーとなります。ただし、現在はプロジェクトに設定されたenvironment_idが常に使用されるため、この値で実行環境は切り替わりません。
+ *   - `source_branch`（オプション）: ブランチ作成元ブランチ名
  * @param params.project_id - プロジェクトID
  *
  * @returns
  * - 201: セッション作成成功
  * - 400: 不正なJSONボディ、型バリデーションエラー、環境未設定、セッション名重複
  * - 403: Docker環境内でのHOST環境利用（禁止）
- * - 404: プロジェクトが見つからない
+ * - 404: プロジェクトまたは環境が見つからない
  * - 500: サーバーエラー
  *
  * @example
@@ -154,7 +154,7 @@ export async function POST(
       );
     }
 
-    let { claude_code_options, custom_env_vars, environment_id: requestEnvironmentId = null } = body as Record<string, unknown>;
+    let { claude_code_options, custom_env_vars } = body as Record<string, unknown>;
     const { name: rawName, prompt: rawPrompt, source_branch: rawSourceBranch } = body as Record<string, unknown>;
 
     // name, prompt, source_branch の型バリデーション
@@ -170,19 +170,6 @@ export async function POST(
     const name = rawName as string | undefined;
     const prompt = (rawPrompt as string) ?? '';
     const source_branch = rawSourceBranch as string | undefined;
-
-    // requestEnvironmentId のバリデーション（非文字列・空文字は400で弾く）
-    if (requestEnvironmentId !== null && requestEnvironmentId !== undefined) {
-      if (typeof requestEnvironmentId !== 'string' || requestEnvironmentId.trim() === '') {
-        return NextResponse.json(
-          { error: 'environment_id must be a non-empty string' },
-          { status: 400 }
-        );
-      }
-      requestEnvironmentId = requestEnvironmentId.trim();
-    } else {
-      requestEnvironmentId = null;
-    }
 
     // claude_code_options のバリデーション（各フィールドが文字列であることを検証）
     if (claude_code_options !== undefined) {
@@ -221,25 +208,20 @@ export async function POST(
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    // プロジェクトのenvironment_idを使用（必須）
-    const effectiveEnvironmentId: string | null = project.environment_id;
+    // プロジェクトに紐付く環境を取得（1対1関係）
     let effectiveEnvironmentType: string | null = null;
 
-    if (!effectiveEnvironmentId) {
+    const env = await environmentService.findByProjectId(project_id);
+    if (!env) {
       return NextResponse.json(
-        { error: 'プロジェクトに実行環境が設定されていません。プロジェクト設定で環境を選択してください。' },
+        { error: 'プロジェクトに実行環境が設定されていません。プロジェクト設定で環境を確認してください。' },
         { status: 400 }
       );
-    }
-
-    const env = await environmentService.findById(effectiveEnvironmentId);
-    if (!env) {
-      return NextResponse.json({ error: 'プロジェクトに設定された実行環境が見つかりません' }, { status: 400 });
     }
     effectiveEnvironmentType = env.type;
     logger.info('Using project environment', {
       project_id,
-      environment_id: effectiveEnvironmentId,
+      environment_id: env.id,
       environmentType: env.type,
     });
 
@@ -362,7 +344,7 @@ export async function POST(
       status: 'initializing',  // PTY接続時に'running'に変更される
       worktree_path: worktreePath,
       branch_name: branchName,
-      environment_id: effectiveEnvironmentId,
+      // environment_id は sessions テーブルから削除済み（1対1化によりプロジェクトから取得）
       claude_code_options: claude_code_options ? JSON.stringify(claude_code_options) : null,
       custom_env_vars: custom_env_vars ? JSON.stringify(custom_env_vars) : null,
     }).returning().get();
