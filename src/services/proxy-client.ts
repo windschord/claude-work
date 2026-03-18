@@ -2,7 +2,7 @@ import { logger } from '@/lib/logger';
 
 // ==================== 定数 ====================
 
-const DEFAULT_BASE_URL = process.env.PROXY_API_URL ?? 'http://network-filter-proxy:8080';
+const DEFAULT_BASE_URL = process.env.PROXY_API_URL || 'http://network-filter-proxy:8080';
 const REQUEST_TIMEOUT_MS = 5000;
 const MAX_RETRY_COUNT = 3;
 

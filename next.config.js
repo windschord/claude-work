@@ -9,10 +9,16 @@ const transitiveBundleExcludes = ['ssh2', 'cpu-features'];
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   async rewrites() {
+    // REGISTRY_FIREWALL_URL が設定されている場合のみUIプロキシのrewriteを有効にする。
+    // 未設定時はrewriteを登録しないことで、タイムアウトせず即座に404を返す。
+    const registryFirewallUrl = process.env.REGISTRY_FIREWALL_URL;
+    if (!registryFirewallUrl) {
+      return [];
+    }
     return [
       {
         source: '/api/registry-firewall/ui/:path*',
-        destination: `${process.env.REGISTRY_FIREWALL_URL || 'http://registry-firewall:8080'}/ui/:path*`,
+        destination: `${registryFirewallUrl}/ui/:path*`,
       },
     ];
   },

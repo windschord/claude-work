@@ -1,8 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { DockerAdapter } from '../docker-adapter';
 
 // Mock DockerClient and fs.existsSync via hoisted to avoid linter issues
-const { mockDockerClient, mockExistsSync, mockIsFilterEnabled, mockProxyHealthCheck, mockSyncRulesForContainer, mockProxyDeleteRules } = vi.hoisted(() => ({
+const { mockDockerClient, mockExistsSync, mockIsFilterEnabled, mockProxyHealthCheck, mockSyncRulesForContainer, mockProxyDeleteRules, mockRfGetHealth } = vi.hoisted(() => ({
   mockDockerClient: {
     inspectContainer: vi.fn(),
     getContainer: vi.fn(),
@@ -14,6 +14,7 @@ const { mockDockerClient, mockExistsSync, mockIsFilterEnabled, mockProxyHealthCh
   mockProxyHealthCheck: vi.fn(),
   mockSyncRulesForContainer: vi.fn(),
   mockProxyDeleteRules: vi.fn(),
+  mockRfGetHealth: vi.fn().mockResolvedValue({ status: 'healthy' }),
 }));
 
 vi.mock('../../docker-client', () => ({
@@ -49,6 +50,12 @@ vi.mock('@/services/proxy-client', () => {
     ProxyConnectionError: MockProxyConnectionError,
   };
 });
+
+vi.mock('@/services/registry-firewall-client', () => ({
+  RegistryFirewallClient: vi.fn().mockImplementation(() => ({
+    getHealth: mockRfGetHealth,
+  })),
+}));
 
 // Mock other dependencies
 vi.mock('@/lib/db', () => ({
@@ -302,6 +309,22 @@ describe('DockerAdapter', () => {
   });
 
   describe('createSession with network filtering', () => {
+    let originalProxyApiUrl: string | undefined;
+
+    beforeEach(() => {
+      originalProxyApiUrl = process.env.PROXY_API_URL;
+      // proxy healthCheckが呼ばれるようにPROXY_API_URLを設定
+      process.env.PROXY_API_URL = 'http://network-filter-proxy:8080';
+    });
+
+    afterEach(() => {
+      if (originalProxyApiUrl === undefined) {
+        delete process.env.PROXY_API_URL;
+      } else {
+        process.env.PROXY_API_URL = originalProxyApiUrl;
+      }
+    });
+
     // createSessionのテスト用ヘルパー：コンテナモックを設定する
     function setupContainerMock(containerIpAddress: string) {
       const mockExec = { start: vi.fn().mockResolvedValue(undefined) };
@@ -357,14 +380,55 @@ describe('DockerAdapter', () => {
       );
     });
 
-    it('proxyヘルスチェック失敗時はセッション作成がエラーになる（フェイルセーフ）', async () => {
+    it('proxyヘルスチェック失敗時はフィルタリングなしでセッション作成が続行する（graceful degradation）', async () => {
       mockIsFilterEnabled.mockResolvedValue(true);
       mockProxyHealthCheck.mockRejectedValue(new Error('proxy unreachable'));
-      const mockContainer = setupContainerMock('172.20.0.5');
+      setupContainerMock('172.20.0.5');
 
-      await expect(adapter.createSession('session-1', '/workspace')).rejects.toThrow();
-      // コンテナはhealthCheckの前に作成されるが、失敗時にクリーンアップされる
-      expect(mockContainer.remove).toHaveBeenCalledWith({ force: true });
+      // proxy未稼働でもセッション作成は成功する
+      await expect(adapter.createSession('session-1', '/workspace')).resolves.not.toThrow();
+
+      // proxyが利用不可のためルール同期は呼ばれない
+      expect(mockSyncRulesForContainer).not.toHaveBeenCalled();
+
+      // 回帰防止: proxy未達時はコンテナにproxy設定が注入されないことを確認
+      const createContainerCall = mockDockerClient.createContainer.mock.calls[0][0];
+      const env = createContainerCall.Env as string[];
+      expect(env.some((e: string) => e.startsWith('HTTP_PROXY='))).toBe(false);
+      expect(env.some((e: string) => e.startsWith('HTTPS_PROXY='))).toBe(false);
+      expect(createContainerCall.HostConfig.NetworkMode).toBeUndefined();
+    });
+
+    it('registry-firewall未稼働時はレジストリ設定が注入されない（graceful degradation）', async () => {
+      mockIsFilterEnabled.mockResolvedValue(true);
+      mockProxyHealthCheck.mockResolvedValue({ status: 'healthy', uptime: 100, activeConnections: 0, ruleCount: 0 });
+      mockSyncRulesForContainer.mockResolvedValue(undefined);
+      mockRfGetHealth.mockResolvedValue({ status: 'stopped' });
+      const originalRfUrl = process.env.REGISTRY_FIREWALL_URL;
+      process.env.REGISTRY_FIREWALL_URL = 'http://registry-firewall:8080';
+      setupContainerMock('172.20.0.5');
+
+      try {
+        await adapter.createSession('session-1', '/workspace', undefined, {
+          registryFirewallEnabled: true,
+        });
+
+        // registry-firewall未稼働のため、レジストリ設定が注入されないことを確認
+        const createContainerCall = mockDockerClient.createContainer.mock.calls[0][0];
+        const env = createContainerCall.Env as string[];
+        expect(env.some((e: string) => e.startsWith('PIP_INDEX_URL='))).toBe(false);
+        expect(env.some((e: string) => e.startsWith('GOPROXY='))).toBe(false);
+        // proxy自体は稼働しているのでフィルタリング設定は有効
+        expect(env.some((e: string) => e.startsWith('HTTP_PROXY='))).toBe(true);
+      } finally {
+        if (originalRfUrl === undefined) {
+          delete process.env.REGISTRY_FIREWALL_URL;
+        } else {
+          process.env.REGISTRY_FIREWALL_URL = originalRfUrl;
+        }
+        // モック実装をデフォルトに戻す
+        mockRfGetHealth.mockResolvedValue({ status: 'healthy' });
+      }
     });
 
     it('フィルタリング無効時はproxyClient.healthCheckが呼ばれない', async () => {

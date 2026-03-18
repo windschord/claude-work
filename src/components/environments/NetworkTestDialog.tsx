@@ -13,6 +13,10 @@ interface MatchedRule {
 interface TestResult {
   allowed: boolean;
   matchedRule?: MatchedRule;
+  /** proxy稼働状態（フィルタリング有効時のみ設定） */
+  proxyStatus?: 'running' | 'not_running';
+  /** 結果の注記 */
+  note?: string;
 }
 
 interface NetworkTestDialogProps {
@@ -187,6 +191,15 @@ export function NetworkTestDialog({
                   </div>
                 )}
 
+                {/* proxy未稼働の警告 */}
+                {testResult?.proxyStatus === 'not_running' && (
+                  <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-md">
+                    <p className="text-xs text-yellow-700 dark:text-yellow-300">
+                      proxyサービスが利用できません。以下はルール設定に基づくdry-run結果です。実際の通信制御はproxyが起動しているコンテナ内でのみ有効です。
+                    </p>
+                  </div>
+                )}
+
                 {/* テスト結果表示 */}
                 {testResult && (
                   <div
@@ -214,6 +227,13 @@ export function NetworkTestDialog({
                       </div>
                     )}
                   </div>
+                )}
+
+                {/* 注記表示 */}
+                {testResult?.note && (
+                  <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">
+                    {testResult.note}
+                  </p>
                 )}
 
                 {/* ボタン */}

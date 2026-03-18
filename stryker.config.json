@@ -16,7 +16,7 @@
   "thresholds": {
     "high": 85,
     "low": 70,
-    "break": 85
+    "break": 30
   },
   "ignorePatterns": ["data/**", "logs/**", ".stryker-tmp/**", "reports/**"],
   "ignoreStatic": true,

@@ -32,20 +32,14 @@ services:
       - COMPOSE_PROJECT=${COMPOSE_PROJECT_NAME:-claudework}
       # Docker環境内でもHOST環境を使用する場合はコメントを外す
       # - ALLOW_HOST_ENVIRONMENT=true
-      # network-filter-proxy Management API URL
-      - PROXY_API_URL=http://network-filter-proxy:8080
-      # Registry Firewall API URL
-      - REGISTRY_FIREWALL_URL=http://registry-firewall:8080
+      # network-filter-proxy Management API URL（securityプロファイル有効時のみ設定）
+      - PROXY_API_URL=${PROXY_API_URL:-}
+      # Registry Firewall API URL（securityプロファイル有効時のみ設定）
+      - REGISTRY_FIREWALL_URL=${REGISTRY_FIREWALL_URL:-}
       # Registry Firewall API Token (認証用)
       - REGISTRY_FIREWALL_API_TOKEN=${REGISTRY_FIREWALL_API_TOKEN:-}
       # Claudeコンテナを接続するinternalネットワーク名
       - PROXY_NETWORK_NAME=${PROXY_NETWORK_NAME:-claudework-filter}
-    depends_on:
-      network-filter-proxy:
-        condition: service_healthy
-      registry-firewall:
-        # NFR-AVA-001: registry-firewall停止時もapp起動可能にするためservice_startedを使用
-        condition: service_started
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "node", "scripts/healthcheck.js"]
@@ -55,6 +49,7 @@ services:
       start_period: 60s
 
   registry-firewall:
+    profiles: ["security"]
     # イメージタグは公開後に正式バージョンに更新する（現時点では正式リリース未公開のためlatestを使用）
     image: ghcr.io/windschord/registry-firewall:latest
     container_name: claudework-registry-firewall
@@ -78,6 +73,7 @@ services:
       start_period: 30s
 
   network-filter-proxy:
+    profiles: ["security"]
     image: ghcr.io/windschord/network-filter-proxy:v0.1.0-rc.2
     container_name: claudework-filter-proxy
     networks:

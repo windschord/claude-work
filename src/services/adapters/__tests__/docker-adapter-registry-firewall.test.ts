@@ -150,6 +150,21 @@ describe('DockerAdapter registry firewall', () => {
 
   describe('buildContainerOptions with registry firewall', () => {
     const rfHost = 'http://registry-firewall:8080';
+    let originalRfUrl: string | undefined;
+
+    beforeEach(() => {
+      originalRfUrl = process.env.REGISTRY_FIREWALL_URL;
+      // テスト用にREGISTRY_FIREWALL_URLを設定（graceful degradation対応で環境変数チェックが追加されたため）
+      process.env.REGISTRY_FIREWALL_URL = rfHost;
+    });
+
+    afterEach(() => {
+      if (originalRfUrl === undefined) {
+        delete process.env.REGISTRY_FIREWALL_URL;
+      } else {
+        process.env.REGISTRY_FIREWALL_URL = originalRfUrl;
+      }
+    });
 
     /** buildContainerOptionsを呼び出してcreateOptionsを返すヘルパー */
     function buildOptions(opts: Record<string, unknown>) {

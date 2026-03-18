@@ -22,6 +22,7 @@ import { getConfigVolumeNames } from '@/lib/docker-volume-utils';
 import { networkFilterService } from '@/services/network-filter-service';
 import { ProxyClient } from '@/services/proxy-client';
 import { syncRulesForContainer } from '@/lib/proxy-sync';
+import { RegistryFirewallClient } from '@/services/registry-firewall-client';
 
 export interface DockerAdapterConfig {
   environmentId: string;
@@ -320,8 +321,9 @@ export class DockerAdapter extends BasePTYAdapter {
 
     // Registry Firewall: パッケージマネージャーのレジストリ設定注入
     // filterEnabledが必要: claudework-filterネットワーク経由でregistry-firewallに到達するため
-    if (options?.registryFirewallEnabled && options?.filterEnabled && !options?.shellMode) {
-      const rfHost = process.env.REGISTRY_FIREWALL_URL || 'http://registry-firewall:8080';
+    // REGISTRY_FIREWALL_URLが未設定の場合はスキップ（サービス未稼働環境への対応）
+    if (options?.registryFirewallEnabled && options?.filterEnabled && !options?.shellMode && process.env.REGISTRY_FIREWALL_URL) {
+      const rfHost = process.env.REGISTRY_FIREWALL_URL!;
       let rfHostname: string;
       let rfUrlValid = true;
       try {
@@ -773,11 +775,71 @@ export class DockerAdapter extends BasePTYAdapter {
       throw error;
     }
 
-    // フィルタリング有効フラグを事前に確認してbuildContainerOptionsに渡す
-    const filterEnabled = await networkFilterService.isFilterEnabled(this.config.environmentId);
+    // フィルタリング有効フラグを事前に確認
+    let filterEnabled = await networkFilterService.isFilterEnabled(this.config.environmentId);
+
+    // proxy稼働確認: filterEnabled時にproxyが利用できなければフィルタリングを無効化
+    // buildContainerOptionsの前に行う（コンテナにproxy設定を焼き込まないため）
+    // PROXY_API_URLが未設定/空の場合はhealthCheckをスキップして即座に無効化（タイムアウト遅延回避）
+    if (filterEnabled) {
+      if (!process.env.PROXY_API_URL) {
+        logger.warn(
+          'DockerAdapter: PROXY_API_URLが未設定のため、フィルタリングなしで起動します',
+          { sessionId, environmentId: this.config.environmentId }
+        );
+        filterEnabled = false;
+      } else {
+        const proxyClient = new ProxyClient();
+        try {
+          await proxyClient.healthCheck();
+        } catch (healthCheckError) {
+          logger.warn(
+            'DockerAdapter: ネットワークフィルタリングプロキシが利用できないため、フィルタリングなしで起動します',
+            {
+              sessionId,
+              environmentId: this.config.environmentId,
+              error: healthCheckError instanceof Error ? healthCheckError.message : 'Unknown error',
+            }
+          );
+          filterEnabled = false;
+        }
+      }
+    }
+
+    // registry-firewall稼働確認: 到達できなければレジストリ設定注入を無効化
+    let registryFirewallEnabled = options?.registryFirewallEnabled ?? false;
+    if (registryFirewallEnabled && filterEnabled && process.env.REGISTRY_FIREWALL_URL) {
+      try {
+        const rfClient = new RegistryFirewallClient();
+        const health = await rfClient.getHealth();
+        if (health.status !== 'healthy') {
+          logger.warn(
+            'DockerAdapter: registry-firewallが利用できないため、レジストリ設定注入をスキップします',
+            {
+              sessionId,
+              environmentId: this.config.environmentId,
+              firewallStatus: health.status,
+            }
+          );
+          registryFirewallEnabled = false;
+        }
+      } catch (rfError) {
+        logger.warn(
+          'DockerAdapter: registry-firewallへの接続に失敗したため、レジストリ設定注入をスキップします',
+          {
+            sessionId,
+            environmentId: this.config.environmentId,
+            error: rfError instanceof Error ? rfError.message : 'Unknown error',
+          }
+        );
+        registryFirewallEnabled = false;
+      }
+    }
+
     const { createOptions, containerName } = this.buildContainerOptions(workingDir, {
       ...options,
       filterEnabled,
+      registryFirewallEnabled,
     });
 
     // クライアントから渡されたターミナルサイズを使用（未指定時はデフォルト80x24）
@@ -824,29 +886,43 @@ export class DockerAdapter extends BasePTYAdapter {
       // Start container after stream listeners are registered
       await container.start();
 
-      // フィルタリング有効時: proxyヘルスチェック、コンテナIP取得、ルール同期
+      // フィルタリング有効時: コンテナIP取得、ルール同期
+      // （proxyヘルスチェックはbuildContainerOptions前で実施済み）
       if (filterEnabled) {
         const proxyClient = new ProxyClient();
-        // proxyヘルスチェック失敗時はセッション作成エラー（フェイルセーフ）
-        await proxyClient.healthCheck();
-
         // コンテナIPアドレス取得
         const networkName = process.env.PROXY_NETWORK_NAME || 'claudework-filter';
         const containerInfo = await DockerClient.getInstance().inspectContainer(containerName);
         containerIP = containerInfo.NetworkSettings?.Networks?.[networkName]?.IPAddress;
 
         if (!containerIP) {
-          throw new Error(`Container IP not found on filter network '${networkName}'`);
+          logger.warn('DockerAdapter: Container IP not found on filter network, skipping proxy rule sync', {
+            sessionId,
+            networkName,
+          });
+        } else {
+          // proxyにルールを同期
+          try {
+            await syncRulesForContainer(proxyClient, containerIP, this.config.environmentId);
+            logger.info('DockerAdapter: Proxy rules synced for container', {
+              sessionId,
+              containerIP,
+              environmentId: this.config.environmentId,
+            });
+          } catch (syncError) {
+            logger.warn(
+              'DockerAdapter: Proxyへのルール同期に失敗しました。ルール未適用のままセッションを続行します',
+              {
+                sessionId,
+                containerIP,
+                environmentId: this.config.environmentId,
+                error: syncError instanceof Error ? syncError.message : 'Unknown error',
+              }
+            );
+            // containerIPは保持する: proxy側でルールが部分的に反映されている可能性があるため、
+            // onExit時にdeleteRulesで確実にクリーンアップする
+          }
         }
-
-        // proxyにルールを同期
-        await syncRulesForContainer(proxyClient, containerIP, this.config.environmentId);
-
-        logger.info('DockerAdapter: Proxy rules synced for container', {
-          sessionId,
-          containerIP,
-          environmentId: this.config.environmentId,
-        });
       }
 
       const containerWorkDir = options?.dockerVolumeId ? workingDir : '/workspace';
