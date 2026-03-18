@@ -12,7 +12,10 @@ import { StepRepository } from './StepRepository';
 import { StepSession } from './StepSession';
 import { initialWizardData } from './types';
 import type { WizardData, WizardStep } from './types';
-import { isHostEnvironmentAllowed } from '@/lib/environment-detect';
+// Docker環境ではHOST環境は利用不可。
+// 本番はDocker Compose内で動作するため、デフォルトでhostを無効化。
+// clone_location の選択肢で 'host' を非表示にする。
+const HOST_ENVIRONMENT_DISABLED = true;
 
 const WIZARD_STEPS: WizardStep[] = [
   { id: 1, label: '認証', icon: Key },
@@ -246,7 +249,7 @@ export function AddProjectWizard({ isOpen, onClose }: AddProjectWizardProps) {
                     <StepRepository
                       wizardData={wizardData}
                       onChange={handleDataChange}
-                      hostEnvironmentDisabled={!isHostEnvironmentAllowed()}
+                      hostEnvironmentDisabled={HOST_ENVIRONMENT_DISABLED}
                     />
                   )}
                   {currentStep === 3 && (

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { NewSession, Session } from '@/db/schema';
+import type { NewSession } from '@/db/schema';
 
 describe('最終スキーマ: 型定義確認', () => {
   describe('Session 型から environment_id と docker_mode が削除されている', () => {

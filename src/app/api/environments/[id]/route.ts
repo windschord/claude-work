@@ -29,7 +29,6 @@ function createDeprecatedResponse() {
  * @deprecated GET /api/environments/:id は廃止されました（410 Gone）。
  * GET /api/projects/[project_id]/environment を使用してください。
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function GET(_request: NextRequest, _params: RouteParams) {
   return createDeprecatedResponse();
 }
@@ -38,7 +37,6 @@ export async function GET(_request: NextRequest, _params: RouteParams) {
  * @deprecated PUT /api/environments/:id は廃止されました（410 Gone）。
  * PUT /api/projects/[project_id]/environment を使用してください。
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function PUT(_request: NextRequest, _params: RouteParams) {
   return createDeprecatedResponse();
 }
@@ -47,7 +45,6 @@ export async function PUT(_request: NextRequest, _params: RouteParams) {
  * @deprecated DELETE /api/environments/:id は廃止されました（410 Gone）。
  * 環境はプロジェクト削除時に自動削除されます（DELETE /api/projects/[project_id]）。
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function DELETE(_request: NextRequest, _params: RouteParams) {
   return createDeprecatedResponse();
 }

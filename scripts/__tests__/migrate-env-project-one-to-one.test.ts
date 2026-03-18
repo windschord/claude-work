@@ -169,7 +169,7 @@ describe('migrate-env-project-one-to-one', () => {
 
     it('複製された環境の name, type, config が元の環境と一致する', async () => {
       const envId = insertTestEnv(db, { name: 'original', type: 'DOCKER', config: '{"imageName":"test"}' });
-      const projA = insertTestProject(db, { environment_id: envId });
+      const _projA = insertTestProject(db, { environment_id: envId });
       const projB = insertTestProject(db, { environment_id: envId });
 
       await runMigration(db);
@@ -204,7 +204,7 @@ describe('migrate-env-project-one-to-one', () => {
     it('NetworkFilterConfig が複製先にコピーされる', async () => {
       const envId = insertTestEnv(db, {});
       insertNetworkFilterConfig(db, { environment_id: envId, enabled: true });
-      const projA = insertTestProject(db, { environment_id: envId });
+      const _projA = insertTestProject(db, { environment_id: envId });
       const projB = insertTestProject(db, { environment_id: envId });
 
       await runMigration(db);
@@ -220,7 +220,7 @@ describe('migrate-env-project-one-to-one', () => {
       insertNetworkFilterConfig(db, { environment_id: envId });
       insertNetworkFilterRule(db, { environment_id: envId, target: 'example.com', port: 443 });
       insertNetworkFilterRule(db, { environment_id: envId, target: '*.github.com', port: null });
-      const projA = insertTestProject(db, { environment_id: envId });
+      const _projA = insertTestProject(db, { environment_id: envId });
       const projB = insertTestProject(db, { environment_id: envId });
 
       await runMigration(db);
@@ -240,7 +240,7 @@ describe('migrate-env-project-one-to-one', () => {
         description: 'Test rule',
         enabled: false,
       });
-      const projA = insertTestProject(db, { environment_id: envId });
+      const _projA = insertTestProject(db, { environment_id: envId });
       const projB = insertTestProject(db, { environment_id: envId });
 
       await runMigration(db);

@@ -31,7 +31,6 @@ function createDeprecatedResponse() {
  * @deprecated GET /api/environments は廃止されました（410 Gone）。
  * GET /api/projects/[project_id]/environment を使用してください。
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function GET(_request: NextRequest) {
   return createDeprecatedResponse();
 }
@@ -40,7 +39,6 @@ export async function GET(_request: NextRequest) {
  * @deprecated POST /api/environments は廃止されました（410 Gone）。
  * 環境はプロジェクト作成時に自動作成されます（POST /api/projects）。
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function POST(_request: NextRequest) {
   return createDeprecatedResponse();
 }
