@@ -125,6 +125,11 @@ export class EnvironmentService {
 
   /**
    * プロジェクトIDから環境を取得する
+   *
+   * まず executionEnvironments.project_id で検索する。
+   * 見つからない場合は、プロジェクト作成の2フェーズ更新が中断した中間状態に備え、
+   * projects.environment_id 経由でフォールバック検索する。
+   *
    * @param projectId - プロジェクトID
    * @returns 環境またはnull
    */
@@ -132,7 +137,27 @@ export class EnvironmentService {
     const environment = db.select().from(schema.executionEnvironments)
       .where(eq(schema.executionEnvironments.project_id, projectId))
       .get();
-    return environment ?? null;
+    if (environment) {
+      return environment;
+    }
+
+    // フォールバック: projects.environment_id 経由で検索
+    // プロジェクト作成の2フェーズ更新（環境作成→プロジェクト作成→project_id更新）が
+    // 中断した場合、executionEnvironments.project_id が未設定のままになりうる。
+    const project = db.select({ environment_id: schema.projects.environment_id })
+      .from(schema.projects)
+      .where(eq(schema.projects.id, projectId))
+      .get();
+
+    if (!project?.environment_id) {
+      return null;
+    }
+
+    const fallbackEnvironment = db.select().from(schema.executionEnvironments)
+      .where(eq(schema.executionEnvironments.id, project.environment_id))
+      .get();
+
+    return fallbackEnvironment ?? null;
   }
 
   /**

@@ -43,7 +43,10 @@ ExecutionEnvironmentとProjectの関係を多対1（1つの環境を複数プロ
 ### スキーマ（目標）
 
 - `projects.environment_id`: FK to executionEnvironments（NOT NULL、UNIQUE制約追加）
-- `executionEnvironments.project_id`: FK to projects（NOT NULL、UNIQUE制約）
+- `executionEnvironments.project_id`: FK to projects（nullable、UNIQUE制約）
+  - NOTE: `projects.environment_id ↔ executionEnvironments.project_id` の循環参照を解決するため
+    nullable にしている。プロジェクト作成の2フェーズ方式（環境作成→プロジェクト作成→project_id更新）
+    により、整合性はアプリケーション層で担保する。
 - `sessions.environment_id`: 廃止（列を削除）
 - `sessions.docker_mode`: 廃止（列を削除）
 
@@ -74,9 +77,11 @@ UNIQUE 制約と NOT NULL 制約を設定する。
 
 受入基準:
 - `projects` テーブルの `environment_id` が NOT NULL となっている
-- `executionEnvironments` テーブルに `project_id` カラム（UNIQUE, NOT NULL）が存在する
+- `executionEnvironments` テーブルに `project_id` カラム（UNIQUE, nullable）が存在する
+  - nullable である理由: 循環参照を避けた2フェーズINSERT方式のため（詳細は設計書参照）
+  - アプリケーション層で `project_id` の整合性を担保する
 - 異なるプロジェクトが同一の `environment_id` を持つレコードを INSERT しようとすると UNIQUE 制約違反エラーが発生する
-- `executionEnvironments` の `project_id` が `NULL` のレコードが存在しない（マイグレーション完了後）
+- 通常運用では `executionEnvironments` の `project_id` が `NULL` のレコードが存在しない（プロジェクト作成フロー正常完了後）
 
 #### REQ-DM-002: sessions.environment_id 廃止
 

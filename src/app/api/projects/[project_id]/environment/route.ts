@@ -101,7 +101,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     // 更新データを構築
-    const updateData: { name?: string; description?: string; config?: object; type?: 'HOST' | 'DOCKER' } = {};
+    const updateData: { name?: string; description?: string | null; config?: object; type?: 'HOST' | 'DOCKER' } = {};
 
     if (name !== undefined) {
       if (typeof name !== 'string' || name.trim() === '') {
@@ -120,7 +120,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           { status: 400 }
         );
       }
-      updateData.description = description as string | undefined;
+      updateData.description = description;
     }
 
     if (type !== undefined) {

@@ -207,7 +207,10 @@ export async function POST(request: NextRequest) {
       const project = db.insert(schema.projects).values({
         name,
         path: absolutePath,
-        clone_location: 'host', // ローカルプロジェクトはHost環境
+        // clone_location は「リポジトリの保存場所」であり、実行環境の type とは別の概念。
+        // 'host' はリポジトリがホストファイルシステム上にあることを意味し、
+        // 実行環境 type（DOCKER）とは独立している。
+        clone_location: 'host',
         environment_id: environment.id,
       }).returning().get();
 

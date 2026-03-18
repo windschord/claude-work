@@ -27,15 +27,22 @@ export const executionEnvironments = sqliteTable('ExecutionEnvironment', {
   config: text('config').notNull(),
   auth_dir_path: text('auth_dir_path'),
   // 追加: プロジェクトとの1対1参照
-  project_id: text('project_id').unique().references(() => projects.id, { onDelete: 'cascade' }),
+  // NOTE: NOT NULL ではなく nullable にしている理由:
+  //   projects.environment_id ↔ executionEnvironments.project_id の循環参照を
+  //   解決するため、環境を先に作成（project_id = null）してからプロジェクトを作成し、
+  //   最後に project_id を更新する2フェーズ方式を採用している。
+  //   アプリケーション層（environment-service.findByProjectId のフォールバック等）で
+  //   整合性を担保する。
+  project_id: text('project_id').unique().references((): AnySQLiteColumn => projects.id, { onDelete: 'cascade' }),
   created_at: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
   updated_at: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
 });
 ```
 
-**重要**: SQLite の `ALTER TABLE ADD COLUMN` は `NOT NULL` カラムにデフォルト値が必要（または既存レコードへの事前データ移行が必要）。
-マイグレーションスクリプトでデータを埋めてから `NOT NULL` 制約を付与する方式を採用する。
-Drizzle ORM の `db:push` では直接 `NOT NULL` にできないため、マイグレーションスクリプト内でのみ最終制約を担保する。
+**重要**: `project_id` は nullable である。SQLite の循環参照制約と2フェーズINSERTの都合上、
+`NOT NULL` 制約をスキーマに付与することができない。
+アプリケーション層でプロジェクト作成フローの完了後に `project_id` を必ず設定し、
+整合性はアプリケーション側で担保する。
 
 #### `projects` テーブルの `environment_id` 変更
 
@@ -514,7 +521,10 @@ export interface CreateEnvironmentInput {
   type: 'HOST' | 'DOCKER' | 'SSH';
   description?: string;
   config: object;
-  project_id: string; // 追加（必須）
+  // project_id は旧 /api/environments API との後方互換のためオプション。
+  // プロジェクト作成フロー（2フェーズ方式）では環境を先に作成するため
+  // 初回 INSERT 時は undefined になる。その後 project_id を設定して更新する。
+  project_id?: string;
 }
 ```
 
