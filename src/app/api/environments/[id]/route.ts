@@ -1,225 +1,54 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { environmentService, EnvironmentInUseError } from '@/services/environment-service';
-import { logger } from '@/lib/logger';
-import { validatePortMappings, validateVolumeMounts } from '@/lib/docker-config-validator';
-import { isHostEnvironmentAllowed } from '@/lib/environment-detect';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
-/**
- * GET /api/environments/:id - 環境を取得
- *
- * クエリパラメータ:
- * - includeStatus=true: ステータスを含める
- *
- * @returns
- * - 200: 環境情報
- * - 404: 環境が見つからない
- * - 500: サーバーエラー
- */
-export async function GET(request: NextRequest, { params }: RouteParams) {
-  try {
-    const { id } = await params;
-    const includeStatus = request.nextUrl.searchParams.get('includeStatus') === 'true';
-
-    const environment = await environmentService.findById(id);
-
-    if (!environment) {
-      return NextResponse.json({ error: 'Environment not found' }, { status: 404 });
+function createDeprecatedResponse() {
+  return NextResponse.json(
+    {
+      error: 'このエンドポイントは廃止されました。環境はプロジェクトに1対1で紐付けられます。',
+      deprecated: true,
+      alternatives: {
+        'GET /api/environments/:id': 'GET /api/projects/[project_id]/environment',
+        'PUT /api/environments/:id': 'PUT /api/projects/[project_id]/environment',
+        'DELETE /api/environments/:id': 'プロジェクト削除時に自動削除されます（DELETE /api/projects/[project_id]）',
+      },
+    },
+    {
+      status: 410,
+      headers: {
+        'Deprecation': 'true',
+        'Sunset': 'Sat, 01 Jan 2026 00:00:00 GMT',
+        'Link': '</api/projects/{project_id}/environment>; rel="successor-version"',
+      },
     }
-
-    // HOST環境の無効化フラグを付与
-    const hostAllowed = isHostEnvironmentAllowed();
-    const hostDisabled = environment.type === 'HOST' && !hostAllowed;
-    const envWithDisabled = hostDisabled
-      ? { ...environment, disabled: true }
-      : environment;
-
-    if (includeStatus) {
-      const status = await environmentService.checkStatus(id);
-      return NextResponse.json({
-        environment: { ...envWithDisabled, status },
-        meta: { hostEnvironmentDisabled: !hostAllowed },
-      });
-    }
-
-    return NextResponse.json({
-      environment: envWithDisabled,
-      meta: { hostEnvironmentDisabled: !hostAllowed },
-    });
-  } catch (error) {
-    const { id } = await params;
-    logger.error('Failed to get environment', { error, id });
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
+  );
 }
 
 /**
- * PUT /api/environments/:id - 環境を更新
- *
- * リクエストボディ:
- * - name: 環境名（任意）
- * - description: 説明（任意）
- * - config: 設定オブジェクト（任意）
- *
- * 注: typeは変更不可
- *
- * @returns
- * - 200: 更新成功
- * - 400: バリデーションエラー
- * - 404: 環境が見つからない
- * - 500: サーバーエラー
+ * @deprecated GET /api/environments/:id は廃止されました（410 Gone）。
+ * GET /api/projects/[project_id]/environment を使用してください。
  */
-export async function PUT(request: NextRequest, { params }: RouteParams) {
-  try {
-    const { id } = await params;
-
-    let body;
-    try {
-      body = await request.json();
-    } catch {
-      return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
-    }
-
-    // 環境の存在チェック
-    const existing = await environmentService.findById(id);
-    if (!existing) {
-      return NextResponse.json({ error: 'Environment not found' }, { status: 404 });
-    }
-
-    const { name, description, config } = body;
-
-    // 更新内容があるかチェック
-    if (name === undefined && description === undefined && config === undefined) {
-      return NextResponse.json(
-        { error: 'At least one field (name, description, config) must be provided' },
-        { status: 400 }
-      );
-    }
-
-    // 更新データを構築
-    const updateData: { name?: string; description?: string; config?: object } = {};
-    if (name !== undefined) {
-      // 空文字列チェック
-      if (typeof name !== 'string' || name.trim() === '') {
-        return NextResponse.json(
-          { error: 'name must be a non-empty string' },
-          { status: 400 }
-        );
-      }
-      updateData.name = name.trim();
-    }
-    if (description !== undefined) {
-      updateData.description = description;
-    }
-    if (config !== undefined) {
-      // skipPermissions のバリデーション（Docker環境のみ）
-      if (config?.skipPermissions !== undefined) {
-        if (existing.type !== 'DOCKER') {
-          // Docker以外の環境では skipPermissions を削除
-          delete config.skipPermissions;
-        } else if (typeof config.skipPermissions !== 'boolean') {
-          return NextResponse.json(
-            { error: 'config.skipPermissions must be a boolean' },
-            { status: 400 }
-          );
-        }
-      }
-      // portMappings のバリデーション
-      if (config?.portMappings !== undefined) {
-        if (!Array.isArray(config.portMappings)) {
-          return NextResponse.json(
-            { error: 'config.portMappings must be an array' },
-            { status: 400 }
-          );
-        }
-        const portResult = validatePortMappings(config.portMappings);
-        if (!portResult.valid) {
-          return NextResponse.json(
-            { error: portResult.errors.join('; ') },
-            { status: 400 }
-          );
-        }
-      }
-
-      // volumeMounts のバリデーション
-      if (config?.volumeMounts !== undefined) {
-        if (!Array.isArray(config.volumeMounts)) {
-          return NextResponse.json(
-            { error: 'config.volumeMounts must be an array' },
-            { status: 400 }
-          );
-        }
-        const volumeResult = validateVolumeMounts(config.volumeMounts);
-        if (!volumeResult.valid) {
-          return NextResponse.json(
-            { error: volumeResult.errors.join('; ') },
-            { status: 400 }
-          );
-        }
-      }
-
-      updateData.config = config;
-    }
-
-    logger.info('Updating environment', { id, fields: Object.keys(updateData) });
-
-    const environment = await environmentService.update(id, updateData);
-
-    logger.info('Environment updated', { id });
-    return NextResponse.json({ environment });
-  } catch (error) {
-    const { id } = await params;
-    logger.error('Failed to update environment', { error, id });
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function GET(_request: NextRequest, _params: RouteParams) {
+  return createDeprecatedResponse();
 }
 
 /**
- * DELETE /api/environments/:id - 環境を削除
- *
- * 注:
- * - 使用中のプロジェクトがある場合は削除不可（409）
- * - 使用中のセッションがあっても削除は許可（警告をログ出力）
- *
- * @returns
- * - 200: 削除成功
- * - 404: 環境が見つからない
- * - 409: 使用中のプロジェクトがある
- * - 500: サーバーエラー
+ * @deprecated PUT /api/environments/:id は廃止されました（410 Gone）。
+ * PUT /api/projects/[project_id]/environment を使用してください。
  */
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
-  try {
-    const { id } = await params;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function PUT(_request: NextRequest, _params: RouteParams) {
+  return createDeprecatedResponse();
+}
 
-    // 環境の存在チェック
-    const environment = await environmentService.findById(id);
-    if (!environment) {
-      return NextResponse.json({ error: 'Environment not found' }, { status: 404 });
-    }
-
-    // Volume保持オプションの解析
-    const keepClaudeVolume = request.nextUrl.searchParams.get('keepClaudeVolume') === 'true';
-    const keepConfigVolume = request.nextUrl.searchParams.get('keepConfigVolume') === 'true';
-
-    logger.info('Deleting environment', { id, name: environment.name, keepClaudeVolume, keepConfigVolume });
-
-    try {
-      await environmentService.delete(id, { keepClaudeVolume, keepConfigVolume });
-    } catch (error) {
-      if (error instanceof EnvironmentInUseError) {
-        return NextResponse.json({ error: error.message }, { status: 409 });
-      }
-      throw error;
-    }
-
-    logger.info('Environment deleted', { id });
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    const { id } = await params;
-    logger.error('Failed to delete environment', { error, id });
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
+/**
+ * @deprecated DELETE /api/environments/:id は廃止されました（410 Gone）。
+ * 環境はプロジェクト削除時に自動削除されます（DELETE /api/projects/[project_id]）。
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function DELETE(_request: NextRequest, _params: RouteParams) {
+  return createDeprecatedResponse();
 }

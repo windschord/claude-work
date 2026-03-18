@@ -36,6 +36,7 @@ export async function setupTestEnvironment(): Promise<{
   const project = db.insert(schema.projects).values({
     name: 'Test Project',
     path: testRepoPath,
+    environment_id: 'test-env-id', // TASK-017: テスト用ダミー値（Phase A の NOT NULL 制約対応）
   }).returning().get();
 
   return { testRepoPath, project };
