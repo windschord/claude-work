@@ -296,6 +296,10 @@ export async function POST(
           const { DockerGitService } = await import('@/services/docker-git-service');
           const dockerGitService = new DockerGitService();
 
+          // NOTE: source_branch は現在 DockerGitService では未対応のため無視される。
+          // DockerGitService.createWorktree は GitWorktreeOptions に source_branch フィールドを
+          // 持たず、Docker内で git worktree add を実行する際にブランチ元を指定する仕組みがない。
+          // 対応が必要な場合は DockerGitService と GitWorktreeOptions を拡張すること。
           const result = await dockerGitService.createWorktree({
             projectId: project.id,
             sessionName: sessionName,

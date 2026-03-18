@@ -3,6 +3,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { environmentService } from '@/services/environment-service';
 import { getEnvironmentsDir } from '@/lib/data-dir';
+import { logger } from '@/lib/logger';
 
 interface RouteParams {
   params: Promise<{ project_id: string }>;
@@ -17,48 +18,53 @@ export async function POST(
 ) {
   const { project_id } = await params;
 
-  const environment = await environmentService.findByProjectId(project_id);
-  if (!environment) {
-    return NextResponse.json({ error: 'Environment not found' }, { status: 404 });
-  }
-
-  if (environment.type !== 'DOCKER') {
-    return NextResponse.json(
-      { error: 'Dockerfile upload is only supported for DOCKER environments' },
-      { status: 400 }
-    );
-  }
-
-  const formData = await request.formData();
-  const file = formData.get('dockerfile') as File | null;
-
-  if (!file) {
-    return NextResponse.json({ error: 'No dockerfile provided' }, { status: 400 });
-  }
-
-  const envDir = path.join(getEnvironmentsDir(), environment.id);
-  await fs.mkdir(envDir, { recursive: true });
-
-  const dockerfilePath = path.join(envDir, 'Dockerfile');
-  const fileContent = await file.text();
-  await fs.writeFile(dockerfilePath, fileContent, 'utf-8');
-
-  let config: Record<string, unknown>;
   try {
-    config = JSON.parse(environment.config || '{}');
-  } catch {
-    // DBに不正なJSONが格納されている場合は空オブジェクトにフォールバック
-    config = {};
+    const environment = await environmentService.findByProjectId(project_id);
+    if (!environment) {
+      return NextResponse.json({ error: 'Environment not found' }, { status: 404 });
+    }
+
+    if (environment.type !== 'DOCKER') {
+      return NextResponse.json(
+        { error: 'Dockerfile upload is only supported for DOCKER environments' },
+        { status: 400 }
+      );
+    }
+
+    const formData = await request.formData();
+    const file = formData.get('dockerfile') as File | null;
+
+    if (!file) {
+      return NextResponse.json({ error: 'No dockerfile provided' }, { status: 400 });
+    }
+
+    const envDir = path.join(getEnvironmentsDir(), environment.id);
+    await fs.mkdir(envDir, { recursive: true });
+
+    const dockerfilePath = path.join(envDir, 'Dockerfile');
+    const fileContent = await file.text();
+    await fs.writeFile(dockerfilePath, fileContent, 'utf-8');
+
+    let config: Record<string, unknown>;
+    try {
+      config = JSON.parse(environment.config || '{}');
+    } catch {
+      // DBに不正なJSONが格納されている場合は空オブジェクトにフォールバック
+      config = {};
+    }
+    config.dockerfileUploaded = true;
+    config.imageSource = 'dockerfile';
+
+    await environmentService.update(environment.id, { config });
+
+    return NextResponse.json({
+      success: true,
+      path: `environments/${environment.id}/Dockerfile`,
+    });
+  } catch (error) {
+    logger.error('Failed to upload dockerfile', { error, project_id });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
-  config.dockerfileUploaded = true;
-  config.imageSource = 'dockerfile';
-
-  await environmentService.update(environment.id, { config });
-
-  return NextResponse.json({
-    success: true,
-    path: `environments/${environment.id}/Dockerfile`,
-  });
 }
 
 /**
@@ -70,30 +76,45 @@ export async function DELETE(
 ) {
   const { project_id } = await params;
 
-  const environment = await environmentService.findByProjectId(project_id);
-  if (!environment) {
-    return NextResponse.json({ error: 'Environment not found' }, { status: 404 });
-  }
-
-  if (environment.type !== 'DOCKER') {
-    return NextResponse.json(
-      { error: 'Dockerfile delete is only supported for DOCKER environments' },
-      { status: 400 }
-    );
-  }
-
-  const dockerfilePath = path.join(getEnvironmentsDir(), environment.id, 'Dockerfile');
   try {
-    await fs.unlink(dockerfilePath);
-  } catch {
-    // ファイルが存在しなくてもOK
+    const environment = await environmentService.findByProjectId(project_id);
+    if (!environment) {
+      return NextResponse.json({ error: 'Environment not found' }, { status: 404 });
+    }
+
+    if (environment.type !== 'DOCKER') {
+      return NextResponse.json(
+        { error: 'Dockerfile delete is only supported for DOCKER environments' },
+        { status: 400 }
+      );
+    }
+
+    const dockerfilePath = path.join(getEnvironmentsDir(), environment.id, 'Dockerfile');
+    try {
+      await fs.unlink(dockerfilePath);
+    } catch (unlinkError) {
+      // ファイルが存在しない場合（ENOENT）は正常とみなして続行する
+      // それ以外のエラー（権限エラー等）は上位の catch に伝播させる
+      if ((unlinkError as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw unlinkError;
+      }
+    }
+
+    let config: Record<string, unknown>;
+    try {
+      config = JSON.parse(environment.config || '{}');
+    } catch {
+      // DBに不正なJSONが格納されている場合は空オブジェクトにフォールバック
+      config = {};
+    }
+    config.dockerfileUploaded = false;
+    config.imageSource = 'existing';
+
+    await environmentService.update(environment.id, { config });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    logger.error('Failed to delete dockerfile', { error, project_id });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
-
-  const config = JSON.parse(environment.config || '{}');
-  config.dockerfileUploaded = false;
-  config.imageSource = 'existing';
-
-  await environmentService.update(environment.id, { config });
-
-  return NextResponse.json({ success: true });
 }

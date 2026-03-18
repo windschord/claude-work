@@ -270,4 +270,45 @@ describe('useProjectEnvironment', () => {
       expect(calls.some((url) => url.includes('/api/projects/proj-001/environment'))).toBe(true);
     });
   });
+
+  describe('ライフサイクル', () => {
+    // useProjectEnvironment の useEffect は fetch（非同期HTTPリクエスト）のみを副作用として持つ。
+    // WebSocket や setInterval などの永続的リソースは作成しないため、
+    // クリーンアップ関数（return () => ...）は不要であり、明示的なアンマウント処理は実装していない。
+    // ただし、アンマウント後に非同期 fetch が完了して setState が呼ばれる
+    // 「can't perform a React state update on an unmounted component」問題は
+    // requestIdRef による楽観的な無効化で対処している。
+
+    it('アンマウント後にエラーが発生しない', async () => {
+      const { result, unmount } = renderHook(() => useProjectEnvironment('proj-001'));
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      // アンマウント時に例外が発生しないことを確認
+      expect(() => unmount()).not.toThrow();
+    });
+
+    it('projectId が変更された場合、新しい projectId で再フェッチする', async () => {
+      let projectId = 'proj-001';
+      const { result, rerender } = renderHook(() => useProjectEnvironment(projectId));
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      mockFetch.mockClear();
+      projectId = 'proj-002';
+      rerender();
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      // proj-002 のエンドポイントを呼んでいることを確認
+      const calls = mockFetch.mock.calls.map((call) => call[0] as string);
+      expect(calls.some((url) => url.includes('/api/projects/proj-002/environment'))).toBe(true);
+    });
+  });
 });

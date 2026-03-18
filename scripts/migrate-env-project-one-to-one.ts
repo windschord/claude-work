@@ -124,6 +124,9 @@ export async function runMigration(
   db: Database.Database,
   environmentsDir: string | null = null,
 ): Promise<void> {
+  // Step 5 で使用する「複製元環境ID → 複製先環境ID」の対応表（トランザクション外でのコピー用）
+  const clonedEnvMappings: Array<{ originalEnvId: string; newEnvId: string }> = [];
+
   // トランザクション内でデータ移行を実行（DB操作のアトミック性を保証）
   db.transaction(() => {
     // ============================================================
@@ -203,6 +206,9 @@ export async function runMigration(
 
         // NetworkFilter を複製
         cloneNetworkFilter(db, shared.environment_id, newEnvId);
+
+        // auth_dir_path コピー対象を記録（トランザクション外で処理）
+        clonedEnvMappings.push({ originalEnvId: shared.environment_id, newEnvId });
       }
     }
 
@@ -285,21 +291,17 @@ export async function runMigration(
 
   // ============================================================
   // Step 5: auth_dir_path のコピー（トランザクション外・ベストエフォート）
+  // Step 1 で記録した「複製元環境ID → 複製先環境ID」の対応を使用して
+  // 正しいペアでコピーする
   // ============================================================
-  if (environmentsDir) {
-    const envsWithAuthDir = db.prepare(
-      'SELECT * FROM ExecutionEnvironment WHERE auth_dir_path IS NOT NULL'
-    ).all() as EnvRow[];
+  if (environmentsDir && clonedEnvMappings.length > 0) {
+    for (const { originalEnvId, newEnvId } of clonedEnvMappings) {
+      const originalEnv = db.prepare(
+        'SELECT * FROM ExecutionEnvironment WHERE id = ?'
+      ).get(originalEnvId) as EnvRow | undefined;
 
-    for (const env of envsWithAuthDir) {
-      // 複製元の環境IDを持つ環境を検索
-      // （複製された環境はauth_dir_pathがnullのため、既にコピー済みでない場合のみ）
-      const clonedEnvs = db.prepare(
-        'SELECT * FROM ExecutionEnvironment WHERE project_id IS NOT NULL AND auth_dir_path IS NULL'
-      ).all() as EnvRow[];
-
-      for (const clonedEnv of clonedEnvs) {
-        await cloneAuthDir(db, env, clonedEnv.id, environmentsDir);
+      if (originalEnv && originalEnv.auth_dir_path) {
+        await cloneAuthDir(db, originalEnv, newEnvId, environmentsDir);
       }
     }
   }

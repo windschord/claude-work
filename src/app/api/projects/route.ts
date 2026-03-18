@@ -190,7 +190,11 @@ export async function POST(request: NextRequest) {
     // 環境を先に作成（project_id は後でプロジェクト作成後に設定）
     // NOTE: projects.environment_id と executionEnvironments.project_id の循環参照を
     //       解決するため、環境を先に作成してからプロジェクトを作成し、最後に環境の
-    //       project_id を更新する
+    //       project_id を更新する。
+    //       アトミック性の確保: プロジェクト作成が失敗した場合、catch ブロックで
+    //       孤立した環境をクリーンアップする（下の try/catch を参照）。
+    //       SQLite の外部キー制約上、両テーブルを同一トランザクションで INSERT する
+    //       ことができないため、この 2 フェーズ方式を採用している。
     const environment = await environmentService.create({
       name: `${name} 環境`,
       type: 'DOCKER',

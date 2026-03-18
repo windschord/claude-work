@@ -23,12 +23,12 @@ interface RouteParams {
 export async function POST(request: NextRequest, { params }: RouteParams) {
   const { project_id } = await params;
 
-  const environment = await environmentService.findByProjectId(project_id);
-  if (!environment) {
-    return NextResponse.json({ error: 'Environment not found' }, { status: 404 });
-  }
-
   try {
+    const environment = await environmentService.findByProjectId(project_id);
+    if (!environment) {
+      return NextResponse.json({ error: 'Environment not found' }, { status: 404 });
+    }
+
     let body: unknown;
     try {
       body = await request.json();

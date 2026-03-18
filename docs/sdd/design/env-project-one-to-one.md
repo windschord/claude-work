@@ -440,13 +440,13 @@ Dockerfileのアップロード/取得（旧 `GET|POST /api/environments/[id]/do
 |---|---|
 | `POST /api/environments` | 廃止（410 Gone。プロジェクト作成時に自動作成） |
 | `GET /api/environments` | 廃止（410 Gone） |
-| `GET /api/environments/[id]` | 後方互換のため `GET /api/projects/[project_id]/environment` にリダイレクトを検討。または廃止。 |
+| `GET /api/environments/[id]` | 廃止（410 Gone。`GET /api/projects/[project_id]/environment` を使用すること） |
 | `PUT /api/environments/[id]` | 廃止 |
 | `DELETE /api/environments/[id]` | 廃止（プロジェクト削除時に連動削除） |
 | `/api/environments/[id]/...` 全サブルート | 廃止（`/api/projects/[project_id]/environment/...` に移動） |
 | `GET /api/environments/check-ports` | 廃止または `/api/projects/[project_id]/environment/check-ports` に移動 |
 
-**移行方針:** 段階的廃止として、まず新エンドポイントを追加し、フロントエンドを切り替え後に旧エンドポイントを削除する。
+**移行方針:** 旧 `/api/environments` エンドポイントはすべて廃止し、410 Gone を返す。新エンドポイント `/api/projects/[project_id]/environment` に移行すること。段階的廃止（リダイレクト等）は行わない。
 
 ### 3.3 変更するエンドポイント
 
@@ -493,8 +493,12 @@ db.update(schema.projects)
 
 #### `POST /api/projects/[project_id]/sessions`
 
-`environment_id` パラメータを無視する（後方互換のためエラーにはしない）。
-`sessions` テーブルへの `environment_id` 保存を削除する。
+リクエストボディに `environment_id` が含まれていても無視する（後方互換のためエラーにはしない）。
+セッションは常にプロジェクトに紐付く環境（`projects.environment_id`）を使用する。
+`sessions` テーブルに `environment_id` カラムは存在しない（TASK-003 で削除済み）。
+
+**実装済み**: `src/app/api/projects/[project_id]/sessions/route.ts` は `environment_id` を参照せず、
+`environmentService.findByProjectId(project_id)` でプロジェクトの環境を取得する。
 
 ---
 

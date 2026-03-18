@@ -114,17 +114,30 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     if (description !== undefined) {
-      updateData.description = description;
+      if (typeof description !== 'string' && description !== null) {
+        return NextResponse.json(
+          { error: 'description must be a string or null' },
+          { status: 400 }
+        );
+      }
+      updateData.description = description as string | undefined;
     }
 
     if (type !== undefined) {
       if (type !== 'HOST' && type !== 'DOCKER' && type !== 'SSH') {
         return NextResponse.json(
-          { error: 'type must be HOST, DOCKER, or SSH' },
+          { error: 'type must be HOST or DOCKER' },
           { status: 400 }
         );
       }
-      updateData.type = type as 'HOST' | 'DOCKER' | 'SSH';
+      // SSH 環境は未実装のため保存を拒否する
+      if (type === 'SSH') {
+        return NextResponse.json(
+          { error: 'SSH environment type is not yet supported' },
+          { status: 400 }
+        );
+      }
+      updateData.type = type as 'HOST' | 'DOCKER';
     }
 
     if (config !== undefined) {

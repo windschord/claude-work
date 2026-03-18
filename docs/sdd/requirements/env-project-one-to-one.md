@@ -169,7 +169,8 @@ UNIQUE 制約と NOT NULL 制約を設定する。
 **THE SYSTEM SHALL** リクエストボディの `environment_id` パラメータを無視し、常にプロジェクトの環境を使用する。
 
 **IF** `environment_id` を含むリクエストボディが送信された場合、
-**THE SYSTEM SHALL** 400 エラーを返さずにパラメータを無視する（後方互換性のため）。
+**THE SYSTEM SHALL** 400 エラーを返さずにパラメータを無視する。
+（`sessions` テーブルには `environment_id` カラムが存在しないため、保存もされない）
 
 受入基準:
 - セッション作成時に `environment_id` を指定してもプロジェクトの環境が使用される
@@ -195,24 +196,30 @@ UNIQUE 制約と NOT NULL 制約を設定する。
 **THE SYSTEM SHALL** セッション有無に関わらず環境設定を更新できるようにする。
 
 **IF** プロジェクトに紐付く環境の `config` を更新する場合、
-**THE SYSTEM SHALL** `PUT /api/environments/[env_id]` を通じて更新するか、
-プロジェクト PATCH API に環境設定を渡せるようにする。
+**THE SYSTEM SHALL** `PUT /api/projects/[project_id]/environment` を通じて更新する。
+（旧 `PUT /api/environments/[env_id]` は廃止済み、410 Gone を返す）
 
 受入基準:
-- 既存セッションが存在する状態でも環境設定（`config`, `name`, `description`）を変更できる
-- 環境 `type` の変更は既存セッションが存在する場合に 409 エラーを返す
+- 既存セッションが存在する状態でも環境設定（`config`, `name`, `description`, `type`）を変更できる
+- アクティブセッションが存在する場合は警告メッセージを応答に含める（エラーにはしない）
+- 変更は次回セッション起動時に適用される（実行中セッションには即時反映されない）
 
 #### REQ-API-004: 環境独立管理 API の変更
 
 **WHEN** `/api/environments` エンドポイントが呼び出されるとき、
-**THE SYSTEM SHALL** プロジェクトに紐付いた環境の管理専用に制限する。
+**THE SYSTEM SHALL** 410 Gone を返す。
 
-**THE SYSTEM SHALL NOT** `/api/environments` から独立した（プロジェクト未紐付け）環境の新規作成を許可する。
+**THE SYSTEM SHALL NOT** `/api/environments` からいかなる操作も許可しない（廃止済み）。
+環境の管理は `/api/projects/[project_id]/environment` を使用すること。
 
 受入基準:
-- `POST /api/environments` はプロジェクト ID の指定なしでは 400 エラーを返す（または廃止）
-- `GET /api/environments` にプロジェクト ID フィルタが追加される
-- 既存の環境設定 API（ネットワークフィルター等）は引き続き機能する
+- `POST /api/environments` は 410 Gone を返す
+- `GET /api/environments` は 410 Gone を返す
+- `GET /api/environments/[id]` は 410 Gone を返す
+- `PUT /api/environments/[id]` は 410 Gone を返す
+- `DELETE /api/environments/[id]` は 410 Gone を返す
+- `/api/environments/[id]/...` 全サブルートは 410 Gone を返す
+- 環境操作は `/api/projects/[project_id]/environment` で引き続き機能する
 
 ---
 

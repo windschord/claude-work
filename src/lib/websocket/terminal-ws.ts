@@ -152,7 +152,13 @@ export function setupTerminalWebSocket(
           }
         };
 
-        // プロジェクトに紐付く環境をfindByProjectId経由で取得してアダプターを選択
+        // プロジェクトに紐付く環境を findByProjectId 経由で取得してアダプターを選択
+        // 設計上の注意: クリーンアップ時に DB から環境を再取得しているため、
+        // 接続確立後に環境レコードが変更・削除された場合は起動時と異なるアダプターが
+        // 返る可能性がある。しかし 1対1 関係により環境は削除されにくく、
+        // AdapterFactory はシングルトンキャッシュを持つため実用上の影響は軽微。
+        // より安全にするには接続確立時のアダプター参照をクロージャでキャプチャするか、
+        // セッションIDをキーにキャッシュする方式が望ましい。
         environmentService.findByProjectId(session.project_id).then(async (environment) => {
           if (environment) {
             const adapter = AdapterFactory.getAdapter(environment);
