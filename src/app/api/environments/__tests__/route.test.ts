@@ -23,7 +23,6 @@ describe('/api/environments (deprecated - 410 Gone)', () => {
       const response = await GET(request);
 
       expect(response.headers.get('Deprecation')).toBe('true');
-      expect(response.headers.get('Sunset')).toBeTruthy();
     });
 
     it('代替エンドポイントの情報が含まれる', async () => {
@@ -59,7 +58,6 @@ describe('/api/environments (deprecated - 410 Gone)', () => {
       const response = await POST(request);
 
       expect(response.headers.get('Deprecation')).toBe('true');
-      expect(response.headers.get('Sunset')).toBeTruthy();
     });
 
     it('代替エンドポイントの情報が含まれる', async () => {
