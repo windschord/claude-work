@@ -27,9 +27,13 @@ export const projects = sqliteTable('Project', {
   // ホスト環境の場合はnull
   docker_volume_id: text('docker_volume_id'),
 
-  // プロジェクト単位の実行環境設定
+  // プロジェクト単位の実行環境設定（1対1）
   // セッション作成時はこの環境が自動的に使用される
-  environment_id: text('environment_id').references(() => executionEnvironments.id, { onDelete: 'set null' }),
+  // onDelete: 'restrict' により、プロジェクトに紐付く環境のみ削除を防ぐ
+  environment_id: text('environment_id')
+    .notNull()
+    .unique()
+    .references(() => executionEnvironments.id, { onDelete: 'restrict' }),
 
   created_at: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
   updated_at: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
@@ -69,9 +73,7 @@ export const sessions = sqliteTable('Session', {
   pr_number: integer('pr_number'),
   pr_status: text('pr_status'),
   pr_updated_at: integer('pr_updated_at', { mode: 'timestamp' }),
-  docker_mode: integer('docker_mode', { mode: 'boolean' }).notNull().default(false),
   container_id: text('container_id'),
-  environment_id: text('environment_id').references(() => executionEnvironments.id, { onDelete: 'set null' }),
   claude_code_options: text('claude_code_options'),
   custom_env_vars: text('custom_env_vars'),
 
@@ -232,7 +234,6 @@ export const executionEnvironmentsRelations = relations(executionEnvironments, (
     fields: [executionEnvironments.project_id],
     references: [projects.id],
   }),
-  sessions: many(sessions),
   networkFilterConfig: one(networkFilterConfigs, {
     fields: [executionEnvironments.id],
     references: [networkFilterConfigs.environment_id],
@@ -244,10 +245,6 @@ export const sessionsRelations = relations(sessions, ({ one, many }) => ({
   project: one(projects, {
     fields: [sessions.project_id],
     references: [projects.id],
-  }),
-  environment: one(executionEnvironments, {
-    fields: [sessions.environment_id],
-    references: [executionEnvironments.id],
   }),
   messages: many(messages),
 }));

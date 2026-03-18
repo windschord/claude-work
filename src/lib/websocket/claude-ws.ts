@@ -330,9 +330,8 @@ export function setupClaudeWebSocket(
             });
           }
 
-          // 環境IDを取得（プロジェクト環境を優先）
-          const projectEnvironmentId = session.project?.environment_id;
-          const environmentId = projectEnvironmentId || session.environment_id;
+          // 環境IDを取得（プロジェクト環境から取得）
+          const environmentId = session.project?.environment_id;
           if (!environmentId) {
             logger.error('Claude WebSocket: No environment configured for session', { sessionId });
             ws.send(JSON.stringify({
@@ -343,7 +342,7 @@ export function setupClaudeWebSocket(
             ws.close(1008, 'No environment configured');
             return;
           }
-          logger.info(`Claude WebSocket: Using ${projectEnvironmentId ? 'project' : 'session'} environment`, {
+          logger.info('Claude WebSocket: Using project environment', {
             sessionId,
             environmentId,
           });

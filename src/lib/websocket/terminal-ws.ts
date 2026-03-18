@@ -108,7 +108,7 @@ export function setupTerminalWebSocket(
       db.query.sessions.findFirst({
         where: eq(schema.sessions.id, originalSessionId),
         columns: {
-          environment_id: true,
+          id: true,
         },
         with: {
           project: {
@@ -158,8 +158,8 @@ export function setupTerminalWebSocket(
           }
         };
 
-        // セッション固有のenvironment_idを優先、次にプロジェクトのenvironment_id
-        const effectiveEnvId = session.environment_id || session.project?.environment_id;
+        // プロジェクトのenvironment_idからアダプターを取得
+        const effectiveEnvId = session.project?.environment_id;
         if (effectiveEnvId) {
           // 新方式: AdapterFactory経由
           environmentService.findById(effectiveEnvId).then(async (environment) => {
@@ -240,7 +240,6 @@ export function setupTerminalWebSocket(
         where: eq(schema.sessions.id, sessionId),
         columns: {
           id: true,
-          environment_id: true,
           worktree_path: true,
         },
         with: {
@@ -263,13 +262,13 @@ export function setupTerminalWebSocket(
       const terminalSessionId = `${sessionId}${TERMINAL_SESSION_SUFFIX}`;
 
       // アダプター選択
-      // environment_idがある場合は新方式（AdapterFactory経由）
+      // プロジェクトのenvironment_idがある場合は新方式（AdapterFactory経由）
       // ない場合は従来のptyManagerを直接使用
       let adapter: EnvironmentAdapter | null = null;
       let useLegacyPtyManager = true;
 
-      // 環境IDを取得（セッション → プロジェクト → レガシー の優先順位）
-      const effectiveEnvId = session.environment_id || session.project?.environment_id;
+      // 環境IDを取得（プロジェクトのenvironment_idから）
+      const effectiveEnvId = session.project?.environment_id;
       if (effectiveEnvId) {
         // 新方式: environment_id で環境を取得
         const environment = await environmentService.findById(effectiveEnvId);
@@ -288,11 +287,10 @@ export function setupTerminalWebSocket(
         }
         adapter = AdapterFactory.getAdapter(environment);
         useLegacyPtyManager = false;
-        logger.info('Terminal WebSocket: Using session/project environment', {
+        logger.info('Terminal WebSocket: Using project environment', {
           sessionId,
           environmentId: environment.id,
           environmentType: environment.type,
-          source: session.environment_id ? 'session' : 'project',
         });
       } else {
         // 従来方式: ptyManagerを直接使用
