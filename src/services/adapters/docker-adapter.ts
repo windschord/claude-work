@@ -780,35 +780,56 @@ export class DockerAdapter extends BasePTYAdapter {
 
     // proxy稼働確認: filterEnabled時にproxyが利用できなければフィルタリングを無効化
     // buildContainerOptionsの前に行う（コンテナにproxy設定を焼き込まないため）
+    // PROXY_API_URLが未設定/空の場合はhealthCheckをスキップして即座に無効化（タイムアウト遅延回避）
     if (filterEnabled) {
-      const proxyClient = new ProxyClient();
-      try {
-        await proxyClient.healthCheck();
-      } catch (healthCheckError) {
+      if (!process.env.PROXY_API_URL) {
         logger.warn(
-          'DockerAdapter: ネットワークフィルタリングプロキシが利用できないため、フィルタリングなしで起動します',
-          {
-            sessionId,
-            environmentId: this.config.environmentId,
-            error: healthCheckError instanceof Error ? healthCheckError.message : 'Unknown error',
-          }
+          'DockerAdapter: PROXY_API_URLが未設定のため、フィルタリングなしで起動します',
+          { sessionId, environmentId: this.config.environmentId }
         );
         filterEnabled = false;
+      } else {
+        const proxyClient = new ProxyClient();
+        try {
+          await proxyClient.healthCheck();
+        } catch (healthCheckError) {
+          logger.warn(
+            'DockerAdapter: ネットワークフィルタリングプロキシが利用できないため、フィルタリングなしで起動します',
+            {
+              sessionId,
+              environmentId: this.config.environmentId,
+              error: healthCheckError instanceof Error ? healthCheckError.message : 'Unknown error',
+            }
+          );
+          filterEnabled = false;
+        }
       }
     }
 
     // registry-firewall稼働確認: 到達できなければレジストリ設定注入を無効化
     let registryFirewallEnabled = options?.registryFirewallEnabled ?? false;
     if (registryFirewallEnabled && filterEnabled && process.env.REGISTRY_FIREWALL_URL) {
-      const rfClient = new RegistryFirewallClient();
-      const health = await rfClient.getHealth();
-      if (health.status !== 'healthy') {
+      try {
+        const rfClient = new RegistryFirewallClient();
+        const health = await rfClient.getHealth();
+        if (health.status !== 'healthy') {
+          logger.warn(
+            'DockerAdapter: registry-firewallが利用できないため、レジストリ設定注入をスキップします',
+            {
+              sessionId,
+              environmentId: this.config.environmentId,
+              firewallStatus: health.status,
+            }
+          );
+          registryFirewallEnabled = false;
+        }
+      } catch (rfError) {
         logger.warn(
-          'DockerAdapter: registry-firewallが利用できないため、レジストリ設定注入をスキップします',
+          'DockerAdapter: registry-firewallへの接続に失敗したため、レジストリ設定注入をスキップします',
           {
             sessionId,
             environmentId: this.config.environmentId,
-            firewallStatus: health.status,
+            error: rfError instanceof Error ? rfError.message : 'Unknown error',
           }
         );
         registryFirewallEnabled = false;

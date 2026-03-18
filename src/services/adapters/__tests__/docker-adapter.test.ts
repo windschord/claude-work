@@ -309,6 +309,22 @@ describe('DockerAdapter', () => {
   });
 
   describe('createSession with network filtering', () => {
+    let originalProxyApiUrl: string | undefined;
+
+    beforeEach(() => {
+      originalProxyApiUrl = process.env.PROXY_API_URL;
+      // proxy healthCheckが呼ばれるようにPROXY_API_URLを設定
+      process.env.PROXY_API_URL = 'http://network-filter-proxy:8080';
+    });
+
+    afterEach(() => {
+      if (originalProxyApiUrl === undefined) {
+        delete process.env.PROXY_API_URL;
+      } else {
+        process.env.PROXY_API_URL = originalProxyApiUrl;
+      }
+    });
+
     // createSessionのテスト用ヘルパー：コンテナモックを設定する
     function setupContainerMock(containerIpAddress: string) {
       const mockExec = { start: vi.fn().mockResolvedValue(undefined) };
@@ -393,7 +409,7 @@ describe('DockerAdapter', () => {
       setupContainerMock('172.20.0.5');
 
       try {
-        await adapter.createSession('session-1', '/workspace', {
+        await adapter.createSession('session-1', '/workspace', undefined, {
           registryFirewallEnabled: true,
         });
 
