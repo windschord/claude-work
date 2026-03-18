@@ -373,17 +373,14 @@ describe('EnvironmentService', () => {
       mockDbSelectGet.mockReturnValueOnce(env);
       // projects取得用のモック（この環境を使うプロジェクトはなし）
       mockDbSelectAll.mockReturnValueOnce([]);
-      // sessions取得用のモック（この環境を使うセッションはなし）
-      mockDbSelectAll.mockReturnValueOnce([]);
 
       await service.delete('env-123');
 
-      // 終了済みセッションのenvironment_idがNULLクリアされることを確認
-      expect(mockDbUpdateRun).toHaveBeenCalled();
+      // DBレコードが削除されることを確認
       expect(mockDbDeleteRun).toHaveBeenCalled();
     });
 
-    it('終了済みセッションのenvironment_idをNULLクリアする', async () => {
+    it('プロジェクトに紐付いていない環境はトランザクション内でDBレコードが削除される', async () => {
       const env = {
         id: 'env-123',
         name: 'Test Env',
@@ -398,18 +395,15 @@ describe('EnvironmentService', () => {
       mockDbSelectGet.mockReturnValueOnce(env);
       // projects取得用のモック（この環境を使うプロジェクトはなし）
       mockDbSelectAll.mockReturnValueOnce([]);
-      // sessions取得用のモック（アクティブセッションはなし）
-      mockDbSelectAll.mockReturnValueOnce([]);
 
       await service.delete('env-123');
 
-      // tx.update(schema.sessions).set({ environment_id: null }) が呼ばれることを確認
+      // トランザクションが呼ばれることを確認
       const { db } = await import('@/lib/db');
       const txCallback = vi.mocked(db.transaction).mock.calls[0]?.[0];
       expect(txCallback).toBeDefined();
 
-      // トランザクション内でupdateとdeleteの両方が呼ばれていることを確認
-      expect(mockDbUpdateRun).toHaveBeenCalled();
+      // トランザクション内でdeleteが呼ばれていることを確認
       expect(mockDbDeleteRun).toHaveBeenCalled();
     });
 
@@ -435,12 +429,11 @@ describe('EnvironmentService', () => {
         'この環境は以下のプロジェクトで使用中のため削除できません: Project A, Project B'
       );
 
-      // プロジェクト使用中の場合はNULLクリアもDBレコード削除も実行されない
-      expect(mockDbUpdateRun).not.toHaveBeenCalled();
+      // プロジェクト使用中の場合はDBレコード削除が実行されない
       expect(mockDbDeleteRun).not.toHaveBeenCalled();
     });
 
-    it('使用中のセッションがある場合は削除を拒否する', async () => {
+    it('使用中のプロジェクトが1つの場合も削除を拒否する', async () => {
       mockDbSelectGet.mockReturnValueOnce({
         id: 'env-123',
         name: 'Test Env',
@@ -451,24 +444,16 @@ describe('EnvironmentService', () => {
         created_at: new Date(),
         updated_at: new Date(),
       });
-      // projects取得用のモック（空）
-      mockDbSelectAll.mockReturnValueOnce([]);
-      // sessions取得用のモック（この環境を使うセッションが2つ）
+      // projects取得用のモック（この環境を使うプロジェクトが1つ）
       mockDbSelectAll.mockReturnValueOnce([
-        { id: 'session-1' },
-        { id: 'session-2' },
+        { id: 'proj-1', name: 'Project A' },
       ]);
 
       await expect(service.delete('env-123')).rejects.toThrow(
-        'この環境は 2 件のアクティブなセッションで使用中のため削除できません'
+        'この環境は以下のプロジェクトで使用中のため削除できません: Project A'
       );
 
-      // アクティブ状態フィルタが適用されていることを検証
-      const { inArray } = await import('drizzle-orm');
-      expect(inArray).toHaveBeenCalledWith('status', ['running', 'initializing', 'waiting_input']);
-
-      // アクティブセッション使用中の場合はNULLクリアもDBレコード削除も実行されない
-      expect(mockDbUpdateRun).not.toHaveBeenCalled();
+      // DBレコード削除が実行されない
       expect(mockDbDeleteRun).not.toHaveBeenCalled();
     });
 
@@ -648,6 +633,144 @@ describe('EnvironmentService', () => {
       // 動的インポートでシングルトンを取得
       const envModule = await import('../environment-service');
       expect(envModule.environmentService).toBeInstanceOf(EnvironmentService);
+    });
+  });
+
+  describe('createForProject', () => {
+    it('デフォルトDOCKER設定でプロジェクト専用環境を作成できる', async () => {
+      const projectId = 'test-project-id';
+      const expectedResult = {
+        id: 'new-env-id',
+        name: `${projectId.slice(0, 8)} 環境`,
+        type: 'DOCKER',
+        description: undefined,
+        config: JSON.stringify({
+          imageName: 'ghcr.io/windschord/claude-work-sandbox',
+          imageTag: 'latest',
+        }),
+        project_id: projectId,
+        auth_dir_path: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      mockDbInsertGet.mockReturnValue(expectedResult);
+
+      const result = await service.createForProject(projectId);
+
+      expect(result).toEqual(expectedResult);
+    });
+
+    it('カスタム設定を指定してプロジェクト専用環境を作成できる', async () => {
+      const projectId = 'test-project-id';
+      const customConfig = {
+        name: 'カスタム環境',
+        type: 'HOST' as const,
+        config: { customKey: 'value' },
+      };
+      const expectedResult = {
+        id: 'new-env-id',
+        name: 'カスタム環境',
+        type: 'HOST',
+        description: undefined,
+        config: JSON.stringify({
+          imageName: 'ghcr.io/windschord/claude-work-sandbox',
+          imageTag: 'latest',
+          customKey: 'value',
+        }),
+        project_id: projectId,
+        auth_dir_path: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      mockDbInsertGet.mockReturnValue(expectedResult);
+
+      const result = await service.createForProject(projectId, customConfig);
+
+      expect(result).toEqual(expectedResult);
+    });
+  });
+
+  describe('findByProjectId', () => {
+    it('プロジェクトIDから環境を取得できる', async () => {
+      const projectId = 'test-project-id';
+      const expectedEnv = {
+        id: 'env-123',
+        name: 'Test Env',
+        type: 'DOCKER',
+        description: null,
+        config: '{}',
+        project_id: projectId,
+        auth_dir_path: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      mockDbSelectGet.mockReturnValue(expectedEnv);
+
+      const result = await service.findByProjectId(projectId);
+
+      expect(result).toEqual(expectedEnv);
+    });
+
+    it('存在しないプロジェクトIDの場合はnullを返す', async () => {
+      mockDbSelectGet.mockReturnValue(undefined);
+
+      const result = await service.findByProjectId('non-existent-project');
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('update with type field', () => {
+    it('typeフィールドを変更できる', async () => {
+      const updatedEnv = {
+        id: 'env-123',
+        name: 'Test Env',
+        type: 'HOST',
+        description: null,
+        config: '{}',
+        auth_dir_path: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      mockDbUpdateGet.mockReturnValue(updatedEnv);
+
+      const result = await service.update('env-123', { type: 'HOST' });
+
+      expect(result.type).toBe('HOST');
+    });
+  });
+
+  describe('create with project_id', () => {
+    it('project_idを保存して環境を作成できる', async () => {
+      const projectId = 'test-project-id';
+      const input: import('../environment-service').CreateEnvironmentInput = {
+        name: 'Test Docker',
+        type: 'DOCKER',
+        config: { imageName: 'test-image' },
+        project_id: projectId,
+      };
+
+      const expectedResult = {
+        id: 'test-id-123',
+        name: 'Test Docker',
+        type: 'DOCKER',
+        description: undefined,
+        config: JSON.stringify({ imageName: 'test-image' }),
+        project_id: projectId,
+        auth_dir_path: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      mockDbInsertGet.mockReturnValue(expectedResult);
+
+      const result = await service.create(input);
+
+      expect(result.project_id).toBe(projectId);
     });
   });
 
@@ -1012,8 +1135,7 @@ describe('EnvironmentService', () => {
       };
 
       mockDbSelectGet.mockReturnValueOnce(env);
-      mockDbSelectAll.mockReturnValueOnce([]); // projects
-      mockDbSelectAll.mockReturnValueOnce([]); // sessions
+      mockDbSelectAll.mockReturnValueOnce([]); // projects（使用中プロジェクトなし）
       mockDockerClient.removeVolume.mockResolvedValue(undefined);
 
       await service.delete('docker-env');
@@ -1038,8 +1160,7 @@ describe('EnvironmentService', () => {
       };
 
       mockDbSelectGet.mockReturnValueOnce(env);
-      mockDbSelectAll.mockReturnValueOnce([]); // projects
-      mockDbSelectAll.mockReturnValueOnce([]); // sessions
+      mockDbSelectAll.mockReturnValueOnce([]); // projects（使用中プロジェクトなし）
       mockDockerClient.removeVolume.mockResolvedValue(undefined);
 
       await service.delete(envId, { keepClaudeVolume: true });
@@ -1063,8 +1184,7 @@ describe('EnvironmentService', () => {
       };
 
       mockDbSelectGet.mockReturnValueOnce(env);
-      mockDbSelectAll.mockReturnValueOnce([]); // projects
-      mockDbSelectAll.mockReturnValueOnce([]); // sessions
+      mockDbSelectAll.mockReturnValueOnce([]); // projects（使用中プロジェクトなし）
       mockDockerClient.removeVolume.mockResolvedValue(undefined);
 
       await service.delete(envId, { keepConfigVolume: true });
@@ -1086,8 +1206,7 @@ describe('EnvironmentService', () => {
       };
 
       mockDbSelectGet.mockReturnValueOnce(env);
-      mockDbSelectAll.mockReturnValueOnce([]); // projects
-      mockDbSelectAll.mockReturnValueOnce([]); // sessions
+      mockDbSelectAll.mockReturnValueOnce([]); // projects（使用中プロジェクトなし）
 
       await service.delete('docker-env', { keepClaudeVolume: true, keepConfigVolume: true });
 
@@ -1107,8 +1226,7 @@ describe('EnvironmentService', () => {
       };
 
       mockDbSelectGet.mockReturnValueOnce(env);
-      mockDbSelectAll.mockReturnValueOnce([]); // projects
-      mockDbSelectAll.mockReturnValueOnce([]); // sessions
+      mockDbSelectAll.mockReturnValueOnce([]); // projects（使用中プロジェクトなし）
 
       await service.delete('docker-env');
 

@@ -7,7 +7,6 @@ import type { WizardData } from './types';
 
 interface StepSessionProps {
   createdProjectId: string | null;
-  environmentId: string | null;
   sessionName: string;
   onChange: (data: Partial<WizardData>) => void;
   onComplete: () => void;
@@ -17,7 +16,6 @@ interface StepSessionProps {
 
 export function StepSession({
   createdProjectId,
-  environmentId,
   sessionName,
   onChange,
   onComplete,
@@ -40,7 +38,6 @@ export function StepSession({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: sessionName || undefined,
-          environment_id: environmentId || undefined,
         }),
       });
 
@@ -98,6 +95,9 @@ export function StepSession({
         </h3>
         <p className="text-sm text-gray-500 dark:text-gray-400">
           セッションを作成して作業を開始できます
+        </p>
+        <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
+          実行環境の設定はプロジェクト設定から変更できます
         </p>
       </div>
 

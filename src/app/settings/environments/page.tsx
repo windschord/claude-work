@@ -1,63 +1,12 @@
-'use client';
-
-import { Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { useEnvironments } from '@/hooks/useEnvironments';
-import { EnvironmentList } from '@/components/environments/EnvironmentList';
-import { RegistryFirewallStatus } from '@/components/environments/RegistryFirewallStatus';
-import { BackButton } from '@/components/settings/BackButton';
-
-function EnvironmentsSettingsContent() {
-  const searchParams = useSearchParams();
-  const highlightedEnvironmentId = searchParams.get('highlight');
-
-  const {
-    environments,
-    isLoading,
-    error,
-    fetchEnvironments,
-    createEnvironment,
-    updateEnvironment,
-    deleteEnvironment,
-    hostEnvironmentDisabled,
-  } = useEnvironments();
-
-  return (
-    <div>
-      {/* 戻るボタン */}
-      <div className="p-6 pb-0">
-        <BackButton />
-      </div>
-
-      <RegistryFirewallStatus />
-
-      <EnvironmentList
-        environments={environments}
-        isLoading={isLoading}
-        error={error}
-        onCreateEnvironment={createEnvironment}
-        onUpdateEnvironment={updateEnvironment}
-        onDeleteEnvironment={deleteEnvironment}
-        onRefresh={fetchEnvironments}
-        hostEnvironmentDisabled={hostEnvironmentDisabled}
-        highlightedEnvironmentId={highlightedEnvironmentId}
-      />
-    </div>
-  );
-}
+import { redirect } from 'next/navigation';
 
 /**
- * 実行環境設定ページ
+ * 実行環境設定ページ（廃止）
  *
- * 実行環境の一覧表示、追加、編集、削除の機能を提供するページです。
- * useEnvironmentsフックで環境データを管理し、EnvironmentListコンポーネントで表示します。
- *
- * @returns 実行環境設定ページのJSX要素
+ * このページは廃止されました。
+ * 環境設定はプロジェクト設定（プロジェクト設定モーダル > 実行環境）から行ってください。
+ * アクセスした場合は /settings にリダイレクトします。
  */
 export default function EnvironmentsSettingsPage() {
-  return (
-    <Suspense>
-      <EnvironmentsSettingsContent />
-    </Suspense>
-  );
+  redirect('/settings');
 }

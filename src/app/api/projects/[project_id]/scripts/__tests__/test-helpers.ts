@@ -28,7 +28,16 @@ export async function setupTestEnvironment(): Promise<{
   project: Project;
 }> {
   db.delete(schema.runScripts).run();
+  db.delete(schema.sessions).run();
   db.delete(schema.projects).run();
+  db.delete(schema.executionEnvironments).run();
+
+  // テスト用ExecutionEnvironmentを作成
+  const env = db.insert(schema.executionEnvironments).values({
+    name: 'Test Docker Env',
+    type: 'DOCKER',
+    config: '{}',
+  }).returning().get();
 
   const testRepoPath = mkdtempSync(join(tmpdir(), 'project-test-'));
   initTestRepo(testRepoPath);
@@ -36,6 +45,7 @@ export async function setupTestEnvironment(): Promise<{
   const project = db.insert(schema.projects).values({
     name: 'Test Project',
     path: testRepoPath,
+    environment_id: env.id,
   }).returning().get();
 
   return { testRepoPath, project };
@@ -46,7 +56,9 @@ export async function setupTestEnvironment(): Promise<{
  */
 export async function cleanupTestEnvironment(testRepoPath?: string): Promise<void> {
   db.delete(schema.runScripts).run();
+  db.delete(schema.sessions).run();
   db.delete(schema.projects).run();
+  db.delete(schema.executionEnvironments).run();
   if (testRepoPath) {
     rmSync(testRepoPath, { recursive: true, force: true });
   }

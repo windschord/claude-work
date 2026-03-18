@@ -2,17 +2,10 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 import { ProjectEnvironmentSettings } from '../ProjectEnvironmentSettings';
 
-// next/linkをモック
-vi.mock('next/link', () => ({
-  default: ({ href, children, ...props }: { href: string; children: React.ReactNode; className?: string }) => (
-    <a href={href} data-testid="next-link" {...props}>{children}</a>
-  ),
-}));
-
-// useEnvironments hookのモック
-const mockUseEnvironments = vi.fn();
-vi.mock('@/hooks/useEnvironments', () => ({
-  useEnvironments: () => mockUseEnvironments(),
+// useProjectEnvironment hookのモック
+const mockUseProjectEnvironment = vi.fn();
+vi.mock('@/hooks/useProjectEnvironment', () => ({
+  useProjectEnvironment: (projectId: string) => mockUseProjectEnvironment(projectId),
 }));
 
 // fetchのモック（テスト全体で共通のモック設定）
@@ -21,225 +14,156 @@ beforeAll(() => {
   global.fetch = mockFetch;
 });
 
-// URL別にfetchレスポンスを返すヘルパー
-function setupMockFetch(projectData: Record<string, unknown>, sessionsData: Record<string, unknown> = { sessions: [] }) {
-  mockFetch.mockImplementation((url: string) => {
-    if (typeof url === 'string' && url.includes('/sessions')) {
-      return Promise.resolve({
-        ok: true,
-        json: async () => sessionsData,
-      });
-    }
-    // プロジェクトAPI
-    return Promise.resolve({
-      ok: true,
-      json: async () => ({ project: projectData }),
-    });
-  });
-}
-
 describe('ProjectEnvironmentSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // デフォルトのuseEnvironments戻り値
-    mockUseEnvironments.mockReturnValue({
-      environments: [],
-      isLoading: false,
-      error: null,
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ sessions: [] }),
     });
   });
 
-  it('clone_location=nullかつhostEnvironmentDisabled=trueの場合、Docker (自動選択) と表示される', async () => {
-    setupMockFetch({
-      id: 'project-1',
-      name: 'Test Project',
-      clone_location: null,
-      environment_id: null,
+  it('ローディング中は「読み込み中...」が表示される', () => {
+    mockUseProjectEnvironment.mockReturnValue({
       environment: null,
-    });
-
-    render(<ProjectEnvironmentSettings projectId="project-1" hostEnvironmentDisabled={true} />);
-
-    await waitFor(() => {
-      expect(screen.getByText('Docker (自動選択)')).toBeInTheDocument();
-    });
-
-    // DOCKER バッジが表示される
-    expect(screen.getByText('DOCKER')).toBeInTheDocument();
-    // HOST が表示されない
-    expect(screen.queryByText('HOST')).not.toBeInTheDocument();
-    expect(screen.queryByText('Host (自動選択)')).not.toBeInTheDocument();
-  });
-
-  it('clone_location=hostかつhostEnvironmentDisabled=trueの場合、Docker (自動選択) と表示される', async () => {
-    setupMockFetch({
-      id: 'project-1',
-      name: 'Test Project',
-      clone_location: 'host',
-      environment_id: null,
-      environment: null,
-    });
-
-    render(<ProjectEnvironmentSettings projectId="project-1" hostEnvironmentDisabled={true} />);
-
-    await waitFor(() => {
-      expect(screen.getByText('Docker (自動選択)')).toBeInTheDocument();
-    });
-  });
-
-  it('clone_location=nullかつhostEnvironmentDisabled=falseの場合、Host (自動選択) と表示される', async () => {
-    setupMockFetch({
-      id: 'project-1',
-      name: 'Test Project',
-      clone_location: null,
-      environment_id: null,
-      environment: null,
-    });
-
-    render(<ProjectEnvironmentSettings projectId="project-1" hostEnvironmentDisabled={false} />);
-
-    await waitFor(() => {
-      expect(screen.getByText('Host (自動選択)')).toBeInTheDocument();
-    });
-  });
-
-  it('clone_location=dockerの場合、hostEnvironmentDisabledに関係なくDocker (自動選択) と表示される', async () => {
-    setupMockFetch({
-      id: 'project-1',
-      name: 'Test Project',
-      clone_location: 'docker',
-      environment_id: null,
-      environment: null,
-    });
-
-    render(<ProjectEnvironmentSettings projectId="project-1" />);
-
-    await waitFor(() => {
-      expect(screen.getByText('Docker (自動選択)')).toBeInTheDocument();
-    });
-  });
-
-  it('useEnvironmentsのisLoading=trueの場合、プロジェクトAPI完了後もローディング表示が続く', async () => {
-    // useEnvironmentsがローディング中を返すようにモック
-    mockUseEnvironments.mockReturnValue({
-      environments: [],
       isLoading: true,
       error: null,
     });
 
-    setupMockFetch({
-      id: 'project-1',
-      name: 'Test Project',
-      clone_location: null,
-      environment_id: null,
-      environment: null,
-    });
-
-    render(<ProjectEnvironmentSettings projectId="project-1" hostEnvironmentDisabled={true} />);
-
-    // プロジェクトAPIが完了しても、環境APIがロード中なのでローディング表示
-    await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalled();
-    });
+    render(<ProjectEnvironmentSettings projectId="project-1" />);
 
     expect(screen.getByText('読み込み中...')).toBeInTheDocument();
-    expect(screen.queryByText('Docker (自動選択)')).not.toBeInTheDocument();
-    expect(screen.queryByText('Host (自動選択)')).not.toBeInTheDocument();
   });
 
-  it('environment_idが存在するがenvironmentがnullの場合、「環境情報を取得できません」と表示される', async () => {
-    setupMockFetch({
-      id: 'project-1',
-      name: 'Test Project',
-      clone_location: null,
-      environment_id: 'env-deleted-123',
+  it('エラー時はエラーメッセージが表示される', () => {
+    mockUseProjectEnvironment.mockReturnValue({
       environment: null,
+      isLoading: false,
+      error: '環境の取得に失敗しました',
+    });
+
+    render(<ProjectEnvironmentSettings projectId="project-1" />);
+
+    expect(screen.getByText('環境の取得に失敗しました')).toBeInTheDocument();
+  });
+
+  it('環境がnullの場合、「環境情報がありません」が表示される', async () => {
+    mockUseProjectEnvironment.mockReturnValue({
+      environment: null,
+      isLoading: false,
+      error: null,
     });
 
     render(<ProjectEnvironmentSettings projectId="project-1" />);
 
     await waitFor(() => {
-      expect(screen.getByText('環境情報を取得できません')).toBeInTheDocument();
+      expect(screen.getByText('環境情報がありません')).toBeInTheDocument();
     });
-
-    expect(screen.getByText('UNKNOWN')).toBeInTheDocument();
   });
 
-  it('clone_location=dockerかつhostEnvironmentDisabled=trueの場合、Docker (自動選択) と表示される', async () => {
-    setupMockFetch({
-      id: 'project-1',
-      name: 'Test Project',
-      clone_location: 'docker',
-      environment_id: null,
-      environment: null,
+  it('DOCKER環境が表示される', async () => {
+    mockUseProjectEnvironment.mockReturnValue({
+      environment: {
+        id: 'env-1',
+        name: 'Docker Default',
+        type: 'DOCKER',
+        description: null,
+        config: '{}',
+        project_id: 'project-1',
+        created_at: '2024-01-01',
+        updated_at: '2024-01-01',
+      },
+      isLoading: false,
+      error: null,
     });
 
-    render(<ProjectEnvironmentSettings projectId="project-1" hostEnvironmentDisabled={true} />);
+    render(<ProjectEnvironmentSettings projectId="project-1" />);
 
     await waitFor(() => {
-      expect(screen.getByText('Docker (自動選択)')).toBeInTheDocument();
+      expect(screen.getByText('Docker Default')).toBeInTheDocument();
     });
 
-    // DOCKER バッジが表示される
     expect(screen.getByText('DOCKER')).toBeInTheDocument();
   });
 
-  describe('environment link', () => {
-    it('environment_idが設定されている場合、環境名がリンクとして表示される', async () => {
-      setupMockFetch({
-        id: 'project-1',
-        name: 'Test Project',
-        clone_location: null,
-        environment_id: 'env-1',
-        environment: { id: 'env-1', name: 'Docker Default', type: 'DOCKER' },
-      });
-
-      render(<ProjectEnvironmentSettings projectId="project-1" />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Docker Default')).toBeInTheDocument();
-      });
-
-      const link = screen.getByTestId('next-link');
-      expect(link).toBeInTheDocument();
-      expect(link.getAttribute('href')).toBe('/settings/environments?highlight=env-1');
+  it('HOST環境が表示される', async () => {
+    mockUseProjectEnvironment.mockReturnValue({
+      environment: {
+        id: 'env-2',
+        name: 'Host Environment',
+        type: 'HOST',
+        description: null,
+        config: '{}',
+        project_id: 'project-1',
+        created_at: '2024-01-01',
+        updated_at: '2024-01-01',
+      },
+      isLoading: false,
+      error: null,
     });
 
-    it('environment_idが未設定（自動選択）の場合、リンクは表示されない', async () => {
-      setupMockFetch({
-        id: 'project-1',
-        name: 'Test Project',
-        clone_location: 'docker',
-        environment_id: null,
-        environment: null,
-      });
+    render(<ProjectEnvironmentSettings projectId="project-1" />);
 
-      render(<ProjectEnvironmentSettings projectId="project-1" />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Docker (自動選択)')).toBeInTheDocument();
-      });
-
-      expect(screen.queryByTestId('next-link')).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Host Environment')).toBeInTheDocument();
     });
 
-    it('リンクのhrefに正しいenvironment_idが含まれる', async () => {
-      setupMockFetch({
-        id: 'project-1',
-        name: 'Test Project',
-        clone_location: null,
-        environment_id: 'env-abc-123',
-        environment: { id: 'env-abc-123', name: 'My Custom Env', type: 'DOCKER' },
-      });
+    expect(screen.getByText('HOST')).toBeInTheDocument();
+  });
 
-      render(<ProjectEnvironmentSettings projectId="project-1" />);
+  it('セッション数が表示される', async () => {
+    mockUseProjectEnvironment.mockReturnValue({
+      environment: {
+        id: 'env-1',
+        name: 'Docker Default',
+        type: 'DOCKER',
+        description: null,
+        config: '{}',
+        project_id: 'project-1',
+        created_at: '2024-01-01',
+        updated_at: '2024-01-01',
+      },
+      isLoading: false,
+      error: null,
+    });
 
-      await waitFor(() => {
-        expect(screen.getByText('My Custom Env')).toBeInTheDocument();
-      });
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        sessions: [
+          { id: 's1', status: 'active' },
+          { id: 's2', status: 'idle' },
+        ],
+      }),
+    });
 
-      const link = screen.getByTestId('next-link');
-      expect(link.getAttribute('href')).toBe('/settings/environments?highlight=env-abc-123');
+    render(<ProjectEnvironmentSettings projectId="project-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/アクティブセッション: 2件/)).toBeInTheDocument();
+    });
+  });
+
+  it('セッション数が0件の場合、設定変更の案内が表示される', async () => {
+    mockUseProjectEnvironment.mockReturnValue({
+      environment: {
+        id: 'env-1',
+        name: 'Docker Default',
+        type: 'DOCKER',
+        description: null,
+        config: '{}',
+        project_id: 'project-1',
+        created_at: '2024-01-01',
+        updated_at: '2024-01-01',
+      },
+      isLoading: false,
+      error: null,
+    });
+
+    render(<ProjectEnvironmentSettings projectId="project-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/環境の詳細設定はプロジェクト設定の環境セクションで変更できます/)).toBeInTheDocument();
     });
   });
 });

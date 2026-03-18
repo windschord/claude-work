@@ -74,6 +74,14 @@ const PTY_DESTROY_GRACE_PERIOD = 30000; // 30 seconds
 const destroyTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 /**
+ * ターミナルセッションIDごとのアダプターキャッシュ
+ * 接続確立時のアダプターを保持し、破棄時に同じアダプターを使用する。
+ * セッション中に環境typeが変更されても、起動時のアダプターで確実にクリーンアップする。
+ * nullは従来方式（ptyManager直接使用）を示す。
+ */
+const sessionAdapterCache = new Map<string, EnvironmentAdapter | null>();
+
+/**
  * ターミナルWebSocketサーバーをセットアップ
  *
  * WebSocket経由でPTY入出力を中継する。
@@ -104,18 +112,12 @@ export function setupTerminalWebSocket(
         gracePeriod: PTY_DESTROY_GRACE_PERIOD,
       });
 
-      // セッション情報を取得してアダプター選択
+      // セッション情報を取得してアダプター選択（クリーンアップ用）
       db.query.sessions.findFirst({
         where: eq(schema.sessions.id, originalSessionId),
         columns: {
-          environment_id: true,
-        },
-        with: {
-          project: {
-            columns: {
-              environment_id: true,
-            },
-          },
+          id: true,
+          project_id: true,
         },
       }).then((session) => {
         if (!session) {
@@ -158,58 +160,84 @@ export function setupTerminalWebSocket(
           }
         };
 
-        // セッション固有のenvironment_idを優先、次にプロジェクトのenvironment_id
-        const effectiveEnvId = session.environment_id || session.project?.environment_id;
-        if (effectiveEnvId) {
-          // 新方式: AdapterFactory経由
-          environmentService.findById(effectiveEnvId).then(async (environment) => {
-            if (environment) {
-              const adapter = AdapterFactory.getAdapter(environment);
+        // 接続確立時にキャッシュしたアダプターを使用する。
+        // DB を再取得しないことで、セッション中に環境が変更・削除された場合でも
+        // 起動時と同じアダプターで確実にクリーンアップできる。
+        const cachedAdapter = sessionAdapterCache.get(terminalSessionId);
+        const useAdapterFromCache = cachedAdapter !== undefined;
 
-              // イベントハンドラー解除（adapter側のリスナーも削除）
-              if (dataHandler) {
-                const handler = connectionManager.getHandler(terminalSessionId, 'data');
-                if (handler) {
-                  adapter.off('data', handler);
-                }
-                connectionManager.unregisterHandler(terminalSessionId, 'data');
-              }
-              if (exitHandler) {
-                const handler = connectionManager.getHandler(terminalSessionId, 'exit');
-                if (handler) {
-                  adapter.off('exit', handler);
-                }
-                connectionManager.unregisterHandler(terminalSessionId, 'exit');
-              }
-              if (errorHandler) {
-                const handler = connectionManager.getHandler(terminalSessionId, 'error');
-                if (handler) {
-                  adapter.off('error', handler);
-                }
-                connectionManager.unregisterHandler(terminalSessionId, 'error');
-              }
-
-              // PTY破棄
-              if (adapter.hasSession(terminalSessionId)) {
-                await adapter.destroySession(terminalSessionId);
-              }
-            } else {
-              // 環境が見つからない場合はレガシークリーンアップにフォールバック
-              logger.warn('Terminal WebSocket: Environment not found for cleanup, falling back to legacy cleanup', {
-                sessionId: originalSessionId,
-                environmentId: effectiveEnvId,
-              });
-              cleanupLegacy();
+        const cleanupWithAdapter = async (adapter: EnvironmentAdapter) => {
+          // イベントハンドラー解除（adapter側のリスナーも削除）
+          if (dataHandler) {
+            const handler = connectionManager.getHandler(terminalSessionId, 'data');
+            if (handler) {
+              adapter.off('data', handler);
             }
-          }).catch((error) => {
-            logger.error('Failed to cleanup terminal session via environment adapter', {
+            connectionManager.unregisterHandler(terminalSessionId, 'data');
+          }
+          if (exitHandler) {
+            const handler = connectionManager.getHandler(terminalSessionId, 'exit');
+            if (handler) {
+              adapter.off('exit', handler);
+            }
+            connectionManager.unregisterHandler(terminalSessionId, 'exit');
+          }
+          if (errorHandler) {
+            const handler = connectionManager.getHandler(terminalSessionId, 'error');
+            if (handler) {
+              adapter.off('error', handler);
+            }
+            connectionManager.unregisterHandler(terminalSessionId, 'error');
+          }
+
+          // PTY破棄
+          if (adapter.hasSession(terminalSessionId)) {
+            await adapter.destroySession(terminalSessionId);
+          }
+
+          sessionAdapterCache.delete(terminalSessionId);
+        };
+
+        if (useAdapterFromCache && cachedAdapter !== null) {
+          cleanupWithAdapter(cachedAdapter).catch((error) => {
+            logger.error('Failed to cleanup terminal session via cached adapter', {
               sessionId: terminalSessionId,
               error,
             });
           });
-        } else {
+          return;
+        } else if (useAdapterFromCache && cachedAdapter === null) {
+          // キャッシュにnullが入っている場合は従来方式
           cleanupLegacy();
+          sessionAdapterCache.delete(terminalSessionId);
+          return;
         }
+
+        // キャッシュがない場合（フォールバック）: DB から環境を取得
+        // このパスは通常到達しないが、キャッシュが欠落した場合の安全策として残す
+        environmentService.findByProjectId(session.project_id).then(async (environment) => {
+          if (environment) {
+            const adapter = AdapterFactory.getAdapter(environment);
+            await cleanupWithAdapter(adapter);
+          } else {
+            // 環境が見つからない場合はレガシークリーンアップにフォールバック
+            logger.warn('Terminal WebSocket: Environment not found for cleanup, falling back to legacy cleanup', {
+              sessionId: originalSessionId,
+              project_id: session.project_id,
+            });
+            cleanupLegacy();
+          }
+        }).catch((error) => {
+          logger.error('Failed to cleanup terminal session via environment adapter', {
+            sessionId: terminalSessionId,
+            error,
+          });
+        });
+      }).catch((error) => {
+        logger.error('Terminal WebSocket: Failed to query session for cleanup', {
+          sessionId: originalSessionId,
+          error,
+        });
       });
 
       destroyTimers.delete(terminalSessionId);
@@ -240,15 +268,8 @@ export function setupTerminalWebSocket(
         where: eq(schema.sessions.id, sessionId),
         columns: {
           id: true,
-          environment_id: true,
+          project_id: true,
           worktree_path: true,
-        },
-        with: {
-          project: {
-            columns: {
-              environment_id: true,
-            },
-          },
         },
       });
 
@@ -263,40 +284,47 @@ export function setupTerminalWebSocket(
       const terminalSessionId = `${sessionId}${TERMINAL_SESSION_SUFFIX}`;
 
       // アダプター選択
-      // environment_idがある場合は新方式（AdapterFactory経由）
-      // ない場合は従来のptyManagerを直接使用
+      // 猶予期間中の再接続（キャッシュ済みのアダプターがある場合）はキャッシュを優先して再利用する。
+      // 新規接続時はプロジェクトの環境から新しいアダプターを取得する。
       let adapter: EnvironmentAdapter | null = null;
       let useLegacyPtyManager = true;
 
-      // 環境IDを取得（セッション → プロジェクト → レガシー の優先順位）
-      const effectiveEnvId = session.environment_id || session.project?.environment_id;
-      if (effectiveEnvId) {
-        // 新方式: environment_id で環境を取得
-        const environment = await environmentService.findById(effectiveEnvId);
-        if (!environment) {
-          logger.error('Terminal WebSocket: Environment not found', {
+      const existingCachedAdapter = sessionAdapterCache.get(terminalSessionId);
+      if (existingCachedAdapter !== undefined) {
+        // 再接続: キャッシュ済みのアダプターを再利用
+        if (existingCachedAdapter !== null) {
+          adapter = existingCachedAdapter;
+          useLegacyPtyManager = false;
+          logger.info('Terminal WebSocket: Reusing cached adapter for reconnection', {
             sessionId,
-            environmentId: effectiveEnvId,
+            terminalSessionId,
           });
-          const errorMsg: TerminalErrorMessage = {
-            type: 'error',
-            message: `Environment not found: ${effectiveEnvId}`,
-          };
-          ws.send(JSON.stringify(errorMsg));
-          ws.close(1008, 'Environment not found');
-          return;
+        } else {
+          // キャッシュに null = 従来方式（legacy ptyManager）
+          useLegacyPtyManager = true;
+          logger.info('Terminal WebSocket: Reusing legacy ptyManager for reconnection', {
+            sessionId,
+            terminalSessionId,
+          });
         }
-        adapter = AdapterFactory.getAdapter(environment);
-        useLegacyPtyManager = false;
-        logger.info('Terminal WebSocket: Using session/project environment', {
-          sessionId,
-          environmentId: environment.id,
-          environmentType: environment.type,
-          source: session.environment_id ? 'session' : 'project',
-        });
       } else {
-        // 従来方式: ptyManagerを直接使用
-        logger.info('Terminal WebSocket: Using legacy ptyManager', { sessionId });
+        // 新規接続: プロジェクトに紐付く環境を取得（1対1関係）
+        const environment = await environmentService.findByProjectId(session.project_id);
+        if (environment) {
+          adapter = AdapterFactory.getAdapter(environment);
+          useLegacyPtyManager = false;
+          logger.info('Terminal WebSocket: Using project environment', {
+            sessionId,
+            environmentId: environment.id,
+            environmentType: environment.type,
+          });
+        } else {
+          // 環境が見つからない場合: 従来方式にフォールバック
+          logger.info('Terminal WebSocket: No environment found for project, using legacy ptyManager', {
+            sessionId,
+            project_id: session.project_id,
+          });
+        }
       }
 
       // イベントハンドラー定義
@@ -433,6 +461,8 @@ export function setupTerminalWebSocket(
           connectionManager.registerHandler(terminalSessionId, 'data', legacyDataHandler);
           connectionManager.registerHandler(terminalSessionId, 'exit', legacyExitHandler);
           connectionManager.registerHandler(terminalSessionId, 'error', legacyErrorHandler);
+          // 従来方式であることをキャッシュに記録（nullは従来方式を示す）
+          sessionAdapterCache.set(terminalSessionId, null);
         } else {
           adapter!.on('data', adapterDataHandler);
           adapter!.on('exit', adapterExitHandler);
@@ -440,6 +470,9 @@ export function setupTerminalWebSocket(
           connectionManager.registerHandler(terminalSessionId, 'data', adapterDataHandler);
           connectionManager.registerHandler(terminalSessionId, 'exit', adapterExitHandler);
           connectionManager.registerHandler(terminalSessionId, 'error', adapterErrorHandler);
+          // 接続確立時のアダプターをキャッシュ。破棄時に同じアダプターを使用するため、
+          // セッション中の環境変更があっても起動時アダプターでクリーンアップできる。
+          sessionAdapterCache.set(terminalSessionId, adapter!);
         }
         handlersRegistered = true;
       }

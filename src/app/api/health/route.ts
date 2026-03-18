@@ -3,6 +3,7 @@ import { logger } from '@/lib/logger';
 import { DockerService } from '@/services/docker-service';
 import { validateSchemaIntegrity } from '@/lib/schema-check';
 import { db } from '@/lib/db';
+import { isHostEnvironmentAllowed } from '@/lib/environment-detect';
 
 /**
  * GET /api/health - ヘルスチェックエンドポイント
@@ -76,6 +77,7 @@ export async function GET() {
         },
         features: {
           dockerEnabled: dockerService.isEnabled(),
+          hostEnvironmentDisabled: !isHostEnvironmentAllowed(),
         },
       },
       { status: httpStatus }

@@ -7,13 +7,10 @@ export interface WizardStep {
 }
 
 export interface WizardData {
-  // Step 1: 環境選択
-  environmentId: string | null;
-
-  // Step 2: 認証情報
+  // Step 1: 認証情報
   githubPatId: string | null;
 
-  // Step 3: リポジトリ設定
+  // Step 2: リポジトリ設定
   repoType: 'local' | 'remote';
   localPath: string;
   remoteUrl: string;
@@ -21,13 +18,12 @@ export interface WizardData {
   projectName: string;
   targetDir: string;
 
-  // Step 4: セッション開始
+  // Step 3: セッション開始
   createdProjectId: string | null;
   sessionName: string;
 }
 
 export const initialWizardData: WizardData = {
-  environmentId: null,
   githubPatId: null,
   repoType: 'local',
   localPath: '',

@@ -1,6 +1,6 @@
 import { db, schema } from '@/lib/db';
 import type { ExecutionEnvironment } from '@/lib/db';
-import { eq, asc, and, inArray } from 'drizzle-orm';
+import { eq, asc } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
 import { getEnvironmentsDir } from '@/lib/data-dir';
 import { isHostEnvironmentAllowed } from '@/lib/environment-detect';
@@ -42,21 +42,27 @@ export interface EnvironmentStatus {
 
 /**
  * 環境作成入力
+ * project_id は1対1化移行後は必須だが、後方互換のためオプションとする
+ * 旧 /api/environments API が廃止（TASK-009）されたら必須化する
+ * SSH は未実装のため除外している
  */
 export interface CreateEnvironmentInput {
   name: string;
-  type: 'HOST' | 'DOCKER' | 'SSH';
+  type: 'HOST' | 'DOCKER';
   description?: string;
   config: object;
+  project_id?: string;
 }
 
 /**
  * 環境更新入力
+ * SSH は未実装のため除外している
  */
 export interface UpdateEnvironmentInput {
   name?: string;
-  description?: string;
+  description?: string | null;
   config?: object;
+  type?: 'HOST' | 'DOCKER';
 }
 
 /**
@@ -95,6 +101,7 @@ export class EnvironmentService {
       type: input.type,
       description: input.description,
       config: configJson,
+      project_id: input.project_id,
     }).returning().get();
 
     if (!environment) {
@@ -116,6 +123,73 @@ export class EnvironmentService {
       .where(eq(schema.executionEnvironments.id, id))
       .get();
     return environment || null;
+  }
+
+  /**
+   * プロジェクトIDから環境を取得する
+   *
+   * まず executionEnvironments.project_id で検索する。
+   * 見つからない場合は、プロジェクト作成の2フェーズ更新が中断した中間状態に備え、
+   * projects.environment_id 経由でフォールバック検索する。
+   *
+   * @param projectId - プロジェクトID
+   * @returns 環境またはnull
+   */
+  async findByProjectId(projectId: string): Promise<ExecutionEnvironment | null> {
+    const environment = db.select().from(schema.executionEnvironments)
+      .where(eq(schema.executionEnvironments.project_id, projectId))
+      .get();
+    if (environment) {
+      return environment;
+    }
+
+    // フォールバック: projects.environment_id 経由で検索
+    // プロジェクト作成の2フェーズ更新（環境作成→プロジェクト作成→project_id更新）が
+    // 中断した場合、executionEnvironments.project_id が未設定のままになりうる。
+    const project = db.select({ environment_id: schema.projects.environment_id })
+      .from(schema.projects)
+      .where(eq(schema.projects.id, projectId))
+      .get();
+
+    if (!project?.environment_id) {
+      return null;
+    }
+
+    const fallbackEnvironment = db.select().from(schema.executionEnvironments)
+      .where(eq(schema.executionEnvironments.id, project.environment_id))
+      .get();
+
+    return fallbackEnvironment ?? null;
+  }
+
+  /**
+   * プロジェクト作成時に呼び出す専用メソッド
+   * DOCKER環境のデフォルト設定を持つ
+   * @param projectId - プロジェクトID
+   * @param config - オプション設定（未指定時はデフォルトDOCKER環境を作成）
+   * @returns 作成された環境
+   */
+  async createForProject(
+    projectId: string,
+    config?: Partial<CreateEnvironmentInput>
+  ): Promise<ExecutionEnvironment> {
+    const effectiveType = config?.type ?? 'DOCKER';
+
+    // Docker の場合のみデフォルトのイメージ設定を適用する
+    const defaultConfig = effectiveType === 'DOCKER'
+      ? {
+          imageName: DEFAULT_SANDBOX_IMAGE_NAME,
+          imageTag: 'latest',
+        }
+      : {};
+
+    return this.create({
+      name: config?.name ?? `${projectId.slice(0, 8)} 環境`,
+      type: effectiveType,
+      description: config?.description,
+      config: { ...defaultConfig, ...(config?.config ?? {}) },
+      project_id: projectId,
+    });
   }
 
   /**
@@ -145,6 +219,9 @@ export class EnvironmentService {
     }
     if (input.config !== undefined) {
       updateData.config = JSON.stringify(input.config);
+    }
+    if (input.type !== undefined) {
+      updateData.type = input.type;
     }
 
     // updated_at を常に更新
@@ -192,25 +269,6 @@ export class EnvironmentService {
         const projectNames = projectsWithEnv.map(p => p.name).join(', ');
         throw new EnvironmentInUseError(`この環境は以下のプロジェクトで使用中のため削除できません: ${projectNames}`);
       }
-
-      // 使用中のアクティブセッションを確認（終了済みセッションは無視）
-      const sessionsWithEnv = tx.select({ id: schema.sessions.id })
-        .from(schema.sessions)
-        .where(and(
-          eq(schema.sessions.environment_id, id),
-          inArray(schema.sessions.status, ['running', 'initializing', 'waiting_input'])
-        ))
-        .all();
-
-      if (sessionsWithEnv.length > 0) {
-        throw new EnvironmentInUseError(`この環境は ${sessionsWithEnv.length} 件のアクティブなセッションで使用中のため削除できません`);
-      }
-
-      // 終了済みセッションのenvironment_id参照をクリア（孤立参照を防止）
-      tx.update(schema.sessions)
-        .set({ environment_id: null })
-        .where(eq(schema.sessions.environment_id, id))
-        .run();
 
       // DBレコードを先に削除（外部リソース削除はベストエフォートで後続実施）
       tx.delete(schema.executionEnvironments)

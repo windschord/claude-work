@@ -1,64 +1,24 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render } from '@testing-library/react';
-import EnvironmentsSettingsPage from '../page';
+import { describe, it, expect, vi } from 'vitest';
 
 // next/navigationをモック
-const mockGet = vi.fn();
+const mockRedirect = vi.fn();
 vi.mock('next/navigation', () => ({
-  useSearchParams: () => ({
-    get: mockGet,
-  }),
+  redirect: mockRedirect,
+  useSearchParams: () => ({ get: vi.fn() }),
 }));
 
-// useEnvironmentsをモック
-vi.mock('@/hooks/useEnvironments', () => ({
-  useEnvironments: () => ({
-    environments: [],
-    isLoading: false,
-    error: null,
-    fetchEnvironments: vi.fn(),
-    createEnvironment: vi.fn(),
-    updateEnvironment: vi.fn(),
-    deleteEnvironment: vi.fn(),
-    hostEnvironmentDisabled: false,
-  }),
-}));
-
-// BackButtonをモック
-vi.mock('@/components/settings/BackButton', () => ({
-  BackButton: () => <button data-testid="back-button">Back</button>,
-}));
-
-// EnvironmentListをモック
-let capturedProps: Record<string, unknown> = {};
-vi.mock('@/components/environments/EnvironmentList', () => ({
-  EnvironmentList: (props: Record<string, unknown>) => {
-    capturedProps = props;
-    return <div data-testid="environment-list" />;
-  },
-}));
-
-describe('EnvironmentsSettingsPage', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    capturedProps = {};
-  });
-
-  it('highlightクエリパラメータがある場合、EnvironmentListにhighlightedEnvironmentIdが渡される', () => {
-    mockGet.mockReturnValue('env-123');
-
-    render(<EnvironmentsSettingsPage />);
-
-    expect(mockGet).toHaveBeenCalledWith('highlight');
-    expect(capturedProps.highlightedEnvironmentId).toBe('env-123');
-  });
-
-  it('highlightクエリパラメータがない場合、highlightedEnvironmentIdがnullで渡される', () => {
-    mockGet.mockReturnValue(null);
-
-    render(<EnvironmentsSettingsPage />);
-
-    expect(mockGet).toHaveBeenCalledWith('highlight');
-    expect(capturedProps.highlightedEnvironmentId).toBeNull();
+describe('EnvironmentsSettingsPage (廃止済み)', () => {
+  it('/settings/environments は廃止されており /settings にリダイレクトする', async () => {
+    // このページはリダイレクトのみを行うサーバーコンポーネントに変更済み
+    // redirect() が呼ばれることを確認（Next.jsのredirectはthrowするため）
+    const mod = await import('../page');
+    const EnvironmentsSettingsPage = mod.default;
+    expect(typeof EnvironmentsSettingsPage).toBe('function');
+    try {
+      EnvironmentsSettingsPage();
+    } catch {
+      // redirect()はthrowするため、エラーが発生することが期待される
+    }
+    expect(mockRedirect).toHaveBeenCalledWith('/settings');
   });
 });

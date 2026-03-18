@@ -8,13 +8,6 @@ describe('Session State Schema Tests', () => {
   let testEnvironmentId: string;
 
   beforeEach(async () => {
-    // テスト用プロジェクトを作成
-    const [project] = await db.insert(projects).values({
-      name: 'Test Project',
-      path: '/tmp/test-project',
-    }).returning();
-    testProjectId = project.id;
-
     // テスト用環境を作成
     const [environment] = await db.insert(executionEnvironments).values({
       name: 'Test Environment',
@@ -22,6 +15,14 @@ describe('Session State Schema Tests', () => {
       config: '{}',
     }).returning();
     testEnvironmentId = environment.id;
+
+    // テスト用プロジェクトを作成
+    const [project] = await db.insert(projects).values({
+      name: 'Test Project',
+      path: '/tmp/test-project',
+      environment_id: testEnvironmentId,
+    }).returning();
+    testProjectId = project.id;
   });
 
   afterEach(async () => {
@@ -40,7 +41,6 @@ describe('Session State Schema Tests', () => {
         status: 'running',
         worktree_path: '/tmp/worktree',
         branch_name: 'main',
-        environment_id: testEnvironmentId,
         // 新規フィールド
         active_connections: 0,
         session_state: 'ACTIVE',
@@ -59,7 +59,6 @@ describe('Session State Schema Tests', () => {
         status: 'running',
         worktree_path: '/tmp/worktree',
         branch_name: 'main',
-        environment_id: testEnvironmentId,
       }).returning();
 
       expect(session.active_connections).toBe(0);
@@ -76,7 +75,6 @@ describe('Session State Schema Tests', () => {
         status: 'running',
         worktree_path: '/tmp/worktree',
         branch_name: 'main',
-        environment_id: testEnvironmentId,
       }).returning();
 
       expect(session.session_state).toBe('ACTIVE');
@@ -91,7 +89,6 @@ describe('Session State Schema Tests', () => {
         status: 'running',
         worktree_path: '/tmp/worktree',
         branch_name: 'main',
-        environment_id: testEnvironmentId,
       }).returning();
 
       expect(session.session_state).toBe('ACTIVE');
@@ -104,7 +101,6 @@ describe('Session State Schema Tests', () => {
         status: 'running',
         worktree_path: '/tmp/worktree',
         branch_name: 'main',
-        environment_id: testEnvironmentId,
       }).returning();
 
       expect(session.active_connections).toBe(0);
@@ -119,7 +115,6 @@ describe('Session State Schema Tests', () => {
         status: 'running',
         worktree_path: '/tmp/worktree',
         branch_name: 'main',
-        environment_id: testEnvironmentId,
       }).returning();
 
       await db.update(sessions)
@@ -140,7 +135,6 @@ describe('Session State Schema Tests', () => {
         status: 'running',
         worktree_path: '/tmp/worktree',
         branch_name: 'main',
-        environment_id: testEnvironmentId,
       }).returning();
 
       // インクリメント
@@ -173,7 +167,6 @@ describe('Session State Schema Tests', () => {
         status: 'running',
         worktree_path: '/tmp/worktree',
         branch_name: 'main',
-        environment_id: testEnvironmentId,
       }).returning();
 
       const destroyAt = new Date(Date.now() + 30 * 60 * 1000);
@@ -199,7 +192,6 @@ describe('Session State Schema Tests', () => {
         status: 'running',
         worktree_path: '/tmp/worktree',
         branch_name: 'main',
-        environment_id: testEnvironmentId,
       }).returning();
 
       const newActivityTime = new Date();
@@ -229,8 +221,7 @@ describe('Session State Schema Tests', () => {
           status: 'running',
           worktree_path: '/tmp/worktree1',
           branch_name: 'main',
-          environment_id: testEnvironmentId,
-          session_state: 'ACTIVE',
+            session_state: 'ACTIVE',
         },
         {
           project_id: testProjectId,
@@ -238,8 +229,7 @@ describe('Session State Schema Tests', () => {
           status: 'running',
           worktree_path: '/tmp/worktree2',
           branch_name: 'main',
-          environment_id: testEnvironmentId,
-          session_state: 'IDLE',
+            session_state: 'IDLE',
         },
       ]);
 
@@ -260,7 +250,6 @@ describe('Session State Schema Tests', () => {
         status: 'running',
         worktree_path: '/tmp/worktree',
         branch_name: 'main',
-        environment_id: testEnvironmentId,
         destroy_at: futureTime,
       });
 
@@ -283,8 +272,7 @@ describe('Session State Schema Tests', () => {
           status: 'running',
           worktree_path: '/tmp/worktree1',
           branch_name: 'main',
-          environment_id: testEnvironmentId,
-          last_activity_at: now,
+            last_activity_at: now,
         },
         {
           project_id: testProjectId,
@@ -292,8 +280,7 @@ describe('Session State Schema Tests', () => {
           status: 'running',
           worktree_path: '/tmp/worktree2',
           branch_name: 'main',
-          environment_id: testEnvironmentId,
-          last_activity_at: earlier,
+            last_activity_at: earlier,
         },
       ]);
 

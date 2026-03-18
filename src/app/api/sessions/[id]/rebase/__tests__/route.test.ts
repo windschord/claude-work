@@ -30,12 +30,21 @@ describe('POST /api/sessions/[id]/rebase', () => {
 
     db.delete(schema.sessions).run();
     db.delete(schema.projects).run();
+    db.delete(schema.executionEnvironments).run();
+
+    const env = db.insert(schema.executionEnvironments).values({
+      name: 'Test Env',
+      type: 'HOST',
+      config: '{}',
+    }).returning().get();
 
     project = db
       .insert(schema.projects)
       .values({
         name: 'Test Project',
-        path: '/tmp/fake-repo-path', clone_location: 'host',
+        path: '/tmp/fake-repo-path',
+        clone_location: 'host',
+        environment_id: env.id,
       })
       .returning()
       .get();
@@ -94,11 +103,19 @@ describe('POST /api/sessions/[id]/rebase', () => {
   });
 
   it('should use DockerGitService when clone_location is docker', async () => {
+    const dockerEnv = db.insert(schema.executionEnvironments).values({
+      name: 'Docker Test Env',
+      type: 'DOCKER',
+      config: '{}',
+    }).returning().get();
+
     const dockerProject = db
       .insert(schema.projects)
       .values({
         name: 'Docker Project',
-        path: '/tmp/docker-repo', clone_location: 'docker',
+        path: '/tmp/docker-repo',
+        clone_location: 'docker',
+        environment_id: dockerEnv.id,
       })
       .returning()
       .get();

@@ -2,19 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { AddProjectWizard } from '../index';
 
-// Mock useEnvironments
-vi.mock('@/hooks/useEnvironments', () => ({
-  useEnvironments: () => ({
-    environments: [
-      { id: 'env-1', name: 'Docker Default', type: 'DOCKER', config: '{}', created_at: '', updated_at: '' },
-    ],
-    isLoading: false,
-    error: null,
-    fetchEnvironments: vi.fn(),
-    hostEnvironmentDisabled: false,
-  }),
-}));
-
 // Mock useGitHubPATs
 vi.mock('@/hooks/useGitHubPATs', () => ({
   useGitHubPATs: () => ({
@@ -75,15 +62,14 @@ describe('AddProjectWizard', () => {
 
   it('プログレスバーが表示される', () => {
     render(<AddProjectWizard isOpen={true} onClose={mockOnClose} />);
-    expect(screen.getByText('環境')).toBeInTheDocument();
     expect(screen.getByText('認証')).toBeInTheDocument();
     expect(screen.getByText('リポジトリ')).toBeInTheDocument();
     expect(screen.getByText('セッション')).toBeInTheDocument();
   });
 
-  it('初期ステップはStep 1（環境選択）', () => {
+  it('初期ステップはStep 1（認証情報設定）', () => {
     render(<AddProjectWizard isOpen={true} onClose={mockOnClose} />);
-    expect(screen.getByText('実行環境を選択')).toBeInTheDocument();
+    expect(screen.getByText('認証情報設定')).toBeInTheDocument();
   });
 
   it('「次へ」ボタンで Step 2 に遷移する', async () => {
@@ -98,7 +84,7 @@ describe('AddProjectWizard', () => {
     fireEvent.click(nextButton);
 
     await waitFor(() => {
-      expect(screen.getByText('認証情報設定')).toBeInTheDocument();
+      expect(screen.getByText('リポジトリ設定')).toBeInTheDocument();
     });
   });
 
@@ -113,7 +99,7 @@ describe('AddProjectWizard', () => {
     fireEvent.click(nextButton);
 
     await waitFor(() => {
-      expect(screen.getByText('認証情報設定')).toBeInTheDocument();
+      expect(screen.getByText('リポジトリ設定')).toBeInTheDocument();
     });
 
     // 「戻る」をクリック
@@ -121,7 +107,7 @@ describe('AddProjectWizard', () => {
     fireEvent.click(backButton);
 
     await waitFor(() => {
-      expect(screen.getByText('実行環境を選択')).toBeInTheDocument();
+      expect(screen.getByText('認証情報設定')).toBeInTheDocument();
     });
   });
 
@@ -137,7 +123,7 @@ describe('AddProjectWizard', () => {
     expect(mockOnClose).toHaveBeenCalled();
   });
 
-  it('Step 2から Step 3 に遷移できる', async () => {
+  it('Step 1から Step 2 に遷移できる', async () => {
     render(<AddProjectWizard isOpen={true} onClose={mockOnClose} />);
 
     // Step 1 -> Step 2
@@ -146,21 +132,13 @@ describe('AddProjectWizard', () => {
     fireEvent.click(nextButton1);
 
     await waitFor(() => {
-      expect(screen.getByText('認証情報設定')).toBeInTheDocument();
-    });
-
-    // Step 2 -> Step 3
-    const nextButton2 = screen.getByRole('button', { name: '次へ' });
-    fireEvent.click(nextButton2);
-
-    await waitFor(() => {
       expect(screen.getByText('リポジトリ設定')).toBeInTheDocument();
     });
   });
 
   describe('プロジェクト作成フロー', () => {
-    /** Step 1 -> Step 2 -> Step 3 まで遷移するヘルパー */
-    async function navigateToStep3() {
+    /** Step 1 -> Step 2 まで遷移するヘルパー（リポジトリ設定画面へ） */
+    async function navigateToStep2() {
       render(<AddProjectWizard isOpen={true} onClose={mockOnClose} />);
 
       // Step 1 -> Step 2
@@ -168,18 +146,11 @@ describe('AddProjectWizard', () => {
       await waitFor(() => { expect(nextButton1).not.toBeDisabled(); });
       fireEvent.click(nextButton1);
       await waitFor(() => {
-        expect(screen.getByText('認証情報設定')).toBeInTheDocument();
-      });
-
-      // Step 2 -> Step 3
-      const nextButton2 = screen.getByRole('button', { name: '次へ' });
-      fireEvent.click(nextButton2);
-      await waitFor(() => {
         expect(screen.getByText('リポジトリ設定')).toBeInTheDocument();
       });
     }
 
-    it('ローカルプロジェクト追加のfetch呼び出しにenvironment_idが含まれる', async () => {
+    it('ローカルプロジェクト追加のfetch呼び出しにpathが含まれる', async () => {
       const mockFetch = vi.fn().mockResolvedValue({
         ok: true,
         json: async () => ({ project: { id: 'proj-1' } }),
@@ -187,7 +158,7 @@ describe('AddProjectWizard', () => {
       vi.stubGlobal('fetch', mockFetch);
       mockFetchProjects.mockResolvedValue(undefined);
 
-      await navigateToStep3();
+      await navigateToStep2();
 
       // ローカルパスを入力
       const pathInput = screen.getByPlaceholderText('/path/to/git/repo');
@@ -209,11 +180,12 @@ describe('AddProjectWizard', () => {
       );
       expect(callArgs).toBeDefined();
       const body = JSON.parse(callArgs![1].body as string);
-      expect(body).toHaveProperty('environment_id', 'env-1');
       expect(body).toHaveProperty('path', '/tmp/my-repo');
+      // environment_idはサーバー側で自動作成されるため、クライアントから送信しない
+      expect(body).not.toHaveProperty('environment_id');
     });
 
-    it('リモートプロジェクトcloneのfetch呼び出しにenvironment_idが含まれる', async () => {
+    it('リモートプロジェクトcloneのfetch呼び出しにurlが含まれる', async () => {
       const mockFetch = vi.fn().mockResolvedValue({
         ok: true,
         json: async () => ({ project: { id: 'proj-2' } }),
@@ -221,7 +193,7 @@ describe('AddProjectWizard', () => {
       vi.stubGlobal('fetch', mockFetch);
       mockFetchProjects.mockResolvedValue(undefined);
 
-      await navigateToStep3();
+      await navigateToStep2();
 
       // リモートに切り替え
       const remoteButton = screen.getByText('リモート');
@@ -247,11 +219,12 @@ describe('AddProjectWizard', () => {
       );
       expect(callArgs).toBeDefined();
       const body = JSON.parse(callArgs![1].body as string);
-      expect(body).toHaveProperty('environment_id', 'env-1');
       expect(body).toHaveProperty('url', 'https://github.com/user/repo.git');
+      // environment_idはサーバー側で自動作成されるため、クライアントから送信しない
+      expect(body).not.toHaveProperty('environment_id');
     });
 
-    it('ローカルプロジェクト追加成功時にStep 4に遷移する', async () => {
+    it('ローカルプロジェクト追加成功時にStep 3に遷移する', async () => {
       const mockFetch = vi.fn().mockResolvedValue({
         ok: true,
         json: async () => ({ project: { id: 'proj-1' } }),
@@ -259,7 +232,7 @@ describe('AddProjectWizard', () => {
       vi.stubGlobal('fetch', mockFetch);
       mockFetchProjects.mockResolvedValue(undefined);
 
-      await navigateToStep3();
+      await navigateToStep2();
 
       // ローカルパスを入力
       const pathInput = screen.getByPlaceholderText('/path/to/git/repo');
@@ -269,20 +242,20 @@ describe('AddProjectWizard', () => {
       const nextButton = screen.getByRole('button', { name: '次へ' });
       fireEvent.click(nextButton);
 
-      // Step 4に遷移
+      // Step 3（完了/セッション設定）に遷移
       await waitFor(() => {
         expect(screen.getByText('プロジェクトを追加しました')).toBeInTheDocument();
       });
     });
 
-    it('プロジェクト作成失敗時にStep 4でエラーが表示される', async () => {
+    it('プロジェクト作成失敗時にStep 3でエラーが表示される', async () => {
       const mockFetch = vi.fn().mockResolvedValue({
         ok: false,
         text: async () => JSON.stringify({ error: 'テスト用エラーメッセージ' }),
       });
       vi.stubGlobal('fetch', mockFetch);
 
-      await navigateToStep3();
+      await navigateToStep2();
 
       // ローカルパスを入力
       const pathInput = screen.getByPlaceholderText('/path/to/git/repo');
@@ -292,21 +265,21 @@ describe('AddProjectWizard', () => {
       const nextButton = screen.getByRole('button', { name: '次へ' });
       fireEvent.click(nextButton);
 
-      // Step 4にエラー表示で遷移
+      // Step 3にエラー表示で遷移
       await waitFor(() => {
         expect(screen.getByText('プロジェクト追加に失敗しました')).toBeInTheDocument();
         expect(screen.getByText('テスト用エラーメッセージ')).toBeInTheDocument();
       });
     });
 
-    it('プロジェクト作成失敗時に「もう一度試す」でStep 3に戻れる', async () => {
+    it('プロジェクト作成失敗時に「もう一度試す」でStep 2（リポジトリ設定）に戻れる', async () => {
       const mockFetch = vi.fn().mockResolvedValue({
         ok: false,
         text: async () => JSON.stringify({ error: 'テスト用エラー' }),
       });
       vi.stubGlobal('fetch', mockFetch);
 
-      await navigateToStep3();
+      await navigateToStep2();
 
       // ローカルパスを入力
       const pathInput = screen.getByPlaceholderText('/path/to/git/repo');
@@ -316,7 +289,7 @@ describe('AddProjectWizard', () => {
       const nextButton = screen.getByRole('button', { name: '次へ' });
       fireEvent.click(nextButton);
 
-      // Step 4にエラー表示で遷移
+      // Step 3にエラー表示で遷移
       await waitFor(() => {
         expect(screen.getByText('プロジェクト追加に失敗しました')).toBeInTheDocument();
       });

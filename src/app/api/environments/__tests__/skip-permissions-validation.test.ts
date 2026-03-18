@@ -1,173 +1,103 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { NextRequest } from 'next/server';
-
-// environmentServiceをモック
-vi.mock('@/services/environment-service', () => ({
-  environmentService: {
-    create: vi.fn().mockResolvedValue({
-      id: 'test-env-id',
-      name: 'Test Docker',
-      type: 'DOCKER',
-      config: '{}',
-    }),
-    findById: vi.fn().mockResolvedValue({
-      id: 'test-env-id',
-      name: 'Test Docker',
-      type: 'DOCKER',
-      config: '{}',
-    }),
-    update: vi.fn().mockResolvedValue({
-      id: 'test-env-id',
-      name: 'Updated',
-      type: 'DOCKER',
-      config: '{"skipPermissions":true}',
-    }),
-    createConfigVolumes: vi.fn().mockResolvedValue(undefined),
-    findAll: vi.fn().mockResolvedValue([]),
-    checkStatus: vi.fn().mockResolvedValue({ available: true }),
-  },
-}));
-
-vi.mock('@/lib/logger', () => ({
-  logger: {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  },
-}));
-
-vi.mock('@/lib/data-dir', () => ({
-  getEnvironmentsDir: vi.fn().mockReturnValue('/tmp/test-environments'),
-}));
-
 import { POST } from '../route';
 import { PUT } from '../[id]/route';
-import { environmentService } from '@/services/environment-service';
 
-function createRequest(body: unknown): NextRequest {
-  return new NextRequest('http://localhost:3000/api/environments', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-}
-
-function createPutRequest(body: unknown): NextRequest {
-  return new NextRequest('http://localhost:3000/api/environments/test-env-id', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-}
-
-describe('Environment API skipPermissions validation', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
+/**
+ * POST /api/environments および PUT /api/environments/:id は廃止されました（410 Gone）。
+ * skipPermissions の検証は廃止エンドポイントでは不要なため、
+ * このテストは 410 Gone を確認するテストに変更されました。
+ *
+ * skipPermissions の検証は以下で行われます（プロジェクト作成時の自動環境作成）:
+ * - POST /api/projects → 環境を自動作成
+ * - PUT /api/projects/[project_id]/environment → 環境設定更新
+ */
+describe('環境APIの廃止確認 (410 Gone)', () => {
   describe('POST /api/environments', () => {
-    it('should accept config.skipPermissions=true for DOCKER type', async () => {
-      const req = createRequest({
-        name: 'Docker Env',
-        type: 'DOCKER',
-        config: { skipPermissions: true, imageName: 'test', imageTag: 'latest' },
+    it('skipPermissions=true でも 410 Gone を返す', async () => {
+      const request = new NextRequest('http://localhost:3000/api/environments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: 'Docker Env',
+          type: 'DOCKER',
+          config: { skipPermissions: true, imageName: 'test', imageTag: 'latest' },
+        }),
       });
 
-      const response = await POST(req);
-      expect(response.status).toBe(201);
+      const response = await POST(request);
+      expect(response.status).toBe(410);
     });
 
-    it('should accept config.skipPermissions=false for DOCKER type', async () => {
-      const req = createRequest({
-        name: 'Docker Env',
-        type: 'DOCKER',
-        config: { skipPermissions: false, imageName: 'test', imageTag: 'latest' },
+    it('skipPermissions=false でも 410 Gone を返す', async () => {
+      const request = new NextRequest('http://localhost:3000/api/environments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: 'Docker Env',
+          type: 'DOCKER',
+          config: { skipPermissions: false, imageName: 'test', imageTag: 'latest' },
+        }),
       });
 
-      const response = await POST(req);
-      expect(response.status).toBe(201);
+      const response = await POST(request);
+      expect(response.status).toBe(410);
     });
 
-    it('should reject non-boolean config.skipPermissions for DOCKER type', async () => {
-      const req = createRequest({
-        name: 'Docker Env',
-        type: 'DOCKER',
-        config: { skipPermissions: 'true', imageName: 'test', imageTag: 'latest' },
+    it('HOST タイプでも 410 Gone を返す', async () => {
+      const request = new NextRequest('http://localhost:3000/api/environments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: 'Host Env',
+          type: 'HOST',
+          config: { skipPermissions: true },
+        }),
       });
 
-      const response = await POST(req);
-      expect(response.status).toBe(400);
-      const body = await response.json();
-      expect(body.error).toContain('skipPermissions');
-    });
-
-    it('should silently remove config.skipPermissions for HOST type', async () => {
-      const req = createRequest({
-        name: 'Host Env',
-        type: 'HOST',
-        config: { skipPermissions: true },
-      });
-
-      const response = await POST(req);
-      expect(response.status).toBe(201);
-      // environmentService.createに渡されたconfigにskipPermissionsが含まれていないことを確認
-      const createCall = vi.mocked(environmentService.create).mock.calls[0][0];
-      expect(createCall.config).not.toHaveProperty('skipPermissions');
+      const response = await POST(request);
+      expect(response.status).toBe(410);
     });
   });
 
   describe('PUT /api/environments/:id', () => {
-    it('should accept config.skipPermissions=true for DOCKER environment', async () => {
-      const req = createPutRequest({
-        config: { skipPermissions: true },
+    it('skipPermissions=true でも 410 Gone を返す', async () => {
+      const request = new NextRequest('http://localhost:3000/api/environments/test-env-id', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          config: { skipPermissions: true },
+        }),
       });
 
-      const response = await PUT(req, { params: Promise.resolve({ id: 'test-env-id' }) });
-      expect(response.status).toBe(200);
+      const response = await PUT(request, { params: Promise.resolve({ id: 'test-env-id' }) });
+      expect(response.status).toBe(410);
     });
 
-    it('should accept config.skipPermissions=false for DOCKER environment', async () => {
-      const req = createPutRequest({
-        config: { skipPermissions: false },
+    it('skipPermissions=false でも 410 Gone を返す', async () => {
+      const request = new NextRequest('http://localhost:3000/api/environments/test-env-id', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          config: { skipPermissions: false },
+        }),
       });
 
-      const response = await PUT(req, { params: Promise.resolve({ id: 'test-env-id' }) });
-      expect(response.status).toBe(200);
+      const response = await PUT(request, { params: Promise.resolve({ id: 'test-env-id' }) });
+      expect(response.status).toBe(410);
     });
 
-    it('should reject non-boolean config.skipPermissions for DOCKER environment', async () => {
-      const req = createPutRequest({
-        config: { skipPermissions: 'true' },
+    it('HOST 環境でも 410 Gone を返す', async () => {
+      const request = new NextRequest('http://localhost:3000/api/environments/test-env-id', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          config: { skipPermissions: true },
+        }),
       });
 
-      const response = await PUT(req, { params: Promise.resolve({ id: 'test-env-id' }) });
-      expect(response.status).toBe(400);
-      const body = await response.json();
-      expect(body.error).toContain('skipPermissions');
-    });
-
-    it('should silently remove config.skipPermissions for HOST environment', async () => {
-      vi.mocked(environmentService.findById).mockResolvedValueOnce({
-        id: 'test-env-id',
-        name: 'Host Env',
-        type: 'HOST',
-        config: '{}',
-          description: null,
-        auth_dir_path: null,
-        created_at: new Date(),
-        updated_at: new Date(),
-      });
-
-      const req = createPutRequest({
-        config: { skipPermissions: true },
-      });
-
-      const response = await PUT(req, { params: Promise.resolve({ id: 'test-env-id' }) });
-      expect(response.status).toBe(200);
-      // environmentService.updateに渡されたconfigにskipPermissionsが含まれていないことを確認
-      const updateCall = vi.mocked(environmentService.update).mock.calls[0][1];
-      expect(updateCall.config).not.toHaveProperty('skipPermissions');
+      const response = await PUT(request, { params: Promise.resolve({ id: 'test-env-id' }) });
+      expect(response.status).toBe(410);
     });
   });
 });

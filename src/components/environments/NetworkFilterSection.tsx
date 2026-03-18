@@ -9,7 +9,7 @@ import { NetworkRuleForm } from './NetworkRuleForm';
 import { NetworkTemplateDialog } from './NetworkTemplateDialog';
 import { NetworkTestDialog } from './NetworkTestDialog';
 import type { CreateRuleInput } from '@/hooks/useNetworkFilter';
-import type { EnvironmentType } from '@/hooks/useEnvironments';
+import type { EnvironmentType } from '@/hooks/useProjectEnvironment';
 
 interface NetworkFilterSectionProps {
   environmentId: string;

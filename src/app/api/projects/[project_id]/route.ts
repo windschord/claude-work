@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, schema } from '@/lib/db';
-import { eq, count } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
 import { existsSync } from 'fs';
 import { spawnSync } from 'child_process';
@@ -44,9 +44,10 @@ export async function GET(
 }
 
 /**
- * PATCH /api/projects/[project_id] - プロジェクト設定更新（claude_code_options, custom_env_vars, environment_id）
+ * PATCH /api/projects/[project_id] - プロジェクト設定更新（claude_code_options, custom_env_vars）
  *
- * environment_idはセッションが0件の場合のみ変更可能。
+ * NOTE: environment_id の変更は廃止。環境設定は
+ * PUT /api/projects/[project_id]/environment で行う。
  */
 export async function PATCH(
   request: NextRequest,
@@ -63,29 +64,12 @@ export async function PATCH(
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
 
-    let { claude_code_options, custom_env_vars, environment_id } = body;
+    let { claude_code_options, custom_env_vars } = body;
 
     // プロジェクトの存在確認
     const project = db.select().from(schema.projects).where(eq(schema.projects.id, project_id)).get();
     if (!project) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-    }
-
-    // environment_id の変更処理
-    if (environment_id !== undefined) {
-      // 同一 environment_id への再送は変更なしとして扱う
-      if (environment_id === project.environment_id) {
-        environment_id = undefined;
-      } else {
-        // 環境の存在確認
-        const { environmentService } = await import('@/services/environment-service');
-        const env = await environmentService.findById(environment_id);
-        if (!env) {
-          return NextResponse.json({ error: '指定された実行環境が見つかりません' }, { status: 400 });
-        }
-
-        // セッション0件チェックと更新はトランザクション内で後述
-      }
     }
 
     // claude_code_options のバリデーション
@@ -117,65 +101,13 @@ export async function PATCH(
     const updateData: Record<string, unknown> = { updated_at: new Date() };
     if (claude_code_options !== undefined) updateData.claude_code_options = JSON.stringify(claude_code_options);
     if (custom_env_vars !== undefined) updateData.custom_env_vars = JSON.stringify(custom_env_vars);
-    if (environment_id !== undefined) updateData.environment_id = environment_id;
 
     // 空更新の早期リターン（updated_atのみの場合）
     if (Object.keys(updateData).length === 1) {
       return NextResponse.json({ message: 'No fields to update' }, { status: 200 });
     }
 
-    // environment_id変更がある場合はセッション0件チェックと更新をトランザクションで保護
-    if (environment_id !== undefined) {
-      const txResult = db.transaction((tx) => {
-        const sessionCount = tx.select({ count: count() })
-          .from(schema.sessions)
-          .where(eq(schema.sessions.project_id, project_id))
-          .get();
-
-        if (sessionCount && sessionCount.count > 0) {
-          return { conflict: true as const };
-        }
-
-        const updated = tx
-          .update(schema.projects)
-          .set(updateData)
-          .where(eq(schema.projects.id, project_id))
-          .returning()
-          .get();
-
-        return { conflict: false as const, updated };
-      });
-
-      if (txResult.conflict) {
-        return NextResponse.json(
-          { error: 'セッションが存在するため実行環境を変更できません。すべてのセッションを削除してから変更してください。' },
-          { status: 409 }
-        );
-      }
-
-      if (!txResult.updated) {
-        return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-      }
-
-      logger.info('Project settings updated', {
-        projectId: project_id,
-        updatedFields: Object.keys(updateData).filter(k => k !== 'updated_at'),
-      });
-
-      // GETと同じ形式でリレーション付きで返す
-      const updatedProject = await db.query.projects.findFirst({
-        where: eq(schema.projects.id, project_id),
-        with: {
-          environment: {
-            columns: { id: true, name: true, type: true, config: true },
-          },
-        },
-      });
-
-      return NextResponse.json({ project: updatedProject });
-    }
-
-    // environment_id変更なしの場合は通常の更新
+    // 通常の更新
     db.update(schema.projects)
       .set(updateData)
       .where(eq(schema.projects.id, project_id))

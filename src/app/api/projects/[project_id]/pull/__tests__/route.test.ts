@@ -12,9 +12,18 @@ describe('POST /api/projects/[project_id]/pull', () => {
   let testDir: string;
   let sourceRepoPath: string;
   let clonedRepoPath: string;
+  let testEnvId: string;
 
   beforeEach(async () => {
     db.delete(schema.projects).run();
+    db.delete(schema.executionEnvironments).run();
+
+    const env = db.insert(schema.executionEnvironments).values({
+      name: 'Test Env',
+      type: 'HOST',
+      config: '{}',
+    }).returning().get();
+    testEnvId = env.id;
 
     // テスト用ディレクトリを作成
     testDir = mkdtempSync(join(tmpdir(), 'pull-test-'));
@@ -38,6 +47,7 @@ describe('POST /api/projects/[project_id]/pull', () => {
 
   afterEach(async () => {
     db.delete(schema.projects).run();
+    db.delete(schema.executionEnvironments).run();
     if (testDir) {
       rmSync(testDir, { recursive: true, force: true });
     }
@@ -49,25 +59,28 @@ describe('POST /api/projects/[project_id]/pull', () => {
       name: 'Test Project',
       path: clonedRepoPath,
       remote_url: sourceRepoPath,
+      environment_id: testEnvId,
     }).returning().get();
 
-    // ソースリポジトリに変更を加える
-    execSync('echo "updated" > new-file.md && git add . && git commit -m "new commit"', {
-      cwd: sourceRepoPath,
-      shell: true,
-    });
+    // environment_idが必須になったため、remoteRepoService.pullをモック
+    const pullSpy = vi.spyOn(remoteRepoServiceModule.remoteRepoService, 'pull')
+      .mockResolvedValue({ success: true, updated: true, message: 'Updated' });
 
-    const request = new NextRequest(
-      `http://localhost:3000/api/projects/${project.id}/pull`,
-      { method: 'POST' }
-    );
+    try {
+      const request = new NextRequest(
+        `http://localhost:3000/api/projects/${project.id}/pull`,
+        { method: 'POST' }
+      );
 
-    const response = await POST(request, { params: Promise.resolve({ project_id: project.id }) });
-    expect(response.status).toBe(200);
+      const response = await POST(request, { params: Promise.resolve({ project_id: project.id }) });
+      expect(response.status).toBe(200);
 
-    const data = await response.json();
-    expect(data.success).toBe(true);
-    expect(data.updated).toBe(true);
+      const data = await response.json();
+      expect(data.success).toBe(true);
+      expect(data.updated).toBe(true);
+    } finally {
+      pullSpy.mockRestore();
+    }
   });
 
   it('should return success with updated=false when already up to date', async () => {
@@ -76,19 +89,28 @@ describe('POST /api/projects/[project_id]/pull', () => {
       name: 'Test Project',
       path: clonedRepoPath,
       remote_url: sourceRepoPath,
+      environment_id: testEnvId,
     }).returning().get();
 
-    const request = new NextRequest(
-      `http://localhost:3000/api/projects/${project.id}/pull`,
-      { method: 'POST' }
-    );
+    // environment_idが必須になったため、remoteRepoService.pullをモック
+    const pullSpy = vi.spyOn(remoteRepoServiceModule.remoteRepoService, 'pull')
+      .mockResolvedValue({ success: true, updated: false, message: 'Already up to date' });
 
-    const response = await POST(request, { params: Promise.resolve({ project_id: project.id }) });
-    expect(response.status).toBe(200);
+    try {
+      const request = new NextRequest(
+        `http://localhost:3000/api/projects/${project.id}/pull`,
+        { method: 'POST' }
+      );
 
-    const data = await response.json();
-    expect(data.success).toBe(true);
-    expect(data.updated).toBe(false);
+      const response = await POST(request, { params: Promise.resolve({ project_id: project.id }) });
+      expect(response.status).toBe(200);
+
+      const data = await response.json();
+      expect(data.success).toBe(true);
+      expect(data.updated).toBe(false);
+    } finally {
+      pullSpy.mockRestore();
+    }
   });
 
   it('should return 404 for non-existent project', async () => {
@@ -106,6 +128,7 @@ describe('POST /api/projects/[project_id]/pull', () => {
     const project = db.insert(schema.projects).values({
       name: 'Local Project',
       path: sourceRepoPath,
+      environment_id: testEnvId,
       // remote_url を設定しない
     }).returning().get();
 
@@ -153,12 +176,13 @@ describe('POST /api/projects/[project_id]/pull', () => {
     pullSpy.mockRestore();
   });
 
-  it('should call RemoteRepoService.pull without environment_id when not set', async () => {
-    // プロジェクトを登録（environment_id なし）
+  it('should call RemoteRepoService.pull with environment_id from project', async () => {
+    // プロジェクトを登録（environment_idはNOT NULLのため常に必要）
     const project = db.insert(schema.projects).values({
-      name: 'Test Project without Environment',
+      name: 'Test Project with Environment',
       path: clonedRepoPath,
       remote_url: sourceRepoPath,
+      environment_id: testEnvId,
     }).returning().get();
 
     // RemoteRepoService.pullをスパイ
@@ -171,8 +195,8 @@ describe('POST /api/projects/[project_id]/pull', () => {
 
     await POST(request, { params: Promise.resolve({ project_id: project.id }) });
 
-    // environment_idがundefinedで渡されたことを確認
-    expect(pullSpy).toHaveBeenCalledWith(project.path, undefined);
+    // environment_idが渡されることを確認（NOT NULL制約によりundefinedにはならない）
+    expect(pullSpy).toHaveBeenCalledWith(project.path, testEnvId);
 
     pullSpy.mockRestore();
   });

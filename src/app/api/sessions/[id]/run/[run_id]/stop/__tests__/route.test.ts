@@ -28,12 +28,21 @@ describe('POST /api/sessions/[id]/run/[run_id]/stop', () => {
 
     db.delete(schema.sessions).run();
     db.delete(schema.projects).run();
+    db.delete(schema.executionEnvironments).run();
+
+    const env = db.insert(schema.executionEnvironments).values({
+      name: 'Test Env',
+      type: 'HOST',
+      config: '{}',
+    }).returning().get();
 
     project = db
       .insert(schema.projects)
       .values({
         name: 'Test Project',
-        path: '/tmp/fake-repo-path', clone_location: 'host',
+        path: '/tmp/fake-repo-path',
+        clone_location: 'host',
+        environment_id: env.id,
       })
       .returning()
       .get();

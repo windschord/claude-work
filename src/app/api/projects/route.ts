@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, schema } from '@/lib/db';
-import { desc } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import { spawnSync } from 'child_process';
 import { basename, relative, resolve } from 'path';
 import { realpathSync } from 'fs';
@@ -112,14 +112,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
 
-    const { path: projectPath, environment_id } = body;
+    const { path: projectPath } = body;
 
     if (!projectPath) {
       return NextResponse.json({ error: 'Path is required' }, { status: 400 });
-    }
-
-    if (typeof environment_id !== 'string' || environment_id.trim() === '') {
-      return NextResponse.json({ error: '実行環境の指定は必須です' }, { status: 400 });
     }
 
     // パストラバーサル攻撃を防ぐため、絶対パスに正規化
@@ -177,30 +173,79 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Gitリポジトリではありません' }, { status: 400 });
     }
 
-    // 環境の存在確認
-    const { environmentService } = await import('@/services/environment-service');
-    const env = await environmentService.findById(environment_id);
-    if (!env) {
-      return NextResponse.json({ error: '指定された実行環境が見つかりません' }, { status: 400 });
+    const name = basename(absolutePath);
+    const { environmentService, DEFAULT_SANDBOX_IMAGE_NAME } = await import('@/services/environment-service');
+
+    // 重複チェック（プロジェクト作成前に確認）
+    const existingProject = db.select({ id: schema.projects.id })
+      .from(schema.projects)
+      .where(eq(schema.projects.path, absolutePath))
+      .get();
+    if (existingProject) {
+      return NextResponse.json(
+        { error: 'このパスは既に登録されています' },
+        { status: 409 }
+      );
     }
 
-    const name = basename(absolutePath);
+    // 環境を先に作成（project_id は後でプロジェクト作成後に設定）
+    // NOTE: projects.environment_id と executionEnvironments.project_id の循環参照を
+    //       解決するため、環境を先に作成してからプロジェクトを作成し、最後に環境の
+    //       project_id を更新する。
+    //       アトミック性の確保: プロジェクト作成が失敗した場合、catch ブロックで
+    //       孤立した環境をクリーンアップする（下の try/catch を参照）。
+    //       SQLite の外部キー制約上、両テーブルを同一トランザクションで INSERT する
+    //       ことができないため、この 2 フェーズ方式を採用している。
+    const environment = await environmentService.create({
+      name: `${name} 環境`,
+      type: 'DOCKER',
+      config: { imageName: DEFAULT_SANDBOX_IMAGE_NAME, imageTag: 'latest' },
+    });
 
     try {
+      // プロジェクトを作成（有効な environment_id を使用）
       const project = db.insert(schema.projects).values({
         name,
         path: absolutePath,
-        clone_location: 'host', // ローカルプロジェクトはHost環境
-        environment_id,
+        // clone_location は「リポジトリの保存場所」であり、実行環境の type とは別の概念。
+        // 'host' はリポジトリがホストファイルシステム上にあることを意味し、
+        // 実行環境 type（DOCKER）とは独立している。
+        clone_location: 'host',
+        environment_id: environment.id,
       }).returning().get();
 
       if (!project) {
         throw new Error('Failed to create project');
       }
 
-      logger.info('Project created', { id: project.id, name, path: absolutePath });
+      // 環境の project_id を更新して1対1関係を確立
+      db.update(schema.executionEnvironments)
+        .set({ project_id: project.id })
+        .where(eq(schema.executionEnvironments.id, environment.id))
+        .run();
+
+      logger.info('Project created with auto-created environment', {
+        id: project.id,
+        name,
+        path: absolutePath,
+        environmentId: environment.id,
+      });
       return NextResponse.json({ project }, { status: 201 });
     } catch (error) {
+      // プロジェクト作成失敗時は孤立した環境をクリーンアップ
+      logger.warn('Project creation failed, cleaning up orphaned environment', {
+        environmentId: environment.id,
+        error,
+      });
+      try {
+        await environmentService.delete(environment.id);
+      } catch (cleanupError) {
+        logger.error('Failed to clean up orphaned environment', {
+          environmentId: environment.id,
+          cleanupError,
+        });
+      }
+
       // SQLite UNIQUE constraint violationのハンドリング
       const sqliteError = error as { code?: string };
       const isUniqueViolation = sqliteError.code === 'SQLITE_CONSTRAINT_UNIQUE' ||

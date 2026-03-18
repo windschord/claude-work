@@ -33,6 +33,7 @@ describe('POST /api/sessions/[id]/run', () => {
     db.delete(schema.runScripts).run();
     db.delete(schema.sessions).run();
     db.delete(schema.projects).run();
+    db.delete(schema.executionEnvironments).run();
 
     testRepoPath = mkdtempSync(join(tmpdir(), 'run-script-test-'));
     execSync('git init', { cwd: testRepoPath });
@@ -45,11 +46,19 @@ describe('POST /api/sessions/[id]/run', () => {
     });
     execSync('git branch -M main', { cwd: testRepoPath });
 
+    const env = db.insert(schema.executionEnvironments).values({
+      name: 'Test Env',
+      type: 'HOST',
+      config: '{}',
+    }).returning().get();
+
     project = db
       .insert(schema.projects)
       .values({
         name: 'Test Project',
-        path: testRepoPath, clone_location: 'host',
+        path: testRepoPath,
+        clone_location: 'host',
+        environment_id: env.id,
       })
       .returning()
       .get();
@@ -81,6 +90,7 @@ describe('POST /api/sessions/[id]/run', () => {
     db.delete(schema.runScripts).run();
     db.delete(schema.sessions).run();
     db.delete(schema.projects).run();
+    db.delete(schema.executionEnvironments).run();
     if (testRepoPath) {
       rmSync(testRepoPath, { recursive: true, force: true });
     }

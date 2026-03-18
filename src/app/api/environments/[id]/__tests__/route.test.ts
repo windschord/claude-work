@@ -1,529 +1,111 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { NextRequest } from 'next/server';
 import { GET, PUT, DELETE } from '../route';
 
-// vi.hoisted でモック関数とカスタムエラークラスを先に初期化
-const {
-  mockFindById,
-  mockUpdate,
-  mockDelete,
-  mockCheckStatus,
-  MockEnvironmentInUseError,
-} = vi.hoisted(() => {
-  class MockEnvironmentInUseError extends Error {
-    constructor(message: string) {
-      super(message);
-      this.name = 'EnvironmentInUseError';
-    }
-  }
-  return {
-    mockFindById: vi.fn(),
-    mockUpdate: vi.fn(),
-    mockDelete: vi.fn(),
-    mockCheckStatus: vi.fn(),
-    MockEnvironmentInUseError,
-  };
-});
-
-vi.mock('@/services/environment-service', () => ({
-  EnvironmentInUseError: MockEnvironmentInUseError,
-  environmentService: {
-    findById: (id: string) => mockFindById(id),
-    update: (id: string, input: unknown) => mockUpdate(id, input),
-    delete: (id: string, options?: unknown) => mockDelete(id, options),
-    checkStatus: (id: string) => mockCheckStatus(id),
-  },
-}));
-
-vi.mock('@/lib/logger', () => ({
-  logger: {
-    info: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
-    debug: vi.fn(),
-  },
-}));
-
-vi.mock('@/lib/db', () => ({
-  db: {
-    select: vi.fn().mockReturnValue({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockReturnValue({
-          get: vi.fn().mockResolvedValue(undefined),
-        }),
-      }),
-    }),
-  },
-  schema: {
-    sessions: {},
-  },
-}));
-
-describe('/api/environments/[id]', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  afterEach(() => {
-    vi.resetAllMocks();
-  });
-
+/**
+ * /api/environments/[id] は廃止されました（410 Gone）。
+ * GET /api/projects/[project_id]/environment を使用してください。
+ */
+describe('/api/environments/[id] (deprecated - 410 Gone)', () => {
   describe('GET /api/environments/:id', () => {
-    it('環境を取得できる', async () => {
-      const environment = {
-        id: 'env-1',
-        name: 'Local Host',
-        type: 'HOST',
-        description: 'Default host',
-        config: '{}',
-        auth_dir_path: null,
-        created_at: new Date(),
-        updated_at: new Date(),
-      };
-
-      mockFindById.mockResolvedValue(environment);
-
+    it('410 Gone を返す', async () => {
       const request = new NextRequest('http://localhost:3000/api/environments/env-1');
       const response = await GET(request, { params: Promise.resolve({ id: 'env-1' }) });
       const data = await response.json();
 
-      expect(response.status).toBe(200);
-      expect(data.environment.id).toBe('env-1');
-      expect(mockFindById).toHaveBeenCalledWith('env-1');
+      expect(response.status).toBe(410);
+      expect(data.deprecated).toBe(true);
+      expect(data.error).toContain('廃止');
     });
 
-    it('includeStatus=trueでステータスも取得できる', async () => {
-      const environment = {
-        id: 'env-1',
-        name: 'Local Host',
-        type: 'HOST',
-        description: 'Default host',
-        config: '{}',
-        auth_dir_path: null,
-        created_at: new Date(),
-        updated_at: new Date(),
-      };
+    it('Deprecation ヘッダーが付与される', async () => {
+      const request = new NextRequest('http://localhost:3000/api/environments/env-1');
+      const response = await GET(request, { params: Promise.resolve({ id: 'env-1' }) });
 
-      mockFindById.mockResolvedValue(environment);
-      mockCheckStatus.mockResolvedValue({
-        available: true,
-        authenticated: true,
-      });
+      expect(response.headers.get('Deprecation')).toBe('true');
+      expect(response.headers.get('Sunset')).toBeNull();
+    });
 
-      const request = new NextRequest('http://localhost:3000/api/environments/env-1?includeStatus=true');
+    it('代替エンドポイントの情報が含まれる', async () => {
+      const request = new NextRequest('http://localhost:3000/api/environments/env-1');
       const response = await GET(request, { params: Promise.resolve({ id: 'env-1' }) });
       const data = await response.json();
 
-      expect(response.status).toBe(200);
-      expect(data.environment.status).toBeDefined();
-      expect(data.environment.status.available).toBe(true);
-    });
-
-    it('存在しない環境は404エラー', async () => {
-      mockFindById.mockResolvedValue(null);
-
-      const request = new NextRequest('http://localhost:3000/api/environments/non-existent');
-      const response = await GET(request, { params: Promise.resolve({ id: 'non-existent' }) });
-      const data = await response.json();
-
-      expect(response.status).toBe(404);
-      expect(data.error).toBe('Environment not found');
+      expect(data.alternatives).toBeDefined();
     });
   });
 
   describe('PUT /api/environments/:id', () => {
-    it('環境を更新できる', async () => {
-      const existingEnvironment = {
-        id: 'env-1',
-        name: 'Old Name',
-        type: 'HOST',
-        description: 'Old description',
-        config: '{}',
-        auth_dir_path: null,
-        created_at: new Date(),
-        updated_at: new Date(),
-      };
-
-      const updatedEnvironment = {
-        ...existingEnvironment,
-        name: 'New Name',
-        description: 'New description',
-      };
-
-      mockFindById.mockResolvedValue(existingEnvironment);
-      mockUpdate.mockResolvedValue(updatedEnvironment);
-
+    it('410 Gone を返す', async () => {
       const request = new NextRequest('http://localhost:3000/api/environments/env-1', {
-        method: 'PUT',
-        body: JSON.stringify({
-          name: 'New Name',
-          description: 'New description',
-        }),
-        headers: { 'Content-Type': 'application/json' },
-      });
-
-      const response = await PUT(request, { params: Promise.resolve({ id: 'env-1' }) });
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
-      expect(data.environment.name).toBe('New Name');
-      expect(mockUpdate).toHaveBeenCalledWith('env-1', {
-        name: 'New Name',
-        description: 'New description',
-      });
-    });
-
-    it('設定のみ更新できる', async () => {
-      const existingEnvironment = {
-        id: 'env-docker',
-        name: 'Docker Env',
-        type: 'DOCKER',
-        description: null,
-        config: '{"imageName":"old-image"}',
-        auth_dir_path: '/data/environments/env-docker',
-        created_at: new Date(),
-        updated_at: new Date(),
-      };
-
-      const updatedEnvironment = {
-        ...existingEnvironment,
-        config: '{"imageName":"new-image","imageTag":"v2"}',
-      };
-
-      mockFindById.mockResolvedValue(existingEnvironment);
-      mockUpdate.mockResolvedValue(updatedEnvironment);
-
-      const request = new NextRequest('http://localhost:3000/api/environments/env-docker', {
-        method: 'PUT',
-        body: JSON.stringify({
-          config: { imageName: 'new-image', imageTag: 'v2' },
-        }),
-        headers: { 'Content-Type': 'application/json' },
-      });
-
-      const response = await PUT(request, { params: Promise.resolve({ id: 'env-docker' }) });
-      const _data = await response.json();
-
-      expect(response.status).toBe(200);
-      expect(mockUpdate).toHaveBeenCalledWith('env-docker', {
-        config: { imageName: 'new-image', imageTag: 'v2' },
-      });
-    });
-
-    it('存在しない環境の更新は404エラー', async () => {
-      mockFindById.mockResolvedValue(null);
-
-      const request = new NextRequest('http://localhost:3000/api/environments/non-existent', {
         method: 'PUT',
         body: JSON.stringify({ name: 'New Name' }),
         headers: { 'Content-Type': 'application/json' },
       });
-
-      const response = await PUT(request, { params: Promise.resolve({ id: 'non-existent' }) });
-      const data = await response.json();
-
-      expect(response.status).toBe(404);
-      expect(data.error).toBe('Environment not found');
-    });
-
-    it('不正なJSONは400エラー', async () => {
-      const request = new NextRequest('http://localhost:3000/api/environments/env-1', {
-        method: 'PUT',
-        body: 'invalid json',
-        headers: { 'Content-Type': 'application/json' },
-      });
-
       const response = await PUT(request, { params: Promise.resolve({ id: 'env-1' }) });
       const data = await response.json();
 
-      expect(response.status).toBe(400);
-      expect(data.error).toBe('Invalid JSON in request body');
+      expect(response.status).toBe(410);
+      expect(data.deprecated).toBe(true);
+      expect(data.error).toContain('廃止');
     });
 
-    it('空のリクエストボディは400エラー', async () => {
-      const existingEnvironment = {
-        id: 'env-1',
-        name: 'Test',
-        type: 'HOST',
-        description: null,
-        config: '{}',
-        auth_dir_path: null,
-        created_at: new Date(),
-        updated_at: new Date(),
-      };
-
-      mockFindById.mockResolvedValue(existingEnvironment);
-
+    it('Deprecation ヘッダーが付与される', async () => {
       const request = new NextRequest('http://localhost:3000/api/environments/env-1', {
         method: 'PUT',
         body: JSON.stringify({}),
         headers: { 'Content-Type': 'application/json' },
       });
-
       const response = await PUT(request, { params: Promise.resolve({ id: 'env-1' }) });
-      const data = await response.json();
 
-      expect(response.status).toBe(400);
-      expect(data.error).toContain('At least one field');
+      expect(response.headers.get('Deprecation')).toBe('true');
+      expect(response.headers.get('Sunset')).toBeNull();
     });
 
-    it('空文字列のnameは400エラー', async () => {
-      const existingEnvironment = {
-        id: 'env-1',
-        name: 'Test',
-        type: 'HOST',
-        description: null,
-        config: '{}',
-        auth_dir_path: null,
-        created_at: new Date(),
-        updated_at: new Date(),
-      };
-
-      mockFindById.mockResolvedValue(existingEnvironment);
-
+    it('代替エンドポイントの情報が含まれる', async () => {
       const request = new NextRequest('http://localhost:3000/api/environments/env-1', {
         method: 'PUT',
-        body: JSON.stringify({ name: '' }),
+        body: JSON.stringify({}),
         headers: { 'Content-Type': 'application/json' },
       });
-
       const response = await PUT(request, { params: Promise.resolve({ id: 'env-1' }) });
       const data = await response.json();
 
-      expect(response.status).toBe(400);
-      expect(data.error).toContain('name must be a non-empty string');
-    });
-
-    it('空白のみのnameは400エラー', async () => {
-      const existingEnvironment = {
-        id: 'env-1',
-        name: 'Test',
-        type: 'HOST',
-        description: null,
-        config: '{}',
-        auth_dir_path: null,
-        created_at: new Date(),
-        updated_at: new Date(),
-      };
-
-      mockFindById.mockResolvedValue(existingEnvironment);
-
-      const request = new NextRequest('http://localhost:3000/api/environments/env-1', {
-        method: 'PUT',
-        body: JSON.stringify({ name: '   ' }),
-        headers: { 'Content-Type': 'application/json' },
-      });
-
-      const response = await PUT(request, { params: Promise.resolve({ id: 'env-1' }) });
-      const data = await response.json();
-
-      expect(response.status).toBe(400);
-      expect(data.error).toContain('name must be a non-empty string');
+      expect(data.alternatives).toBeDefined();
     });
   });
 
   describe('DELETE /api/environments/:id', () => {
-    it('環境を削除できる', async () => {
-      const environment = {
-        id: 'env-to-delete',
-        name: 'Delete Me',
-        type: 'DOCKER',
-        description: null,
-        config: '{}',
-        auth_dir_path: '/data/environments/env-to-delete',
-        created_at: new Date(),
-        updated_at: new Date(),
-      };
-
-      mockFindById.mockResolvedValue(environment);
-      mockDelete.mockResolvedValue(undefined);
-
-      const request = new NextRequest('http://localhost:3000/api/environments/env-to-delete', {
+    it('410 Gone を返す', async () => {
+      const request = new NextRequest('http://localhost:3000/api/environments/env-1', {
         method: 'DELETE',
       });
-
-      const response = await DELETE(request, { params: Promise.resolve({ id: 'env-to-delete' }) });
+      const response = await DELETE(request, { params: Promise.resolve({ id: 'env-1' }) });
       const data = await response.json();
 
-      expect(response.status).toBe(200);
-      expect(data.success).toBe(true);
-      expect(mockDelete).toHaveBeenCalledWith('env-to-delete', { keepClaudeVolume: false, keepConfigVolume: false });
+      expect(response.status).toBe(410);
+      expect(data.deprecated).toBe(true);
+      expect(data.error).toContain('廃止');
     });
 
-    it('デフォルト環境も削除できる', async () => {
-      const environment = {
-        id: 'host-default',
-        name: 'Local Host',
-        type: 'HOST',
-        description: null,
-        config: '{}',
-        auth_dir_path: null,
-        created_at: new Date(),
-        updated_at: new Date(),
-      };
-
-      mockFindById.mockResolvedValue(environment);
-      mockDelete.mockResolvedValue(undefined);
-
-      const request = new NextRequest('http://localhost:3000/api/environments/host-default', {
+    it('Deprecation ヘッダーが付与される', async () => {
+      const request = new NextRequest('http://localhost:3000/api/environments/env-1', {
         method: 'DELETE',
       });
+      const response = await DELETE(request, { params: Promise.resolve({ id: 'env-1' }) });
 
-      const response = await DELETE(request, { params: Promise.resolve({ id: 'host-default' }) });
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
-      expect(data.success).toBe(true);
-      expect(mockDelete).toHaveBeenCalledWith('host-default', { keepClaudeVolume: false, keepConfigVolume: false });
+      expect(response.headers.get('Deprecation')).toBe('true');
+      expect(response.headers.get('Sunset')).toBeNull();
     });
 
-    it('keepClaudeVolume=trueのクエリパラメータがサービス層に渡る', async () => {
-      const environment = {
-        id: 'env-docker',
-        name: 'Docker Env',
-        type: 'DOCKER',
-        description: null,
-        config: '{}',
-        auth_dir_path: null,
-        created_at: new Date(),
-        updated_at: new Date(),
-      };
-
-      mockFindById.mockResolvedValue(environment);
-      mockDelete.mockResolvedValue(undefined);
-
-      const request = new NextRequest('http://localhost:3000/api/environments/env-docker?keepClaudeVolume=true', {
+    it('代替エンドポイントの情報が含まれる', async () => {
+      const request = new NextRequest('http://localhost:3000/api/environments/env-1', {
         method: 'DELETE',
       });
-
-      const response = await DELETE(request, { params: Promise.resolve({ id: 'env-docker' }) });
+      const response = await DELETE(request, { params: Promise.resolve({ id: 'env-1' }) });
       const data = await response.json();
 
-      expect(response.status).toBe(200);
-      expect(data.success).toBe(true);
-      expect(mockDelete).toHaveBeenCalledWith('env-docker', { keepClaudeVolume: true, keepConfigVolume: false });
-    });
-
-    it('keepConfigVolume=trueのクエリパラメータがサービス層に渡る', async () => {
-      const environment = {
-        id: 'env-docker',
-        name: 'Docker Env',
-        type: 'DOCKER',
-        description: null,
-        config: '{}',
-        auth_dir_path: null,
-        created_at: new Date(),
-        updated_at: new Date(),
-      };
-
-      mockFindById.mockResolvedValue(environment);
-      mockDelete.mockResolvedValue(undefined);
-
-      const request = new NextRequest('http://localhost:3000/api/environments/env-docker?keepConfigVolume=true', {
-        method: 'DELETE',
-      });
-
-      const response = await DELETE(request, { params: Promise.resolve({ id: 'env-docker' }) });
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
-      expect(data.success).toBe(true);
-      expect(mockDelete).toHaveBeenCalledWith('env-docker', { keepClaudeVolume: false, keepConfigVolume: true });
-    });
-
-    it('両方のVolume保持オプションがサービス層に渡る', async () => {
-      const environment = {
-        id: 'env-docker',
-        name: 'Docker Env',
-        type: 'DOCKER',
-        description: null,
-        config: '{}',
-        auth_dir_path: null,
-        created_at: new Date(),
-        updated_at: new Date(),
-      };
-
-      mockFindById.mockResolvedValue(environment);
-      mockDelete.mockResolvedValue(undefined);
-
-      const request = new NextRequest('http://localhost:3000/api/environments/env-docker?keepClaudeVolume=true&keepConfigVolume=true', {
-        method: 'DELETE',
-      });
-
-      const response = await DELETE(request, { params: Promise.resolve({ id: 'env-docker' }) });
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
-      expect(data.success).toBe(true);
-      expect(mockDelete).toHaveBeenCalledWith('env-docker', { keepClaudeVolume: true, keepConfigVolume: true });
-    });
-
-    it('存在しない環境の削除は404エラー', async () => {
-      mockFindById.mockResolvedValue(null);
-
-      const request = new NextRequest('http://localhost:3000/api/environments/non-existent', {
-        method: 'DELETE',
-      });
-
-      const response = await DELETE(request, { params: Promise.resolve({ id: 'non-existent' }) });
-      const data = await response.json();
-
-      expect(response.status).toBe(404);
-      expect(data.error).toBe('Environment not found');
-    });
-
-    it('使用中のプロジェクトがある場合は409を返す', async () => {
-      const environment = {
-        id: 'env-in-use',
-        name: 'In Use',
-        type: 'DOCKER',
-        description: null,
-        config: '{}',
-        auth_dir_path: '/data/environments/env-in-use',
-        created_at: new Date(),
-        updated_at: new Date(),
-      };
-
-      mockFindById.mockResolvedValue(environment);
-      mockDelete.mockRejectedValue(
-        new MockEnvironmentInUseError('この環境は以下のプロジェクトで使用中のため削除できません: Project A')
-      );
-
-      const request = new NextRequest('http://localhost:3000/api/environments/env-in-use', {
-        method: 'DELETE',
-      });
-
-      const response = await DELETE(request, { params: Promise.resolve({ id: 'env-in-use' }) });
-      const data = await response.json();
-
-      expect(response.status).toBe(409);
-      expect(data.error).toContain('使用中');
-    });
-
-    it('削除エラーを処理する', async () => {
-      const environment = {
-        id: 'env-error',
-        name: 'Error',
-        type: 'DOCKER',
-        description: null,
-        config: '{}',
-        auth_dir_path: null,
-        created_at: new Date(),
-        updated_at: new Date(),
-      };
-
-      mockFindById.mockResolvedValue(environment);
-      mockDelete.mockRejectedValue(new Error('Database error'));
-
-      const request = new NextRequest('http://localhost:3000/api/environments/env-error', {
-        method: 'DELETE',
-      });
-
-      const response = await DELETE(request, { params: Promise.resolve({ id: 'env-error' }) });
-      const data = await response.json();
-
-      expect(response.status).toBe(500);
-      expect(data.error).toBe('Internal server error');
+      expect(data.alternatives).toBeDefined();
     });
   });
 });

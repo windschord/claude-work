@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Settings, Server, Key, Code } from 'lucide-react';
+import { Settings, Key, Code } from 'lucide-react';
 
 interface SettingCardProps {
   href: string;
@@ -49,8 +49,10 @@ function SettingCard({ href, icon, title, description }: SettingCardProps) {
  * 各種設定へのナビゲーションハブとして機能します。
  * カード形式で以下の設定ページへのリンクを提供します。
  * - アプリケーション設定
- * - 実行環境管理
  * - GitHub PAT管理
+ * - 開発ツール設定
+ *
+ * 注意: 実行環境設定はプロジェクト設定モーダル（プロジェクト設定 > 実行環境）から行います。
  */
 export default function SettingsPage() {
   return (
@@ -68,13 +70,6 @@ export default function SettingsPage() {
           icon={<Settings className="w-8 h-8" />}
           title="アプリケーション設定"
           description="Git Cloneタイムアウトやデバッグモードなどのアプリケーション設定を管理します。"
-        />
-
-        <SettingCard
-          href="/settings/environments"
-          icon={<Server className="w-8 h-8" />}
-          title="実行環境"
-          description="Claude Code実行環境の管理（HOST、DOCKER、SSH）を行います。"
         />
 
         <SettingCard
