@@ -49,13 +49,9 @@ export interface Session {
   pr_status?: string | null;
   /** PR情報更新日時 */
   pr_updated_at?: string | null;
-  /** Dockerモードで実行中かどうか */
-  docker_mode?: boolean;
-  /** 環境ID */
-  environment_id?: string | null;
-  /** 環境名（join結果） */
+  /** 環境名（プロジェクト経由のjoin結果） */
   environment_name?: string | null;
-  /** 環境タイプ（join結果） */
+  /** 環境タイプ（プロジェクト経由のjoin結果） */
   environment_type?: 'HOST' | 'DOCKER' | 'SSH' | null;
   /** 作成日時 */
   created_at: string;
@@ -71,10 +67,12 @@ export interface CreateSessionData {
   name?: string;
   /** プロンプト */
   prompt: string;
-  /** Dockerモードで実行するかどうか（明示的に指定必須） */
-  dockerMode: boolean;
-  /** 実行環境ID（指定時はdockerModeは無視される） */
-  environment_id?: string;
+  /** ベースブランチ（指定時はそのブランチからworktreeを作成） */
+  source_branch?: string;
+  /** Claude Code オプション */
+  claude_code_options?: object;
+  /** カスタム環境変数 */
+  custom_env_vars?: object;
 }
 
 /**
@@ -178,9 +176,9 @@ export interface AppState {
   /** プロジェクト一覧を設定 */
   setProjects: (projects: Project[]) => void;
   /** プロジェクトを追加 */
-  addProject: (path: string, environmentId: string) => Promise<void>;
+  addProject: (path: string) => Promise<void>;
   /** リモートリポジトリをcloneしてプロジェクトを追加 */
-  cloneProject: (url: string, environmentId: string, targetDir?: string, cloneLocation?: 'host' | 'docker', githubPatId?: string) => Promise<void>;
+  cloneProject: (url: string, targetDir?: string, cloneLocation?: 'host' | 'docker', githubPatId?: string) => Promise<void>;
   /** リモートリポジトリをpull */
   pullProject: (projectId: string) => Promise<{ updated: boolean; message: string }>;
   /** プロジェクトを更新 */
@@ -320,14 +318,14 @@ export const useAppStore = create<AppState>((set) => ({
     }
   },
 
-  addProject: async (path: string, environmentId: string) => {
+  addProject: async (path: string) => {
     try {
       const response = await fetch('/api/projects', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ path, environment_id: environmentId }),
+        body: JSON.stringify({ path }),
       });
 
       if (!response.ok) {
@@ -374,14 +372,14 @@ export const useAppStore = create<AppState>((set) => ({
     }
   },
 
-  cloneProject: async (url: string, environmentId: string, targetDir?: string, cloneLocation?: 'host' | 'docker', githubPatId?: string) => {
+  cloneProject: async (url: string, targetDir?: string, cloneLocation?: 'host' | 'docker', githubPatId?: string) => {
     try {
       const response = await fetch('/api/projects/clone', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ url, targetDir, cloneLocation, githubPatId, environment_id: environmentId }),
+        body: JSON.stringify({ url, targetDir, cloneLocation, githubPatId }),
       });
 
       if (!response.ok) {
