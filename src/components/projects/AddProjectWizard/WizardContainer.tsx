@@ -2,12 +2,11 @@
 
 import { useState, useCallback, useRef, Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
-import { X, Server, Key, FolderGit2, Play } from 'lucide-react';
+import { X, Key, FolderGit2, Play } from 'lucide-react';
 import { useAppStore } from '@/store';
 import toast from 'react-hot-toast';
 
 import { WizardProgressBar } from './WizardProgressBar';
-import { StepEnvironment } from './StepEnvironment';
 import { StepAuthentication } from './StepAuthentication';
 import { StepRepository } from './StepRepository';
 import { StepSession } from './StepSession';
@@ -15,10 +14,9 @@ import { initialWizardData } from './types';
 import type { WizardData, WizardStep } from './types';
 
 const WIZARD_STEPS: WizardStep[] = [
-  { id: 1, label: '環境', icon: Server },
-  { id: 2, label: '認証', icon: Key },
-  { id: 3, label: 'リポジトリ', icon: FolderGit2 },
-  { id: 4, label: 'セッション', icon: Play },
+  { id: 1, label: '認証', icon: Key },
+  { id: 2, label: 'リポジトリ', icon: FolderGit2 },
+  { id: 3, label: 'セッション', icon: Play },
 ];
 
 interface AddProjectWizardProps {
@@ -26,7 +24,7 @@ interface AddProjectWizardProps {
   onClose: () => void;
 }
 
-const TOTAL_STEPS = 4;
+const TOTAL_STEPS = 3;
 
 export function AddProjectWizard({ isOpen, onClose }: AddProjectWizardProps) {
   const { fetchProjects } = useAppStore();
@@ -35,7 +33,6 @@ export function AddProjectWizard({ isOpen, onClose }: AddProjectWizardProps) {
   const [wizardData, setWizardData] = useState<WizardData>({ ...initialWizardData });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hostEnvironmentDisabled, setHostEnvironmentDisabled] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const submitInFlightRef = useRef(false);
 
@@ -51,7 +48,6 @@ export function AddProjectWizard({ isOpen, onClose }: AddProjectWizardProps) {
     setWizardData({ ...initialWizardData });
     setIsSubmitting(false);
     setError(null);
-    setHostEnvironmentDisabled(false);
   }, []);
 
   const handleClose = useCallback(() => {
@@ -62,10 +58,8 @@ export function AddProjectWizard({ isOpen, onClose }: AddProjectWizardProps) {
   const canProceed = useCallback(() => {
     switch (currentStep) {
       case 1:
-        return !!wizardData.environmentId;
-      case 2:
         return true; // 認証はオプション
-      case 3:
+      case 2:
         if (wizardData.repoType === 'local') {
           return !!wizardData.localPath.trim();
         }
@@ -88,7 +82,7 @@ export function AddProjectWizard({ isOpen, onClose }: AddProjectWizardProps) {
   };
 
   const handleNext = useCallback(async () => {
-    if (currentStep === 3) {
+    if (currentStep === 2) {
       if (submitInFlightRef.current || isSubmitting) return;
       submitInFlightRef.current = true;
 
@@ -110,7 +104,6 @@ export function AddProjectWizard({ isOpen, onClose }: AddProjectWizardProps) {
             body: JSON.stringify({
               path: wizardData.localPath.trim(),
               name: wizardData.projectName || undefined,
-              environment_id: wizardData.environmentId,
             }),
             signal: controller.signal,
           });
@@ -128,7 +121,6 @@ export function AddProjectWizard({ isOpen, onClose }: AddProjectWizardProps) {
               targetDir: wizardData.targetDir.trim() || undefined,
               cloneLocation: wizardData.cloneLocation,
               githubPatId: wizardData.githubPatId || undefined,
-              environment_id: wizardData.environmentId,
             }),
             signal: controller.signal,
           });
@@ -144,9 +136,9 @@ export function AddProjectWizard({ isOpen, onClose }: AddProjectWizardProps) {
 
         handleDataChange({ createdProjectId: projectId });
         toast.success('プロジェクトを追加しました');
-        setCurrentStep(4);
+        setCurrentStep(3);
 
-        // プロジェクトリスト更新は成功/失敗に関わらずStep 4遷移には影響しない
+        // プロジェクトリスト更新は成功/失敗に関わらずStep 3遷移には影響しない
         try {
           await fetchProjects();
         } catch {
@@ -156,7 +148,7 @@ export function AddProjectWizard({ isOpen, onClose }: AddProjectWizardProps) {
         if (controller.signal.aborted) return;
         const errorMessage = err instanceof Error ? err.message : 'プロジェクトの追加に失敗しました';
         setError(errorMessage);
-        setCurrentStep(4);
+        setCurrentStep(3);
       } finally {
         submitInFlightRef.current = false;
         if (abortControllerRef.current === controller) {
@@ -189,7 +181,7 @@ export function AddProjectWizard({ isOpen, onClose }: AddProjectWizardProps) {
 
   const handleRetry = useCallback(() => {
     setError(null);
-    setCurrentStep(3);
+    setCurrentStep(2);
   }, []);
 
   return (
@@ -244,29 +236,21 @@ export function AddProjectWizard({ isOpen, onClose }: AddProjectWizardProps) {
 
                 <div className="mt-6 min-h-[300px]">
                   {currentStep === 1 && (
-                    <StepEnvironment
-                      environmentId={wizardData.environmentId}
-                      onChange={handleDataChange}
-                      onHostEnvironmentDisabledChange={setHostEnvironmentDisabled}
-                    />
-                  )}
-                  {currentStep === 2 && (
                     <StepAuthentication
                       githubPatId={wizardData.githubPatId}
                       onChange={handleDataChange}
                     />
                   )}
-                  {currentStep === 3 && (
+                  {currentStep === 2 && (
                     <StepRepository
                       wizardData={wizardData}
                       onChange={handleDataChange}
-                      hostEnvironmentDisabled={hostEnvironmentDisabled}
+                      hostEnvironmentDisabled={false}
                     />
                   )}
-                  {currentStep === 4 && (
+                  {currentStep === 3 && (
                     <StepSession
                       createdProjectId={wizardData.createdProjectId}
-                      environmentId={wizardData.environmentId}
                       sessionName={wizardData.sessionName}
                       onChange={handleDataChange}
                       onComplete={handleClose}
@@ -276,8 +260,8 @@ export function AddProjectWizard({ isOpen, onClose }: AddProjectWizardProps) {
                   )}
                 </div>
 
-                {/* ナビゲーションボタン（Step 4では非表示） */}
-                {currentStep < 4 && (
+                {/* ナビゲーションボタン（Step 3では非表示） */}
+                {currentStep < 3 && (
                   <div className="mt-6 flex justify-between">
                     <div>
                       {currentStep > 1 && (
