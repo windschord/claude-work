@@ -40,22 +40,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
 
-    const { url, targetDir, name, cloneLocation, githubPatId, environment_id } = body;
+    const { url, targetDir, name, cloneLocation, githubPatId } = body;
 
     if (!url) {
       return NextResponse.json({ error: 'URLは必須です' }, { status: 400 });
-    }
-
-    if (typeof environment_id !== 'string' || environment_id.trim() === '') {
-      return NextResponse.json({ error: '実行環境の指定は必須です' }, { status: 400 });
-    }
-
-    const normalizedEnvironmentId = environment_id.trim();
-
-    // environment_id の存在確認
-    const env = await environmentService.findById(normalizedEnvironmentId);
-    if (!env) {
-      return NextResponse.json({ error: '指定された実行環境が見つかりません' }, { status: 400 });
     }
 
     // URL検証
@@ -83,23 +71,42 @@ export async function POST(request: NextRequest) {
     // Docker環境の場合
     if (validatedCloneLocation === 'docker') {
       let volumeName: string | undefined;
+      let environmentId: string | undefined;
       try {
+        // 環境を先に作成（project_id は後でプロジェクト作成後に設定）
+        // NOTE: projects.environment_id と executionEnvironments.project_id の循環参照を
+        //       解決するため、環境を先に作成してからプロジェクトを作成し、最後に環境の
+        //       project_id を更新する
+        const environment = await environmentService.create({
+          name: `${projectName} 環境`,
+          type: 'DOCKER',
+          config: { imageName: 'ghcr.io/windschord/claude-work-sandbox', imageTag: 'latest' },
+        });
+        environmentId = environment.id;
+
         // 先にプロジェクトをDB登録してIDを取得
         const project = db.insert(schema.projects).values({
           name: projectName,
           path: `temp-${Date.now()}`, // 一時的なユニーク値（UNIQUE制約対策）
           remote_url: url,
           clone_location: 'docker',
-          environment_id: normalizedEnvironmentId,
+          environment_id: environment.id,
         }).returning().get();
 
         if (!project) {
           throw new Error('Failed to create project');
         }
 
+        // 環境の project_id を更新して1対1関係を確立
+        db.update(schema.executionEnvironments)
+          .set({ project_id: project.id })
+          .where(eq(schema.executionEnvironments.id, environment.id))
+          .run();
+
         logger.info('Project created (pre-clone)', {
           id: project.id,
           name: projectName,
+          environmentId: environment.id,
         });
 
         try {
@@ -123,7 +130,7 @@ export async function POST(request: NextRequest) {
               );
             } catch (error) {
               logger.error('PAT authentication failed', { githubPatId, error });
-              // clone前なのでDBからプロジェクトを削除
+              // clone前なのでDBからプロジェクトを削除（環境はcascadeで削除される）
               db.delete(schema.projects).where(eq(schema.projects.id, project.id)).run();
               return NextResponse.json(
                 { error: error instanceof Error ? error.message : 'PAT認証に失敗しました' },
@@ -174,6 +181,7 @@ export async function POST(request: NextRequest) {
             id: project.id,
             name: projectName,
             docker_volume_id: volumeName,
+            environmentId: environment.id,
           });
 
           return NextResponse.json({ project: updatedProject }, { status: 201 });
@@ -203,6 +211,14 @@ export async function POST(request: NextRequest) {
             { error: 'このリポジトリは既に登録されています' },
             { status: 409 }
           );
+        }
+        // 環境が作成済みの場合はクリーンアップ（プロジェクトが作成される前の失敗時）
+        if (environmentId) {
+          try {
+            db.delete(schema.executionEnvironments).where(eq(schema.executionEnvironments.id, environmentId)).run();
+          } catch (cleanupError) {
+            logger.error('Failed to cleanup environment after project creation error', { environmentId, cleanupError });
+          }
         }
         throw error;
       }
@@ -285,23 +301,40 @@ export async function POST(request: NextRequest) {
 
     // プロジェクトをDBに登録
     try {
+      // 環境を先に作成（project_id は後でプロジェクト作成後に設定）
+      // NOTE: projects.environment_id と executionEnvironments.project_id の循環参照を
+      //       解決するため、環境を先に作成してからプロジェクトを作成し、最後に環境の
+      //       project_id を更新する
+      const environment = await environmentService.create({
+        name: `${projectName} 環境`,
+        type: 'DOCKER',
+        config: { imageName: 'ghcr.io/windschord/claude-work-sandbox', imageTag: 'latest' },
+      });
+
       const project = db.insert(schema.projects).values({
         name: projectName,
         path: cloneResult.path,
         remote_url: url,
         clone_location: 'host',
-        environment_id: normalizedEnvironmentId,
+        environment_id: environment.id,
       }).returning().get();
 
       if (!project) {
         throw new Error('Failed to create project');
       }
 
-      logger.info('Project created from remote', {
+      // 環境の project_id を更新して1対1関係を確立
+      db.update(schema.executionEnvironments)
+        .set({ project_id: project.id })
+        .where(eq(schema.executionEnvironments.id, environment.id))
+        .run();
+
+      logger.info('Project created from remote with auto-created environment', {
         id: project.id,
         name: projectName,
         path: cloneResult.path,
         remote_url: url,
+        environmentId: environment.id,
       });
 
       return NextResponse.json({ project }, { status: 201 });

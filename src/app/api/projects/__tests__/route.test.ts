@@ -11,9 +11,20 @@ import { execSync } from 'child_process';
 describe('GET /api/projects', () => {
   let testRepoPath: string;
   let originalAllowedDirs: string | undefined;
+  let testEnvId: string;
 
   beforeEach(async () => {
+    // プロジェクトを先に削除してから環境を削除（外部キー制約のため）
     db.delete(schema.projects).run();
+    db.delete(schema.executionEnvironments).run();
+
+    // テスト用の実行環境を作成（environment_id NOT NULL 制約のため）
+    const env = db.insert(schema.executionEnvironments).values({
+      name: 'Test Environment',
+      type: 'DOCKER',
+      config: '{}',
+    }).returning().get()!;
+    testEnvId = env.id;
 
     // 環境変数をバックアップして無効化（テストごとに制御するため）
     originalAllowedDirs = process.env.ALLOWED_PROJECT_DIRS;
@@ -31,7 +42,9 @@ describe('GET /api/projects', () => {
   });
 
   afterEach(async () => {
+    // プロジェクトを先に削除してから環境を削除（外部キー制約のため）
     db.delete(schema.projects).run();
+    db.delete(schema.executionEnvironments).run();
     if (testRepoPath) {
       rmSync(testRepoPath, { recursive: true, force: true });
     }
@@ -47,6 +60,7 @@ describe('GET /api/projects', () => {
     db.insert(schema.projects).values({
       name: 'Test Project',
       path: testRepoPath,
+      environment_id: testEnvId,
     }).run();
 
     const request = new NextRequest('http://localhost:3000/api/projects');
@@ -65,6 +79,7 @@ describe('GET /api/projects', () => {
     db.insert(schema.projects).values({
       name: 'Test Project',
       path: testRepoPath,
+      environment_id: testEnvId,
     }).run();
 
     const request = new NextRequest('http://localhost:3000/api/projects');
@@ -96,18 +111,11 @@ describe('GET /api/projects', () => {
 describe('POST /api/projects', () => {
   let testRepoPath: string;
   let originalAllowedDirs: string | undefined;
-  let testEnvId: string;
 
   beforeEach(async () => {
+    // プロジェクトを先に削除してから環境を削除（外部キー制約のため）
     db.delete(schema.projects).run();
-
-    // テスト用の実行環境を作成
-    const env = db.insert(schema.executionEnvironments).values({
-      name: 'Test Environment',
-      type: 'DOCKER',
-      config: '{}',
-    }).returning().get()!;
-    testEnvId = env.id;
+    db.delete(schema.executionEnvironments).run();
 
     // 環境変数をバックアップして無効化（テストごとに制御するため）
     originalAllowedDirs = process.env.ALLOWED_PROJECT_DIRS;
@@ -125,8 +133,9 @@ describe('POST /api/projects', () => {
   });
 
   afterEach(async () => {
+    // プロジェクトを先に削除してから環境を削除（外部キー制約のため）
     db.delete(schema.projects).run();
-    db.delete(schema.executionEnvironments).where(eq(schema.executionEnvironments.id, testEnvId)).run();
+    db.delete(schema.executionEnvironments).run();
     if (testRepoPath) {
       rmSync(testRepoPath, { recursive: true, force: true });
     }
@@ -138,7 +147,7 @@ describe('POST /api/projects', () => {
     }
   });
 
-  it('should create project with valid git repository', async () => {
+  it('should create project with valid git repository (no environment_id needed)', async () => {
     const request = new NextRequest('http://localhost:3000/api/projects', {
       method: 'POST',
       headers: {
@@ -146,7 +155,6 @@ describe('POST /api/projects', () => {
       },
       body: JSON.stringify({
         path: testRepoPath,
-        environment_id: testEnvId,
       }),
     });
 
@@ -162,6 +170,35 @@ describe('POST /api/projects', () => {
     expect(project).toBeTruthy();
   });
 
+  it('should auto-create environment for new project', async () => {
+    const request = new NextRequest('http://localhost:3000/api/projects', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        path: testRepoPath,
+      }),
+    });
+
+    const response = await POST(request);
+    expect(response.status).toBe(201);
+
+    const data = await response.json();
+    const projectId = data.project.id;
+
+    // プロジェクトにenvironment_idが設定されていることを確認
+    const project = db.select().from(schema.projects).where(eq(schema.projects.id, projectId)).get();
+    expect(project?.environment_id).toBeTruthy();
+
+    // 環境が自動作成されていることを確認
+    const environment = db.select().from(schema.executionEnvironments)
+      .where(eq(schema.executionEnvironments.project_id, projectId))
+      .get();
+    expect(environment).toBeTruthy();
+    expect(environment?.type).toBe('DOCKER');
+  });
+
   it('should return 400 for invalid git repository', async () => {
     const invalidPath = mkdtempSync(join(tmpdir(), 'invalid-'));
 
@@ -172,7 +209,6 @@ describe('POST /api/projects', () => {
       },
       body: JSON.stringify({
         path: invalidPath,
-        environment_id: testEnvId,
       }),
     });
 
@@ -185,24 +221,6 @@ describe('POST /api/projects', () => {
     rmSync(invalidPath, { recursive: true, force: true });
   });
 
-  it('should return 400 when environment_id is not provided', async () => {
-    const request = new NextRequest('http://localhost:3000/api/projects', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        path: testRepoPath,
-      }),
-    });
-
-    const response = await POST(request);
-    expect(response.status).toBe(400);
-
-    const data = await response.json();
-    expect(data.error).toBe('実行環境の指定は必須です');
-  });
-
   it('should return 409 when adding duplicate project path', async () => {
     // 最初のプロジェクト作成
     const firstRequest = new NextRequest('http://localhost:3000/api/projects', {
@@ -212,7 +230,6 @@ describe('POST /api/projects', () => {
       },
       body: JSON.stringify({
         path: testRepoPath,
-        environment_id: testEnvId,
       }),
     });
 
@@ -227,7 +244,6 @@ describe('POST /api/projects', () => {
       },
       body: JSON.stringify({
         path: testRepoPath,
-        environment_id: testEnvId,
       }),
     });
 
@@ -246,7 +262,6 @@ describe('POST /api/projects', () => {
       },
       body: JSON.stringify({
         path: testRepoPath,
-        environment_id: testEnvId,
       }),
     });
 
@@ -282,7 +297,6 @@ describe('POST /api/projects', () => {
         },
         body: JSON.stringify({
           path: testRepoPath,
-          environment_id: testEnvId,
         }),
       });
 
@@ -300,7 +314,6 @@ describe('POST /api/projects', () => {
         },
         body: JSON.stringify({
           path: testRepoPath,
-          environment_id: testEnvId,
         }),
       });
 
@@ -328,7 +341,6 @@ describe('POST /api/projects', () => {
         },
         body: JSON.stringify({
           path: allowedPath,
-          environment_id: testEnvId,
         }),
       });
 
@@ -358,7 +370,6 @@ describe('POST /api/projects', () => {
         },
         body: JSON.stringify({
           path: disallowedPath,
-          environment_id: testEnvId,
         }),
       });
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, schema } from '@/lib/db';
-import { desc } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import { spawnSync } from 'child_process';
 import { basename, relative, resolve } from 'path';
 import { realpathSync } from 'fs';
@@ -111,14 +111,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
 
-    const { path: projectPath, environment_id } = body;
+    const { path: projectPath } = body;
 
     if (!projectPath) {
       return NextResponse.json({ error: 'Path is required' }, { status: 400 });
-    }
-
-    if (typeof environment_id !== 'string' || environment_id.trim() === '') {
-      return NextResponse.json({ error: '実行環境の指定は必須です' }, { status: 400 });
     }
 
     // パストラバーサル攻撃を防ぐため、絶対パスに正規化
@@ -176,28 +172,56 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Gitリポジトリではありません' }, { status: 400 });
     }
 
-    // 環境の存在確認
-    const { environmentService } = await import('@/services/environment-service');
-    const env = await environmentService.findById(environment_id);
-    if (!env) {
-      return NextResponse.json({ error: '指定された実行環境が見つかりません' }, { status: 400 });
-    }
-
     const name = basename(absolutePath);
+    const { environmentService } = await import('@/services/environment-service');
 
     try {
+      // 重複チェック（プロジェクト作成前に確認）
+      const existingProject = db.select({ id: schema.projects.id })
+        .from(schema.projects)
+        .where(eq(schema.projects.path, absolutePath))
+        .get();
+      if (existingProject) {
+        return NextResponse.json(
+          { error: 'このパスは既に登録されています' },
+          { status: 409 }
+        );
+      }
+
+      // 環境を先に作成（project_id は後でプロジェクト作成後に設定）
+      // NOTE: projects.environment_id と executionEnvironments.project_id の循環参照を
+      //       解決するため、環境を先に作成してからプロジェクトを作成し、最後に環境の
+      //       project_id を更新する
+      const environment = await environmentService.create({
+        name: `${name} 環境`,
+        type: 'DOCKER',
+        config: { imageName: 'ghcr.io/windschord/claude-work-sandbox', imageTag: 'latest' },
+      });
+
+      // プロジェクトを作成（有効な environment_id を使用）
       const project = db.insert(schema.projects).values({
         name,
         path: absolutePath,
         clone_location: 'host', // ローカルプロジェクトはHost環境
-        environment_id,
+        environment_id: environment.id,
       }).returning().get();
 
       if (!project) {
         throw new Error('Failed to create project');
       }
 
-      logger.info('Project created', { id: project.id, name, path: absolutePath });
+      // 環境の project_id を更新して1対1関係を確立
+      db.update(schema.executionEnvironments)
+        .set({ project_id: project.id })
+        .where(eq(schema.executionEnvironments.id, environment.id))
+        .run();
+
+      logger.info('Project created with auto-created environment', {
+        id: project.id,
+        name,
+        path: absolutePath,
+        environmentId: environment.id,
+      });
       return NextResponse.json({ project }, { status: 201 });
     } catch (error) {
       // SQLite UNIQUE constraint violationのハンドリング
