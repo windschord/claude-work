@@ -104,18 +104,12 @@ export function setupTerminalWebSocket(
         gracePeriod: PTY_DESTROY_GRACE_PERIOD,
       });
 
-      // セッション情報を取得してアダプター選択
+      // セッション情報を取得してアダプター選択（クリーンアップ用）
       db.query.sessions.findFirst({
         where: eq(schema.sessions.id, originalSessionId),
         columns: {
           id: true,
-        },
-        with: {
-          project: {
-            columns: {
-              environment_id: true,
-            },
-          },
+          project_id: true,
         },
       }).then((session) => {
         if (!session) {
@@ -158,58 +152,52 @@ export function setupTerminalWebSocket(
           }
         };
 
-        // プロジェクトのenvironment_idからアダプターを取得
-        const effectiveEnvId = session.project?.environment_id;
-        if (effectiveEnvId) {
-          // 新方式: AdapterFactory経由
-          environmentService.findById(effectiveEnvId).then(async (environment) => {
-            if (environment) {
-              const adapter = AdapterFactory.getAdapter(environment);
+        // プロジェクトに紐付く環境をfindByProjectId経由で取得してアダプターを選択
+        environmentService.findByProjectId(session.project_id).then(async (environment) => {
+          if (environment) {
+            const adapter = AdapterFactory.getAdapter(environment);
 
-              // イベントハンドラー解除（adapter側のリスナーも削除）
-              if (dataHandler) {
-                const handler = connectionManager.getHandler(terminalSessionId, 'data');
-                if (handler) {
-                  adapter.off('data', handler);
-                }
-                connectionManager.unregisterHandler(terminalSessionId, 'data');
+            // イベントハンドラー解除（adapter側のリスナーも削除）
+            if (dataHandler) {
+              const handler = connectionManager.getHandler(terminalSessionId, 'data');
+              if (handler) {
+                adapter.off('data', handler);
               }
-              if (exitHandler) {
-                const handler = connectionManager.getHandler(terminalSessionId, 'exit');
-                if (handler) {
-                  adapter.off('exit', handler);
-                }
-                connectionManager.unregisterHandler(terminalSessionId, 'exit');
-              }
-              if (errorHandler) {
-                const handler = connectionManager.getHandler(terminalSessionId, 'error');
-                if (handler) {
-                  adapter.off('error', handler);
-                }
-                connectionManager.unregisterHandler(terminalSessionId, 'error');
-              }
-
-              // PTY破棄
-              if (adapter.hasSession(terminalSessionId)) {
-                await adapter.destroySession(terminalSessionId);
-              }
-            } else {
-              // 環境が見つからない場合はレガシークリーンアップにフォールバック
-              logger.warn('Terminal WebSocket: Environment not found for cleanup, falling back to legacy cleanup', {
-                sessionId: originalSessionId,
-                environmentId: effectiveEnvId,
-              });
-              cleanupLegacy();
+              connectionManager.unregisterHandler(terminalSessionId, 'data');
             }
-          }).catch((error) => {
-            logger.error('Failed to cleanup terminal session via environment adapter', {
-              sessionId: terminalSessionId,
-              error,
+            if (exitHandler) {
+              const handler = connectionManager.getHandler(terminalSessionId, 'exit');
+              if (handler) {
+                adapter.off('exit', handler);
+              }
+              connectionManager.unregisterHandler(terminalSessionId, 'exit');
+            }
+            if (errorHandler) {
+              const handler = connectionManager.getHandler(terminalSessionId, 'error');
+              if (handler) {
+                adapter.off('error', handler);
+              }
+              connectionManager.unregisterHandler(terminalSessionId, 'error');
+            }
+
+            // PTY破棄
+            if (adapter.hasSession(terminalSessionId)) {
+              await adapter.destroySession(terminalSessionId);
+            }
+          } else {
+            // 環境が見つからない場合はレガシークリーンアップにフォールバック
+            logger.warn('Terminal WebSocket: Environment not found for cleanup, falling back to legacy cleanup', {
+              sessionId: originalSessionId,
+              project_id: session.project_id,
             });
+            cleanupLegacy();
+          }
+        }).catch((error) => {
+          logger.error('Failed to cleanup terminal session via environment adapter', {
+            sessionId: terminalSessionId,
+            error,
           });
-        } else {
-          cleanupLegacy();
-        }
+        });
       });
 
       destroyTimers.delete(terminalSessionId);
@@ -240,14 +228,8 @@ export function setupTerminalWebSocket(
         where: eq(schema.sessions.id, sessionId),
         columns: {
           id: true,
+          project_id: true,
           worktree_path: true,
-        },
-        with: {
-          project: {
-            columns: {
-              environment_id: true,
-            },
-          },
         },
       });
 
@@ -267,24 +249,9 @@ export function setupTerminalWebSocket(
       let adapter: EnvironmentAdapter | null = null;
       let useLegacyPtyManager = true;
 
-      // 環境IDを取得（プロジェクトのenvironment_idから）
-      const effectiveEnvId = session.project?.environment_id;
-      if (effectiveEnvId) {
-        // 新方式: environment_id で環境を取得
-        const environment = await environmentService.findById(effectiveEnvId);
-        if (!environment) {
-          logger.error('Terminal WebSocket: Environment not found', {
-            sessionId,
-            environmentId: effectiveEnvId,
-          });
-          const errorMsg: TerminalErrorMessage = {
-            type: 'error',
-            message: `Environment not found: ${effectiveEnvId}`,
-          };
-          ws.send(JSON.stringify(errorMsg));
-          ws.close(1008, 'Environment not found');
-          return;
-        }
+      // プロジェクトに紐付く環境を取得（1対1関係）
+      const environment = await environmentService.findByProjectId(session.project_id);
+      if (environment) {
         adapter = AdapterFactory.getAdapter(environment);
         useLegacyPtyManager = false;
         logger.info('Terminal WebSocket: Using project environment', {
@@ -293,8 +260,11 @@ export function setupTerminalWebSocket(
           environmentType: environment.type,
         });
       } else {
-        // 従来方式: ptyManagerを直接使用
-        logger.info('Terminal WebSocket: Using legacy ptyManager', { sessionId });
+        // 環境が見つからない場合: 従来方式にフォールバック
+        logger.info('Terminal WebSocket: No environment found for project, using legacy ptyManager', {
+          sessionId,
+          project_id: session.project_id,
+        });
       }
 
       // イベントハンドラー定義
