@@ -36,6 +36,7 @@ describe('GET /api/sessions/[id]', () => {
   beforeEach(async () => {
     db.delete(schema.sessions).run();
     db.delete(schema.projects).run();
+    db.delete(schema.executionEnvironments).run();
 
     testRepoPath = mkdtempSync(join(tmpdir(), 'session-test-'));
     execSync('git init', { cwd: testRepoPath });
@@ -47,11 +48,18 @@ describe('GET /api/sessions/[id]', () => {
     });
     execSync('git branch -M main', { cwd: testRepoPath });
 
+    const env = db.insert(schema.executionEnvironments).values({
+      name: 'Test Env',
+      type: 'HOST',
+      config: '{}',
+    }).returning().get();
+
     project = db
       .insert(schema.projects)
       .values({
         name: 'Test Project',
         path: testRepoPath, clone_location: 'host',
+        environment_id: env.id,
       })
       .returning()
       .get();
@@ -72,6 +80,7 @@ describe('GET /api/sessions/[id]', () => {
   afterEach(async () => {
     db.delete(schema.sessions).run();
     db.delete(schema.projects).run();
+    db.delete(schema.executionEnvironments).run();
     if (testRepoPath) {
       rmSync(testRepoPath, { recursive: true, force: true });
     }
@@ -107,6 +116,7 @@ describe('DELETE /api/sessions/[id]', () => {
   beforeEach(async () => {
     db.delete(schema.sessions).run();
     db.delete(schema.projects).run();
+    db.delete(schema.executionEnvironments).run();
 
     testRepoPath = mkdtempSync(join(tmpdir(), 'session-test-'));
     execSync('git init', { cwd: testRepoPath });
@@ -118,11 +128,18 @@ describe('DELETE /api/sessions/[id]', () => {
     });
     execSync('git branch -M main', { cwd: testRepoPath });
 
+    const env = db.insert(schema.executionEnvironments).values({
+      name: 'Test Env',
+      type: 'HOST',
+      config: '{}',
+    }).returning().get();
+
     project = db
       .insert(schema.projects)
       .values({
         name: 'Test Project',
         path: testRepoPath, clone_location: 'host',
+        environment_id: env.id,
       })
       .returning()
       .get();
@@ -143,6 +160,7 @@ describe('DELETE /api/sessions/[id]', () => {
   afterEach(async () => {
     db.delete(schema.sessions).run();
     db.delete(schema.projects).run();
+    db.delete(schema.executionEnvironments).run();
     if (testRepoPath) {
       rmSync(testRepoPath, { recursive: true, force: true });
     }
@@ -221,6 +239,7 @@ describe('PATCH /api/sessions/[id]', () => {
   beforeEach(async () => {
     db.delete(schema.sessions).run();
     db.delete(schema.projects).run();
+    db.delete(schema.executionEnvironments).run();
 
     testRepoPath = mkdtempSync(join(tmpdir(), 'session-test-'));
     execSync('git init', { cwd: testRepoPath });
@@ -232,11 +251,18 @@ describe('PATCH /api/sessions/[id]', () => {
     });
     execSync('git branch -M main', { cwd: testRepoPath });
 
+    const env = db.insert(schema.executionEnvironments).values({
+      name: 'Test Env',
+      type: 'HOST',
+      config: '{}',
+    }).returning().get();
+
     project = db
       .insert(schema.projects)
       .values({
         name: 'Test Project',
         path: testRepoPath, clone_location: 'host',
+        environment_id: env.id,
       })
       .returning()
       .get();
@@ -257,6 +283,7 @@ describe('PATCH /api/sessions/[id]', () => {
   afterEach(async () => {
     db.delete(schema.sessions).run();
     db.delete(schema.projects).run();
+    db.delete(schema.executionEnvironments).run();
     if (testRepoPath) {
       rmSync(testRepoPath, { recursive: true, force: true });
     }

@@ -15,11 +15,11 @@ describe('GET /api/projects/[project_id]/branches', () => {
     db.delete(schema.projects).run();
     db.delete(schema.executionEnvironments).run();
 
-    // テスト用の環境を作成
+    // テスト用の環境を作成（HOST typeでローカルgit操作を正常実行）
     db.insert(schema.executionEnvironments).values({
       id: 'docker-env-123',
-      name: 'Test Docker Env',
-      type: 'DOCKER',
+      name: 'Test Env',
+      type: 'HOST',
       description: 'Test environment',
       config: '{}',
     }).run();
@@ -56,29 +56,41 @@ describe('GET /api/projects/[project_id]/branches', () => {
     const project = db.insert(schema.projects).values({
       name: 'Test Project',
       path: testRepoPath,
+      environment_id: 'docker-env-123',
     }).returning().get();
 
-    const request = new NextRequest(
-      `http://localhost:3000/api/projects/${project.id}/branches`,
-      { method: 'GET' }
-    );
+    // environment_idが必須になったため、getBranchesをモック
+    const getBranchesSpy = vi.spyOn(remoteRepoServiceModule.remoteRepoService, 'getBranches')
+      .mockResolvedValue([
+        { name: 'main', isDefault: true, isRemote: false },
+        { name: 'develop', isDefault: false, isRemote: false },
+      ]);
 
-    const response = await GET(request, { params: Promise.resolve({ project_id: project.id }) });
-    expect(response.status).toBe(200);
+    try {
+      const request = new NextRequest(
+        `http://localhost:3000/api/projects/${project.id}/branches`,
+        { method: 'GET' }
+      );
 
-    const data = await response.json();
-    expect(data.branches).toBeDefined();
-    expect(Array.isArray(data.branches)).toBe(true);
-    expect(data.branches.length).toBeGreaterThan(0);
+      const response = await GET(request, { params: Promise.resolve({ project_id: project.id }) });
+      expect(response.status).toBe(200);
 
-    // mainブランチが含まれているか確認
-    const mainBranch = data.branches.find((b: { name: string }) => b.name === 'main');
-    expect(mainBranch).toBeDefined();
-    expect(mainBranch.isDefault).toBe(true);
+      const data = await response.json();
+      expect(data.branches).toBeDefined();
+      expect(Array.isArray(data.branches)).toBe(true);
+      expect(data.branches.length).toBeGreaterThan(0);
 
-    // developブランチが含まれているか確認
-    const developBranch = data.branches.find((b: { name: string }) => b.name === 'develop');
-    expect(developBranch).toBeDefined();
+      // mainブランチが含まれているか確認
+      const mainBranch = data.branches.find((b: { name: string }) => b.name === 'main');
+      expect(mainBranch).toBeDefined();
+      expect(mainBranch.isDefault).toBe(true);
+
+      // developブランチが含まれているか確認
+      const developBranch = data.branches.find((b: { name: string }) => b.name === 'develop');
+      expect(developBranch).toBeDefined();
+    } finally {
+      getBranchesSpy.mockRestore();
+    }
   });
 
   it('should return 404 for non-existent project', async () => {
@@ -96,26 +108,39 @@ describe('GET /api/projects/[project_id]/branches', () => {
     const project = db.insert(schema.projects).values({
       name: 'Test Project',
       path: testRepoPath,
+      environment_id: 'docker-env-123',
     }).returning().get();
 
-    const request = new NextRequest(
-      `http://localhost:3000/api/projects/${project.id}/branches`,
-      { method: 'GET' }
-    );
+    // environment_idが必須になったため、getBranchesをモック
+    const getBranchesSpy = vi.spyOn(remoteRepoServiceModule.remoteRepoService, 'getBranches')
+      .mockResolvedValue([
+        { name: 'main', isDefault: true, isRemote: false },
+        { name: 'develop', isDefault: false, isRemote: false },
+        { name: 'origin/main', isDefault: false, isRemote: true },
+      ]);
 
-    const response = await GET(request, { params: Promise.resolve({ project_id: project.id }) });
-    expect(response.status).toBe(200);
+    try {
+      const request = new NextRequest(
+        `http://localhost:3000/api/projects/${project.id}/branches`,
+        { method: 'GET' }
+      );
 
-    const data = await response.json();
+      const response = await GET(request, { params: Promise.resolve({ project_id: project.id }) });
+      expect(response.status).toBe(200);
 
-    // 各ブランチにisRemoteフラグがあることを確認
-    for (const branch of data.branches) {
-      expect(typeof branch.isRemote).toBe('boolean');
+      const data = await response.json();
+
+      // 各ブランチにisRemoteフラグがあることを確認
+      for (const branch of data.branches) {
+        expect(typeof branch.isRemote).toBe('boolean');
+      }
+
+      // ローカルブランチはisRemote=false
+      const localBranches = data.branches.filter((b: { isRemote: boolean }) => !b.isRemote);
+      expect(localBranches.length).toBeGreaterThan(0);
+    } finally {
+      getBranchesSpy.mockRestore();
     }
-
-    // ローカルブランチはisRemote=false
-    const localBranches = data.branches.filter((b: { isRemote: boolean }) => !b.isRemote);
-    expect(localBranches.length).toBeGreaterThan(0);
   });
 
   it('should call getBranches with environmentId when project has one', async () => {
@@ -143,11 +168,12 @@ describe('GET /api/projects/[project_id]/branches', () => {
     getBranchesSpy.mockRestore();
   });
 
-  it('should call getBranches without environmentId when project does not have one', async () => {
-    // プロジェクトをenvironment_idなしで登録
+  it('should call getBranches with environmentId from project', async () => {
+    // プロジェクトをenvironment_idつきで登録（environment_idはNOT NULLのため常に必要）
     const project = db.insert(schema.projects).values({
       name: 'Test Project',
       path: testRepoPath,
+      environment_id: 'docker-env-123',
     }).returning().get();
 
     // getBranchesメソッドをスパイ
@@ -161,8 +187,8 @@ describe('GET /api/projects/[project_id]/branches', () => {
     const response = await GET(request, { params: Promise.resolve({ project_id: project.id }) });
     expect(response.status).toBe(200);
 
-    // environmentIdがundefinedで渡されることを確認
-    expect(getBranchesSpy).toHaveBeenCalledWith(testRepoPath, undefined);
+    // environmentIdが渡されることを確認（NOT NULL制約によりundefinedにはならない）
+    expect(getBranchesSpy).toHaveBeenCalledWith(testRepoPath, 'docker-env-123');
 
     getBranchesSpy.mockRestore();
   });

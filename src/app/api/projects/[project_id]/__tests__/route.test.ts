@@ -35,10 +35,19 @@ function createTempGitRepo(): string {
 describe('GET /api/projects/[project_id]', () => {
   let testRepoPath: string;
   let project: Project;
+  let testEnvId: string;
 
   beforeEach(async () => {
     db.delete(schema.runScripts).run();
     db.delete(schema.projects).run();
+    db.delete(schema.executionEnvironments).run();
+
+    const env = db.insert(schema.executionEnvironments).values({
+      name: 'Test Env',
+      type: 'HOST',
+      config: '{}',
+    }).returning().get();
+    testEnvId = env.id;
 
     testRepoPath = mkdtempSync(join(tmpdir(), 'project-get-test-'));
     execSync('git init', { cwd: testRepoPath });
@@ -53,12 +62,14 @@ describe('GET /api/projects/[project_id]', () => {
     project = db.insert(schema.projects).values({
       name: 'Test Project',
       path: testRepoPath,
+      environment_id: testEnvId,
     }).returning().get();
   });
 
   afterEach(async () => {
     db.delete(schema.runScripts).run();
     db.delete(schema.projects).run();
+    db.delete(schema.executionEnvironments).run();
     if (testRepoPath) {
       rmSync(testRepoPath, { recursive: true, force: true });
     }
@@ -92,10 +103,19 @@ describe('GET /api/projects/[project_id]', () => {
 describe('PUT /api/projects/[project_id]', () => {
   let testRepoPath: string;
   let project: Project;
+  let testEnvId: string;
 
   beforeEach(async () => {
     db.delete(schema.runScripts).run();
     db.delete(schema.projects).run();
+    db.delete(schema.executionEnvironments).run();
+
+    const env = db.insert(schema.executionEnvironments).values({
+      name: 'Test Env',
+      type: 'HOST',
+      config: '{}',
+    }).returning().get();
+    testEnvId = env.id;
 
     testRepoPath = mkdtempSync(join(tmpdir(), 'project-test-'));
     execSync('git init', { cwd: testRepoPath });
@@ -110,12 +130,14 @@ describe('PUT /api/projects/[project_id]', () => {
     project = db.insert(schema.projects).values({
       name: 'Test Project',
       path: testRepoPath,
+      environment_id: testEnvId,
     }).returning().get();
   });
 
   afterEach(async () => {
     db.delete(schema.runScripts).run();
     db.delete(schema.projects).run();
+    db.delete(schema.executionEnvironments).run();
     if (testRepoPath) {
       rmSync(testRepoPath, { recursive: true, force: true });
     }
@@ -226,10 +248,16 @@ describe('PUT /api/projects/[project_id]', () => {
     it('should return 409 when new path already used by another project', async () => {
       newRepoPath = createTempGitRepo();
 
-      // Create another project with newRepoPath
+      // Create another project with newRepoPath (needs its own env due to UNIQUE constraint)
+      const anotherEnv = db.insert(schema.executionEnvironments).values({
+        name: 'Another Env',
+        type: 'HOST',
+        config: '{}',
+      }).returning().get();
       db.insert(schema.projects).values({
         name: 'Another Project',
         path: newRepoPath,
+        environment_id: anotherEnv.id,
       }).run();
 
       const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
@@ -529,7 +557,8 @@ describe('PATCH /api/projects/[project_id]', () => {
     db.delete(schema.executionEnvironments).where(eq(schema.executionEnvironments.id, testEnvId)).run();
   });
 
-  it('存在しないenvironment_idを指定すると400エラーになる', async () => {
+  it('environment_idはPATCHで変更できない（廃止: PUT /environment を使用）', async () => {
+    // PATCHはenvironment_idを無視し、更新フィールドなしとして扱う
     const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -540,86 +569,18 @@ describe('PATCH /api/projects/[project_id]', () => {
       params: Promise.resolve({ project_id: project.id }),
     });
 
-    expect(response.status).toBe(400);
+    // environment_idはPATCHでは無視されるため、更新なしの200が返る
+    expect(response.status).toBe(200);
     const data = await response.json();
-    expect(data.error).toContain('指定された実行環境が見つかりません');
-  });
+    expect(data.message).toContain('No fields to update');
 
-  it('environment_idをセッションなしで変更できる', async () => {
-    // 別の環境を作成
-    const newEnv = db.insert(schema.executionEnvironments).values({
-      name: 'New Test Env',
-      type: 'DOCKER',
-      config: '{}',
-    }).returning().get()!;
-
-    try {
-      const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ environment_id: newEnv.id }),
-      });
-
-      const response = await PATCH(request, {
-        params: Promise.resolve({ project_id: project.id }),
-      });
-
-      expect(response.status).toBe(200);
-
-      const updated = db
-        .select()
-        .from(schema.projects)
-        .where(eq(schema.projects.id, project.id))
-        .get();
-      expect(updated?.environment_id).toBe(newEnv.id);
-    } finally {
-      db.delete(schema.executionEnvironments).where(eq(schema.executionEnvironments.id, newEnv.id)).run();
-    }
-  });
-
-  it('セッションが存在する場合にenvironment_id変更が409エラーになる', async () => {
-    // 別の環境を作成
-    const newEnv = db.insert(schema.executionEnvironments).values({
-      name: 'Another Env',
-      type: 'DOCKER',
-      config: '{}',
-    }).returning().get()!;
-
-    // プロジェクトにセッションを追加
-    const session = db.insert(schema.sessions).values({
-      project_id: project.id,
-      name: 'test-session',
-      status: 'running',
-      worktree_path: '/tmp/dummy-worktree',
-      branch_name: 'session/test-session',
-    }).returning().get();
-
-    try {
-      const request = new NextRequest(`http://localhost:3000/api/projects/${project.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ environment_id: newEnv.id }),
-      });
-
-      const response = await PATCH(request, {
-        params: Promise.resolve({ project_id: project.id }),
-      });
-
-      expect(response.status).toBe(409);
-      const data = await response.json();
-      expect(data.error).toContain('セッションが存在するため実行環境を変更できません');
-
-      // environment_id が変更されていないことを確認
-      const unchanged = db
-        .select()
-        .from(schema.projects)
-        .where(eq(schema.projects.id, project.id))
-        .get();
-      expect(unchanged?.environment_id).toBe(testEnvId);
-    } finally {
-      db.delete(schema.sessions).where(eq(schema.sessions.id, session.id)).run();
-      db.delete(schema.executionEnvironments).where(eq(schema.executionEnvironments.id, newEnv.id)).run();
-    }
+    // environment_idが変更されていないことを確認
+    const unchanged = db
+      .select()
+      .from(schema.projects)
+      .where(eq(schema.projects.id, project.id))
+      .get();
+    expect(unchanged?.environment_id).toBe(testEnvId);
   });
 
   it('claude_code_optionsを正しく更新する', async () => {
@@ -904,10 +865,19 @@ describe('PATCH /api/projects/[project_id]', () => {
 describe('DELETE /api/projects/[project_id]', () => {
   let testRepoPath: string;
   let project: Project;
+  let testEnvId: string;
 
   beforeEach(async () => {
     db.delete(schema.runScripts).run();
     db.delete(schema.projects).run();
+    db.delete(schema.executionEnvironments).run();
+
+    const env = db.insert(schema.executionEnvironments).values({
+      name: 'Test Env',
+      type: 'HOST',
+      config: '{}',
+    }).returning().get();
+    testEnvId = env.id;
 
     testRepoPath = mkdtempSync(join(tmpdir(), 'project-test-'));
     execSync('git init', { cwd: testRepoPath });
@@ -922,12 +892,14 @@ describe('DELETE /api/projects/[project_id]', () => {
     project = db.insert(schema.projects).values({
       name: 'Test Project',
       path: testRepoPath,
+      environment_id: testEnvId,
     }).returning().get();
   });
 
   afterEach(async () => {
     db.delete(schema.runScripts).run();
     db.delete(schema.projects).run();
+    db.delete(schema.executionEnvironments).run();
     if (testRepoPath) {
       rmSync(testRepoPath, { recursive: true, force: true });
     }
@@ -972,11 +944,17 @@ describe('DELETE /api/projects/[project_id]', () => {
         shell: true,
       });
 
+      const dockerEnv = db.insert(schema.executionEnvironments).values({
+        name: 'Docker Test Env',
+        type: 'DOCKER',
+        config: '{}',
+      }).returning().get();
       dockerProject = db.insert(schema.projects).values({
         name: 'Docker Project',
         path: dockerRepoPath,
         clone_location: 'docker',
         docker_volume_id: 'cw-repo-test-vol',
+        environment_id: dockerEnv.id,
       }).returning().get();
     });
 
@@ -1029,10 +1007,16 @@ describe('DELETE /api/projects/[project_id]', () => {
         shell: true,
       });
 
+      const noVolIdEnv = db.insert(schema.executionEnvironments).values({
+        name: 'Docker No VolId Env',
+        type: 'DOCKER',
+        config: '{}',
+      }).returning().get();
       const noVolIdProject = db.insert(schema.projects).values({
         name: 'Docker No VolId',
         path: noVolIdRepoPath,
         clone_location: 'docker',
+        environment_id: noVolIdEnv.id,
       }).returning().get();
 
       try {
@@ -1059,10 +1043,16 @@ describe('DELETE /api/projects/[project_id]', () => {
         shell: true,
       });
 
+      const hostEnv = db.insert(schema.executionEnvironments).values({
+        name: 'Host Project Env',
+        type: 'HOST',
+        config: '{}',
+      }).returning().get();
       const hostProject = db.insert(schema.projects).values({
         name: 'Host Project',
         path: hostRepoPath,
         clone_location: 'host',
+        environment_id: hostEnv.id,
       }).returning().get();
 
       try {

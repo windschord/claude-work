@@ -161,15 +161,6 @@ describe('TASK-019: State Management Integration Tests', () => {
     mockAdapter.write.mockClear()
     mockAdapter.resize.mockClear()
 
-    // テスト用プロジェクトを作成
-    const [project] = await db.insert(projects).values({
-      name: 'Test Project',
-      path: '/test/path',
-      created_at: new Date(),
-      updated_at: new Date()
-    }).returning()
-    testProjectId = project.id
-
     // テスト用環境を作成
     const [environment] = await db.insert(executionEnvironments).values({
       name: 'Test Host',
@@ -179,6 +170,16 @@ describe('TASK-019: State Management Integration Tests', () => {
       updated_at: new Date()
     }).returning()
     testEnvironmentId = environment.id
+
+    // テスト用プロジェクトを作成
+    const [project] = await db.insert(projects).values({
+      name: 'Test Project',
+      path: '/test/path',
+      environment_id: testEnvironmentId,
+      created_at: new Date(),
+      updated_at: new Date()
+    }).returning()
+    testProjectId = project.id
   })
 
   afterEach(async () => {
@@ -213,7 +214,6 @@ describe('TASK-019: State Management Integration Tests', () => {
         branch_name: 'main',
         session_state: 'ACTIVE',
         active_connections: 2,
-        environment_id: testEnvironmentId,
         created_at: new Date(),
         updated_at: new Date()
       }).returning()
@@ -241,7 +241,6 @@ describe('TASK-019: State Management Integration Tests', () => {
         session_state: 'IDLE',
         active_connections: 0,
         destroy_at: destroyAt,
-        environment_id: testEnvironmentId,
         created_at: new Date(),
         updated_at: new Date()
       }).returning()
@@ -269,7 +268,6 @@ describe('TASK-019: State Management Integration Tests', () => {
         branch_name: 'main',
         session_state: 'ACTIVE',
         active_connections: 1,
-        environment_id: testEnvironmentId,
         created_at: new Date(),
         updated_at: new Date()
       }).returning()
@@ -296,8 +294,7 @@ describe('TASK-019: State Management Integration Tests', () => {
           branch_name: 'main',
           session_state: 'ACTIVE',
           active_connections: 1,
-          environment_id: testEnvironmentId,
-          created_at: new Date(),
+            created_at: new Date(),
           updated_at: new Date()
         }).returning()
         testSessionIds.push(session.id)
@@ -331,7 +328,6 @@ describe('TASK-019: State Management Integration Tests', () => {
         session_state: 'IDLE',
         active_connections: 0,
         destroy_at: destroyAt,
-        environment_id: testEnvironmentId,
         created_at: new Date(),
         updated_at: new Date()
       }).returning()
@@ -359,7 +355,6 @@ describe('TASK-019: State Management Integration Tests', () => {
         session_state: 'IDLE',
         active_connections: 0,
         destroy_at: destroyAt,
-        environment_id: testEnvironmentId,
         created_at: new Date(),
         updated_at: new Date()
       }).returning()
@@ -389,7 +384,6 @@ describe('TASK-019: State Management Integration Tests', () => {
         branch_name: 'main',
         session_state: 'ACTIVE',
         active_connections: 1,
-        environment_id: testEnvironmentId,
         created_at: new Date(),
         updated_at: new Date()
       }).returning()
@@ -435,7 +429,6 @@ describe('TASK-019: State Management Integration Tests', () => {
         branch_name: 'main',
         session_state: 'ACTIVE',
         active_connections: 1,
-        environment_id: testEnvironmentId,
         created_at: new Date(),
         updated_at: new Date()
       }).returning()
@@ -472,7 +465,6 @@ describe('TASK-019: State Management Integration Tests', () => {
         session_state: 'IDLE',
         active_connections: 0,
         destroy_at: new Date(Date.now() + 1000), // 1秒後
-        environment_id: testEnvironmentId,
         created_at: new Date(),
         updated_at: new Date()
       }).returning()
@@ -501,7 +493,6 @@ describe('TASK-019: State Management Integration Tests', () => {
         branch_name: 'main',
         session_state: 'ACTIVE',
         active_connections: 1,
-        environment_id: testEnvironmentId,
         created_at: new Date(),
         updated_at: new Date()
       }).returning()
@@ -530,7 +521,6 @@ describe('TASK-019: State Management Integration Tests', () => {
         branch_name: 'main',
         session_state: 'ACTIVE',
         active_connections: 0,
-        environment_id: testEnvironmentId,
         created_at: new Date(),
         updated_at: new Date()
       }).returning()
@@ -563,8 +553,7 @@ describe('TASK-019: State Management Integration Tests', () => {
           branch_name: 'main',
           session_state: 'ACTIVE',
           active_connections: 1,
-          environment_id: testEnvironmentId,
-          created_at: new Date(),
+            created_at: new Date(),
           updated_at: new Date()
         }).returning()
         testSessionIds.push(session.id)
@@ -593,8 +582,7 @@ describe('TASK-019: State Management Integration Tests', () => {
           branch_name: 'main',
           session_state: 'ACTIVE',
           active_connections: 1,
-          environment_id: testEnvironmentId,
-          created_at: new Date(),
+            created_at: new Date(),
           updated_at: new Date()
         }).returning()
         testSessionIds.push(session.id)
@@ -622,7 +610,6 @@ describe('TASK-019: State Management Integration Tests', () => {
         branch_name: 'main',
         session_state: 'ACTIVE',
         active_connections: 1,
-        environment_id: testEnvironmentId,
         created_at: new Date(),
         updated_at: new Date()
       }).returning()
@@ -653,7 +640,6 @@ describe('TASK-019: State Management Integration Tests', () => {
         branch_name: 'main',
         session_state: 'ACTIVE',
         active_connections: 1,
-        environment_id: testEnvironmentId,
         created_at: new Date(),
         updated_at: new Date()
       }).returning()
@@ -685,7 +671,6 @@ describe('TASK-019: State Management Integration Tests', () => {
         branch_name: 'main',
         session_state: 'ACTIVE',
         active_connections: 1,
-        environment_id: testEnvironmentId,
         created_at: new Date(),
         updated_at: new Date()
       }).returning()
@@ -699,7 +684,6 @@ describe('TASK-019: State Management Integration Tests', () => {
         branch_name: 'main',
         session_state: 'ACTIVE',
         active_connections: 1,
-        environment_id: testEnvironmentId,
         created_at: new Date(),
         updated_at: new Date()
       }).returning()
@@ -731,7 +715,6 @@ describe('TASK-019: State Management Integration Tests', () => {
         branch_name: 'main',
         session_state: 'ACTIVE',
         active_connections: 1,
-        environment_id: testEnvironmentId,
         created_at: new Date(),
         updated_at: new Date()
       }).returning()
@@ -758,7 +741,6 @@ describe('TASK-019: State Management Integration Tests', () => {
         branch_name: 'main',
         session_state: 'ACTIVE',
         active_connections: 1,
-        environment_id: testEnvironmentId,
         container_id: 'test-container-id',
         created_at: new Date(),
         updated_at: new Date()
@@ -784,7 +766,6 @@ describe('TASK-019: State Management Integration Tests', () => {
         branch_name: 'main',
         session_state: 'ACTIVE',
         active_connections: 3,
-        environment_id: testEnvironmentId,
         created_at: new Date(),
         updated_at: new Date()
       }).returning()
@@ -810,7 +791,6 @@ describe('TASK-019: State Management Integration Tests', () => {
         branch_name: 'main',
         session_state: 'ACTIVE',
         active_connections: 1,
-        environment_id: testEnvironmentId,
         created_at: new Date(),
         updated_at: new Date()
       }).returning()
@@ -824,7 +804,6 @@ describe('TASK-019: State Management Integration Tests', () => {
         branch_name: 'main',
         session_state: 'IDLE',
         active_connections: 0,
-        environment_id: testEnvironmentId,
         created_at: new Date(),
         updated_at: new Date()
       }).returning()

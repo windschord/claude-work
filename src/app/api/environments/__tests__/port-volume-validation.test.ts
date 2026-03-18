@@ -1,33 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
-// environmentServiceをモック
-vi.mock('@/services/environment-service', () => ({
-  environmentService: {
-    create: vi.fn().mockResolvedValue({
-      id: 'test-env-id',
-      name: 'Test Docker',
-      type: 'DOCKER',
-      config: '{}',
-    }),
-    findById: vi.fn().mockResolvedValue({
-      id: 'test-env-id',
-      name: 'Test Docker',
-      type: 'DOCKER',
-      config: '{}',
-    }),
-    update: vi.fn().mockResolvedValue({
-      id: 'test-env-id',
-      name: 'Updated',
-      type: 'DOCKER',
-      config: '{}',
-    }),
-    createConfigVolumes: vi.fn().mockResolvedValue(undefined),
-    findAll: vi.fn().mockResolvedValue([]),
-    checkStatus: vi.fn().mockResolvedValue({ available: true }),
-  },
-}));
-
 vi.mock('@/lib/logger', () => ({
   logger: {
     info: vi.fn(),
@@ -35,10 +8,6 @@ vi.mock('@/lib/logger', () => ({
     error: vi.fn(),
     debug: vi.fn(),
   },
-}));
-
-vi.mock('@/lib/data-dir', () => ({
-  getEnvironmentsDir: vi.fn().mockReturnValue('/tmp/test-environments'),
 }));
 
 import { POST } from '../route';
@@ -60,13 +29,22 @@ function createPutRequest(body: unknown): NextRequest {
   });
 }
 
-describe('Environment API portMappings/volumeMounts validation', () => {
+/**
+ * NOTE: /api/environments エンドポイントはTASK-009で廃止されました（410 Gone）。
+ * 環境はプロジェクトに1対1で紐付けられるようになり、以下のエンドポイントに移行しました:
+ * - GET/PUT: /api/projects/[project_id]/environment
+ * - POST: プロジェクト作成時に自動作成 (POST /api/projects)
+ * - DELETE: プロジェクト削除時に自動削除 (DELETE /api/projects/[project_id])
+ *
+ * このテストファイルは廃止済みエンドポイントが正しく410を返すことを確認します。
+ */
+describe('Environment API - 廃止済みエンドポイント（410 Gone）', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  describe('POST /api/environments - portMappings validation', () => {
-    it('不正なポート番号（0）で400エラーを返す', async () => {
+  describe('POST /api/environments - 廃止済み', () => {
+    it('不正なポート番号（0）のリクエストでも410を返す', async () => {
       const req = createPostRequest({
         name: 'Docker Env',
         type: 'DOCKER',
@@ -80,12 +58,12 @@ describe('Environment API portMappings/volumeMounts validation', () => {
       });
 
       const response = await POST(req);
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(410);
       const body = await response.json();
-      expect(body.error).toBeDefined();
+      expect(body.deprecated).toBe(true);
     });
 
-    it('不正なポート番号（65536）で400エラーを返す', async () => {
+    it('不正なポート番号（65536）のリクエストでも410を返す', async () => {
       const req = createPostRequest({
         name: 'Docker Env',
         type: 'DOCKER',
@@ -99,12 +77,12 @@ describe('Environment API portMappings/volumeMounts validation', () => {
       });
 
       const response = await POST(req);
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(410);
       const body = await response.json();
-      expect(body.error).toBeDefined();
+      expect(body.deprecated).toBe(true);
     });
 
-    it('正常なportMappings付きconfigで環境を作成できる', async () => {
+    it('正常なportMappings付きconfigのリクエストでも410を返す', async () => {
       const req = createPostRequest({
         name: 'Docker Env',
         type: 'DOCKER',
@@ -119,10 +97,10 @@ describe('Environment API portMappings/volumeMounts validation', () => {
       });
 
       const response = await POST(req);
-      expect(response.status).toBe(201);
+      expect(response.status).toBe(410);
     });
 
-    it('portMappingsなしのconfigでも環境を作成できる', async () => {
+    it('portMappingsなしのconfigでも410を返す', async () => {
       const req = createPostRequest({
         name: 'Docker Env',
         type: 'DOCKER',
@@ -133,12 +111,12 @@ describe('Environment API portMappings/volumeMounts validation', () => {
       });
 
       const response = await POST(req);
-      expect(response.status).toBe(201);
+      expect(response.status).toBe(410);
     });
   });
 
-  describe('POST /api/environments - volumeMounts validation', () => {
-    it('相対パス（hostPath）で400エラーを返す', async () => {
+  describe('POST /api/environments - volumeMounts validation - 廃止済み', () => {
+    it('相対パス（hostPath）のリクエストでも410を返す', async () => {
       const req = createPostRequest({
         name: 'Docker Env',
         type: 'DOCKER',
@@ -152,12 +130,12 @@ describe('Environment API portMappings/volumeMounts validation', () => {
       });
 
       const response = await POST(req);
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(410);
       const body = await response.json();
-      expect(body.error).toBeDefined();
+      expect(body.deprecated).toBe(true);
     });
 
-    it('相対パス（containerPath）で400エラーを返す', async () => {
+    it('相対パス（containerPath）のリクエストでも410を返す', async () => {
       const req = createPostRequest({
         name: 'Docker Env',
         type: 'DOCKER',
@@ -171,12 +149,12 @@ describe('Environment API portMappings/volumeMounts validation', () => {
       });
 
       const response = await POST(req);
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(410);
       const body = await response.json();
-      expect(body.error).toBeDefined();
+      expect(body.deprecated).toBe(true);
     });
 
-    it('システムコンテナパス（/workspace）で400エラーを返す', async () => {
+    it('システムコンテナパス（/workspace）のリクエストでも410を返す', async () => {
       const req = createPostRequest({
         name: 'Docker Env',
         type: 'DOCKER',
@@ -190,12 +168,12 @@ describe('Environment API portMappings/volumeMounts validation', () => {
       });
 
       const response = await POST(req);
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(410);
       const body = await response.json();
-      expect(body.error).toBeDefined();
+      expect(body.deprecated).toBe(true);
     });
 
-    it('システムコンテナパス（/home/node/.claude）で400エラーを返す', async () => {
+    it('システムコンテナパス（/home/node/.claude）のリクエストでも410を返す', async () => {
       const req = createPostRequest({
         name: 'Docker Env',
         type: 'DOCKER',
@@ -209,12 +187,12 @@ describe('Environment API portMappings/volumeMounts validation', () => {
       });
 
       const response = await POST(req);
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(410);
       const body = await response.json();
-      expect(body.error).toBeDefined();
+      expect(body.deprecated).toBe(true);
     });
 
-    it('正常なvolumeMounts付きconfigで環境を作成できる', async () => {
+    it('正常なvolumeMounts付きconfigのリクエストでも410を返す', async () => {
       const req = createPostRequest({
         name: 'Docker Env',
         type: 'DOCKER',
@@ -229,12 +207,12 @@ describe('Environment API portMappings/volumeMounts validation', () => {
       });
 
       const response = await POST(req);
-      expect(response.status).toBe(201);
+      expect(response.status).toBe(410);
     });
   });
 
-  describe('POST /api/environments - portMappings + volumeMounts combined', () => {
-    it('正常なportMappingsとvolumeMountsの両方を含むconfigで環境を作成できる', async () => {
+  describe('POST /api/environments - portMappings + volumeMounts combined - 廃止済み', () => {
+    it('正常なportMappingsとvolumeMountsの両方を含むconfigのリクエストでも410を返す', async () => {
       const req = createPostRequest({
         name: 'Docker Env',
         type: 'DOCKER',
@@ -251,12 +229,12 @@ describe('Environment API portMappings/volumeMounts validation', () => {
       });
 
       const response = await POST(req);
-      expect(response.status).toBe(201);
+      expect(response.status).toBe(410);
     });
   });
 
-  describe('PUT /api/environments/:id - portMappings validation', () => {
-    it('不正なポート番号（0）で400エラーを返す', async () => {
+  describe('PUT /api/environments/:id - portMappings validation - 廃止済み', () => {
+    it('不正なポート番号（0）のリクエストでも410を返す', async () => {
       const req = createPutRequest({
         config: {
           portMappings: [
@@ -266,12 +244,12 @@ describe('Environment API portMappings/volumeMounts validation', () => {
       });
 
       const response = await PUT(req, { params: Promise.resolve({ id: 'test-env-id' }) });
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(410);
       const body = await response.json();
-      expect(body.error).toBeDefined();
+      expect(body.deprecated).toBe(true);
     });
 
-    it('不正なポート番号（65536）で400エラーを返す', async () => {
+    it('不正なポート番号（65536）のリクエストでも410を返す', async () => {
       const req = createPutRequest({
         config: {
           portMappings: [
@@ -281,12 +259,12 @@ describe('Environment API portMappings/volumeMounts validation', () => {
       });
 
       const response = await PUT(req, { params: Promise.resolve({ id: 'test-env-id' }) });
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(410);
       const body = await response.json();
-      expect(body.error).toBeDefined();
+      expect(body.deprecated).toBe(true);
     });
 
-    it('正常なportMappings付きconfigで環境を更新できる', async () => {
+    it('正常なportMappings付きconfigのリクエストでも410を返す', async () => {
       const req = createPutRequest({
         config: {
           portMappings: [
@@ -296,12 +274,12 @@ describe('Environment API portMappings/volumeMounts validation', () => {
       });
 
       const response = await PUT(req, { params: Promise.resolve({ id: 'test-env-id' }) });
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(410);
     });
   });
 
-  describe('PUT /api/environments/:id - volumeMounts validation', () => {
-    it('相対パスで400エラーを返す', async () => {
+  describe('PUT /api/environments/:id - volumeMounts validation - 廃止済み', () => {
+    it('相対パスのリクエストでも410を返す', async () => {
       const req = createPutRequest({
         config: {
           volumeMounts: [
@@ -311,12 +289,12 @@ describe('Environment API portMappings/volumeMounts validation', () => {
       });
 
       const response = await PUT(req, { params: Promise.resolve({ id: 'test-env-id' }) });
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(410);
       const body = await response.json();
-      expect(body.error).toBeDefined();
+      expect(body.deprecated).toBe(true);
     });
 
-    it('システムコンテナパス重複で400エラーを返す', async () => {
+    it('システムコンテナパス重複のリクエストでも410を返す', async () => {
       const req = createPutRequest({
         config: {
           volumeMounts: [
@@ -326,12 +304,12 @@ describe('Environment API portMappings/volumeMounts validation', () => {
       });
 
       const response = await PUT(req, { params: Promise.resolve({ id: 'test-env-id' }) });
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(410);
       const body = await response.json();
-      expect(body.error).toBeDefined();
+      expect(body.deprecated).toBe(true);
     });
 
-    it('正常なvolumeMounts付きconfigで環境を更新できる', async () => {
+    it('正常なvolumeMounts付きconfigのリクエストでも410を返す', async () => {
       const req = createPutRequest({
         config: {
           volumeMounts: [
@@ -341,7 +319,7 @@ describe('Environment API portMappings/volumeMounts validation', () => {
       });
 
       const response = await PUT(req, { params: Promise.resolve({ id: 'test-env-id' }) });
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(410);
     });
   });
 });

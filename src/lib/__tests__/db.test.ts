@@ -4,9 +4,11 @@ import { eq, sql } from 'drizzle-orm';
 import fs from 'fs';
 import path from 'path';
 
-const { projects, sessions, messages } = schema;
+const { projects, sessions, messages, executionEnvironments } = schema;
 
 describe('Database Tests', () => {
+  let testEnvId: string;
+
   beforeAll(() => {
     // データベースディレクトリを作成
     const dataDir = path.join(process.cwd(), 'data');
@@ -21,7 +23,17 @@ describe('Database Tests', () => {
     // 各テスト前にデータベースをクリーンアップ
     db.delete(messages).run();
     db.delete(sessions).run();
+    // ExecutionEnvironment削除前にprojectsのenvironment_id参照をクリア
     db.delete(projects).run();
+    db.delete(executionEnvironments).run();
+
+    // テスト用ExecutionEnvironmentを作成
+    const env = db.insert(executionEnvironments).values({
+      name: 'Test Docker Env',
+      type: 'DOCKER',
+      config: '{}',
+    }).returning().get();
+    testEnvId = env.id;
   });
 
   describe('Project CRUD', () => {
@@ -29,6 +41,7 @@ describe('Database Tests', () => {
       const result = db.insert(projects).values({
         name: 'Test Project',
         path: '/path/to/project',
+        environment_id: testEnvId,
       }).returning().get();
 
       expect(result.id).toBeDefined();
@@ -39,7 +52,8 @@ describe('Database Tests', () => {
     it('should read a project', () => {
       const created = db.insert(projects).values({
         name: 'Test Project',
-        path: '/path/to/project'
+        path: '/path/to/project',
+        environment_id: testEnvId,
       }).returning().get();
 
       const found = db.select().from(projects).where(eq(projects.id, created.id)).get();
@@ -51,7 +65,8 @@ describe('Database Tests', () => {
     it('should update a project', () => {
       const project = db.insert(projects).values({
         name: 'Test Project',
-        path: '/path/to/project'
+        path: '/path/to/project',
+        environment_id: testEnvId,
       }).returning().get();
 
       const originalTime = project.updated_at.getTime();
@@ -72,7 +87,8 @@ describe('Database Tests', () => {
     it('should delete a project', () => {
       const project = db.insert(projects).values({
         name: 'Test Project',
-        path: '/path/to/project'
+        path: '/path/to/project',
+        environment_id: testEnvId,
       }).returning().get();
 
       db.delete(projects).where(eq(projects.id, project.id)).run();
@@ -87,7 +103,8 @@ describe('Database Tests', () => {
     it('should create a session', () => {
       const project = db.insert(projects).values({
         name: 'Test Project',
-        path: '/path/to/project'
+        path: '/path/to/project',
+        environment_id: testEnvId,
       }).returning().get();
 
       const session = db.insert(sessions).values({
@@ -106,7 +123,8 @@ describe('Database Tests', () => {
     it('should read a session', () => {
       const project = db.insert(projects).values({
         name: 'Test Project',
-        path: '/path/to/project'
+        path: '/path/to/project',
+        environment_id: testEnvId,
       }).returning().get();
 
       const created = db.insert(sessions).values({
@@ -126,7 +144,8 @@ describe('Database Tests', () => {
     it('should update a session', () => {
       const project = db.insert(projects).values({
         name: 'Test Project',
-        path: '/path/to/project'
+        path: '/path/to/project',
+        environment_id: testEnvId,
       }).returning().get();
 
       const session = db.insert(sessions).values({
@@ -149,7 +168,8 @@ describe('Database Tests', () => {
     it('should delete a session', () => {
       const project = db.insert(projects).values({
         name: 'Test Project',
-        path: '/path/to/project'
+        path: '/path/to/project',
+        environment_id: testEnvId,
       }).returning().get();
 
       const session = db.insert(sessions).values({
@@ -172,7 +192,8 @@ describe('Database Tests', () => {
     it('should create a message', () => {
       const project = db.insert(projects).values({
         name: 'Test Project',
-        path: '/path/to/project'
+        path: '/path/to/project',
+        environment_id: testEnvId,
       }).returning().get();
 
       const session = db.insert(sessions).values({
@@ -196,7 +217,8 @@ describe('Database Tests', () => {
     it('should read a message', () => {
       const project = db.insert(projects).values({
         name: 'Test Project',
-        path: '/path/to/project'
+        path: '/path/to/project',
+        environment_id: testEnvId,
       }).returning().get();
 
       const session = db.insert(sessions).values({
@@ -224,7 +246,8 @@ describe('Database Tests', () => {
     it('should cascade delete sessions when project is deleted', () => {
       const project = db.insert(projects).values({
         name: 'Test Project',
-        path: '/path/to/project'
+        path: '/path/to/project',
+        environment_id: testEnvId,
       }).returning().get();
 
       const session = db.insert(sessions).values({
@@ -245,7 +268,8 @@ describe('Database Tests', () => {
     it('should cascade delete messages when session is deleted', () => {
       const project = db.insert(projects).values({
         name: 'Test Project',
-        path: '/path/to/project'
+        path: '/path/to/project',
+        environment_id: testEnvId,
       }).returning().get();
 
       const session = db.insert(sessions).values({

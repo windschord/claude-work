@@ -64,16 +64,7 @@ describe('Session Restoration', () => {
     vi.clearAllMocks()
     manager = PTYSessionManager.getInstance()
 
-    // テスト用プロジェクトを作成
-    const [project] = await db.insert(projects).values({
-      name: 'Test Project',
-      path: '/test/path',
-      created_at: new Date(),
-      updated_at: new Date()
-    }).returning()
-    testProjectId = project.id
-
-    // テスト用環境を作成
+    // テスト用環境を先に作成（projects.environment_id は NOT NULL）
     const [environment] = await db.insert(executionEnvironments).values({
       name: 'Test Host',
       type: 'HOST',
@@ -82,6 +73,16 @@ describe('Session Restoration', () => {
       updated_at: new Date()
     }).returning()
     testEnvironmentId = environment.id
+
+    // テスト用プロジェクトを作成
+    const [project] = await db.insert(projects).values({
+      name: 'Test Project',
+      path: '/test/path',
+      environment_id: testEnvironmentId,
+      created_at: new Date(),
+      updated_at: new Date()
+    }).returning()
+    testProjectId = project.id
 
     // checkPTYExistsメソッドをモック
     // worktree_pathに基づいて存在するかどうかを判定
@@ -149,7 +150,6 @@ describe('Session Restoration', () => {
         session_state: 'ACTIVE',
         active_connections: 2,
         created_at: new Date(),
-        environment_id: testEnvironmentId,
         updated_at: new Date()
       }).returning()
 
@@ -177,7 +177,6 @@ describe('Session Restoration', () => {
         active_connections: 0,
         destroy_at: destroyAt,
         created_at: new Date(),
-        environment_id: testEnvironmentId,
         updated_at: new Date()
       }).returning()
 
@@ -230,7 +229,6 @@ describe('Session Restoration', () => {
         active_connections: 1,
         destroy_at: null,
         created_at: new Date(),
-        environment_id: testEnvironmentId,
         updated_at: new Date()
       }).returning()
 
@@ -284,7 +282,6 @@ describe('Session Restoration', () => {
         session_state: 'ACTIVE',
         active_connections: 1,
         created_at: new Date(),
-        environment_id: testEnvironmentId,
         updated_at: new Date()
       }).returning()
 
@@ -313,7 +310,6 @@ describe('Session Restoration', () => {
         session_state: 'ACTIVE',
         active_connections: 5,
         created_at: new Date(),
-        environment_id: testEnvironmentId,
         updated_at: new Date()
       }).returning()
 
@@ -341,7 +337,6 @@ describe('Session Restoration', () => {
         active_connections: 0,
         destroy_at: futureDate,
         created_at: new Date(),
-        environment_id: testEnvironmentId,
         updated_at: new Date()
       }).returning()
 
@@ -370,7 +365,6 @@ describe('Session Restoration', () => {
         session_state: 'ACTIVE',
         active_connections: 1,
         created_at: new Date(),
-        environment_id: testEnvironmentId,
         updated_at: new Date()
       }).returning()
 
@@ -405,7 +399,6 @@ describe('Session Restoration', () => {
           session_state: 'ACTIVE',
           active_connections: 0,
           created_at: new Date(),
-        environment_id: testEnvironmentId,
           updated_at: new Date()
         })
       )

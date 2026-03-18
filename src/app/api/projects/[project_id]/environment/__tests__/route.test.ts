@@ -102,7 +102,16 @@ describe('GET /api/projects/[project_id]/environment', () => {
     const data = await response.json();
 
     expect(response.status).toBe(200);
-    expect(data.environment).toEqual(mockEnv);
+    // DateはJSON経由で文字列に変換されるため、objectContainingで主要フィールドを確認
+    expect(data.environment).toMatchObject({
+      id: mockEnv.id,
+      name: mockEnv.name,
+      type: mockEnv.type,
+      description: mockEnv.description,
+      config: mockEnv.config,
+      project_id: mockEnv.project_id,
+      auth_dir_path: mockEnv.auth_dir_path,
+    });
   });
 
   it('includeStatus=true でステータスを含める', async () => {

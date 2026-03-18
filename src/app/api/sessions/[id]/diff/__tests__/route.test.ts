@@ -16,6 +16,7 @@ describe('GET /api/sessions/[id]/diff', () => {
   beforeEach(async () => {
     db.delete(schema.sessions).run();
     db.delete(schema.projects).run();
+    db.delete(schema.executionEnvironments).run();
 
     testRepoPath = mkdtempSync(join(tmpdir(), 'diff-test-'));
     execSync('git init', { cwd: testRepoPath });
@@ -27,12 +28,19 @@ describe('GET /api/sessions/[id]/diff', () => {
     });
     execSync('git branch -M main', { cwd: testRepoPath });
 
+    const env = db.insert(schema.executionEnvironments).values({
+      name: 'Test Env',
+      type: 'HOST',
+      config: '{}',
+    }).returning().get();
+
     project = db
       .insert(schema.projects)
       .values({
         name: 'Test Project',
         path: testRepoPath,
         clone_location: 'host',
+        environment_id: env.id,
       })
       .returning()
       .get();
@@ -65,6 +73,7 @@ describe('GET /api/sessions/[id]/diff', () => {
   afterEach(async () => {
     db.delete(schema.sessions).run();
     db.delete(schema.projects).run();
+    db.delete(schema.executionEnvironments).run();
     if (testRepoPath) {
       rmSync(testRepoPath, { recursive: true, force: true });
     }

@@ -51,6 +51,7 @@ describe('GET /api/sessions/[id]/process', () => {
   beforeEach(async () => {
     db.delete(schema.sessions).run();
     db.delete(schema.projects).run();
+    db.delete(schema.executionEnvironments).run();
 
     testRepoPath = mkdtempSync(join(tmpdir(), 'session-test-'));
     execSync('git init', { cwd: testRepoPath });
@@ -62,11 +63,19 @@ describe('GET /api/sessions/[id]/process', () => {
     });
     execSync('git branch -M main', { cwd: testRepoPath });
 
+    const env = db.insert(schema.executionEnvironments).values({
+      name: 'Test Env',
+      type: 'HOST',
+      config: '{}',
+    }).returning().get();
+
     project = db
       .insert(schema.projects)
       .values({
         name: 'Test Project',
-        path: testRepoPath, clone_location: 'host',
+        path: testRepoPath,
+        clone_location: 'host',
+        environment_id: env.id,
       })
       .returning()
       .get();
@@ -85,18 +94,22 @@ describe('GET /api/sessions/[id]/process', () => {
 
     mockHasProcess.mockReset();
     mockStartClaudeCode.mockReset();
+    mockGetAdapter.mockReset();
   });
 
   afterEach(async () => {
     db.delete(schema.sessions).run();
     db.delete(schema.projects).run();
+    db.delete(schema.executionEnvironments).run();
     if (testRepoPath) {
       rmSync(testRepoPath, { recursive: true, force: true });
     }
   });
 
   it('should return { running: true } when process is running', async () => {
-    mockHasProcess.mockReturnValue(true);
+    // environment_idは常にNOT NULLになったため、アダプター経由でチェックする
+    const mockAdapter = { hasSession: vi.fn().mockReturnValue(true) };
+    mockGetAdapter.mockReturnValue(mockAdapter);
 
     const request = new NextRequest(
       `http://localhost:3000/api/sessions/${session.id}/process`,
@@ -110,11 +123,13 @@ describe('GET /api/sessions/[id]/process', () => {
 
     const data = await response.json();
     expect(data).toEqual({ running: true });
-    expect(mockHasProcess).toHaveBeenCalledWith(session.id);
+    expect(mockAdapter.hasSession).toHaveBeenCalledWith(session.id);
   });
 
   it('should return { running: false } when process is not running', async () => {
-    mockHasProcess.mockReturnValue(false);
+    // environment_idは常にNOT NULLになったため、アダプター経由でチェックする
+    const mockAdapter = { hasSession: vi.fn().mockReturnValue(false) };
+    mockGetAdapter.mockReturnValue(mockAdapter);
 
     const request = new NextRequest(
       `http://localhost:3000/api/sessions/${session.id}/process`,
@@ -128,7 +143,7 @@ describe('GET /api/sessions/[id]/process', () => {
 
     const data = await response.json();
     expect(data).toEqual({ running: false });
-    expect(mockHasProcess).toHaveBeenCalledWith(session.id);
+    expect(mockAdapter.hasSession).toHaveBeenCalledWith(session.id);
   });
 
   it('should return 404 for non-existent session', async () => {
@@ -152,6 +167,7 @@ describe('POST /api/sessions/[id]/process', () => {
   beforeEach(async () => {
     db.delete(schema.sessions).run();
     db.delete(schema.projects).run();
+    db.delete(schema.executionEnvironments).run();
 
     testRepoPath = mkdtempSync(join(tmpdir(), 'session-test-'));
     execSync('git init', { cwd: testRepoPath });
@@ -163,11 +179,19 @@ describe('POST /api/sessions/[id]/process', () => {
     });
     execSync('git branch -M main', { cwd: testRepoPath });
 
+    const env = db.insert(schema.executionEnvironments).values({
+      name: 'Test Env',
+      type: 'HOST',
+      config: '{}',
+    }).returning().get();
+
     project = db
       .insert(schema.projects)
       .values({
         name: 'Test Project',
-        path: testRepoPath, clone_location: 'host',
+        path: testRepoPath,
+        clone_location: 'host',
+        environment_id: env.id,
       })
       .returning()
       .get();
@@ -191,6 +215,7 @@ describe('POST /api/sessions/[id]/process', () => {
   afterEach(async () => {
     db.delete(schema.sessions).run();
     db.delete(schema.projects).run();
+    db.delete(schema.executionEnvironments).run();
     if (testRepoPath) {
       rmSync(testRepoPath, { recursive: true, force: true });
     }

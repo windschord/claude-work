@@ -19,17 +19,6 @@ vi.mock('@/hooks/useGitHubPATs', () => ({
   })),
 }));
 
-// useEnvironments hookのモック
-vi.mock('@/hooks/useEnvironments', () => ({
-  useEnvironments: vi.fn(() => ({
-    environments: [
-      { id: 'env-1', name: 'Default Docker', type: 'DOCKER', description: 'Test env', config: '{}' },
-    ],
-    isLoading: false,
-    error: null,
-    hostEnvironmentDisabled: false,
-  })),
-}));
 
 describe('AddProjectModal - キャンセルボタン', () => {
   it('キャンセルボタンをクリックするとonCloseが呼ばれる', async () => {
