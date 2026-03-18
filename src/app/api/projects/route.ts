@@ -174,7 +174,7 @@ export async function POST(request: NextRequest) {
     }
 
     const name = basename(absolutePath);
-    const { environmentService } = await import('@/services/environment-service');
+    const { environmentService, DEFAULT_SANDBOX_IMAGE_NAME } = await import('@/services/environment-service');
 
     // 重複チェック（プロジェクト作成前に確認）
     const existingProject = db.select({ id: schema.projects.id })
@@ -199,7 +199,7 @@ export async function POST(request: NextRequest) {
     const environment = await environmentService.create({
       name: `${name} 環境`,
       type: 'DOCKER',
-      config: { imageName: 'ghcr.io/windschord/claude-work-sandbox', imageTag: 'latest' },
+      config: { imageName: DEFAULT_SANDBOX_IMAGE_NAME, imageTag: 'latest' },
     });
 
     try {

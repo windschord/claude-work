@@ -44,10 +44,11 @@ export interface EnvironmentStatus {
  * 環境作成入力
  * project_id は1対1化移行後は必須だが、後方互換のためオプションとする
  * 旧 /api/environments API が廃止（TASK-009）されたら必須化する
+ * SSH は未実装のため除外している
  */
 export interface CreateEnvironmentInput {
   name: string;
-  type: 'HOST' | 'DOCKER' | 'SSH';
+  type: 'HOST' | 'DOCKER';
   description?: string;
   config: object;
   project_id?: string;
@@ -55,12 +56,13 @@ export interface CreateEnvironmentInput {
 
 /**
  * 環境更新入力
+ * SSH は未実装のため除外している
  */
 export interface UpdateEnvironmentInput {
   name?: string;
   description?: string | null;
   config?: object;
-  type?: 'HOST' | 'DOCKER' | 'SSH';
+  type?: 'HOST' | 'DOCKER';
 }
 
 /**

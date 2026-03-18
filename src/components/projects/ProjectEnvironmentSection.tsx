@@ -14,7 +14,8 @@ interface ProjectEnvironmentSectionProps {
   projectId: string;
 }
 
-type EnvironmentType = 'HOST' | 'DOCKER' | 'SSH';
+// SSH は未実装のため除外
+type EnvironmentType = 'HOST' | 'DOCKER';
 
 interface EnvironmentConfig {
   imageName?: string;

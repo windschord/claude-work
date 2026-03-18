@@ -5,6 +5,7 @@ import { eq, and } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
 import { validatePortMappings, validateVolumeMounts } from '@/lib/docker-config-validator';
 import { isHostEnvironmentAllowed } from '@/lib/environment-detect';
+import type { PortMapping, VolumeMount } from '@/types/environment';
 
 interface RouteParams {
   params: Promise<{ project_id: string }>;
@@ -149,8 +150,20 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         );
       }
 
-      // 入力オブジェクトを直接ミューテーションしないようコピーを作成
-      const sanitizedConfig = { ...config };
+      // 既存 config をパースし、リクエストの更新キーのみマージする（丸ごと置き換えを防ぐ）
+      // これにより imageSource, dockerfileUploaded 等、UIが送信しないキーが消えない
+      let existingConfig: Record<string, unknown> = {};
+      try {
+        existingConfig = existing.config ? JSON.parse(existing.config) : {};
+      } catch {
+        logger.warn('既存の config が不正な JSON です。空オブジェクトとして扱います', {
+          project_id,
+          environmentId: existing.id,
+        });
+      }
+
+      // 入力オブジェクトを直接ミューテーションしないようコピーを作成し、既存configとマージ
+      const sanitizedConfig: Record<string, unknown> = { ...existingConfig, ...config };
 
       // skipPermissions のバリデーション
       if (sanitizedConfig.skipPermissions !== undefined) {
@@ -173,7 +186,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
             { status: 400 }
           );
         }
-        const portResult = validatePortMappings(sanitizedConfig.portMappings);
+        const portResult = validatePortMappings(sanitizedConfig.portMappings as PortMapping[]);
         if (!portResult.valid) {
           return NextResponse.json(
             { error: portResult.errors.join('; ') },
@@ -190,7 +203,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
             { status: 400 }
           );
         }
-        const volumeResult = validateVolumeMounts(sanitizedConfig.volumeMounts);
+        const volumeResult = validateVolumeMounts(sanitizedConfig.volumeMounts as VolumeMount[]);
         if (!volumeResult.valid) {
           return NextResponse.json(
             { error: volumeResult.errors.join('; ') },

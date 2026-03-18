@@ -41,12 +41,12 @@ export const projects = sqliteTable('Project', {
 
 /**
  * execution_environments テーブル
- * 実行環境（HOST, DOCKER, SSH）を管理
+ * 実行環境（HOST, DOCKER）を管理（SSH は未実装）
  */
 export const executionEnvironments = sqliteTable('ExecutionEnvironment', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   name: text('name').notNull(),
-  type: text('type').notNull(), // 'HOST' | 'DOCKER' | 'SSH'
+  type: text('type').notNull(), // 'HOST' | 'DOCKER' （SSH は未実装）
   description: text('description'),
   config: text('config').notNull(),
   auth_dir_path: text('auth_dir_path'),
