@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { networkFilterService, ValidationError } from '@/services/network-filter-service';
 import { logger } from '@/lib/logger';
+import { syncProxyRulesIfNeeded } from '@/lib/proxy-sync';
 
 interface RouteParams {
   params: Promise<{ id: string; ruleId: string }>;
@@ -99,6 +100,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     const rule = await networkFilterService.updateRule(ruleId, input);
+    void syncProxyRulesIfNeeded(id);
 
     logger.info('Network filter rule updated', { environmentId: id, ruleId });
     return NextResponse.json({ rule });
@@ -150,6 +152,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     await networkFilterService.deleteRule(ruleId);
+    void syncProxyRulesIfNeeded(id);
 
     logger.info('Network filter rule deleted', { environmentId: id, ruleId });
     return new NextResponse(null, { status: 204 });

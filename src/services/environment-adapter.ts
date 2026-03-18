@@ -20,6 +20,10 @@ export interface CreateSessionOptions {
   skipPermissions?: boolean;
   /** Dockerボリューム経由のworktreeマウント用（clone_location='docker'の場合） */
   dockerVolumeId?: string;
+  /** フィルタリング有効フラグ（DockerAdapter内部でbuildContainerOptionsに渡す用） */
+  filterEnabled?: boolean;
+  /** registry-firewall有効フラグ（パッケージマネージャーのレジストリ設定注入用） */
+  registryFirewallEnabled?: boolean;
 }
 
 /**

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { networkFilterService, ValidationError } from '@/services/network-filter-service';
 import { logger } from '@/lib/logger';
 import type { CreateRuleInput } from '@/services/network-filter-service';
+import { syncProxyRulesIfNeeded } from '@/lib/proxy-sync';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -84,6 +85,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     const result = await networkFilterService.applyTemplates(id, rules as CreateRuleInput[]);
+    void syncProxyRulesIfNeeded(id);
 
     logger.info('Templates applied', {
       environmentId: id,

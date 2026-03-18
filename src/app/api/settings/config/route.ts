@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getConfigService } from '@/services/config-service';
+import { ensureConfigLoaded } from '@/services/config-service';
 import { validateTimeoutMinutes } from '@/lib/validation';
 import { logger } from '@/lib/logger';
 
@@ -12,7 +12,7 @@ import { logger } from '@/lib/logger';
  */
 export async function GET() {
   try {
-    const configService = getConfigService();
+    const configService = await ensureConfigLoaded();
     const config = configService.getConfig();
 
     return NextResponse.json({ config }, { status: 200 });
@@ -50,7 +50,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
 
-    const { git_clone_timeout_minutes, debug_mode_keep_volumes } = body;
+    const { git_clone_timeout_minutes, debug_mode_keep_volumes, registry_firewall_enabled } = body;
 
     // バリデーション
     if (git_clone_timeout_minutes !== undefined) {
@@ -70,11 +70,19 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    if (registry_firewall_enabled !== undefined && typeof registry_firewall_enabled !== 'boolean') {
+      return NextResponse.json(
+        { error: 'registry_firewall_enabled must be a boolean' },
+        { status: 400 }
+      );
+    }
+
     // 設定を保存
-    const configService = getConfigService();
+    const configService = await ensureConfigLoaded();
     await configService.save({
       ...(git_clone_timeout_minutes !== undefined && { git_clone_timeout_minutes }),
       ...(debug_mode_keep_volumes !== undefined && { debug_mode_keep_volumes }),
+      ...(registry_firewall_enabled !== undefined && { registry_firewall_enabled }),
     });
 
     const updatedConfig = configService.getConfig();

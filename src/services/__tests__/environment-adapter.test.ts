@@ -81,6 +81,68 @@ describe('EnvironmentAdapter', () => {
       expect(isEnvironmentAdapter(adapterWithoutEmitter)).toBe(false);
     });
 
+    it('should return false when each individual method is missing', () => {
+      const fullAdapter = {
+        createSession: () => {},
+        write: () => {},
+        resize: () => {},
+        destroySession: () => {},
+        restartSession: () => {},
+        hasSession: () => true,
+        getWorkingDir: () => '/test',
+        on: () => {},
+        emit: () => {},
+      };
+
+      // 各メソッドを1つずつ除外して全てfalseになることを確認
+      const methods = [
+        'createSession', 'write', 'resize', 'destroySession',
+        'restartSession', 'hasSession', 'getWorkingDir', 'on', 'emit'
+      ];
+      for (const method of methods) {
+        const partial = { ...fullAdapter };
+        delete (partial as Record<string, unknown>)[method];
+        expect(isEnvironmentAdapter(partial)).toBe(false);
+      }
+    });
+
+    it('should return false for non-function properties', () => {
+      const withNonFunction = {
+        createSession: 'not a function',
+        write: () => {},
+        resize: () => {},
+        destroySession: () => {},
+        restartSession: () => {},
+        hasSession: () => true,
+        getWorkingDir: () => '/test',
+        on: () => {},
+        emit: () => {},
+      };
+      expect(isEnvironmentAdapter(withNonFunction)).toBe(false);
+    });
+
+    it('should return true for plain object with all required methods', () => {
+      const plainAdapter = {
+        createSession: () => {},
+        write: () => {},
+        resize: () => {},
+        destroySession: () => {},
+        restartSession: () => {},
+        hasSession: () => true,
+        getWorkingDir: () => '/test',
+        on: () => {},
+        emit: () => {},
+      };
+      expect(isEnvironmentAdapter(plainAdapter)).toBe(true);
+    });
+
+    it('should return false for non-object types', () => {
+      expect(isEnvironmentAdapter(42)).toBe(false);
+      expect(isEnvironmentAdapter('string')).toBe(false);
+      expect(isEnvironmentAdapter(true)).toBe(false);
+      expect(isEnvironmentAdapter(Symbol())).toBe(false);
+    });
+
     it('should return true for valid adapter implementation', () => {
       // Create a mock implementation that satisfies the interface
       class MockAdapter extends EventEmitter implements EnvironmentAdapter {

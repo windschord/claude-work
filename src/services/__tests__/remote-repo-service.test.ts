@@ -7,6 +7,12 @@ vi.mock('../adapter-factory', () => ({
   },
 }));
 
+// getReposDirをモック化してテスト用の一時ディレクトリを返すようにする
+let mockReposDir = '';
+vi.mock('@/lib/data-dir', () => ({
+  getReposDir: () => mockReposDir,
+}));
+
 import { RemoteRepoService } from '../remote-repo-service';
 import { mkdtempSync, rmSync, existsSync, mkdirSync } from 'fs';
 import { tmpdir } from 'os';
@@ -18,13 +24,22 @@ describe('RemoteRepoService', () => {
   let service: RemoteRepoService;
   let testDir: string;
   let testRepoPath: string;
+  let originalAllowLocalRepoUrl: string | undefined;
 
   beforeAll(() => {
     // NOTE: このテストはローカルgitリポジトリを直接使用する統合的なアプローチを採用しています。
     // ネットワーク通信は不要で、ローカルファイルシステム上でのgit操作のみを検証します。
     // Docker経由の操作（environmentId指定時）はAdapterFactoryをvi.mockでモック化しています。
+
+    // 元の値を退避
+    originalAllowLocalRepoUrl = process.env.ALLOW_LOCAL_REPO_URL;
+    // ローカルリポジトリURLをテストで使用するため環境変数を設定
+    process.env.ALLOW_LOCAL_REPO_URL = 'true';
+
     // テスト用の一時ディレクトリを作成
     testDir = mkdtempSync(join(tmpdir(), 'remote-repo-test-'));
+    // getReposDirのモックをtestDirに設定（isWithinBaseチェック用）
+    mockReposDir = testDir;
 
     // テスト用のGitリポジトリを作成（clone元として使用）
     testRepoPath = join(testDir, 'source-repo');
@@ -52,6 +67,11 @@ describe('RemoteRepoService', () => {
 
   afterAll(() => {
     rmSync(testDir, { recursive: true, force: true });
+    if (originalAllowLocalRepoUrl === undefined) {
+      delete process.env.ALLOW_LOCAL_REPO_URL;
+    } else {
+      process.env.ALLOW_LOCAL_REPO_URL = originalAllowLocalRepoUrl;
+    }
   });
 
   describe('validateRemoteUrl', () => {
@@ -106,6 +126,23 @@ describe('RemoteRepoService', () => {
     it('should reject HTTP (non-HTTPS) URLs', () => {
       const result = service.validateRemoteUrl('http://github.com/user/repo.git');
       expect(result.valid).toBe(false);
+    });
+
+    it('should reject local paths when ALLOW_LOCAL_REPO_URL is not set', () => {
+      const originalValue = process.env.ALLOW_LOCAL_REPO_URL;
+      delete process.env.ALLOW_LOCAL_REPO_URL;
+      try {
+        const result = service.validateRemoteUrl(testRepoPath);
+        expect(result.valid).toBe(false);
+        expect(result.error).toContain('ローカルリポジトリURLは許可されていません');
+      } finally {
+        process.env.ALLOW_LOCAL_REPO_URL = originalValue;
+      }
+    });
+
+    it('should accept local paths when ALLOW_LOCAL_REPO_URL is true', () => {
+      const result = service.validateRemoteUrl(testRepoPath);
+      expect(result.valid).toBe(true);
     });
   });
 
@@ -190,6 +227,16 @@ describe('RemoteRepoService', () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toBeDefined();
+    });
+
+    it('should reject relative targetDir', async () => {
+      const result = await service.clone({
+        url: 'git@github.com:user/repo.git',
+        targetDir: 'relative/path',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('絶対パス');
     });
 
     it('should handle directory name conflicts with suffix', async () => {
@@ -317,6 +364,155 @@ describe('RemoteRepoService', () => {
       const defaultBranch = await service.getDefaultBranch(localOnly);
 
       expect(defaultBranch).toBe('main');
+    });
+  });
+
+  describe('validateRemoteUrl edge cases', () => {
+    it('should reject whitespace-only URL', () => {
+      const result = service.validateRemoteUrl('   ');
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe('URLが空です');
+    });
+
+    it('should reject file:// URL with specific error message', () => {
+      const result = service.validateRemoteUrl('file:///tmp/repo');
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe('file:// URLはサポートされていません');
+    });
+
+    it('should reject http:// URL with specific error message', () => {
+      const result = service.validateRemoteUrl('http://github.com/user/repo');
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe('HTTP URLはサポートされていません。HTTPSを使用してください');
+    });
+
+    it('should reject invalid SSH URL format', () => {
+      const result = service.validateRemoteUrl('git@');
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe('無効なSSH URLフォーマットです');
+    });
+
+    it('should reject invalid HTTPS URL format', () => {
+      const result = service.validateRemoteUrl('https://');
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe('無効なHTTPS URLフォーマットです');
+    });
+
+    it('should return generic error for unrecognized URL', () => {
+      const result = service.validateRemoteUrl('ftp://server/repo');
+      expect(result.valid).toBe(false);
+      expect(result.error).toContain('有効なGitリポジトリURLを入力してください');
+    });
+
+    it('should reject local path with path traversal', () => {
+      const result = service.validateRemoteUrl('/tmp/../etc/passwd');
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe('パスにパストラバーサルが含まれています');
+    });
+
+    it('should reject local path that is not a git repo', () => {
+      const result = service.validateRemoteUrl('/tmp');
+      expect(result.valid).toBe(false);
+    });
+
+    it('should accept HTTPS URL with port', () => {
+      const result = service.validateRemoteUrl('https://git.example.com:8443/user/repo.git');
+      expect(result.valid).toBe(true);
+    });
+  });
+
+  describe('extractRepoName edge cases', () => {
+    it('should handle URL with multiple trailing slashes', () => {
+      const name = service.extractRepoName('https://github.com/user/repo///');
+      expect(name).toBe('repo');
+    });
+
+    it('should handle local path', () => {
+      const name = service.extractRepoName('/path/to/repo');
+      expect(name).toBe('repo');
+    });
+
+    it('should handle .git suffix on local path', () => {
+      const name = service.extractRepoName('/path/to/repo.git');
+      expect(name).toBe('repo');
+    });
+  });
+
+  describe('clone edge cases', () => {
+    it('should use custom name when provided', async () => {
+      const baseDir = join(testDir, 'repos-custom-name');
+      mkdirSync(baseDir, { recursive: true });
+
+      const result = await service.clone({
+        url: testRepoPath,
+        baseDir,
+        name: 'custom-name',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.path).toContain('custom-name');
+    });
+
+    it('should return error when targetDir exists', async () => {
+      const existingDir = join(testDir, 'existing-dir');
+      mkdirSync(existingDir, { recursive: true });
+
+      const result = await service.clone({
+        url: testRepoPath,
+        targetDir: existingDir,
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('既に存在します');
+    });
+
+    it('should reject unsafe repo name', async () => {
+      const baseDir = join(testDir, 'repos-unsafe');
+      mkdirSync(baseDir, { recursive: true });
+
+      const result = await service.clone({
+        url: testRepoPath,
+        baseDir,
+        name: '../escape',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('不正なリポジトリ名');
+    });
+
+    it('should create base dir if not exists', async () => {
+      const newBaseDir = join(testDir, 'repos-auto-create', 'nested');
+
+      const result = await service.clone({
+        url: testRepoPath,
+        baseDir: newBaseDir,
+      });
+
+      expect(result.success).toBe(true);
+      expect(existsSync(newBaseDir)).toBe(true);
+    });
+  });
+
+  describe('pull edge cases', () => {
+    it('should reject relative repoPath', async () => {
+      const result = await service.pull('relative/path');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('絶対パス');
+    });
+  });
+
+  describe('getBranches edge cases', () => {
+    it('should return empty array for relative path', async () => {
+      const branches = await service.getBranches('relative/path');
+      expect(branches).toEqual([]);
+    });
+  });
+
+  describe('getDefaultBranch edge cases', () => {
+    it('should return "main" for relative path', async () => {
+      const branch = await service.getDefaultBranch('relative/path');
+      expect(branch).toBe('main');
     });
   });
 
@@ -465,6 +661,189 @@ describe('RemoteRepoService', () => {
         expect(AdapterFactory.getAdapter).not.toHaveBeenCalled();
         expect(mockAdapter.gitGetBranches).not.toHaveBeenCalled();
       });
+    });
+
+    describe('clone with environmentId error cases', () => {
+      it('should return error when environment not found', async () => {
+        mockEnvironmentService.findById.mockResolvedValue(null);
+        const serviceWithAdapter = new RemoteRepoService(mockEnvironmentService);
+
+        const result = await serviceWithAdapter.clone({
+          url: 'git@github.com:user/repo.git',
+          targetDir: '/tmp/test',
+          environmentId: 'nonexistent',
+        });
+
+        expect(result.success).toBe(false);
+        expect(result.error).toContain('nonexistent');
+        expect(result.error).toContain('見つかりません');
+      });
+
+      it('should return error when adapter has no gitClone', async () => {
+        const adapterWithoutGit = { };
+        vi.spyOn(AdapterFactory, 'getAdapter').mockReturnValue(adapterWithoutGit as any);
+        const serviceWithAdapter = new RemoteRepoService(mockEnvironmentService);
+
+        const result = await serviceWithAdapter.clone({
+          url: 'git@github.com:user/repo.git',
+          targetDir: '/tmp/test',
+          environmentId: 'docker-env-1',
+        });
+
+        expect(result.success).toBe(false);
+        expect(result.error).toContain('Docker環境でのみサポート');
+      });
+
+      it('should return error for relative targetDir in Docker mode', async () => {
+        const serviceWithAdapter = new RemoteRepoService(mockEnvironmentService);
+        mockAdapter.gitClone.mockResolvedValue({ success: true, path: '/tmp/test' });
+
+        const result = await serviceWithAdapter.clone({
+          url: 'git@github.com:user/repo.git',
+          targetDir: 'relative/path',
+          environmentId: 'docker-env-1',
+        });
+
+        expect(result.success).toBe(false);
+        expect(result.error).toContain('絶対パス');
+      });
+
+      it('should handle adapter exception', async () => {
+        mockEnvironmentService.findById.mockRejectedValue(new Error('DB error'));
+        const serviceWithAdapter = new RemoteRepoService(mockEnvironmentService);
+
+        const result = await serviceWithAdapter.clone({
+          url: 'git@github.com:user/repo.git',
+          targetDir: '/tmp/test',
+          environmentId: 'docker-env-1',
+        });
+
+        expect(result.success).toBe(false);
+        expect(result.error).toBe('DB error');
+      });
+
+      it('should handle non-Error exception', async () => {
+        mockEnvironmentService.findById.mockRejectedValue('string error');
+        const serviceWithAdapter = new RemoteRepoService(mockEnvironmentService);
+
+        const result = await serviceWithAdapter.clone({
+          url: 'git@github.com:user/repo.git',
+          targetDir: '/tmp/test',
+          environmentId: 'docker-env-1',
+        });
+
+        expect(result.success).toBe(false);
+        expect(result.error).toBe('Unknown error');
+      });
+
+      it('should use auto-generated name in Docker mode when targetDir not specified', async () => {
+        const serviceWithAdapter = new RemoteRepoService(mockEnvironmentService);
+        mockAdapter.gitClone.mockResolvedValue({ success: true, path: '/repos/repo' });
+
+        const result = await serviceWithAdapter.clone({
+          url: 'git@github.com:user/my-repo.git',
+          environmentId: 'docker-env-1',
+        });
+
+        expect(result.success).toBe(true);
+        expect(mockAdapter.gitClone).toHaveBeenCalled();
+      });
+
+      it('should reject existing directory in Docker mode with targetDir', async () => {
+        const existingDir = join(testDir, 'docker-existing-dir');
+        mkdirSync(existingDir, { recursive: true });
+
+        const serviceWithAdapter = new RemoteRepoService(mockEnvironmentService);
+
+        const result = await serviceWithAdapter.clone({
+          url: 'git@github.com:user/repo.git',
+          targetDir: existingDir,
+          environmentId: 'docker-env-1',
+        });
+
+        expect(result.success).toBe(false);
+        expect(result.error).toContain('既に存在します');
+      });
+    });
+
+    describe('pull with environmentId error cases', () => {
+      it('should return error when environment not found', async () => {
+        mockEnvironmentService.findById.mockResolvedValue(null);
+        const serviceWithAdapter = new RemoteRepoService(mockEnvironmentService);
+
+        const result = await serviceWithAdapter.pull('/path/to/repo', 'nonexistent');
+
+        expect(result.success).toBe(false);
+        expect(result.error).toContain('nonexistent');
+      });
+
+      it('should return error when adapter has no gitPull', async () => {
+        const adapterWithoutGit = {};
+        vi.spyOn(AdapterFactory, 'getAdapter').mockReturnValue(adapterWithoutGit as any);
+        const serviceWithAdapter = new RemoteRepoService(mockEnvironmentService);
+
+        const result = await serviceWithAdapter.pull('/path/to/repo', 'docker-env-1');
+
+        expect(result.success).toBe(false);
+        expect(result.error).toContain('Docker環境でのみサポート');
+      });
+
+      it('should handle adapter exception in pull', async () => {
+        mockEnvironmentService.findById.mockRejectedValue(new Error('pull error'));
+        const serviceWithAdapter = new RemoteRepoService(mockEnvironmentService);
+
+        const result = await serviceWithAdapter.pull('/path/to/repo', 'docker-env-1');
+
+        expect(result.success).toBe(false);
+        expect(result.error).toBe('pull error');
+      });
+
+      it('should handle non-Error exception in pull', async () => {
+        mockEnvironmentService.findById.mockRejectedValue(42);
+        const serviceWithAdapter = new RemoteRepoService(mockEnvironmentService);
+
+        const result = await serviceWithAdapter.pull('/path/to/repo', 'docker-env-1');
+
+        expect(result.success).toBe(false);
+        expect(result.error).toBe('Unknown error');
+      });
+    });
+
+    describe('getBranches with environmentId error cases', () => {
+      it('should return empty array when environment not found', async () => {
+        mockEnvironmentService.findById.mockResolvedValue(null);
+        const serviceWithAdapter = new RemoteRepoService(mockEnvironmentService);
+
+        const result = await serviceWithAdapter.getBranches('/path/to/repo', 'nonexistent');
+
+        expect(result).toEqual([]);
+      });
+
+      it('should return empty array when adapter has no gitGetBranches', async () => {
+        const adapterWithoutGit = {};
+        vi.spyOn(AdapterFactory, 'getAdapter').mockReturnValue(adapterWithoutGit as any);
+        const serviceWithAdapter = new RemoteRepoService(mockEnvironmentService);
+
+        const result = await serviceWithAdapter.getBranches('/path/to/repo', 'docker-env-1');
+
+        expect(result).toEqual([]);
+      });
+
+      it('should return empty array on adapter exception', async () => {
+        mockEnvironmentService.findById.mockRejectedValue(new Error('error'));
+        const serviceWithAdapter = new RemoteRepoService(mockEnvironmentService);
+
+        const result = await serviceWithAdapter.getBranches('/path/to/repo', 'docker-env-1');
+
+        expect(result).toEqual([]);
+      });
+    });
+  });
+
+  describe('singleton', () => {
+    it('remoteRepoServiceがエクスポートされている', async () => {
+      const mod = await import('../remote-repo-service');
+      expect(mod.remoteRepoService).toBeInstanceOf(RemoteRepoService);
     });
   });
 });

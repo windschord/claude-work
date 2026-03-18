@@ -2,46 +2,21 @@
 
 このディレクトリには、ClaudeWorkプロジェクトの技術設計を格納しています。
 
-## プロジェクト一覧
-
-### 進行中・計画中
+## アクティブプロジェクト
 
 | プロジェクト | 説明 | ステータス |
 |-------------|------|-----------|
-| [Claude Code `--worktree`オプション対応](add-worktree-option.md) | Claude Code CLIの`--worktree`フラグ統合 | 計画中 |
-| [Drizzle ORM移行](drizzle-migration/index.md) | Prisma → Drizzle ORM への完全移行 | 進行中 |
-| [ハイブリッド設計](hybrid-clone/index.md) | ホスト環境/Docker環境でのプロジェクトclone | 計画中 |
-| [Docker環境でのHOST機能無効化](disable-host-in-docker/design.md) | Docker内動作時のHOST環境自動無効化 | 進行中 |
-| [Dockerポート・ボリューム設定](docker-port-volume/design.md) | Docker環境のポートマッピング・ボリュームマウント設定機能 | 完了 |
-| [Docker環境ネットワークフィルタリング](network-filtering/index.md) | Dockerコンテナの外部通信をホワイトリスト方式でフィルタリング | 進行中 |
-| [Sandbox拡張イメージ](sandbox-extensions/index.md) | 言語別/ツール別Docker拡張イメージ（Python, Go, Rust, C++, Chrome DevTools） | 進行中 |
-| [Docker環境セッション作成バグ修正](docker-session-fixes/index.md) | Issue #206,#207,#208 のDocker環境セッション作成関連バグ修正 | 完了 |
-| [subprocessテスト検証規則](subprocess-test-rules/index.md) | subprocess の cwd/env をテストで検証する規則の整備 (Issue #111) | 完了 |
+| [Drizzle ORM移行](drizzle-migration/index.md) | Prisma → Drizzle ORM への完全移行 | 進行中 (28/31) |
+| [Claudeオプション](claude-options/design.md) | Claude Code実行時のオプション設定（allowedTools, maxTurns等） | 未着手 |
+| [Volume命名規則](volume-naming/index.md) | Docker named volumeの命名規則統一 | 未着手 |
+| [デフォルト環境削除](remove-default-env/index.md) | デフォルト実行環境の自動作成廃止 | 未着手 |
+| [Sandbox拡張イメージ](sandbox-extensions/index.md) | 言語別/ツール別Docker拡張イメージ | 進行中 (designのみ) |
+| [Registry Firewall統合](registry-firewall/index.md) | パッケージレジストリプロキシによるサプライチェーン攻撃保護 | 実装完了 |
 
-### 完了済み機能
+## 完了済みプロジェクト
 
-| プロジェクト | 説明 |
-|-------------|------|
-| [Claude対話機能](claude-interaction/design.md) | Claudeとの対話機能の実装 |
-| [Claudeオプション](claude-options/design.md) | Claude Code実行時のオプション設定 |
-| [コア機能](core/design.md) | ClaudeWorkのコア機能 |
-| [DB移行](db-migration/design.md) | データベース移行機能 |
-| [Docker入力修正](docker-input-fix/design.md) | Docker環境での入力処理の修正 |
-| [Dockerリサイズ回帰](docker-resize-regression/design.md) | Docker環境でのターミナルリサイズの問題修正 |
-| [Dockerターミナル](docker-terminal/design.md) | Docker環境でのターミナル機能 |
-| [Docker Worktree修正](docker-worktree-fix/index.md) | Docker環境でのWorktreeパス問題の修正 |
-| [Git操作](git-operations/design.md) | Gitワークツリー操作機能 |
-| [Issue #101 PTYリファクタリング](issue-101-pty-refactor/index.md) | PTYマネージャーのアーキテクチャ改善 |
-| [通知機能](notifications/design.md) | システム通知機能 |
-| [npx GitHub統合](../archive/design-npx-github/design.md) | GitHub Actionsでのnpx実行対応（廃止: Docker Compose移行済み） |
-| [npx Prisma修正](../archive/design-npx-prisma-fix/design.md) | Prisma実行時のnpx問題修正（廃止: Docker Compose移行済み） |
-| [永続データ](persistent-data/design.md) | データ永続化設計 |
-| [Prisma 7アップグレード](prisma-7-upgrade/design.md) | Prisma v7へのアップグレード |
-| [レスポンシブUI](responsive/design.md) | レスポンシブデザイン対応 |
-| [設定UI改善](settings-ui/index.md) | 設定ページのナビゲーション改善 |
-| [サイドバーUI](sidebar-ui/design.md) | サイドバーUIの実装 |
-| [systemdセットアップ](../archive/design-systemd-setup/design.md) | systemdによるサービス化（廃止: Docker Compose移行済み） |
-| [ターミナル機能](terminal/design.md) | ターミナル機能の実装 |
+完了済みプロジェクトの設計書は [archive/](../archive/) に移動しました。
+一覧は [archive/index.md](../archive/index.md) を参照してください。
 
 ## ドキュメント構造
 

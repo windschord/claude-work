@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { Menu, Settings } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { ThemeToggle } from '@/components/common/ThemeToggle';
@@ -38,6 +39,7 @@ export function Header() {
       <div className="flex items-center gap-4">
         {/* ハンバーガーメニュー（モバイル時のみ表示） */}
         <button
+          type="button"
           onClick={handleToggleSidebar}
           className="md:hidden p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
           aria-label="メニュー"
@@ -47,10 +49,12 @@ export function Header() {
 
         {/* ロゴ */}
         <button
+          type="button"
           onClick={handleLogoClick}
-          className="text-xl font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+          className="flex items-center hover:opacity-80 transition-opacity"
+          aria-label="ホーム"
         >
-          ClaudeWork
+          <Image src="/images/logo-icon.png" alt="" width={48} height={48} className="h-12 w-12" aria-hidden="true" />
         </button>
       </div>
 
@@ -58,6 +62,7 @@ export function Header() {
       <div className="flex items-center gap-2">
         {/* 設定ページへのリンク */}
         <button
+          type="button"
           onClick={handleNavigateToSettings}
           className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
           aria-label="設定"

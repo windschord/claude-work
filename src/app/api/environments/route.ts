@@ -21,7 +21,6 @@ function createDeprecatedResponse() {
       status: 410,
       headers: {
         'Deprecation': 'true',
-        'Sunset': 'Sat, 01 Jan 2026 00:00:00 GMT',
         'Link': '</api/projects/{project_id}/environment>; rel="successor-version"',
       },
     }

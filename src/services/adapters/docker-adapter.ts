@@ -19,6 +19,10 @@ import Docker from 'dockerode';
 import * as fsPromises from 'fs/promises';
 import type { PortMapping, VolumeMount } from '@/types/environment';
 import { getConfigVolumeNames } from '@/lib/docker-volume-utils';
+import { networkFilterService } from '@/services/network-filter-service';
+import { ProxyClient } from '@/services/proxy-client';
+import { syncRulesForContainer } from '@/lib/proxy-sync';
+import { RegistryFirewallClient } from '@/services/registry-firewall-client';
 
 export interface DockerAdapterConfig {
   environmentId: string;
@@ -74,6 +78,7 @@ interface DockerSession {
   lastKnownCols?: number;
   lastKnownRows?: number;
   containerWorkDir?: string;  // コンテナ内の作業ディレクトリ（dockerVolumeId使用時はworkingDir、それ以外は'/workspace'）
+  containerIP?: string;        // フィルタリング用コンテナIPアドレス（proxyルールクリーンアップ用）
 }
 
 /**
@@ -106,6 +111,22 @@ export class DockerAdapter extends BasePTYAdapter {
     configClaudeVolume: string;
   } {
     return getConfigVolumeNames(environmentId);
+  }
+
+  /**
+   * アクティブなセッションのコンテナIPアドレス一覧を返す
+   *
+   * ルール変更時のproxy同期に使用する。
+   * containerIPが設定されていないセッション（非フィルタリングモード）は除外する。
+   */
+  getActiveContainerIPs(): string[] {
+    const ips: string[] = [];
+    for (const session of this.sessions.values()) {
+      if (session.containerIP) {
+        ips.push(session.containerIP);
+      }
+    }
+    return ips;
   }
 
   constructor(config: DockerAdapterConfig) {
@@ -149,7 +170,7 @@ export class DockerAdapter extends BasePTYAdapter {
     const Env: string[] = [];
     const PortBindings: any = {};
     const ExposedPorts: any = {};
-    const Cmd: string[] = [];
+    let Cmd: string[] = [];
     let Entrypoint: string[] = [];
 
     // Workspace mount
@@ -276,6 +297,88 @@ export class DockerAdapter extends BasePTYAdapter {
        }
     }
 
+    // Network filtering: internalネットワーク設定
+    // filterEnabledの場合のみclaudework-filterネットワークに接続する。
+    // registry-firewallはclaudework-filterネットワークに接続しているため、
+    // registryFirewallEnabledもfilterEnabledが必要（DockerAPIで作成したコンテナは
+    // composeのdefaultネットワークに参加しないため、サービス名での名前解決ができない）。
+    let networkMode: string | undefined;
+    if (options?.filterEnabled) {
+      networkMode = process.env.PROXY_NETWORK_NAME || 'claudework-filter';
+    }
+    if (options?.filterEnabled) {
+      // Remove existing proxy env vars to prevent duplicates from customEnvVars
+      for (let i = Env.length - 1; i >= 0; i--) {
+        const key = Env[i].split('=', 1)[0];
+        if (/^(HTTP_PROXY|HTTPS_PROXY|ALL_PROXY|http_proxy|https_proxy|all_proxy)$/.test(key)) {
+          Env.splice(i, 1);
+        }
+      }
+      const proxyListenUrl = process.env.PROXY_LISTEN_URL || 'http://network-filter-proxy:3128';
+      Env.push(`HTTP_PROXY=${proxyListenUrl}`);
+      Env.push(`HTTPS_PROXY=${proxyListenUrl}`);
+    }
+
+    // Registry Firewall: パッケージマネージャーのレジストリ設定注入
+    // filterEnabledが必要: claudework-filterネットワーク経由でregistry-firewallに到達するため
+    // REGISTRY_FIREWALL_URLが未設定の場合はスキップ（サービス未稼働環境への対応）
+    if (options?.registryFirewallEnabled && options?.filterEnabled && !options?.shellMode && process.env.REGISTRY_FIREWALL_URL) {
+      const rfHost = process.env.REGISTRY_FIREWALL_URL!;
+      let rfHostname: string;
+      let rfUrlValid = true;
+      try {
+        rfHostname = new URL(rfHost).hostname;
+      } catch {
+        // URLが無効な場合はregistry-firewall設定注入をスキップ
+        logger.warn('Invalid REGISTRY_FIREWALL_URL, skipping registry firewall config injection', { rfHost });
+        rfUrlValid = false;
+        rfHostname = '';
+      }
+
+      if (rfUrlValid) {
+        // registry-firewallへの通信をHTTP_PROXYから除外
+        // NO_PROXYとno_proxyをそれぞれ独立して処理（大文字・小文字両方を設定）
+        for (const proxyKey of ['NO_PROXY', 'no_proxy'] as const) {
+          const existingIdx = Env.findIndex(e => e.startsWith(`${proxyKey}=`));
+          if (existingIdx >= 0) {
+            Env[existingIdx] = `${Env[existingIdx]},${rfHostname}`;
+          } else {
+            Env.push(`${proxyKey}=${rfHostname}`);
+          }
+        }
+
+        // 既存の重複env varを除去(customEnvVarsからの重複防止)
+        const rfEnvKeys = ['PIP_INDEX_URL', 'PIP_TRUSTED_HOST', 'GOPROXY'];
+        for (let i = Env.length - 1; i >= 0; i--) {
+          const key = Env[i].split('=', 1)[0];
+          if (rfEnvKeys.includes(key)) {
+            Env.splice(i, 1);
+          }
+        }
+
+        // pip (環境変数で設定)
+        Env.push(`PIP_INDEX_URL=${rfHost}/pypi/simple/`);
+        Env.push(`PIP_TRUSTED_HOST=${rfHostname}`);
+
+        // go (環境変数で設定)
+        Env.push(`GOPROXY=${rfHost}/go/,direct`);
+
+        // npm/cargoは環境変数だけでは設定不可 → Entrypointをshell経由に変更
+        // シェルインジェクション防止: rfHostを環境変数経由で参照し、シェル文字列に直接埋め込まない
+        Env.push(`__RF_HOST=${rfHost}`);
+        const setupScript = [
+          'npm config set registry "$__RF_HOST/npm/"',
+          'mkdir -p ~/.cargo',
+          'printf \'[registries.claudework]\\nindex = "sparse+%s/cargo/"\\n[source.crates-io]\\nreplace-with = "claudework"\\n\' "$__RF_HOST" > ~/.cargo/config.toml',
+        ].join(' && ');
+
+        // 元のEntrypoint+Cmdをpositional parametersで安全にexec
+        const originalCmd = [...Entrypoint, ...(Cmd.length > 0 ? Cmd : [])];
+        Entrypoint = ['/bin/sh', '-c'];
+        Cmd = [setupScript + ' && exec "$@"', '--', ...originalCmd];
+      }
+    }
+
     const createOptions: Docker.ContainerCreateOptions = {
       name: containerName,
       Image: `${this.config.imageName}:${this.config.imageTag}`,
@@ -299,6 +402,7 @@ export class DockerAdapter extends BasePTYAdapter {
         // container.wait() may fail if the container is already removed.
         // The stopContainer() method handles 404 errors for this case.
         AutoRemove: true,
+        ...(networkMode !== undefined ? { NetworkMode: networkMode } : {}),
       },
       ExposedPorts,
     };
@@ -671,7 +775,72 @@ export class DockerAdapter extends BasePTYAdapter {
       throw error;
     }
 
-    const { createOptions, containerName } = this.buildContainerOptions(workingDir, options);
+    // フィルタリング有効フラグを事前に確認
+    let filterEnabled = await networkFilterService.isFilterEnabled(this.config.environmentId);
+
+    // proxy稼働確認: filterEnabled時にproxyが利用できなければフィルタリングを無効化
+    // buildContainerOptionsの前に行う（コンテナにproxy設定を焼き込まないため）
+    // PROXY_API_URLが未設定/空の場合はhealthCheckをスキップして即座に無効化（タイムアウト遅延回避）
+    if (filterEnabled) {
+      if (!process.env.PROXY_API_URL) {
+        logger.warn(
+          'DockerAdapter: PROXY_API_URLが未設定のため、フィルタリングなしで起動します',
+          { sessionId, environmentId: this.config.environmentId }
+        );
+        filterEnabled = false;
+      } else {
+        const proxyClient = new ProxyClient();
+        try {
+          await proxyClient.healthCheck();
+        } catch (healthCheckError) {
+          logger.warn(
+            'DockerAdapter: ネットワークフィルタリングプロキシが利用できないため、フィルタリングなしで起動します',
+            {
+              sessionId,
+              environmentId: this.config.environmentId,
+              error: healthCheckError instanceof Error ? healthCheckError.message : 'Unknown error',
+            }
+          );
+          filterEnabled = false;
+        }
+      }
+    }
+
+    // registry-firewall稼働確認: 到達できなければレジストリ設定注入を無効化
+    let registryFirewallEnabled = options?.registryFirewallEnabled ?? false;
+    if (registryFirewallEnabled && filterEnabled && process.env.REGISTRY_FIREWALL_URL) {
+      try {
+        const rfClient = new RegistryFirewallClient();
+        const health = await rfClient.getHealth();
+        if (health.status !== 'healthy') {
+          logger.warn(
+            'DockerAdapter: registry-firewallが利用できないため、レジストリ設定注入をスキップします',
+            {
+              sessionId,
+              environmentId: this.config.environmentId,
+              firewallStatus: health.status,
+            }
+          );
+          registryFirewallEnabled = false;
+        }
+      } catch (rfError) {
+        logger.warn(
+          'DockerAdapter: registry-firewallへの接続に失敗したため、レジストリ設定注入をスキップします',
+          {
+            sessionId,
+            environmentId: this.config.environmentId,
+            error: rfError instanceof Error ? rfError.message : 'Unknown error',
+          }
+        );
+        registryFirewallEnabled = false;
+      }
+    }
+
+    const { createOptions, containerName } = this.buildContainerOptions(workingDir, {
+      ...options,
+      filterEnabled,
+      registryFirewallEnabled,
+    });
 
     // クライアントから渡されたターミナルサイズを使用（未指定時はデフォルト80x24）
     const initialCols = options?.cols ?? 80;
@@ -684,10 +853,12 @@ export class DockerAdapter extends BasePTYAdapter {
       image: `${this.config.imageName}:${this.config.imageTag}`,
       cols: initialCols,
       rows: initialRows,
+      filterEnabled,
     });
 
     let container: Docker.Container | undefined;
     let ptyProcess: DockerPTYStream | undefined;
+    let containerIP: string | undefined;
     try {
       container = await DockerClient.getInstance().createContainer(createOptions);
 
@@ -715,6 +886,45 @@ export class DockerAdapter extends BasePTYAdapter {
       // Start container after stream listeners are registered
       await container.start();
 
+      // フィルタリング有効時: コンテナIP取得、ルール同期
+      // （proxyヘルスチェックはbuildContainerOptions前で実施済み）
+      if (filterEnabled) {
+        const proxyClient = new ProxyClient();
+        // コンテナIPアドレス取得
+        const networkName = process.env.PROXY_NETWORK_NAME || 'claudework-filter';
+        const containerInfo = await DockerClient.getInstance().inspectContainer(containerName);
+        containerIP = containerInfo.NetworkSettings?.Networks?.[networkName]?.IPAddress;
+
+        if (!containerIP) {
+          logger.warn('DockerAdapter: Container IP not found on filter network, skipping proxy rule sync', {
+            sessionId,
+            networkName,
+          });
+        } else {
+          // proxyにルールを同期
+          try {
+            await syncRulesForContainer(proxyClient, containerIP, this.config.environmentId);
+            logger.info('DockerAdapter: Proxy rules synced for container', {
+              sessionId,
+              containerIP,
+              environmentId: this.config.environmentId,
+            });
+          } catch (syncError) {
+            logger.warn(
+              'DockerAdapter: Proxyへのルール同期に失敗しました。ルール未適用のままセッションを続行します',
+              {
+                sessionId,
+                containerIP,
+                environmentId: this.config.environmentId,
+                error: syncError instanceof Error ? syncError.message : 'Unknown error',
+              }
+            );
+            // containerIPは保持する: proxy側でルールが部分的に反映されている可能性があるため、
+            // onExit時にdeleteRulesで確実にクリーンアップする
+          }
+        }
+      }
+
       const containerWorkDir = options?.dockerVolumeId ? workingDir : '/workspace';
       this.sessions.set(sessionId, {
         ptyProcess,
@@ -726,6 +936,7 @@ export class DockerAdapter extends BasePTYAdapter {
         lastKnownCols: initialCols,
         lastKnownRows: initialRows,
         containerWorkDir,
+        containerIP,
       });
 
       // コンテナ起動完了を待機（TASK-012）
@@ -807,6 +1018,7 @@ export class DockerAdapter extends BasePTYAdapter {
         scrollbackBuffer.clear(sessionId);
 
         this.emit('exit', sessionId, { exitCode, signal } as PTYExitInfo);
+
         this.sessions.delete(sessionId);
 
         // PTY終了時にコンテナがまだ実行中なら停止
@@ -839,6 +1051,22 @@ export class DockerAdapter extends BasePTYAdapter {
           });
         }
 
+        // フィルタリングルールのクリーンアップ（コンテナ停止後にbest-effort、ブロックしない）
+        const exitingContainerIP = currentSession.containerIP;
+        if (exitingContainerIP) {
+          void new ProxyClient().deleteRules(exitingContainerIP)
+            .then(() => {
+              logger.info('DockerAdapter: Proxy rules cleaned up on exit', { sessionId, containerIP: exitingContainerIP });
+            })
+            .catch((error: unknown) => {
+              logger.warn('DockerAdapter: Failed to cleanup proxy rules on exit', {
+                sessionId,
+                containerIP: exitingContainerIP,
+                error: error instanceof Error ? error.message : 'Unknown error',
+              });
+            });
+        }
+
       });
 
       // 初期プロンプト（シェルモードでは送信しない）
@@ -858,6 +1086,19 @@ export class DockerAdapter extends BasePTYAdapter {
       try { ptyProcess?.kill(); } catch { /* ignore */ }
       try { await container?.remove({ force: true }); } catch { /* ignore */ }
       this.cleanupSSHKeys().catch(() => { /* ignore */ });
+      if (containerIP) {
+        try {
+          const proxyClient = new ProxyClient();
+          await proxyClient.deleteRules(containerIP);
+          logger.info('DockerAdapter: Proxy rules cleaned up on createSession failure', { sessionId, containerIP });
+        } catch (cleanupError) {
+          logger.warn('DockerAdapter: Failed to cleanup proxy rules on createSession failure', {
+            sessionId,
+            containerIP,
+            error: cleanupError instanceof Error ? cleanupError.message : 'Unknown error',
+          });
+        }
+      }
 
       logger.error('DockerAdapter: Failed to create session', {
         sessionId,
@@ -893,7 +1134,7 @@ export class DockerAdapter extends BasePTYAdapter {
   async destroySession(sessionId: string): Promise<void> {
     const session = this.sessions.get(sessionId);
     if (session) {
-      const { containerId, shellMode } = session;
+      const { containerId, shellMode, containerIP } = session;
       logger.info('DockerAdapter: Destroying session', { sessionId, containerId: session.containerId });
 
       scrollbackBuffer.clear(sessionId);
@@ -930,6 +1171,21 @@ export class DockerAdapter extends BasePTYAdapter {
           sessionId,
           containerId,
         });
+      }
+
+      // フィルタリングルールのクリーンアップ（コンテナ停止後にbest-effort、ブロックしない）
+      if (containerIP) {
+        void new ProxyClient().deleteRules(containerIP)
+          .then(() => {
+            logger.info('DockerAdapter: Proxy rules cleaned up', { sessionId, containerIP });
+          })
+          .catch((error: unknown) => {
+            logger.warn('DockerAdapter: Failed to cleanup proxy rules', {
+              sessionId,
+              containerIP,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            });
+          });
       }
     }
   }

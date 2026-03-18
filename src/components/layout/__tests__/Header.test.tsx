@@ -35,8 +35,8 @@ describe('Header', () => {
   it('ヘッダーが正しくレンダリングされる', () => {
     render(<Header />);
 
-    // ロゴが表示される
-    expect(screen.getByText('ClaudeWork')).toBeInTheDocument();
+    // ロゴボタンが表示される
+    expect(screen.getByRole('button', { name: 'ホーム' })).toBeInTheDocument();
   });
 
   it('モバイルでハンバーガーメニューが表示される', () => {
@@ -76,8 +76,8 @@ describe('Header', () => {
 
     render(<Header />);
 
-    const logos = screen.getAllByText('ClaudeWork');
-    fireEvent.click(logos[0]);
+    const logoButton = screen.getByRole('button', { name: 'ホーム' });
+    fireEvent.click(logoButton);
 
     expect(mockPush).toHaveBeenCalledWith('/');
   });

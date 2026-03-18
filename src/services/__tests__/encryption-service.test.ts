@@ -38,6 +38,32 @@ describe('EncryptionService', () => {
     });
   });
 
+  describe('Error classes', () => {
+    it('EncryptionKeyNotFoundErrorのnameとmessageが正しい', async () => {
+      const { EncryptionKeyNotFoundError } = await import('../encryption-service');
+      const error = new EncryptionKeyNotFoundError();
+      expect(error.name).toBe('EncryptionKeyNotFoundError');
+      expect(error.message).toBe('ENCRYPTION_KEY environment variable is not configured');
+      expect(error).toBeInstanceOf(Error);
+    });
+
+    it('EncryptionErrorのnameが正しい', async () => {
+      const { EncryptionError } = await import('../encryption-service');
+      const error = new EncryptionError('test message');
+      expect(error.name).toBe('EncryptionError');
+      expect(error.message).toBe('test message');
+      expect(error).toBeInstanceOf(Error);
+    });
+
+    it('DecryptionErrorのnameが正しい', async () => {
+      const { DecryptionError } = await import('../encryption-service');
+      const error = new DecryptionError('test message');
+      expect(error.name).toBe('DecryptionError');
+      expect(error.message).toBe('test message');
+      expect(error).toBeInstanceOf(Error);
+    });
+  });
+
   describe('encrypt', () => {
     it('平文を暗号化し、iv:authTag:encrypted 形式のbase64文字列を返す', async () => {
       process.env.ENCRYPTION_KEY = VALID_KEY_BASE64;
@@ -84,6 +110,27 @@ describe('EncryptionService', () => {
       const service = new EncryptionService();
 
       await expect(service.encrypt('test')).rejects.toThrow(EncryptionKeyNotFoundError);
+      await expect(service.encrypt('test')).rejects.toThrow('ENCRYPTION_KEY environment variable is not configured');
+    });
+
+    it('ENCRYPTION_KEYが無効な長さの場合、EncryptionErrorをスローする', async () => {
+      // 16バイトのキー(AES-128)を設定 → 32バイト必須なのでエラー
+      process.env.ENCRYPTION_KEY = Buffer.from('a'.repeat(16)).toString('base64');
+      const { EncryptionService, EncryptionError } = await import('../encryption-service');
+      const service = new EncryptionService();
+
+      await expect(service.encrypt('test')).rejects.toThrow(EncryptionError);
+      await expect(service.encrypt('test')).rejects.toThrow(/Invalid ENCRYPTION_KEY length/);
+      await expect(service.encrypt('test')).rejects.toThrow(/expected 32 bytes/);
+    });
+
+    it('ENCRYPTION_KEYが短すぎる場合、正確なバイト数をエラーメッセージに含む', async () => {
+      process.env.ENCRYPTION_KEY = Buffer.from('short').toString('base64');
+      const { EncryptionService } = await import('../encryption-service');
+      const service = new EncryptionService();
+
+      await expect(service.encrypt('test')).rejects.toThrow(/got 5 bytes/);
+      await expect(service.encrypt('test')).rejects.toThrow(/openssl rand -base64 32/);
     });
   });
 
@@ -129,6 +176,24 @@ describe('EncryptionService', () => {
       await expect(service.decrypt('')).rejects.toThrow(DecryptionError);
     });
 
+    it('不正な形式の暗号文のエラーメッセージが正しい', async () => {
+      process.env.ENCRYPTION_KEY = VALID_KEY_BASE64;
+      const { EncryptionService } = await import('../encryption-service');
+      const service = new EncryptionService();
+
+      await expect(service.decrypt('invalid-format')).rejects.toThrow(
+        'Invalid encrypted text format: expected iv:authTag:encrypted'
+      );
+    });
+
+    it('4つ以上のパーツがある場合もDecryptionErrorをスローする', async () => {
+      process.env.ENCRYPTION_KEY = VALID_KEY_BASE64;
+      const { EncryptionService, DecryptionError } = await import('../encryption-service');
+      const service = new EncryptionService();
+
+      await expect(service.decrypt('a:b:c:d')).rejects.toThrow(DecryptionError);
+    });
+
     it('改ざんされた暗号文はDecryptionErrorをスローする', async () => {
       process.env.ENCRYPTION_KEY = VALID_KEY_BASE64;
       const { EncryptionService, DecryptionError } = await import('../encryption-service');
@@ -143,6 +208,7 @@ describe('EncryptionService', () => {
       const tampered = `${parts[0]}:${parts[1]}:${tamperedEncrypted}`;
 
       await expect(service.decrypt(tampered)).rejects.toThrow(DecryptionError);
+      await expect(service.decrypt(tampered)).rejects.toThrow(/Failed to decrypt:/);
     });
 
     it('ENCRYPTION_KEYが未設定の場合、EncryptionKeyNotFoundErrorをスローする', async () => {

@@ -56,6 +56,27 @@ describe('環境変数バリデーション', () => {
     }).toThrow('DATABASE_URL environment variable is not set');
   });
 
+  it('DATABASE_URLが未設定の場合、変数名とセットアップ手順を含むエラーメッセージをスローする', () => {
+    delete process.env.DATABASE_URL;
+
+    expect(() => {
+      validateRequiredEnvVars();
+    }).toThrow(/DATABASE_URL/);
+
+    try {
+      validateRequiredEnvVars();
+    } catch (e: unknown) {
+      const msg = (e as Error).message;
+      // エラーメッセージに変数名が含まれる
+      expect(msg).toContain('DATABASE_URL');
+      // セットアップ手順が含まれる
+      expect(msg).toContain('Please follow these steps');
+      expect(msg).toContain('cp .env.example .env');
+      expect(msg).toContain('Database connection URL');
+      expect(msg).toContain('README.md');
+    }
+  });
+
   it('DATABASE_URLが空文字の場合、エラーをスローする', () => {
     process.env.DATABASE_URL = '';
 
@@ -148,6 +169,29 @@ describe('detectClaudePath', () => {
     }).toThrow('CLAUDE_CODE_PATH is set but the path does not exist: claude');
   });
 
+  it('CLAUDE_CODE_PATHがコマンド名でwhichが空文字を返す場合、which解決をスキップしてエラー', () => {
+    process.env.CLAUDE_CODE_PATH = 'claude-custom';
+    mockExistsSync.mockReturnValue(false);
+    mockExecSync.mockReturnValue('');
+
+    expect(() => {
+      detectClaudePath();
+    }).toThrow('CLAUDE_CODE_PATH is set but the path does not exist: claude-custom');
+  });
+
+  it('CLAUDE_CODE_PATHが絶対パスの場合はwhich解決を試みない', () => {
+    // startsWith('/') で絶対パスと判定 -> which は呼ばれない
+    const testPath = '/nonexistent/path/claude';
+    process.env.CLAUDE_CODE_PATH = testPath;
+    mockExistsSync.mockReturnValue(false);
+
+    expect(() => {
+      detectClaudePath();
+    }).toThrow(`CLAUDE_CODE_PATH is set but the path does not exist: ${testPath}`);
+    // which は呼ばれないこと
+    expect(mockExecSync).not.toHaveBeenCalled();
+  });
+
   it('CLAUDE_CODE_PATHが未設定で、whichコマンドでclaudeが見つかる場合、そのパスを返す', () => {
     delete process.env.CLAUDE_CODE_PATH;
     const expectedPath = '/usr/local/bin/claude';
@@ -162,13 +206,21 @@ describe('detectClaudePath', () => {
     });
   });
 
-  it('whichコマンドが空文字列を返す場合、エラーをスローする', () => {
+  it('whichコマンドが空文字列を返す場合、適切なエラーメッセージをスローする', () => {
     delete process.env.CLAUDE_CODE_PATH;
     mockExecSync.mockReturnValue('');
 
-    expect(() => {
+    try {
       detectClaudePath();
-    }).toThrow(/claude command not found in PATH.*Please install Claude Code CLI or set CLAUDE_CODE_PATH environment variable/s);
+      expect.fail('Should have thrown');
+    } catch (e: unknown) {
+      const msg = (e as Error).message;
+      expect(msg).toContain('claude command not found in PATH');
+      // 内部で throw new Error('claude command not found') が呼ばれ、
+      // そのメッセージが外側のエラーに含まれる
+      expect(msg).toContain('claude command not found');
+      expect(msg).toContain('Please install Claude Code CLI');
+    }
   });
 
   it('whichコマンドが例外をスローする場合、適切なエラーメッセージをスローする', () => {
