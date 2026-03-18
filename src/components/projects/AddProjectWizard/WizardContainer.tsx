@@ -12,6 +12,7 @@ import { StepRepository } from './StepRepository';
 import { StepSession } from './StepSession';
 import { initialWizardData } from './types';
 import type { WizardData, WizardStep } from './types';
+import { isHostEnvironmentAllowed } from '@/lib/environment-detect';
 
 const WIZARD_STEPS: WizardStep[] = [
   { id: 1, label: '認証', icon: Key },
@@ -245,7 +246,7 @@ export function AddProjectWizard({ isOpen, onClose }: AddProjectWizardProps) {
                     <StepRepository
                       wizardData={wizardData}
                       onChange={handleDataChange}
-                      hostEnvironmentDisabled={false}
+                      hostEnvironmentDisabled={!isHostEnvironmentAllowed()}
                     />
                   )}
                   {currentStep === 3 && (

@@ -23,7 +23,7 @@ describe('/api/environments/[id] (deprecated - 410 Gone)', () => {
       const response = await GET(request, { params: Promise.resolve({ id: 'env-1' }) });
 
       expect(response.headers.get('Deprecation')).toBe('true');
-      expect(response.headers.get('Sunset')).toBeTruthy();
+      expect(response.headers.get('Sunset')).toBeNull();
     });
 
     it('代替エンドポイントの情報が含まれる', async () => {
@@ -59,7 +59,7 @@ describe('/api/environments/[id] (deprecated - 410 Gone)', () => {
       const response = await PUT(request, { params: Promise.resolve({ id: 'env-1' }) });
 
       expect(response.headers.get('Deprecation')).toBe('true');
-      expect(response.headers.get('Sunset')).toBeTruthy();
+      expect(response.headers.get('Sunset')).toBeNull();
     });
 
     it('代替エンドポイントの情報が含まれる', async () => {
@@ -95,7 +95,7 @@ describe('/api/environments/[id] (deprecated - 410 Gone)', () => {
       const response = await DELETE(request, { params: Promise.resolve({ id: 'env-1' }) });
 
       expect(response.headers.get('Deprecation')).toBe('true');
-      expect(response.headers.get('Sunset')).toBeTruthy();
+      expect(response.headers.get('Sunset')).toBeNull();
     });
 
     it('代替エンドポイントの情報が含まれる', async () => {

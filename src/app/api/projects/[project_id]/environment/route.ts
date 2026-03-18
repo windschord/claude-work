@@ -101,7 +101,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     // 更新データを構築
-    const updateData: { name?: string; description?: string; config?: object; type?: 'HOST' | 'DOCKER' | 'SSH' } = {};
+    const updateData: { name?: string; description?: string; config?: object; type?: 'HOST' | 'DOCKER' } = {};
 
     if (name !== undefined) {
       if (typeof name !== 'string' || name.trim() === '') {
@@ -124,16 +124,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     if (type !== undefined) {
-      if (type !== 'HOST' && type !== 'DOCKER' && type !== 'SSH') {
+      if (type !== 'HOST' && type !== 'DOCKER') {
         return NextResponse.json(
           { error: 'type must be HOST or DOCKER' },
-          { status: 400 }
-        );
-      }
-      // SSH 環境は未実装のため保存を拒否する
-      if (type === 'SSH') {
-        return NextResponse.json(
-          { error: 'SSH environment type is not yet supported' },
           { status: 400 }
         );
       }
@@ -144,7 +137,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           { status: 400 }
         );
       }
-      updateData.type = type as 'HOST' | 'DOCKER';
+      updateData.type = type;
     }
 
     if (config !== undefined) {

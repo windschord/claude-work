@@ -151,7 +151,7 @@ export class EnvironmentService {
     // Docker の場合のみデフォルトのイメージ設定を適用する
     const defaultConfig = effectiveType === 'DOCKER'
       ? {
-          imageName: 'ghcr.io/windschord/claude-work-sandbox',
+          imageName: DEFAULT_SANDBOX_IMAGE_NAME,
           imageTag: 'latest',
         }
       : {};
