@@ -1,4 +1,5 @@
 import { sqliteTable, text, integer, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
 import { relations, sql } from 'drizzle-orm';
 
 // ==================== テーブル定義 ====================
@@ -45,6 +46,8 @@ export const executionEnvironments = sqliteTable('ExecutionEnvironment', {
   description: text('description'),
   config: text('config').notNull(),
   auth_dir_path: text('auth_dir_path'),
+  // プロジェクトとの1対1参照（循環参照を避けるため遅延参照パターンを使用）
+  project_id: text('project_id').unique().references((): AnySQLiteColumn => projects.id, { onDelete: 'cascade' }),
   created_at: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
   updated_at: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
 });
@@ -225,7 +228,10 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
 }));
 
 export const executionEnvironmentsRelations = relations(executionEnvironments, ({ one, many }) => ({
-  projects: many(projects),
+  project: one(projects, {
+    fields: [executionEnvironments.project_id],
+    references: [projects.id],
+  }),
   sessions: many(sessions),
   networkFilterConfig: one(networkFilterConfigs, {
     fields: [executionEnvironments.id],
