@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef, Fragment } from 'react';
+import { useState, useCallback, useRef, Fragment, useEffect } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { X, Key, FolderGit2, Play } from 'lucide-react';
 import { useAppStore } from '@/store';
@@ -12,10 +12,6 @@ import { StepRepository } from './StepRepository';
 import { StepSession } from './StepSession';
 import { initialWizardData } from './types';
 import type { WizardData, WizardStep } from './types';
-// Docker環境ではHOST環境は利用不可。
-// 本番はDocker Compose内で動作するため、デフォルトでhostを無効化。
-// clone_location の選択肢で 'host' を非表示にする。
-const HOST_ENVIRONMENT_DISABLED = true;
 
 const WIZARD_STEPS: WizardStep[] = [
   { id: 1, label: '認証', icon: Key },
@@ -37,8 +33,22 @@ export function AddProjectWizard({ isOpen, onClose }: AddProjectWizardProps) {
   const [wizardData, setWizardData] = useState<WizardData>({ ...initialWizardData });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // サーバーからhostEnvironmentDisabledを動的に取得する
+  // Docker環境ではHOST環境は利用不可のため、/api/healthから判定する
+  const [hostEnvironmentDisabled, setHostEnvironmentDisabled] = useState(true);
   const abortControllerRef = useRef<AbortController | null>(null);
   const submitInFlightRef = useRef(false);
+
+  useEffect(() => {
+    fetch('/api/health')
+      .then((res) => res.json())
+      .then((data: { features?: { hostEnvironmentDisabled?: boolean } }) => {
+        setHostEnvironmentDisabled(data.features?.hostEnvironmentDisabled ?? true);
+      })
+      .catch(() => {
+        // フェッチ失敗時はデフォルトのtrue（無効）を維持
+      });
+  }, []);
 
   const handleDataChange = useCallback((data: Partial<WizardData>) => {
     setWizardData((prev) => ({ ...prev, ...data }));

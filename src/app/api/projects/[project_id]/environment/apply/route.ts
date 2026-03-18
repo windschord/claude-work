@@ -42,6 +42,14 @@ export async function POST(
       return NextResponse.json({ error: '環境が見つかりません' }, { status: 404 });
     }
 
+    // HOST環境は restartSession をサポートしないため即時適用不可
+    if (environment.type !== 'DOCKER') {
+      return NextResponse.json(
+        { error: 'HOST環境では即時適用はサポートされていません' },
+        { status: 400 }
+      );
+    }
+
     // キャッシュされたDockerAdapterを削除（新しい設定で再生成させる）
     const AdapterFactory = await getAdapterFactory();
     AdapterFactory.removeDockerAdapter(environment.id);

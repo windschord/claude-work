@@ -208,6 +208,15 @@ export async function POST(request: NextRequest) {
           (error instanceof Error && error.message.includes('UNIQUE constraint failed'));
         if (isUniqueViolation) {
           logger.warn('Duplicate project in Docker environment', { code: sqliteError.code, error });
+          // 環境が作成済みの場合はクリーンアップ
+          if (environmentId) {
+            try {
+              db.delete(schema.executionEnvironments).where(eq(schema.executionEnvironments.id, environmentId)).run();
+              logger.info('Cleaned up environment after UNIQUE constraint violation', { environmentId });
+            } catch (cleanupError) {
+              logger.error('Failed to cleanup environment after UNIQUE constraint violation', { environmentId, cleanupError });
+            }
+          }
           return NextResponse.json(
             { error: 'このリポジトリは既に登録されています' },
             { status: 409 }

@@ -23,6 +23,10 @@ vi.mock('@/lib/logger', () => ({
   logger: { debug: vi.fn(), error: vi.fn() },
 }));
 
+vi.mock('@/lib/environment-detect', () => ({
+  isHostEnvironmentAllowed: vi.fn(() => true),
+}));
+
 import { GET } from '../route';
 
 describe('GET /api/health', () => {
@@ -113,5 +117,23 @@ describe('GET /api/health', () => {
     expect(response.status).toBe(200);
     expect(body.checks.database.missingColumns).toBeUndefined();
     expect(body.checks.database.checkedTables).toBeUndefined();
+  });
+
+  it('features.hostEnvironmentDisabledを返す', async () => {
+    mockValidateSchemaIntegrity.mockReturnValue({
+      valid: true,
+      missingColumns: [],
+      checkedTables: ['Project'],
+      timestamp: new Date('2026-02-17T12:00:00Z'),
+    });
+
+    const { isHostEnvironmentAllowed } = await import('@/lib/environment-detect');
+    vi.mocked(isHostEnvironmentAllowed).mockReturnValue(false);
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.features.hostEnvironmentDisabled).toBe(true);
   });
 });

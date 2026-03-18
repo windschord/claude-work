@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { environmentService } from '@/services/environment-service';
 import { db, schema } from '@/lib/db';
-import { eq, and, isNotNull } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
 import { validatePortMappings, validateVolumeMounts } from '@/lib/docker-config-validator';
 import { isHostEnvironmentAllowed } from '@/lib/environment-detect';
@@ -207,12 +207,13 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const environment = await environmentService.update(existing.id, updateData);
 
     // アクティブセッションの存在確認（警告メッセージのため）
+    // HOST環境のセッションは container_id が null のため、session_state で判定する
     const activeSessions = db.select({ id: schema.sessions.id })
       .from(schema.sessions)
       .where(
         and(
           eq(schema.sessions.project_id, project_id),
-          isNotNull(schema.sessions.container_id)
+          eq(schema.sessions.session_state, 'ACTIVE')
         )
       )
       .all();
