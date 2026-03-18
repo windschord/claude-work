@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { DockerAdapter } from '../docker-adapter';
 
 // Mock DockerClient and fs.existsSync via hoisted to avoid linter issues
