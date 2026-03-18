@@ -175,29 +175,29 @@ export async function POST(request: NextRequest) {
     const name = basename(absolutePath);
     const { environmentService } = await import('@/services/environment-service');
 
+    // 重複チェック（プロジェクト作成前に確認）
+    const existingProject = db.select({ id: schema.projects.id })
+      .from(schema.projects)
+      .where(eq(schema.projects.path, absolutePath))
+      .get();
+    if (existingProject) {
+      return NextResponse.json(
+        { error: 'このパスは既に登録されています' },
+        { status: 409 }
+      );
+    }
+
+    // 環境を先に作成（project_id は後でプロジェクト作成後に設定）
+    // NOTE: projects.environment_id と executionEnvironments.project_id の循環参照を
+    //       解決するため、環境を先に作成してからプロジェクトを作成し、最後に環境の
+    //       project_id を更新する
+    const environment = await environmentService.create({
+      name: `${name} 環境`,
+      type: 'DOCKER',
+      config: { imageName: 'ghcr.io/windschord/claude-work-sandbox', imageTag: 'latest' },
+    });
+
     try {
-      // 重複チェック（プロジェクト作成前に確認）
-      const existingProject = db.select({ id: schema.projects.id })
-        .from(schema.projects)
-        .where(eq(schema.projects.path, absolutePath))
-        .get();
-      if (existingProject) {
-        return NextResponse.json(
-          { error: 'このパスは既に登録されています' },
-          { status: 409 }
-        );
-      }
-
-      // 環境を先に作成（project_id は後でプロジェクト作成後に設定）
-      // NOTE: projects.environment_id と executionEnvironments.project_id の循環参照を
-      //       解決するため、環境を先に作成してからプロジェクトを作成し、最後に環境の
-      //       project_id を更新する
-      const environment = await environmentService.create({
-        name: `${name} 環境`,
-        type: 'DOCKER',
-        config: { imageName: 'ghcr.io/windschord/claude-work-sandbox', imageTag: 'latest' },
-      });
-
       // プロジェクトを作成（有効な environment_id を使用）
       const project = db.insert(schema.projects).values({
         name,
@@ -224,6 +224,20 @@ export async function POST(request: NextRequest) {
       });
       return NextResponse.json({ project }, { status: 201 });
     } catch (error) {
+      // プロジェクト作成失敗時は孤立した環境をクリーンアップ
+      logger.warn('Project creation failed, cleaning up orphaned environment', {
+        environmentId: environment.id,
+        error,
+      });
+      try {
+        await environmentService.delete(environment.id);
+      } catch (cleanupError) {
+        logger.error('Failed to clean up orphaned environment', {
+          environmentId: environment.id,
+          cleanupError,
+        });
+      }
+
       // SQLite UNIQUE constraint violationのハンドリング
       const sqliteError = error as { code?: string };
       const isUniqueViolation = sqliteError.code === 'SQLITE_CONSTRAINT_UNIQUE' ||

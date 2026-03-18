@@ -50,10 +50,8 @@ describe('useProjectEnvironment', () => {
     mockFetch.mockClear();
     // デフォルトのモック応答を設定
     mockFetch.mockImplementation((url: string) => {
-      if (url.includes('/environment/network-rules') && !url.includes('templates') && !url.includes('/')) {
-        if (!url.split('/').slice(-1)[0].match(/^[a-z0-9-]+$/) || url.endsWith('network-rules')) {
-          return makeFetchResponse({ rules: [sampleRule] });
-        }
+      if (url.includes('/environment/network-rules') && !url.includes('/templates')) {
+        return makeFetchResponse({ rules: [sampleRule] });
       }
       if (url.includes('/environment/network-filter')) {
         return makeFetchResponse({ config: sampleFilterConfig });

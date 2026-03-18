@@ -146,14 +146,19 @@ export class EnvironmentService {
     projectId: string,
     config?: Partial<CreateEnvironmentInput>
   ): Promise<ExecutionEnvironment> {
-    const defaultConfig = {
-      imageName: 'ghcr.io/windschord/claude-work-sandbox',
-      imageTag: 'latest',
-    };
+    const effectiveType = config?.type ?? 'DOCKER';
+
+    // Docker の場合のみデフォルトのイメージ設定を適用する
+    const defaultConfig = effectiveType === 'DOCKER'
+      ? {
+          imageName: 'ghcr.io/windschord/claude-work-sandbox',
+          imageTag: 'latest',
+        }
+      : {};
 
     return this.create({
       name: config?.name ?? `${projectId.slice(0, 8)} 環境`,
-      type: config?.type ?? 'DOCKER',
+      type: effectiveType,
       description: config?.description,
       config: { ...defaultConfig, ...(config?.config ?? {}) },
       project_id: projectId,

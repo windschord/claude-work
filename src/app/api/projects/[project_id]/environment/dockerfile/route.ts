@@ -43,7 +43,13 @@ export async function POST(
   const fileContent = await file.text();
   await fs.writeFile(dockerfilePath, fileContent, 'utf-8');
 
-  const config = JSON.parse(environment.config || '{}');
+  let config: Record<string, unknown>;
+  try {
+    config = JSON.parse(environment.config || '{}');
+  } catch {
+    // DBに不正なJSONが格納されている場合は空オブジェクトにフォールバック
+    config = {};
+  }
   config.dockerfileUploaded = true;
   config.imageSource = 'dockerfile';
 

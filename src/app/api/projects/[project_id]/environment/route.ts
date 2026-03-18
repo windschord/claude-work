@@ -128,12 +128,23 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     if (config !== undefined) {
+      // config は plain object のみ許可（配列・null・プリミティブは拒否）
+      if (typeof config !== 'object' || config === null || Array.isArray(config)) {
+        return NextResponse.json(
+          { error: 'config must be a plain object' },
+          { status: 400 }
+        );
+      }
+
+      // 入力オブジェクトを直接ミューテーションしないようコピーを作成
+      const sanitizedConfig = { ...config };
+
       // skipPermissions のバリデーション
-      if (config?.skipPermissions !== undefined) {
+      if (sanitizedConfig.skipPermissions !== undefined) {
         const effectiveType = type ?? existing.type;
         if (effectiveType !== 'DOCKER') {
-          delete config.skipPermissions;
-        } else if (typeof config.skipPermissions !== 'boolean') {
+          delete sanitizedConfig.skipPermissions;
+        } else if (typeof sanitizedConfig.skipPermissions !== 'boolean') {
           return NextResponse.json(
             { error: 'config.skipPermissions must be a boolean' },
             { status: 400 }
@@ -142,14 +153,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       }
 
       // portMappings のバリデーション
-      if (config?.portMappings !== undefined) {
-        if (!Array.isArray(config.portMappings)) {
+      if (sanitizedConfig.portMappings !== undefined) {
+        if (!Array.isArray(sanitizedConfig.portMappings)) {
           return NextResponse.json(
             { error: 'config.portMappings must be an array' },
             { status: 400 }
           );
         }
-        const portResult = validatePortMappings(config.portMappings);
+        const portResult = validatePortMappings(sanitizedConfig.portMappings);
         if (!portResult.valid) {
           return NextResponse.json(
             { error: portResult.errors.join('; ') },
@@ -159,14 +170,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       }
 
       // volumeMounts のバリデーション
-      if (config?.volumeMounts !== undefined) {
-        if (!Array.isArray(config.volumeMounts)) {
+      if (sanitizedConfig.volumeMounts !== undefined) {
+        if (!Array.isArray(sanitizedConfig.volumeMounts)) {
           return NextResponse.json(
             { error: 'config.volumeMounts must be an array' },
             { status: 400 }
           );
         }
-        const volumeResult = validateVolumeMounts(config.volumeMounts);
+        const volumeResult = validateVolumeMounts(sanitizedConfig.volumeMounts);
         if (!volumeResult.valid) {
           return NextResponse.json(
             { error: volumeResult.errors.join('; ') },
@@ -175,7 +186,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         }
       }
 
-      updateData.config = config;
+      updateData.config = sanitizedConfig;
     }
 
     logger.info('Updating project environment', { project_id, fields: Object.keys(updateData) });
