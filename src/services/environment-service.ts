@@ -1,6 +1,6 @@
 import { db, schema } from '@/lib/db';
 import type { ExecutionEnvironment } from '@/lib/db';
-import { eq, asc, and, inArray } from 'drizzle-orm';
+import { eq, asc } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
 import { getEnvironmentsDir } from '@/lib/data-dir';
 import { isHostEnvironmentAllowed } from '@/lib/environment-detect';
@@ -58,7 +58,7 @@ export interface CreateEnvironmentInput {
  */
 export interface UpdateEnvironmentInput {
   name?: string;
-  description?: string;
+  description?: string | null;
   config?: object;
   type?: 'HOST' | 'DOCKER' | 'SSH';
 }

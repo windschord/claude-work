@@ -817,8 +817,8 @@ const allSessions = rawProjects.flatMap((project) =>
 
 #### `/settings/environments` ページの廃止
 
-- `src/app/settings/environments/page.tsx` を削除または
-- リダイレクト（`/settings` へ）に変更
+- `src/app/settings/environments/page.tsx` を削除する（実装済み）
+- リダイレクトは行わない（404 を返す）
 
 #### プロジェクト作成フォームの変更
 

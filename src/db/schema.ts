@@ -51,7 +51,8 @@ export const executionEnvironments = sqliteTable('ExecutionEnvironment', {
   config: text('config').notNull(),
   auth_dir_path: text('auth_dir_path'),
   // プロジェクトとの1対1参照（循環参照を避けるため遅延参照パターンを使用）
-  project_id: text('project_id').unique().references((): AnySQLiteColumn => projects.id, { onDelete: 'cascade' }),
+  // マイグレーションスクリプト実行後はすべての環境レコードが project_id を持つため notNull() を付与する
+  project_id: text('project_id').notNull().unique().references((): AnySQLiteColumn => projects.id, { onDelete: 'cascade' }),
   created_at: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
   updated_at: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
 });

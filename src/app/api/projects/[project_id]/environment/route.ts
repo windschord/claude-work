@@ -137,6 +137,13 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           { status: 400 }
         );
       }
+      // Docker内で動作している場合、HOST 環境への変更を禁止する
+      if (type === 'HOST' && !isHostEnvironmentAllowed()) {
+        return NextResponse.json(
+          { error: 'HOST environment type is not allowed in this environment' },
+          { status: 400 }
+        );
+      }
       updateData.type = type as 'HOST' | 'DOCKER';
     }
 

@@ -74,6 +74,14 @@ const PTY_DESTROY_GRACE_PERIOD = 30000; // 30 seconds
 const destroyTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 /**
+ * ターミナルセッションIDごとのアダプターキャッシュ
+ * 接続確立時のアダプターを保持し、破棄時に同じアダプターを使用する。
+ * セッション中に環境typeが変更されても、起動時のアダプターで確実にクリーンアップする。
+ * nullは従来方式（ptyManager直接使用）を示す。
+ */
+const sessionAdapterCache = new Map<string, EnvironmentAdapter | null>();
+
+/**
  * ターミナルWebSocketサーバーをセットアップ
  *
  * WebSocket経由でPTY入出力を中継する。
@@ -152,44 +160,65 @@ export function setupTerminalWebSocket(
           }
         };
 
-        // プロジェクトに紐付く環境を findByProjectId 経由で取得してアダプターを選択
-        // 設計上の注意: クリーンアップ時に DB から環境を再取得しているため、
-        // 接続確立後に環境レコードが変更・削除された場合は起動時と異なるアダプターが
-        // 返る可能性がある。しかし 1対1 関係により環境は削除されにくく、
-        // AdapterFactory はシングルトンキャッシュを持つため実用上の影響は軽微。
-        // より安全にするには接続確立時のアダプター参照をクロージャでキャプチャするか、
-        // セッションIDをキーにキャッシュする方式が望ましい。
+        // 接続確立時にキャッシュしたアダプターを使用する。
+        // DB を再取得しないことで、セッション中に環境が変更・削除された場合でも
+        // 起動時と同じアダプターで確実にクリーンアップできる。
+        const cachedAdapter = sessionAdapterCache.get(terminalSessionId);
+        const useAdapterFromCache = cachedAdapter !== undefined;
+
+        const cleanupWithAdapter = async (adapter: EnvironmentAdapter) => {
+          // イベントハンドラー解除（adapter側のリスナーも削除）
+          if (dataHandler) {
+            const handler = connectionManager.getHandler(terminalSessionId, 'data');
+            if (handler) {
+              adapter.off('data', handler);
+            }
+            connectionManager.unregisterHandler(terminalSessionId, 'data');
+          }
+          if (exitHandler) {
+            const handler = connectionManager.getHandler(terminalSessionId, 'exit');
+            if (handler) {
+              adapter.off('exit', handler);
+            }
+            connectionManager.unregisterHandler(terminalSessionId, 'exit');
+          }
+          if (errorHandler) {
+            const handler = connectionManager.getHandler(terminalSessionId, 'error');
+            if (handler) {
+              adapter.off('error', handler);
+            }
+            connectionManager.unregisterHandler(terminalSessionId, 'error');
+          }
+
+          // PTY破棄
+          if (adapter.hasSession(terminalSessionId)) {
+            await adapter.destroySession(terminalSessionId);
+          }
+
+          sessionAdapterCache.delete(terminalSessionId);
+        };
+
+        if (useAdapterFromCache && cachedAdapter !== null) {
+          cleanupWithAdapter(cachedAdapter).catch((error) => {
+            logger.error('Failed to cleanup terminal session via cached adapter', {
+              sessionId: terminalSessionId,
+              error,
+            });
+          });
+          return;
+        } else if (useAdapterFromCache && cachedAdapter === null) {
+          // キャッシュにnullが入っている場合は従来方式
+          cleanupLegacy();
+          sessionAdapterCache.delete(terminalSessionId);
+          return;
+        }
+
+        // キャッシュがない場合（フォールバック）: DB から環境を取得
+        // このパスは通常到達しないが、キャッシュが欠落した場合の安全策として残す
         environmentService.findByProjectId(session.project_id).then(async (environment) => {
           if (environment) {
             const adapter = AdapterFactory.getAdapter(environment);
-
-            // イベントハンドラー解除（adapter側のリスナーも削除）
-            if (dataHandler) {
-              const handler = connectionManager.getHandler(terminalSessionId, 'data');
-              if (handler) {
-                adapter.off('data', handler);
-              }
-              connectionManager.unregisterHandler(terminalSessionId, 'data');
-            }
-            if (exitHandler) {
-              const handler = connectionManager.getHandler(terminalSessionId, 'exit');
-              if (handler) {
-                adapter.off('exit', handler);
-              }
-              connectionManager.unregisterHandler(terminalSessionId, 'exit');
-            }
-            if (errorHandler) {
-              const handler = connectionManager.getHandler(terminalSessionId, 'error');
-              if (handler) {
-                adapter.off('error', handler);
-              }
-              connectionManager.unregisterHandler(terminalSessionId, 'error');
-            }
-
-            // PTY破棄
-            if (adapter.hasSession(terminalSessionId)) {
-              await adapter.destroySession(terminalSessionId);
-            }
+            await cleanupWithAdapter(adapter);
           } else {
             // 環境が見つからない場合はレガシークリーンアップにフォールバック
             logger.warn('Terminal WebSocket: Environment not found for cleanup, falling back to legacy cleanup', {
@@ -407,6 +436,8 @@ export function setupTerminalWebSocket(
           connectionManager.registerHandler(terminalSessionId, 'data', legacyDataHandler);
           connectionManager.registerHandler(terminalSessionId, 'exit', legacyExitHandler);
           connectionManager.registerHandler(terminalSessionId, 'error', legacyErrorHandler);
+          // 従来方式であることをキャッシュに記録（nullは従来方式を示す）
+          sessionAdapterCache.set(terminalSessionId, null);
         } else {
           adapter!.on('data', adapterDataHandler);
           adapter!.on('exit', adapterExitHandler);
@@ -414,6 +445,9 @@ export function setupTerminalWebSocket(
           connectionManager.registerHandler(terminalSessionId, 'data', adapterDataHandler);
           connectionManager.registerHandler(terminalSessionId, 'exit', adapterExitHandler);
           connectionManager.registerHandler(terminalSessionId, 'error', adapterErrorHandler);
+          // 接続確立時のアダプターをキャッシュ。破棄時に同じアダプターを使用するため、
+          // セッション中の環境変更があっても起動時アダプターでクリーンアップできる。
+          sessionAdapterCache.set(terminalSessionId, adapter!);
         }
         handlersRegistered = true;
       }
