@@ -153,8 +153,9 @@ describe('Environment API skipPermissions validation', () => {
         name: 'Host Env',
         type: 'HOST',
         config: '{}',
-          description: null,
+        description: null,
         auth_dir_path: null,
+        project_id: null,
         created_at: new Date(),
         updated_at: new Date(),
       });

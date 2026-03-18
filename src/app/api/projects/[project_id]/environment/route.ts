@@ -1,0 +1,208 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { environmentService } from '@/services/environment-service';
+import { db, schema } from '@/lib/db';
+import { eq, and, isNotNull } from 'drizzle-orm';
+import { logger } from '@/lib/logger';
+import { validatePortMappings, validateVolumeMounts } from '@/lib/docker-config-validator';
+import { isHostEnvironmentAllowed } from '@/lib/environment-detect';
+
+interface RouteParams {
+  params: Promise<{ project_id: string }>;
+}
+
+/**
+ * GET /api/projects/[project_id]/environment - プロジェクトの環境を取得
+ *
+ * クエリパラメータ:
+ * - includeStatus=true: ステータスを含める
+ *
+ * @returns
+ * - 200: 環境情報
+ * - 404: 環境が見つからない
+ * - 500: サーバーエラー
+ */
+export async function GET(request: NextRequest, { params }: RouteParams) {
+  try {
+    const { project_id } = await params;
+    const includeStatus = request.nextUrl.searchParams.get('includeStatus') === 'true';
+
+    const environment = await environmentService.findByProjectId(project_id);
+
+    if (!environment) {
+      return NextResponse.json({ error: 'Environment not found' }, { status: 404 });
+    }
+
+    // HOST環境の無効化フラグを付与
+    const hostAllowed = isHostEnvironmentAllowed();
+    const hostDisabled = environment.type === 'HOST' && !hostAllowed;
+    const envWithDisabled = hostDisabled
+      ? { ...environment, disabled: true }
+      : environment;
+
+    if (includeStatus) {
+      const status = await environmentService.checkStatus(environment.id);
+      return NextResponse.json({
+        environment: { ...envWithDisabled, status },
+        meta: { hostEnvironmentDisabled: !hostAllowed },
+      });
+    }
+
+    return NextResponse.json({
+      environment: envWithDisabled,
+      meta: { hostEnvironmentDisabled: !hostAllowed },
+    });
+  } catch (error) {
+    const { project_id } = await params;
+    logger.error('Failed to get project environment', { error, project_id });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+/**
+ * PUT /api/projects/[project_id]/environment - プロジェクトの環境設定を更新
+ *
+ * リクエストボディ:
+ * - name: 環境名（任意）
+ * - description: 説明（任意）
+ * - config: 設定オブジェクト（任意）
+ * - type: 環境タイプ（任意、HOST | DOCKER）
+ *
+ * @returns
+ * - 200: 更新成功
+ * - 400: バリデーションエラー
+ * - 404: 環境が見つからない
+ * - 500: サーバーエラー
+ */
+export async function PUT(request: NextRequest, { params }: RouteParams) {
+  try {
+    const { project_id } = await params;
+
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
+    }
+
+    // プロジェクトの環境を取得
+    const existing = await environmentService.findByProjectId(project_id);
+    if (!existing) {
+      return NextResponse.json({ error: 'Environment not found' }, { status: 404 });
+    }
+
+    const { name, description, config, type } = body;
+
+    // 更新内容があるかチェック
+    if (name === undefined && description === undefined && config === undefined && type === undefined) {
+      return NextResponse.json(
+        { error: 'At least one field (name, description, config, type) must be provided' },
+        { status: 400 }
+      );
+    }
+
+    // 更新データを構築
+    const updateData: { name?: string; description?: string; config?: object; type?: 'HOST' | 'DOCKER' | 'SSH' } = {};
+
+    if (name !== undefined) {
+      if (typeof name !== 'string' || name.trim() === '') {
+        return NextResponse.json(
+          { error: 'name must be a non-empty string' },
+          { status: 400 }
+        );
+      }
+      updateData.name = name.trim();
+    }
+
+    if (description !== undefined) {
+      updateData.description = description;
+    }
+
+    if (type !== undefined) {
+      if (type !== 'HOST' && type !== 'DOCKER' && type !== 'SSH') {
+        return NextResponse.json(
+          { error: 'type must be HOST, DOCKER, or SSH' },
+          { status: 400 }
+        );
+      }
+      updateData.type = type as 'HOST' | 'DOCKER' | 'SSH';
+    }
+
+    if (config !== undefined) {
+      // skipPermissions のバリデーション
+      if (config?.skipPermissions !== undefined) {
+        const effectiveType = type ?? existing.type;
+        if (effectiveType !== 'DOCKER') {
+          delete config.skipPermissions;
+        } else if (typeof config.skipPermissions !== 'boolean') {
+          return NextResponse.json(
+            { error: 'config.skipPermissions must be a boolean' },
+            { status: 400 }
+          );
+        }
+      }
+
+      // portMappings のバリデーション
+      if (config?.portMappings !== undefined) {
+        if (!Array.isArray(config.portMappings)) {
+          return NextResponse.json(
+            { error: 'config.portMappings must be an array' },
+            { status: 400 }
+          );
+        }
+        const portResult = validatePortMappings(config.portMappings);
+        if (!portResult.valid) {
+          return NextResponse.json(
+            { error: portResult.errors.join('; ') },
+            { status: 400 }
+          );
+        }
+      }
+
+      // volumeMounts のバリデーション
+      if (config?.volumeMounts !== undefined) {
+        if (!Array.isArray(config.volumeMounts)) {
+          return NextResponse.json(
+            { error: 'config.volumeMounts must be an array' },
+            { status: 400 }
+          );
+        }
+        const volumeResult = validateVolumeMounts(config.volumeMounts);
+        if (!volumeResult.valid) {
+          return NextResponse.json(
+            { error: volumeResult.errors.join('; ') },
+            { status: 400 }
+          );
+        }
+      }
+
+      updateData.config = config;
+    }
+
+    logger.info('Updating project environment', { project_id, fields: Object.keys(updateData) });
+
+    const environment = await environmentService.update(existing.id, updateData);
+
+    // アクティブセッションの存在確認（警告メッセージのため）
+    const activeSessions = db.select({ id: schema.sessions.id })
+      .from(schema.sessions)
+      .where(
+        and(
+          eq(schema.sessions.project_id, project_id),
+          isNotNull(schema.sessions.container_id)
+        )
+      )
+      .all();
+
+    const response: { environment: typeof environment; warning?: string } = { environment };
+    if (activeSessions.length > 0) {
+      response.warning = 'アクティブセッションが存在します。次回セッション起動時に適用されます。';
+    }
+
+    logger.info('Project environment updated', { project_id, environmentId: existing.id });
+    return NextResponse.json(response);
+  } catch (error) {
+    const { project_id } = await params;
+    logger.error('Failed to update project environment', { error, project_id });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
