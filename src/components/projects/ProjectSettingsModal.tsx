@@ -1,13 +1,12 @@
 'use client';
 
 import { useState, Fragment, useEffect, useCallback } from 'react';
-import Link from 'next/link';
 import { Dialog, Transition } from '@headlessui/react';
 import { Project, useAppStore } from '@/store';
 import toast from 'react-hot-toast';
 import { ClaudeOptionsForm } from '@/components/claude-options/ClaudeOptionsForm';
 import type { ClaudeCodeOptions, CustomEnvVars } from '@/components/claude-options/ClaudeOptionsForm';
-import { EnvironmentBadge } from '@/components/common/EnvironmentBadge';
+import { ProjectEnvironmentSection } from '@/components/projects/ProjectEnvironmentSection';
 
 /**
  * スクリプト編集用のローカル型定義
@@ -53,8 +52,6 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
   const [claudeOptions, setClaudeOptions] = useState<ClaudeCodeOptions>({});
   const [customEnvVars, setCustomEnvVars] = useState<CustomEnvVars>({});
   const [cloneLocation, setCloneLocation] = useState<string | null>(null);
-  const [environmentId, setEnvironmentId] = useState<string | null>(null);
-  const [environmentInfo, setEnvironmentInfo] = useState<{ name: string; type: string } | null>(null);
 
   const fetchScripts = useCallback(async (projectId: string) => {
     try {
@@ -100,8 +97,6 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
             setCustomEnvVars({});
           }
           setCloneLocation(proj.clone_location || null);
-          setEnvironmentId(proj.environment_id || null);
-          setEnvironmentInfo(proj.environment || null);
         }
       }
     } catch {
@@ -257,8 +252,6 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
     setClaudeOptions({});
     setCustomEnvVars({});
     setCloneLocation(null);
-    setEnvironmentId(null);
-    setEnvironmentInfo(null);
     onClose();
   };
 
@@ -299,34 +292,17 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
                 </Dialog.Title>
 
                 <form onSubmit={handleSaveAll}>
-                  {/* 実行環境（読み取り専用） */}
+                  {/* 実行環境設定 */}
                   <div className="mb-6">
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       実行環境
                     </label>
-                    <div className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md">
-                      {environmentId && environmentInfo ? (
-                        <Link
-                          href={`/settings/environments?highlight=${environmentId}`}
-                          className="hover:opacity-80 transition-opacity"
-                        >
-                          <EnvironmentBadge
-                            type={environmentInfo.type}
-                            name={environmentInfo.name}
-                          />
-                        </Link>
-                      ) : (
-                        <EnvironmentBadge
-                          type={cloneLocation === 'docker' ? 'DOCKER' : 'HOST'}
-                          name={cloneLocation === 'docker'
-                            ? 'Docker (自動選択)'
-                            : 'Host (自動選択)'}
-                        />
-                      )}
-                    </div>
-                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                      クローン場所（{cloneLocation || 'host'}）の設定に基づいて自動的に決定されます。プロジェクト作成後に変更することはできません。
-                    </p>
+                    <ProjectEnvironmentSection projectId={project.id} />
+                    {cloneLocation && (
+                      <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                        クローン場所: {cloneLocation}
+                      </p>
+                    )}
                   </div>
 
                   <div className="mb-6">
