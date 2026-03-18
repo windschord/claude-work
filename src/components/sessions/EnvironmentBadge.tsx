@@ -51,15 +51,5 @@ export function EnvironmentBadge({ session }: EnvironmentBadgeProps) {
     );
   }
 
-  // レガシーDockerモードの表示
-  if (session.docker_mode) {
-    return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300">
-        <Container size={12} />
-        Docker (Legacy)
-      </span>
-    );
-  }
-
   return null;
 }

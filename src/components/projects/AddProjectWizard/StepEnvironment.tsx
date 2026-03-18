@@ -4,11 +4,19 @@ import { useEffect, useRef } from 'react';
 import { Listbox } from '@headlessui/react';
 import { ChevronDown, Check, Server, Container, ExternalLink } from 'lucide-react';
 import { useEnvironments, Environment } from '@/hooks/useEnvironments';
-import type { WizardData } from './types';
+
+/**
+ * @deprecated このコンポーネントはTASK-016で削除予定。
+ * 環境選択ステップはプロジェクト1対1化により廃止されました。
+ * 環境設定はプロジェクト設定モーダルのProjectEnvironmentSectionで行います。
+ */
+interface LegacyWizardData {
+  environmentId: string | null;
+}
 
 interface StepEnvironmentProps {
   environmentId: string | null;
-  onChange: (data: Partial<WizardData>) => void;
+  onChange: (data: Partial<LegacyWizardData>) => void;
   onHostEnvironmentDisabledChange?: (disabled: boolean) => void;
 }
 
