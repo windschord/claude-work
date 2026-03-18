@@ -32,11 +32,17 @@ export async function POST(
     }
 
     const formData = await request.formData();
-    const file = formData.get('dockerfile') as File | null;
+    const fileEntry = formData.get('dockerfile');
 
-    if (!file) {
+    if (!fileEntry) {
       return NextResponse.json({ error: 'No dockerfile provided' }, { status: 400 });
     }
+
+    if (!(fileEntry instanceof File)) {
+      return NextResponse.json({ error: 'dockerfile must be a file upload, not a string' }, { status: 400 });
+    }
+
+    const file = fileEntry;
 
     const envDir = path.join(getEnvironmentsDir(), environment.id);
     await fs.mkdir(envDir, { recursive: true });

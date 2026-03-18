@@ -233,6 +233,11 @@ export function setupTerminalWebSocket(
             error,
           });
         });
+      }).catch((error) => {
+        logger.error('Terminal WebSocket: Failed to query session for cleanup', {
+          sessionId: originalSessionId,
+          error,
+        });
       });
 
       destroyTimers.delete(terminalSessionId);
@@ -279,27 +284,47 @@ export function setupTerminalWebSocket(
       const terminalSessionId = `${sessionId}${TERMINAL_SESSION_SUFFIX}`;
 
       // アダプター選択
-      // プロジェクトのenvironment_idがある場合は新方式（AdapterFactory経由）
-      // ない場合は従来のptyManagerを直接使用
+      // 猶予期間中の再接続（キャッシュ済みのアダプターがある場合）はキャッシュを優先して再利用する。
+      // 新規接続時はプロジェクトの環境から新しいアダプターを取得する。
       let adapter: EnvironmentAdapter | null = null;
       let useLegacyPtyManager = true;
 
-      // プロジェクトに紐付く環境を取得（1対1関係）
-      const environment = await environmentService.findByProjectId(session.project_id);
-      if (environment) {
-        adapter = AdapterFactory.getAdapter(environment);
-        useLegacyPtyManager = false;
-        logger.info('Terminal WebSocket: Using project environment', {
-          sessionId,
-          environmentId: environment.id,
-          environmentType: environment.type,
-        });
+      const existingCachedAdapter = sessionAdapterCache.get(terminalSessionId);
+      if (existingCachedAdapter !== undefined) {
+        // 再接続: キャッシュ済みのアダプターを再利用
+        if (existingCachedAdapter !== null) {
+          adapter = existingCachedAdapter;
+          useLegacyPtyManager = false;
+          logger.info('Terminal WebSocket: Reusing cached adapter for reconnection', {
+            sessionId,
+            terminalSessionId,
+          });
+        } else {
+          // キャッシュに null = 従来方式（legacy ptyManager）
+          useLegacyPtyManager = true;
+          logger.info('Terminal WebSocket: Reusing legacy ptyManager for reconnection', {
+            sessionId,
+            terminalSessionId,
+          });
+        }
       } else {
-        // 環境が見つからない場合: 従来方式にフォールバック
-        logger.info('Terminal WebSocket: No environment found for project, using legacy ptyManager', {
-          sessionId,
-          project_id: session.project_id,
-        });
+        // 新規接続: プロジェクトに紐付く環境を取得（1対1関係）
+        const environment = await environmentService.findByProjectId(session.project_id);
+        if (environment) {
+          adapter = AdapterFactory.getAdapter(environment);
+          useLegacyPtyManager = false;
+          logger.info('Terminal WebSocket: Using project environment', {
+            sessionId,
+            environmentId: environment.id,
+            environmentType: environment.type,
+          });
+        } else {
+          // 環境が見つからない場合: 従来方式にフォールバック
+          logger.info('Terminal WebSocket: No environment found for project, using legacy ptyManager', {
+            sessionId,
+            project_id: session.project_id,
+          });
+        }
       }
 
       // イベントハンドラー定義
