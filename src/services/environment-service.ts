@@ -48,6 +48,7 @@ export interface CreateEnvironmentInput {
   type: 'HOST' | 'DOCKER' | 'SSH';
   description?: string;
   config: object;
+  project_id: string;
 }
 
 /**
@@ -57,6 +58,7 @@ export interface UpdateEnvironmentInput {
   name?: string;
   description?: string;
   config?: object;
+  type?: 'HOST' | 'DOCKER' | 'SSH';
 }
 
 /**
@@ -95,6 +97,7 @@ export class EnvironmentService {
       type: input.type,
       description: input.description,
       config: configJson,
+      project_id: input.project_id,
     }).returning().get();
 
     if (!environment) {
@@ -116,6 +119,43 @@ export class EnvironmentService {
       .where(eq(schema.executionEnvironments.id, id))
       .get();
     return environment || null;
+  }
+
+  /**
+   * プロジェクトIDから環境を取得する
+   * @param projectId - プロジェクトID
+   * @returns 環境またはnull
+   */
+  async findByProjectId(projectId: string): Promise<ExecutionEnvironment | null> {
+    const environment = db.select().from(schema.executionEnvironments)
+      .where(eq(schema.executionEnvironments.project_id, projectId))
+      .get();
+    return environment ?? null;
+  }
+
+  /**
+   * プロジェクト作成時に呼び出す専用メソッド
+   * DOCKER環境のデフォルト設定を持つ
+   * @param projectId - プロジェクトID
+   * @param config - オプション設定（未指定時はデフォルトDOCKER環境を作成）
+   * @returns 作成された環境
+   */
+  async createForProject(
+    projectId: string,
+    config?: Partial<CreateEnvironmentInput>
+  ): Promise<ExecutionEnvironment> {
+    const defaultConfig = {
+      imageName: 'ghcr.io/windschord/claude-work-sandbox',
+      imageTag: 'latest',
+    };
+
+    return this.create({
+      name: config?.name ?? `${projectId.slice(0, 8)} 環境`,
+      type: config?.type ?? 'DOCKER',
+      description: config?.description,
+      config: { ...defaultConfig, ...(config?.config ?? {}) },
+      project_id: projectId,
+    });
   }
 
   /**
@@ -145,6 +185,9 @@ export class EnvironmentService {
     }
     if (input.config !== undefined) {
       updateData.config = JSON.stringify(input.config);
+    }
+    if (input.type !== undefined) {
+      updateData.type = input.type;
     }
 
     // updated_at を常に更新

@@ -651,6 +651,144 @@ describe('EnvironmentService', () => {
     });
   });
 
+  describe('createForProject', () => {
+    it('デフォルトDOCKER設定でプロジェクト専用環境を作成できる', async () => {
+      const projectId = 'test-project-id';
+      const expectedResult = {
+        id: 'new-env-id',
+        name: `${projectId.slice(0, 8)} 環境`,
+        type: 'DOCKER',
+        description: undefined,
+        config: JSON.stringify({
+          imageName: 'ghcr.io/windschord/claude-work-sandbox',
+          imageTag: 'latest',
+        }),
+        project_id: projectId,
+        auth_dir_path: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      mockDbInsertGet.mockReturnValue(expectedResult);
+
+      const result = await service.createForProject(projectId);
+
+      expect(result).toEqual(expectedResult);
+    });
+
+    it('カスタム設定を指定してプロジェクト専用環境を作成できる', async () => {
+      const projectId = 'test-project-id';
+      const customConfig = {
+        name: 'カスタム環境',
+        type: 'HOST' as const,
+        config: { customKey: 'value' },
+      };
+      const expectedResult = {
+        id: 'new-env-id',
+        name: 'カスタム環境',
+        type: 'HOST',
+        description: undefined,
+        config: JSON.stringify({
+          imageName: 'ghcr.io/windschord/claude-work-sandbox',
+          imageTag: 'latest',
+          customKey: 'value',
+        }),
+        project_id: projectId,
+        auth_dir_path: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      mockDbInsertGet.mockReturnValue(expectedResult);
+
+      const result = await service.createForProject(projectId, customConfig);
+
+      expect(result).toEqual(expectedResult);
+    });
+  });
+
+  describe('findByProjectId', () => {
+    it('プロジェクトIDから環境を取得できる', async () => {
+      const projectId = 'test-project-id';
+      const expectedEnv = {
+        id: 'env-123',
+        name: 'Test Env',
+        type: 'DOCKER',
+        description: null,
+        config: '{}',
+        project_id: projectId,
+        auth_dir_path: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      mockDbSelectGet.mockReturnValue(expectedEnv);
+
+      const result = await service.findByProjectId(projectId);
+
+      expect(result).toEqual(expectedEnv);
+    });
+
+    it('存在しないプロジェクトIDの場合はnullを返す', async () => {
+      mockDbSelectGet.mockReturnValue(undefined);
+
+      const result = await service.findByProjectId('non-existent-project');
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('update with type field', () => {
+    it('typeフィールドを変更できる', async () => {
+      const updatedEnv = {
+        id: 'env-123',
+        name: 'Test Env',
+        type: 'HOST',
+        description: null,
+        config: '{}',
+        auth_dir_path: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      mockDbUpdateGet.mockReturnValue(updatedEnv);
+
+      const result = await service.update('env-123', { type: 'HOST' });
+
+      expect(result.type).toBe('HOST');
+    });
+  });
+
+  describe('create with project_id', () => {
+    it('project_idを保存して環境を作成できる', async () => {
+      const projectId = 'test-project-id';
+      const input: import('../environment-service').CreateEnvironmentInput = {
+        name: 'Test Docker',
+        type: 'DOCKER',
+        config: { imageName: 'test-image' },
+        project_id: projectId,
+      };
+
+      const expectedResult = {
+        id: 'test-id-123',
+        name: 'Test Docker',
+        type: 'DOCKER',
+        description: undefined,
+        config: JSON.stringify({ imageName: 'test-image' }),
+        project_id: projectId,
+        auth_dir_path: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      mockDbInsertGet.mockReturnValue(expectedResult);
+
+      const result = await service.create(input);
+
+      expect(result.project_id).toBe(projectId);
+    });
+  });
+
   describe('checkDockerStatus - imageSource handling', () => {
     
     it('should check built image for dockerfile source', async () => {
