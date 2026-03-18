@@ -259,7 +259,7 @@ export function AddProjectWizard({ isOpen, onClose }: AddProjectWizardProps) {
                     <StepRepository
                       wizardData={wizardData}
                       onChange={handleDataChange}
-                      hostEnvironmentDisabled={HOST_ENVIRONMENT_DISABLED}
+                      hostEnvironmentDisabled={hostEnvironmentDisabled}
                     />
                   )}
                   {currentStep === 3 && (
