@@ -57,7 +57,7 @@ export function AddProjectModal({ isOpen, onClose }: AddProjectModalProps) {
     }
   };
 
-  const handleRemoteSubmit = async (url: string, _environmentId: string, targetDir?: string, cloneLocation?: 'host' | 'docker', githubPatId?: string) => {
+  const handleRemoteSubmit = async (url: string, targetDir?: string, cloneLocation?: 'host' | 'docker', githubPatId?: string) => {
     setError('');
     setIsLoading(true);
 

@@ -3,7 +3,6 @@
 import { use } from 'react';
 import { RunScriptList } from '@/components/settings/RunScriptList';
 import { ProjectEnvironmentSettings } from '@/components/settings/ProjectEnvironmentSettings';
-import { useEnvironments } from '@/hooks/useEnvironments';
 
 /**
  * プロジェクト設定ページコンポーネント
@@ -22,7 +21,6 @@ export default function ProjectSettingsPage({
   params: Promise<{ id: string }>;
 }) {
   const { id: projectId } = use(params);
-  const { hostEnvironmentDisabled } = useEnvironments();
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -30,7 +28,7 @@ export default function ProjectSettingsPage({
 
       <div className="space-y-6">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <ProjectEnvironmentSettings projectId={projectId} hostEnvironmentDisabled={hostEnvironmentDisabled} />
+          <ProjectEnvironmentSettings projectId={projectId} />
         </div>
 
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
