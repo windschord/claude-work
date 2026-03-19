@@ -140,6 +140,8 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/package.json ./package.json
+# Drizzle ORMマイグレーションファイル（サーバー起動時にmigrate()で適用）
+COPY --from=builder /app/drizzle ./drizzle
 # 起動スクリプトのコピー（エントリポイントとヘルスチェック）
 COPY --from=builder /app/scripts/docker-entrypoint.sh ./scripts/docker-entrypoint.sh
 COPY --from=builder /app/scripts/healthcheck.js ./scripts/healthcheck.js
