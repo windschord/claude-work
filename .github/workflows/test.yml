@@ -163,6 +163,22 @@ jobs:
       run: SKIP_WEBSERVER=true CLI_PACKAGE_DIR=/tmp/cli-e2e-package/package pnpm exec playwright test --project=cli
       timeout-minutes: 5
 
+  # Migration tests - verifies Drizzle migrate() with data-populated tables
+  test-migration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup project
+      uses: ./.github/actions/setup
+      with:
+        skip-db-setup: 'true'
+
+    - name: Run migration tests
+      run: pnpm run test:migration
+
   # Build job - runs in parallel with lint/unit tests, required by test-e2e for CLI E2E package artifact
   build:
     runs-on: ubuntu-latest
@@ -279,7 +295,7 @@ jobs:
   ci-check:
     runs-on: ubuntu-latest
     timeout-minutes: 1
-    needs: [lint, test-backend, test-frontend, test-e2e, build, mutation-test]
+    needs: [lint, test-backend, test-frontend, test-e2e, build, mutation-test, test-migration]
     if: always()
 
     steps:
@@ -289,7 +305,8 @@ jobs:
            [ "${{ needs.test-backend.result }}" != "success" ] || \
            [ "${{ needs.test-frontend.result }}" != "success" ] || \
            [ "${{ needs.test-e2e.result }}" != "success" ] || \
-           [ "${{ needs.build.result }}" != "success" ]; then
+           [ "${{ needs.build.result }}" != "success" ] || \
+           [ "${{ needs.test-migration.result }}" != "success" ]; then
           echo "One or more jobs failed"
           exit 1
         fi
