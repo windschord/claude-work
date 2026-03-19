@@ -115,15 +115,24 @@ try {
   // マイグレーション後のスキーマ整合性チェック（安全ネット）
   // IF NOT EXISTSベースラインでは既存テーブルのカラム不足を検出できないため、
   // migrate()成功後もスキーマが最新であることを検証する
-  const schemaValidationResult = validateSchemaIntegrity(db.$client);
-  if (!schemaValidationResult.valid) {
-    console.error(formatValidationError(schemaValidationResult));
-    logger.error('Database schema is out of sync after migration. Exiting.');
+  try {
+    const schemaValidationResult = validateSchemaIntegrity(db.$client);
+    if (!schemaValidationResult.valid) {
+      console.error(formatValidationError(schemaValidationResult));
+      logger.error('Database schema is out of sync after migration. Exiting.');
+      process.exit(1);
+    }
+    logger.info('Schema integrity verified', {
+      checkedTables: schemaValidationResult.checkedTables.length,
+    });
+  } catch (error) {
+    console.error(
+      'Database schema validation failed:',
+      error instanceof Error ? error.message : String(error),
+    );
+    logger.error('Database schema validation failed after migration. Exiting.');
     process.exit(1);
   }
-  logger.info('Schema integrity verified', {
-    checkedTables: schemaValidationResult.checkedTables.length,
-  });
 }
 
 const dev = process.env.NODE_ENV !== 'production';
