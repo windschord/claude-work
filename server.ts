@@ -1,4 +1,6 @@
 import dotenv from 'dotenv';
+import fs from 'fs';
+import path from 'path';
 import { createServer, IncomingMessage } from 'http';
 import { parse } from 'url';
 import next from 'next';
@@ -17,6 +19,7 @@ import {
 import { DockerAdapter } from './src/services/adapters/docker-adapter';
 import { db } from './src/lib/db';
 import { ptySessionManager } from './src/services/pty-session-manager';
+import { runMigrations } from './src/lib/migrate';
 import { validateSchemaIntegrity, formatValidationError } from './src/lib/schema-check';
 import { ensureEncryptionKey } from './src/lib/encryption-key-init';
 import { initializeEnvironmentDetection, isRunningInDocker, isHostEnvironmentAllowed } from './src/lib/environment-detect';
@@ -87,17 +90,56 @@ try {
   process.exit(1);
 }
 
-// スキーマ整合性チェック（HTTPサーバー起動前）
-logger.info('Checking database schema integrity...');
-const schemaValidationResult = validateSchemaIntegrity(db.$client);
-if (!schemaValidationResult.valid) {
-  console.error(formatValidationError(schemaValidationResult));
-  logger.error('Database schema is out of sync. Exiting.');
-  process.exit(1);
+// データベースマイグレーション（HTTPサーバー起動前）
+// 開発時(ts-node): __dirname = プロジェクトルート → ./drizzle/
+// 本番時(dist/server.js): __dirname = <root>/dist/ → ../drizzle/
+{
+  const candidatePaths = [
+    path.resolve(__dirname, 'drizzle'),
+    path.resolve(__dirname, '..', 'drizzle'),
+  ];
+  const migrationsFolder = candidatePaths.find((p) => {
+    try {
+      return fs.existsSync(p) && fs.statSync(p).isDirectory();
+    } catch {
+      return false;
+    }
+  });
+  if (!migrationsFolder) {
+    console.error('Migrations directory not found. Searched:', candidatePaths);
+    logger.error('Migrations directory not found. Exiting.', { candidatePaths });
+    process.exit(1);
+  }
+  try {
+    runMigrations(db, migrationsFolder);
+  } catch (error) {
+    console.error('Database migration failed:', error instanceof Error ? error.message : String(error));
+    logger.error('Database migration failed. Exiting.');
+    process.exit(1);
+  }
+
+  // マイグレーション後のスキーマ整合性チェック（安全ネット）
+  // IF NOT EXISTSベースラインでは既存テーブルのカラム不足を検出できないため、
+  // migrate()成功後もスキーマが最新であることを検証する
+  try {
+    const schemaValidationResult = validateSchemaIntegrity(db.$client);
+    if (!schemaValidationResult.valid) {
+      console.error(formatValidationError(schemaValidationResult));
+      logger.error('Database schema is out of sync after migration. Exiting.');
+      process.exit(1);
+    }
+    logger.info('Schema integrity verified', {
+      checkedTables: schemaValidationResult.checkedTables.length,
+    });
+  } catch (error) {
+    console.error(
+      'Database schema validation failed:',
+      error instanceof Error ? error.message : String(error),
+    );
+    logger.error('Database schema validation failed after migration. Exiting.');
+    process.exit(1);
+  }
 }
-logger.info('Schema integrity OK', {
-  checkedTables: schemaValidationResult.checkedTables.length,
-});
 
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = process.env.HOST || 'localhost';

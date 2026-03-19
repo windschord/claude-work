@@ -126,8 +126,8 @@ npm run build:next        # Next.js only
 npm run build:server      # TypeScript server only
 
 # Database
-npm run db:generate       # Generate Drizzle migrations
-npm run db:push           # Push schema to database
+npm run db:generate       # Generate Drizzle migration files
+npm run db:push           # Push schema directly to database (dev only)
 npm run db:studio         # Database GUI
 
 # Linting
@@ -222,20 +222,24 @@ Security: All paths validated against `.worktrees/` base to prevent traversal at
 
 ### Database Migrations
 
-Drizzle ORM schema changes require:
+Drizzle ORM の `migrate()` を使用し、サーバー起動時に自動マイグレーションが実行される。
+マイグレーションファイルは `drizzle/` ディレクトリに配置され、`__drizzle_migrations` テーブルで適用状態を管理する。
 
 ```bash
-# Update schema definition
-# Edit src/db/schema.ts
-
-# Apply schema changes to SQLite
-npm run db:push
-
-# Generate migration files (optional)
+# スキーマ変更時の手順:
+# 1. src/db/schema.ts を編集
+# 2. マイグレーションファイルを生成
 npm run db:generate
+
+# 3. サーバーを再起動（マイグレーションが自動適用される）
+npm run dev                # 直接起動
+npm run dev:restart        # pm2管理下の場合
+
+# 開発時にスキーマを直接同期する場合（マイグレーションファイル不要）
+npm run db:push
 ```
 
-Note: Using `db:push` instead of migrations for SQLite simplicity.
+Note: 本番環境(Docker)でもサーバー起動時に `migrate()` が自動実行される。
 
 ## Testing Strategy
 
@@ -280,9 +284,10 @@ Manual testing script: `npm run integration-test`
 ### Adding Database Model
 
 1. Update `src/db/schema.ts`
-2. Run `npm run db:push`
+2. Run `npm run db:generate` to create migration file
 3. Create service layer in `src/lib/` or `src/services/`
 4. Add tests for database operations
+5. Restart server (migration auto-applied on startup)
 
 ## Known Issues
 

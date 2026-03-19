@@ -1,19 +1,10 @@
 #!/bin/sh
 # Docker entrypoint for Claude Work
-# Handles database migration and claude CLI setup before starting the server
+# Handles claude CLI setup before starting the server
 set -e
 
-# Database migration (idempotent - safe to run on every startup)
-node -e "
-var cliUtils = require('/app/dist/src/bin/cli-utils.js');
-var url = process.env.DATABASE_URL || 'file:/data/claudework.db';
-var dbPath = url.replace(/^file:/, '');
-if (!cliUtils.migrateDatabase(dbPath)) {
-  console.error('Database migration failed');
-  process.exit(1);
-}
-console.log('Database ready.');
-"
+# Database migration is automatically handled by server.js on startup
+# via Drizzle ORM's migrate() function
 
 # If claude CLI is not available and CLAUDE_CODE_PATH is not set,
 # create a stub so the server can start in Docker execution mode.

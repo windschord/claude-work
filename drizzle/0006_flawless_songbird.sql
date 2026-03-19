@@ -1,1 +1,0 @@
-ALTER TABLE `Session` ADD `environment_id` text REFERENCES ExecutionEnvironment(id);
