@@ -194,7 +194,7 @@ describe('formatValidationError', () => {
     expect(message).toContain('Session');
     expect(message).toContain('active_connections');
     expect(message).toContain('destroy_at');
-    expect(message).toContain('npx drizzle-kit push');
+    expect(message).toContain('npm run db:push');
   });
 
   it('エラーメッセージが改行で結合されている', () => {
@@ -230,8 +230,8 @@ describe('formatValidationError', () => {
     expect(message).toContain('╚');
     // 修復方法
     expect(message).toContain('修復方法');
-    expect(message).toContain('npx drizzle-kit generate');
-    expect(message).toContain('npx drizzle-kit push');
+    expect(message).toContain('npm run db:generate');
+    expect(message).toContain('npm run db:push');
     expect(message).toContain('不足しているカラム');
     expect(message).toContain('マイグレーションファイルを生成');
   });

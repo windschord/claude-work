@@ -20,6 +20,7 @@ import { DockerAdapter } from './src/services/adapters/docker-adapter';
 import { db } from './src/lib/db';
 import { ptySessionManager } from './src/services/pty-session-manager';
 import { runMigrations } from './src/lib/migrate';
+import { validateSchemaIntegrity, formatValidationError } from './src/lib/schema-check';
 import { ensureEncryptionKey } from './src/lib/encryption-key-init';
 import { initializeEnvironmentDetection, isRunningInDocker, isHostEnvironmentAllowed } from './src/lib/environment-detect';
 
@@ -110,6 +111,19 @@ try {
     logger.error('Database migration failed. Exiting.');
     process.exit(1);
   }
+
+  // マイグレーション後のスキーマ整合性チェック（安全ネット）
+  // IF NOT EXISTSベースラインでは既存テーブルのカラム不足を検出できないため、
+  // migrate()成功後もスキーマが最新であることを検証する
+  const schemaValidationResult = validateSchemaIntegrity(db.$client);
+  if (!schemaValidationResult.valid) {
+    console.error(formatValidationError(schemaValidationResult));
+    logger.error('Database schema is out of sync after migration. Exiting.');
+    process.exit(1);
+  }
+  logger.info('Schema integrity verified', {
+    checkedTables: schemaValidationResult.checkedTables.length,
+  });
 }
 
 const dev = process.env.NODE_ENV !== 'production';

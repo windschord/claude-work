@@ -8,7 +8,7 @@
 
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
-import { logger } from './logger';
+import { logger } from '@/lib/logger';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyDrizzleDb = BetterSQLite3Database<any>;

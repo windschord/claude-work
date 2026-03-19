@@ -121,13 +121,13 @@ export function formatValidationError(result: SchemaValidationResult): string {
     '',
     '修復方法:',
     '  1. マイグレーションファイルを生成:',
-    '     $ npx drizzle-kit generate',
+    '     $ npm run db:generate',
     '',
     '  2. サーバーを再起動（マイグレーションが自動適用されます）:',
     '     $ npm run dev',
     '',
     '  または直接スキーマを同期（開発用）:',
-    '     $ npx drizzle-kit push',
+    '     $ npm run db:push',
     ''
   );
 
