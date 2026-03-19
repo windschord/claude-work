@@ -126,6 +126,10 @@ describe('validateSchemaIntegrity', () => {
     expect(result.checkedTables).toContain('Project');
     expect(result.checkedTables).toContain('Session');
     expect(result.checkedTables).toContain('ExecutionEnvironment');
+    expect(result.checkedTables).toContain('DeveloperSettings');
+    expect(result.checkedTables).toContain('SshKey');
+    expect(result.checkedTables).toContain('NetworkFilterConfig');
+    expect(result.checkedTables).toContain('NetworkFilterRule');
     expect(result.checkedTables.length).toBe(11);
   });
 
