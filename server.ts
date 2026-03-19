@@ -98,10 +98,16 @@ try {
     path.resolve(__dirname, 'drizzle'),
     path.resolve(__dirname, '..', 'drizzle'),
   ];
-  const migrationsFolder = candidatePaths.find((p) => fs.existsSync(p));
+  const migrationsFolder = candidatePaths.find((p) => {
+    try {
+      return fs.existsSync(p) && fs.statSync(p).isDirectory();
+    } catch {
+      return false;
+    }
+  });
   if (!migrationsFolder) {
     console.error('Migrations directory not found. Searched:', candidatePaths);
-    logger.error('Migrations directory not found. Exiting.');
+    logger.error('Migrations directory not found. Exiting.', { candidatePaths });
     process.exit(1);
   }
   try {
