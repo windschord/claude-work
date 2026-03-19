@@ -230,11 +230,10 @@ describe('formatValidationError', () => {
     expect(message).toContain('╚');
     // 修復方法
     expect(message).toContain('修復方法');
+    expect(message).toContain('npx drizzle-kit generate');
     expect(message).toContain('npx drizzle-kit push');
-    expect(message).toContain('npx claude-work');
     expect(message).toContain('不足しているカラム');
-    expect(message).toContain('スキーマを同期する');
-    expect(message).toContain('自動マイグレーション');
+    expect(message).toContain('マイグレーションファイルを生成');
   });
 
   it('複数テーブルのエラーをグループ化する', () => {

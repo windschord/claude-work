@@ -120,11 +120,14 @@ export function formatValidationError(result: SchemaValidationResult): string {
   lines.push(
     '',
     '修復方法:',
-    '  スキーマを同期するには次のコマンドを実行してください:',
-    '     $ npx drizzle-kit push',
+    '  1. マイグレーションファイルを生成:',
+    '     $ npx drizzle-kit generate',
     '',
-    '  または自動マイグレーションを有効にして再起動:',
-    '     $ npx claude-work',
+    '  2. サーバーを再起動（マイグレーションが自動適用されます）:',
+    '     $ npm run dev',
+    '',
+    '  または直接スキーマを同期（開発用）:',
+    '     $ npx drizzle-kit push',
     ''
   );
 

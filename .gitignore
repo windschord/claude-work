@@ -284,3 +284,9 @@ data/encryption.key
 # Stryker mutation testing
 reports/mutation/
 .stryker-tmp/
+
+# Orchestrating agents session files
+.orchestrating-agents/mission.md
+.orchestrating-agents/task_ledger.md
+.orchestrating-agents/session_state.md
+.orchestrating-agents/archive/
