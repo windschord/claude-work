@@ -21,7 +21,7 @@ const EXCLUDE_DIRS = new Set([
  * テスト時にモック可能にするためstaticメソッドとして公開
  */
 async function runDockerCommand(args: string[]): Promise<{ stdout: string; stderr: string }> {
-  return execFilePromise('docker', args);
+  return execFilePromise('docker', args, { encoding: 'utf8' });
 }
 
 export class EnvFileService {
@@ -31,8 +31,9 @@ export class EnvFileService {
   /**
    * パストラバーサル防止のバリデーション
    * 絶対パスや親ディレクトリへの参照を拒否する
+   * @returns resolved された安全なパス
    */
-  static validatePath(projectPath: string, relativePath: string): void {
+  static validatePath(projectPath: string, relativePath: string): string {
     if (path.isAbsolute(relativePath)) {
       throw new Error(`絶対パスは許可されていません: ${relativePath}`);
     }
@@ -43,6 +44,8 @@ export class EnvFileService {
     if (!resolvedPath.startsWith(normalizedProjectPath + path.sep) && resolvedPath !== normalizedProjectPath) {
       throw new Error(`パストラバーサルが検出されました: ${relativePath}`);
     }
+
+    return resolvedPath;
   }
 
   /**
@@ -54,7 +57,10 @@ export class EnvFileService {
     dockerVolumeId?: string | null,
   ): Promise<string[]> {
     if (cloneLocation === 'docker') {
-      return EnvFileService.listEnvFilesDocker(dockerVolumeId!);
+      if (!dockerVolumeId) {
+        throw new Error('Docker環境ですがdockerVolumeIdが設定されていません');
+      }
+      return EnvFileService.listEnvFilesDocker(dockerVolumeId);
     }
 
     return EnvFileService.listEnvFilesHost(projectPath);
@@ -72,7 +78,10 @@ export class EnvFileService {
     EnvFileService.validatePath(projectPath, relativePath);
 
     if (cloneLocation === 'docker') {
-      return EnvFileService.readEnvFileDocker(dockerVolumeId!, relativePath);
+      if (!dockerVolumeId) {
+        throw new Error('Docker環境ですがdockerVolumeIdが設定されていません');
+      }
+      return EnvFileService.readEnvFileDocker(dockerVolumeId, relativePath);
     }
 
     return EnvFileService.readEnvFileHost(projectPath, relativePath);
@@ -137,14 +146,21 @@ export class EnvFileService {
   }
 
   private static async readEnvFileHost(projectPath: string, relativePath: string): Promise<string> {
-    const fullPath = path.join(projectPath, relativePath);
+    const safePath = EnvFileService.validatePath(projectPath, relativePath);
 
-    const stat = await fs.stat(fullPath);
+    // シンボリックリンク経由のパストラバーサル対策
+    const realPath = await fs.realpath(safePath);
+    const realProjectPath = await fs.realpath(projectPath);
+    if (!realPath.startsWith(realProjectPath + path.sep)) {
+      throw new Error('シンボリックリンクによるパストラバーサルが検出されました');
+    }
+
+    const stat = await fs.stat(safePath);
     if (stat.size > MAX_FILE_SIZE) {
       throw new Error(`ファイルサイズが1MBを超えています: ${relativePath} (${stat.size} bytes)`);
     }
 
-    return fs.readFile(fullPath, 'utf-8');
+    return fs.readFile(safePath, 'utf-8');
   }
 
   private static async readEnvFileDocker(dockerVolumeId: string, relativePath: string): Promise<string> {
@@ -154,6 +170,11 @@ export class EnvFileService {
       'alpine:latest',
       'cat', `/workspace/${relativePath}`,
     ]);
+
+    const size = Buffer.byteLength(stdout, 'utf8');
+    if (size > MAX_FILE_SIZE) {
+      throw new Error(`ファイルサイズが1MBを超えています: ${relativePath} (${size} bytes)`);
+    }
 
     return stdout;
   }

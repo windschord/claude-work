@@ -17,10 +17,10 @@ describe('EnvFileService', () => {
   });
 
   describe('validatePath', () => {
-    it('正当な相対パスを許可する', () => {
-      expect(() => EnvFileService.validatePath('/project', '.env')).not.toThrow();
-      expect(() => EnvFileService.validatePath('/project', '.env.local')).not.toThrow();
-      expect(() => EnvFileService.validatePath('/project', 'config/.env')).not.toThrow();
+    it('正当な相対パスを許可し、resolved pathを返す', () => {
+      expect(EnvFileService.validatePath('/project', '.env')).toBe('/project/.env');
+      expect(EnvFileService.validatePath('/project', '.env.local')).toBe('/project/.env.local');
+      expect(EnvFileService.validatePath('/project', 'config/.env')).toBe('/project/config/.env');
     });
 
     it('../ を含むパスを拒否する', () => {
@@ -97,6 +97,43 @@ describe('EnvFileService', () => {
     });
   });
 
+  describe('readEnvFile (host) - シンボリックリンク対策', () => {
+    it('シンボリックリンクで外部ファイルを指す場合エラーをスローする', async () => {
+      // tmpDir外にファイルを作成
+      const outerDir = await fs.mkdtemp(path.join(os.tmpdir(), 'env-file-outer-'));
+      try {
+        await fs.writeFile(path.join(outerDir, '.env.secret'), 'SECRET=value');
+        await fs.symlink(path.join(outerDir, '.env.secret'), path.join(tmpDir, '.env.link'));
+
+        await expect(
+          EnvFileService.readEnvFile(tmpDir, '.env.link', 'host')
+        ).rejects.toThrow(/シンボリックリンク/);
+      } finally {
+        await fs.rm(outerDir, { recursive: true, force: true });
+      }
+    });
+  });
+
+  describe('dockerVolumeId null チェック', () => {
+    it('listEnvFiles: docker環境でdockerVolumeIdがnullならエラー', async () => {
+      await expect(
+        EnvFileService.listEnvFiles('/project', 'docker', null)
+      ).rejects.toThrow(/dockerVolumeId/);
+    });
+
+    it('listEnvFiles: docker環境でdockerVolumeIdがundefinedならエラー', async () => {
+      await expect(
+        EnvFileService.listEnvFiles('/project', 'docker')
+      ).rejects.toThrow(/dockerVolumeId/);
+    });
+
+    it('readEnvFile: docker環境でdockerVolumeIdがnullならエラー', async () => {
+      await expect(
+        EnvFileService.readEnvFile('/project', '.env', 'docker', null)
+      ).rejects.toThrow(/dockerVolumeId/);
+    });
+  });
+
   describe('listEnvFiles (docker)', () => {
     it('docker run + find でファイル一覧を取得する', async () => {
       const mockRunDocker = vi.spyOn(EnvFileService, '_runDockerCommand')
@@ -130,6 +167,19 @@ describe('EnvFileService', () => {
       await expect(
         EnvFileService.readEnvFile('/project', '../.env', 'docker', 'test-volume')
       ).rejects.toThrow();
+    });
+
+    it('1MBを超えるファイルでエラーをスローする', async () => {
+      const largeContent = 'K'.repeat(1024 * 1024 + 1);
+      vi.spyOn(EnvFileService, '_runDockerCommand')
+        .mockResolvedValue({
+          stdout: largeContent,
+          stderr: '',
+        });
+
+      await expect(
+        EnvFileService.readEnvFile('/project', '.env', 'docker', 'test-volume')
+      ).rejects.toThrow(/1MB/);
     });
   });
 });

@@ -72,7 +72,7 @@ export function EnvVarImportSection({
       const response = await fetch(`/api/projects/${projectId}/env-files/parse`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename }),
+        body: JSON.stringify({ path: filename }),
       });
       if (!response.ok) {
         throw new Error('ファイルのパースに失敗しました');

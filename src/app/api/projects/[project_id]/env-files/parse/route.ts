@@ -27,6 +27,13 @@ export async function POST(
       return NextResponse.json({ error: 'path is required and must be a non-empty string' }, { status: 400 });
     }
 
+    // .envファイル以外の読み取りを防止
+    const fileName = filePath.split('/').pop() ?? '';
+    const envFilePattern = /^\.env(\.[\w.-]+)?$/;
+    if (!envFilePattern.test(fileName)) {
+      return NextResponse.json({ error: '.envファイルのみ読み込みが許可されています' }, { status: 400 });
+    }
+
     const project = db
       .select()
       .from(schema.projects)
