@@ -114,7 +114,10 @@ export function EnvVarImportSection({
 
   if (state === 'idle') {
     return (
-      <div className="mb-2">
+      <div className="mb-2 space-y-1">
+        {error && (
+          <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
+        )}
         <button
           type="button"
           onClick={handleStartImport}

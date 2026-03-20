@@ -1,3 +1,4 @@
+import path from 'path';
 import { NextRequest, NextResponse } from 'next/server';
 import { db, schema } from '@/lib/db';
 import { eq } from 'drizzle-orm';
@@ -28,7 +29,7 @@ export async function POST(
     }
 
     // .envファイル以外の読み取りを防止
-    const fileName = filePath.split('/').pop() ?? '';
+    const fileName = path.basename(filePath);
     const envFilePattern = /^\.env(\.[\w.-]+)?$/;
     if (!envFilePattern.test(fileName)) {
       return NextResponse.json({ error: '.envファイルのみ読み込みが許可されています' }, { status: 400 });
@@ -66,8 +67,12 @@ export async function POST(
         if (error.message.includes('1MB')) {
           return NextResponse.json({ error: error.message }, { status: 413 });
         }
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT' || error.message.includes('存在しません')) {
           return NextResponse.json({ error: 'File not found' }, { status: 404 });
+        }
+        // 許可ポリシー違反（.envパターン不一致、除外ディレクトリ等）
+        if (error.message.includes('許可されていません')) {
+          return NextResponse.json({ error: error.message }, { status: 400 });
         }
       }
       throw error;

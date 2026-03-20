@@ -22,7 +22,7 @@ const EXCLUDE_DIRS = new Set([
  * テスト時にモック可能にするためstaticメソッドとして公開
  */
 async function runDockerCommand(args: string[]): Promise<{ stdout: string; stderr: string }> {
-  return execFilePromise('docker', args, { encoding: 'utf8', maxBuffer: 2 * 1024 * 1024 });
+  return execFilePromise('docker', args, { encoding: 'utf8', maxBuffer: 2 * 1024 * 1024, timeout: 30000 });
 }
 
 export class EnvFileService {
@@ -193,10 +193,18 @@ export class EnvFileService {
       'run', '--rm',
       '-v', `${dockerVolumeId}:/workspace`,
       'alpine:latest',
-      'sh', '-c', `size=$(stat -c %s "${filePath}" 2>/dev/null) && [ "$size" -le ${maxSize} ] && cat "${filePath}" || echo "___SIZE_EXCEEDED___"`,
+      'sh', '-c',
+      'if ! size=$(stat -c %s "$1" 2>/dev/null); then echo "___NOT_FOUND___"; elif [ "$size" -le $2 ]; then cat "$1"; else echo "___SIZE_EXCEEDED___"; fi',
+      '--', filePath, String(maxSize),
     ]);
 
-    if (stdout.trim() === '___SIZE_EXCEEDED___') {
+    const output = stdout.trim();
+    if (output === '___NOT_FOUND___') {
+      const err = new Error(`ファイルが存在しません: ${relativePath}`);
+      (err as NodeJS.ErrnoException).code = 'ENOENT';
+      throw err;
+    }
+    if (output === '___SIZE_EXCEEDED___') {
       throw new Error(`ファイルサイズが1MBを超えています: ${relativePath}`);
     }
 
