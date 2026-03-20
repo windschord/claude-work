@@ -48,6 +48,10 @@ export function validateSchemaIntegrity(
     schema.prompts,
     schema.runScripts,
     schema.githubPats,
+    schema.developerSettings,
+    schema.sshKeys,
+    schema.networkFilterConfigs,
+    schema.networkFilterRules,
   ];
 
   for (const table of tables) {

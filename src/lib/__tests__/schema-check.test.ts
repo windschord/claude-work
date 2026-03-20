@@ -68,6 +68,31 @@ describe('validateSchemaIntegrity', () => {
         token TEXT NOT NULL,
         created_at INTEGER NOT NULL
       );
+
+      CREATE TABLE DeveloperSettings (
+        id TEXT PRIMARY KEY,
+        scope TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      );
+
+      CREATE TABLE SshKey (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      );
+
+      CREATE TABLE NetworkFilterConfig (
+        id TEXT PRIMARY KEY,
+        environment_id TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      );
+
+      CREATE TABLE NetworkFilterRule (
+        id TEXT PRIMARY KEY,
+        environment_id TEXT NOT NULL,
+        target TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      );
     `);
   });
 
@@ -98,10 +123,18 @@ describe('validateSchemaIntegrity', () => {
   it('検証対象テーブル一覧を返す', () => {
     const result = validateSchemaIntegrity(db);
 
-    expect(result.checkedTables).toContain('Project');
-    expect(result.checkedTables).toContain('Session');
-    expect(result.checkedTables).toContain('ExecutionEnvironment');
-    expect(result.checkedTables.length).toBe(7);
+    // schema.tsの全テーブル定義と一致することを検証
+    const expectedTables = [
+      schema.projects, schema.sessions, schema.executionEnvironments,
+      schema.messages, schema.prompts, schema.runScripts, schema.githubPats,
+      schema.developerSettings, schema.sshKeys,
+      schema.networkFilterConfigs, schema.networkFilterRules,
+    ].map(t => getTableName(t));
+
+    for (const table of expectedTables) {
+      expect(result.checkedTables).toContain(table);
+    }
+    expect(result.checkedTables.length).toBe(expectedTables.length);
   });
 
   it('timestampを含む', () => {
@@ -135,6 +168,10 @@ describe('validateSchemaIntegrity', () => {
       schema.prompts,
       schema.runScripts,
       schema.githubPats,
+      schema.developerSettings,
+      schema.sshKeys,
+      schema.networkFilterConfigs,
+      schema.networkFilterRules,
     ];
 
     for (const table of tables) {
