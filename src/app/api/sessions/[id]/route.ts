@@ -81,7 +81,7 @@ export async function GET(
  * DELETE /api/sessions/[id] - セッション削除
  *
  * 指定されたIDのセッションを削除します。
- * 実行中のプロセスは停止され、Git worktreeが削除され、データベースからセッションが削除されます。
+ * 実行中のプロセスは停止され、データベースからセッションが削除されます。
  *
  * @param params.id - セッションID
  *

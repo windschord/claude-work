@@ -36,6 +36,14 @@ const DEFAULT_CONFIG: Required<AppConfig> = {
 };
 
 /**
+ * ネストオブジェクト(claude_defaults)を含む設定のdeep copy
+ */
+const cloneConfig = (config: Required<AppConfig>): Required<AppConfig> => ({
+  ...config,
+  claude_defaults: { ...config.claude_defaults },
+});
+
+/**
  * ConfigService
  * アプリケーション設定の管理
  */
@@ -45,7 +53,7 @@ export class ConfigService {
 
   constructor(configPath?: string) {
     this.configPath = configPath || path.join(process.cwd(), 'data', 'settings.json');
-    this.config = { ...DEFAULT_CONFIG };
+    this.config = cloneConfig(DEFAULT_CONFIG);
   }
 
   /**
@@ -81,10 +89,10 @@ export class ConfigService {
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
         logger.info('Configuration file not found, using defaults', { configPath: this.configPath });
-        this.config = { ...DEFAULT_CONFIG };
+        this.config = cloneConfig(DEFAULT_CONFIG);
       } else {
         logger.error('Failed to load configuration, using defaults', { error });
-        this.config = { ...DEFAULT_CONFIG };
+        this.config = cloneConfig(DEFAULT_CONFIG);
       }
     }
   }
@@ -164,7 +172,7 @@ export class ConfigService {
    * 設定全体を取得
    */
   getConfig(): Required<AppConfig> {
-    return { ...this.config };
+    return cloneConfig(this.config);
   }
 }
 

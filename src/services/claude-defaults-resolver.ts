@@ -55,6 +55,10 @@ export class ClaudeDefaultsResolver {
     projectOptions: ClaudeCodeOptions,
     sessionOptions: ClaudeCodeOptions | null
   ): ResolvedClaudeOptions {
+    // Layer 3-4のマージを先に実行（project -> session）
+    // ClaudeOptionsService.mergeOptions() は空文字列によるクリアを正しく処理する
+    const merged = ClaudeOptionsService.mergeOptions(projectOptions, sessionOptions);
+
     // --- dangerouslySkipPermissions ---
     // Layer 1: アプリ共通デフォルト
     let skipPermissions: boolean = appDefaults.dangerouslySkipPermissions ?? false;
@@ -70,14 +74,9 @@ export class ClaudeDefaultsResolver {
       }
     }
 
-    // Layer 3: プロジェクト設定
-    if (projectOptions.dangerouslySkipPermissions !== undefined) {
-      skipPermissions = projectOptions.dangerouslySkipPermissions;
-    }
-
-    // Layer 4: セッション設定
-    if (sessionOptions?.dangerouslySkipPermissions !== undefined) {
-      skipPermissions = sessionOptions.dangerouslySkipPermissions;
+    // Layer 3-4: マージ済みのプロジェクト/セッション設定を適用
+    if (merged.dangerouslySkipPermissions !== undefined) {
+      skipPermissions = merged.dangerouslySkipPermissions;
     }
 
     // HOST環境では常にfalse
@@ -94,18 +93,10 @@ export class ClaudeDefaultsResolver {
       worktree = envOverride.worktree;
     }
 
-    // Layer 3: プロジェクト設定
-    if (projectOptions.worktree !== undefined) {
-      worktree = projectOptions.worktree;
+    // Layer 3-4: マージ済みのプロジェクト/セッション設定を適用
+    if (merged.worktree !== undefined) {
+      worktree = merged.worktree;
     }
-
-    // Layer 4: セッション設定
-    if (sessionOptions?.worktree !== undefined) {
-      worktree = sessionOptions.worktree;
-    }
-
-    // --- 他のフィールド: project -> session マージ ---
-    const merged = ClaudeOptionsService.mergeOptions(projectOptions, sessionOptions);
 
     return {
       dangerouslySkipPermissions: skipPermissions,

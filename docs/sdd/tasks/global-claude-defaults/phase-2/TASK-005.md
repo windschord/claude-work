@@ -76,4 +76,5 @@ it('should create session with Claude Code --worktree mode', async () => {
 - [ ] branch_nameが空文字列に設定される
 - [ ] GitService.createWorktree()が呼ばれない
 - [ ] DockerGitService.createWorktree()が呼ばれない
+- [ ] worktree=falseの場合もworktree_pathはプロジェクトパスに設定される（PTYSessionManagerで解決される設定に依存）
 - [ ] テストが全て通過する

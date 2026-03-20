@@ -25,12 +25,12 @@
 
 ## 並列実行グループ
 
-### グループA (Phase 1: 基盤 - 並列実行可能)
+### グループA (Phase 1: 基盤 - 順次実行)
 
 | タスク | 対象ファイル | 依存 |
 |--------|-------------|------|
 | TASK-001 | src/services/config-service.ts + テスト | なし |
-| TASK-003 | src/services/claude-defaults-resolver.ts + テスト | TASK-001 |
+| TASK-003 | src/services/claude-defaults-resolver.ts + テスト | TASK-001 (TASK-001完了後に実行) |
 
 ### グループB (Phase 1 -> Phase 2: API)
 

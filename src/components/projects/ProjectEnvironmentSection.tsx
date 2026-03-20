@@ -66,7 +66,6 @@ export function ProjectEnvironmentSection({ projectId }: ProjectEnvironmentSecti
   // Docker設定
   const [imageName, setImageName] = useState('');
   const [imageTag, setImageTag] = useState('latest');
-  const [skipPermissions, setSkipPermissions] = useState(false);
   const [portMappings, setPortMappings] = useState<PortMapping[]>([]);
   const [volumeMounts, setVolumeMounts] = useState<VolumeMount[]>([]);
   const [dangerousPath, setDangerousPath] = useState<string | null>(null);
@@ -125,21 +124,24 @@ export function ProjectEnvironmentSection({ projectId }: ProjectEnvironmentSecti
             setImageTag('latest');
           }
 
-          setSkipPermissions(config.skipPermissions === true);
           setPortMappings(Array.isArray(config.portMappings) ? config.portMappings : []);
           setVolumeMounts(Array.isArray(config.volumeMounts) ? config.volumeMounts : []);
 
           // claude_defaults_override の復元
+          // 旧skipPermissionsからの移行: claude_defaults_overrideが未設定の場合、
+          // 旧skipPermissions=trueをclaude_defaults_override.dangerouslySkipPermissions=trueに移行
           const override = config.claude_defaults_override;
           if (override) {
             setOverrideSkipPermissions(override.dangerouslySkipPermissions ?? 'inherit');
             setOverrideWorktree(override.worktree ?? 'inherit');
+          } else if (config.skipPermissions === true) {
+            // 旧skipPermissionsの値をclaude_defaults_overrideに移行
+            setOverrideSkipPermissions(true);
           }
 
           initialConfigRef.current = {
             imageName: config.imageName,
             imageTag: config.imageTag,
-            skipPermissions: config.skipPermissions,
             portMappings: config.portMappings,
             volumeMounts: config.volumeMounts,
           };
@@ -194,17 +196,22 @@ export function ProjectEnvironmentSection({ projectId }: ProjectEnvironmentSecti
     setWarning(null);
 
     try {
+      // 両方 'inherit' の場合は claude_defaults_override を保存しない
+      // （旧skipPermissionsのlegacy fallbackが引き続き動作するようにするため）
+      const hasOverrides = overrideSkipPermissions !== 'inherit' || overrideWorktree !== 'inherit';
       const config: EnvironmentConfig = environmentType === 'DOCKER'
         ? {
             imageName: imageName.trim() || 'ghcr.io/windschord/claude-work-sandbox',
             imageTag: imageTag.trim() || 'latest',
-            skipPermissions,
+            // skipPermissionsはclaude_defaults_overrideに一本化（新規保存時は設定しない）
             portMappings: portMappings.length > 0 ? portMappings : undefined,
             volumeMounts: volumeMounts.length > 0 ? volumeMounts : undefined,
-            claude_defaults_override: {
-              dangerouslySkipPermissions: overrideSkipPermissions,
-              worktree: overrideWorktree,
-            },
+            ...(hasOverrides ? {
+              claude_defaults_override: {
+                dangerouslySkipPermissions: overrideSkipPermissions,
+                worktree: overrideWorktree,
+              },
+            } : {}),
           }
         : {};
 
@@ -374,47 +381,6 @@ export function ProjectEnvironmentSection({ projectId }: ProjectEnvironmentSecti
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
               disabled={isSaving}
             />
-          </div>
-
-          {/* Skip Permissions */}
-          <div className="p-3 border border-amber-200 dark:border-amber-700 rounded-lg bg-amber-50 dark:bg-amber-900/20">
-            <div className="flex items-center justify-between">
-              <div>
-                <label
-                  htmlFor="env-skip-permissions"
-                  className="text-sm font-medium text-gray-700 dark:text-gray-300"
-                >
-                  パーミッション確認をスキップ
-                </label>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                  --dangerously-skip-permissions フラグを有効にします
-                </p>
-              </div>
-              <button
-                id="env-skip-permissions"
-                type="button"
-                role="switch"
-                aria-checked={skipPermissions}
-                onClick={() => setSkipPermissions(!skipPermissions)}
-                disabled={isSaving}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                  skipPermissions
-                    ? 'bg-amber-500'
-                    : 'bg-gray-200 dark:bg-gray-600'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    skipPermissions ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-            </div>
-            {skipPermissions && (
-              <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
-                この設定を有効にすると、Claude Codeが確認なしでツールを実行します。信頼できるコードベースでのみ使用してください。
-              </p>
-            )}
           </div>
 
           {/* Claude Code設定オーバーライド */}

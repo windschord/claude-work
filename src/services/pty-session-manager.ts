@@ -195,9 +195,20 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
       )
       const skipPermissions = resolved.dangerouslySkipPermissions
 
+      // resolved の worktree/model 等を claudeCodeOptions にマージ
+      // ClaudeDefaultsResolver で解決された値が実際の起動引数に反映されるようにする
+      const resolvedClaudeOptions: ClaudeCodeOptions = {
+        ...claudeCodeOptions,
+        worktree: resolved.worktree,
+        ...(resolved.model ? { model: resolved.model } : {}),
+        ...(resolved.allowedTools ? { allowedTools: resolved.allowedTools } : {}),
+        ...(resolved.permissionMode ? { permissionMode: resolved.permissionMode } : {}),
+        ...(resolved.additionalFlags ? { additionalFlags: resolved.additionalFlags } : {}),
+      }
+
       // dangerouslySkipPermissionsの除去 + skipPermissions有効時の矛盾オプション除去
       const { result: adapterClaudeOptions, warnings } =
-        ClaudeOptionsService.stripConflictingOptions(claudeCodeOptions, skipPermissions)
+        ClaudeOptionsService.stripConflictingOptions(resolvedClaudeOptions, skipPermissions)
       for (const warning of warnings) {
         logger.warn(warning)
       }

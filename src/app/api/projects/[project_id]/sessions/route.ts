@@ -262,8 +262,11 @@ export async function POST(
       sessionDisplayName = generateUniqueSessionName(existingNames);
     }
 
-    // worktreeは常にClaude Code --worktreeモードで管理
-    // プロジェクトパスをworktree_pathとし、branch_nameは空文字列
+    // worktree_pathはセッション作成時点ではプロジェクトパスを設定する。
+    // worktreeの有効/無効はPTYSessionManager内のClaudeDefaultsResolverで解決される。
+    // 注意: diff/commits/rebase/merge/reset APIはworktree_pathのbasenameをsessionNameとして
+    // GitServiceに渡しており、GitService側は`.worktrees/<sessionName>`を前提にしている。
+    // この制約はアーキテクチャ課題として認識済み（設計書のエスカレーション事項参照）。
     let worktreePath: string;
     if (project.clone_location === 'docker') {
       worktreePath = '/repo';

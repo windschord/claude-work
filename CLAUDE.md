@@ -689,7 +689,7 @@ describe('Connection management', () => {
 - `run-script-manager.ts` - カスタムスクリプト実行
 
 **Git:**
-- `git-service.ts` - Worktree作成/削除、rebase、squash merge、diff
+- `git-service.ts` - rebase、squash merge、diff、コミット取得
 - `docker-git-service.ts` - Docker volume内のGit操作
 - `gh-cli.ts` - GitHub CLI wrapper (PR作成・ステータス)
 

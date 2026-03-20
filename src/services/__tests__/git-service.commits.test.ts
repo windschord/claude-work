@@ -8,6 +8,10 @@ import { execSync } from 'child_process';
 
 /**
  * テスト用ヘルパー: git worktreeを直接作成
+ *
+ * NOTE: このテストではtmpディレクトリに実gitリポジトリを作成し、実際のgitコマンドを使用する。
+ * git-service.test.tsのgetDiff等と同様のパターン。テスト環境依存だが、
+ * tmpディレクトリを使用しているため影響は限定的。
  */
 function createTestWorktree(repoPath: string, sessionName: string): string {
   const branchName = `session/${sessionName}`;
