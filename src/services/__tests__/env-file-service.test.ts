@@ -173,15 +173,23 @@ describe('EnvFileService', () => {
     });
 
     it('1MBを超えるファイルでエラーをスローする', async () => {
+      // exit code 2 = サイズ超過
       vi.spyOn(EnvFileService, '_runDockerCommand')
-        .mockResolvedValueOnce({
-          stdout: '___SIZE_EXCEEDED___',
-          stderr: '',
-        });
+        .mockRejectedValueOnce({ code: 2, stderr: '' });
 
       await expect(
         EnvFileService.readEnvFile('/project', '.env', 'docker', 'test-volume')
       ).rejects.toThrow(/1MB/);
+    });
+
+    it('ファイル未存在でENOENTエラーをスローする', async () => {
+      // exit code 1 = ファイル未存在
+      vi.spyOn(EnvFileService, '_runDockerCommand')
+        .mockRejectedValueOnce({ code: 1, stderr: '' });
+
+      await expect(
+        EnvFileService.readEnvFile('/project', '.env', 'docker', 'test-volume')
+      ).rejects.toThrow(/存在しません/);
     });
   });
 });

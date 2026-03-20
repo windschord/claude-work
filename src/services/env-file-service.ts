@@ -196,27 +196,32 @@ export class EnvFileService {
 
   private static async readEnvFileDocker(dockerVolumeId: string, relativePath: string): Promise<string> {
     // TOCTOU対策: サイズ確認と読み込みを1回のコンテナ実行で行う
+    // exit codeで結果を区別（sentinel文字列がファイル内容と衝突するリスクを排除）
+    // exit 0: 成功(catの結果がstdout), exit 1: ファイル未存在, exit 2: サイズ超過
     const filePath = `/workspace/${relativePath}`;
     const maxSize = MAX_FILE_SIZE;
-    const { stdout } = await EnvFileService._runDockerCommand([
-      'run', '--rm',
-      '-v', `${dockerVolumeId}:/workspace`,
-      'alpine:latest',
-      'sh', '-c',
-      'if ! size=$(stat -c %s "$1" 2>/dev/null); then echo "___NOT_FOUND___"; elif [ "$size" -le $2 ]; then cat "$1"; else echo "___SIZE_EXCEEDED___"; fi',
-      '--', filePath, String(maxSize),
-    ]);
-
-    const output = stdout.trim();
-    if (output === '___NOT_FOUND___') {
-      const err = new Error(`ファイルが存在しません: ${relativePath}`);
-      (err as NodeJS.ErrnoException).code = 'ENOENT';
-      throw err;
+    try {
+      const { stdout } = await EnvFileService._runDockerCommand([
+        'run', '--rm',
+        '-v', `${dockerVolumeId}:/workspace`,
+        'alpine:latest',
+        'sh', '-c',
+        'if ! size=$(stat -c %s "$1" 2>/dev/null); then exit 1; elif [ "$size" -gt $2 ]; then exit 2; else cat "$1"; fi',
+        '--', filePath, String(maxSize),
+      ]);
+      return stdout;
+    } catch (error) {
+      // execFileはexit code != 0でrejectする
+      const execError = error as { code?: number | string; stderr?: string };
+      if (execError.code === 1) {
+        const err = new Error(`ファイルが存在しません: ${relativePath}`);
+        (err as NodeJS.ErrnoException).code = 'ENOENT';
+        throw err;
+      }
+      if (execError.code === 2) {
+        throw new Error(`ファイルサイズが1MBを超えています: ${relativePath}`);
+      }
+      throw error;
     }
-    if (output === '___SIZE_EXCEEDED___') {
-      throw new Error(`ファイルサイズが1MBを超えています: ${relativePath}`);
-    }
-
-    return stdout;
   }
 }

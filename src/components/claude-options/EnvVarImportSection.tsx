@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { FileUp, AlertTriangle, Loader2 } from 'lucide-react';
 import type { CustomEnvVars } from '@/services/claude-options-service';
 
@@ -29,6 +29,7 @@ export function EnvVarImportSection({
   const [selectedFile, setSelectedFile] = useState('');
   const [parseResult, setParseResult] = useState<ParseResult | null>(null);
   const [error, setError] = useState('');
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const handleStartImport = async () => {
     setState('loading-files');
@@ -37,7 +38,8 @@ export function EnvVarImportSection({
     try {
       const response = await fetch(`/api/projects/${projectId}/env-files`);
       if (!response.ok) {
-        throw new Error('ファイル一覧の取得に失敗しました');
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.error || 'ファイル一覧の取得に失敗しました');
       }
       const data = await response.json();
       const files: string[] = data.files || [];
@@ -64,6 +66,11 @@ export function EnvVarImportSection({
       return;
     }
 
+    // 前回のリクエストを中断
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setSelectedFile(filename);
     setState('loading-parse');
     setError('');
@@ -73,14 +80,22 @@ export function EnvVarImportSection({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path: filename }),
+        signal: controller.signal,
       });
       if (!response.ok) {
-        throw new Error('ファイルのパースに失敗しました');
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.error || 'ファイルのパースに失敗しました');
       }
       const data: ParseResult = await response.json();
-      setParseResult(data);
-      setState('preview');
+      // キャンセルされていなければ状態更新
+      if (!controller.signal.aborted) {
+        setParseResult(data);
+        setState('preview');
+      }
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        return; // キャンセルされた場合は何もしない
+      }
       setError(err instanceof Error ? err.message : 'エラーが発生しました');
       setState('select-file');
     }
@@ -93,6 +108,8 @@ export function EnvVarImportSection({
   };
 
   const handleCancel = () => {
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
     setState('idle');
     setEnvFiles([]);
     setSelectedFile('');
