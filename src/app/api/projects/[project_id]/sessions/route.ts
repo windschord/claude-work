@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, schema } from '@/lib/db';
 import { eq, desc, and } from 'drizzle-orm';
-import { GitService } from '@/services/git-service';
 import { logger } from '@/lib/logger';
 import { generateUniqueSessionName } from '@/lib/session-name-generator';
 import { environmentService } from '@/services/environment-service';
@@ -263,84 +262,15 @@ export async function POST(
       sessionDisplayName = generateUniqueSessionName(existingNames);
     }
 
-    const timestamp = Date.now();
-    const sessionName = `session-${timestamp}`;
-
-    // worktreeオプション判定（worktree作成スキップ判定のための簡易マージ）
-    const projectOptions = ClaudeOptionsService.parseOptions(project.claude_code_options);
-    const sessionWorktreeOptions = claude_code_options || {};
-    const mergedForWorktreeCheck = ClaudeOptionsService.mergeOptions(projectOptions, sessionWorktreeOptions);
-    const useClaudeWorktree = ClaudeOptionsService.hasWorktreeOption(mergedForWorktreeCheck);
-
+    // worktreeは常にClaude Code --worktreeモードで管理
+    // プロジェクトパスをworktree_pathとし、branch_nameは空文字列
     let worktreePath: string;
-    let branchName: string;
-
-    if (useClaudeWorktree) {
-      // Claude Codeがworktreeを管理するため、プロジェクトパスをそのまま使用
-      if (project.clone_location === 'docker') {
-        worktreePath = '/repo';
-      } else {
-        worktreePath = project.path;
-      }
-      branchName = '';
-      logger.info('Using Claude Code --worktree mode, skipping manual worktree creation', {
-        project_id,
-        sessionName,
-      });
+    if (project.clone_location === 'docker') {
+      worktreePath = '/repo';
     } else {
-      branchName = `session/${sessionName}`;
-
-      try {
-        if (project.clone_location === 'docker') {
-          // Docker環境でcloneされたプロジェクト → DockerGitServiceを使用
-          const { DockerGitService } = await import('@/services/docker-git-service');
-          const dockerGitService = new DockerGitService();
-
-          // NOTE: source_branch は現在 DockerGitService では未対応のため無視される。
-          // DockerGitService.createWorktree は GitWorktreeOptions に source_branch フィールドを
-          // 持たず、Docker内で git worktree add を実行する際にブランチ元を指定する仕組みがない。
-          // 対応が必要な場合は DockerGitService と GitWorktreeOptions を拡張すること。
-          const result = await dockerGitService.createWorktree({
-            projectId: project.id,
-            sessionName: sessionName,
-            branchName: branchName,
-            dockerVolumeId: project.docker_volume_id,
-          });
-
-          if (!result.success) {
-            throw result.error || new Error('Failed to create worktree in Docker environment');
-          }
-
-          // Docker環境の場合、worktreeパスはDockerボリューム内のパス
-          worktreePath = `/repo/.worktrees/${sessionName}`;
-
-          logger.info('Created worktree in Docker volume', {
-            project_id,
-            sessionName,
-            volumeName: project.docker_volume_id || `claude-repo-${project.id}`,
-          });
-        } else {
-          // Host環境でcloneされたプロジェクト → GitServiceを使用
-          const gitService = new GitService(project.path, logger);
-          worktreePath = gitService.createWorktree(sessionName, source_branch || undefined);
-
-          logger.info('Created worktree on host filesystem', {
-            project_id,
-            sessionName,
-            worktreePath,
-          });
-        }
-      } catch (worktreeError) {
-        logger.error('Failed to create worktree', {
-          errorMessage: worktreeError instanceof Error ? worktreeError.message : String(worktreeError),
-          errorStack: worktreeError instanceof Error ? worktreeError.stack : undefined,
-          project_id,
-          sessionName,
-          clone_location: project.clone_location,
-        });
-        throw worktreeError;
-      }
+      worktreePath = project.path;
     }
+    const branchName = '';
 
     const newSession = db.insert(schema.sessions).values({
       project_id,

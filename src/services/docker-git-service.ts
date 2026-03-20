@@ -9,7 +9,6 @@ import { DockerClient } from './docker-client';
 import {
   GitOperations,
   GitCloneOptions,
-  GitWorktreeOptions,
   GitOperationResult,
   GitOperationError,
 } from './git-operations';
@@ -420,82 +419,6 @@ export class DockerGitService implements GitOperations {
         true,
         this.sanitizeError(error as Error)
       );
-    }
-  }
-
-  /**
-   * worktreeを作成する
-   */
-  async createWorktree(options: GitWorktreeOptions): Promise<GitOperationResult> {
-    const { projectId, sessionName, branchName, dockerVolumeId } = options;
-    this.validateSessionName(sessionName);
-    const volumeName = this.getVolumeName(projectId, dockerVolumeId);
-
-    try {
-      const auth = await this.buildAuthBindsAndEnv();
-      const Binds = [`${volumeName}:/repo`, ...auth.Binds];
-      const Env = [...auth.Env];
-
-      const cmd = ['-C', '/repo', 'worktree', 'add', `/repo/.worktrees/${sessionName}`, '-b', branchName];
-
-      logger.info('[docker] Creating worktree', { projectId, sessionName, branchName });
-
-      const startTime = Date.now();
-      await this.retryWithBackoff(
-        () => this.runContainer('alpine/git', cmd, { Binds, Env }),
-        'worktree',
-      );
-      const duration = Date.now() - startTime;
-
-      logger.info('[docker] worktree created', { projectId, sessionName, duration });
-
-      return {
-        success: true,
-        message: `Worktree created successfully: ${sessionName}`,
-      };
-    } catch (error) {
-      logger.error('[docker] Failed to create worktree', { error, projectId, sessionName });
-
-      if (error instanceof GitOperationError) throw error;
-
-      throw new GitOperationError(
-        `Failed to create worktree in Docker environment`,
-        'docker',
-        'worktree',
-        true,
-        this.sanitizeError(error as Error)
-      );
-    }
-  }
-
-  /**
-   * worktreeを削除する
-   */
-  async deleteWorktree(projectId: string, sessionName: string, dockerVolumeId?: string | null): Promise<GitOperationResult> {
-    this.validateSessionName(sessionName);
-    const volumeName = this.getVolumeName(projectId, dockerVolumeId);
-
-    try {
-      const Binds = [`${volumeName}:/repo`];
-      const cmd = ['-C', '/repo', 'worktree', 'remove', `.worktrees/${sessionName}`];
-
-      logger.info('[docker] Deleting worktree', { projectId, sessionName });
-
-      await this.runContainer('alpine/git', cmd, { Binds });
-
-      logger.info('[docker] worktree deleted', { projectId, sessionName });
-
-      return {
-        success: true,
-        message: `Worktree deleted successfully: ${sessionName}`,
-      };
-    } catch (error) {
-      logger.error('[docker] Failed to delete worktree', { error, projectId, sessionName });
-
-      return {
-        success: false,
-        error: error as Error,
-      };
     }
   }
 

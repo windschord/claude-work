@@ -6,6 +6,30 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { execSync } from 'child_process';
 
+/**
+ * テスト用ヘルパー: git worktreeを直接作成
+ */
+function createTestWorktree(repoPath: string, sessionName: string): string {
+  const branchName = `session/${sessionName}`;
+  const worktreePath = join(repoPath, '.worktrees', sessionName);
+  execSync(`git worktree add -b "${branchName}" "${worktreePath}"`, {
+    cwd: repoPath,
+    encoding: 'utf-8',
+  });
+  return worktreePath;
+}
+
+/**
+ * テスト用ヘルパー: git worktreeを直接削除
+ */
+function removeTestWorktree(repoPath: string, sessionName: string): void {
+  const worktreePath = join(repoPath, '.worktrees', sessionName);
+  execSync(`git worktree remove "${worktreePath}" --force`, {
+    cwd: repoPath,
+    encoding: 'utf-8',
+  });
+}
+
 describe('GitService.getCommits', () => {
   let testRepoPath: string;
   let gitService: GitService;
@@ -33,8 +57,7 @@ describe('GitService.getCommits', () => {
     const sessionName = 'test-session-commits';
 
     // worktreeを作成してコミットを追加
-    gitService.createWorktree(sessionName);
-    const worktreePath = join(testRepoPath, '.worktrees', sessionName);
+    const worktreePath = createTestWorktree(testRepoPath, sessionName);
 
     writeFileSync(join(worktreePath, 'file1.ts'), 'content1');
     execSync('git add file1.ts && git commit -m "Add authentication"', {
@@ -57,14 +80,14 @@ describe('GitService.getCommits', () => {
     expect(commits[1].files_changed).toBe(1);
 
     // Cleanup
-    gitService.deleteWorktree(sessionName);
+    removeTestWorktree(testRepoPath, sessionName);
   });
 
   it('コミットがない場合は空配列を返す', () => {
     const sessionName = 'test-session-no-commits';
 
     // worktreeを作成するがコミットは追加しない
-    gitService.createWorktree(sessionName);
+    createTestWorktree(testRepoPath, sessionName);
 
     const commits = gitService.getCommits(sessionName);
 
@@ -72,6 +95,6 @@ describe('GitService.getCommits', () => {
     expect(commits.length).toBeGreaterThanOrEqual(0);
 
     // Cleanup
-    gitService.deleteWorktree(sessionName);
+    removeTestWorktree(testRepoPath, sessionName);
   });
 });

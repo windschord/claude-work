@@ -7,9 +7,15 @@ import toast from 'react-hot-toast';
 import { BackButton } from '@/components/settings/BackButton';
 import { UnsavedChangesDialog } from '@/components/settings/UnsavedChangesDialog';
 
+interface ClaudeDefaults {
+  dangerouslySkipPermissions: boolean;
+  worktree: boolean;
+}
+
 interface AppConfig {
   git_clone_timeout_minutes: number;
   debug_mode_keep_volumes: boolean;
+  claude_defaults: ClaudeDefaults;
 }
 
 /**
@@ -26,6 +32,8 @@ export default function AppSettingsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [timeoutMinutes, setTimeoutMinutes] = useState(5);
   const [keepVolumes, setKeepVolumes] = useState(false);
+  const [skipPermissions, setSkipPermissions] = useState(false);
+  const [worktreeEnabled, setWorktreeEnabled] = useState(true);
 
   // 未保存変更の管理
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -49,6 +57,8 @@ export default function AppSettingsPage() {
         setConfig(config);
         setTimeoutMinutes(config.git_clone_timeout_minutes ?? 5);
         setKeepVolumes(config.debug_mode_keep_volumes ?? false);
+        setSkipPermissions(config.claude_defaults?.dangerouslySkipPermissions ?? false);
+        setWorktreeEnabled(config.claude_defaults?.worktree ?? true);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : '設定の取得に失敗しました';
         toast.error(errorMessage);
@@ -86,6 +96,10 @@ export default function AppSettingsPage() {
         body: JSON.stringify({
           git_clone_timeout_minutes: timeoutMinutes,
           debug_mode_keep_volumes: keepVolumes,
+          claude_defaults: {
+            dangerouslySkipPermissions: skipPermissions,
+            worktree: worktreeEnabled,
+          },
         }),
       });
 
@@ -100,6 +114,8 @@ export default function AppSettingsPage() {
       // サーバーから返却された値で状態を同期
       setTimeoutMinutes(config?.git_clone_timeout_minutes ?? timeoutMinutes);
       setKeepVolumes(config?.debug_mode_keep_volumes ?? keepVolumes);
+      setSkipPermissions(config?.claude_defaults?.dangerouslySkipPermissions ?? skipPermissions);
+      setWorktreeEnabled(config?.claude_defaults?.worktree ?? worktreeEnabled);
       setHasUnsavedChanges(false); // 保存後にフラグをリセット
       toast.success('設定を保存しました');
     } catch (error) {
@@ -119,6 +135,18 @@ export default function AppSettingsPage() {
   // デバッグモード変更時の処理
   const handleKeepVolumesChange = (checked: boolean) => {
     setKeepVolumes(checked);
+    setHasUnsavedChanges(true);
+  };
+
+  // パーミッション自動スキップ変更時の処理
+  const handleSkipPermissionsChange = (checked: boolean) => {
+    setSkipPermissions(checked);
+    setHasUnsavedChanges(true);
+  };
+
+  // Worktreeモード変更時の処理
+  const handleWorktreeChange = (checked: boolean) => {
+    setWorktreeEnabled(checked);
     setHasUnsavedChanges(true);
   };
 
@@ -204,6 +232,90 @@ export default function AppSettingsPage() {
               エラー時やプロジェクト削除時にDockerボリュームを自動削除せず保持します。
               <br />
               デバッグやトラブルシューティング時に有効にしてください。
+            </p>
+          </div>
+        </div>
+
+        {/* Claude Code デフォルト設定 */}
+        <div className="mb-6 p-4 bg-white dark:bg-gray-800 rounded-lg shadow">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+            Claude Code デフォルト設定
+          </h2>
+
+          {/* パーミッション自動スキップ */}
+          <div className="mb-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <label
+                  htmlFor="skip-permissions"
+                  className="text-sm font-medium text-gray-700 dark:text-gray-300"
+                >
+                  パーミッション自動スキップ
+                </label>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  Docker環境でのみ有効
+                </p>
+              </div>
+              <button
+                id="skip-permissions"
+                type="button"
+                role="switch"
+                aria-checked={skipPermissions}
+                onClick={() => handleSkipPermissionsChange(!skipPermissions)}
+                disabled={isSaving || isLoading || _config === null}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                  skipPermissions
+                    ? 'bg-blue-600'
+                    : 'bg-gray-200 dark:bg-gray-600'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    skipPermissions ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+              Docker環境でClaude Code起動時に --dangerously-skip-permissions を付与します。
+              <br />
+              HOST環境では常に無効です。
+            </p>
+          </div>
+
+          {/* Worktreeモード */}
+          <div className="mb-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <label
+                  htmlFor="worktree-mode"
+                  className="text-sm font-medium text-gray-700 dark:text-gray-300"
+                >
+                  Worktreeモード
+                </label>
+              </div>
+              <button
+                id="worktree-mode"
+                type="button"
+                role="switch"
+                aria-checked={worktreeEnabled}
+                onClick={() => handleWorktreeChange(!worktreeEnabled)}
+                disabled={isSaving || isLoading || _config === null}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                  worktreeEnabled
+                    ? 'bg-blue-600'
+                    : 'bg-gray-200 dark:bg-gray-600'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    worktreeEnabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+              各セッションがClaude Codeの --worktree オプションで分離されます。
             </p>
           </div>
         </div>

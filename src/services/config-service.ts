@@ -3,21 +3,36 @@ import path from 'path';
 import { logger } from '@/lib/logger';
 
 /**
+ * Claude Codeのデフォルト設定
+ */
+export interface ClaudeDefaults {
+  dangerouslySkipPermissions?: boolean;
+  worktree?: boolean;
+}
+
+/**
  * 設定ファイルの型定義
  */
 export interface AppConfig {
   git_clone_timeout_minutes?: number;
   debug_mode_keep_volumes?: boolean;
   registry_firewall_enabled?: boolean;
+  claude_defaults?: ClaudeDefaults;
 }
 
 /**
  * デフォルト設定
  */
+const DEFAULT_CLAUDE_DEFAULTS: Required<ClaudeDefaults> = {
+  dangerouslySkipPermissions: false,
+  worktree: true,
+};
+
 const DEFAULT_CONFIG: Required<AppConfig> = {
   git_clone_timeout_minutes: 5,
   debug_mode_keep_volumes: false,
   registry_firewall_enabled: true,
+  claude_defaults: { ...DEFAULT_CLAUDE_DEFAULTS },
 };
 
 /**
@@ -42,6 +57,7 @@ export class ConfigService {
       const loadedConfig = JSON.parse(fileContent) as AppConfig;
 
       // デフォルト値とマージ
+      const loadedClaudeDefaults = loadedConfig.claude_defaults;
       this.config = {
         git_clone_timeout_minutes: loadedConfig.git_clone_timeout_minutes ?? DEFAULT_CONFIG.git_clone_timeout_minutes,
         debug_mode_keep_volumes: loadedConfig.debug_mode_keep_volumes ?? DEFAULT_CONFIG.debug_mode_keep_volumes,
@@ -49,6 +65,16 @@ export class ConfigService {
           typeof loadedConfig.registry_firewall_enabled === 'boolean'
             ? loadedConfig.registry_firewall_enabled
             : DEFAULT_CONFIG.registry_firewall_enabled,
+        claude_defaults: {
+          dangerouslySkipPermissions:
+            typeof loadedClaudeDefaults?.dangerouslySkipPermissions === 'boolean'
+              ? loadedClaudeDefaults.dangerouslySkipPermissions
+              : DEFAULT_CLAUDE_DEFAULTS.dangerouslySkipPermissions,
+          worktree:
+            typeof loadedClaudeDefaults?.worktree === 'boolean'
+              ? loadedClaudeDefaults.worktree
+              : DEFAULT_CLAUDE_DEFAULTS.worktree,
+        },
       };
 
       logger.info('Configuration loaded', { config: this.config });
@@ -68,10 +94,15 @@ export class ConfigService {
    */
   async save(config: Partial<AppConfig>): Promise<void> {
     try {
-      // 既存の設定とマージ
+      // 既存の設定とマージ（claude_defaultsはネストマージ）
+      const { claude_defaults: newClaudeDefaults, ...rest } = config;
       this.config = {
         ...this.config,
-        ...config,
+        ...rest,
+        claude_defaults: {
+          ...this.config.claude_defaults,
+          ...(newClaudeDefaults || {}),
+        },
       };
 
       // ディレクトリが存在しない場合は作成
@@ -117,6 +148,16 @@ export class ConfigService {
    */
   getRegistryFirewallEnabled(): boolean {
     return this.config.registry_firewall_enabled;
+  }
+
+  /**
+   * Claude Codeのデフォルト設定を取得
+   */
+  getClaudeDefaults(): Required<ClaudeDefaults> {
+    return {
+      dangerouslySkipPermissions: this.config.claude_defaults.dangerouslySkipPermissions ?? DEFAULT_CLAUDE_DEFAULTS.dangerouslySkipPermissions,
+      worktree: this.config.claude_defaults.worktree ?? DEFAULT_CLAUDE_DEFAULTS.worktree,
+    };
   }
 
   /**

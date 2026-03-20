@@ -6,6 +6,19 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { execSync } from 'child_process';
 
+/**
+ * テスト用ヘルパー: git worktreeを直接作成
+ */
+function createTestWorktree(repoPath: string, sessionName: string): string {
+  const branchName = `session/${sessionName}`;
+  const worktreePath = join(repoPath, '.worktrees', sessionName);
+  execSync(`git worktree add -b "${branchName}" "${worktreePath}"`, {
+    cwd: repoPath,
+    encoding: 'utf-8',
+  });
+  return worktreePath;
+}
+
 describe('GitService - reset', () => {
   let testRepoPath: string;
   let gitService: GitService;
@@ -28,7 +41,7 @@ describe('GitService - reset', () => {
   describe('reset', () => {
     it('should reset to specified commit', () => {
       const sessionName = 'test-session-reset';
-      const worktreePath = gitService.createWorktree(sessionName);
+      const worktreePath = createTestWorktree(testRepoPath, sessionName);
 
       // Create first commit
       writeFileSync(join(worktreePath, 'file1.txt'), 'content1');
@@ -57,7 +70,7 @@ describe('GitService - reset', () => {
 
     it('should execute git reset --hard correctly', () => {
       const sessionName = 'test-session-reset-hard';
-      const worktreePath = gitService.createWorktree(sessionName);
+      const worktreePath = createTestWorktree(testRepoPath, sessionName);
 
       // Create commit
       writeFileSync(join(worktreePath, 'file.txt'), 'original');
@@ -79,7 +92,7 @@ describe('GitService - reset', () => {
 
     it('should return error when commit hash is invalid', () => {
       const sessionName = 'test-session-reset-invalid';
-      gitService.createWorktree(sessionName);
+      createTestWorktree(testRepoPath, sessionName);
 
       const result = gitService.reset(sessionName, 'invalid-commit-hash');
 

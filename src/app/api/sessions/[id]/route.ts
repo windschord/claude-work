@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, schema } from '@/lib/db';
 import { eq } from 'drizzle-orm';
-import { GitService } from '@/services/git-service';
-import { DockerGitService } from '@/services/docker-git-service';
 import { ProcessManager } from '@/services/process-manager';
 import { logger } from '@/lib/logger';
 
@@ -130,37 +128,7 @@ export async function DELETE(
       }
     }
 
-    // --worktreeモード判定: branch_nameが空の場合はClaude Codeがworktreeを管理している
-    const useClaudeWorktree = targetSession.branch_name === '';
-
-    if (useClaudeWorktree) {
-      logger.info('Skipping worktree deletion (managed by Claude Code --worktree)', {
-        session_id: targetSession.id,
-      });
-    } else {
-      // Remove worktree
-      try {
-        const sessionName = targetSession.worktree_path.split('/').pop() || '';
-
-        if (targetSession.project.clone_location === 'docker') {
-          const dockerGitService = new DockerGitService();
-          const result = await dockerGitService.deleteWorktree(targetSession.project.id, sessionName, targetSession.project.docker_volume_id);
-          if (!result.success) {
-            throw result.error || new Error('Failed to delete docker worktree');
-          }
-        } else {
-          const gitService = new GitService(targetSession.project.path, logger);
-          gitService.deleteWorktree(sessionName);
-        }
-
-        logger.debug('Worktree removed', { worktree_path: targetSession.worktree_path });
-      } catch (error) {
-        logger.warn('Failed to remove worktree', {
-          error,
-          worktree_path: targetSession.worktree_path,
-        });
-      }
-    }
+    // worktree削除は不要（Claude Code --worktreeモードで管理されるため）
 
     // Delete session from database
     await db.delete(schema.sessions).where(eq(schema.sessions.id, id)).run();

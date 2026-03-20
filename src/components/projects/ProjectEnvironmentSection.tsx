@@ -17,12 +17,25 @@ interface ProjectEnvironmentSectionProps {
 // SSH は未実装のため除外
 type EnvironmentType = 'HOST' | 'DOCKER';
 
+type OverrideValue = boolean | 'inherit';
+
+interface ClaudeDefaultsOverride {
+  dangerouslySkipPermissions?: OverrideValue;
+  worktree?: OverrideValue;
+}
+
+interface AppClaudeDefaults {
+  dangerouslySkipPermissions: boolean;
+  worktree: boolean;
+}
+
 interface EnvironmentConfig {
   imageName?: string;
   imageTag?: string;
   skipPermissions?: boolean;
   portMappings?: PortMapping[];
   volumeMounts?: VolumeMount[];
+  claude_defaults_override?: ClaudeDefaultsOverride;
 }
 
 const ENVIRONMENT_TYPES: { value: EnvironmentType; label: string; description: string }[] = [
@@ -57,6 +70,14 @@ export function ProjectEnvironmentSection({ projectId }: ProjectEnvironmentSecti
   const [portMappings, setPortMappings] = useState<PortMapping[]>([]);
   const [volumeMounts, setVolumeMounts] = useState<VolumeMount[]>([]);
   const [dangerousPath, setDangerousPath] = useState<string | null>(null);
+
+  // Claude Code設定オーバーライド
+  const [overrideSkipPermissions, setOverrideSkipPermissions] = useState<OverrideValue>('inherit');
+  const [overrideWorktree, setOverrideWorktree] = useState<OverrideValue>('inherit');
+  const [appClaudeDefaults, setAppClaudeDefaults] = useState<AppClaudeDefaults>({
+    dangerouslySkipPermissions: false,
+    worktree: true,
+  });
 
   // 変更検出用の初期値
   const initialTypeRef = useRef<EnvironmentType>('DOCKER');
@@ -108,6 +129,13 @@ export function ProjectEnvironmentSection({ projectId }: ProjectEnvironmentSecti
           setPortMappings(Array.isArray(config.portMappings) ? config.portMappings : []);
           setVolumeMounts(Array.isArray(config.volumeMounts) ? config.volumeMounts : []);
 
+          // claude_defaults_override の復元
+          const override = config.claude_defaults_override;
+          if (override) {
+            setOverrideSkipPermissions(override.dangerouslySkipPermissions ?? 'inherit');
+            setOverrideWorktree(override.worktree ?? 'inherit');
+          }
+
           initialConfigRef.current = {
             imageName: config.imageName,
             imageTag: config.imageTag,
@@ -129,10 +157,32 @@ export function ProjectEnvironmentSection({ projectId }: ProjectEnvironmentSecti
     }
   }, [projectId]);
 
+  /**
+   * アプリ共通設定を取得する
+   */
+  const fetchAppConfig = useCallback(async () => {
+    try {
+      const response = await fetch('/api/settings/config');
+      if (response.ok) {
+        const data = await response.json();
+        const claudeDefaults = data.config?.claude_defaults;
+        if (claudeDefaults) {
+          setAppClaudeDefaults({
+            dangerouslySkipPermissions: claudeDefaults.dangerouslySkipPermissions ?? false,
+            worktree: claudeDefaults.worktree ?? true,
+          });
+        }
+      }
+    } catch {
+      // アプリ設定取得失敗時はデフォルト値を維持
+    }
+  }, []);
+
   useEffect(() => {
     fetchEnvironment();
+    fetchAppConfig();
   }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
-  // fetchEnvironmentをdepsに含めないのはCLAUDE.mdのガイドライン準拠（primitive値のみ）
+  // fetchEnvironment, fetchAppConfigをdepsに含めないのはCLAUDE.mdのガイドライン準拠（primitive値のみ）
 
   /**
    * 環境設定を保存する
@@ -151,6 +201,10 @@ export function ProjectEnvironmentSection({ projectId }: ProjectEnvironmentSecti
             skipPermissions,
             portMappings: portMappings.length > 0 ? portMappings : undefined,
             volumeMounts: volumeMounts.length > 0 ? volumeMounts : undefined,
+            claude_defaults_override: {
+              dangerouslySkipPermissions: overrideSkipPermissions,
+              worktree: overrideWorktree,
+            },
           }
         : {};
 
@@ -361,6 +415,115 @@ export function ProjectEnvironmentSection({ projectId }: ProjectEnvironmentSecti
                 この設定を有効にすると、Claude Codeが確認なしでツールを実行します。信頼できるコードベースでのみ使用してください。
               </p>
             )}
+          </div>
+
+          {/* Claude Code設定オーバーライド */}
+          <div className="p-3 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800">
+            <h5 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+              Claude Code設定オーバーライド
+            </h5>
+
+            {/* パーミッション自動スキップ */}
+            <div className="mb-4">
+              <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
+                パーミッション自動スキップ
+              </p>
+              <div className="space-y-1.5 ml-2">
+                <label className="flex items-center cursor-pointer">
+                  <input
+                    type="radio"
+                    name="override-skip-permissions"
+                    checked={overrideSkipPermissions === 'inherit'}
+                    onChange={() => setOverrideSkipPermissions('inherit')}
+                    disabled={isSaving}
+                    className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                    アプリ設定に従う
+                    <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">
+                      [現在: {appClaudeDefaults.dangerouslySkipPermissions ? '有効' : '無効'}]
+                    </span>
+                  </span>
+                </label>
+                <label className="flex items-center cursor-pointer">
+                  <input
+                    type="radio"
+                    name="override-skip-permissions"
+                    checked={overrideSkipPermissions === true}
+                    onChange={() => setOverrideSkipPermissions(true)}
+                    disabled={isSaving}
+                    className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                    有効
+                  </span>
+                </label>
+                <label className="flex items-center cursor-pointer">
+                  <input
+                    type="radio"
+                    name="override-skip-permissions"
+                    checked={overrideSkipPermissions === false}
+                    onChange={() => setOverrideSkipPermissions(false)}
+                    disabled={isSaving}
+                    className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                    無効
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            {/* Worktreeモード */}
+            <div>
+              <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
+                Worktreeモード
+              </p>
+              <div className="space-y-1.5 ml-2">
+                <label className="flex items-center cursor-pointer">
+                  <input
+                    type="radio"
+                    name="override-worktree"
+                    checked={overrideWorktree === 'inherit'}
+                    onChange={() => setOverrideWorktree('inherit')}
+                    disabled={isSaving}
+                    className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                    アプリ設定に従う
+                    <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">
+                      [現在: {appClaudeDefaults.worktree ? '有効' : '無効'}]
+                    </span>
+                  </span>
+                </label>
+                <label className="flex items-center cursor-pointer">
+                  <input
+                    type="radio"
+                    name="override-worktree"
+                    checked={overrideWorktree === true}
+                    onChange={() => setOverrideWorktree(true)}
+                    disabled={isSaving}
+                    className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                    有効
+                  </span>
+                </label>
+                <label className="flex items-center cursor-pointer">
+                  <input
+                    type="radio"
+                    name="override-worktree"
+                    checked={overrideWorktree === false}
+                    onChange={() => setOverrideWorktree(false)}
+                    disabled={isSaving}
+                    className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                    無効
+                  </span>
+                </label>
+              </div>
+            </div>
           </div>
 
           {/* ポートマッピング */}

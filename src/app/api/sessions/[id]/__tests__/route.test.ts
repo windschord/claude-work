@@ -8,7 +8,6 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { execSync } from 'child_process';
 import type { Project, Session } from '@/lib/db';
-import { GitService } from '@/services/git-service';
 
 vi.mock('@/services/process-manager', () => ({
   ProcessManager: {
@@ -189,45 +188,17 @@ describe('DELETE /api/sessions/[id]', () => {
     expect(response.status).toBe(404);
   });
 
-  it('should skip worktree deletion when branch_name is empty (--worktree mode)', async () => {
-    // --worktreeモード: branch_nameが空文字列のセッション
-    const worktreeSession = db
-      .insert(schema.sessions)
-      .values({
-        project_id: project.id,
-        name: 'Worktree Session',
-        status: 'stopped',
-        worktree_path: testRepoPath,
-        branch_name: '',
-      })
-      .returning()
-      .get();
-
-    const deleteWorktreeSpy = vi.spyOn(GitService.prototype, 'deleteWorktree');
-
-    const request = new NextRequest(`http://localhost:3000/api/sessions/${worktreeSession.id}`, {
-      method: 'DELETE',
-    });
-
-    const response = await DELETE(request, { params: Promise.resolve({ id: worktreeSession.id }) });
-    expect(response.status).toBe(204);
-    expect(deleteWorktreeSpy).not.toHaveBeenCalled();
-
-    deleteWorktreeSpy.mockRestore();
-  });
-
-  it('should delete worktree normally when worktree option is not set', async () => {
-    const deleteWorktreeSpy = vi.spyOn(GitService.prototype, 'deleteWorktree').mockImplementation(() => {});
-
+  it('should delete session without worktree deletion (managed by Claude Code --worktree)', async () => {
     const request = new NextRequest(`http://localhost:3000/api/sessions/${session.id}`, {
       method: 'DELETE',
     });
 
     const response = await DELETE(request, { params: Promise.resolve({ id: session.id }) });
     expect(response.status).toBe(204);
-    expect(deleteWorktreeSpy).toHaveBeenCalled();
 
-    deleteWorktreeSpy.mockRestore();
+    // Verify session is deleted from database
+    const deletedSession = db.select().from(schema.sessions).where(eq(schema.sessions.id, session.id)).get();
+    expect(deletedSession).toBeUndefined();
   });
 });
 
