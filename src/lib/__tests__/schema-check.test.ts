@@ -123,14 +123,18 @@ describe('validateSchemaIntegrity', () => {
   it('検証対象テーブル一覧を返す', () => {
     const result = validateSchemaIntegrity(db);
 
-    expect(result.checkedTables).toContain('Project');
-    expect(result.checkedTables).toContain('Session');
-    expect(result.checkedTables).toContain('ExecutionEnvironment');
-    expect(result.checkedTables).toContain('DeveloperSettings');
-    expect(result.checkedTables).toContain('SshKey');
-    expect(result.checkedTables).toContain('NetworkFilterConfig');
-    expect(result.checkedTables).toContain('NetworkFilterRule');
-    expect(result.checkedTables.length).toBe(11);
+    // schema.tsの全テーブル定義と一致することを検証
+    const expectedTables = [
+      schema.projects, schema.sessions, schema.executionEnvironments,
+      schema.messages, schema.prompts, schema.runScripts, schema.githubPats,
+      schema.developerSettings, schema.sshKeys,
+      schema.networkFilterConfigs, schema.networkFilterRules,
+    ].map(t => getTableName(t));
+
+    for (const table of expectedTables) {
+      expect(result.checkedTables).toContain(table);
+    }
+    expect(result.checkedTables.length).toBe(expectedTables.length);
   });
 
   it('timestampを含む', () => {
