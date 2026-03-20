@@ -107,7 +107,7 @@ describe('EnvFileService', () => {
 
         await expect(
           EnvFileService.readEnvFile(tmpDir, '.env.link', 'host')
-        ).rejects.toThrow(/シンボリックリンク/);
+        ).rejects.toThrow(/許可されたファイル一覧にありません/);
       } finally {
         await fs.rm(outerDir, { recursive: true, force: true });
       }

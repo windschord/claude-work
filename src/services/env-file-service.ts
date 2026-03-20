@@ -125,7 +125,7 @@ export class EnvFileService {
           basePath,
         );
         results.push(...subResults);
-      } else if (entry.isFile() && entry.name.startsWith('.env') && ENV_FILE_PATTERN.test(entry.name)) {
+      } else if (entry.isFile() && !entry.isSymbolicLink() && entry.name.startsWith('.env') && ENV_FILE_PATTERN.test(entry.name)) {
         const relativePath = path.relative(basePath, path.join(dirPath, entry.name));
         results.push(relativePath);
       }
@@ -165,24 +165,33 @@ export class EnvFileService {
       .sort();
   }
 
-  // Note: relativePath is validated by validatePath() before any filesystem access
+  /**
+   * 許可リスト方式でホスト側の.envファイルを読み込む
+   * findEnvFiles()がディレクトリ走査で構築した安全なパスのみを使用し、
+   * ユーザー入力(relativePath)をファイルシステムAPIに直接渡さない
+   */
   private static async readEnvFileHost(projectPath: string, relativePath: string): Promise<string> {
-    const safePath = EnvFileService.validatePath(projectPath, relativePath);
-
-    // シンボリックリンク経由のパストラバーサル対策
-    // TOCTOU対策: realPathを確定し、以降の全操作をrealPathに対して行う
-    const realPath = await fs.realpath(safePath);
-    const realProjectPath = await fs.realpath(projectPath);
-    if (!realPath.startsWith(realProjectPath + path.sep)) {
-      throw new Error('シンボリックリンクによるパストラバーサルが検出されました');
+    // findEnvFilesがfs.readdirで構築したパスリストから完全一致で取得
+    // これによりユーザー入力はファイルシステムAPIに渡らない
+    const allowedFiles = await EnvFileService.listEnvFilesHost(projectPath);
+    const safeRelativePath = allowedFiles.find(f => f === relativePath);
+    if (safeRelativePath === undefined) {
+      const err = new Error(`許可されたファイル一覧にありません: ${relativePath}`);
+      (err as NodeJS.ErrnoException).code = 'ENOENT';
+      throw err;
     }
 
-    const stat = await fs.stat(realPath);
+    // safeRelativePathはfindEnvFiles()がfs.readdir + path.relativeで構築した値
+    // projectPathはDB由来のサーバー制御値
+    const resolvedProjectPath = path.resolve(projectPath);
+    const targetPath = path.join(resolvedProjectPath, safeRelativePath);
+
+    const stat = await fs.stat(targetPath);
     if (stat.size > MAX_FILE_SIZE) {
       throw new Error(`ファイルサイズが1MBを超えています: ${relativePath} (${stat.size} bytes)`);
     }
 
-    return fs.readFile(realPath, 'utf-8');
+    return fs.readFile(targetPath, 'utf-8');
   }
 
   private static async readEnvFileDocker(dockerVolumeId: string, relativePath: string): Promise<string> {
