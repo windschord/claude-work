@@ -2,7 +2,7 @@
 
 ## 概要
 
-セッション作成APIからアプリ側のworktree手動作成ロジックを削除し、常にClaude Code --worktreeモードを使用するように変更する。
+セッション作成APIからアプリ側のworktree手動作成ロジックを削除する。worktreeの有効/無効はClaudeDefaultsResolverによる4層カスケード解決に委譲し、セッション作成APIではworktree_pathとbranch_nameの初期値のみ設定する。
 
 ## 依存: TASK-003
 
@@ -23,8 +23,8 @@
 ### 変更後のロジック
 
 ```typescript
-// worktreeは常にClaude Code管理
-// 設定解決はPTYSessionManagerで行うため、ここではworktree_pathとbranch_nameのみ設定
+// worktree_pathはセッション作成時点ではプロジェクトパスを設定する。
+// worktreeの有効/無効はPTYSessionManager内のClaudeDefaultsResolverで解決される。
 let worktreePath: string;
 if (project.clone_location === 'docker') {
   worktreePath = '/repo';
@@ -33,7 +33,7 @@ if (project.clone_location === 'docker') {
 }
 const branchName = '';
 
-logger.info('Session will use Claude Code --worktree mode', {
+logger.info('Session created - worktree mode resolved at PTY startup', {
   project_id,
   sessionName: sessionDisplayName,
 });

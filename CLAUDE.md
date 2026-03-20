@@ -211,11 +211,12 @@ The thin wrapper architecture means:
 
 ### Git Worktree Isolation
 
-Session isolation is managed by Claude Code's `--worktree` flag:
-1. Each session launches Claude Code with `--worktree` option
+Session isolation is managed by Claude Code's `--worktree` flag (configurable via Claude Code Default Settings):
+1. When `worktree` setting is enabled (default: true), Claude Code launches with `--worktree` option
 2. Claude Code creates and manages its own git worktree internally
 3. Application sets `worktree_path` to the project root and `branch_name` to empty string
 4. Worktree cleanup is handled by Claude Code (no app-side deletion needed)
+5. When `worktree` setting is disabled, Claude Code runs without worktree isolation
 
 ### Claude Code Default Settings
 
