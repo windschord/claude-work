@@ -179,6 +179,7 @@ export function EnvVarImportSection({
       {/* File selector */}
       <div className="flex items-center gap-2">
         <select
+          aria-label=".env ファイル選択"
           value={selectedFile}
           onChange={(e) => handleFileSelect(e.target.value)}
           className="flex-1 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
