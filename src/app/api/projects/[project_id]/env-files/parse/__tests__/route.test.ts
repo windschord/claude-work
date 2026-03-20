@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { POST } from '../route';
-import { db, schema } from '@/lib/db';
 import { NextRequest } from 'next/server';
 import type { Project } from '@/lib/db';
 import { setupTestEnvironment, cleanupTestEnvironment } from '../../../scripts/__tests__/test-helpers';
