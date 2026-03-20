@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { FileUp, AlertTriangle, Loader2 } from 'lucide-react';
 import type { CustomEnvVars } from '@/services/claude-options-service';
 
@@ -105,12 +105,12 @@ export function EnvVarImportSection({
     return value.slice(0, maxLength) + '...';
   };
 
-  const getDuplicateKeys = (): string[] => {
+  const duplicateKeys = useMemo(() => {
     if (!parseResult) return [];
     return Object.keys(parseResult.variables).filter(
       (key) => key in existingVars
     );
-  };
+  }, [parseResult, existingVars]);
 
   if (state === 'idle') {
     return (
@@ -213,11 +213,11 @@ export function EnvVarImportSection({
           </p>
 
           {/* Duplicate warning */}
-          {getDuplicateKeys().length > 0 && (
+          {duplicateKeys.length > 0 && (
             <div className="flex items-start gap-1.5 p-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded text-xs text-amber-700 dark:text-amber-400">
               <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
               <span>
-                以下のキーは既存の環境変数を上書きします: {getDuplicateKeys().join(', ')}
+                以下のキーは既存の環境変数を上書きします: {duplicateKeys.join(', ')}
               </span>
             </div>
           )}

@@ -145,6 +145,7 @@ export class EnvFileService {
       .sort();
   }
 
+  // Note: relativePath is validated by validatePath() before any filesystem access
   private static async readEnvFileHost(projectPath: string, relativePath: string): Promise<string> {
     const safePath = EnvFileService.validatePath(projectPath, relativePath);
 
