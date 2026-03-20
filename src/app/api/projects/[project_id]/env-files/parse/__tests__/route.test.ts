@@ -124,7 +124,7 @@ describe('POST /api/projects/[project_id]/env-files/parse', () => {
 
   it('should return 400 when path traversal detected', async () => {
     vi.mocked(EnvFileService.validatePath).mockImplementation(() => {
-      throw new Error('パストラバーサルが検出されました: ../../etc/passwd');
+      throw new Error('パストラバーサルが検出されました: ../../.env');
     });
 
     const request = new NextRequest(
@@ -132,7 +132,7 @@ describe('POST /api/projects/[project_id]/env-files/parse', () => {
       {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ path: '../../etc/passwd' }),
+        body: JSON.stringify({ path: '../../.env' }),
       }
     );
 
@@ -143,6 +143,25 @@ describe('POST /api/projects/[project_id]/env-files/parse', () => {
 
     const data = await response.json();
     expect(data.error).toContain('パストラバーサル');
+  });
+
+  it('should return 400 when file is not an env file', async () => {
+    const request = new NextRequest(
+      `http://localhost:3000/api/projects/${project.id}/env-files/parse`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ path: 'config.json' }),
+      }
+    );
+
+    const response = await POST(request, {
+      params: Promise.resolve({ project_id: project.id }),
+    });
+    expect(response.status).toBe(400);
+
+    const data = await response.json();
+    expect(data.error).toContain('.env');
   });
 
   it('should return 404 when env file not found', async () => {
