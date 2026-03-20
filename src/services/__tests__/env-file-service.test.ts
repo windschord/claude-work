@@ -152,12 +152,8 @@ describe('EnvFileService', () => {
   });
 
   describe('readEnvFile (docker)', () => {
-    it('docker run + cat でファイル内容を取得する', async () => {
+    it('docker run + sh -c でファイル内容を取得する', async () => {
       const mockRunDocker = vi.spyOn(EnvFileService, '_runDockerCommand')
-        .mockResolvedValueOnce({
-          stdout: '21\n', // stat -c %s の結果（ファイルサイズ）
-          stderr: '',
-        })
         .mockResolvedValueOnce({
           stdout: 'KEY=value\nKEY2=value2',
           stderr: '',
@@ -165,9 +161,8 @@ describe('EnvFileService', () => {
 
       const content = await EnvFileService.readEnvFile('/project', '.env', 'docker', 'test-volume');
       expect(content).toBe('KEY=value\nKEY2=value2');
-      // stat呼び出しの確認
       expect(mockRunDocker).toHaveBeenCalledWith(
-        expect.arrayContaining(['stat', '-c', '%s']),
+        expect.arrayContaining(['sh', '-c']),
       );
     });
 
@@ -180,7 +175,7 @@ describe('EnvFileService', () => {
     it('1MBを超えるファイルでエラーをスローする', async () => {
       vi.spyOn(EnvFileService, '_runDockerCommand')
         .mockResolvedValueOnce({
-          stdout: `${1024 * 1024 + 1}\n`, // stat -c %s: 1MB超のサイズ
+          stdout: '___SIZE_EXCEEDED___',
           stderr: '',
         });
 

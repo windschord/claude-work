@@ -83,7 +83,7 @@ export class EnvFileService {
     if (!ENV_FILE_PATTERN.test(fileName)) {
       throw new Error('.envファイルのみ読み込みが許可されています');
     }
-    const parts = relativePath.split(path.sep);
+    const parts = relativePath.split(/[/\\]/);
     if (parts.some(part => EXCLUDE_DIRS.has(part))) {
       throw new Error('除外ディレクトリ内のファイルは読み込みが許可されていません');
     }
@@ -170,39 +170,35 @@ export class EnvFileService {
     const safePath = EnvFileService.validatePath(projectPath, relativePath);
 
     // シンボリックリンク経由のパストラバーサル対策
+    // TOCTOU対策: realPathを確定し、以降の全操作をrealPathに対して行う
     const realPath = await fs.realpath(safePath);
     const realProjectPath = await fs.realpath(projectPath);
     if (!realPath.startsWith(realProjectPath + path.sep)) {
       throw new Error('シンボリックリンクによるパストラバーサルが検出されました');
     }
 
-    const stat = await fs.stat(safePath);
+    const stat = await fs.stat(realPath);
     if (stat.size > MAX_FILE_SIZE) {
       throw new Error(`ファイルサイズが1MBを超えています: ${relativePath} (${stat.size} bytes)`);
     }
 
-    return fs.readFile(safePath, 'utf-8');
+    return fs.readFile(realPath, 'utf-8');
   }
 
   private static async readEnvFileDocker(dockerVolumeId: string, relativePath: string): Promise<string> {
-    // ファイルサイズを事前チェック（cat前にサイズ制限を適用）
-    const { stdout: sizeOutput } = await EnvFileService._runDockerCommand([
-      'run', '--rm',
-      '-v', `${dockerVolumeId}:/workspace`,
-      'alpine:latest',
-      'stat', '-c', '%s', `/workspace/${relativePath}`,
-    ]);
-    const fileSize = parseInt(sizeOutput.trim(), 10);
-    if (isNaN(fileSize) || fileSize > MAX_FILE_SIZE) {
-      throw new Error(`ファイルサイズが1MBを超えています: ${relativePath}`);
-    }
-
+    // TOCTOU対策: サイズ確認と読み込みを1回のコンテナ実行で行う
+    const filePath = `/workspace/${relativePath}`;
+    const maxSize = MAX_FILE_SIZE;
     const { stdout } = await EnvFileService._runDockerCommand([
       'run', '--rm',
       '-v', `${dockerVolumeId}:/workspace`,
       'alpine:latest',
-      'cat', `/workspace/${relativePath}`,
+      'sh', '-c', `size=$(stat -c %s "${filePath}" 2>/dev/null) && [ "$size" -le ${maxSize} ] && cat "${filePath}" || echo "___SIZE_EXCEEDED___"`,
     ]);
+
+    if (stdout.trim() === '___SIZE_EXCEEDED___') {
+      throw new Error(`ファイルサイズが1MBを超えています: ${relativePath}`);
+    }
 
     return stdout;
   }
