@@ -87,7 +87,8 @@ export async function POST(
       errors: result.errors,
     });
   } catch (error) {
-    logger.error('Failed to parse env file', { error });
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    logger.error('Failed to parse env file', { message });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

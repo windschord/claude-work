@@ -248,7 +248,7 @@ export function EnvVarImportSection({
               className="px-3 py-1 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors disabled:opacity-50"
               disabled={disabled}
             >
-              インポート
+              {duplicateKeys.length > 0 ? '上書きしてインポート' : 'インポート'}
             </button>
           )}
         </div>

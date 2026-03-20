@@ -6,6 +6,7 @@ import { promisify } from 'util';
 const execFilePromise = promisify(execFile);
 
 const MAX_FILE_SIZE = 1024 * 1024; // 1MB
+const ENV_FILE_PATTERN = /^\.env(\.[\w.-]+)?$/;
 
 const EXCLUDE_DIRS = new Set([
   'node_modules',
@@ -21,7 +22,7 @@ const EXCLUDE_DIRS = new Set([
  * テスト時にモック可能にするためstaticメソッドとして公開
  */
 async function runDockerCommand(args: string[]): Promise<{ stdout: string; stderr: string }> {
-  return execFilePromise('docker', args, { encoding: 'utf8' });
+  return execFilePromise('docker', args, { encoding: 'utf8', maxBuffer: 2 * 1024 * 1024 });
 }
 
 export class EnvFileService {
@@ -110,7 +111,7 @@ export class EnvFileService {
           basePath,
         );
         results.push(...subResults);
-      } else if (entry.isFile() && entry.name.startsWith('.env')) {
+      } else if (entry.isFile() && entry.name.startsWith('.env') && ENV_FILE_PATTERN.test(entry.name)) {
         const relativePath = path.relative(basePath, path.join(dirPath, entry.name));
         results.push(relativePath);
       }
@@ -125,23 +126,28 @@ export class EnvFileService {
   }
 
   private static async listEnvFilesDocker(dockerVolumeId: string): Promise<string[]> {
-    const excludeArgs = Array.from(EXCLUDE_DIRS).flatMap(dir => ['-not', '-path', `*/${dir}/*`]);
+    const pruneArgs = Array.from(EXCLUDE_DIRS).flatMap((dir, i) => [
+      ...(i > 0 ? ['-o'] : []),
+      '-path', `*/${dir}`,
+    ]);
 
     const { stdout } = await EnvFileService._runDockerCommand([
       'run', '--rm',
       '-v', `${dockerVolumeId}:/workspace`,
       'alpine:latest',
       'find', '/workspace',
-      '-name', '.env*',
-      ...excludeArgs,
-      '-type', 'f',
+      '(', ...pruneArgs, ')',
+      '-prune', '-o',
+      '-name', '.env*', '-type', 'f', '-print',
     ]);
 
+    const envFilePattern = /^\.env(\.[\w.-]+)?$/;
     return stdout
       .trim()
       .split('\n')
       .filter(line => line.length > 0)
       .map(line => line.replace(/^\/workspace\//, ''))
+      .filter(filePath => envFilePattern.test(path.basename(filePath)))
       .sort();
   }
 
@@ -165,17 +171,24 @@ export class EnvFileService {
   }
 
   private static async readEnvFileDocker(dockerVolumeId: string, relativePath: string): Promise<string> {
+    // ファイルサイズを事前チェック（cat前にサイズ制限を適用）
+    const { stdout: sizeOutput } = await EnvFileService._runDockerCommand([
+      'run', '--rm',
+      '-v', `${dockerVolumeId}:/workspace`,
+      'alpine:latest',
+      'stat', '-c', '%s', `/workspace/${relativePath}`,
+    ]);
+    const fileSize = parseInt(sizeOutput.trim(), 10);
+    if (isNaN(fileSize) || fileSize > MAX_FILE_SIZE) {
+      throw new Error(`ファイルサイズが1MBを超えています: ${relativePath}`);
+    }
+
     const { stdout } = await EnvFileService._runDockerCommand([
       'run', '--rm',
       '-v', `${dockerVolumeId}:/workspace`,
       'alpine:latest',
       'cat', `/workspace/${relativePath}`,
     ]);
-
-    const size = Buffer.byteLength(stdout, 'utf8');
-    if (size > MAX_FILE_SIZE) {
-      throw new Error(`ファイルサイズが1MBを超えています: ${relativePath} (${size} bytes)`);
-    }
 
     return stdout;
   }
