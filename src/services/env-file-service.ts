@@ -78,6 +78,16 @@ export class EnvFileService {
   ): Promise<string> {
     EnvFileService.validatePath(projectPath, relativePath);
 
+    // listEnvFiles()と同じ許可ポリシーを適用
+    const fileName = path.basename(relativePath);
+    if (!ENV_FILE_PATTERN.test(fileName)) {
+      throw new Error('.envファイルのみ読み込みが許可されています');
+    }
+    const parts = relativePath.split(path.sep);
+    if (parts.some(part => EXCLUDE_DIRS.has(part))) {
+      throw new Error('除外ディレクトリ内のファイルは読み込みが許可されていません');
+    }
+
     if (cloneLocation === 'docker') {
       if (!dockerVolumeId) {
         throw new Error('Docker環境ですがdockerVolumeIdが設定されていません');
