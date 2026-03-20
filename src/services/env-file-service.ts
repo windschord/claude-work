@@ -107,8 +107,12 @@ export class EnvFileService {
     let entries;
     try {
       entries = await fs.readdir(dirPath, { withFileTypes: true });
-    } catch {
-      return results;
+    } catch (error) {
+      const err = error as NodeJS.ErrnoException;
+      if (err.code === 'ENOENT') {
+        return results;
+      }
+      throw error;
     }
 
     for (const entry of entries) {

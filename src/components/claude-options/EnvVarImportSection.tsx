@@ -108,7 +108,7 @@ export function EnvVarImportSection({
   const duplicateKeys = useMemo(() => {
     if (!parseResult) return [];
     return Object.keys(parseResult.variables).filter(
-      (key) => key in existingVars
+      (key) => Object.hasOwn(existingVars, key)
     );
   }, [parseResult, existingVars]);
 
@@ -229,7 +229,7 @@ export function EnvVarImportSection({
                 <div
                   key={key}
                   className={`text-xs font-mono px-2 py-1 rounded ${
-                    key in existingVars
+                    Object.hasOwn(existingVars, key)
                       ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300'
                       : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
                   }`}
