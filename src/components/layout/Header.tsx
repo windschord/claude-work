@@ -54,7 +54,7 @@ export function Header() {
           className="flex items-center hover:opacity-80 transition-opacity"
           aria-label="ホーム"
         >
-          <Image src="/images/logo-icon.png" alt="" width={48} height={48} className="h-12 w-12" aria-hidden="true" />
+          <Image src="/images/logo-icon.png" alt="" width={128} height={70} className="h-12 w-auto" aria-hidden="true" />
         </button>
       </div>
 
