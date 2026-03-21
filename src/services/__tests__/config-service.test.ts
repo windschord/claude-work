@@ -389,4 +389,97 @@ describe('ConfigService', () => {
       expect(configService.getGitCloneTimeoutMs()).toBe(0);
     });
   });
+
+  describe('claude_defaults', () => {
+    it('デフォルト値が正しい', async () => {
+      await configService.load();
+      const defaults = configService.getClaudeDefaults();
+      expect(defaults.dangerouslySkipPermissions).toBe(false);
+      expect(defaults.worktree).toBe(true);
+    });
+
+    it('getConfigにclaude_defaultsが含まれる', async () => {
+      await configService.load();
+      const config = configService.getConfig();
+      expect(config.claude_defaults).toEqual({
+        dangerouslySkipPermissions: false,
+        worktree: true,
+      });
+    });
+
+    it('claude_defaultsを保存・読み込みできる', async () => {
+      await configService.load();
+      await configService.save({
+        claude_defaults: {
+          dangerouslySkipPermissions: true,
+          worktree: false,
+        },
+      });
+
+      const defaults = configService.getClaudeDefaults();
+      expect(defaults.dangerouslySkipPermissions).toBe(true);
+      expect(defaults.worktree).toBe(false);
+    });
+
+    it('部分的なclaude_defaults更新をマージする', async () => {
+      await configService.load();
+      await configService.save({
+        claude_defaults: {
+          dangerouslySkipPermissions: true,
+        },
+      });
+
+      const defaults = configService.getClaudeDefaults();
+      expect(defaults.dangerouslySkipPermissions).toBe(true);
+      expect(defaults.worktree).toBe(true); // デフォルト値を維持
+    });
+
+    it('save/loadで値が保持される', async () => {
+      await configService.load();
+      await configService.save({
+        claude_defaults: {
+          dangerouslySkipPermissions: true,
+          worktree: false,
+        },
+      });
+
+      const newConfigService = new ConfigService(testConfigPath);
+      await newConfigService.load();
+      const defaults = newConfigService.getClaudeDefaults();
+      expect(defaults.dangerouslySkipPermissions).toBe(true);
+      expect(defaults.worktree).toBe(false);
+    });
+
+    it('getClaudeDefaultsは独立したオブジェクトを返す', async () => {
+      await configService.load();
+      const defaults1 = configService.getClaudeDefaults();
+      const defaults2 = configService.getClaudeDefaults();
+      expect(defaults1).not.toBe(defaults2);
+      expect(defaults1).toEqual(defaults2);
+    });
+
+    it('設定ファイルにclaude_defaultsが含まれない場合デフォルト値を使用', async () => {
+      const partialConfig = {
+        git_clone_timeout_minutes: 10,
+      };
+      await fs.mkdir(path.dirname(testConfigPath), { recursive: true });
+      await fs.writeFile(testConfigPath, JSON.stringify(partialConfig), 'utf-8');
+      await configService.load();
+
+      const defaults = configService.getClaudeDefaults();
+      expect(defaults.dangerouslySkipPermissions).toBe(false);
+      expect(defaults.worktree).toBe(true);
+    });
+
+    it('他の設定フィールドに影響しない', async () => {
+      await configService.load();
+      await configService.save({
+        claude_defaults: { dangerouslySkipPermissions: true },
+      });
+
+      expect(configService.getGitCloneTimeoutMinutes()).toBe(5);
+      expect(configService.getDebugModeKeepVolumes()).toBe(false);
+      expect(configService.getRegistryFirewallEnabled()).toBe(true);
+    });
+  });
 });

@@ -25,16 +25,6 @@ export interface GitCloneOptions {
 }
 
 /**
- * Git worktree作成オプション
- */
-export interface GitWorktreeOptions {
-  projectId: string;
-  sessionName: string;
-  branchName: string;
-  dockerVolumeId?: string | null;
-}
-
-/**
  * GitOperations インターフェース
  * ホスト環境とDocker環境で共通のGit操作を定義
  */
@@ -43,16 +33,6 @@ export interface GitOperations {
    * リポジトリをcloneする
    */
   cloneRepository(options: GitCloneOptions): Promise<GitOperationResult>;
-
-  /**
-   * worktreeを作成する
-   */
-  createWorktree(options: GitWorktreeOptions): Promise<GitOperationResult>;
-
-  /**
-   * worktreeを削除する
-   */
-  deleteWorktree(projectId: string, sessionName: string, dockerVolumeId?: string | null): Promise<GitOperationResult>;
 
   /**
    * リポジトリを削除する

@@ -26,10 +26,9 @@ ClaudeWork is a web-based tool for managing multiple Claude Code sessions throug
 - UI provides a thin wrapper around Claude Code terminal (XTerm.js)
 
 **Git Integration** (src/services/git-service.ts):
-- Manages worktree creation/deletion
 - Handles rebase, squash merge, and diff operations
 - Path traversal protection via name validation
-- All worktrees isolated in `.worktrees/` directory
+- Worktree management delegated to Claude Code's `--worktree` flag
 
 **WebSocket Flow** (Claude Terminal):
 1. Client connects to `/ws/claude/:sessionId`
@@ -212,13 +211,26 @@ The thin wrapper architecture means:
 
 ### Git Worktree Isolation
 
-Each session:
-1. Creates branch `session/<session-name>`
-2. Creates worktree at `.worktrees/<session-name>/`
-3. Runs Claude Code with cwd set to worktree path
-4. On deletion, removes worktree and prunes references
+Session isolation is managed by Claude Code's `--worktree` flag (configurable via Claude Code Default Settings):
+1. When `worktree` setting is enabled (default: true), Claude Code launches with `--worktree` option
+2. Claude Code creates and manages its own git worktree internally
+3. Application sets `worktree_path` to the project root and `branch_name` to empty string
+4. Worktree cleanup is handled by Claude Code (no app-side deletion needed)
+5. When `worktree` setting is disabled, Claude Code runs without worktree isolation
 
-Security: All paths validated against `.worktrees/` base to prevent traversal attacks.
+### Claude Code Default Settings
+
+Application-wide defaults for Claude Code options, resolved via 4-layer cascade:
+1. **App defaults** (ConfigService `claude_defaults` in `data/settings.json`)
+2. **Environment override** (`ExecutionEnvironment.config.claude_defaults_override`)
+3. **Project options** (`Project.claude_code_options`)
+4. **Session options** (`Session.claude_code_options`)
+
+Managed settings:
+- `dangerouslySkipPermissions`: Skip permission prompts (Docker only, forced false on HOST)
+- `worktree`: Enable Claude Code `--worktree` mode (default: true)
+
+Resolution logic: `ClaudeDefaultsResolver.resolve()` in `src/services/claude-defaults-resolver.ts`
 
 ### Database Migrations
 
@@ -670,6 +682,7 @@ describe('Connection management', () => {
 
 **Core Services:**
 - `pty-session-manager.ts` - Session-to-adapter mapping, Claude PTYライフサイクル管理
+- `claude-defaults-resolver.ts` - 4層カスケード設定解決（アプリ共通→環境→プロジェクト→セッション）
 - `process-lifecycle-manager.ts` - アイドルタイムアウト、graceful shutdown
 - `environment-service.ts` - ExecutionEnvironment CRUD・ライフサイクル
 - `adapter-factory.ts` - 環境タイプに応じたAdapter生成 (Host/Docker)
@@ -677,7 +690,7 @@ describe('Connection management', () => {
 - `run-script-manager.ts` - カスタムスクリプト実行
 
 **Git:**
-- `git-service.ts` - Worktree作成/削除、rebase、squash merge、diff
+- `git-service.ts` - rebase、squash merge、diff、コミット取得
 - `docker-git-service.ts` - Docker volume内のGit操作
 - `gh-cli.ts` - GitHub CLI wrapper (PR作成・ステータス)
 
