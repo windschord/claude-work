@@ -1,12 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { logger } from '@/lib/logger';
-
-/**
- * 環境変数キーのバリデーション正規表現
- * ClaudeOptionsService.ENV_VAR_KEY_PATTERN と同一ルール
- */
-const ENV_VAR_KEY_PATTERN = /^[A-Z_][A-Z0-9_]*$/;
+import { ENV_VAR_KEY_PATTERN } from '@/lib/validation';
 
 /**
  * Claude Codeのデフォルト設定

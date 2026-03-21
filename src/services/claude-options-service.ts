@@ -1,3 +1,5 @@
+import { ENV_VAR_KEY_PATTERN } from '@/lib/validation';
+
 /**
  * Claude Code CLIオプション設定
  */
@@ -16,12 +18,6 @@ export interface ClaudeCodeOptions {
 export interface CustomEnvVars {
   [key: string]: string;
 }
-
-/**
- * 環境変数キーのバリデーション正規表現
- * 大文字英字・数字・アンダースコアのみ許可（POSIXの環境変数命名規則に準拠）
- */
-const ENV_VAR_KEY_PATTERN = /^[A-Z_][A-Z0-9_]*$/;
 
 /**
  * 制御文字を検出する正規表現（RegExpコンストラクタで定義）

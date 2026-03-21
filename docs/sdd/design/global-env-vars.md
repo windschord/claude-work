@@ -10,7 +10,7 @@ Claude Codeセッション起動時にProject/Sessionの環境変数とマージ
 
 ### データフロー
 
-```
+```text
 settings.json (Application) ─┐
 projects.custom_env_vars (Project) ─┤→ mergeEnvVarsAll() → PTY環境変数
 sessions.custom_env_vars (Session) ─┘
@@ -18,7 +18,7 @@ sessions.custom_env_vars (Session) ─┘
 
 ### マージ優先順位
 
-```
+```text
 Application (最低) < Project < Session (最高)
 ```
 
