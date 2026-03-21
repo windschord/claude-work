@@ -32,6 +32,22 @@ vi.mock('@/lib/logger', () => ({
   },
 }));
 
+vi.mock('@/services/claude-options-service', () => ({
+  ClaudeOptionsService: {
+    validateCustomEnvVars: vi.fn((value: unknown) => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        return null;
+      }
+      const obj = value as Record<string, unknown>;
+      for (const [key, val] of Object.entries(obj)) {
+        if (!/^[A-Z_][A-Z0-9_]*$/.test(key)) return null;
+        if (typeof val !== 'string') return null;
+      }
+      return obj as Record<string, string>;
+    }),
+  },
+}));
+
 describe('GET /api/settings/config', () => {
   it('設定を取得できる', async () => {
     const response = await GET();
@@ -357,5 +373,139 @@ describe('PUT /api/settings/config', () => {
     expect(response.status).toBe(500);
     const data = await response.json();
     expect(data.error).toBe('Internal server error');
+  });
+
+  it('valid な custom_env_vars を保存できる', async () => {
+    const { ensureConfigLoaded } = await import('@/services/config-service');
+    const mockSave = vi.fn();
+    vi.mocked(ensureConfigLoaded).mockResolvedValue({
+      getConfig: vi.fn(() => ({
+        git_clone_timeout_minutes: 5,
+        debug_mode_keep_volumes: false,
+        custom_env_vars: { MY_VAR: 'value1', ANOTHER_VAR: 'value2' },
+      })),
+      save: mockSave,
+    } as any);
+
+    const request = new NextRequest('http://localhost/api/settings/config', {
+      method: 'PUT',
+      body: JSON.stringify({
+        custom_env_vars: { MY_VAR: 'value1', ANOTHER_VAR: 'value2' },
+      }),
+    });
+
+    const response = await PUT(request);
+
+    expect(response.status).toBe(200);
+    expect(mockSave).toHaveBeenCalledWith({
+      custom_env_vars: { MY_VAR: 'value1', ANOTHER_VAR: 'value2' },
+    });
+
+    const data = await response.json();
+    expect(data.config.custom_env_vars).toEqual({ MY_VAR: 'value1', ANOTHER_VAR: 'value2' });
+  });
+
+  it('小文字キーを含む custom_env_vars は 400 エラー', async () => {
+    const request = new NextRequest('http://localhost/api/settings/config', {
+      method: 'PUT',
+      body: JSON.stringify({
+        custom_env_vars: { my_var: 'value' },
+      }),
+    });
+
+    const response = await PUT(request);
+
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error).toBe(
+      'custom_env_vars must be an object with uppercase keys and string values'
+    );
+  });
+
+  it('非文字列値を含む custom_env_vars は 400 エラー', async () => {
+    const request = new NextRequest('http://localhost/api/settings/config', {
+      method: 'PUT',
+      body: JSON.stringify({
+        custom_env_vars: { MY_VAR: 123 },
+      }),
+    });
+
+    const response = await PUT(request);
+
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error).toBe(
+      'custom_env_vars must be an object with uppercase keys and string values'
+    );
+  });
+
+  it('custom_env_vars が配列の場合は 400 エラー', async () => {
+    const request = new NextRequest('http://localhost/api/settings/config', {
+      method: 'PUT',
+      body: JSON.stringify({
+        custom_env_vars: ['MY_VAR=value'],
+      }),
+    });
+
+    const response = await PUT(request);
+
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error).toBe(
+      'custom_env_vars must be an object with uppercase keys and string values'
+    );
+  });
+
+  it('custom_env_vars を他のフィールドと独立して更新できる', async () => {
+    const { ensureConfigLoaded } = await import('@/services/config-service');
+    const mockSave = vi.fn();
+    vi.mocked(ensureConfigLoaded).mockResolvedValue({
+      getConfig: vi.fn(() => ({
+        git_clone_timeout_minutes: 5,
+        debug_mode_keep_volumes: false,
+        custom_env_vars: { MY_VAR: 'new_value' },
+      })),
+      save: mockSave,
+    } as any);
+
+    const request = new NextRequest('http://localhost/api/settings/config', {
+      method: 'PUT',
+      body: JSON.stringify({
+        custom_env_vars: { MY_VAR: 'new_value' },
+      }),
+    });
+
+    const response = await PUT(request);
+
+    expect(response.status).toBe(200);
+    // git_clone_timeout_minutes は含まれないこと
+    expect(mockSave).toHaveBeenCalledWith({
+      custom_env_vars: { MY_VAR: 'new_value' },
+    });
+  });
+});
+
+describe('GET /api/settings/config (custom_env_vars)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('GET で custom_env_vars が返される', async () => {
+    const { ensureConfigLoaded } = await import('@/services/config-service');
+    vi.mocked(ensureConfigLoaded).mockResolvedValue({
+      getConfig: vi.fn(() => ({
+        git_clone_timeout_minutes: 5,
+        debug_mode_keep_volumes: false,
+        registry_firewall_enabled: true,
+        custom_env_vars: { MY_VAR: 'hello' },
+      })),
+      save: vi.fn(),
+    } as any);
+
+    const response = await GET();
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.config.custom_env_vars).toEqual({ MY_VAR: 'hello' });
   });
 });
