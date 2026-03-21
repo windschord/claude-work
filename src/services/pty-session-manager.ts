@@ -7,6 +7,7 @@ import { logger } from '@/lib/logger'
 import { ScrollbackBuffer } from './scrollback-buffer'
 import { ClaudeOptionsService } from './claude-options-service'
 import type { ClaudeCodeOptions, CustomEnvVars } from './claude-options-service'
+import type { ChromeSidecarConfig } from '@/types/environment'
 import { ensureConfigLoaded } from './config-service'
 import { ClaudeDefaultsResolver } from './claude-defaults-resolver'
 import type WebSocket from 'ws'
@@ -220,6 +221,10 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
       // Registry Firewall有効フラグをConfigServiceから取得
       const registryFirewallEnabled = configService.getRegistryFirewallEnabled()
 
+      // Chrome Sidecar設定の読み取り
+      const rawSidecar = (envConfig as Record<string, unknown>).chromeSidecar as ChromeSidecarConfig | undefined;
+      const chromeSidecar = rawSidecar?.enabled ? rawSidecar : undefined;
+
       // アダプター経由でセッション作成
       await adapter.createSession(
         sessionId,
@@ -234,6 +239,7 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
           skipPermissions,
           dockerVolumeId: options.dockerVolumeId,
           registryFirewallEnabled,
+          chromeSidecar,
         }
       )
 

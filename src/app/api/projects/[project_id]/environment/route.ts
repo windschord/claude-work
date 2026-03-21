@@ -4,6 +4,7 @@ import { db, schema } from '@/lib/db';
 import { eq, and } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
 import { validatePortMappings, validateVolumeMounts } from '@/lib/docker-config-validator';
+import { validateChromeSidecarConfig } from '@/lib/chrome-sidecar-validator';
 import { isHostEnvironmentAllowed } from '@/lib/environment-detect';
 import type { PortMapping, VolumeMount } from '@/types/environment';
 
@@ -211,6 +212,19 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           );
         }
       }
+
+      // chromeSidecar のバリデーション（DOCKER環境の場合のみ）
+      const effectiveType = type ?? existing.type;
+      if (effectiveType === 'DOCKER') {
+        const chromeSidecarError = validateChromeSidecarConfig(sanitizedConfig);
+        if (chromeSidecarError) {
+          return NextResponse.json(
+            { error: chromeSidecarError },
+            { status: 400 }
+          );
+        }
+      }
+      // HOST環境の場合はchromeSidecarを無視（エラーにはしない）
 
       updateData.config = sanitizedConfig;
     }

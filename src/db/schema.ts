@@ -77,6 +77,11 @@ export const sessions = sqliteTable('Session', {
   pr_status: text('pr_status'),
   pr_updated_at: integer('pr_updated_at', { mode: 'timestamp' }),
   container_id: text('container_id'),
+
+  // Chrome Sidecar関連
+  chrome_container_id: text('chrome_container_id'),     // Chromeサイドカーコンテナ名
+  chrome_debug_port: integer('chrome_debug_port'),      // ホスト側デバッグポート
+
   claude_code_options: text('claude_code_options'),
   custom_env_vars: text('custom_env_vars'),
 

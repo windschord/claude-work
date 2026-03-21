@@ -17,6 +17,7 @@ import {
   ProcessLifecycleManager,
 } from './src/services/process-lifecycle-manager';
 import { DockerAdapter } from './src/services/adapters/docker-adapter';
+import { ChromeSidecarService } from './src/services/chrome-sidecar-service';
 import { db } from './src/lib/db';
 import { ptySessionManager } from './src/services/pty-session-manager';
 import { runMigrations } from './src/lib/migrate';
@@ -330,6 +331,16 @@ app.prepare().then(() => {
       logger.info('Orphaned Docker containers cleanup completed');
     } catch (error) {
       logger.error('Failed to cleanup orphaned Docker containers', { error });
+      // クリーンアップ失敗はクリティカルではないため、サーバーは継続
+    }
+
+    // 孤立したChrome Sidecarコンテナ・ネットワークのクリーンアップ
+    try {
+      const sidecarService = new ChromeSidecarService();
+      await sidecarService.cleanupOrphaned();
+      logger.info('Chrome sidecar orphaned resources cleanup completed');
+    } catch (error) {
+      logger.error('Chrome sidecar cleanup failed', { error });
       // クリーンアップ失敗はクリティカルではないため、サーバーは継続
     }
 
