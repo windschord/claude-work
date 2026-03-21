@@ -50,7 +50,40 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
 
-    const { git_clone_timeout_minutes, debug_mode_keep_volumes, registry_firewall_enabled } = body;
+    const { git_clone_timeout_minutes, debug_mode_keep_volumes, registry_firewall_enabled, claude_defaults } = body;
+
+    // claude_defaults バリデーション
+    if (claude_defaults !== undefined) {
+      if (claude_defaults === null || typeof claude_defaults !== 'object' || Array.isArray(claude_defaults)) {
+        return NextResponse.json(
+          { error: 'claude_defaults must be an object' },
+          { status: 400 }
+        );
+      }
+
+      const allowedKeys = new Set(['dangerouslySkipPermissions', 'worktree']);
+      const unknownKeys = Object.keys(claude_defaults).filter((key: string) => !allowedKeys.has(key));
+      if (unknownKeys.length > 0) {
+        return NextResponse.json(
+          { error: `Unknown keys in claude_defaults: ${unknownKeys.join(', ')}` },
+          { status: 400 }
+        );
+      }
+
+      if (claude_defaults.dangerouslySkipPermissions !== undefined && typeof claude_defaults.dangerouslySkipPermissions !== 'boolean') {
+        return NextResponse.json(
+          { error: 'claude_defaults.dangerouslySkipPermissions must be a boolean' },
+          { status: 400 }
+        );
+      }
+
+      if (claude_defaults.worktree !== undefined && typeof claude_defaults.worktree !== 'boolean') {
+        return NextResponse.json(
+          { error: 'claude_defaults.worktree must be a boolean' },
+          { status: 400 }
+        );
+      }
+    }
 
     // バリデーション
     if (git_clone_timeout_minutes !== undefined) {
@@ -83,6 +116,7 @@ export async function PUT(request: NextRequest) {
       ...(git_clone_timeout_minutes !== undefined && { git_clone_timeout_minutes }),
       ...(debug_mode_keep_volumes !== undefined && { debug_mode_keep_volumes }),
       ...(registry_firewall_enabled !== undefined && { registry_firewall_enabled }),
+      ...(claude_defaults !== undefined && { claude_defaults }),
     });
 
     const updatedConfig = configService.getConfig();

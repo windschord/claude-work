@@ -51,15 +51,25 @@ export async function POST(
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });
     }
 
-    const sessionName = basename(targetSession.worktree_path);
-    
     let result;
     if (targetSession.project.clone_location === 'docker') {
       const dockerGitService = new DockerGitService();
-      result = await dockerGitService.rebaseFromMain(targetSession.project.id, sessionName, targetSession.project.docker_volume_id);
+      // Claude Code --worktreeモード（branch_name === ''）ではworktree_pathを直接使用
+      if (!targetSession.branch_name) {
+        result = await dockerGitService.rebaseFromMainByPath(targetSession.project.id, targetSession.worktree_path, targetSession.project.docker_volume_id);
+      } else {
+        const sessionName = basename(targetSession.worktree_path);
+        result = await dockerGitService.rebaseFromMain(targetSession.project.id, sessionName, targetSession.project.docker_volume_id);
+      }
     } else {
       const gitService = new GitService(targetSession.project.path, logger);
-      result = gitService.rebaseFromMain(sessionName);
+      // Claude Code --worktreeモード（branch_name === ''）ではworktree_pathを直接使用
+      if (!targetSession.branch_name) {
+        result = gitService.rebaseFromMainByPath(targetSession.worktree_path);
+      } else {
+        const sessionName = basename(targetSession.worktree_path);
+        result = gitService.rebaseFromMain(sessionName);
+      }
     }
 
     if (!result.success && result.conflicts) {

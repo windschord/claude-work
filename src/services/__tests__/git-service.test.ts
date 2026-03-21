@@ -1,11 +1,24 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { GitService } from '../git-service';
 import { logger } from '../../lib/logger';
-import * as fs from 'fs';
-import { mkdtempSync, rmSync, writeFileSync, existsSync } from 'fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { execSync, spawnSync } from 'child_process';
+import { execSync } from 'child_process';
+
+/**
+ * テスト用ヘルパー: git worktreeを直接作成
+ * GitService.createWorktreeは削除済みのため、git CLIで直接作成する
+ */
+function createTestWorktree(repoPath: string, sessionName: string): string {
+  const branchName = `session/${sessionName}`;
+  const worktreePath = join(repoPath, '.worktrees', sessionName);
+  execSync(`git worktree add -b "${branchName}" "${worktreePath}"`, {
+    cwd: repoPath,
+    encoding: 'utf-8',
+  });
+  return worktreePath;
+}
 
 describe('GitService', () => {
   let testRepoPath: string;
@@ -26,54 +39,10 @@ describe('GitService', () => {
     rmSync(testRepoPath, { recursive: true, force: true });
   });
 
-  describe('createWorktree', () => {
-    it('should create worktree at .worktrees/sessionName', () => {
-      const sessionName = 'test-session-1';
-      const branchName = `session/${sessionName}`;
-
-      const worktreePath = gitService.createWorktree(sessionName);
-
-      expect(worktreePath).toBe(join(testRepoPath, '.worktrees', sessionName));
-
-      const worktrees = execSync('git worktree list', { cwd: testRepoPath }).toString();
-      expect(worktrees).toContain(sessionName);
-      expect(worktrees).toContain(branchName);
-    });
-
-    it('should throw error if worktree already exists', () => {
-      const sessionName = 'test-session-2';
-
-      gitService.createWorktree(sessionName);
-
-      // 同じセッション名で再作成を試みるとブランチが既に存在するためエラー
-      expect(() => {
-        gitService.createWorktree(sessionName);
-      }).toThrow();
-    });
-  });
-
-  describe('deleteWorktree', () => {
-    it('should delete worktree', () => {
-      const sessionName = 'test-session-delete';
-
-      gitService.createWorktree(sessionName);
-      gitService.deleteWorktree(sessionName);
-
-      const worktrees = execSync('git worktree list', { cwd: testRepoPath }).toString();
-      expect(worktrees).not.toContain(sessionName);
-    });
-
-    it('should not throw if worktree does not exist', () => {
-      expect(() => {
-        gitService.deleteWorktree('non-existent-session');
-      }).not.toThrow();
-    });
-  });
-
   describe('getDiff', () => {
     it('should return added/modified/deleted files', () => {
       const sessionName = 'test-session-diff';
-      const worktreePath = gitService.createWorktree(sessionName);
+      const worktreePath = createTestWorktree(testRepoPath, sessionName);
 
       writeFileSync(join(worktreePath, 'new-file.txt'), 'new content');
       writeFileSync(join(worktreePath, 'README.md'), 'modified content');
@@ -92,7 +61,7 @@ describe('GitService', () => {
   describe('rebaseFromMain', () => {
     it('should rebase worktree branch onto main', () => {
       const sessionName = 'test-session-rebase';
-      const worktreePath = gitService.createWorktree(sessionName);
+      const worktreePath = createTestWorktree(testRepoPath, sessionName);
 
       writeFileSync(join(worktreePath, 'branch-file.txt'), 'branch content');
       execSync('git add . && git commit -m "branch commit"', { cwd: worktreePath, shell: true });
@@ -112,7 +81,7 @@ describe('GitService', () => {
 
     it('should detect conflicts', () => {
       const sessionName = 'test-session-conflict';
-      const worktreePath = gitService.createWorktree(sessionName);
+      const worktreePath = createTestWorktree(testRepoPath, sessionName);
 
       writeFileSync(join(worktreePath, 'conflict.txt'), 'branch content');
       execSync('git add . && git commit -m "branch commit"', { cwd: worktreePath, shell: true });
@@ -131,7 +100,7 @@ describe('GitService', () => {
   describe('squashMerge', () => {
     it('should squash merge into main with commit message', () => {
       const sessionName = 'test-session-squash';
-      const worktreePath = gitService.createWorktree(sessionName);
+      const worktreePath = createTestWorktree(testRepoPath, sessionName);
 
       writeFileSync(join(worktreePath, 'feature.txt'), 'feature content');
       execSync('git add . && git commit -m "feature commit 1"', { cwd: worktreePath, shell: true });
@@ -150,66 +119,6 @@ describe('GitService', () => {
 
       const status = execSync('git status', { cwd: testRepoPath }).toString();
       expect(status).toContain('nothing to commit');
-    });
-  });
-
-  describe('ensureWorktreeDirectoryWritable', () => {
-    // rootユーザーはchmod制限を無視するためスキップ
-    it.skipIf(process.getuid?.() === 0)('should throw when .worktrees directory is not writable', () => {
-      const worktreesDir = join(testRepoPath, '.worktrees');
-
-      fs.chmodSync(worktreesDir, 0o444);
-
-      try {
-        expect(() => {
-          gitService.createWorktree('test-perm-check');
-        }).toThrow(/No write permission to .worktrees directory/);
-      } finally {
-        fs.chmodSync(worktreesDir, 0o755);
-      }
-    });
-
-    // rootユーザーはchmod制限を無視するためスキップ
-    it.skipIf(process.getuid?.() === 0)('should throw when .git directory is not writable', () => {
-      const gitDir = join(testRepoPath, '.git');
-
-      fs.chmodSync(gitDir, 0o444);
-
-      try {
-        expect(() => {
-          gitService.createWorktree('test-git-perm');
-        }).toThrow(/No write permission to git directory/);
-      } finally {
-        fs.chmodSync(gitDir, 0o755);
-      }
-    });
-
-    it('should create .worktrees directory if it does not exist', () => {
-      // このテストは実際にworktreeを作成するため、既存の統合テストスタイルを維持
-      // .worktreesを一時的にリネームして不在をシミュレート
-      const worktreesDir = join(testRepoPath, '.worktrees');
-      const tempDir = join(testRepoPath, '.worktrees-backup');
-
-      if (!fs.existsSync(worktreesDir)) {
-        fs.mkdirSync(worktreesDir, { recursive: true });
-      }
-      fs.renameSync(worktreesDir, tempDir);
-      try {
-        const worktreePath = gitService.createWorktree('test-auto-create');
-        expect(existsSync(worktreePath)).toBe(true);
-      } finally {
-        // クリーンアップ
-        const autoCreateDir = join(testRepoPath, '.worktrees', 'test-auto-create');
-        if (existsSync(autoCreateDir)) {
-          spawnSync('git', ['worktree', 'remove', autoCreateDir, '--force'], {
-            cwd: testRepoPath, encoding: 'utf-8'
-          });
-        }
-        if (existsSync(worktreesDir)) {
-          rmSync(worktreesDir, { recursive: true });
-        }
-        fs.renameSync(tempDir, worktreesDir);
-      }
     });
   });
 });

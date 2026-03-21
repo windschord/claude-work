@@ -58,15 +58,25 @@ export async function GET(
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });
     }
 
-    const sessionName = basename(targetSession.worktree_path);
-
     let diff;
     if (targetSession.project.clone_location === 'docker') {
       const dockerGitService = new DockerGitService();
-      diff = await dockerGitService.getDiffDetails(targetSession.project.id, sessionName, targetSession.project.docker_volume_id);
+      // Claude Code --worktreeモード（branch_name === ''）ではworktree_pathを直接使用
+      if (!targetSession.branch_name) {
+        diff = await dockerGitService.getDiffDetailsByPath(targetSession.project.id, targetSession.worktree_path, targetSession.project.docker_volume_id);
+      } else {
+        const sessionName = basename(targetSession.worktree_path);
+        diff = await dockerGitService.getDiffDetails(targetSession.project.id, sessionName, targetSession.project.docker_volume_id);
+      }
     } else {
       const gitService = new GitService(targetSession.project.path, logger);
-      diff = gitService.getDiffDetails(sessionName);
+      // Claude Code --worktreeモード（branch_name === ''）ではworktree_pathを直接使用
+      if (!targetSession.branch_name) {
+        diff = gitService.getDiffDetailsByPath(targetSession.worktree_path);
+      } else {
+        const sessionName = basename(targetSession.worktree_path);
+        diff = gitService.getDiffDetails(sessionName);
+      }
     }
 
     logger.info('Got diff for session', { id });
