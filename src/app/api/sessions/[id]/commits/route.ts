@@ -56,9 +56,14 @@ export async function GET(
 
     let commits;
     if (targetSession.project.clone_location === 'docker') {
-      const sessionName = basename(targetSession.worktree_path);
       const dockerGitService = new DockerGitService();
-      commits = await dockerGitService.getCommits(targetSession.project.id, sessionName, targetSession.project.docker_volume_id);
+      // Claude Code --worktreeモード（branch_name === ''）ではworktree_pathを直接使用
+      if (!targetSession.branch_name) {
+        commits = await dockerGitService.getCommitsByPath(targetSession.project.id, targetSession.worktree_path, targetSession.project.docker_volume_id);
+      } else {
+        const sessionName = basename(targetSession.worktree_path);
+        commits = await dockerGitService.getCommits(targetSession.project.id, sessionName, targetSession.project.docker_volume_id);
+      }
     } else {
       const gitService = new GitService(targetSession.project.path, logger);
       // Claude Code --worktreeモード（branch_name === ''）ではworktree_pathを直接使用

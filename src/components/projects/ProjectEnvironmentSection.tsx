@@ -197,8 +197,6 @@ export function ProjectEnvironmentSection({ projectId }: ProjectEnvironmentSecti
 
     try {
       // 両方 'inherit' の場合は claude_defaults_override を保存しない
-      // （旧skipPermissionsのlegacy fallbackが引き続き動作するようにするため）
-      const hasOverrides = overrideSkipPermissions !== 'inherit' || overrideWorktree !== 'inherit';
       const config: EnvironmentConfig = environmentType === 'DOCKER'
         ? {
             imageName: imageName.trim() || 'ghcr.io/windschord/claude-work-sandbox',
@@ -206,12 +204,11 @@ export function ProjectEnvironmentSection({ projectId }: ProjectEnvironmentSecti
             // skipPermissionsはclaude_defaults_overrideに一本化（新規保存時は設定しない）
             portMappings: portMappings.length > 0 ? portMappings : undefined,
             volumeMounts: volumeMounts.length > 0 ? volumeMounts : undefined,
-            ...(hasOverrides ? {
-              claude_defaults_override: {
-                dangerouslySkipPermissions: overrideSkipPermissions,
-                worktree: overrideWorktree,
-              },
-            } : {}),
+            // 常にclaude_defaults_overrideを保存（空でも保存することでlegacy skipPermissionsを無効化）
+            claude_defaults_override: {
+              dangerouslySkipPermissions: overrideSkipPermissions,
+              worktree: overrideWorktree,
+            },
           }
         : {};
 
