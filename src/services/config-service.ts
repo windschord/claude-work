@@ -48,6 +48,17 @@ const cloneConfig = (config: Required<AppConfig>): Required<AppConfig> => ({
 });
 
 /**
+ * ログ出力用に custom_env_vars の値をマスクした設定オブジェクトを返す
+ */
+function sanitizeConfigForLog(config: Required<AppConfig>): Record<string, unknown> {
+  const { custom_env_vars, ...rest } = config;
+  return {
+    ...rest,
+    custom_env_vars: { keys: Object.keys(custom_env_vars), count: Object.keys(custom_env_vars).length },
+  };
+}
+
+/**
  * ConfigService
  * アプリケーション設定の管理
  */
@@ -107,7 +118,7 @@ export class ConfigService {
         custom_env_vars: validatedCustomEnvVars,
       };
 
-      logger.info('Configuration loaded', { config: this.config });
+      logger.info('Configuration loaded', { config: sanitizeConfigForLog(this.config) });
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
         logger.info('Configuration file not found, using defaults', { configPath: this.configPath });
@@ -145,7 +156,7 @@ export class ConfigService {
         'utf-8'
       );
 
-      logger.info('Configuration saved', { config: this.config });
+      logger.info('Configuration saved', { config: sanitizeConfigForLog(this.config) });
     } catch (error) {
       logger.error('Failed to save configuration', { error });
       throw new Error('Failed to save configuration');
