@@ -52,9 +52,10 @@ const cloneConfig = (config: Required<AppConfig>): Required<AppConfig> => ({
  */
 function sanitizeConfigForLog(config: Required<AppConfig>): Record<string, unknown> {
   const { custom_env_vars, ...rest } = config;
+  const keys = Object.keys(custom_env_vars);
   return {
     ...rest,
-    custom_env_vars: { keys: Object.keys(custom_env_vars), count: Object.keys(custom_env_vars).length },
+    custom_env_vars: { keys, count: keys.length },
   };
 }
 
@@ -91,6 +92,8 @@ export class ConfigService {
         for (const [key, value] of Object.entries(rawCustomEnvVars)) {
           if (ClaudeOptionsService.validateEnvVarKey(key) && typeof value === 'string') {
             filtered[key] = value;
+          } else {
+            logger.debug('Invalid custom_env_var entry skipped', { key, valueType: typeof value });
           }
         }
         validatedCustomEnvVars = filtered;
