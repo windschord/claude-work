@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ensureConfigLoaded } from '@/services/config-service';
 import { validateTimeoutMinutes } from '@/lib/validation';
 import { logger } from '@/lib/logger';
+import { ClaudeOptionsService } from '@/services/claude-options-service';
 
 /**
  * GET /api/settings/config - 設定を取得
@@ -50,7 +51,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
 
-    const { git_clone_timeout_minutes, debug_mode_keep_volumes, registry_firewall_enabled, claude_defaults } = body;
+    const { git_clone_timeout_minutes, debug_mode_keep_volumes, registry_firewall_enabled, claude_defaults, custom_env_vars } = body;
 
     // claude_defaults バリデーション
     if (claude_defaults !== undefined) {
@@ -110,6 +111,16 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    if (custom_env_vars !== undefined) {
+      const validated = ClaudeOptionsService.validateCustomEnvVars(custom_env_vars);
+      if (validated === null) {
+        return NextResponse.json(
+          { error: 'custom_env_vars must be an object with uppercase keys and string values' },
+          { status: 400 }
+        );
+      }
+    }
+
     // 設定を保存
     const configService = await ensureConfigLoaded();
     await configService.save({
@@ -117,6 +128,7 @@ export async function PUT(request: NextRequest) {
       ...(debug_mode_keep_volumes !== undefined && { debug_mode_keep_volumes }),
       ...(registry_firewall_enabled !== undefined && { registry_firewall_enabled }),
       ...(claude_defaults !== undefined && { claude_defaults }),
+      ...(custom_env_vars !== undefined && { custom_env_vars }),
     });
 
     const updatedConfig = configService.getConfig();
