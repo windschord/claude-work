@@ -224,6 +224,115 @@ describe('PUT /api/settings/config', () => {
     expect(data.error).toBe('registry_firewall_enabled must be a boolean');
   });
 
+  it('claude_defaultsを更新できる', async () => {
+    const { ensureConfigLoaded } = await import('@/services/config-service');
+    const mockSave = vi.fn();
+    vi.mocked(ensureConfigLoaded).mockResolvedValue({
+      getConfig: vi.fn(() => ({
+        git_clone_timeout_minutes: 5,
+        debug_mode_keep_volumes: false,
+        registry_firewall_enabled: true,
+        claude_defaults: {
+          dangerouslySkipPermissions: true,
+          worktree: false,
+        },
+      })),
+      save: mockSave,
+    } as any);
+
+    const request = new NextRequest('http://localhost/api/settings/config', {
+      method: 'PUT',
+      body: JSON.stringify({
+        claude_defaults: {
+          dangerouslySkipPermissions: true,
+          worktree: false,
+        },
+      }),
+    });
+
+    const response = await PUT(request);
+
+    expect(response.status).toBe(200);
+    expect(mockSave).toHaveBeenCalledWith({
+      claude_defaults: {
+        dangerouslySkipPermissions: true,
+        worktree: false,
+      },
+    });
+
+    const data = await response.json();
+    expect(data.config.claude_defaults).toEqual({
+      dangerouslySkipPermissions: true,
+      worktree: false,
+    });
+  });
+
+  it('claude_defaultsがオブジェクトでない場合は400を返す', async () => {
+    const request = new NextRequest('http://localhost/api/settings/config', {
+      method: 'PUT',
+      body: JSON.stringify({
+        claude_defaults: 'invalid',
+      }),
+    });
+
+    const response = await PUT(request);
+
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error).toBe('claude_defaults must be an object');
+  });
+
+  it('claude_defaults.dangerouslySkipPermissionsがbooleanでない場合は400を返す', async () => {
+    const request = new NextRequest('http://localhost/api/settings/config', {
+      method: 'PUT',
+      body: JSON.stringify({
+        claude_defaults: {
+          dangerouslySkipPermissions: 'true',
+        },
+      }),
+    });
+
+    const response = await PUT(request);
+
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error).toBe('claude_defaults.dangerouslySkipPermissions must be a boolean');
+  });
+
+  it('claude_defaults.worktreeがbooleanでない場合は400を返す', async () => {
+    const request = new NextRequest('http://localhost/api/settings/config', {
+      method: 'PUT',
+      body: JSON.stringify({
+        claude_defaults: {
+          worktree: 'true',
+        },
+      }),
+    });
+
+    const response = await PUT(request);
+
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error).toBe('claude_defaults.worktree must be a boolean');
+  });
+
+  it('claude_defaultsに未知のキーがある場合は400を返す', async () => {
+    const request = new NextRequest('http://localhost/api/settings/config', {
+      method: 'PUT',
+      body: JSON.stringify({
+        claude_defaults: {
+          unknownField: true,
+        },
+      }),
+    });
+
+    const response = await PUT(request);
+
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error).toBe('Unknown keys in claude_defaults: unknownField');
+  });
+
   it('保存失敗時は500を返す', async () => {
     const { ensureConfigLoaded } = await import('@/services/config-service');
     vi.mocked(ensureConfigLoaded).mockResolvedValue({

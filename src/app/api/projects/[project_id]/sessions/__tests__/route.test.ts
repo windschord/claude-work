@@ -512,7 +512,6 @@ describe('POST /api/projects/[project_id]/sessions', () => {
       const json = await response.json();
       expect(json.error).toBe('Docker volume not configured');
       expect(json.message).toContain('Dockerボリュームが設定されていません');
-      expect(mockDockerGitService.createWorktree).not.toHaveBeenCalled();
     });
 
     it('clone_location=docker かつ docker_volume_id が設定済みの場合は正常処理される', async () => {
@@ -537,12 +536,10 @@ describe('POST /api/projects/[project_id]/sessions', () => {
 
       // バリデーションを通過しセッションが正常に作成される
       expect(response.status).toBe(201);
-      expect(mockDockerGitService.createWorktree).toHaveBeenCalledWith(
-        expect.objectContaining({
-          projectId: 'project-1',
-          dockerVolumeId: 'cw-repo-test',
-        }),
-      );
+      // worktreeはClaude Code --worktreeモードで管理されるため、手動作成は不要
+      const insertPayload = mockDb._mockInsertValues.mock.calls[0][0];
+      expect(insertPayload.worktree_path).toBe('/repo');
+      expect(insertPayload.branch_name).toBe('');
     });
 
     it('clone_location=host の場合 docker_volume_id=null でもエラーにならない', async () => {
@@ -567,53 +564,20 @@ describe('POST /api/projects/[project_id]/sessions', () => {
 
       // clone_location=host の場合はボリュームバリデーションをスキップしてセッションが正常に作成される
       expect(response.status).toBe(201);
-      expect(mockGitService.createWorktree).toHaveBeenCalled();
-      expect(mockDockerGitService.createWorktree).not.toHaveBeenCalled();
+      // worktreeはClaude Code --worktreeモードで管理
+      const insertPayload = mockDb._mockInsertValues.mock.calls[0][0];
+      expect(insertPayload.worktree_path).toBe('/path/to/project');
+      expect(insertPayload.branch_name).toBe('');
     });
   });
 
-  describe('worktree option', () => {
-    it('should skip worktree creation when session claude_code_options has worktree: true', async () => {
+  describe('worktree management (Claude Code --worktree mode)', () => {
+    it('should always set worktree_path to project path and branch_name to empty', async () => {
       mockDb._mockSelectGet.mockReturnValue({
         id: 'project-1',
         name: 'Test Project',
         path: '/path/to/project',
         claude_code_options: '{}',
-        environment_id: 'env-docker-1',
-      });
-
-      mockDb._mockInsertGet.mockReturnValue({
-        id: 'session-1',
-        project_id: 'project-1',
-        name: 'happy-panda',
-        status: 'initializing',
-        worktree_path: '/path/to/project',
-        branch_name: '',
-      });
-
-      const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: 'Hello Claude',
-          claude_code_options: { worktree: true },
-        }),
-      });
-
-      const response = await POST(request, {
-        params: Promise.resolve({ project_id: 'project-1' }),
-      });
-
-      expect(response.status).toBe(201);
-      expect(mockGitService.createWorktree).not.toHaveBeenCalled();
-    });
-
-    it('should skip worktree creation when project claude_code_options has worktree: true', async () => {
-      mockDb._mockSelectGet.mockReturnValue({
-        id: 'project-1',
-        name: 'Test Project',
-        path: '/path/to/project',
-        claude_code_options: '{"worktree":true}',
         environment_id: 'env-docker-1',
       });
 
@@ -637,53 +601,20 @@ describe('POST /api/projects/[project_id]/sessions', () => {
       });
 
       expect(response.status).toBe(201);
-      expect(mockGitService.createWorktree).not.toHaveBeenCalled();
-    });
-
-    it('should insert session with project path as worktree_path and empty branch_name when worktree is true', async () => {
-      mockDb._mockSelectGet.mockReturnValue({
-        id: 'project-1',
-        name: 'Test Project',
-        path: '/path/to/project',
-        claude_code_options: '{}',
-        environment_id: 'env-docker-1',
-      });
-
-      mockDb._mockInsertGet.mockReturnValue({
-        id: 'session-1',
-        project_id: 'project-1',
-        name: 'happy-panda',
-        status: 'initializing',
-        worktree_path: '/path/to/project',
-        branch_name: '',
-      });
-
-      const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: 'Hello Claude',
-          claude_code_options: { worktree: true },
-        }),
-      });
-
-      const response = await POST(request, {
-        params: Promise.resolve({ project_id: 'project-1' }),
-      });
-
-      expect(response.status).toBe(201);
       const insertPayload = mockDb._mockInsertValues.mock.calls[0][0];
       expect(insertPayload.worktree_path).toBe('/path/to/project');
       expect(insertPayload.branch_name).toBe('');
     });
 
-    it('should insert session with project path as worktree_path and empty branch_name when worktree is string', async () => {
+    it('should set worktree_path to /repo for docker clone_location', async () => {
       mockDb._mockSelectGet.mockReturnValue({
         id: 'project-1',
         name: 'Test Project',
         path: '/path/to/project',
         claude_code_options: '{}',
         environment_id: 'env-docker-1',
+        clone_location: 'docker',
+        docker_volume_id: 'cw-repo-test',
       });
 
       mockDb._mockInsertGet.mockReturnValue({
@@ -691,71 +622,8 @@ describe('POST /api/projects/[project_id]/sessions', () => {
         project_id: 'project-1',
         name: 'happy-panda',
         status: 'initializing',
-        worktree_path: '/path/to/project',
+        worktree_path: '/repo',
         branch_name: '',
-      });
-
-      const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: 'Hello Claude',
-          claude_code_options: { worktree: 'my-feature' },
-        }),
-      });
-
-      const response = await POST(request, {
-        params: Promise.resolve({ project_id: 'project-1' }),
-      });
-
-      expect(response.status).toBe(201);
-      const insertPayload = mockDb._mockInsertValues.mock.calls[0][0];
-      expect(insertPayload.worktree_path).toBe('/path/to/project');
-      expect(insertPayload.branch_name).toBe('');
-    });
-
-    it('should set worktree_path to project path when session worktree option is string', async () => {
-      mockDb._mockSelectGet.mockReturnValue({
-        id: 'project-1',
-        name: 'Test Project',
-        path: '/path/to/project',
-        claude_code_options: '{}',
-        environment_id: 'env-docker-1',
-      });
-
-      mockDb._mockInsertGet.mockReturnValue({
-        id: 'session-1',
-        project_id: 'project-1',
-        name: 'happy-panda',
-        status: 'initializing',
-        worktree_path: '/path/to/project',
-        branch_name: '',
-      });
-
-      const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: 'Hello Claude',
-          claude_code_options: { worktree: 'my-feature' },
-        }),
-      });
-
-      const response = await POST(request, {
-        params: Promise.resolve({ project_id: 'project-1' }),
-      });
-
-      expect(response.status).toBe(201);
-      expect(mockGitService.createWorktree).not.toHaveBeenCalled();
-    });
-
-    it('should create worktree normally when worktree option is not set', async () => {
-      mockDb._mockSelectGet.mockReturnValue({
-        id: 'project-1',
-        name: 'Test Project',
-        path: '/path/to/project',
-        claude_code_options: '{}',
-        environment_id: 'env-docker-1',
       });
 
       const request = new NextRequest('http://localhost/api/projects/project-1/sessions', {
@@ -769,7 +637,9 @@ describe('POST /api/projects/[project_id]/sessions', () => {
       });
 
       expect(response.status).toBe(201);
-      expect(mockGitService.createWorktree).toHaveBeenCalled();
+      const insertPayload = mockDb._mockInsertValues.mock.calls[0][0];
+      expect(insertPayload.worktree_path).toBe('/repo');
+      expect(insertPayload.branch_name).toBe('');
     });
   });
 });

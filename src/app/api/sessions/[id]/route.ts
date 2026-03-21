@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, schema } from '@/lib/db';
 import { eq } from 'drizzle-orm';
-import { GitService } from '@/services/git-service';
-import { DockerGitService } from '@/services/docker-git-service';
 import { ProcessManager } from '@/services/process-manager';
 import { logger } from '@/lib/logger';
+import { spawnSync } from 'child_process';
+import { basename, resolve } from 'path';
 
 const processManager = ProcessManager.getInstance();
 
@@ -83,7 +83,9 @@ export async function GET(
  * DELETE /api/sessions/[id] - セッション削除
  *
  * 指定されたIDのセッションを削除します。
- * 実行中のプロセスは停止され、Git worktreeが削除され、データベースからセッションが削除されます。
+ * 実行中のプロセスは停止され、データベースからセッションが削除されます。
+ * legacyセッション（branch_name !== ''）の場合のみ、アプリ側でworktreeとブランチの削除を試みます。
+ * 新方式セッション（branch_name === ''）ではClaude Codeがworktreeを管理するため、アプリ側の削除は不要です。
  *
  * @param params.id - セッションID
  *
@@ -130,37 +132,82 @@ export async function DELETE(
       }
     }
 
-    // --worktreeモード判定: branch_nameが空の場合はClaude Codeがworktreeを管理している
-    const useClaudeWorktree = targetSession.branch_name === '';
-
-    if (useClaudeWorktree) {
-      logger.info('Skipping worktree deletion (managed by Claude Code --worktree)', {
-        session_id: targetSession.id,
-      });
-    } else {
-      // Remove worktree
+    // 旧方式で作成されたセッション（branch_name が設定されている）の場合のみworktreeを削除
+    if (targetSession.branch_name && targetSession.branch_name !== '') {
       try {
-        const sessionName = targetSession.worktree_path.split('/').pop() || '';
-
+        const sessionName = basename(targetSession.worktree_path);
         if (targetSession.project.clone_location === 'docker') {
-          const dockerGitService = new DockerGitService();
-          const result = await dockerGitService.deleteWorktree(targetSession.project.id, sessionName, targetSession.project.docker_volume_id);
-          if (!result.success) {
-            throw result.error || new Error('Failed to delete docker worktree');
-          }
+          // Docker環境: legacyセッションのworktree削除は自動化されていない
+          // 手動クリーンアップが必要な旨を警告ログに出力
+          logger.warn('Docker legacy session deleted: worktree may be orphaned and require manual cleanup', {
+            session_id: targetSession.id,
+            sessionName,
+            worktree_path: targetSession.worktree_path,
+            branch_name: targetSession.branch_name,
+          });
         } else {
-          const gitService = new GitService(targetSession.project.path, logger);
-          gitService.deleteWorktree(sessionName);
-        }
+          // worktree_pathがプロジェクトの.worktrees/配下であることを検証
+          const expectedBase = resolve(targetSession.project.path, '.worktrees');
+          const resolvedWorktreePath = resolve(targetSession.worktree_path);
+          if (!resolvedWorktreePath.startsWith(expectedBase + '/')) {
+            logger.warn('Skipping worktree removal: path is not under .worktrees/', {
+              session_id: targetSession.id,
+              worktree_path: targetSession.worktree_path,
+              expected_base: expectedBase,
+            });
+          } else {
+            // Host環境: gitコマンドでworktree削除
+            const removeResult = spawnSync('git', ['worktree', 'remove', '--force', targetSession.worktree_path], {
+              // プロジェクトのルートディレクトリで実行（worktreeの管理元）
+              cwd: targetSession.project.path,
+              encoding: 'utf-8',
+            });
 
-        logger.debug('Worktree removed', { worktree_path: targetSession.worktree_path });
+            if (removeResult.error || removeResult.status !== 0) {
+              logger.warn('Failed to remove worktree for legacy session (continuing with deletion)', {
+                session_id: targetSession.id,
+                sessionName,
+                error: removeResult.stderr || removeResult.error?.message,
+              });
+            } else {
+              logger.info('Removed worktree for legacy session', {
+                session_id: targetSession.id,
+                sessionName,
+              });
+
+              // branch_nameがsession/プレフィックスであることを検証してからブランチ削除
+              const branchName = targetSession.branch_name;
+              if (!branchName.startsWith('session/')) {
+                logger.warn('Skipping branch deletion: branch_name does not have session/ prefix', {
+                  session_id: targetSession.id,
+                  branchName,
+                });
+              } else {
+                const branchResult = spawnSync('git', ['branch', '-D', branchName], {
+                  cwd: targetSession.project.path,
+                  encoding: 'utf-8',
+                });
+
+                if (branchResult.error || branchResult.status !== 0) {
+                  logger.warn('Failed to delete branch for legacy session', {
+                    session_id: targetSession.id,
+                    branchName,
+                    error: branchResult.stderr || branchResult.error?.message,
+                  });
+                }
+              }
+            }
+          }
+        }
       } catch (error) {
-        logger.warn('Failed to remove worktree', {
-          error,
-          worktree_path: targetSession.worktree_path,
+        // worktree削除失敗は警告のみ（セッション削除は続行）
+        logger.warn('Error during worktree cleanup for legacy session', {
+          session_id: targetSession.id,
+          error: error instanceof Error ? error.message : String(error),
         });
       }
     }
+    // 新方式（branch_name === ''）ではworktree削除不要（Claude Code管理）
 
     // Delete session from database
     await db.delete(schema.sessions).where(eq(schema.sessions.id, id)).run();
