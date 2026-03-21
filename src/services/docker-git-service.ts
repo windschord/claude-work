@@ -53,6 +53,193 @@ export class DockerGitService implements GitOperations {
     }
   }
 
+  private validateWorkingDir(workingDir: string): void {
+    if (!workingDir || workingDir.includes('..') || !workingDir.startsWith('/')) {
+      throw new Error(`Invalid working directory path: ${workingDir}`);
+    }
+  }
+
+  /**
+   * diff取得用のシェルスクリプトを生成
+   */
+  private buildDiffScript(): string {
+    return `
+      git diff --name-status main...HEAD | while IFS=$'\\t' read -r status file1 file2; do
+        file="$file1"
+        oldfile="$file1"
+        case "$status" in
+          R*|C*) file="$file2" ;;
+        esac
+        printf '===FILE_START===\\n'
+        printf 'PATH:%s\\n' "$file"
+        printf 'STATUS:%s\\n' "$status"
+
+        if [ "$status" != "A" ]; then
+          printf '===OLD_CONTENT_B64===\\n'
+          git show main:"$oldfile" 2>/dev/null | base64 || true
+          printf '===OLD_CONTENT_B64_END===\\n'
+        fi
+
+        if [ "$status" != "D" ]; then
+          printf '===NEW_CONTENT_B64===\\n'
+          git show HEAD:"$file" 2>/dev/null | base64 || true
+          printf '===NEW_CONTENT_B64_END===\\n'
+        fi
+
+        printf '===NUMSTAT_START===\\n'
+        git diff --numstat main...HEAD -- "$file"
+        printf '===FILE_END===\\n'
+      done
+    `;
+  }
+
+  /**
+   * diff出力をパースしてファイル情報を返す
+   */
+  private parseDiffOutput(stdout: string): {
+    files: Array<{
+      path: string;
+      status: 'added' | 'modified' | 'deleted';
+      additions: number;
+      deletions: number;
+      oldContent: string;
+      newContent: string;
+    }>;
+    totalAdditions: number;
+    totalDeletions: number;
+  } {
+    const files: Array<{
+      path: string;
+      status: 'added' | 'modified' | 'deleted';
+      additions: number;
+      deletions: number;
+      oldContent: string;
+      newContent: string;
+    }> = [];
+
+    let totalAdditions = 0;
+    let totalDeletions = 0;
+
+    const chunks = stdout.split('===FILE_START===');
+
+    for (const chunk of chunks) {
+      if (!chunk.trim()) continue;
+
+      const pathMatch = chunk.match(/PATH:(.*)/);
+      const statusMatch = chunk.match(/STATUS:(.*)/);
+
+      if (!pathMatch || !statusMatch) continue;
+
+      const filePath = pathMatch[1].trim();
+      const statusCode = statusMatch[1].trim();
+      let status: 'added' | 'modified' | 'deleted';
+
+      if (statusCode === 'A') status = 'added';
+      else if (statusCode === 'M' || statusCode.startsWith('R') || statusCode.startsWith('C')) status = 'modified';
+      else if (statusCode === 'D') status = 'deleted';
+      else continue;
+
+      let oldContent = '';
+      const oldContentMatch = chunk.match(/===OLD_CONTENT_B64===\n([\s\S]*?)===OLD_CONTENT_B64_END===/);
+      if (oldContentMatch) {
+        try {
+          oldContent = Buffer.from(oldContentMatch[1].trim(), 'base64').toString('utf-8');
+        } catch { oldContent = ''; }
+      }
+
+      let newContent = '';
+      const newContentMatch = chunk.match(/===NEW_CONTENT_B64===\n([\s\S]*?)===NEW_CONTENT_B64_END===/);
+      if (newContentMatch) {
+        try {
+          newContent = Buffer.from(newContentMatch[1].trim(), 'base64').toString('utf-8');
+        } catch { newContent = ''; }
+      }
+
+      let additions = 0;
+      let deletions = 0;
+      const numstatMatch = chunk.match(/===NUMSTAT_START===\s*([\d-]+)\s+([\d-]+)/);
+      if (numstatMatch) {
+        const addStr = numstatMatch[1];
+        const delStr = numstatMatch[2];
+        additions = addStr === '-' ? 0 : parseInt(addStr, 10) || 0;
+        deletions = delStr === '-' ? 0 : parseInt(delStr, 10) || 0;
+      }
+
+      totalAdditions += additions;
+      totalDeletions += deletions;
+
+      files.push({
+        path: filePath,
+        status,
+        additions,
+        deletions,
+        oldContent,
+        newContent,
+      });
+    }
+
+    return { files, totalAdditions, totalDeletions };
+  }
+
+  /**
+   * git logの出力をパースしてコミット情報を返す
+   */
+  private parseGitLogOutput(stdout: string): Array<{
+    hash: string;
+    short_hash: string;
+    message: string;
+    author: string;
+    date: string;
+    files_changed: number;
+  }> {
+    const output = stdout.trim();
+    if (!output) return [];
+
+    const commits: Array<{
+      hash: string;
+      short_hash: string;
+      message: string;
+      author: string;
+      date: string;
+      files_changed: number;
+    }> = [];
+
+    const lines = output.split('\n');
+    let currentCommit: any = null;
+    let filesChanged = 0;
+
+    for (const line of lines) {
+      if (line.includes('\0')) {
+        if (currentCommit) {
+          currentCommit.files_changed = filesChanged;
+          commits.push(currentCommit);
+          filesChanged = 0;
+        }
+
+        const parts = line.split('\0');
+        if (parts.length < 5) continue;
+        const [hash, short_hash, message, author, date] = parts;
+        currentCommit = {
+          hash,
+          short_hash,
+          message,
+          author,
+          date,
+          files_changed: 0,
+        };
+      } else if (line.trim() && currentCommit) {
+        filesChanged++;
+      }
+    }
+
+    if (currentCommit) {
+      currentCommit.files_changed = filesChanged;
+      commits.push(currentCommit);
+    }
+
+    return commits;
+  }
+
   /**
    * Dockerボリューム名を生成
    * dockerVolumeIdが指定された場合はその値を返す
@@ -547,113 +734,14 @@ export class DockerGitService implements GitOperations {
     const worktreePath = `/repo/.worktrees/${sessionName}`;
     const Binds = [`${volumeName}:/repo`];
 
-    const script = `
-      git diff --name-status main...HEAD | while IFS=$'\\t' read -r status file1 file2; do
-        file="$file1"
-        oldfile="$file1"
-        case "$status" in
-          R*|C*) file="$file2" ;;
-        esac
-        printf '===FILE_START===\\n'
-        printf 'PATH:%s\\n' "$file"
-        printf 'STATUS:%s\\n' "$status"
-
-        if [ "$status" != "A" ]; then
-          printf '===OLD_CONTENT_B64===\\n'
-          git show main:"$oldfile" 2>/dev/null | base64 || true
-          printf '===OLD_CONTENT_B64_END===\\n'
-        fi
-
-        if [ "$status" != "D" ]; then
-          printf '===NEW_CONTENT_B64===\\n'
-          git show HEAD:"$file" 2>/dev/null | base64 || true
-          printf '===NEW_CONTENT_B64_END===\\n'
-        fi
-
-        printf '===NUMSTAT_START===\\n'
-        git diff --numstat main...HEAD -- "$file"
-        printf '===FILE_END===\\n'
-      done
-    `;
-
     try {
-      const { stdout } = await this.runContainer('alpine/git', ['-c', script], {
+      const { stdout } = await this.runContainer('alpine/git', ['-c', this.buildDiffScript()], {
         Binds,
         WorkingDir: worktreePath,
         Entrypoint: ['/bin/sh'],
       });
 
-      const files: Array<{
-        path: string;
-        status: 'added' | 'modified' | 'deleted';
-        additions: number;
-        deletions: number;
-        oldContent: string;
-        newContent: string;
-      }> = [];
-
-      let totalAdditions = 0;
-      let totalDeletions = 0;
-
-      const chunks = stdout.split('===FILE_START===');
-      
-      for (const chunk of chunks) {
-        if (!chunk.trim()) continue;
-
-        const pathMatch = chunk.match(/PATH:(.*)/);
-        const statusMatch = chunk.match(/STATUS:(.*)/);
-        
-        if (!pathMatch || !statusMatch) continue;
-
-        const filePath = pathMatch[1].trim();
-        const statusCode = statusMatch[1].trim();
-        let status: 'added' | 'modified' | 'deleted';
-
-        if (statusCode === 'A') status = 'added';
-        else if (statusCode === 'M' || statusCode.startsWith('R') || statusCode.startsWith('C')) status = 'modified';
-        else if (statusCode === 'D') status = 'deleted';
-        else continue;
-
-        let oldContent = '';
-        const oldContentMatch = chunk.match(/===OLD_CONTENT_B64===\n([\s\S]*?)===OLD_CONTENT_B64_END===/);
-        if (oldContentMatch) {
-          try {
-            oldContent = Buffer.from(oldContentMatch[1].trim(), 'base64').toString('utf-8');
-          } catch { oldContent = ''; }
-        }
-
-        let newContent = '';
-        const newContentMatch = chunk.match(/===NEW_CONTENT_B64===\n([\s\S]*?)===NEW_CONTENT_B64_END===/);
-        if (newContentMatch) {
-          try {
-            newContent = Buffer.from(newContentMatch[1].trim(), 'base64').toString('utf-8');
-          } catch { newContent = ''; }
-        }
-
-        let additions = 0;
-        let deletions = 0;
-        const numstatMatch = chunk.match(/===NUMSTAT_START===\s*([\d-]+)\s+([\d-]+)/);
-        if (numstatMatch) {
-          const addStr = numstatMatch[1];
-          const delStr = numstatMatch[2];
-          additions = addStr === '-' ? 0 : parseInt(addStr, 10) || 0;
-          deletions = delStr === '-' ? 0 : parseInt(delStr, 10) || 0;
-        }
-
-        totalAdditions += additions;
-        totalDeletions += deletions;
-
-        files.push({
-          path: filePath,
-          status,
-          additions,
-          deletions,
-          oldContent,
-          newContent,
-        });
-      }
-
-      return { files, totalAdditions, totalDeletions };
+      return this.parseDiffOutput(stdout);
     } catch (error) {
       logger.error('[docker] Failed to get diff details', { error, projectId, sessionName });
       throw error;
@@ -676,116 +764,18 @@ export class DockerGitService implements GitOperations {
     totalAdditions: number;
     totalDeletions: number;
   }> {
+    this.validateWorkingDir(workingDir);
     const volumeName = this.getVolumeName(projectId, dockerVolumeId);
     const Binds = [`${volumeName}:/repo`];
 
-    const script = `
-      git diff --name-status main...HEAD | while IFS=$'\\t' read -r status file1 file2; do
-        file="$file1"
-        oldfile="$file1"
-        case "$status" in
-          R*|C*) file="$file2" ;;
-        esac
-        printf '===FILE_START===\\n'
-        printf 'PATH:%s\\n' "$file"
-        printf 'STATUS:%s\\n' "$status"
-
-        if [ "$status" != "A" ]; then
-          printf '===OLD_CONTENT_B64===\\n'
-          git show main:"$oldfile" 2>/dev/null | base64 || true
-          printf '===OLD_CONTENT_B64_END===\\n'
-        fi
-
-        if [ "$status" != "D" ]; then
-          printf '===NEW_CONTENT_B64===\\n'
-          git show HEAD:"$file" 2>/dev/null | base64 || true
-          printf '===NEW_CONTENT_B64_END===\\n'
-        fi
-
-        printf '===NUMSTAT_START===\\n'
-        git diff --numstat main...HEAD -- "$file"
-        printf '===FILE_END===\\n'
-      done
-    `;
-
     try {
-      const { stdout } = await this.runContainer('alpine/git', ['-c', script], {
+      const { stdout } = await this.runContainer('alpine/git', ['-c', this.buildDiffScript()], {
         Binds,
         WorkingDir: workingDir,
         Entrypoint: ['/bin/sh'],
       });
 
-      const files: Array<{
-        path: string;
-        status: 'added' | 'modified' | 'deleted';
-        additions: number;
-        deletions: number;
-        oldContent: string;
-        newContent: string;
-      }> = [];
-
-      let totalAdditions = 0;
-      let totalDeletions = 0;
-
-      const chunks = stdout.split('===FILE_START===');
-
-      for (const chunk of chunks) {
-        if (!chunk.trim()) continue;
-
-        const pathMatch = chunk.match(/PATH:(.*)/);
-        const statusMatch = chunk.match(/STATUS:(.*)/);
-
-        if (!pathMatch || !statusMatch) continue;
-
-        const filePath = pathMatch[1].trim();
-        const statusCode = statusMatch[1].trim();
-        let status: 'added' | 'modified' | 'deleted';
-
-        if (statusCode === 'A') status = 'added';
-        else if (statusCode === 'M' || statusCode.startsWith('R') || statusCode.startsWith('C')) status = 'modified';
-        else if (statusCode === 'D') status = 'deleted';
-        else continue;
-
-        let oldContent = '';
-        const oldContentMatch = chunk.match(/===OLD_CONTENT_B64===\n([\s\S]*?)===OLD_CONTENT_B64_END===/);
-        if (oldContentMatch) {
-          try {
-            oldContent = Buffer.from(oldContentMatch[1].trim(), 'base64').toString('utf-8');
-          } catch { oldContent = ''; }
-        }
-
-        let newContent = '';
-        const newContentMatch = chunk.match(/===NEW_CONTENT_B64===\n([\s\S]*?)===NEW_CONTENT_B64_END===/);
-        if (newContentMatch) {
-          try {
-            newContent = Buffer.from(newContentMatch[1].trim(), 'base64').toString('utf-8');
-          } catch { newContent = ''; }
-        }
-
-        let additions = 0;
-        let deletions = 0;
-        const numstatMatch = chunk.match(/===NUMSTAT_START===\s*([\d-]+)\s+([\d-]+)/);
-        if (numstatMatch) {
-          const addStr = numstatMatch[1];
-          const delStr = numstatMatch[2];
-          additions = addStr === '-' ? 0 : parseInt(addStr, 10) || 0;
-          deletions = delStr === '-' ? 0 : parseInt(delStr, 10) || 0;
-        }
-
-        totalAdditions += additions;
-        totalDeletions += deletions;
-
-        files.push({
-          path: filePath,
-          status,
-          additions,
-          deletions,
-          oldContent,
-          newContent,
-        });
-      }
-
-      return { files, totalAdditions, totalDeletions };
+      return this.parseDiffOutput(stdout);
     } catch (error) {
       logger.error('[docker] Failed to get diff details by path', { error, projectId, workingDir });
       throw error;
@@ -847,6 +837,7 @@ export class DockerGitService implements GitOperations {
    * 新方式セッション（worktree_path='/repo'）で使用。WorkingDirを直接指定する。
    */
   async rebaseFromMainByPath(projectId: string, workingDir: string, dockerVolumeId?: string | null): Promise<{ success: boolean; conflicts?: string[] }> {
+    this.validateWorkingDir(workingDir);
     const volumeName = this.getVolumeName(projectId, dockerVolumeId);
     const Binds = [`${volumeName}:/repo`];
 
@@ -995,52 +986,7 @@ export class DockerGitService implements GitOperations {
         WorkingDir: worktreePath,
       });
 
-      const output = stdout.trim();
-      if (!output) return [];
-
-      const commits: Array<{
-        hash: string;
-        short_hash: string;
-        message: string;
-        author: string;
-        date: string;
-        files_changed: number;
-      }> = [];
-
-      const lines = output.split('\n');
-      let currentCommit: any = null;
-      let filesChanged = 0;
-
-      for (const line of lines) {
-        if (line.includes('\0')) {
-          if (currentCommit) {
-            currentCommit.files_changed = filesChanged;
-            commits.push(currentCommit);
-            filesChanged = 0;
-          }
-
-          const parts = line.split('\0');
-          if (parts.length < 5) continue;
-          const [hash, short_hash, message, author, date] = parts;
-          currentCommit = {
-            hash,
-            short_hash,
-            message,
-            author,
-            date,
-            files_changed: 0,
-          };
-        } else if (line.trim() && currentCommit) {
-          filesChanged++;
-        }
-      }
-
-      if (currentCommit) {
-        currentCommit.files_changed = filesChanged;
-        commits.push(currentCommit);
-      }
-
-      return commits;
+      return this.parseGitLogOutput(stdout);
     } catch (error) {
       logger.error('[docker] Failed to get commits', { error, projectId, sessionName });
       throw error;
@@ -1059,6 +1005,7 @@ export class DockerGitService implements GitOperations {
     date: string;
     files_changed: number;
   }>> {
+    this.validateWorkingDir(workingDir);
     const volumeName = this.getVolumeName(projectId, dockerVolumeId);
     const Binds = [`${volumeName}:/repo`];
 
@@ -1070,52 +1017,7 @@ export class DockerGitService implements GitOperations {
         WorkingDir: workingDir,
       });
 
-      const output = stdout.trim();
-      if (!output) return [];
-
-      const commits: Array<{
-        hash: string;
-        short_hash: string;
-        message: string;
-        author: string;
-        date: string;
-        files_changed: number;
-      }> = [];
-
-      const lines = output.split('\n');
-      let currentCommit: any = null;
-      let filesChanged = 0;
-
-      for (const line of lines) {
-        if (line.includes('\0')) {
-          if (currentCommit) {
-            currentCommit.files_changed = filesChanged;
-            commits.push(currentCommit);
-            filesChanged = 0;
-          }
-
-          const parts = line.split('\0');
-          if (parts.length < 5) continue;
-          const [hash, short_hash, message, author, date] = parts;
-          currentCommit = {
-            hash,
-            short_hash,
-            message,
-            author,
-            date,
-            files_changed: 0,
-          };
-        } else if (line.trim() && currentCommit) {
-          filesChanged++;
-        }
-      }
-
-      if (currentCommit) {
-        currentCommit.files_changed = filesChanged;
-        commits.push(currentCommit);
-      }
-
-      return commits;
+      return this.parseGitLogOutput(stdout);
     } catch (error) {
       logger.error('[docker] Failed to get commits by path', { error, projectId, workingDir });
       throw error;
@@ -1151,6 +1053,7 @@ export class DockerGitService implements GitOperations {
    * 新方式セッション（worktree_path='/repo'）で使用。WorkingDirを直接指定する。
    */
   async resetByPath(projectId: string, workingDir: string, commitHash: string, dockerVolumeId?: string | null): Promise<{ success: boolean; error?: string }> {
+    this.validateWorkingDir(workingDir);
     this.validateCommitHash(commitHash);
     const volumeName = this.getVolumeName(projectId, dockerVolumeId);
     const Binds = [`${volumeName}:/repo`];
