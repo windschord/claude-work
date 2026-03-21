@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
-import { EnvFileService } from '../env-file-service';
+import { EnvFileService, EnvFileError } from '../env-file-service';
 
 describe('EnvFileService', () => {
   let tmpDir: string;
@@ -88,12 +88,15 @@ describe('EnvFileService', () => {
       ).rejects.toThrow();
     });
 
-    it('1MBを超えるファイルでエラーをスローする', async () => {
+    it('1MBを超えるファイルでEnvFileError(FILE_TOO_LARGE)をスローする', async () => {
       const largeContent = 'K'.repeat(1024 * 1024 + 1);
       await fs.writeFile(path.join(tmpDir, '.env.large'), largeContent);
       await expect(
         EnvFileService.readEnvFile(tmpDir, '.env.large', 'host')
-      ).rejects.toThrow(/1MB/);
+      ).rejects.toThrow(EnvFileError);
+      await expect(
+        EnvFileService.readEnvFile(tmpDir, '.env.large', 'host')
+      ).rejects.toMatchObject({ code: 'FILE_TOO_LARGE' });
     });
   });
 
@@ -107,7 +110,10 @@ describe('EnvFileService', () => {
 
         await expect(
           EnvFileService.readEnvFile(tmpDir, '.env.link', 'host')
-        ).rejects.toThrow(/許可されたファイル一覧にありません/);
+        ).rejects.toThrow(EnvFileError);
+        await expect(
+          EnvFileService.readEnvFile(tmpDir, '.env.link', 'host')
+        ).rejects.toMatchObject({ code: 'FILE_NOT_FOUND' });
       } finally {
         await fs.rm(outerDir, { recursive: true, force: true });
       }
@@ -115,22 +121,31 @@ describe('EnvFileService', () => {
   });
 
   describe('dockerVolumeId null チェック', () => {
-    it('listEnvFiles: docker環境でdockerVolumeIdがnullならエラー', async () => {
+    it('listEnvFiles: docker環境でdockerVolumeIdがnullならEnvFileError(DOCKER_VOLUME_MISSING)', async () => {
       await expect(
         EnvFileService.listEnvFiles('/project', 'docker', null)
-      ).rejects.toThrow(/dockerVolumeId/);
+      ).rejects.toThrow(EnvFileError);
+      await expect(
+        EnvFileService.listEnvFiles('/project', 'docker', null)
+      ).rejects.toMatchObject({ code: 'DOCKER_VOLUME_MISSING' });
     });
 
-    it('listEnvFiles: docker環境でdockerVolumeIdがundefinedならエラー', async () => {
+    it('listEnvFiles: docker環境でdockerVolumeIdがundefinedならEnvFileError(DOCKER_VOLUME_MISSING)', async () => {
       await expect(
         EnvFileService.listEnvFiles('/project', 'docker')
-      ).rejects.toThrow(/dockerVolumeId/);
+      ).rejects.toThrow(EnvFileError);
+      await expect(
+        EnvFileService.listEnvFiles('/project', 'docker')
+      ).rejects.toMatchObject({ code: 'DOCKER_VOLUME_MISSING' });
     });
 
-    it('readEnvFile: docker環境でdockerVolumeIdがnullならエラー', async () => {
+    it('readEnvFile: docker環境でdockerVolumeIdがnullならEnvFileError(DOCKER_VOLUME_MISSING)', async () => {
       await expect(
         EnvFileService.readEnvFile('/project', '.env', 'docker', null)
-      ).rejects.toThrow(/dockerVolumeId/);
+      ).rejects.toThrow(EnvFileError);
+      await expect(
+        EnvFileService.readEnvFile('/project', '.env', 'docker', null)
+      ).rejects.toMatchObject({ code: 'DOCKER_VOLUME_MISSING' });
     });
   });
 
@@ -172,24 +187,34 @@ describe('EnvFileService', () => {
       ).rejects.toThrow();
     });
 
-    it('1MBを超えるファイルでエラーをスローする', async () => {
+    it('1MBを超えるファイルでEnvFileError(FILE_TOO_LARGE)をスローする', async () => {
       // exit code 2 = サイズ超過
       vi.spyOn(EnvFileService, '_runDockerCommand')
         .mockRejectedValueOnce({ code: 2, stderr: '' });
 
       await expect(
         EnvFileService.readEnvFile('/project', '.env', 'docker', 'test-volume')
-      ).rejects.toThrow(/1MB/);
+      ).rejects.toThrow(EnvFileError);
+      vi.spyOn(EnvFileService, '_runDockerCommand')
+        .mockRejectedValueOnce({ code: 2, stderr: '' });
+      await expect(
+        EnvFileService.readEnvFile('/project', '.env', 'docker', 'test-volume')
+      ).rejects.toMatchObject({ code: 'FILE_TOO_LARGE' });
     });
 
-    it('ファイル未存在でENOENTエラーをスローする', async () => {
+    it('ファイル未存在でEnvFileError(FILE_NOT_FOUND)をスローする', async () => {
       // exit code 1 = ファイル未存在
       vi.spyOn(EnvFileService, '_runDockerCommand')
         .mockRejectedValueOnce({ code: 1, stderr: '' });
 
       await expect(
         EnvFileService.readEnvFile('/project', '.env', 'docker', 'test-volume')
-      ).rejects.toThrow(/存在しません/);
+      ).rejects.toThrow(EnvFileError);
+      vi.spyOn(EnvFileService, '_runDockerCommand')
+        .mockRejectedValueOnce({ code: 1, stderr: '' });
+      await expect(
+        EnvFileService.readEnvFile('/project', '.env', 'docker', 'test-volume')
+      ).rejects.toMatchObject({ code: 'FILE_NOT_FOUND' });
     });
   });
 });

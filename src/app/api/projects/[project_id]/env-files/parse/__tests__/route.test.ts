@@ -4,18 +4,30 @@ import { NextRequest } from 'next/server';
 import type { Project } from '@/lib/db';
 import { setupTestEnvironment, cleanupTestEnvironment } from '../../../scripts/__tests__/test-helpers';
 
-vi.mock('@/services/env-file-service', () => ({
-  EnvFileService: {
-    validatePath: vi.fn(),
-    readEnvFile: vi.fn(),
-  },
-}));
+vi.mock('@/services/env-file-service', () => {
+  class EnvFileError extends Error {
+    code: string;
+    constructor(message: string, code: string) {
+      super(message);
+      this.name = 'EnvFileError';
+      this.code = code;
+    }
+  }
+  return {
+    EnvFileService: {
+      validatePath: vi.fn(),
+      readEnvFile: vi.fn(),
+      listEnvFiles: vi.fn().mockResolvedValue([]),
+    },
+    EnvFileError,
+  };
+});
 
 vi.mock('@/services/dotenv-parser', () => ({
   parseDotenv: vi.fn(),
 }));
 
-import { EnvFileService } from '@/services/env-file-service';
+import { EnvFileService, EnvFileError } from '@/services/env-file-service';
 import { parseDotenv } from '@/services/dotenv-parser';
 
 describe('POST /api/projects/[project_id]/env-files/parse', () => {
@@ -64,6 +76,7 @@ describe('POST /api/projects/[project_id]/env-files/parse', () => {
       '.env',
       project.clone_location,
       project.docker_volume_id,
+      expect.any(Array),
     );
     expect(parseDotenv).toHaveBeenCalledWith('DB_HOST=localhost\nDB_PORT=5432');
   });
@@ -167,7 +180,7 @@ describe('POST /api/projects/[project_id]/env-files/parse', () => {
   it('should return 404 when env file not found', async () => {
     vi.mocked(EnvFileService.validatePath).mockImplementation(() => {});
     vi.mocked(EnvFileService.readEnvFile).mockRejectedValue(
-      Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' })
+      new EnvFileError('許可されたファイル一覧にありません: .env.missing', 'FILE_NOT_FOUND')
     );
 
     const request = new NextRequest(
@@ -188,7 +201,7 @@ describe('POST /api/projects/[project_id]/env-files/parse', () => {
   it('should return 413 when file exceeds size limit', async () => {
     vi.mocked(EnvFileService.validatePath).mockImplementation(() => {});
     vi.mocked(EnvFileService.readEnvFile).mockRejectedValue(
-      new Error('ファイルサイズが1MBを超えています: .env.huge (2000000 bytes)')
+      new EnvFileError('ファイルサイズが1MBを超えています: .env.huge (2000000 bytes)', 'FILE_TOO_LARGE')
     );
 
     const request = new NextRequest(

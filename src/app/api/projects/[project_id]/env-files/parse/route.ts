@@ -2,7 +2,7 @@ import path from 'path';
 import { NextRequest, NextResponse } from 'next/server';
 import { db, schema } from '@/lib/db';
 import { eq } from 'drizzle-orm';
-import { EnvFileService } from '@/services/env-file-service';
+import { EnvFileService, EnvFileError } from '@/services/env-file-service';
 import { parseDotenv } from '@/services/dotenv-parser';
 import { logger } from '@/lib/logger';
 
@@ -53,26 +53,29 @@ export async function POST(
       return NextResponse.json({ error: message }, { status: 400 });
     }
 
-    // ファイル読み込み
+    // ファイル読み込み（listEnvFilesの結果をreadEnvFileに渡して二重走査を防止）
     let content: string;
     try {
+      const allowedFiles = await EnvFileService.listEnvFiles(project.path, project.clone_location, project.docker_volume_id);
       content = await EnvFileService.readEnvFile(
         project.path,
         filePath,
         project.clone_location,
         project.docker_volume_id,
+        allowedFiles,
       );
     } catch (error) {
-      if (error instanceof Error) {
-        if (error.message.includes('1MB')) {
-          return NextResponse.json({ error: error.message }, { status: 413 });
-        }
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT' || error.message.includes('存在しません')) {
-          return NextResponse.json({ error: 'File not found' }, { status: 404 });
-        }
-        // 許可ポリシー違反（.envパターン不一致、除外ディレクトリ等）
-        if (error.message.includes('許可されていません')) {
-          return NextResponse.json({ error: error.message }, { status: 400 });
+      if (error instanceof EnvFileError) {
+        switch (error.code) {
+          case 'FILE_TOO_LARGE':
+            return NextResponse.json({ error: error.message }, { status: 413 });
+          case 'FILE_NOT_FOUND':
+            return NextResponse.json({ error: 'File not found' }, { status: 404 });
+          case 'POLICY_VIOLATION':
+          case 'DOCKER_VOLUME_MISSING':
+            return NextResponse.json({ error: error.message }, { status: 400 });
+          default:
+            break;
         }
       }
       throw error;

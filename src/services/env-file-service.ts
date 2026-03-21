@@ -7,6 +7,7 @@ const execFilePromise = promisify(execFile);
 
 const MAX_FILE_SIZE = 1024 * 1024; // 1MB
 const ENV_FILE_PATTERN = /^\.env(\.[\w.-]+)?$/;
+const DEFAULT_MAX_DEPTH = 5;
 
 const EXCLUDE_DIRS = new Set([
   'node_modules',
@@ -16,6 +17,15 @@ const EXCLUDE_DIRS = new Set([
   '.next',
   '.worktrees',
 ]);
+
+export class EnvFileError extends Error {
+  code: string;
+  constructor(message: string, code: string) {
+    super(message);
+    this.name = 'EnvFileError';
+    this.code = code;
+  }
+}
 
 /**
  * Docker内でコマンドを実行するヘルパー
@@ -59,7 +69,7 @@ export class EnvFileService {
   ): Promise<string[]> {
     if (cloneLocation === 'docker') {
       if (!dockerVolumeId) {
-        throw new Error('Docker環境ですがdockerVolumeIdが設定されていません');
+        throw new EnvFileError('Docker環境ですがdockerVolumeIdが設定されていません', 'DOCKER_VOLUME_MISSING');
       }
       return EnvFileService.listEnvFilesDocker(dockerVolumeId);
     }
@@ -69,40 +79,48 @@ export class EnvFileService {
 
   /**
    * .envファイルの内容を読み込む
+   * @param allowedFiles listEnvFilesの結果を渡すことで二重走査を防止（省略時は内部で取得）
    */
   static async readEnvFile(
     projectPath: string,
     relativePath: string,
     cloneLocation: string | null,
     dockerVolumeId?: string | null,
+    allowedFiles?: string[],
   ): Promise<string> {
     EnvFileService.validatePath(projectPath, relativePath);
 
     // listEnvFiles()と同じ許可ポリシーを適用
     const fileName = path.basename(relativePath);
     if (!ENV_FILE_PATTERN.test(fileName)) {
-      throw new Error('.envファイルのみ読み込みが許可されています');
+      throw new EnvFileError('.envファイルのみ読み込みが許可されています', 'POLICY_VIOLATION');
     }
     const parts = relativePath.split(/[/\\]/);
     if (parts.some(part => EXCLUDE_DIRS.has(part))) {
-      throw new Error('除外ディレクトリ内のファイルは読み込みが許可されていません');
+      throw new EnvFileError('除外ディレクトリ内のファイルは読み込みが許可されていません', 'POLICY_VIOLATION');
     }
 
     if (cloneLocation === 'docker') {
       if (!dockerVolumeId) {
-        throw new Error('Docker環境ですがdockerVolumeIdが設定されていません');
+        throw new EnvFileError('Docker環境ですがdockerVolumeIdが設定されていません', 'DOCKER_VOLUME_MISSING');
       }
       return EnvFileService.readEnvFileDocker(dockerVolumeId, relativePath);
     }
 
-    return EnvFileService.readEnvFileHost(projectPath, relativePath);
+    return EnvFileService.readEnvFileHost(projectPath, relativePath, allowedFiles);
   }
 
   /**
    * ディレクトリを再帰的に探索して.env*ファイルを見つける
+   * @param maxDepth 探索する最大深度（デフォルト: DEFAULT_MAX_DEPTH）
+   * @param currentDepth 現在の深度（内部使用）
    */
-  private static async findEnvFiles(dirPath: string, basePath: string): Promise<string[]> {
+  private static async findEnvFiles(dirPath: string, basePath: string, maxDepth: number = DEFAULT_MAX_DEPTH, currentDepth: number = 0): Promise<string[]> {
     const results: string[] = [];
+
+    if (currentDepth > maxDepth) {
+      return results;
+    }
 
     let entries;
     try {
@@ -123,6 +141,8 @@ export class EnvFileService {
         const subResults = await EnvFileService.findEnvFiles(
           path.join(dirPath, entry.name),
           basePath,
+          maxDepth,
+          currentDepth + 1,
         );
         results.push(...subResults);
       } else if (entry.isFile() && !entry.isSymbolicLink() && entry.name.startsWith('.env') && ENV_FILE_PATTERN.test(entry.name)) {
@@ -135,7 +155,7 @@ export class EnvFileService {
   }
 
   private static async listEnvFilesHost(projectPath: string): Promise<string[]> {
-    const files = await EnvFileService.findEnvFiles(projectPath, projectPath);
+    const files = await EnvFileService.findEnvFiles(projectPath, projectPath, DEFAULT_MAX_DEPTH);
     return files.sort();
   }
 
@@ -150,6 +170,7 @@ export class EnvFileService {
       '-v', `${dockerVolumeId}:/workspace`,
       'alpine:3.21',
       'find', '/workspace',
+      '-maxdepth', String(DEFAULT_MAX_DEPTH + 1), // +1: /workspace自体が1階層
       '(', ...pruneArgs, ')',
       '-prune', '-o',
       '-name', '.env*', '-type', 'f', '-print',
@@ -169,16 +190,15 @@ export class EnvFileService {
    * 許可リスト方式でホスト側の.envファイルを読み込む
    * findEnvFiles()がディレクトリ走査で構築した安全なパスのみを使用し、
    * ユーザー入力(relativePath)をファイルシステムAPIに直接渡さない
+   * @param allowedFiles listEnvFilesHostの結果を渡すことで二重走査を防止（省略時は内部で取得）
    */
-  private static async readEnvFileHost(projectPath: string, relativePath: string): Promise<string> {
+  private static async readEnvFileHost(projectPath: string, relativePath: string, allowedFiles?: string[]): Promise<string> {
     // findEnvFilesがfs.readdirで構築したパスリストから完全一致で取得
     // これによりユーザー入力はファイルシステムAPIに渡らない
-    const allowedFiles = await EnvFileService.listEnvFilesHost(projectPath);
-    const safeRelativePath = allowedFiles.find(f => f === relativePath);
+    const files = allowedFiles ?? await EnvFileService.listEnvFilesHost(projectPath);
+    const safeRelativePath = files.find(f => f === relativePath);
     if (safeRelativePath === undefined) {
-      const err = new Error(`許可されたファイル一覧にありません: ${relativePath}`);
-      (err as NodeJS.ErrnoException).code = 'ENOENT';
-      throw err;
+      throw new EnvFileError(`許可されたファイル一覧にありません: ${relativePath}`, 'FILE_NOT_FOUND');
     }
 
     // safeRelativePathはfindEnvFiles()がfs.readdir + path.relativeで構築した値
@@ -188,7 +208,7 @@ export class EnvFileService {
 
     const stat = await fs.stat(targetPath);
     if (stat.size > MAX_FILE_SIZE) {
-      throw new Error(`ファイルサイズが1MBを超えています: ${relativePath} (${stat.size} bytes)`);
+      throw new EnvFileError(`ファイルサイズが1MBを超えています: ${relativePath} (${stat.size} bytes)`, 'FILE_TOO_LARGE');
     }
 
     return fs.readFile(targetPath, 'utf-8');
@@ -214,12 +234,10 @@ export class EnvFileService {
       // execFileはexit code != 0でrejectする
       const execError = error as { code?: number | string; stderr?: string };
       if (execError.code === 1) {
-        const err = new Error(`ファイルが存在しません: ${relativePath}`);
-        (err as NodeJS.ErrnoException).code = 'ENOENT';
-        throw err;
+        throw new EnvFileError(`ファイルが存在しません: ${relativePath}`, 'FILE_NOT_FOUND');
       }
       if (execError.code === 2) {
-        throw new Error(`ファイルサイズが1MBを超えています: ${relativePath}`);
+        throw new EnvFileError(`ファイルサイズが1MBを超えています: ${relativePath}`, 'FILE_TOO_LARGE');
       }
       throw error;
     }
