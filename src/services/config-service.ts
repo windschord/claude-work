@@ -1,6 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { logger } from '@/lib/logger';
+import { ClaudeOptionsService } from '@/services/claude-options-service';
 
 /**
  * Claude Codeのデフォルト設定
@@ -69,17 +70,15 @@ export class ConfigService {
 
       // custom_env_vars の検証: plain objectからキーパターン一致かつ値が文字列のエントリのみフィルタ採用
       const rawCustomEnvVars = loadedConfig.custom_env_vars;
-      let validatedCustomEnvVars: Record<string, string> = DEFAULT_CONFIG.custom_env_vars;
+      let validatedCustomEnvVars: Record<string, string> = {};
       if (
         rawCustomEnvVars !== null &&
         typeof rawCustomEnvVars === 'object' &&
         !Array.isArray(rawCustomEnvVars)
       ) {
-        // キーパターン検証: ^[A-Z_][A-Z0-9_]*$ に一致し、値が文字列のもののみ採用
-        const keyPattern = /^[A-Z_][A-Z0-9_]*$/;
         const filtered: Record<string, string> = {};
         for (const [key, value] of Object.entries(rawCustomEnvVars)) {
-          if (keyPattern.test(key) && typeof value === 'string') {
+          if (ClaudeOptionsService.validateEnvVarKey(key) && typeof value === 'string') {
             filtered[key] = value;
           }
         }

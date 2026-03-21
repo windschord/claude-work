@@ -15,6 +15,13 @@ interface EnvVarEntry {
 
 const ENV_VAR_KEY_PATTERN = /^[A-Z_][A-Z0-9_]*$/;
 
+function generateId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return generateId();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
 interface ClaudeDefaults {
   dangerouslySkipPermissions: boolean;
   worktree: boolean;
@@ -72,7 +79,7 @@ export default function AppSettingsPage() {
         const envVars: Record<string, string> = config.custom_env_vars ?? {};
         setEnvEntries(
           Object.entries(envVars).map(([key, value]) => ({
-            id: crypto.randomUUID(),
+            id: generateId(),
             key,
             value,
           }))
@@ -159,7 +166,7 @@ export default function AppSettingsPage() {
       const savedEnvVars: Record<string, string> = config?.custom_env_vars ?? {};
       setEnvEntries(
         Object.entries(savedEnvVars).map(([key, value]) => ({
-          id: crypto.randomUUID(),
+          id: generateId(),
           key,
           value,
         }))
@@ -200,7 +207,7 @@ export default function AppSettingsPage() {
 
   // 環境変数エントリの追加
   const handleAddEnvEntry = () => {
-    setEnvEntries((prev) => [...prev, { id: crypto.randomUUID(), key: '', value: '' }]);
+    setEnvEntries((prev) => [...prev, { id: generateId(), key: '', value: '' }]);
     setHasUnsavedChanges(true);
   };
 

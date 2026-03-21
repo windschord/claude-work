@@ -551,7 +551,7 @@ describe('ConfigService', () => {
       await fs.writeFile(testConfigPath, JSON.stringify(testConfig), 'utf-8');
       await configService.load();
 
-      expect(configService.getCustomEnvVars()).toEqual({})
+      expect(configService.getCustomEnvVars()).toEqual({});
     });
   });
 });
