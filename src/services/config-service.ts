@@ -18,6 +18,7 @@ export interface AppConfig {
   debug_mode_keep_volumes?: boolean;
   registry_firewall_enabled?: boolean;
   claude_defaults?: ClaudeDefaults;
+  custom_env_vars?: Record<string, string>;
 }
 
 /**
@@ -33,14 +34,16 @@ const DEFAULT_CONFIG: Required<AppConfig> = {
   debug_mode_keep_volumes: false,
   registry_firewall_enabled: true,
   claude_defaults: { ...DEFAULT_CLAUDE_DEFAULTS },
+  custom_env_vars: {},
 };
 
 /**
- * ネストオブジェクト(claude_defaults)を含む設定のdeep copy
+ * ネストオブジェクト(claude_defaults, custom_env_vars)を含む設定のdeep copy
  */
 const cloneConfig = (config: Required<AppConfig>): Required<AppConfig> => ({
   ...config,
   claude_defaults: { ...config.claude_defaults },
+  custom_env_vars: { ...config.custom_env_vars },
 });
 
 /**
@@ -64,6 +67,24 @@ export class ConfigService {
       const fileContent = await fs.readFile(this.configPath, 'utf-8');
       const loadedConfig = JSON.parse(fileContent) as AppConfig;
 
+      // custom_env_vars の検証: plain objectからキーパターン一致かつ値が文字列のエントリのみフィルタ採用
+      const rawCustomEnvVars = loadedConfig.custom_env_vars;
+      let validatedCustomEnvVars: Record<string, string> = DEFAULT_CONFIG.custom_env_vars;
+      if (
+        rawCustomEnvVars !== null &&
+        typeof rawCustomEnvVars === 'object' &&
+        !Array.isArray(rawCustomEnvVars)
+      ) {
+        const keyPattern = /^[A-Z_][A-Z0-9_]*$/;
+        const filtered: Record<string, string> = {};
+        for (const [key, value] of Object.entries(rawCustomEnvVars)) {
+          if (keyPattern.test(key) && typeof value === 'string') {
+            filtered[key] = value;
+          }
+        }
+        validatedCustomEnvVars = filtered;
+      }
+
       // デフォルト値とマージ
       const loadedClaudeDefaults = loadedConfig.claude_defaults;
       this.config = {
@@ -83,6 +104,7 @@ export class ConfigService {
               ? loadedClaudeDefaults.worktree
               : DEFAULT_CLAUDE_DEFAULTS.worktree,
         },
+        custom_env_vars: validatedCustomEnvVars,
       };
 
       logger.info('Configuration loaded', { config: this.config });
@@ -166,6 +188,13 @@ export class ConfigService {
       dangerouslySkipPermissions: this.config.claude_defaults.dangerouslySkipPermissions ?? DEFAULT_CLAUDE_DEFAULTS.dangerouslySkipPermissions,
       worktree: this.config.claude_defaults.worktree ?? DEFAULT_CLAUDE_DEFAULTS.worktree,
     };
+  }
+
+  /**
+   * カスタム環境変数を取得
+   */
+  getCustomEnvVars(): Record<string, string> {
+    return { ...this.config.custom_env_vars };
   }
 
   /**
