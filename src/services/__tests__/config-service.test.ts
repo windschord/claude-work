@@ -482,4 +482,76 @@ describe('ConfigService', () => {
       expect(configService.getRegistryFirewallEnabled()).toBe(true);
     });
   });
+
+  describe('custom_env_vars', () => {
+    it('custom_env_varsが未設定時はデフォルト{}が返される', async () => {
+      await configService.load();
+      expect(configService.getCustomEnvVars()).toEqual({});
+    });
+
+    it('custom_env_varsが設定されている設定ファイルを読み込み、正しく取得できる', async () => {
+      const testConfig = {
+        custom_env_vars: { MY_VAR: 'hello', ANOTHER: 'world' },
+      };
+      await fs.mkdir(path.dirname(testConfigPath), { recursive: true });
+      await fs.writeFile(testConfigPath, JSON.stringify(testConfig), 'utf-8');
+      await configService.load();
+
+      expect(configService.getCustomEnvVars()).toEqual({ MY_VAR: 'hello', ANOTHER: 'world' });
+    });
+
+    it('custom_env_varsを含む設定を保存し、ファイルに書き込まれる', async () => {
+      await configService.load();
+      await configService.save({ custom_env_vars: { FOO: 'bar' } });
+
+      const savedContent = await fs.readFile(testConfigPath, 'utf-8');
+      const savedConfig = JSON.parse(savedContent);
+      expect(savedConfig.custom_env_vars).toEqual({ FOO: 'bar' });
+    });
+
+    it('getCustomEnvVars()が正しい値を返す', async () => {
+      await configService.load();
+      await configService.save({ custom_env_vars: { KEY1: 'val1', KEY2: 'val2' } });
+
+      const vars = configService.getCustomEnvVars();
+      expect(vars).toEqual({ KEY1: 'val1', KEY2: 'val2' });
+    });
+
+    it('getCustomEnvVars()が返すオブジェクトは独立したコピーである', async () => {
+      await configService.load();
+      await configService.save({ custom_env_vars: { KEY: 'value' } });
+
+      const vars1 = configService.getCustomEnvVars();
+      const vars2 = configService.getCustomEnvVars();
+      expect(vars1).not.toBe(vars2);
+      expect(vars1).toEqual(vars2);
+    });
+
+    it('不正なcustom_env_vars(配列)の場合にデフォルト値{}になる', async () => {
+      const testConfig = { custom_env_vars: ['not', 'an', 'object'] };
+      await fs.mkdir(path.dirname(testConfigPath), { recursive: true });
+      await fs.writeFile(testConfigPath, JSON.stringify(testConfig), 'utf-8');
+      await configService.load();
+
+      expect(configService.getCustomEnvVars()).toEqual({});
+    });
+
+    it('不正なcustom_env_vars(null)の場合にデフォルト値{}になる', async () => {
+      const testConfig = { custom_env_vars: null };
+      await fs.mkdir(path.dirname(testConfigPath), { recursive: true });
+      await fs.writeFile(testConfigPath, JSON.stringify(testConfig), 'utf-8');
+      await configService.load();
+
+      expect(configService.getCustomEnvVars()).toEqual({});
+    });
+
+    it('値に文字列以外を含むcustom_env_varsはデフォルト値{}になる', async () => {
+      const testConfig = { custom_env_vars: { KEY: 123 } };
+      await fs.mkdir(path.dirname(testConfigPath), { recursive: true });
+      await fs.writeFile(testConfigPath, JSON.stringify(testConfig), 'utf-8');
+      await configService.load();
+
+      expect(configService.getCustomEnvVars()).toEqual({})
+    });
+  });
 });
