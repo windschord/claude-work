@@ -110,6 +110,20 @@ export class GitService {
     const worktreePath = join(this.repoPath, '.worktrees', sessionName);
     this.validateWorktreePath(worktreePath);
 
+    return this.getDiffByPath(worktreePath);
+  }
+
+  /**
+   * 指定パスでmainブランチとの差分を取得
+   *
+   * worktreeパスを直接指定してmainブランチとの差分を取得します。
+   * Claude Code --worktreeモードのセッション（branch_name === ''）で使用します。
+   *
+   * @param worktreePath - Git作業ディレクトリのパス
+   * @returns 追加、変更、削除されたファイルのパスを含むオブジェクト
+   * @throws Git操作が失敗した場合にエラーをスロー
+   */
+  getDiffByPath(worktreePath: string): { added: string[]; modified: string[]; deleted: string[] } {
     try {
       const result = spawnSync('git', ['diff', '--name-status', 'main...HEAD'], {
         cwd: worktreePath,
@@ -140,7 +154,7 @@ export class GitService {
 
       return { added, modified, deleted };
     } catch (error) {
-      this.logger.error('Failed to get diff', { sessionName, errorMessage: error instanceof Error ? error.message : String(error) });
+      this.logger.error('Failed to get diff', { worktreePath, errorMessage: error instanceof Error ? error.message : String(error) });
       throw error;
     }
   }
@@ -172,6 +186,31 @@ export class GitService {
     const worktreePath = join(this.repoPath, '.worktrees', sessionName);
     this.validateWorktreePath(worktreePath);
 
+    return this.getDiffDetailsByPath(worktreePath);
+  }
+
+  /**
+   * 指定パスでファイルごとの詳細なdiff情報を取得
+   *
+   * worktreeパスを直接指定してmainブランチとの詳細な差分を取得します。
+   * Claude Code --worktreeモードのセッション（branch_name === ''）で使用します。
+   *
+   * @param worktreePath - Git作業ディレクトリのパス
+   * @returns ファイルごとの詳細なdiff情報を含む配列
+   * @throws Git操作が失敗した場合にエラーをスロー
+   */
+  getDiffDetailsByPath(worktreePath: string): {
+    files: Array<{
+      path: string;
+      status: 'added' | 'modified' | 'deleted';
+      additions: number;
+      deletions: number;
+      oldContent: string;
+      newContent: string;
+    }>;
+    totalAdditions: number;
+    totalDeletions: number;
+  } {
     try {
       // まず変更されたファイルのリストを取得
       const statusResult = spawnSync('git', ['diff', '--name-status', 'main...HEAD'], {
@@ -263,7 +302,7 @@ export class GitService {
 
       return { files, totalAdditions, totalDeletions };
     } catch (error) {
-      this.logger.error('Failed to get diff details', { sessionName, errorMessage: error instanceof Error ? error.message : String(error) });
+      this.logger.error('Failed to get diff details', { worktreePath, errorMessage: error instanceof Error ? error.message : String(error) });
       throw error;
     }
   }
@@ -284,6 +323,20 @@ export class GitService {
     const worktreePath = join(this.repoPath, '.worktrees', sessionName);
     this.validateWorktreePath(worktreePath);
 
+    return this.rebaseFromMainByPath(worktreePath);
+  }
+
+  /**
+   * 指定パスでmainブランチからリベースを実行
+   *
+   * worktreeパスを直接指定してmainブランチからのリベースを試みます。
+   * Claude Code --worktreeモードのセッション（branch_name === ''）で使用します。
+   *
+   * @param worktreePath - Git作業ディレクトリのパス
+   * @returns リベースの成功/失敗とコンフリクトファイルのリスト（失敗時のみ）
+   * @throws リベースの中止に失敗した場合にエラーをスロー
+   */
+  rebaseFromMainByPath(worktreePath: string): { success: boolean; conflicts?: string[] } {
     try {
       const result = spawnSync('git', ['rebase', 'main'], {
         cwd: worktreePath,
@@ -291,7 +344,7 @@ export class GitService {
       });
 
       if (result.status === 0) {
-        this.logger.info('Successfully rebased from main', { sessionName });
+        this.logger.info('Successfully rebased from main', { worktreePath });
         return { success: true };
       }
 
@@ -316,10 +369,10 @@ export class GitService {
         );
       }
 
-      this.logger.warn('Rebase conflicts detected', { sessionName, conflicts });
+      this.logger.warn('Rebase conflicts detected', { worktreePath, conflicts });
       return { success: false, conflicts };
     } catch (error) {
-      this.logger.error('Failed to rebase', { sessionName, errorMessage: error instanceof Error ? error.message : String(error) });
+      this.logger.error('Failed to rebase', { worktreePath, errorMessage: error instanceof Error ? error.message : String(error) });
       throw error;
     }
   }
@@ -346,6 +399,26 @@ export class GitService {
     const worktreePath = join(this.repoPath, '.worktrees', sessionName);
     this.validateWorktreePath(worktreePath);
 
+    return this.getCommitsByPath(worktreePath);
+  }
+
+  /**
+   * 指定パスでセッションのコミット履歴を取得
+   *
+   * worktreeパスを直接指定してmainブランチ以降のコミット履歴を取得します。
+   * Claude Code --worktreeモードのセッション（branch_name === ''）で使用します。
+   *
+   * @param worktreePath - Git作業ディレクトリのパス
+   * @returns コミット履歴の配列
+   */
+  getCommitsByPath(worktreePath: string): Array<{
+    hash: string;
+    short_hash: string;
+    message: string;
+    author: string;
+    date: string;
+    files_changed: number;
+  }> {
     try {
       // git logでコミット履歴を取得（mainブランチ以降のコミットのみ）
       // フォーマット: hash|short_hash|message|author|date
@@ -356,7 +429,7 @@ export class GitService {
       });
 
       if (logResult.error || logResult.status !== 0) {
-        this.logger.error('Failed to get commits', { sessionName, error: logResult.stderr });
+        this.logger.error('Failed to get commits', { worktreePath, error: logResult.stderr });
         return [];
       }
 
@@ -417,7 +490,7 @@ export class GitService {
 
       return commits;
     } catch (error) {
-      this.logger.error('Failed to get commits', { errorMessage: error instanceof Error ? error.message : String(error), sessionName });
+      this.logger.error('Failed to get commits', { errorMessage: error instanceof Error ? error.message : String(error), worktreePath });
       return [];
     }
   }
@@ -437,6 +510,20 @@ export class GitService {
 
     const worktreePath = this.getWorktreePath(sessionName);
 
+    return this.resetByPath(worktreePath, commitHash);
+  }
+
+  /**
+   * 指定パスで指定されたコミットにリセット
+   *
+   * worktreeパスを直接指定してgit reset --hardを実行します。
+   * Claude Code --worktreeモードのセッション（branch_name === ''）で使用します。
+   *
+   * @param worktreePath - Git作業ディレクトリのパス
+   * @param commitHash - コミットハッシュ（フルハッシュまたはショートハッシュ）
+   * @returns リセットの成功/失敗とエラーメッセージ（失敗時のみ）
+   */
+  resetByPath(worktreePath: string, commitHash: string): { success: boolean; error?: string } {
     try {
       const result = spawnSync('git', ['reset', '--hard', commitHash], {
         cwd: worktreePath,
@@ -445,14 +532,14 @@ export class GitService {
 
       if (result.error || result.status !== 0) {
         const errorMsg = result.stderr || result.error?.message || 'Failed to reset';
-        this.logger.error('Failed to reset', { error: errorMsg, sessionName, commitHash });
+        this.logger.error('Failed to reset', { error: errorMsg, worktreePath, commitHash });
         return { success: false, error: errorMsg };
       }
 
-      this.logger.info('Reset to commit', { sessionName, commitHash });
+      this.logger.info('Reset to commit', { worktreePath, commitHash });
       return { success: true };
     } catch (error) {
-      this.logger.error('Failed to reset', { errorMessage: error instanceof Error ? error.message : String(error), sessionName, commitHash });
+      this.logger.error('Failed to reset', { errorMessage: error instanceof Error ? error.message : String(error), worktreePath, commitHash });
       return { success: false, error: String(error) };
     }
   }

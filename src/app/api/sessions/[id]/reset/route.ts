@@ -63,15 +63,20 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid commit_hash format' }, { status: 400 });
     }
 
-    const sessionName = basename(targetSession.worktree_path);
-    
     let result;
     if (targetSession.project.clone_location === 'docker') {
+      const sessionName = basename(targetSession.worktree_path);
       const dockerGitService = new DockerGitService();
       result = await dockerGitService.reset(targetSession.project.id, sessionName, trimmedCommitHash, targetSession.project.docker_volume_id);
     } else {
       const gitService = new GitService(targetSession.project.path, logger);
-      result = gitService.reset(sessionName, trimmedCommitHash);
+      // Claude Code --worktreeモード（branch_name === ''）ではworktree_pathを直接使用
+      if (!targetSession.branch_name) {
+        result = gitService.resetByPath(targetSession.worktree_path, trimmedCommitHash);
+      } else {
+        const sessionName = basename(targetSession.worktree_path);
+        result = gitService.reset(sessionName, trimmedCommitHash);
+      }
     }
 
     if (!result.success) {

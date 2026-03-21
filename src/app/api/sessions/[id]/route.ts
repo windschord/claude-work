@@ -3,6 +3,8 @@ import { db, schema } from '@/lib/db';
 import { eq } from 'drizzle-orm';
 import { ProcessManager } from '@/services/process-manager';
 import { logger } from '@/lib/logger';
+import { spawnSync } from 'child_process';
+import { basename } from 'path';
 
 const processManager = ProcessManager.getInstance();
 
@@ -128,7 +130,62 @@ export async function DELETE(
       }
     }
 
-    // worktree削除は不要（Claude Code --worktreeモードで管理されるため）
+    // 旧方式で作成されたセッション（branch_name が設定されている）の場合のみworktreeを削除
+    if (targetSession.branch_name && targetSession.branch_name !== '') {
+      try {
+        const sessionName = basename(targetSession.worktree_path);
+        if (targetSession.project.clone_location === 'docker') {
+          // Docker環境: DockerGitServiceでworktree削除
+          // Docker環境のworktree削除は将来的に必要に応じて実装
+          logger.debug('Skipping Docker worktree cleanup for legacy session', {
+            session_id: targetSession.id,
+            sessionName,
+          });
+        } else {
+          // Host環境: gitコマンドでworktree削除
+          const removeResult = spawnSync('git', ['worktree', 'remove', '--force', sessionName], {
+            // プロジェクトのルートディレクトリで実行（worktreeの管理元）
+            cwd: targetSession.project.path,
+            encoding: 'utf-8',
+          });
+
+          if (removeResult.error || removeResult.status !== 0) {
+            logger.warn('Failed to remove worktree for legacy session (continuing with deletion)', {
+              session_id: targetSession.id,
+              sessionName,
+              error: removeResult.stderr || removeResult.error?.message,
+            });
+          } else {
+            logger.info('Removed worktree for legacy session', {
+              session_id: targetSession.id,
+              sessionName,
+            });
+
+            // ブランチも削除（session/<name>形式）
+            const branchName = targetSession.branch_name;
+            const branchResult = spawnSync('git', ['branch', '-D', branchName], {
+              cwd: targetSession.project.path,
+              encoding: 'utf-8',
+            });
+
+            if (branchResult.error || branchResult.status !== 0) {
+              logger.warn('Failed to delete branch for legacy session', {
+                session_id: targetSession.id,
+                branchName,
+                error: branchResult.stderr || branchResult.error?.message,
+              });
+            }
+          }
+        }
+      } catch (error) {
+        // worktree削除失敗は警告のみ（セッション削除は続行）
+        logger.warn('Error during worktree cleanup for legacy session', {
+          session_id: targetSession.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+    // 新方式（branch_name === ''）ではworktree削除不要（Claude Code管理）
 
     // Delete session from database
     await db.delete(schema.sessions).where(eq(schema.sessions.id, id)).run();
