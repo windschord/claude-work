@@ -69,8 +69,9 @@ export class ClaudeDefaultsResolver {
       skipPermissions = envOverride.dangerouslySkipPermissions;
     } else if (envOverride === undefined || envOverride === null) {
       // claude_defaults_overrideが完全に未設定の場合のみ旧skipPermissionsをfallback
-      if (envConfig.skipPermissions === true) {
-        skipPermissions = true;
+      // boolean値をそのまま引き継ぐ（true/falseの両方を反映）
+      if (typeof envConfig.skipPermissions === 'boolean') {
+        skipPermissions = envConfig.skipPermissions;
       }
     }
 

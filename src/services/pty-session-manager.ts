@@ -182,7 +182,11 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
       const appDefaults = configService.getClaudeDefaults()
       let envConfig: Record<string, unknown> = {}
       try {
-        envConfig = JSON.parse(environment.config || '{}')
+        const parsed = JSON.parse(environment.config || '{}')
+        // JSON.parse('null')やプリミティブ値を除外し、プレーンオブジェクトのみ使用
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          envConfig = parsed
+        }
       } catch {
         // パース失敗時はデフォルト値を使用
       }
