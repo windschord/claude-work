@@ -13,7 +13,7 @@ interface EnvVarEntry {
   value: string;
 }
 
-const ENV_VAR_KEY_PATTERN = /^[A-Z_][A-Z0-9_]*$/;
+import { ENV_VAR_KEY_PATTERN } from '@/lib/validation';
 
 function generateId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {

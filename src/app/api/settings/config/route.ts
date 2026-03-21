@@ -135,7 +135,11 @@ export async function PUT(request: NextRequest) {
 
     const updatedConfig = configService.getConfig();
 
-    logger.info('Config updated', { config: updatedConfig });
+    const { custom_env_vars: envVarsForLog, ...restForLog } = updatedConfig;
+    const envVarKeys = Object.keys(envVarsForLog ?? {});
+    logger.info('Config updated', {
+      config: { ...restForLog, custom_env_vars: { keys: envVarKeys, count: envVarKeys.length } },
+    });
 
     return NextResponse.json({ config: updatedConfig }, { status: 200 });
   } catch (error) {

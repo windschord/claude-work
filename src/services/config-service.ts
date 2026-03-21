@@ -49,6 +49,21 @@ const cloneConfig = (config: Required<AppConfig>): Required<AppConfig> => ({
 });
 
 /**
+ * 環境変数エントリからキーパターン一致かつ値が文字列のもののみを返す
+ */
+function filterValidEnvVars(vars: Record<string, unknown>): Record<string, string> {
+  const filtered: Record<string, string> = {};
+  for (const [key, value] of Object.entries(vars)) {
+    if (ENV_VAR_KEY_PATTERN.test(key) && typeof value === 'string') {
+      filtered[key] = value;
+    } else {
+      logger.debug('Invalid custom_env_var entry skipped', { key, valueType: typeof value });
+    }
+  }
+  return filtered;
+}
+
+/**
  * ログ出力用に custom_env_vars の値をマスクした設定オブジェクトを返す
  */
 function sanitizeConfigForLog(config: Required<AppConfig>): Record<string, unknown> {
@@ -89,15 +104,7 @@ export class ConfigService {
         typeof rawCustomEnvVars === 'object' &&
         !Array.isArray(rawCustomEnvVars)
       ) {
-        const filtered: Record<string, string> = {};
-        for (const [key, value] of Object.entries(rawCustomEnvVars)) {
-          if (ENV_VAR_KEY_PATTERN.test(key) && typeof value === 'string') {
-            filtered[key] = value;
-          } else {
-            logger.debug('Invalid custom_env_var entry skipped', { key, valueType: typeof value });
-          }
-        }
-        validatedCustomEnvVars = filtered;
+        validatedCustomEnvVars = filterValidEnvVars(rawCustomEnvVars as Record<string, unknown>);
       }
 
       // デフォルト値とマージ
@@ -136,6 +143,8 @@ export class ConfigService {
 
   /**
    * 設定ファイルを保存する
+   * claude_defaults: 部分更新(既存キーとマージ)
+   * custom_env_vars: 完全置換(提供時は既存キーを全て上書き、undefinedなら既存を保持)
    */
   async save(config: Partial<AppConfig>): Promise<void> {
     try {
@@ -155,7 +164,7 @@ export class ConfigService {
         custom_env_vars:
           newCustomEnvVars === undefined
             ? { ...this.config.custom_env_vars }
-            : { ...newCustomEnvVars },
+            : filterValidEnvVars(newCustomEnvVars),
       };
 
       // ディレクトリが存在しない場合は作成
