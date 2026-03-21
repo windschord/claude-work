@@ -114,7 +114,7 @@ export default function AppSettingsPage() {
     const nonEmptyEntries = envEntries.filter((e) => e.key.trim());
     for (const entry of nonEmptyEntries) {
       if (!ENV_VAR_KEY_PATTERN.test(entry.key.trim())) {
-        toast.error(`環境変数キー "${entry.key}" が不正です。大文字英字・数字・アンダースコアのみ使用できます。`);
+        toast.error(`環境変数キー "${entry.key.trim()}" が不正です。先頭は大文字英字またはアンダースコア、以降は大文字英字・数字・アンダースコアのみ使用できます。`);
         return;
       }
     }
@@ -405,18 +405,19 @@ export default function AppSettingsPage() {
             プロジェクト・セッション単位で同じキーを設定すると上書きされます。
           </p>
           <div className="space-y-2">
-            {envEntries.map((entry) => {
+            {envEntries.map((entry, index) => {
               const normalizedKey = entry.key.trim();
               const hasKey = normalizedKey.length > 0;
               const isInvalidKey = hasKey && !ENV_VAR_KEY_PATTERN.test(normalizedKey);
-              const keyLabel = normalizedKey || '未設定';
+              const rowLabel = `${index + 1}行目 ${normalizedKey || '未設定'}`;
 
               return (
                 <div key={entry.id} className="flex items-center gap-2">
                   <input
                     type="text"
                     placeholder="KEY"
-                    aria-label={`環境変数キー ${keyLabel}`}
+                    aria-label={`環境変数キー ${rowLabel}`}
+                    aria-invalid={isInvalidKey}
                     value={entry.key}
                     onChange={(e) => handleEnvEntryChange(entry.id, 'key', e.target.value)}
                     className={`w-1/3 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-100 font-mono text-sm ${
@@ -430,7 +431,7 @@ export default function AppSettingsPage() {
                   <input
                     type="text"
                     placeholder="value"
-                    aria-label={`環境変数値 ${keyLabel}`}
+                    aria-label={`環境変数値 ${rowLabel}`}
                     value={entry.value}
                     onChange={(e) => handleEnvEntryChange(entry.id, 'value', e.target.value)}
                     className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-100 font-mono text-sm"
@@ -441,7 +442,7 @@ export default function AppSettingsPage() {
                     onClick={() => handleRemoveEnvEntry(entry.id)}
                     className="p-2 text-gray-400 hover:text-red-500 transition-colors"
                     disabled={isSaving || isLoading || _config === null}
-                    aria-label={`環境変数 ${keyLabel} を削除`}
+                    aria-label={`環境変数 ${rowLabel} を削除`}
                   >
                     <X className="w-4 h-4" />
                   </button>

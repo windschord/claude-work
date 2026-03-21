@@ -74,7 +74,7 @@
 
 ## 実行順序
 
-```
+```text
 TASK-F (ドキュメント)
 → TASK-A + TASK-B (並列)
 → TASK-C (API)
