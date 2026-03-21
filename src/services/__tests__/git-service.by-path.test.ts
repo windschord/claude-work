@@ -35,7 +35,7 @@ describe('GitService ByPath methods', () => {
   });
 
   describe('getDiffByPath', () => {
-    it('should call git diff-tree with worktree path as cwd', () => {
+    it('should call git diff --name-status with worktree path as cwd', () => {
       const worktreePath = '/test/repo/.worktrees/test-session';
 
       mockSpawnSync.mockReturnValue({

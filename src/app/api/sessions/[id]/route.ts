@@ -84,6 +84,8 @@ export async function GET(
  *
  * 指定されたIDのセッションを削除します。
  * 実行中のプロセスは停止され、データベースからセッションが削除されます。
+ * legacyセッション（branch_name !== ''）の場合のみ、アプリ側でworktreeとブランチの削除を試みます。
+ * 新方式セッション（branch_name === ''）ではClaude Codeがworktreeを管理するため、アプリ側の削除は不要です。
  *
  * @param params.id - セッションID
  *

@@ -58,8 +58,7 @@ export class DockerGitService implements GitOperations {
       throw new Error(`Invalid working directory path: ${workingDir}`);
     }
     // パスを正規化してトラバーサルを防止（foo..barのような正当なパスは許可）
-    const { posix } = require('path');
-    const normalized = posix.resolve('/', workingDir);
+    const normalized = path.posix.resolve('/', workingDir);
     // /repo 配下であることを検証（Dockerコンテナ内のリポジトリルート）
     if (normalized !== '/repo' && !normalized.startsWith('/repo/')) {
       throw new Error(`Working directory must be under /repo: ${workingDir}`);

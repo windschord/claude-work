@@ -196,7 +196,7 @@ describe('DELETE /api/sessions/[id]', () => {
         project_id: project.id,
         name: 'New Style Session',
         status: 'running',
-        worktree_path: join(testRepoPath, '.worktrees', 'new-style-session'),
+        worktree_path: testRepoPath,
         branch_name: '',
       })
       .returning()

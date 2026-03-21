@@ -204,10 +204,10 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
       const resolvedClaudeOptions: ClaudeCodeOptions = {
         ...(claudeCodeOptions || {}),
         worktree: resolved.worktree,
-        ...(resolved.model ? { model: resolved.model } : {}),
-        ...(resolved.allowedTools ? { allowedTools: resolved.allowedTools } : {}),
-        ...(resolved.permissionMode ? { permissionMode: resolved.permissionMode } : {}),
-        ...(resolved.additionalFlags ? { additionalFlags: resolved.additionalFlags } : {}),
+        ...(resolved.model !== undefined ? { model: resolved.model } : {}),
+        ...(resolved.allowedTools !== undefined ? { allowedTools: resolved.allowedTools } : {}),
+        ...(resolved.permissionMode !== undefined ? { permissionMode: resolved.permissionMode } : {}),
+        ...(resolved.additionalFlags !== undefined ? { additionalFlags: resolved.additionalFlags } : {}),
       }
 
       // dangerouslySkipPermissionsの除去 + skipPermissions有効時の矛盾オプション除去

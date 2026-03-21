@@ -196,7 +196,7 @@ export function ProjectEnvironmentSection({ projectId }: ProjectEnvironmentSecti
     setWarning(null);
 
     try {
-      // 両方 'inherit' の場合は claude_defaults_override を保存しない
+      // 常にclaude_defaults_overrideを保存してlegacy skipPermissionsを無効化する
       const config: EnvironmentConfig = environmentType === 'DOCKER'
         ? {
             imageName: imageName.trim() || 'ghcr.io/windschord/claude-work-sandbox',
