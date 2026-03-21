@@ -1,7 +1,12 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { logger } from '@/lib/logger';
-import { ClaudeOptionsService } from '@/services/claude-options-service';
+
+/**
+ * 環境変数キーのバリデーション正規表現
+ * ClaudeOptionsService.ENV_VAR_KEY_PATTERN と同一ルール
+ */
+const ENV_VAR_KEY_PATTERN = /^[A-Z_][A-Z0-9_]*$/;
 
 /**
  * Claude Codeのデフォルト設定
@@ -19,6 +24,7 @@ export interface AppConfig {
   debug_mode_keep_volumes?: boolean;
   registry_firewall_enabled?: boolean;
   claude_defaults?: ClaudeDefaults;
+  /** Application層の共通環境変数。Project・Sessionで同キーを設定すると上書きされる（優先順位最低） */
   custom_env_vars?: Record<string, string>;
 }
 
@@ -90,7 +96,7 @@ export class ConfigService {
       ) {
         const filtered: Record<string, string> = {};
         for (const [key, value] of Object.entries(rawCustomEnvVars)) {
-          if (ClaudeOptionsService.validateEnvVarKey(key) && typeof value === 'string') {
+          if (ENV_VAR_KEY_PATTERN.test(key) && typeof value === 'string') {
             filtered[key] = value;
           } else {
             logger.debug('Invalid custom_env_var entry skipped', { key, valueType: typeof value });
@@ -138,8 +144,12 @@ export class ConfigService {
    */
   async save(config: Partial<AppConfig>): Promise<void> {
     try {
-      // 既存の設定とマージ（claude_defaultsはネストマージ）
-      const { claude_defaults: newClaudeDefaults, ...rest } = config;
+      // 既存の設定とマージ（ネストオブジェクトは個別にマージ）
+      const {
+        claude_defaults: newClaudeDefaults,
+        custom_env_vars: newCustomEnvVars,
+        ...rest
+      } = config;
       this.config = {
         ...this.config,
         ...rest,
@@ -147,6 +157,10 @@ export class ConfigService {
           ...this.config.claude_defaults,
           ...(newClaudeDefaults || {}),
         },
+        custom_env_vars:
+          newCustomEnvVars === undefined
+            ? { ...this.config.custom_env_vars }
+            : { ...newCustomEnvVars },
       };
 
       // ディレクトリが存在しない場合は作成
@@ -205,7 +219,8 @@ export class ConfigService {
   }
 
   /**
-   * カスタム環境変数を取得
+   * Application層の共通環境変数を取得
+   * マージ優先順位: Application(本値) < Project < Session
    */
   getCustomEnvVars(): Record<string, string> {
     return { ...this.config.custom_env_vars };

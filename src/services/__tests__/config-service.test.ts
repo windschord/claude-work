@@ -8,6 +8,7 @@ const mockLogger = vi.hoisted(() => ({
   info: vi.fn(),
   error: vi.fn(),
   warn: vi.fn(),
+  debug: vi.fn(),
 }));
 
 vi.mock('@/lib/logger', () => ({
@@ -545,13 +546,22 @@ describe('ConfigService', () => {
       expect(configService.getCustomEnvVars()).toEqual({});
     });
 
-    it('値に文字列以外を含むcustom_env_varsはデフォルト値{}になる', async () => {
+    it('全エントリが非文字列値のcustom_env_varsは空{}にフィルタされる', async () => {
       const testConfig = { custom_env_vars: { KEY: 123 } };
       await fs.mkdir(path.dirname(testConfigPath), { recursive: true });
       await fs.writeFile(testConfigPath, JSON.stringify(testConfig), 'utf-8');
       await configService.load();
 
       expect(configService.getCustomEnvVars()).toEqual({});
+    });
+
+    it('有効・無効が混在するcustom_env_varsは有効エントリのみ保持される', async () => {
+      const testConfig = { custom_env_vars: { VALID_KEY: 'ok', 'invalid-key': 'ng', NUMERIC: 42 } };
+      await fs.mkdir(path.dirname(testConfigPath), { recursive: true });
+      await fs.writeFile(testConfigPath, JSON.stringify(testConfig), 'utf-8');
+      await configService.load();
+
+      expect(configService.getCustomEnvVars()).toEqual({ VALID_KEY: 'ok' });
     });
   });
 });

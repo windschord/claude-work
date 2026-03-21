@@ -62,7 +62,7 @@ if (custom_env_vars !== undefined) {
   const validated = ClaudeOptionsService.validateCustomEnvVars(custom_env_vars);
   if (validated === null) {
     return NextResponse.json(
-      { error: 'Invalid custom_env_vars' },
+      { error: 'custom_env_vars must be a plain object with keys matching ^[A-Z_][A-Z0-9_]*$ and string values' },
       { status: 400 }
     );
   }
