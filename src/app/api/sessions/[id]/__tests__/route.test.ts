@@ -189,15 +189,28 @@ describe('DELETE /api/sessions/[id]', () => {
   });
 
   it('should delete session without worktree deletion (managed by Claude Code --worktree)', async () => {
-    const request = new NextRequest(`http://localhost:3000/api/sessions/${session.id}`, {
+    // 新方式セッション（branch_name === ''）を作成
+    const newStyleSession = db
+      .insert(schema.sessions)
+      .values({
+        project_id: project.id,
+        name: 'New Style Session',
+        status: 'running',
+        worktree_path: join(testRepoPath, '.worktrees', 'new-style-session'),
+        branch_name: '',
+      })
+      .returning()
+      .get();
+
+    const request = new NextRequest(`http://localhost:3000/api/sessions/${newStyleSession.id}`, {
       method: 'DELETE',
     });
 
-    const response = await DELETE(request, { params: Promise.resolve({ id: session.id }) });
+    const response = await DELETE(request, { params: Promise.resolve({ id: newStyleSession.id }) });
     expect(response.status).toBe(204);
 
     // Verify session is deleted from database
-    const deletedSession = db.select().from(schema.sessions).where(eq(schema.sessions.id, session.id)).get();
+    const deletedSession = db.select().from(schema.sessions).where(eq(schema.sessions.id, newStyleSession.id)).get();
     expect(deletedSession).toBeUndefined();
   });
 });

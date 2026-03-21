@@ -67,10 +67,10 @@ export class ClaudeDefaultsResolver {
     const envOverride = envConfig.claude_defaults_override;
     if (envOverride?.dangerouslySkipPermissions !== undefined && envOverride.dangerouslySkipPermissions !== 'inherit') {
       skipPermissions = envOverride.dangerouslySkipPermissions;
-    } else if (envOverride?.dangerouslySkipPermissions === undefined || envOverride?.dangerouslySkipPermissions === 'inherit') {
-      // 旧skipPermissionsの後方互換（claude_defaults_overrideが未設定の場合のみ）
-      if (envOverride?.dangerouslySkipPermissions === undefined && envConfig.skipPermissions !== undefined) {
-        skipPermissions = envConfig.skipPermissions === true;
+    } else if (envOverride === undefined || envOverride === null) {
+      // claude_defaults_overrideが完全に未設定の場合のみ旧skipPermissionsをfallback
+      if (envConfig.skipPermissions === true) {
+        skipPermissions = true;
       }
     }
 

@@ -198,7 +198,7 @@ export class PTYSessionManager extends EventEmitter implements IPTYSessionManage
       // resolved の worktree/model 等を claudeCodeOptions にマージ
       // ClaudeDefaultsResolver で解決された値が実際の起動引数に反映されるようにする
       const resolvedClaudeOptions: ClaudeCodeOptions = {
-        ...claudeCodeOptions,
+        ...(claudeCodeOptions || {}),
         worktree: resolved.worktree,
         ...(resolved.model ? { model: resolved.model } : {}),
         ...(resolved.allowedTools ? { allowedTools: resolved.allowedTools } : {}),

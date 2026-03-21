@@ -258,7 +258,10 @@ describe('GitService ByPath methods', () => {
     it('should call git diff with cwd set to worktreePath', () => {
       const worktreePath = '/test/repo/.worktrees/test-session';
 
-      // getDiffDetailsByPathは最初にgit diff --name-statusを呼ぶ
+      // getDiffDetailsByPathは以下の順にspawnSyncを呼ぶ:
+      // 1. git diff --name-status main...HEAD
+      // 2. git show HEAD:<file> (status !== 'deleted'の場合)
+      // 3. git diff --numstat main...HEAD -- <file>
       mockSpawnSync
         .mockReturnValueOnce({
           stdout: 'A\tfile.txt\n',
@@ -269,9 +272,19 @@ describe('GitService ByPath methods', () => {
           output: [],
           error: undefined,
         })
-        // 次にgit diff main...HEAD -- <file>を呼ぶ
+        // git show HEAD:file.txt (新内容の取得)
         .mockReturnValueOnce({
-          stdout: '+new line\n',
+          stdout: 'new line\n',
+          stderr: '',
+          status: 0,
+          signal: null,
+          pid: 0,
+          output: [],
+          error: undefined,
+        })
+        // git diff --numstat main...HEAD -- file.txt (追加/削除行数)
+        .mockReturnValueOnce({
+          stdout: '1\t0\tfile.txt\n',
           stderr: '',
           status: 0,
           signal: null,

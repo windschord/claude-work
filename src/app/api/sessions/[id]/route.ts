@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm';
 import { ProcessManager } from '@/services/process-manager';
 import { logger } from '@/lib/logger';
 import { spawnSync } from 'child_process';
-import { basename } from 'path';
+import { basename, resolve } from 'path';
 
 const processManager = ProcessManager.getInstance();
 
@@ -135,45 +135,65 @@ export async function DELETE(
       try {
         const sessionName = basename(targetSession.worktree_path);
         if (targetSession.project.clone_location === 'docker') {
-          // Docker環境: DockerGitServiceでworktree削除
-          // Docker環境のworktree削除は将来的に必要に応じて実装
-          logger.debug('Skipping Docker worktree cleanup for legacy session', {
+          // Docker環境: legacyセッションのworktree削除は自動化されていない
+          // 手動クリーンアップが必要な旨を警告ログに出力
+          logger.warn('Docker legacy session deleted: worktree may be orphaned and require manual cleanup', {
             session_id: targetSession.id,
             sessionName,
+            worktree_path: targetSession.worktree_path,
+            branch_name: targetSession.branch_name,
           });
         } else {
-          // Host環境: gitコマンドでworktree削除
-          const removeResult = spawnSync('git', ['worktree', 'remove', '--force', targetSession.worktree_path], {
-            // プロジェクトのルートディレクトリで実行（worktreeの管理元）
-            cwd: targetSession.project.path,
-            encoding: 'utf-8',
-          });
-
-          if (removeResult.error || removeResult.status !== 0) {
-            logger.warn('Failed to remove worktree for legacy session (continuing with deletion)', {
+          // worktree_pathがプロジェクトの.worktrees/配下であることを検証
+          const expectedBase = resolve(targetSession.project.path, '.worktrees');
+          const resolvedWorktreePath = resolve(targetSession.worktree_path);
+          if (!resolvedWorktreePath.startsWith(expectedBase + '/')) {
+            logger.warn('Skipping worktree removal: path is not under .worktrees/', {
               session_id: targetSession.id,
-              sessionName,
-              error: removeResult.stderr || removeResult.error?.message,
+              worktree_path: targetSession.worktree_path,
+              expected_base: expectedBase,
             });
           } else {
-            logger.info('Removed worktree for legacy session', {
-              session_id: targetSession.id,
-              sessionName,
-            });
-
-            // ブランチも削除（session/<name>形式）
-            const branchName = targetSession.branch_name;
-            const branchResult = spawnSync('git', ['branch', '-D', branchName], {
+            // Host環境: gitコマンドでworktree削除
+            const removeResult = spawnSync('git', ['worktree', 'remove', '--force', targetSession.worktree_path], {
+              // プロジェクトのルートディレクトリで実行（worktreeの管理元）
               cwd: targetSession.project.path,
               encoding: 'utf-8',
             });
 
-            if (branchResult.error || branchResult.status !== 0) {
-              logger.warn('Failed to delete branch for legacy session', {
+            if (removeResult.error || removeResult.status !== 0) {
+              logger.warn('Failed to remove worktree for legacy session (continuing with deletion)', {
                 session_id: targetSession.id,
-                branchName,
-                error: branchResult.stderr || branchResult.error?.message,
+                sessionName,
+                error: removeResult.stderr || removeResult.error?.message,
               });
+            } else {
+              logger.info('Removed worktree for legacy session', {
+                session_id: targetSession.id,
+                sessionName,
+              });
+
+              // branch_nameがsession/プレフィックスであることを検証してからブランチ削除
+              const branchName = targetSession.branch_name;
+              if (!branchName.startsWith('session/')) {
+                logger.warn('Skipping branch deletion: branch_name does not have session/ prefix', {
+                  session_id: targetSession.id,
+                  branchName,
+                });
+              } else {
+                const branchResult = spawnSync('git', ['branch', '-D', branchName], {
+                  cwd: targetSession.project.path,
+                  encoding: 'utf-8',
+                });
+
+                if (branchResult.error || branchResult.status !== 0) {
+                  logger.warn('Failed to delete branch for legacy session', {
+                    session_id: targetSession.id,
+                    branchName,
+                    error: branchResult.stderr || branchResult.error?.message,
+                  });
+                }
+              }
             }
           }
         }
