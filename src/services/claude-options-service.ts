@@ -87,6 +87,22 @@ export class ClaudeOptionsService {
   }
 
   /**
+   * アプリケーション共通・プロジェクト・セッションの環境変数を3階層でマージ
+   * 優先順位: Application < Project < Session
+   */
+  static mergeEnvVarsAll(
+    appEnvVars: CustomEnvVars,
+    projectEnvVars: CustomEnvVars,
+    sessionEnvVars: CustomEnvVars | null
+  ): CustomEnvVars {
+    return {
+      ...appEnvVars,
+      ...projectEnvVars,
+      ...(sessionEnvVars ?? {}),
+    };
+  }
+
+  /**
    * プロジェクトデフォルトとセッション固有環境変数をマージ
    * セッション固有環境変数がプロジェクトデフォルトをオーバーライド
    */
