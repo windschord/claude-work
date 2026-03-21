@@ -79,6 +79,11 @@ describe('parseDotenv', () => {
       expect(result.variables).toEqual({ KEY: 'value' });
     });
 
+    it('値が空でコメントのみの場合は空値になる', () => {
+      const result = parseDotenv('KEY= # comment');
+      expect(result.variables).toEqual({ KEY: '' });
+    });
+
     it('先頭空白のあるコメント行をスキップする', () => {
       const result = parseDotenv('  # comment\nKEY=value');
       expect(result.variables).toEqual({ KEY: 'value' });

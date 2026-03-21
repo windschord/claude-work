@@ -148,7 +148,7 @@ export class EnvFileService {
     const { stdout } = await EnvFileService._runDockerCommand([
       'run', '--rm',
       '-v', `${dockerVolumeId}:/workspace`,
-      'alpine:latest',
+      'alpine:3.21',
       'find', '/workspace',
       '(', ...pruneArgs, ')',
       '-prune', '-o',
@@ -204,7 +204,7 @@ export class EnvFileService {
       const { stdout } = await EnvFileService._runDockerCommand([
         'run', '--rm',
         '-v', `${dockerVolumeId}:/workspace`,
-        'alpine:latest',
+        'alpine:3.21',
         'sh', '-c',
         'if ! size=$(stat -c %s "$1" 2>/dev/null); then exit 1; elif [ "$size" -gt $2 ]; then exit 2; else cat "$1"; fi',
         '--', filePath, String(maxSize),

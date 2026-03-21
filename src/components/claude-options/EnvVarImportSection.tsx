@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { FileUp, AlertTriangle, Loader2 } from 'lucide-react';
 import type { CustomEnvVars } from '@/services/claude-options-service';
 
@@ -30,6 +30,13 @@ export function EnvVarImportSection({
   const [parseResult, setParseResult] = useState<ParseResult | null>(null);
   const [error, setError] = useState('');
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // unmount時に進行中のfetchを中断
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort();
+    };
+  }, []);
 
   const handleStartImport = async () => {
     setState('loading-files');

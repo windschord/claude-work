@@ -42,21 +42,23 @@ export function parseDotenv(content: string): DotenvParseResult {
       continue;
     }
 
-    let value = processedLine.substring(eqIndex + 1).trim();
+    let value = processedLine.substring(eqIndex + 1);
 
-    // クォート処理
+    // クォート処理（trim前の値でクォート判定）
+    const trimmedValue = value.trim();
     if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
+      (trimmedValue.startsWith('"') && trimmedValue.endsWith('"')) ||
+      (trimmedValue.startsWith("'") && trimmedValue.endsWith("'"))
     ) {
       // クォートを除去
-      value = value.slice(1, -1);
+      value = trimmedValue.slice(1, -1);
     } else {
-      // クォートなしの場合はインラインコメントを除去
-      const commentIndex = value.indexOf(' #');
-      if (commentIndex !== -1) {
-        value = value.substring(0, commentIndex).trim();
+      // クォートなしの場合はインラインコメントを除去（trim前に処理）
+      const commentMatch = value.match(/\s+#/);
+      if (commentMatch && commentMatch.index !== undefined) {
+        value = value.substring(0, commentMatch.index);
       }
+      value = value.trim();
     }
 
     variables[key] = value;

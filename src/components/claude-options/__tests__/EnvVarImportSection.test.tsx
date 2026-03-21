@@ -22,13 +22,13 @@ describe('EnvVarImportSection', () => {
 
   it('初期状態でインポートボタンが表示される', () => {
     render(<EnvVarImportSection {...createDefaultProps()} />);
-    expect(screen.getByText('.envからインポート')).toBeDefined();
+    expect(screen.getByText('.envからインポート')).toBeInTheDocument();
   });
 
   it('disabled時にボタンが無効化される', () => {
     render(<EnvVarImportSection {...createDefaultProps({ disabled: true })} />);
     const button = screen.getByText('.envからインポート');
-    expect(button).toHaveProperty('disabled', true);
+    expect(button).toBeDisabled();
   });
 
   it('ファイル一覧取得中にローディング表示される', async () => {
@@ -39,7 +39,7 @@ describe('EnvVarImportSection', () => {
     fireEvent.click(screen.getByText('.envからインポート'));
 
     await waitFor(() => {
-      expect(screen.getByText('ファイル一覧を取得中...')).toBeDefined();
+      expect(screen.getByText('ファイル一覧を取得中...')).toBeInTheDocument();
     });
   });
 
@@ -53,7 +53,7 @@ describe('EnvVarImportSection', () => {
     fireEvent.click(screen.getByText('.envからインポート'));
 
     await waitFor(() => {
-      expect(screen.getByText('.envファイルが見つかりません')).toBeDefined();
+      expect(screen.getByText('.envファイルが見つかりません')).toBeInTheDocument();
     });
   });
 
@@ -67,7 +67,7 @@ describe('EnvVarImportSection', () => {
     fireEvent.click(screen.getByText('.envからインポート'));
 
     await waitFor(() => {
-      expect(screen.getByText('ファイルを選択...')).toBeDefined();
+      expect(screen.getByText('ファイルを選択...')).toBeInTheDocument();
     });
   });
 
@@ -86,7 +86,7 @@ describe('EnvVarImportSection', () => {
     fireEvent.click(screen.getByText('.envからインポート'));
 
     await waitFor(() => {
-      expect(screen.getByText('ファイルを選択...')).toBeDefined();
+      expect(screen.getByText('ファイルを選択...')).toBeInTheDocument();
     });
 
     // ファイルを選択
@@ -120,14 +120,14 @@ describe('EnvVarImportSection', () => {
     fireEvent.click(screen.getByText('.envからインポート'));
 
     await waitFor(() => {
-      expect(screen.getByText('ファイルを選択...')).toBeDefined();
+      expect(screen.getByText('ファイルを選択...')).toBeInTheDocument();
     });
 
     const select = screen.getByRole('combobox');
     fireEvent.change(select, { target: { value: '.env' } });
 
     await waitFor(() => {
-      expect(screen.getByText('インポート')).toBeDefined();
+      expect(screen.getByText('インポート')).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByText('インポート'));
