@@ -2,10 +2,18 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Plus, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { BackButton } from '@/components/settings/BackButton';
 import { UnsavedChangesDialog } from '@/components/settings/UnsavedChangesDialog';
+
+interface EnvVarEntry {
+  id: string;
+  key: string;
+  value: string;
+}
+
+const ENV_VAR_KEY_PATTERN = /^[A-Z_][A-Z0-9_]*$/;
 
 interface ClaudeDefaults {
   dangerouslySkipPermissions: boolean;
@@ -16,6 +24,7 @@ interface AppConfig {
   git_clone_timeout_minutes: number;
   debug_mode_keep_volumes: boolean;
   claude_defaults: ClaudeDefaults;
+  custom_env_vars: Record<string, string>;
 }
 
 /**
@@ -34,6 +43,7 @@ export default function AppSettingsPage() {
   const [keepVolumes, setKeepVolumes] = useState(false);
   const [skipPermissions, setSkipPermissions] = useState(false);
   const [worktreeEnabled, setWorktreeEnabled] = useState(true);
+  const [envEntries, setEnvEntries] = useState<EnvVarEntry[]>([]);
 
   // 未保存変更の管理
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -59,6 +69,14 @@ export default function AppSettingsPage() {
         setKeepVolumes(config.debug_mode_keep_volumes ?? false);
         setSkipPermissions(config.claude_defaults?.dangerouslySkipPermissions ?? false);
         setWorktreeEnabled(config.claude_defaults?.worktree ?? true);
+        const envVars: Record<string, string> = config.custom_env_vars ?? {};
+        setEnvEntries(
+          Object.entries(envVars).map(([key, value]) => ({
+            id: crypto.randomUUID(),
+            key,
+            value,
+          }))
+        );
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : '設定の取得に失敗しました';
         toast.error(errorMessage);
@@ -85,6 +103,23 @@ export default function AppSettingsPage() {
       return;
     }
 
+    // 環境変数キーのバリデーション
+    const nonEmptyEntries = envEntries.filter((e) => e.key.trim());
+    for (const entry of nonEmptyEntries) {
+      if (!ENV_VAR_KEY_PATTERN.test(entry.key.trim())) {
+        toast.error(`環境変数キー "${entry.key}" が不正です。大文字英字・数字・アンダースコアのみ使用できます。`);
+        return;
+      }
+    }
+
+    // 重複キーチェック
+    const keys = nonEmptyEntries.map((e) => e.key.trim());
+    const duplicates = keys.filter((k, i) => keys.indexOf(k) !== i);
+    if (duplicates.length > 0) {
+      toast.error(`環境変数キー "${duplicates[0]}" が重複しています。`);
+      return;
+    }
+
     setIsSaving(true);
 
     try {
@@ -100,6 +135,11 @@ export default function AppSettingsPage() {
             dangerouslySkipPermissions: skipPermissions,
             worktree: worktreeEnabled,
           },
+          custom_env_vars: Object.fromEntries(
+            envEntries
+              .filter((e) => e.key.trim())
+              .map((e) => [e.key.trim(), e.value])
+          ),
         }),
       });
 
@@ -116,6 +156,14 @@ export default function AppSettingsPage() {
       setKeepVolumes(config?.debug_mode_keep_volumes ?? keepVolumes);
       setSkipPermissions(config?.claude_defaults?.dangerouslySkipPermissions ?? skipPermissions);
       setWorktreeEnabled(config?.claude_defaults?.worktree ?? worktreeEnabled);
+      const savedEnvVars: Record<string, string> = config?.custom_env_vars ?? {};
+      setEnvEntries(
+        Object.entries(savedEnvVars).map(([key, value]) => ({
+          id: crypto.randomUUID(),
+          key,
+          value,
+        }))
+      );
       setHasUnsavedChanges(false); // 保存後にフラグをリセット
       toast.success('設定を保存しました');
     } catch (error) {
@@ -147,6 +195,26 @@ export default function AppSettingsPage() {
   // Worktreeモード変更時の処理
   const handleWorktreeChange = (checked: boolean) => {
     setWorktreeEnabled(checked);
+    setHasUnsavedChanges(true);
+  };
+
+  // 環境変数エントリの追加
+  const handleAddEnvEntry = () => {
+    setEnvEntries((prev) => [...prev, { id: crypto.randomUUID(), key: '', value: '' }]);
+    setHasUnsavedChanges(true);
+  };
+
+  // 環境変数エントリの削除
+  const handleRemoveEnvEntry = (id: string) => {
+    setEnvEntries((prev) => prev.filter((e) => e.id !== id));
+    setHasUnsavedChanges(true);
+  };
+
+  // 環境変数エントリの更新
+  const handleEnvEntryChange = (id: string, field: 'key' | 'value', newValue: string) => {
+    setEnvEntries((prev) =>
+      prev.map((e) => (e.id === id ? { ...e, [field]: newValue } : e))
+    );
     setHasUnsavedChanges(true);
   };
 
@@ -318,6 +386,71 @@ export default function AppSettingsPage() {
               各セッションがClaude Codeの --worktree オプションで分離されます。
             </p>
           </div>
+        </div>
+
+        {/* アプリケーション共通環境変数 */}
+        <div className="mb-6 p-4 bg-white dark:bg-gray-800 rounded-lg shadow">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+            アプリケーション共通環境変数
+          </h2>
+          <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
+            全プロジェクト・セッションに共通で適用される環境変数を設定します。
+            プロジェクト・セッション単位で同じキーを設定すると上書きされます。
+          </p>
+          <div className="space-y-2">
+            {envEntries.map((entry) => {
+              const normalizedKey = entry.key.trim();
+              const hasKey = normalizedKey.length > 0;
+              const isInvalidKey = hasKey && !ENV_VAR_KEY_PATTERN.test(normalizedKey);
+              const keyLabel = normalizedKey || '未設定';
+
+              return (
+                <div key={entry.id} className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    placeholder="KEY"
+                    aria-label={`環境変数キー ${keyLabel}`}
+                    value={entry.key}
+                    onChange={(e) => handleEnvEntryChange(entry.id, 'key', e.target.value)}
+                    className={`w-1/3 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-100 font-mono text-sm ${
+                      isInvalidKey
+                        ? 'border-red-500'
+                        : 'border-gray-300 dark:border-gray-600'
+                    }`}
+                    disabled={isSaving || isLoading || _config === null}
+                  />
+                  <span className="text-gray-400">=</span>
+                  <input
+                    type="text"
+                    placeholder="value"
+                    aria-label={`環境変数値 ${keyLabel}`}
+                    value={entry.value}
+                    onChange={(e) => handleEnvEntryChange(entry.id, 'value', e.target.value)}
+                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-100 font-mono text-sm"
+                    disabled={isSaving || isLoading || _config === null}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveEnvEntry(entry.id)}
+                    className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+                    disabled={isSaving || isLoading || _config === null}
+                    aria-label={`環境変数 ${keyLabel} を削除`}
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            onClick={handleAddEnvEntry}
+            className="mt-3 flex items-center gap-1 px-3 py-1.5 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
+            disabled={isSaving || isLoading || _config === null}
+          >
+            <Plus className="w-4 h-4" />
+            環境変数を追加
+          </button>
         </div>
 
         {/* 保存ボタン */}
