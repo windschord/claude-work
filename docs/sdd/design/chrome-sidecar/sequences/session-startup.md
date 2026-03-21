@@ -81,6 +81,9 @@ Client          PTYSessionMgr     DockerAdapter     ChromeSidecarSvc    DockerCl
 
 ## タイムアウト時のフロー (CDPヘルスチェック失敗)
 
+CDPヘルスチェックがタイムアウトした場合、サイドカーのリソースをクリーンアップし、
+サイドカーなしでClaude Codeを起動する（graceful degradation）。
+
 ```
 DockerAdapter     ChromeSidecarSvc    DockerClient
   |                  |                  |
@@ -125,6 +128,10 @@ DockerAdapter     ChromeSidecarSvc    DockerClient
 
 ## ネットワーク作成失敗時のフロー
 
+ネットワーク作成失敗もサイドカー起動失敗として扱い、サイドカーなしでClaude Codeを起動する（graceful degradation）。
+
+注: 現在の実装では、ネットワーク作成失敗を含むすべてのサイドカー起動失敗はgraceful degradationで処理される。DockerAdapterはstartSidecarの戻り値 `success: false` を受け取り、警告ログを出力してサイドカーなしでClaude Codeを起動する。
+
 ```
 DockerAdapter     ChromeSidecarSvc    DockerClient
   |                  |                  |
@@ -138,9 +145,9 @@ DockerAdapter     ChromeSidecarSvc    DockerClient
   |   (success=false,|                  |
   |    error=msg)    |                  |
   |                  |                  |
-  | [セッション作成をERROR状態にする]   |
-  | (NFR-SEC-002: ネットワーク失敗は   |
-  |  セッション作成中止)               |
+  | [警告ログを出力]                    |
+  | [サイドカーなしでClaude Code起動]   |
+  | buildContainerOptions (通常)        |
+  | createContainer (Claude Code)       |
+  |---------------------------------------->|
 ```
-
-注: NFR-SEC-002により、ネットワーク作成失敗時はサイドカーなしでのフォールバックではなく、セッション作成自体をエラーとして中止する。CDPヘルスチェック失敗（REQ-001-004）とは異なる挙動である。

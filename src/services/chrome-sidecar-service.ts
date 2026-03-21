@@ -198,25 +198,34 @@ export class ChromeSidecarService {
     }
 
     // 5. CDPヘルスチェック（ホスト側ポート経由でHTTP GETポーリング）
-    const cdpReady = await this.waitForCDP(debugPort, cdpTimeoutMs);
-    if (!cdpReady) {
-      logger.warn('ChromeSidecarService: CDP health check timed out', { sessionId, debugPort });
-      // クリーンアップ
-      try {
-        const containerRef = docker.getContainer(containerName);
-        await containerRef.stop();
-      } catch {
-        // AutoRemoveで既に消えている可能性あり
+    // debugPort未取得時はCDPヘルスチェックをスキップし、コンテナRunning確認のみで成功とする。
+    // ポートマッピング失敗時もサイドカーは起動し、chrome_debug_port=NULLで動作継続する。
+    if (debugPort) {
+      const cdpReady = await this.waitForCDP(debugPort, cdpTimeoutMs);
+      if (!cdpReady) {
+        logger.warn('ChromeSidecarService: CDP health check timed out', { sessionId, debugPort });
+        // クリーンアップ
+        try {
+          const containerRef = docker.getContainer(containerName);
+          await containerRef.stop();
+        } catch {
+          // AutoRemoveで既に消えている可能性あり
+        }
+        try {
+          await network.remove();
+        } catch {
+          // best-effort
+        }
+        return {
+          success: false,
+          error: `CDP health check timed out after ${cdpTimeoutMs}ms`,
+        };
       }
-      try {
-        await network.remove();
-      } catch {
-        // best-effort
-      }
-      return {
-        success: false,
-        error: `CDP health check timed out after ${cdpTimeoutMs}ms`,
-      };
+    } else {
+      logger.warn('ChromeSidecarService: No debug port available, skipping CDP health check', {
+        sessionId,
+        containerName,
+      });
     }
 
     // chrome-devtools-mcpがベースURLを受け取り、内部で/json/versionから完全なbrowserUrlを取得する
@@ -254,17 +263,32 @@ export class ChromeSidecarService {
     const errors: string[] = [];
 
     // コンテナ停止
+    // AutoRemove=trueのコンテナは停止時に自動削除される。
+    // 既に削除済みのコンテナに対するstop()は404/304/No such containerエラーを返すため、
+    // これらは成功扱いとする（DockerAdapter.stopContainer()と同様のパターン）。
     try {
       const container = docker.getContainer(containerName);
       await container.stop();
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Unknown';
-      logger.warn('ChromeSidecarService: Failed to stop chrome container', {
-        sessionId,
-        containerName,
-        error: msg,
-      });
-      errors.push(`container stop: ${msg}`);
+      const isAlreadyGone =
+        msg.includes('404') ||
+        msg.includes('304') ||
+        msg.includes('No such container') ||
+        msg.includes('not running');
+      if (!isAlreadyGone) {
+        logger.warn('ChromeSidecarService: Failed to stop chrome container', {
+          sessionId,
+          containerName,
+          error: msg,
+        });
+        errors.push(`container stop: ${msg}`);
+      } else {
+        logger.info('ChromeSidecarService: Chrome container already removed (AutoRemove)', {
+          sessionId,
+          containerName,
+        });
+      }
     }
 
     // ネットワーク: 接続中コンテナをbest-effortでdisconnect
@@ -470,16 +494,11 @@ export class ChromeSidecarService {
    *
    * ホスト側ポート経由で http://127.0.0.1:<debugPort>/json/version に
    * HTTP GETポーリングし、CDPが実際に応答可能か検証する。
-   * ポートが取得できない場合はフォールバックとしてfalseを返す。
    */
   private async waitForCDP(
-    debugPort: number | undefined,
+    debugPort: number,
     timeoutMs: number
   ): Promise<boolean> {
-    if (!debugPort) {
-      logger.warn('ChromeSidecarService: No debug port available for CDP health check');
-      return false;
-    }
 
     const startTime = Date.now();
     const interval = 1000;

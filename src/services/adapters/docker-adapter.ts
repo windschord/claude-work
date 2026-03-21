@@ -983,47 +983,64 @@ export class DockerAdapter extends BasePTYAdapter {
 
       // === サイドカーネットワークへのClaude Code接続 ===
       if (sidecarResult?.success && sidecarResult.networkName) {
+        let sidecarConnected = false;
         try {
           const sidecarService = ChromeSidecarService.getInstance();
           await sidecarService.connectClaudeContainer(
             containerName,
             sidecarResult.networkName
           );
+          sidecarConnected = true;
         } catch (error) {
-          logger.warn('DockerAdapter: Failed to connect Claude container to sidecar network', {
+          logger.warn('DockerAdapter: Failed to connect Claude container to sidecar network, stopping sidecar', {
             sessionId,
             networkName: sidecarResult.networkName,
             error: error instanceof Error ? error.message : 'Unknown',
           });
-          // Claude Code自体は起動済みなので続行
-        }
-
-        // DB更新: chrome_container_id, chrome_debug_port
-        try {
-          db.update(schema.sessions)
-            .set({
-              chrome_container_id: sidecarResult.containerName ?? null,
-              chrome_debug_port: sidecarResult.debugPort ?? null,
-              updated_at: new Date(),
-            })
-            .where(eq(schema.sessions.id, sessionId))
-            .run();
-        } catch (error) {
-          logger.warn('DockerAdapter: Failed to update chrome sidecar info in DB', {
-            sessionId,
-            error: error instanceof Error ? error.message : 'Unknown',
-          });
-          // DB保存失敗時、stopSidecarで回収できるようbest-effortでクリーンアップ
-          if (sidecarResult?.containerName) {
+          // 接続失敗時はサイドカーを停止（best-effort）してDB保存しない
+          if (sidecarResult.containerName) {
             try {
               const sidecarService = ChromeSidecarService.getInstance();
               await sidecarService.stopSidecar(sessionId, sidecarResult.containerName, sidecarResult.networkName);
-              logger.info('DockerAdapter: Cleaned up sidecar after DB write failure', { sessionId });
+              logger.info('DockerAdapter: Cleaned up sidecar after connect failure', { sessionId });
             } catch (cleanupError) {
-              logger.warn('DockerAdapter: Failed to cleanup sidecar after DB write failure', {
+              logger.warn('DockerAdapter: Failed to cleanup sidecar after connect failure', {
                 sessionId,
                 error: cleanupError instanceof Error ? cleanupError.message : 'Unknown',
               });
+            }
+          }
+          // Claude Code自体は起動済みなのでサイドカーなしで続行
+        }
+
+        // DB更新: chrome_container_id, chrome_debug_port（接続成功時のみ）
+        if (sidecarConnected) {
+          try {
+            db.update(schema.sessions)
+              .set({
+                chrome_container_id: sidecarResult.containerName ?? null,
+                chrome_debug_port: sidecarResult.debugPort ?? null,
+                updated_at: new Date(),
+              })
+              .where(eq(schema.sessions.id, sessionId))
+              .run();
+          } catch (error) {
+            logger.warn('DockerAdapter: Failed to update chrome sidecar info in DB', {
+              sessionId,
+              error: error instanceof Error ? error.message : 'Unknown',
+            });
+            // DB保存失敗時、stopSidecarで回収できるようbest-effortでクリーンアップ
+            if (sidecarResult?.containerName) {
+              try {
+                const sidecarService = ChromeSidecarService.getInstance();
+                await sidecarService.stopSidecar(sessionId, sidecarResult.containerName, sidecarResult.networkName);
+                logger.info('DockerAdapter: Cleaned up sidecar after DB write failure', { sessionId });
+              } catch (cleanupError) {
+                logger.warn('DockerAdapter: Failed to cleanup sidecar after DB write failure', {
+                  sessionId,
+                  error: cleanupError instanceof Error ? cleanupError.message : 'Unknown',
+                });
+              }
             }
           }
         }

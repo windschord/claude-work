@@ -16,7 +16,7 @@ export function validateChromeSidecarConfig(
   // chromeSidecarキーが存在しない場合は省略OK
   if (!('chromeSidecar' in config)) return null;
 
-  // 不正なfalsy値（false, 0, ''等）を弾く
+  // null/undefinedは省略と同じ扱いで許容（キー存在するが値なし）
   if (config.chromeSidecar === null || config.chromeSidecar === undefined) return null;
   if (typeof config.chromeSidecar !== 'object') {
     return 'chromeSidecar must be an object';

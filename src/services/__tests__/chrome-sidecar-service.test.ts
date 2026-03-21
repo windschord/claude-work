@@ -239,7 +239,7 @@ describe('ChromeSidecarService', () => {
       expect(result.error).toContain('timed out');
     }, 10000);
 
-    it('異常系: ポートマッピング取得失敗時はCDPヘルスチェックも失敗すること', async () => {
+    it('正常系: ポートマッピング取得失敗時はCDPヘルスチェックをスキップし成功すること', async () => {
       // ポートが取得できない
       mockContainer.inspect.mockResolvedValue({
         State: { Running: true },
@@ -248,10 +248,14 @@ describe('ChromeSidecarService', () => {
 
       const result = await service.startSidecar(testSessionId, testConfig, { cdpTimeoutMs: 100 });
 
-      // debugPortがundefined -> waitForCDPがfalseを返す
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('timed out');
-    }, 10000);
+      // debugPort未取得時はCDPチェックをスキップし、コンテナRunning確認のみで成功
+      expect(result.success).toBe(true);
+      expect(result.debugPort).toBeUndefined();
+      expect(result.containerName).toBe(`cw-chrome-${testSessionId}`);
+      expect(result.networkName).toBe(`cw-net-${testSessionId}`);
+      // CDPヘルスチェック(fetch)が呼ばれないこと
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
 
     it('異常系: コンテナ起動失敗時にコンテナ削除とネットワーク削除が行われること', async () => {
       mockContainer.start.mockRejectedValueOnce(new Error('Container start failed'));
@@ -288,6 +292,34 @@ describe('ChromeSidecarService', () => {
       const result = await service.stopSidecar(testSessionId, `cw-chrome-${testSessionId}`);
       expect(result.success).toBe(false);
       expect(result.error).toContain('container stop');
+    });
+
+    it('正常系: AutoRemoveコンテナの404エラーは成功扱いになること', async () => {
+      mockContainer.stop.mockRejectedValueOnce(new Error('(HTTP code 404) no such container'));
+
+      const result = await service.stopSidecar(testSessionId, `cw-chrome-${testSessionId}`);
+      expect(result.success).toBe(true);
+    });
+
+    it('正常系: AutoRemoveコンテナの304エラーは成功扱いになること', async () => {
+      mockContainer.stop.mockRejectedValueOnce(new Error('(HTTP code 304) container already stopped'));
+
+      const result = await service.stopSidecar(testSessionId, `cw-chrome-${testSessionId}`);
+      expect(result.success).toBe(true);
+    });
+
+    it('正常系: "No such container"エラーは成功扱いになること', async () => {
+      mockContainer.stop.mockRejectedValueOnce(new Error('No such container: cw-chrome-test'));
+
+      const result = await service.stopSidecar(testSessionId, `cw-chrome-${testSessionId}`);
+      expect(result.success).toBe(true);
+    });
+
+    it('正常系: "not running"エラーは成功扱いになること', async () => {
+      mockContainer.stop.mockRejectedValueOnce(new Error('Container is not running'));
+
+      const result = await service.stopSidecar(testSessionId, `cw-chrome-${testSessionId}`);
+      expect(result.success).toBe(true);
     });
 
     it('異常系: ネットワーク削除失敗時にsuccess: falseを返すこと', async () => {
