@@ -75,6 +75,7 @@ export class ConfigService {
         typeof rawCustomEnvVars === 'object' &&
         !Array.isArray(rawCustomEnvVars)
       ) {
+        // キーパターン検証: ^[A-Z_][A-Z0-9_]*$ に一致し、値が文字列のもののみ採用
         const keyPattern = /^[A-Z_][A-Z0-9_]*$/;
         const filtered: Record<string, string> = {};
         for (const [key, value] of Object.entries(rawCustomEnvVars)) {

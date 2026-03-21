@@ -111,6 +111,7 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    let validatedEnvVars: Record<string, string> | undefined;
     if (custom_env_vars !== undefined) {
       const validated = ClaudeOptionsService.validateCustomEnvVars(custom_env_vars);
       if (validated === null) {
@@ -119,6 +120,7 @@ export async function PUT(request: NextRequest) {
           { status: 400 }
         );
       }
+      validatedEnvVars = validated;
     }
 
     // 設定を保存
@@ -128,7 +130,7 @@ export async function PUT(request: NextRequest) {
       ...(debug_mode_keep_volumes !== undefined && { debug_mode_keep_volumes }),
       ...(registry_firewall_enabled !== undefined && { registry_firewall_enabled }),
       ...(claude_defaults !== undefined && { claude_defaults }),
-      ...(custom_env_vars !== undefined && { custom_env_vars }),
+      ...(validatedEnvVars !== undefined && { custom_env_vars: validatedEnvVars }),
     });
 
     const updatedConfig = configService.getConfig();
