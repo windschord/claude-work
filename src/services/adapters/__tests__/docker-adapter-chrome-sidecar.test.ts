@@ -244,7 +244,7 @@ describe('DockerAdapter Chrome Sidecar - DockerAdapter統合テスト', () => {
 
   describe('createSession: サイドカー有効・成功時', () => {
     it('startSidecar, injectBrowserUrl, connectClaudeContainer が順に呼ばれ、DB更新されること', async () => {
-      const mockContainer = setupContainerMock();
+      setupContainerMock();
 
       mockStartSidecar.mockResolvedValue({
         success: true,
