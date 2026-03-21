@@ -143,7 +143,7 @@ export async function DELETE(
           });
         } else {
           // Host環境: gitコマンドでworktree削除
-          const removeResult = spawnSync('git', ['worktree', 'remove', '--force', sessionName], {
+          const removeResult = spawnSync('git', ['worktree', 'remove', '--force', targetSession.worktree_path], {
             // プロジェクトのルートディレクトリで実行（worktreeの管理元）
             cwd: targetSession.project.path,
             encoding: 'utf-8',
