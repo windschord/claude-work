@@ -53,10 +53,18 @@ export class DockerGitService implements GitOperations {
     }
   }
 
-  private validateWorkingDir(workingDir: string): void {
-    if (!workingDir || workingDir.includes('..') || !workingDir.startsWith('/')) {
+  private validateWorkingDir(workingDir: string): string {
+    if (!workingDir || !workingDir.startsWith('/')) {
       throw new Error(`Invalid working directory path: ${workingDir}`);
     }
+    // パスを正規化してトラバーサルを防止（foo..barのような正当なパスは許可）
+    const { posix } = require('path');
+    const normalized = posix.resolve('/', workingDir);
+    // /repo 配下であることを検証（Dockerコンテナ内のリポジトリルート）
+    if (normalized !== '/repo' && !normalized.startsWith('/repo/')) {
+      throw new Error(`Working directory must be under /repo: ${workingDir}`);
+    }
+    return normalized;
   }
 
   /**
@@ -64,7 +72,9 @@ export class DockerGitService implements GitOperations {
    */
   private buildDiffScript(): string {
     return `
-      git diff --name-status main...HEAD | while IFS=$'\\t' read -r status file1 file2; do
+      difffile=$(mktemp)
+      git diff --name-status main...HEAD > "$difffile" || { rm -f "$difffile"; exit 1; }
+      while IFS='	' read -r status file1 file2; do
         file="$file1"
         oldfile="$file1"
         case "$status" in
@@ -89,7 +99,8 @@ export class DockerGitService implements GitOperations {
         printf '===NUMSTAT_START===\\n'
         git diff --numstat main...HEAD -- "$file"
         printf '===FILE_END===\\n'
-      done
+      done < "$difffile"
+      rm -f "$difffile"
     `;
   }
 
@@ -764,14 +775,14 @@ export class DockerGitService implements GitOperations {
     totalAdditions: number;
     totalDeletions: number;
   }> {
-    this.validateWorkingDir(workingDir);
+    const safeWorkingDir = this.validateWorkingDir(workingDir);
     const volumeName = this.getVolumeName(projectId, dockerVolumeId);
     const Binds = [`${volumeName}:/repo`];
 
     try {
       const { stdout } = await this.runContainer('alpine/git', ['-c', this.buildDiffScript()], {
         Binds,
-        WorkingDir: workingDir,
+        WorkingDir: safeWorkingDir,
         Entrypoint: ['/bin/sh'],
       });
 
@@ -837,14 +848,14 @@ export class DockerGitService implements GitOperations {
    * 新方式セッション（worktree_path='/repo'）で使用。WorkingDirを直接指定する。
    */
   async rebaseFromMainByPath(projectId: string, workingDir: string, dockerVolumeId?: string | null): Promise<{ success: boolean; conflicts?: string[] }> {
-    this.validateWorkingDir(workingDir);
+    const safeWorkingDir = this.validateWorkingDir(workingDir);
     const volumeName = this.getVolumeName(projectId, dockerVolumeId);
     const Binds = [`${volumeName}:/repo`];
 
     try {
       await this.runContainer('alpine/git', ['rebase', 'main'], {
         Binds,
-        WorkingDir: workingDir,
+        WorkingDir: safeWorkingDir,
       });
 
       return { success: true };
@@ -854,7 +865,7 @@ export class DockerGitService implements GitOperations {
       try {
         const { stdout: conflictFiles } = await this.runContainer('alpine/git', ['diff', '--name-only', '--diff-filter=U'], {
           Binds,
-          WorkingDir: workingDir,
+          WorkingDir: safeWorkingDir,
         });
         conflicts = conflictFiles.split('\n').filter(f => f.trim().length > 0);
       } catch (conflictCheckError) {
@@ -866,7 +877,7 @@ export class DockerGitService implements GitOperations {
       try {
         await this.runContainer('alpine/git', ['rebase', '--abort'], {
           Binds,
-          WorkingDir: workingDir,
+          WorkingDir: safeWorkingDir,
         });
       } catch (abortError) {
         logger.error('[docker] Failed to abort rebase', { abortError, workingDir });
@@ -1005,7 +1016,7 @@ export class DockerGitService implements GitOperations {
     date: string;
     files_changed: number;
   }>> {
-    this.validateWorkingDir(workingDir);
+    const safeWorkingDir = this.validateWorkingDir(workingDir);
     const volumeName = this.getVolumeName(projectId, dockerVolumeId);
     const Binds = [`${volumeName}:/repo`];
 
@@ -1014,7 +1025,7 @@ export class DockerGitService implements GitOperations {
       const format = '%H%x00%h%x00%s%x00%an%x00%aI';
       const { stdout } = await this.runContainer('alpine/git', ['log', `--pretty=format:${format}`, '--numstat', 'main..HEAD'], {
         Binds,
-        WorkingDir: workingDir,
+        WorkingDir: safeWorkingDir,
       });
 
       return this.parseGitLogOutput(stdout);
@@ -1053,7 +1064,7 @@ export class DockerGitService implements GitOperations {
    * 新方式セッション（worktree_path='/repo'）で使用。WorkingDirを直接指定する。
    */
   async resetByPath(projectId: string, workingDir: string, commitHash: string, dockerVolumeId?: string | null): Promise<{ success: boolean; error?: string }> {
-    this.validateWorkingDir(workingDir);
+    const safeWorkingDir = this.validateWorkingDir(workingDir);
     this.validateCommitHash(commitHash);
     const volumeName = this.getVolumeName(projectId, dockerVolumeId);
     const Binds = [`${volumeName}:/repo`];
@@ -1061,7 +1072,7 @@ export class DockerGitService implements GitOperations {
     try {
       await this.runContainer('alpine/git', ['reset', '--hard', commitHash], {
         Binds,
-        WorkingDir: workingDir,
+        WorkingDir: safeWorkingDir,
       });
 
       return { success: true };
