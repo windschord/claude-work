@@ -2,14 +2,41 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // vi.hoisted で変数をホイスティング
 const {
+  mockDockerClient,
+  mockExistsSync,
   mockStartSidecar,
   mockStopSidecar,
   mockConnectClaudeContainer,
-} = vi.hoisted(() => ({
-  mockStartSidecar: vi.fn(),
-  mockStopSidecar: vi.fn(),
-  mockConnectClaudeContainer: vi.fn(),
-}));
+  mockIsFilterEnabled,
+  mockProxyHealthCheck,
+  mockDbUpdate,
+  mockDbSelectGet,
+} = vi.hoisted(() => {
+  const mockDbUpdateRun = vi.fn();
+  const mockDbUpdateWhere = vi.fn(() => ({ run: mockDbUpdateRun }));
+  const mockDbUpdateSet = vi.fn(() => ({ where: mockDbUpdateWhere }));
+  const mockDbUpdate = vi.fn(() => ({ set: mockDbUpdateSet }));
+  Object.assign(mockDbUpdate, { set: mockDbUpdateSet, where: mockDbUpdateWhere, run: mockDbUpdateRun });
+
+  const mockDbSelectGet = vi.fn();
+
+  return {
+    mockDockerClient: {
+      inspectContainer: vi.fn(),
+      getContainer: vi.fn(),
+      run: vi.fn(),
+      createContainer: vi.fn(),
+    },
+    mockExistsSync: vi.fn().mockReturnValue(false),
+    mockStartSidecar: vi.fn(),
+    mockStopSidecar: vi.fn(),
+    mockConnectClaudeContainer: vi.fn(),
+    mockIsFilterEnabled: vi.fn().mockResolvedValue(false),
+    mockProxyHealthCheck: vi.fn(),
+    mockDbUpdate,
+    mockDbSelectGet,
+  };
+});
 
 // ChromeSidecarService のモック（シングルトン対応）
 vi.mock('../../chrome-sidecar-service', () => ({
@@ -22,222 +49,494 @@ vi.mock('../../chrome-sidecar-service', () => ({
   },
 }));
 
-describe('DockerAdapter Chrome Sidecar - サイドカーライフサイクル検証', () => {
+vi.mock('../../docker-client', () => ({
+  DockerClient: {
+    getInstance: () => mockDockerClient,
+  },
+}));
+
+vi.mock('@/services/network-filter-service', () => ({
+  networkFilterService: {
+    isFilterEnabled: mockIsFilterEnabled,
+    getRules: vi.fn().mockResolvedValue([]),
+  },
+}));
+
+vi.mock('@/lib/proxy-sync', () => ({
+  syncRulesForContainer: vi.fn(),
+}));
+
+vi.mock('@/services/proxy-client', () => {
+  class MockProxyClient {
+    healthCheck = mockProxyHealthCheck;
+    deleteRules = vi.fn().mockResolvedValue(undefined);
+  }
+  class MockProxyConnectionError extends Error {
+    constructor(message: string) {
+      super(message);
+      this.name = 'ProxyConnectionError';
+    }
+  }
+  return {
+    ProxyClient: MockProxyClient,
+    ProxyConnectionError: MockProxyConnectionError,
+  };
+});
+
+vi.mock('@/services/registry-firewall-client', () => ({
+  RegistryFirewallClient: vi.fn().mockImplementation(() => ({
+    getHealth: vi.fn().mockResolvedValue({ status: 'healthy' }),
+  })),
+}));
+
+vi.mock('@/lib/db', () => ({
+  db: {
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          get: mockDbSelectGet,
+          all: vi.fn().mockReturnValue([]),
+        })),
+        all: vi.fn().mockReturnValue([]),
+      })),
+    })),
+    update: mockDbUpdate,
+  },
+  schema: { sessions: {} },
+}));
+
+vi.mock('@/services/developer-settings-service', () => ({
+  DeveloperSettingsService: vi.fn().mockImplementation(function () {
+    return {
+      getEffectiveSettings: vi.fn().mockResolvedValue({}),
+    };
+  }),
+}));
+
+vi.mock('@/services/encryption-service', () => ({
+  EncryptionService: vi.fn().mockImplementation(function () {
+    return {
+      decrypt: vi.fn().mockResolvedValue('decrypted'),
+    };
+  }),
+}));
+
+vi.mock('node-pty', () => ({
+  spawn: vi.fn(),
+}));
+
+vi.mock('tar-fs', () => ({
+  default: {
+    pack: vi.fn().mockReturnValue({ pipe: vi.fn() }),
+  },
+  pack: vi.fn().mockReturnValue({ pipe: vi.fn() }),
+}));
+
+vi.mock('fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('fs')>();
+  return {
+    ...actual,
+    existsSync: mockExistsSync,
+    writeFileSync: vi.fn(),
+    createReadStream: vi.fn(),
+  };
+});
+
+vi.mock('fs/promises', () => ({
+  mkdir: vi.fn().mockResolvedValue(undefined),
+  writeFile: vi.fn().mockResolvedValue(undefined),
+  readFile: vi.fn().mockResolvedValue(''),
+  readdir: vi.fn().mockResolvedValue([]),
+  rm: vi.fn().mockResolvedValue(undefined),
+  stat: vi.fn().mockResolvedValue({ isDirectory: () => true }),
+  access: vi.fn().mockResolvedValue(undefined),
+}));
+
+// scrollbackBuffer mock
+vi.mock('../../scrollback-buffer', () => ({
+  scrollbackBuffer: {
+    append: vi.fn(),
+    clear: vi.fn(),
+    get: vi.fn().mockReturnValue(''),
+  },
+}));
+
+// ClaudeOptionsService mock
+vi.mock('../../claude-options-service', () => ({
+  ClaudeOptionsService: {
+    buildCliArgs: vi.fn().mockReturnValue([]),
+    validateEnvVarKey: vi.fn().mockReturnValue(true),
+  },
+}));
+
+import { DockerAdapter } from '../docker-adapter';
+
+/**
+ * コンテナモックを設定するヘルパー
+ * DockerAdapter.createSession が内部で使用する Docker API をモック
+ */
+function setupContainerMock() {
+  const mockExec = { start: vi.fn().mockResolvedValue(undefined) };
+  const mockContainer = {
+    attach: vi.fn().mockResolvedValue({
+      on: vi.fn(),
+      pipe: vi.fn(),
+      write: vi.fn(),
+    }),
+    start: vi.fn().mockResolvedValue(undefined),
+    remove: vi.fn().mockResolvedValue(undefined),
+    exec: vi.fn().mockResolvedValue(mockExec),
+  };
+  mockDockerClient.createContainer.mockResolvedValue(mockContainer);
+  // waitForContainerReady用: Running=true を返す
+  mockDockerClient.inspectContainer.mockResolvedValue({
+    State: { Running: true },
+    NetworkSettings: {
+      Networks: {},
+    },
+  });
+  mockDockerClient.getContainer.mockReturnValue({
+    exec: vi.fn().mockResolvedValue(mockExec),
+    stop: vi.fn().mockResolvedValue(undefined),
+  });
+  return mockContainer;
+}
+
+describe('DockerAdapter Chrome Sidecar - DockerAdapter統合テスト', () => {
+  let adapter: DockerAdapter;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    mockExistsSync.mockReturnValue(false);
+    mockIsFilterEnabled.mockResolvedValue(false);
+    mockDbSelectGet.mockReturnValue(undefined);
+    adapter = new DockerAdapter({
+      environmentId: 'env-1',
+      imageName: 'test-image',
+      imageTag: 'latest',
+    });
   });
 
-  describe('createSession: サイドカー起動フロー', () => {
-    it('chromeSidecar無効時はChromeSidecarServiceが呼ばれないこと', () => {
-      const options = { cols: 80, rows: 24 };
-      expect(options).not.toHaveProperty('chromeSidecar');
-      // サービスのstartSidecarが呼ばれていないことを確認
+  describe('createSession: サイドカー無効時', () => {
+    it('chromeSidecarオプション未指定の場合、ChromeSidecarServiceが呼ばれないこと', async () => {
+      setupContainerMock();
+
+      await adapter.createSession('session-no-sidecar', '/workspace');
+
       expect(mockStartSidecar).not.toHaveBeenCalled();
+      expect(mockConnectClaudeContainer).not.toHaveBeenCalled();
     });
 
-    it('startSidecar成功時の戻り値が正しい構造であること', async () => {
-      const expectedResult = {
-        success: true,
-        containerName: 'cw-chrome-test-session',
-        networkName: 'cw-net-test-session',
-        debugPort: 49152,
-        browserUrl: 'http://cw-chrome-test-session:9222',
-      };
-      mockStartSidecar.mockResolvedValue(expectedResult);
+    it('chromeSidecar.enabled=falseの場合、startSidecarが呼ばれないこと', async () => {
+      setupContainerMock();
 
-      const result = await mockStartSidecar('test-session', {
-        enabled: true,
-        image: 'chromium/headless-shell',
-        tag: '131.0.6778.204',
-      });
-
-      expect(mockStartSidecar).toHaveBeenCalledWith('test-session', {
-        enabled: true,
-        image: 'chromium/headless-shell',
-        tag: '131.0.6778.204',
-      });
-      expect(result.success).toBe(true);
-      expect(result.containerName).toMatch(/^cw-chrome-/);
-      expect(result.networkName).toMatch(/^cw-net-/);
-      expect(result.browserUrl).toMatch(/^http:\/\//);
-    });
-
-    it('startSidecar失敗時もエラー情報が返り、Claude Code起動は妨げないこと（graceful degradation）', async () => {
-      mockStartSidecar.mockResolvedValue({
-        success: false,
-        error: 'CDP health check timed out',
-      });
-
-      const result = await mockStartSidecar('test-session', {
-        enabled: true,
-        image: 'chromium/headless-shell',
-        tag: '131.0.6778.204',
-      });
-
-      expect(result.success).toBe(false);
-      expect(result.error).toBeDefined();
-      // graceful degradation: 失敗でもClaude Code自体は起動する
-      // (実際のDockerAdapter統合テストで全体フローを検証)
-    });
-  });
-
-  describe('injectBrowserUrl: .mcp.json注入ロジック', () => {
-    it('新規Entrypoint設定: shell経由への変換', () => {
-      const createOptions: Record<string, unknown> = {
-        Entrypoint: ['/usr/bin/claude'],
-        Cmd: ['--print', 'hello'],
-        Env: [],
-      };
-      const browserUrl = 'http://cw-chrome-session:9222';
-
-      // injectBrowserUrl のロジック再現
-      const env = createOptions.Env as string[];
-      env.push(`__CHROME_BROWSER_URL=${browserUrl}`);
-
-      const originalEntrypoint = createOptions.Entrypoint as string[];
-      const originalCmd = createOptions.Cmd as string[];
-
-      // shell経由に変換
-      const allArgs = [...originalEntrypoint, ...originalCmd].filter(Boolean);
-      createOptions.Entrypoint = ['/bin/sh', '-c'];
-
-      const mcpScript = 'MCP_INJECT_SCRIPT';
-      createOptions.Cmd = [
-        mcpScript + ' && exec "$@"',
-        '--',
-        ...allArgs,
-      ];
-
-      expect(createOptions.Entrypoint).toEqual(['/bin/sh', '-c']);
-      expect((createOptions.Cmd as string[])[0]).toContain('MCP_INJECT_SCRIPT');
-      expect((createOptions.Cmd as string[]).slice(2)).toEqual(['/usr/bin/claude', '--print', 'hello']);
-      expect(env).toContain(`__CHROME_BROWSER_URL=${browserUrl}`);
-    });
-
-    it('既存shell Entrypoint拡張: registry-firewallパターンとの共存', () => {
-      const createOptions: Record<string, unknown> = {
-        Entrypoint: ['/bin/sh', '-c'],
-        Cmd: ['existing-setup && exec claude'],
-        Env: [],
-      };
-
-      const originalEntrypoint = createOptions.Entrypoint as string[];
-      const originalCmd = createOptions.Cmd as string[];
-      const mcpScript = 'MCP_INJECT_SCRIPT';
-
-      // 既にshell経由の場合はCmdの先頭にスクリプトを追加
-      if (
-        originalEntrypoint.length === 2 &&
-        originalEntrypoint[0] === '/bin/sh' &&
-        originalEntrypoint[1] === '-c' &&
-        originalCmd.length > 0
-      ) {
-        originalCmd[0] = mcpScript + ' && ' + originalCmd[0];
-      }
-
-      expect(originalCmd[0]).toBe('MCP_INJECT_SCRIPT && existing-setup && exec claude');
-    });
-  });
-
-  describe('destroySession: サイドカー停止フロー', () => {
-    it('chrome_container_idが存在する場合はstopSidecarが呼ばれること', async () => {
-      const sessionId = 'test-session';
-      const chromeContainerId = 'cw-chrome-test-session';
-
-      mockStopSidecar.mockResolvedValue({ success: true });
-
-      const result = await mockStopSidecar(sessionId, chromeContainerId);
-
-      expect(mockStopSidecar).toHaveBeenCalledWith(sessionId, chromeContainerId);
-      expect(result.success).toBe(true);
-    });
-
-    it('chrome_container_idがNULLのセッションではstopSidecarが呼ばれないこと', () => {
-      const sessionRecord = { chrome_container_id: null };
-
-      if (sessionRecord.chrome_container_id) {
-        mockStopSidecar(sessionRecord.chrome_container_id);
-      }
-
-      expect(mockStopSidecar).not.toHaveBeenCalled();
-    });
-
-    it('stopSidecar失敗時にbest-effortで例外を吸収すること', async () => {
-      mockStopSidecar.mockRejectedValue(new Error('Chrome stop failed'));
-
-      let exceptionCaught = false;
-      try {
-        await mockStopSidecar('session', 'container');
-      } catch {
-        exceptionCaught = true;
-        // destroySessionではここでlogger.warnを出力して続行
-      }
-
-      expect(exceptionCaught).toBe(true);
-      expect(mockStopSidecar).toHaveBeenCalledWith('session', 'container');
-    });
-  });
-
-  describe('connectClaudeContainer: ネットワーク接続', () => {
-    it('サイドカー起動成功後にClaude Codeコンテナをネットワークに接続すること', async () => {
-      mockConnectClaudeContainer.mockResolvedValue(undefined);
-
-      await mockConnectClaudeContainer('claude-container', 'cw-net-session');
-
-      expect(mockConnectClaudeContainer).toHaveBeenCalledWith(
-        'claude-container',
-        'cw-net-session'
-      );
-    });
-  });
-
-  describe('PTYSessionManager: chromeSidecar設定転送', () => {
-    it('envConfigからchromeSidecar.enabled=trueの場合、設定が取得されること', () => {
-      const envConfig = {
-        imageName: 'test-image',
-        chromeSidecar: {
-          enabled: true,
-          image: 'chromium/headless-shell',
-          tag: '131.0.6778.204',
-        },
-      };
-
-      // pty-session-manager.tsのロジックを再現
-      const rawSidecar = (envConfig as Record<string, unknown>).chromeSidecar as
-        { enabled: boolean; image: string; tag: string } | undefined;
-      const chromeSidecar = rawSidecar?.enabled ? rawSidecar : undefined;
-
-      expect(chromeSidecar).toBeDefined();
-      expect(chromeSidecar?.image).toBe('chromium/headless-shell');
-    });
-
-    it('envConfigからchromeSidecar未設定の場合、undefinedが返ること', () => {
-      const envConfig = {
-        imageName: 'test-image',
-      } as Record<string, unknown>;
-
-      const rawSidecar = envConfig.chromeSidecar as
-        { enabled: boolean } | undefined;
-      const chromeSidecar = rawSidecar?.enabled ? rawSidecar : undefined;
-
-      expect(chromeSidecar).toBeUndefined();
-    });
-
-    it('chromeSidecar.enabled=falseの場合、undefinedが返ること', () => {
-      const envConfig = {
-        imageName: 'test-image',
+      await adapter.createSession('session-disabled', '/workspace', undefined, {
         chromeSidecar: {
           enabled: false,
           image: 'chromium/headless-shell',
           tag: '131.0.6778.204',
         },
+      });
+
+      expect(mockStartSidecar).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('createSession: サイドカー有効・成功時', () => {
+    it('startSidecar, injectBrowserUrl, connectClaudeContainer が順に呼ばれ、DB更新されること', async () => {
+      const mockContainer = setupContainerMock();
+
+      mockStartSidecar.mockResolvedValue({
+        success: true,
+        containerName: 'cw-chrome-session-ok',
+        networkName: 'cw-net-session-ok',
+        debugPort: 49152,
+        browserUrl: 'http://cw-chrome-session-ok:9222',
+      });
+      mockConnectClaudeContainer.mockResolvedValue(undefined);
+
+      await adapter.createSession('session-ok', '/workspace', undefined, {
+        chromeSidecar: {
+          enabled: true,
+          image: 'chromium/headless-shell',
+          tag: '131.0.6778.204',
+        },
+      });
+
+      // startSidecarが正しい引数で呼ばれること
+      expect(mockStartSidecar).toHaveBeenCalledWith('session-ok', {
+        enabled: true,
+        image: 'chromium/headless-shell',
+        tag: '131.0.6778.204',
+      });
+
+      // injectBrowserUrl: コンテナ作成時にブラウザURL環境変数が注入されること
+      const createContainerCall = mockDockerClient.createContainer.mock.calls[0][0];
+      const env = createContainerCall.Env as string[];
+      expect(env.some((e: string) => e.includes('__CHROME_BROWSER_URL=http://cw-chrome-session-ok:9222'))).toBe(true);
+
+      // Entrypointがshell経由に変換されていること
+      expect(createContainerCall.Entrypoint).toEqual(['/bin/sh', '-c']);
+
+      // connectClaudeContainerが呼ばれること（コンテナ名とネットワーク名）
+      expect(mockConnectClaudeContainer).toHaveBeenCalledWith(
+        expect.stringContaining('claude-env-'),
+        'cw-net-session-ok'
+      );
+
+      // DB更新: chrome_container_id, chrome_debug_port
+      expect(mockDbUpdate.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          chrome_container_id: 'cw-chrome-session-ok',
+          chrome_debug_port: 49152,
+        })
+      );
+    });
+  });
+
+  describe('createSession: サイドカー失敗（CDPタイムアウト）時', () => {
+    it('サイドカー起動失敗時もClaude Codeセッションが作成されること（graceful degradation）', async () => {
+      setupContainerMock();
+
+      mockStartSidecar.mockResolvedValue({
+        success: false,
+        error: 'CDP health check timed out',
+      });
+
+      // セッション作成自体は成功する
+      await expect(
+        adapter.createSession('session-sidecar-fail', '/workspace', undefined, {
+          chromeSidecar: {
+            enabled: true,
+            image: 'chromium/headless-shell',
+            tag: '131.0.6778.204',
+          },
+        })
+      ).resolves.not.toThrow();
+
+      expect(mockStartSidecar).toHaveBeenCalled();
+
+      // サイドカー失敗のため、connectClaudeContainerは呼ばれない
+      expect(mockConnectClaudeContainer).not.toHaveBeenCalled();
+
+      // サイドカー失敗のため、ブラウザURL環境変数は注入されない
+      const createContainerCall = mockDockerClient.createContainer.mock.calls[0][0];
+      const env = createContainerCall.Env as string[];
+      expect(env.some((e: string) => e.includes('__CHROME_BROWSER_URL'))).toBe(false);
+    });
+  });
+
+  describe('createSession: サイドカー成功後のconnectClaudeContainer失敗時', () => {
+    it('接続失敗時にサイドカーがクリーンアップされ、セッションは継続すること', async () => {
+      setupContainerMock();
+
+      mockStartSidecar.mockResolvedValue({
+        success: true,
+        containerName: 'cw-chrome-session-connect-fail',
+        networkName: 'cw-net-session-connect-fail',
+        debugPort: 49153,
+        browserUrl: 'http://cw-chrome-session-connect-fail:9222',
+      });
+      mockConnectClaudeContainer.mockRejectedValue(new Error('Network connect failed'));
+      mockStopSidecar.mockResolvedValue({ success: true });
+
+      // セッション作成自体は成功する
+      await expect(
+        adapter.createSession('session-connect-fail', '/workspace', undefined, {
+          chromeSidecar: {
+            enabled: true,
+            image: 'chromium/headless-shell',
+            tag: '131.0.6778.204',
+          },
+        })
+      ).resolves.not.toThrow();
+
+      // 接続失敗後にstopSidecarでクリーンアップ
+      expect(mockStopSidecar).toHaveBeenCalledWith(
+        'session-connect-fail',
+        'cw-chrome-session-connect-fail',
+        'cw-net-session-connect-fail'
+      );
+    });
+  });
+
+  describe('createSession: コンテナ作成失敗時のサイドカークリーンアップ', () => {
+    it('コンテナ作成失敗時に起動済みサイドカーがクリーンアップされること', async () => {
+      mockStartSidecar.mockResolvedValue({
+        success: true,
+        containerName: 'cw-chrome-session-cleanup',
+        networkName: 'cw-net-session-cleanup',
+        debugPort: 49154,
+        browserUrl: 'http://cw-chrome-session-cleanup:9222',
+      });
+      mockStopSidecar.mockResolvedValue({ success: true });
+
+      // コンテナ作成で失敗させる
+      mockDockerClient.createContainer.mockRejectedValue(new Error('Docker create failed'));
+
+      await expect(
+        adapter.createSession('session-cleanup', '/workspace', undefined, {
+          chromeSidecar: {
+            enabled: true,
+            image: 'chromium/headless-shell',
+            tag: '131.0.6778.204',
+          },
+        })
+      ).rejects.toThrow('Docker create failed');
+
+      // 失敗時にサイドカーがクリーンアップされること
+      expect(mockStopSidecar).toHaveBeenCalledWith(
+        'session-cleanup',
+        'cw-chrome-session-cleanup',
+        'cw-net-session-cleanup'
+      );
+    });
+  });
+
+  describe('destroySession: サイドカー停止', () => {
+    it('chrome_container_idが存在する場合、stopSidecarが呼ばれること', async () => {
+      setupContainerMock();
+
+      // セッションをsessionsマップに直接設定
+      const mockPty = {
+        kill: vi.fn(),
+        resize: vi.fn(),
+        write: vi.fn(),
+        onData: vi.fn(),
+        onExit: vi.fn(),
       };
+      (adapter as any).sessions.set('session-with-chrome', {
+        ptyProcess: mockPty,
+        workingDir: '/workspace',
+        containerId: 'container-id-chrome',
+        errorBuffer: '',
+        hasReceivedOutput: false,
+        shellMode: false,
+      });
 
-      const rawSidecar = (envConfig as Record<string, unknown>).chromeSidecar as
-        { enabled: boolean; image: string; tag: string } | undefined;
-      const chromeSidecar = rawSidecar?.enabled ? rawSidecar : undefined;
+      // DB select: chrome_container_id が存在する
+      mockDbSelectGet.mockReturnValue({ chrome_container_id: 'cw-chrome-session-with-chrome' });
+      mockStopSidecar.mockResolvedValue({ success: true });
 
-      expect(chromeSidecar).toBeUndefined();
+      await adapter.destroySession('session-with-chrome');
+
+      expect(mockStopSidecar).toHaveBeenCalledWith(
+        'session-with-chrome',
+        'cw-chrome-session-with-chrome'
+      );
+
+      // 停止成功時はDB更新で chrome_container_id, chrome_debug_port をnullクリア
+      expect(mockDbUpdate.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          chrome_container_id: null,
+          chrome_debug_port: null,
+        })
+      );
+    });
+
+    it('chrome_container_idがNULLの場合、stopSidecarが呼ばれないこと', async () => {
+      setupContainerMock();
+
+      const mockPty = {
+        kill: vi.fn(),
+        resize: vi.fn(),
+        write: vi.fn(),
+        onData: vi.fn(),
+        onExit: vi.fn(),
+      };
+      (adapter as any).sessions.set('session-no-chrome', {
+        ptyProcess: mockPty,
+        workingDir: '/workspace',
+        containerId: 'container-id-no-chrome',
+        errorBuffer: '',
+        hasReceivedOutput: false,
+        shellMode: false,
+      });
+
+      // DB select: chrome_container_id が存在しない
+      mockDbSelectGet.mockReturnValue({ chrome_container_id: null });
+
+      await adapter.destroySession('session-no-chrome');
+
+      expect(mockStopSidecar).not.toHaveBeenCalled();
+    });
+
+    it('stopSidecar失敗時はDB参照が保持されること（孤立回収用）', async () => {
+      setupContainerMock();
+
+      const mockPty = {
+        kill: vi.fn(),
+        resize: vi.fn(),
+        write: vi.fn(),
+        onData: vi.fn(),
+        onExit: vi.fn(),
+      };
+      (adapter as any).sessions.set('session-stop-fail', {
+        ptyProcess: mockPty,
+        workingDir: '/workspace',
+        containerId: 'container-id-stop-fail',
+        errorBuffer: '',
+        hasReceivedOutput: false,
+        shellMode: false,
+      });
+
+      // DB select: chrome_container_id が存在する
+      mockDbSelectGet.mockReturnValue({ chrome_container_id: 'cw-chrome-session-stop-fail' });
+      // stopSidecar が失敗を返す
+      mockStopSidecar.mockResolvedValue({ success: false, error: 'Chrome stop failed' });
+
+      await adapter.destroySession('session-stop-fail');
+
+      expect(mockStopSidecar).toHaveBeenCalled();
+
+      // 停止失敗時はchrome_container_id/chrome_debug_portのnullクリアが行われない
+      // (container_idのnullクリアは別途行われるが、chrome関連のクリアは行われない)
+      const setCalls = mockDbUpdate.set.mock.calls;
+      const chromeNullClearCall = setCalls.find(
+        (call: unknown[]) =>
+          call[0] &&
+          typeof call[0] === 'object' &&
+          'chrome_container_id' in (call[0] as Record<string, unknown>) &&
+          (call[0] as Record<string, unknown>).chrome_container_id === null
+      );
+      expect(chromeNullClearCall).toBeUndefined();
+    });
+  });
+
+  describe('injectBrowserUrl: Entrypoint/Cmd変換', () => {
+    it('新規Entrypoint: shell経由への変換が行われること', async () => {
+      setupContainerMock();
+
+      mockStartSidecar.mockResolvedValue({
+        success: true,
+        containerName: 'cw-chrome-inject',
+        networkName: 'cw-net-inject',
+        debugPort: 49155,
+        browserUrl: 'http://cw-chrome-inject:9222',
+      });
+      mockConnectClaudeContainer.mockResolvedValue(undefined);
+
+      await adapter.createSession('session-inject', '/workspace', undefined, {
+        chromeSidecar: {
+          enabled: true,
+          image: 'chromium/headless-shell',
+          tag: '131.0.6778.204',
+        },
+      });
+
+      const createContainerCall = mockDockerClient.createContainer.mock.calls[0][0];
+
+      // Entrypointが /bin/sh -c に変換されていること
+      expect(createContainerCall.Entrypoint).toEqual(['/bin/sh', '-c']);
+
+      // Cmdにmcpスクリプトが含まれていること
+      const cmd = createContainerCall.Cmd as string[];
+      expect(cmd[0]).toContain('.mcp.json');
+      expect(cmd[0]).toContain('__CHROME_BROWSER_URL');
+
+      // 環境変数にブラウザURLが含まれること
+      const env = createContainerCall.Env as string[];
+      expect(env).toContain('__CHROME_BROWSER_URL=http://cw-chrome-inject:9222');
     });
   });
 });
