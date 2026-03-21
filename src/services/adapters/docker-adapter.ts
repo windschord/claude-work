@@ -1013,6 +1013,19 @@ export class DockerAdapter extends BasePTYAdapter {
             sessionId,
             error: error instanceof Error ? error.message : 'Unknown',
           });
+          // DB保存失敗時、stopSidecarで回収できるようbest-effortでクリーンアップ
+          if (sidecarResult?.containerName) {
+            try {
+              const sidecarService = ChromeSidecarService.getInstance();
+              await sidecarService.stopSidecar(sessionId, sidecarResult.containerName, sidecarResult.networkName);
+              logger.info('DockerAdapter: Cleaned up sidecar after DB write failure', { sessionId });
+            } catch (cleanupError) {
+              logger.warn('DockerAdapter: Failed to cleanup sidecar after DB write failure', {
+                sessionId,
+                error: cleanupError instanceof Error ? cleanupError.message : 'Unknown',
+              });
+            }
+          }
         }
       }
 
@@ -1168,6 +1181,20 @@ export class DockerAdapter extends BasePTYAdapter {
         }
       }
 
+      // サイドカーが起動していた場合はクリーンアップ
+      if (sidecarResult?.success && sidecarResult.containerName) {
+        try {
+          const sidecarService = ChromeSidecarService.getInstance();
+          await sidecarService.stopSidecar(sessionId, sidecarResult.containerName, sidecarResult.networkName);
+          logger.info('DockerAdapter: Chrome sidecar cleaned up on createSession failure', { sessionId });
+        } catch (sidecarCleanupError) {
+          logger.warn('DockerAdapter: Failed to cleanup Chrome sidecar on createSession failure', {
+            sessionId,
+            error: sidecarCleanupError instanceof Error ? sidecarCleanupError.message : 'Unknown error',
+          });
+        }
+      }
+
       logger.error('DockerAdapter: Failed to create session', {
         sessionId,
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -1251,22 +1278,30 @@ export class DockerAdapter extends BasePTYAdapter {
 
         if (sessionRecord?.chrome_container_id) {
           const sidecarService = ChromeSidecarService.getInstance();
-          await sidecarService.stopSidecar(
+          const stopResult = await sidecarService.stopSidecar(
             sessionId,
             sessionRecord.chrome_container_id
           );
 
-          // DB更新: chromeカラムをクリア
-          db.update(schema.sessions)
-            .set({
-              chrome_container_id: null,
-              chrome_debug_port: null,
-              updated_at: new Date(),
-            })
-            .where(eq(schema.sessions.id, sessionId))
-            .run();
+          if (stopResult.success) {
+            // DB更新: chromeカラムをクリア（停止成功時のみ）
+            db.update(schema.sessions)
+              .set({
+                chrome_container_id: null,
+                chrome_debug_port: null,
+                updated_at: new Date(),
+              })
+              .where(eq(schema.sessions.id, sessionId))
+              .run();
 
-          logger.info('DockerAdapter: Chrome sidecar stopped', { sessionId });
+            logger.info('DockerAdapter: Chrome sidecar stopped', { sessionId });
+          } else {
+            // 停止失敗時はDB参照を保持（孤立回収のため）
+            logger.warn('DockerAdapter: Chrome sidecar stop failed, keeping DB refs for orphan cleanup', {
+              sessionId,
+              error: stopResult.error,
+            });
+          }
         }
       } catch (error) {
         logger.warn('DockerAdapter: Failed to stop Chrome sidecar', {

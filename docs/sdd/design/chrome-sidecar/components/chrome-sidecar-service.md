@@ -231,7 +231,7 @@ private async waitForCDP(
 
 ### 孤立リソースクリーンアップ
 
-```
+```text
 サーバー起動時:
 
 1. DBから chrome_container_id が NOT NULL のセッションを取得

@@ -13,7 +13,14 @@
 export function validateChromeSidecarConfig(
   config: Record<string, unknown>
 ): string | null {
-  if (!config.chromeSidecar) return null; // 省略OK
+  // chromeSidecarキーが存在しない場合は省略OK
+  if (!('chromeSidecar' in config)) return null;
+
+  // 不正なfalsy値（false, 0, ''等）を弾く
+  if (config.chromeSidecar === null || config.chromeSidecar === undefined) return null;
+  if (typeof config.chromeSidecar !== 'object') {
+    return 'chromeSidecar must be an object';
+  }
 
   const sidecar = config.chromeSidecar as Record<string, unknown>;
 
@@ -31,7 +38,7 @@ export function validateChromeSidecarConfig(
     return 'chromeSidecar.tag is required';
   }
 
-  if (sidecar.tag === 'latest') {
+  if (typeof sidecar.tag === 'string' && sidecar.tag.trim().toLowerCase() === 'latest') {
     return 'chromeSidecar.tag must be a specific version (latest is not allowed for reproducibility)';
   }
 

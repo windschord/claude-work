@@ -41,7 +41,7 @@ describe('DockerAdapter Chrome Sidecar - サイドカーライフサイクル検
         containerName: 'cw-chrome-test-session',
         networkName: 'cw-net-test-session',
         debugPort: 49152,
-        browserUrl: 'ws://cw-chrome-test-session:9222',
+        browserUrl: 'http://cw-chrome-test-session:9222',
       };
       mockStartSidecar.mockResolvedValue(expectedResult);
 
@@ -59,7 +59,7 @@ describe('DockerAdapter Chrome Sidecar - サイドカーライフサイクル検
       expect(result.success).toBe(true);
       expect(result.containerName).toMatch(/^cw-chrome-/);
       expect(result.networkName).toMatch(/^cw-net-/);
-      expect(result.browserUrl).toMatch(/^ws:\/\//);
+      expect(result.browserUrl).toMatch(/^http:\/\//);
     });
 
     it('startSidecar失敗時もエラー情報が返り、Claude Code起動は妨げないこと（graceful degradation）', async () => {
@@ -88,7 +88,7 @@ describe('DockerAdapter Chrome Sidecar - サイドカーライフサイクル検
         Cmd: ['--print', 'hello'],
         Env: [],
       };
-      const browserUrl = 'ws://cw-chrome-session:9222';
+      const browserUrl = 'http://cw-chrome-session:9222';
 
       // injectBrowserUrl のロジック再現
       const env = createOptions.Env as string[];
@@ -144,11 +144,12 @@ describe('DockerAdapter Chrome Sidecar - サイドカーライフサイクル検
       const sessionId = 'test-session';
       const chromeContainerId = 'cw-chrome-test-session';
 
-      mockStopSidecar.mockResolvedValue(undefined);
+      mockStopSidecar.mockResolvedValue({ success: true });
 
-      await mockStopSidecar(sessionId, chromeContainerId);
+      const result = await mockStopSidecar(sessionId, chromeContainerId);
 
       expect(mockStopSidecar).toHaveBeenCalledWith(sessionId, chromeContainerId);
+      expect(result.success).toBe(true);
     });
 
     it('chrome_container_idがNULLのセッションではstopSidecarが呼ばれないこと', () => {

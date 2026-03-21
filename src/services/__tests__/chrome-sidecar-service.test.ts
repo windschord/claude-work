@@ -155,7 +155,7 @@ describe('ChromeSidecarService', () => {
       expect(result.containerName).toBe(`cw-chrome-${testSessionId}`);
       expect(result.networkName).toBe(`cw-net-${testSessionId}`);
       expect(result.debugPort).toBe(49152);
-      expect(result.browserUrl).toBe(`ws://cw-chrome-${testSessionId}:9222`);
+      expect(result.browserUrl).toBe(`http://cw-chrome-${testSessionId}:9222`);
 
       // ネットワーク作成が先に呼ばれること
       expect(mockCreateNetwork).toHaveBeenCalledWith(
@@ -215,7 +215,7 @@ describe('ChromeSidecarService', () => {
 
       const result = await service.startSidecar(testSessionId, testConfig);
       expect(result.debugPort).toBe(55555);
-      expect(result.browserUrl).toBe(`ws://cw-chrome-${testSessionId}:9222`);
+      expect(result.browserUrl).toBe(`http://cw-chrome-${testSessionId}:9222`);
     });
 
     it('異常系: ネットワーク作成失敗', async () => {
@@ -269,31 +269,33 @@ describe('ChromeSidecarService', () => {
 
   describe('stopSidecar', () => {
     it('正常系: サイドカー停止成功', async () => {
-      await service.stopSidecar(
+      const result = await service.stopSidecar(
         testSessionId,
         `cw-chrome-${testSessionId}`
       );
 
+      expect(result.success).toBe(true);
+      expect(result.error).toBeUndefined();
       // コンテナ停止
       expect(mockContainer.stop).toHaveBeenCalled();
       // ネットワーク削除
       expect(mockNetwork.remove).toHaveBeenCalled();
     });
 
-    it('異常系: コンテナ停止失敗時に例外がスローされないこと', async () => {
+    it('異常系: コンテナ停止失敗時にsuccess: falseを返すこと', async () => {
       mockContainer.stop.mockRejectedValueOnce(new Error('Container stop failed'));
 
-      await expect(
-        service.stopSidecar(testSessionId, `cw-chrome-${testSessionId}`)
-      ).resolves.not.toThrow();
+      const result = await service.stopSidecar(testSessionId, `cw-chrome-${testSessionId}`);
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('container stop');
     });
 
-    it('異常系: ネットワーク削除失敗時に例外がスローされないこと', async () => {
-      mockNetwork.remove.mockRejectedValueOnce(new Error('Network remove failed'));
+    it('異常系: ネットワーク削除失敗時にsuccess: falseを返すこと', async () => {
+      mockNetwork.inspect.mockRejectedValueOnce(new Error('Network inspect failed'));
 
-      await expect(
-        service.stopSidecar(testSessionId, `cw-chrome-${testSessionId}`)
-      ).resolves.not.toThrow();
+      const result = await service.stopSidecar(testSessionId, `cw-chrome-${testSessionId}`);
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('network remove');
     });
   });
 

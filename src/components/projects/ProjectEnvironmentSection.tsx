@@ -157,6 +157,11 @@ export function ProjectEnvironmentSection({ projectId }: ProjectEnvironmentSecti
             setChromeSidecarEnabled(config.chromeSidecar.enabled ?? false);
             if (config.chromeSidecar.image) setChromeSidecarImage(config.chromeSidecar.image);
             if (config.chromeSidecar.tag) setChromeSidecarTag(config.chromeSidecar.tag);
+          } else {
+            // chromeSidecar未設定時はデフォルト値にリセット
+            setChromeSidecarEnabled(false);
+            setChromeSidecarImage('chromium/headless-shell');
+            setChromeSidecarTag('131.0.6778.204');
           }
 
           initialConfigRef.current = {

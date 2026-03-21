@@ -25,7 +25,7 @@ export function ChromeSidecarSection({
   onTagChange,
   disabled = false,
 }: ChromeSidecarSectionProps) {
-  const tagError = enabled && tag === 'latest'
+  const tagError = enabled && tag.trim().toLowerCase() === 'latest'
     ? '再現性のためバージョンを固定してください（latestは使用できません）'
     : null;
 
@@ -39,6 +39,7 @@ export function ChromeSidecarSection({
           <input
             type="checkbox"
             role="checkbox"
+            aria-label="Chrome Sidecar を有効にする"
             checked={enabled}
             onChange={(e) => onEnabledChange(e.target.checked)}
             disabled={disabled}

@@ -102,7 +102,7 @@ export interface DockerEnvironmentConfig {
 | フィールド | ルール | エラーメッセージ例 |
 |-----------|--------|-----------------|
 | chromeSidecar.enabled | boolean型、必須（chromeSidecarキーが存在する場合） | "enabled must be a boolean" |
-| chromeSidecar.image | 文字列型、`[-a-z0-9._/]+` に適合、必須 | "image must be a valid Docker image name" |
+| chromeSidecar.image | 文字列型、`[-a-z0-9._/:]+` に適合、必須 | "image must be a valid Docker image name" |
 | chromeSidecar.tag | 文字列型、必須、`latest`禁止 | "tag must be a specific version (latest is not allowed)" |
 | chromeSidecarキー自体 | 存在しない場合は`enabled: false`として扱う | (バリデーションエラーなし) |
 

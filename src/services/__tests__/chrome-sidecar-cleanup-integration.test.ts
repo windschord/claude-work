@@ -75,5 +75,11 @@ describe('Chrome Sidecar サーバー起動時クリーンアップ', () => {
     serverStarted = true;
 
     expect(serverStarted).toBe(true);
+    // 例外が外に漏れないことを検証（serverStartedがtrueであること自体が証明）
+    // logger.errorが呼ばれていることを検証
+    expect(logger.error).toHaveBeenCalledWith(
+      'Chrome sidecar cleanup failed',
+      expect.objectContaining({ error: expect.any(Error) })
+    );
   });
 });

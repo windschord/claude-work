@@ -336,7 +336,7 @@ app.prepare().then(() => {
 
     // 孤立したChrome Sidecarコンテナ・ネットワークのクリーンアップ
     try {
-      const sidecarService = new ChromeSidecarService();
+      const sidecarService = ChromeSidecarService.getInstance();
       await sidecarService.cleanupOrphaned();
       logger.info('Chrome sidecar orphaned resources cleanup completed');
     } catch (error) {

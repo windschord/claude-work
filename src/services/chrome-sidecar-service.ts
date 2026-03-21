@@ -220,7 +220,7 @@ export class ChromeSidecarService {
     }
 
     // chrome-devtools-mcpがベースURLを受け取り、内部で/json/versionから完全なbrowserUrlを取得する
-    const browserUrl = `ws://${containerName}:9222`;
+    const browserUrl = `http://${containerName}:9222`;
 
     logger.info('ChromeSidecarService: Sidecar started successfully', {
       sessionId,
@@ -241,38 +241,59 @@ export class ChromeSidecarService {
 
   /**
    * サイドカーChromeを停止・削除する
+   *
+   * @returns 成功/失敗を示すオブジェクト。失敗時はerrorにメッセージを含む。
    */
   async stopSidecar(
     sessionId: string,
     containerName: string,
     networkName?: string
-  ): Promise<void> {
+  ): Promise<{ success: boolean; error?: string }> {
     const docker = DockerClient.getInstance();
     const resolvedNetworkName = networkName ?? this.getNetworkName(sessionId);
+    const errors: string[] = [];
 
     // コンテナ停止
     try {
       const container = docker.getContainer(containerName);
       await container.stop();
     } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Unknown';
       logger.warn('ChromeSidecarService: Failed to stop chrome container', {
         sessionId,
         containerName,
-        error: error instanceof Error ? error.message : 'Unknown',
+        error: msg,
       });
+      errors.push(`container stop: ${msg}`);
     }
 
-    // ネットワーク削除
+    // ネットワーク: 接続中コンテナをbest-effortでdisconnect
     try {
       const network = docker.getDockerInstance().getNetwork(resolvedNetworkName);
+      const networkInfo = await network.inspect();
+      const containers = networkInfo.Containers || {};
+      for (const containerId of Object.keys(containers)) {
+        try {
+          await network.disconnect({ Container: containerId, Force: true });
+        } catch {
+          // best-effort
+        }
+      }
       await network.remove();
     } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Unknown';
       logger.warn('ChromeSidecarService: Failed to remove network', {
         sessionId,
         networkName: resolvedNetworkName,
-        error: error instanceof Error ? error.message : 'Unknown',
+        error: msg,
       });
+      errors.push(`network remove: ${msg}`);
     }
+
+    if (errors.length > 0) {
+      return { success: false, error: errors.join('; ') };
+    }
+    return { success: true };
   }
 
   /**
@@ -391,6 +412,40 @@ export class ChromeSidecarService {
       }
     } catch (error) {
       logger.warn('ChromeSidecarService: Label-based cleanup failed', {
+        error: error instanceof Error ? error.message : 'Unknown',
+      });
+    }
+
+    // Phase 2b: 孤立ネットワークの回収
+    try {
+      const networks = await docker.getDockerInstance().listNetworks({
+        filters: JSON.stringify({
+          label: ['claude-work.managed-by=claude-work'],
+        }),
+      });
+
+      for (const networkInfo of networks) {
+        // cw-net- プレフィックスのネットワークのみ対象
+        if (!networkInfo.Name?.startsWith('cw-net-')) continue;
+
+        try {
+          const network = docker.getDockerInstance().getNetwork(networkInfo.Id);
+          const detail = await network.inspect();
+          const connectedContainers = Object.keys(detail.Containers || {});
+
+          if (connectedContainers.length === 0) {
+            await network.remove();
+            logger.info('ChromeSidecarService: Removed orphaned network', {
+              networkName: networkInfo.Name,
+              networkId: networkInfo.Id,
+            });
+          }
+        } catch {
+          // best-effort: ネットワークが既に削除済みの場合がある
+        }
+      }
+    } catch (error) {
+      logger.warn('ChromeSidecarService: Orphaned network cleanup failed', {
         error: error instanceof Error ? error.message : 'Unknown',
       });
     }
