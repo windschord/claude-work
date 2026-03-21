@@ -418,7 +418,7 @@ describe('PUT /api/settings/config', () => {
     expect(response.status).toBe(400);
     const data = await response.json();
     expect(data.error).toBe(
-      'custom_env_vars must be an object with uppercase keys and string values'
+      'custom_env_vars must be a plain object with keys matching ^[A-Z_][A-Z0-9_]*$ and string values'
     );
   });
 
@@ -435,7 +435,7 @@ describe('PUT /api/settings/config', () => {
     expect(response.status).toBe(400);
     const data = await response.json();
     expect(data.error).toBe(
-      'custom_env_vars must be an object with uppercase keys and string values'
+      'custom_env_vars must be a plain object with keys matching ^[A-Z_][A-Z0-9_]*$ and string values'
     );
   });
 
@@ -452,7 +452,7 @@ describe('PUT /api/settings/config', () => {
     expect(response.status).toBe(400);
     const data = await response.json();
     expect(data.error).toBe(
-      'custom_env_vars must be an object with uppercase keys and string values'
+      'custom_env_vars must be a plain object with keys matching ^[A-Z_][A-Z0-9_]*$ and string values'
     );
   });
 

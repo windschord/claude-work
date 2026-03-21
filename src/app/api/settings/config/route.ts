@@ -116,7 +116,7 @@ export async function PUT(request: NextRequest) {
       const validated = ClaudeOptionsService.validateCustomEnvVars(custom_env_vars);
       if (validated === null) {
         return NextResponse.json(
-          { error: 'custom_env_vars must be an object with uppercase keys and string values' },
+          { error: 'custom_env_vars must be a plain object with keys matching ^[A-Z_][A-Z0-9_]*$ and string values' },
           { status: 400 }
         );
       }

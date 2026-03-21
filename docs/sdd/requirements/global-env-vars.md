@@ -18,7 +18,7 @@ Claude Codeのメトリクス設定(`CLAUDE_CODE_ENABLE_TELEMETRY`等)など、
 - `sessions.custom_env_vars`(TEXT, JSON文字列)でSession単位の環境変数を管理
 - `ClaudeOptionsService.mergeEnvVars()` で Project → Session のマージを実装済み
 - `ConfigService` が `data/settings.json` でアプリケーション設定を管理
-- Settings画面(`/settings/config`)に設定UI既存
+- Settings画面(`/settings/app`)に設定UI既存
 
 ## DB変更
 
