@@ -112,4 +112,4 @@ export interface DockerEnvironmentConfig {
 
 - `chrome_container_id` と `chrome_debug_port` はNULL許可のため、既存レコードに影響なし
 - `chromeSidecar` キーが config JSON に存在しない場合は `enabled: false` として扱う
-- 既存のDockerAdapterConfig, AdapterFactory等は chromeSidecar キーを無視する（明示的に読み取らない限り）
+- `chromeSidecar` キー未存在時のみ無効扱い。キーが存在する場合は `enabled` フィールドで有効/無効を判定する
