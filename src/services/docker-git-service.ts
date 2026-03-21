@@ -140,7 +140,7 @@ export class DockerGitService implements GitOperations {
 
       if (!pathMatch || !statusMatch) continue;
 
-      const filePath = pathMatch[1].trim();
+      const filePath = pathMatch[1];
       const statusCode = statusMatch[1].trim();
       let status: 'added' | 'modified' | 'deleted';
 

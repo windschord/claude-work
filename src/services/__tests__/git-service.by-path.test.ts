@@ -203,6 +203,25 @@ describe('GitService ByPath methods', () => {
 
       expect(result.success).toBe(false);
       expect(result.conflicts).toContain('file.txt');
+      // 各spawnSync呼び出しのコマンドとcwdを検証
+      expect(mockSpawnSync).toHaveBeenNthCalledWith(
+        1,
+        'git',
+        ['rebase', 'main'],
+        expect.objectContaining({ cwd: worktreePath, encoding: 'utf-8' }),
+      );
+      expect(mockSpawnSync).toHaveBeenNthCalledWith(
+        2,
+        'git',
+        ['diff', '--name-only', '--diff-filter=U'],
+        expect.objectContaining({ cwd: worktreePath, encoding: 'utf-8' }),
+      );
+      expect(mockSpawnSync).toHaveBeenNthCalledWith(
+        3,
+        'git',
+        ['rebase', '--abort'],
+        expect.objectContaining({ cwd: worktreePath, encoding: 'utf-8' }),
+      );
     });
   });
 
@@ -295,13 +314,24 @@ describe('GitService ByPath methods', () => {
 
       const details = gitService.getDiffDetailsByPath(worktreePath);
 
-      expect(mockSpawnSync).toHaveBeenCalledWith(
+      // 各spawnSync呼び出しのコマンドとcwdを検証
+      expect(mockSpawnSync).toHaveBeenNthCalledWith(
+        1,
         'git',
-        expect.arrayContaining(['diff', '--name-status']),
-        expect.objectContaining({
-          cwd: worktreePath,
-          encoding: 'utf-8',
-        }),
+        ['diff', '--name-status', 'main...HEAD'],
+        expect.objectContaining({ cwd: worktreePath, encoding: 'utf-8' }),
+      );
+      expect(mockSpawnSync).toHaveBeenNthCalledWith(
+        2,
+        'git',
+        ['show', 'HEAD:file.txt'],
+        expect.objectContaining({ cwd: worktreePath, encoding: 'utf-8' }),
+      );
+      expect(mockSpawnSync).toHaveBeenNthCalledWith(
+        3,
+        'git',
+        ['diff', '--numstat', 'main...HEAD', '--', 'file.txt'],
+        expect.objectContaining({ cwd: worktreePath, encoding: 'utf-8' }),
       );
       expect(details.files).toHaveLength(1);
       expect(details.files[0].path).toBe('file.txt');
