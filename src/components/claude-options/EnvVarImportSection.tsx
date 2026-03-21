@@ -39,17 +39,25 @@ export function EnvVarImportSection({
   }, []);
 
   const handleStartImport = async () => {
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setState('loading-files');
     setError('');
 
     try {
-      const response = await fetch(`/api/projects/${projectId}/env-files`);
+      const response = await fetch(`/api/projects/${projectId}/env-files`, {
+        signal: controller.signal,
+      });
       if (!response.ok) {
         const data = await response.json().catch(() => null);
         throw new Error(data?.error || 'ファイル一覧の取得に失敗しました');
       }
       const data = await response.json();
       const files: string[] = data.files || [];
+
+      if (controller.signal.aborted) return;
 
       if (files.length === 0) {
         setState('no-files');
@@ -60,6 +68,7 @@ export function EnvVarImportSection({
         setState('select-file');
       }
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
       setError(err instanceof Error ? err.message : 'エラーが発生しました');
       setState('idle');
     }
