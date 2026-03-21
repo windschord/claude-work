@@ -381,6 +381,7 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
                       onOptionsChange={setClaudeOptions}
                       onEnvVarsChange={setCustomEnvVars}
                       disabled={isLoading}
+                      projectId={project.id}
                     />
                     <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                       新規セッション作成時のデフォルト設定として使用されます

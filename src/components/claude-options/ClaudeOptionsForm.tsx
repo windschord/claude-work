@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Disclosure } from '@headlessui/react';
 import { ChevronDown, Plus, X } from 'lucide-react';
 import type { ClaudeCodeOptions, CustomEnvVars } from '@/services/claude-options-service';
+import { EnvVarImportSection } from './EnvVarImportSection';
 
 export type { ClaudeCodeOptions, CustomEnvVars } from '@/services/claude-options-service';
 
@@ -20,6 +21,7 @@ interface ClaudeOptionsFormProps {
   onEnvVarsChange: (envVars: CustomEnvVars) => void;
   disabled?: boolean;
   disabledBySkipPermissions?: boolean;
+  projectId?: string;
 }
 
 const PERMISSION_MODES = [
@@ -61,6 +63,7 @@ export function ClaudeOptionsForm({
   onEnvVarsChange,
   disabled = false,
   disabledBySkipPermissions = false,
+  projectId,
 }: ClaudeOptionsFormProps) {
   const [envEntries, setEnvEntries] = useState<EnvVarEntry[]>(() =>
     envVarsToEntries(envVars)
@@ -267,6 +270,20 @@ export function ClaudeOptionsForm({
                   追加
                 </button>
               </div>
+
+              {projectId && (
+                <EnvVarImportSection
+                  projectId={projectId}
+                  existingVars={entriesToEnvVars(envEntries)}
+                  onImport={(imported) => {
+                    const merged = { ...entriesToEnvVars(envEntries), ...imported };
+                    setEnvEntries(envVarsToEntries(merged));
+                    lastSyncedEnvVarsRef.current = merged;
+                    onEnvVarsChange(merged);
+                  }}
+                  disabled={disabled}
+                />
+              )}
 
               {envEntries.length > 0 && (
                 <div className="space-y-2">
