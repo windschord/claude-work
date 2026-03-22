@@ -2,6 +2,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { logger } from '@/lib/logger';
 import { ENV_VAR_KEY_PATTERN } from '@/lib/validation';
+import { getDataDir } from '@/lib/data-dir';
 
 /**
  * Claude Codeのデフォルト設定
@@ -84,7 +85,8 @@ export class ConfigService {
   private configPath: string;
 
   constructor(configPath?: string) {
-    this.configPath = configPath || path.join(process.cwd(), 'data', 'settings.json');
+    // DATA_DIR環境変数を考慮（Docker環境では/data/にマウントされる）
+    this.configPath = configPath || path.join(getDataDir(), 'settings.json');
     this.config = cloneConfig(DEFAULT_CONFIG);
   }
 
