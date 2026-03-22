@@ -3,6 +3,12 @@
  * プロジェクト名、リポジトリURL、cloneLocation、PATのバリデーション
  */
 
+/**
+ * 環境変数キーのバリデーション正規表現
+ * 大文字英字・数字・アンダースコアのみ許可（POSIXの環境変数命名規則に準拠）
+ */
+export const ENV_VAR_KEY_PATTERN = /^[A-Z_][A-Z0-9_]*$/;
+
 const VALID_PROJECT_NAME = /^[a-zA-Z0-9_-]+$/;
 const MAX_PROJECT_NAME_LENGTH = 255;
 const VALID_GIT_URL = /^(https:\/\/|git@)/;

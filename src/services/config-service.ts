@@ -1,6 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { logger } from '@/lib/logger';
+import { ENV_VAR_KEY_PATTERN } from '@/lib/validation';
 
 /**
  * Claude Codeのデフォルト設定
@@ -18,6 +19,8 @@ export interface AppConfig {
   debug_mode_keep_volumes?: boolean;
   registry_firewall_enabled?: boolean;
   claude_defaults?: ClaudeDefaults;
+  /** Application層の共通環境変数。Project・Sessionで同キーを設定すると上書きされる（優先順位最低） */
+  custom_env_vars?: Record<string, string>;
 }
 
 /**
@@ -33,15 +36,44 @@ const DEFAULT_CONFIG: Required<AppConfig> = {
   debug_mode_keep_volumes: false,
   registry_firewall_enabled: true,
   claude_defaults: { ...DEFAULT_CLAUDE_DEFAULTS },
+  custom_env_vars: {},
 };
 
 /**
- * ネストオブジェクト(claude_defaults)を含む設定のdeep copy
+ * ネストオブジェクト(claude_defaults, custom_env_vars)を含む設定のdeep copy
  */
 const cloneConfig = (config: Required<AppConfig>): Required<AppConfig> => ({
   ...config,
   claude_defaults: { ...config.claude_defaults },
+  custom_env_vars: { ...config.custom_env_vars },
 });
+
+/**
+ * 環境変数エントリからキーパターン一致かつ値が文字列のもののみを返す
+ */
+function filterValidEnvVars(vars: Record<string, unknown>): Record<string, string> {
+  const filtered: Record<string, string> = {};
+  for (const [key, value] of Object.entries(vars)) {
+    if (ENV_VAR_KEY_PATTERN.test(key) && typeof value === 'string') {
+      filtered[key] = value;
+    } else {
+      logger.debug('Invalid custom_env_var entry skipped', { key, valueType: typeof value });
+    }
+  }
+  return filtered;
+}
+
+/**
+ * ログ出力用に custom_env_vars の値をマスクした設定オブジェクトを返す
+ */
+function sanitizeConfigForLog(config: Required<AppConfig>): Record<string, unknown> {
+  const { custom_env_vars, ...rest } = config;
+  const keys = Object.keys(custom_env_vars);
+  return {
+    ...rest,
+    custom_env_vars: { keys, count: keys.length },
+  };
+}
 
 /**
  * ConfigService
@@ -64,6 +96,17 @@ export class ConfigService {
       const fileContent = await fs.readFile(this.configPath, 'utf-8');
       const loadedConfig = JSON.parse(fileContent) as AppConfig;
 
+      // custom_env_vars の検証: plain objectからキーパターン一致かつ値が文字列のエントリのみフィルタ採用
+      const rawCustomEnvVars = loadedConfig.custom_env_vars;
+      let validatedCustomEnvVars: Record<string, string> = {};
+      if (
+        rawCustomEnvVars !== null &&
+        typeof rawCustomEnvVars === 'object' &&
+        !Array.isArray(rawCustomEnvVars)
+      ) {
+        validatedCustomEnvVars = filterValidEnvVars(rawCustomEnvVars as Record<string, unknown>);
+      }
+
       // デフォルト値とマージ
       const loadedClaudeDefaults = loadedConfig.claude_defaults;
       this.config = {
@@ -83,9 +126,10 @@ export class ConfigService {
               ? loadedClaudeDefaults.worktree
               : DEFAULT_CLAUDE_DEFAULTS.worktree,
         },
+        custom_env_vars: validatedCustomEnvVars,
       };
 
-      logger.info('Configuration loaded', { config: this.config });
+      logger.info('Configuration loaded', { config: sanitizeConfigForLog(this.config) });
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
         logger.info('Configuration file not found, using defaults', { configPath: this.configPath });
@@ -99,11 +143,17 @@ export class ConfigService {
 
   /**
    * 設定ファイルを保存する
+   * claude_defaults: 部分更新(既存キーとマージ)
+   * custom_env_vars: 完全置換(提供時は既存キーを全て上書き、undefinedなら既存を保持)
    */
   async save(config: Partial<AppConfig>): Promise<void> {
     try {
-      // 既存の設定とマージ（claude_defaultsはネストマージ）
-      const { claude_defaults: newClaudeDefaults, ...rest } = config;
+      // 既存の設定とマージ（ネストオブジェクトは個別にマージ）
+      const {
+        claude_defaults: newClaudeDefaults,
+        custom_env_vars: newCustomEnvVars,
+        ...rest
+      } = config;
       this.config = {
         ...this.config,
         ...rest,
@@ -111,6 +161,10 @@ export class ConfigService {
           ...this.config.claude_defaults,
           ...(newClaudeDefaults || {}),
         },
+        custom_env_vars:
+          newCustomEnvVars === undefined
+            ? { ...this.config.custom_env_vars }
+            : filterValidEnvVars(newCustomEnvVars),
       };
 
       // ディレクトリが存在しない場合は作成
@@ -123,7 +177,7 @@ export class ConfigService {
         'utf-8'
       );
 
-      logger.info('Configuration saved', { config: this.config });
+      logger.info('Configuration saved', { config: sanitizeConfigForLog(this.config) });
     } catch (error) {
       logger.error('Failed to save configuration', { error });
       throw new Error('Failed to save configuration');
@@ -166,6 +220,14 @@ export class ConfigService {
       dangerouslySkipPermissions: this.config.claude_defaults.dangerouslySkipPermissions ?? DEFAULT_CLAUDE_DEFAULTS.dangerouslySkipPermissions,
       worktree: this.config.claude_defaults.worktree ?? DEFAULT_CLAUDE_DEFAULTS.worktree,
     };
+  }
+
+  /**
+   * Application層の共通環境変数を取得
+   * マージ優先順位: Application(本値) < Project < Session
+   */
+  getCustomEnvVars(): Record<string, string> {
+    return { ...this.config.custom_env_vars };
   }
 
   /**

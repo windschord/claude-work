@@ -6,6 +6,7 @@ import { db, schema } from '@/lib/db';
 import { eq, asc } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
 import { ClaudeOptionsService } from '@/services/claude-options-service';
+import { ensureConfigLoaded } from '@/services/config-service';
 import type {
   ClaudeErrorMessage,
   ClaudeImageSavedMessage,
@@ -315,7 +316,13 @@ export function setupClaudeWebSocket(
           const sessionEnvVars = ClaudeOptionsService.parseEnvVars(session.custom_env_vars);
 
           const mergedOptions = ClaudeOptionsService.mergeOptions(projectOptions, sessionOptions);
-          const mergedEnvVars = ClaudeOptionsService.mergeEnvVars(projectEnvVars, sessionEnvVars);
+
+          // アプリケーション共通環境変数を取得
+          const configService = await ensureConfigLoaded();
+          const appEnvVars = configService.getCustomEnvVars();
+
+          // 3階層マージ: Application < Project < Session
+          const mergedEnvVars = ClaudeOptionsService.mergeEnvVarsAll(appEnvVars, projectEnvVars, sessionEnvVars);
 
           const hasCustomOptions = Object.keys(mergedOptions).length > 0;
           const hasCustomEnvVars = Object.keys(mergedEnvVars).length > 0;

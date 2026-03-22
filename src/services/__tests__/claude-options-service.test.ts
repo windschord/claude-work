@@ -389,6 +389,52 @@ describe('ClaudeOptionsService', () => {
     });
   });
 
+  describe('mergeEnvVarsAll', () => {
+    it('should merge all three layers with Session > Project > Application priority', () => {
+      const app: CustomEnvVars = { FOO: 'app', BAR: 'app', BAZ: 'app' };
+      const project: CustomEnvVars = { FOO: 'project', BAR: 'project' };
+      const session: CustomEnvVars = { FOO: 'session' };
+      expect(ClaudeOptionsService.mergeEnvVarsAll(app, project, session)).toEqual({
+        FOO: 'session',
+        BAR: 'project',
+        BAZ: 'app',
+      });
+    });
+
+    it('should return app vars unchanged when only app has values', () => {
+      const app: CustomEnvVars = { FOO: 'app', BAR: 'app' };
+      const project: CustomEnvVars = {};
+      const session: CustomEnvVars = {};
+      expect(ClaudeOptionsService.mergeEnvVarsAll(app, project, session)).toEqual({
+        FOO: 'app',
+        BAR: 'app',
+      });
+    });
+
+    it('should merge app and project when session is null', () => {
+      const app: CustomEnvVars = { FOO: 'app', BAR: 'app' };
+      const project: CustomEnvVars = { FOO: 'project', NEW: 'value' };
+      expect(ClaudeOptionsService.mergeEnvVarsAll(app, project, null)).toEqual({
+        FOO: 'project',
+        BAR: 'app',
+        NEW: 'value',
+      });
+    });
+
+    it('should override lower layers with the same key from upper layers', () => {
+      const app: CustomEnvVars = { KEY: 'from-app' };
+      const project: CustomEnvVars = { KEY: 'from-project' };
+      const session: CustomEnvVars = { KEY: 'from-session' };
+      expect(ClaudeOptionsService.mergeEnvVarsAll(app, project, session)).toEqual({
+        KEY: 'from-session',
+      });
+    });
+
+    it('should return empty object when all layers are empty', () => {
+      expect(ClaudeOptionsService.mergeEnvVarsAll({}, {}, {})).toEqual({});
+    });
+  });
+
   describe('worktree option', () => {
     describe('buildCliArgs', () => {
       it('should add --worktree when worktree is true', () => {
