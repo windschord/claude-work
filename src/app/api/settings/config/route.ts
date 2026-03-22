@@ -47,10 +47,10 @@ export async function PUT(request: NextRequest) {
 
     // bodyがplain objectでない場合はエラー
     if (body === null || typeof body !== 'object' || Array.isArray(body)) {
-      logger.warn('Request body must be a plain object', {
+      logger.warn('Request body must be a JSON object', {
         bodyType: Array.isArray(body) ? 'array' : typeof body,
       });
-      return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
+      return NextResponse.json({ error: 'Request body must be a JSON object' }, { status: 400 });
     }
 
     const { git_clone_timeout_minutes, debug_mode_keep_volumes, registry_firewall_enabled, claude_defaults, custom_env_vars } = body;
