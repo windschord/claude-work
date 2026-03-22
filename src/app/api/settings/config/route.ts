@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ensureConfigLoaded } from '@/services/config-service';
 import { validateTimeoutMinutes } from '@/lib/validation';
 import { logger } from '@/lib/logger';
+import { ClaudeOptionsService } from '@/services/claude-options-service';
 
 /**
  * GET /api/settings/config - 設定を取得
@@ -44,13 +45,15 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
 
-    // bodyがnullまたはobjectでない場合はエラー
-    if (body === null || typeof body !== 'object') {
-      logger.warn('Request body must be an object', { body });
-      return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
+    // bodyがplain objectでない場合はエラー
+    if (body === null || typeof body !== 'object' || Array.isArray(body)) {
+      logger.warn('Request body must be a JSON object', {
+        bodyType: Array.isArray(body) ? 'array' : typeof body,
+      });
+      return NextResponse.json({ error: 'Request body must be a JSON object' }, { status: 400 });
     }
 
-    const { git_clone_timeout_minutes, debug_mode_keep_volumes, registry_firewall_enabled, claude_defaults } = body;
+    const { git_clone_timeout_minutes, debug_mode_keep_volumes, registry_firewall_enabled, claude_defaults, custom_env_vars } = body;
 
     // claude_defaults バリデーション
     if (claude_defaults !== undefined) {
@@ -110,6 +113,18 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    let validatedEnvVars: Record<string, string> | undefined;
+    if (custom_env_vars !== undefined) {
+      const validated = ClaudeOptionsService.validateCustomEnvVars(custom_env_vars);
+      if (validated === null) {
+        return NextResponse.json(
+          { error: 'custom_env_vars must be a plain object with keys matching ^[A-Z_][A-Z0-9_]*$ and string values' },
+          { status: 400 }
+        );
+      }
+      validatedEnvVars = validated;
+    }
+
     // 設定を保存
     const configService = await ensureConfigLoaded();
     await configService.save({
@@ -117,11 +132,16 @@ export async function PUT(request: NextRequest) {
       ...(debug_mode_keep_volumes !== undefined && { debug_mode_keep_volumes }),
       ...(registry_firewall_enabled !== undefined && { registry_firewall_enabled }),
       ...(claude_defaults !== undefined && { claude_defaults }),
+      ...(validatedEnvVars !== undefined && { custom_env_vars: validatedEnvVars }),
     });
 
     const updatedConfig = configService.getConfig();
 
-    logger.info('Config updated', { config: updatedConfig });
+    const { custom_env_vars: envVarsForLog, ...restForLog } = updatedConfig;
+    const envVarKeys = Object.keys(envVarsForLog ?? {});
+    logger.info('Config updated', {
+      config: { ...restForLog, custom_env_vars: { keys: envVarKeys, count: envVarKeys.length } },
+    });
 
     return NextResponse.json({ config: updatedConfig }, { status: 200 });
   } catch (error) {

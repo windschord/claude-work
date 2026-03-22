@@ -9,6 +9,7 @@ const {
   mockClaudeOptionsService,
   mockScrollbackBuffer,
   createMockAdapter,
+  mockEnsureConfigLoaded,
 } = vi.hoisted(() => {
   // EventEmitter をモック内で直接使わず、シンプルなモックオブジェクトを使用
   const createMockAdapterFn = () => ({
@@ -76,6 +77,7 @@ const {
       parseEnvVars: vi.fn().mockReturnValue({}),
       mergeOptions: vi.fn().mockReturnValue({}),
       mergeEnvVars: vi.fn().mockReturnValue({}),
+      mergeEnvVarsAll: vi.fn().mockReturnValue({}),
     },
     mockScrollbackBuffer: {
       append: vi.fn(),
@@ -85,6 +87,9 @@ const {
       getByteSize: vi.fn().mockReturnValue(0),
     },
     createMockAdapter: createMockAdapterFn,
+    mockEnsureConfigLoaded: vi.fn().mockResolvedValue({
+      getCustomEnvVars: vi.fn().mockReturnValue({}),
+    }),
   };
 });
 
@@ -125,6 +130,10 @@ vi.mock('@/services/adapter-factory', () => ({
 
 vi.mock('@/services/scrollback-buffer', () => ({
   scrollbackBuffer: mockScrollbackBuffer,
+}));
+
+vi.mock('@/services/config-service', () => ({
+  ensureConfigLoaded: mockEnsureConfigLoaded,
 }));
 
 // ConnectionManagerは実際のインスタンスを使用（モックしない）
@@ -199,6 +208,12 @@ describe('Claude WebSocket Handler - Environment Support', () => {
     mockClaudeOptionsService.parseEnvVars.mockReturnValue({});
     mockClaudeOptionsService.mergeOptions.mockReturnValue({});
     mockClaudeOptionsService.mergeEnvVars.mockReturnValue({});
+    mockClaudeOptionsService.mergeEnvVarsAll.mockReturnValue({});
+
+    // ensureConfigLoadedのモックを再設定（resetAllMocksで壊れるため）
+    mockEnsureConfigLoaded.mockResolvedValue({
+      getCustomEnvVars: vi.fn().mockReturnValue({}),
+    });
 
     // db.update チェーンを再設定（resetAllMocksで壊れるため）
     mockDb.update.mockReturnValue({
