@@ -564,4 +564,34 @@ describe('ConfigService', () => {
       expect(configService.getCustomEnvVars()).toEqual({ VALID_KEY: 'ok' });
     });
   });
+
+  describe('DATA_DIR対応', () => {
+    it('DATA_DIR環境変数が設定されている場合、そのディレクトリにsettings.jsonを保存する', async () => {
+      const dataDirPath = path.join(tmpdir(), `data-dir-test-${Date.now()}`);
+      await fs.mkdir(dataDirPath, { recursive: true });
+      const originalDataDir = process.env.DATA_DIR;
+
+      try {
+        process.env.DATA_DIR = dataDirPath;
+        // 引数なしでConfigServiceを生成（DATA_DIRを使用するはず）
+        const service = new ConfigService();
+        await service.load();
+        await service.save({ git_clone_timeout_minutes: 15 });
+
+        // DATA_DIR配下にsettings.jsonが作成されていること
+        const savedPath = path.join(dataDirPath, 'settings.json');
+        const content = await fs.readFile(savedPath, 'utf-8');
+        const saved = JSON.parse(content);
+        expect(saved.git_clone_timeout_minutes).toBe(15);
+      } finally {
+        // 環境変数を復元
+        if (originalDataDir !== undefined) {
+          process.env.DATA_DIR = originalDataDir;
+        } else {
+          delete process.env.DATA_DIR;
+        }
+        await fs.rm(dataDirPath, { recursive: true, force: true });
+      }
+    });
+  });
 });
