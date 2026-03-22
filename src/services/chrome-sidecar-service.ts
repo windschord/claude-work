@@ -104,9 +104,13 @@ export class ChromeSidecarService {
       container = await docker.createContainer({
         name: containerName,
         Image: `${config.image}:${config.tag}`,
+        // Entrypoint/Cmdを明示的に指定し、イメージのデフォルトCMD(claude等)を上書き
+        Entrypoint: ['/usr/bin/chromium'],
         Cmd: [
+          '--headless',
           '--no-sandbox',
           '--disable-gpu',
+          '--disable-dev-shm-usage',
           '--remote-debugging-address=0.0.0.0',
           '--remote-debugging-port=9222',
         ],

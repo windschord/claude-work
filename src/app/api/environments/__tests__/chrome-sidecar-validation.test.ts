@@ -108,8 +108,8 @@ describe('Chrome Sidecar バリデーション', () => {
       const config = {
         chromeSidecar: {
           enabled: true,
-          image: 'chromium/headless-shell',
-          tag: '131.0.6778.204',
+          image: 'ghcr.io/windschord/claude-work-sandbox',
+          tag: 'chrome-devtools',
         },
       };
       const error = validateChromeSidecarConfig(config);
@@ -167,14 +167,14 @@ describe('Chrome Sidecar バリデーション', () => {
     // 正常なimage値のバリエーション
     it('image: ドットを含むレジストリ名は正常', () => {
       const config = {
-        chromeSidecar: { enabled: true, image: 'registry.example.com/chromium/headless-shell', tag: 'v1' },
+        chromeSidecar: { enabled: true, image: 'registry.example.com/ghcr.io/windschord/claude-work-sandbox', tag: 'v1' },
       };
       expect(validateChromeSidecarConfig(config)).toBeNull();
     });
 
     it('image: コロン付きプライベートレジストリは正常', () => {
       const config = {
-        chromeSidecar: { enabled: true, image: 'registry.example.com:5000/chromium/headless-shell', tag: 'v1' },
+        chromeSidecar: { enabled: true, image: 'registry.example.com:5000/ghcr.io/windschord/claude-work-sandbox', tag: 'v1' },
       };
       expect(validateChromeSidecarConfig(config)).toBeNull();
     });
@@ -197,7 +197,7 @@ describe('Chrome Sidecar バリデーション', () => {
 
     it('tag が空文字の場合: 正確なエラーメッセージ', () => {
       const config = {
-        chromeSidecar: { enabled: true, image: 'chromium/headless-shell', tag: '' },
+        chromeSidecar: { enabled: true, image: 'ghcr.io/windschord/claude-work-sandbox', tag: '' },
       };
       const error = validateChromeSidecarConfig(config);
       expect(error).toBe('chromeSidecar.tag is required');
@@ -205,7 +205,7 @@ describe('Chrome Sidecar バリデーション', () => {
 
     it('tag が空白のみの場合: エラー', () => {
       const config = {
-        chromeSidecar: { enabled: true, image: 'chromium/headless-shell', tag: '   ' },
+        chromeSidecar: { enabled: true, image: 'ghcr.io/windschord/claude-work-sandbox', tag: '   ' },
       };
       const error = validateChromeSidecarConfig(config);
       expect(error).toBe('chromeSidecar.tag is required');
@@ -213,7 +213,7 @@ describe('Chrome Sidecar バリデーション', () => {
 
     it('tag が未定義の場合: エラー', () => {
       const config = {
-        chromeSidecar: { enabled: true, image: 'chromium/headless-shell' },
+        chromeSidecar: { enabled: true, image: 'ghcr.io/windschord/claude-work-sandbox' },
       };
       const error = validateChromeSidecarConfig(config);
       expect(error).toBe('chromeSidecar.tag is required');
@@ -221,7 +221,7 @@ describe('Chrome Sidecar バリデーション', () => {
 
     it('tag が数値の場合: エラー', () => {
       const config = {
-        chromeSidecar: { enabled: true, image: 'chromium/headless-shell', tag: 123 },
+        chromeSidecar: { enabled: true, image: 'ghcr.io/windschord/claude-work-sandbox', tag: 123 },
       };
       const error = validateChromeSidecarConfig(config);
       expect(error).toBe('chromeSidecar.tag is required');
@@ -229,7 +229,7 @@ describe('Chrome Sidecar バリデーション', () => {
 
     it('tag が "latest" の場合: 正確なエラーメッセージ', () => {
       const config = {
-        chromeSidecar: { enabled: true, image: 'chromium/headless-shell', tag: 'latest' },
+        chromeSidecar: { enabled: true, image: 'ghcr.io/windschord/claude-work-sandbox', tag: 'latest' },
       };
       const error = validateChromeSidecarConfig(config);
       expect(error).toBe('chromeSidecar.tag must be a specific version (latest is not allowed for reproducibility)');
@@ -237,7 +237,7 @@ describe('Chrome Sidecar バリデーション', () => {
 
     it('tag が "LATEST" (大文字) の場合: エラー', () => {
       const config = {
-        chromeSidecar: { enabled: true, image: 'chromium/headless-shell', tag: 'LATEST' },
+        chromeSidecar: { enabled: true, image: 'ghcr.io/windschord/claude-work-sandbox', tag: 'LATEST' },
       };
       const error = validateChromeSidecarConfig(config);
       expect(error).toBe('chromeSidecar.tag must be a specific version (latest is not allowed for reproducibility)');
@@ -245,7 +245,7 @@ describe('Chrome Sidecar バリデーション', () => {
 
     it('tag が " latest " (前後空白) の場合: エラー', () => {
       const config = {
-        chromeSidecar: { enabled: true, image: 'chromium/headless-shell', tag: ' latest ' },
+        chromeSidecar: { enabled: true, image: 'ghcr.io/windschord/claude-work-sandbox', tag: ' latest ' },
       };
       const error = validateChromeSidecarConfig(config);
       expect(error).toBe('chromeSidecar.tag must be a specific version (latest is not allowed for reproducibility)');
@@ -253,7 +253,7 @@ describe('Chrome Sidecar バリデーション', () => {
 
     it('tag が "Latest" (混合ケース) の場合: エラー', () => {
       const config = {
-        chromeSidecar: { enabled: true, image: 'chromium/headless-shell', tag: 'Latest' },
+        chromeSidecar: { enabled: true, image: 'ghcr.io/windschord/claude-work-sandbox', tag: 'Latest' },
       };
       const error = validateChromeSidecarConfig(config);
       expect(error).toBe('chromeSidecar.tag must be a specific version (latest is not allowed for reproducibility)');
@@ -262,14 +262,14 @@ describe('Chrome Sidecar バリデーション', () => {
     // 正常なtag値
     it('tag が具体的なバージョン文字列の場合: 正常', () => {
       const config = {
-        chromeSidecar: { enabled: true, image: 'chromium/headless-shell', tag: '131.0.6778.204' },
+        chromeSidecar: { enabled: true, image: 'ghcr.io/windschord/claude-work-sandbox', tag: 'chrome-devtools' },
       };
       expect(validateChromeSidecarConfig(config)).toBeNull();
     });
 
     it('tag が "stable" の場合: 正常', () => {
       const config = {
-        chromeSidecar: { enabled: true, image: 'chromium/headless-shell', tag: 'stable' },
+        chromeSidecar: { enabled: true, image: 'ghcr.io/windschord/claude-work-sandbox', tag: 'stable' },
       };
       expect(validateChromeSidecarConfig(config)).toBeNull();
     });

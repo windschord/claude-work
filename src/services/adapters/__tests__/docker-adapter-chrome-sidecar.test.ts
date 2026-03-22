@@ -233,8 +233,8 @@ describe('DockerAdapter Chrome Sidecar - DockerAdapter統合テスト', () => {
       await adapter.createSession('session-disabled', '/workspace', undefined, {
         chromeSidecar: {
           enabled: false,
-          image: 'chromium/headless-shell',
-          tag: '131.0.6778.204',
+          image: 'ghcr.io/windschord/claude-work-sandbox',
+          tag: 'chrome-devtools',
         },
       });
 
@@ -258,16 +258,16 @@ describe('DockerAdapter Chrome Sidecar - DockerAdapter統合テスト', () => {
       await adapter.createSession('session-ok', '/workspace', undefined, {
         chromeSidecar: {
           enabled: true,
-          image: 'chromium/headless-shell',
-          tag: '131.0.6778.204',
+          image: 'ghcr.io/windschord/claude-work-sandbox',
+          tag: 'chrome-devtools',
         },
       });
 
       // startSidecarが正しい引数で呼ばれること
       expect(mockStartSidecar).toHaveBeenCalledWith('session-ok', {
         enabled: true,
-        image: 'chromium/headless-shell',
-        tag: '131.0.6778.204',
+        image: 'ghcr.io/windschord/claude-work-sandbox',
+        tag: 'chrome-devtools',
       });
 
       // injectBrowserUrl: コンテナ作成時にブラウザURL環境変数が注入されること
@@ -308,8 +308,8 @@ describe('DockerAdapter Chrome Sidecar - DockerAdapter統合テスト', () => {
         adapter.createSession('session-sidecar-fail', '/workspace', undefined, {
           chromeSidecar: {
             enabled: true,
-            image: 'chromium/headless-shell',
-            tag: '131.0.6778.204',
+            image: 'ghcr.io/windschord/claude-work-sandbox',
+            tag: 'chrome-devtools',
           },
         })
       ).resolves.not.toThrow();
@@ -345,8 +345,8 @@ describe('DockerAdapter Chrome Sidecar - DockerAdapter統合テスト', () => {
         adapter.createSession('session-connect-fail', '/workspace', undefined, {
           chromeSidecar: {
             enabled: true,
-            image: 'chromium/headless-shell',
-            tag: '131.0.6778.204',
+            image: 'ghcr.io/windschord/claude-work-sandbox',
+            tag: 'chrome-devtools',
           },
         })
       ).resolves.not.toThrow();
@@ -378,8 +378,8 @@ describe('DockerAdapter Chrome Sidecar - DockerAdapter統合テスト', () => {
         adapter.createSession('session-cleanup', '/workspace', undefined, {
           chromeSidecar: {
             enabled: true,
-            image: 'chromium/headless-shell',
-            tag: '131.0.6778.204',
+            image: 'ghcr.io/windschord/claude-work-sandbox',
+            tag: 'chrome-devtools',
           },
         })
       ).rejects.toThrow('Docker create failed');
@@ -519,8 +519,8 @@ describe('DockerAdapter Chrome Sidecar - DockerAdapter統合テスト', () => {
       await adapter.createSession('session-inject', '/workspace', undefined, {
         chromeSidecar: {
           enabled: true,
-          image: 'chromium/headless-shell',
-          tag: '131.0.6778.204',
+          image: 'ghcr.io/windschord/claude-work-sandbox',
+          tag: 'chrome-devtools',
         },
       });
 

@@ -80,8 +80,8 @@ export function ProjectEnvironmentSection({ projectId }: ProjectEnvironmentSecti
 
   // Chrome Sidecar設定
   const [chromeSidecarEnabled, setChromeSidecarEnabled] = useState(false);
-  const [chromeSidecarImage, setChromeSidecarImage] = useState('chromium/headless-shell');
-  const [chromeSidecarTag, setChromeSidecarTag] = useState('131.0.6778.204');
+  const [chromeSidecarImage, setChromeSidecarImage] = useState('ghcr.io/windschord/claude-work-sandbox');
+  const [chromeSidecarTag, setChromeSidecarTag] = useState('chrome-devtools');
 
   // Claude Code設定オーバーライド
   const [overrideSkipPermissions, setOverrideSkipPermissions] = useState<OverrideValue>('inherit');
@@ -160,8 +160,8 @@ export function ProjectEnvironmentSection({ projectId }: ProjectEnvironmentSecti
           } else {
             // chromeSidecar未設定時はデフォルト値にリセット
             setChromeSidecarEnabled(false);
-            setChromeSidecarImage('chromium/headless-shell');
-            setChromeSidecarTag('131.0.6778.204');
+            setChromeSidecarImage('ghcr.io/windschord/claude-work-sandbox');
+            setChromeSidecarTag('chrome-devtools');
           }
 
           initialConfigRef.current = {
@@ -238,8 +238,8 @@ export function ProjectEnvironmentSection({ projectId }: ProjectEnvironmentSecti
             // OFF時もimage/tagを保持することで、再度ONにした際に前回の値を復元できる
             chromeSidecar: {
               enabled: chromeSidecarEnabled,
-              image: chromeSidecarImage.trim() || 'chromium/headless-shell',
-              tag: chromeSidecarTag.trim() || '131.0.6778.204',
+              image: chromeSidecarImage.trim() || 'ghcr.io/windschord/claude-work-sandbox',
+              tag: chromeSidecarTag.trim() || 'chrome-devtools',
             },
           }
         : {};

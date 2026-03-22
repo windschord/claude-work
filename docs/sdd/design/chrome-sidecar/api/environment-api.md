@@ -29,8 +29,8 @@ REQ-003-001, REQ-003-002, REQ-003-003
     "imageTag": "latest",
     "chromeSidecar": {
       "enabled": true,
-      "image": "chromium/headless-shell",
-      "tag": "131.0.6778.204"
+      "image": "ghcr.io/windschord/claude-work-sandbox",
+      "tag": "chrome-devtools"
     }
   }
 }

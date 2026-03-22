@@ -5,8 +5,8 @@ import { ChromeSidecarSection } from '../ChromeSidecarSection';
 describe('ChromeSidecarSection', () => {
   const defaultProps = {
     enabled: false,
-    image: 'chromium/headless-shell',
-    tag: '131.0.6778.204',
+    image: 'ghcr.io/windschord/claude-work-sandbox',
+    tag: 'chrome-devtools',
     onEnabledChange: vi.fn(),
     onImageChange: vi.fn(),
     onTagChange: vi.fn(),
@@ -38,8 +38,8 @@ describe('ChromeSidecarSection', () => {
     render(<ChromeSidecarSection {...defaultProps} enabled={true} />);
     const imageInput = screen.getByLabelText('Chrome Image') as HTMLInputElement;
     const tagInput = screen.getByLabelText('Chrome Tag') as HTMLInputElement;
-    expect(imageInput.value).toBe('chromium/headless-shell');
-    expect(tagInput.value).toBe('131.0.6778.204');
+    expect(imageInput.value).toBe('ghcr.io/windschord/claude-work-sandbox');
+    expect(tagInput.value).toBe('chrome-devtools');
   });
 
   it('tag に "latest" を入力するとバリデーションエラーが表示されること', () => {

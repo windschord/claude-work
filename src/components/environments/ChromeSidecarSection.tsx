@@ -66,7 +66,7 @@ export function ChromeSidecarSection({
             type="text"
             value={image}
             onChange={(e) => onImageChange(e.target.value)}
-            placeholder="chromium/headless-shell"
+            placeholder="ghcr.io/windschord/claude-work-sandbox"
             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
             disabled={disabled || !enabled}
           />
@@ -84,7 +84,7 @@ export function ChromeSidecarSection({
             type="text"
             value={tag}
             onChange={(e) => onTagChange(e.target.value)}
-            placeholder="131.0.6778.204"
+            placeholder="chrome-devtools"
             className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm disabled:opacity-50 disabled:cursor-not-allowed ${
               tagError
                 ? 'border-red-500 dark:border-red-400'

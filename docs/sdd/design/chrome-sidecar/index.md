@@ -100,4 +100,4 @@ Session起動フロー (サイドカー有効時):
 | ネットワーク管理 | セッション単位Dockerブリッジ | 共有ネットワーク | セッション間の完全隔離 (NFR-SEC-002) |
 | .mcp.json注入 | Claude Codeコンテナ起動時にEntrypointスクリプトで注入 | Volume経由でホストから注入 | コンテナ内のリポジトリパスに書き込む必要があるため、コンテナ内実行が自然 |
 | CDPヘルスチェック | HTTP GET /json/version をポーリング | docker exec でChrome内部チェック | CDPプロトコル準拠、外部からの到達性を確認できる |
-| Chromeイメージ | chromium/headless-shell (デフォルト) | browserless/chrome | ライセンス問題なし、軽量、公式イメージ |
+| Chromeイメージ | ghcr.io/windschord/claude-work-sandbox (デフォルト) | browserless/chrome | ライセンス問題なし、軽量、公式イメージ |

@@ -20,7 +20,7 @@ export interface VolumeMount {
 /** Chrome Sidecar設定 */
 export interface ChromeSidecarConfig {
   enabled: boolean;
-  image: string;    // デフォルト: 'chromium/headless-shell'
+  image: string;    // デフォルト: 'ghcr.io/windschord/claude-work-sandbox'
   tag: string;      // 固定バージョン必須、'latest'禁止
 }
 

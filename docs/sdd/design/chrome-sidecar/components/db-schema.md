@@ -66,7 +66,7 @@ export interface DockerEnvironmentConfig {
   // Chrome Sidecar設定（新規追加）
   chromeSidecar?: {
     enabled: boolean;
-    image: string;    // デフォルト: 'chromium/headless-shell'
+    image: string;    // デフォルト: 'ghcr.io/windschord/claude-work-sandbox'
     tag: string;      // 固定バージョン必須、'latest'禁止
   };
 }
@@ -91,8 +91,8 @@ export interface DockerEnvironmentConfig {
   "imageTag": "latest",
   "chromeSidecar": {
     "enabled": true,
-    "image": "chromium/headless-shell",
-    "tag": "131.0.6778.204"
+    "image": "ghcr.io/windschord/claude-work-sandbox",
+    "tag": "chrome-devtools"
   }
 }
 ```

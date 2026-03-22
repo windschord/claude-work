@@ -7,12 +7,12 @@ describe('Chrome Sidecar 型定義', () => {
     it('enabled, image, tagフィールドを持つオブジェクトが型に適合すること', () => {
       const config: ChromeSidecarConfig = {
         enabled: true,
-        image: 'chromium/headless-shell',
-        tag: '131.0.6778.204',
+        image: 'ghcr.io/windschord/claude-work-sandbox',
+        tag: 'chrome-devtools',
       };
       expect(config.enabled).toBe(true);
-      expect(config.image).toBe('chromium/headless-shell');
-      expect(config.tag).toBe('131.0.6778.204');
+      expect(config.image).toBe('ghcr.io/windschord/claude-work-sandbox');
+      expect(config.tag).toBe('chrome-devtools');
     });
   });
 
@@ -31,8 +31,8 @@ describe('Chrome Sidecar 型定義', () => {
         imageTag: 'latest',
         chromeSidecar: {
           enabled: true,
-          image: 'chromium/headless-shell',
-          tag: '131.0.6778.204',
+          image: 'ghcr.io/windschord/claude-work-sandbox',
+          tag: 'chrome-devtools',
         },
       };
       expect(config.chromeSidecar).toBeDefined();
@@ -69,8 +69,8 @@ describe('Chrome Sidecar 型定義', () => {
       const options: CreateSessionOptions = {
         chromeSidecar: {
           enabled: true,
-          image: 'chromium/headless-shell',
-          tag: '131.0.6778.204',
+          image: 'ghcr.io/windschord/claude-work-sandbox',
+          tag: 'chrome-devtools',
         },
       };
       expect(options.chromeSidecar).toBeDefined();

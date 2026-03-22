@@ -91,8 +91,8 @@ describe('ChromeSidecarService', () => {
   const testSessionId = 'test-session-123';
   const testConfig: ChromeSidecarConfig = {
     enabled: true,
-    image: 'chromium/headless-shell',
-    tag: '131.0.6778.204',
+    image: 'ghcr.io/windschord/claude-work-sandbox',
+    tag: 'chrome-devtools',
   };
 
   // Mock container object
@@ -209,9 +209,12 @@ describe('ChromeSidecarService', () => {
       expect(mockCreateContainer).toHaveBeenCalledWith({
         name: `cw-chrome-${testSessionId}`,
         Image: `${testConfig.image}:${testConfig.tag}`,
+        Entrypoint: ['/usr/bin/chromium'],
         Cmd: [
+          '--headless',
           '--no-sandbox',
           '--disable-gpu',
+          '--disable-dev-shm-usage',
           '--remote-debugging-address=0.0.0.0',
           '--remote-debugging-port=9222',
         ],
@@ -240,13 +243,16 @@ describe('ChromeSidecarService', () => {
       await service.startSidecar(testSessionId, testConfig);
 
       const callArgs = mockCreateContainer.mock.calls[0][0];
+      expect(callArgs.Entrypoint).toEqual(['/usr/bin/chromium']);
       expect(callArgs.Cmd).toEqual([
+        '--headless',
         '--no-sandbox',
         '--disable-gpu',
+        '--disable-dev-shm-usage',
         '--remote-debugging-address=0.0.0.0',
         '--remote-debugging-port=9222',
       ]);
-      expect(callArgs.Cmd).toHaveLength(4);
+      expect(callArgs.Cmd).toHaveLength(6);
     });
 
     it('正常系: セキュリティ設定の具体的な値を検証', async () => {

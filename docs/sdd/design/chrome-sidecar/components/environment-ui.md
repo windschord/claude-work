@@ -31,8 +31,8 @@ REQ-003-001, REQ-003-002, REQ-003-003, REQ-004-002
 +--------------------------------------------------+
 | Enable Chrome Sidecar   [  OFF  ]                |
 |                                                   |
-| Chrome Image            [chromium/headless-shell] |  <- disabled when OFF
-| Chrome Tag              [131.0.6778.204        ]  |  <- disabled when OFF
+| Chrome Image            [ghcr.io/windschord/claude-work-sandbox] |  <- disabled when OFF
+| Chrome Tag              [chrome-devtools        ]  |  <- disabled when OFF
 |                                                   |
 | Note: Chrome Sidecar provides an isolated         |
 | browser for each session via Chrome DevTools MCP. |
@@ -44,8 +44,8 @@ REQ-003-001, REQ-003-002, REQ-003-003, REQ-004-002
 | フィールド | UI要素 | デフォルト | バリデーション | 非活性条件 |
 |-----------|--------|-----------|--------------|-----------|
 | Enable Chrome Sidecar | トグルスイッチ | OFF | - | HOST環境 |
-| Chrome Image | テキスト入力 | `chromium/headless-shell` | `[-a-z0-9._/]+` | トグルOFF |
-| Chrome Tag | テキスト入力 | `131.0.6778.204` | 空文字禁止、`latest`禁止 | トグルOFF |
+| Chrome Image | テキスト入力 | `ghcr.io/windschord/claude-work-sandbox` | `[-a-z0-9._/]+` | トグルOFF |
+| Chrome Tag | テキスト入力 | `chrome-devtools` | 空文字禁止、`latest`禁止 | トグルOFF |
 
 ### フロントエンドバリデーション
 

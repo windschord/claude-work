@@ -39,8 +39,8 @@ export interface SidecarStartResult {
  */
 export interface ChromeSidecarConfig {
   enabled: boolean;
-  image: string;   // デフォルト: 'chromium/headless-shell'
-  tag: string;     // デフォルト: '131.0.6778.204'
+  image: string;   // デフォルト: 'ghcr.io/windschord/claude-work-sandbox'
+  tag: string;     // デフォルト: 'chrome-devtools'
 }
 
 /**
@@ -142,7 +142,7 @@ export class ChromeSidecarService {
 const chromeContainerOptions: Docker.ContainerCreateOptions = {
   name: `cw-chrome-${sessionId}`,
   Image: `${config.image}:${config.tag}`,
-  // chromium/headless-shell はCLI引数をCmdで渡す
+  // ghcr.io/windschord/claude-work-sandbox はCLI引数をCmdで渡す
   Cmd: [
     '--no-sandbox',           // コンテナ内ではsandbox不要
     '--disable-gpu',          // ヘッドレス環境
@@ -227,7 +227,7 @@ private async waitForCDP(
 }
 ```
 
-注: 実装時にはchromium/headless-shellイメージにwgetが含まれるかを確認し、含まれない場合はNode.jsのhttp モジュールでコンテナの公開ポート経由でチェックする方式に変更する。その場合、ホスト側にマッピングされたポートまたはDockerネットワーク内部のIPアドレスを使用する。
+注: 実装時にはghcr.io/windschord/claude-work-sandboxイメージにwgetが含まれるかを確認し、含まれない場合はNode.jsのhttp モジュールでコンテナの公開ポート経由でチェックする方式に変更する。その場合、ホスト側にマッピングされたポートまたはDockerネットワーク内部のIPアドレスを使用する。
 
 ### 孤立リソースクリーンアップ
 
