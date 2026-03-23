@@ -11,6 +11,7 @@
 | [Volume命名規則](volume-naming/index.md) | Docker named volumeの命名規則統一 | 未着手 | 計画中 |
 | [デフォルト環境削除](remove-default-env/index.md) | デフォルト実行環境の自動作成廃止 | 未着手 | 計画中 |
 | [Registry Firewall統合](registry-firewall/index.md) | パッケージレジストリプロキシによるサプライチェーン攻撃保護 | 7/7 タスク完了 | 完了 |
+| [Chrome Sidecar MCP環境](chrome-sidecar/index.md) | セッション専用Chromeサイドカーコンテナによるブラウザ操作 | 0/9 タスク | 計画中 |
 
 ## 完了済みプロジェクト
 

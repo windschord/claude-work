@@ -45,7 +45,7 @@ claude-workのDockerセッションにおいて、セッション単位で独立
 - **EnvironmentService**: 環境CRUD（src/services/environment-service.ts）
 - **chrome-devtools-mcp v0.12.1**: `--browserUrl`オプションによる外部Chrome接続
 - **Dockerode**: Docker APIクライアント（既存依存）
-- **chromium公式イメージ**: chromium/headless-shell等
+- **chromium公式イメージ**: ghcr.io/windschord/claude-work-sandbox等
 
 ## スコープ外
 

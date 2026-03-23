@@ -8,6 +8,7 @@ import { VolumeMountList } from '@/components/environments/VolumeMountList';
 import { DangerousPathWarning } from '@/components/environments/DangerousPathWarning';
 import { NetworkFilterSection } from '@/components/environments/NetworkFilterSection';
 import { ApplyChangesButton } from '@/components/environments/ApplyChangesButton';
+import { ChromeSidecarSection } from '@/components/environments/ChromeSidecarSection';
 import type { PortMapping, VolumeMount } from '@/types/environment';
 
 interface ProjectEnvironmentSectionProps {
@@ -29,6 +30,12 @@ interface AppClaudeDefaults {
   worktree: boolean;
 }
 
+interface ChromeSidecarUIConfig {
+  enabled: boolean;
+  image: string;
+  tag: string;
+}
+
 interface EnvironmentConfig {
   imageName?: string;
   imageTag?: string;
@@ -36,6 +43,7 @@ interface EnvironmentConfig {
   portMappings?: PortMapping[];
   volumeMounts?: VolumeMount[];
   claude_defaults_override?: ClaudeDefaultsOverride;
+  chromeSidecar?: ChromeSidecarUIConfig;
 }
 
 const ENVIRONMENT_TYPES: { value: EnvironmentType; label: string; description: string }[] = [
@@ -69,6 +77,11 @@ export function ProjectEnvironmentSection({ projectId }: ProjectEnvironmentSecti
   const [portMappings, setPortMappings] = useState<PortMapping[]>([]);
   const [volumeMounts, setVolumeMounts] = useState<VolumeMount[]>([]);
   const [dangerousPath, setDangerousPath] = useState<string | null>(null);
+
+  // Chrome Sidecar設定
+  const [chromeSidecarEnabled, setChromeSidecarEnabled] = useState(false);
+  const [chromeSidecarImage, setChromeSidecarImage] = useState('ghcr.io/windschord/claude-work-sandbox');
+  const [chromeSidecarTag, setChromeSidecarTag] = useState('chrome-devtools');
 
   // Claude Code設定オーバーライド
   const [overrideSkipPermissions, setOverrideSkipPermissions] = useState<OverrideValue>('inherit');
@@ -137,6 +150,18 @@ export function ProjectEnvironmentSection({ projectId }: ProjectEnvironmentSecti
           } else if (config.skipPermissions === true) {
             // 旧skipPermissionsの値をclaude_defaults_overrideに移行
             setOverrideSkipPermissions(true);
+          }
+
+          // Chrome Sidecar設定の復元
+          if (config.chromeSidecar) {
+            setChromeSidecarEnabled(config.chromeSidecar.enabled ?? false);
+            if (config.chromeSidecar.image) setChromeSidecarImage(config.chromeSidecar.image);
+            if (config.chromeSidecar.tag) setChromeSidecarTag(config.chromeSidecar.tag);
+          } else {
+            // chromeSidecar未設定時はデフォルト値にリセット
+            setChromeSidecarEnabled(false);
+            setChromeSidecarImage('ghcr.io/windschord/claude-work-sandbox');
+            setChromeSidecarTag('chrome-devtools');
           }
 
           initialConfigRef.current = {
@@ -208,6 +233,13 @@ export function ProjectEnvironmentSection({ projectId }: ProjectEnvironmentSecti
             claude_defaults_override: {
               dangerouslySkipPermissions: overrideSkipPermissions,
               worktree: overrideWorktree,
+            },
+            // Chrome Sidecar設定（トグルOFF時もenabled: falseを明示的に送信）
+            // OFF時もimage/tagを保持することで、再度ONにした際に前回の値を復元できる
+            chromeSidecar: {
+              enabled: chromeSidecarEnabled,
+              image: chromeSidecarImage.trim() || 'ghcr.io/windschord/claude-work-sandbox',
+              tag: chromeSidecarTag.trim() || 'chrome-devtools',
             },
           }
         : {};
@@ -506,6 +538,17 @@ export function ProjectEnvironmentSection({ projectId }: ProjectEnvironmentSecti
               onDangerousPath={(path) => setDangerousPath(path)}
             />
           </div>
+
+          {/* Chrome Sidecar */}
+          <ChromeSidecarSection
+            enabled={chromeSidecarEnabled}
+            image={chromeSidecarImage}
+            tag={chromeSidecarTag}
+            onEnabledChange={setChromeSidecarEnabled}
+            onImageChange={setChromeSidecarImage}
+            onTagChange={setChromeSidecarTag}
+            disabled={isSaving}
+          />
         </div>
       )}
 

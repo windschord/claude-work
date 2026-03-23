@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events';
 import type { ClaudeCodeOptions, CustomEnvVars } from './claude-options-service';
+import type { ChromeSidecarConfig } from '../types/environment';
 
 /**
  * セッション作成オプション
@@ -24,6 +25,8 @@ export interface CreateSessionOptions {
   filterEnabled?: boolean;
   /** registry-firewall有効フラグ（パッケージマネージャーのレジストリ設定注入用） */
   registryFirewallEnabled?: boolean;
+  /** サイドカーChrome設定 */
+  chromeSidecar?: ChromeSidecarConfig;
 }
 
 /**

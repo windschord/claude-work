@@ -17,6 +17,13 @@ export interface VolumeMount {
   sourceType?: 'bind' | 'volume';    // 省略時のデフォルト: 'bind'
 }
 
+/** Chrome Sidecar設定 */
+export interface ChromeSidecarConfig {
+  enabled: boolean;
+  image: string;    // デフォルト: 'ghcr.io/windschord/claude-work-sandbox'
+  tag: string;      // 固定バージョン必須、'latest'禁止
+}
+
 /** Docker環境の拡張config */
 export interface DockerEnvironmentConfig {
   imageSource?: 'existing' | 'dockerfile';
@@ -27,4 +34,5 @@ export interface DockerEnvironmentConfig {
   skipPermissions?: boolean;
   portMappings?: PortMapping[];
   volumeMounts?: VolumeMount[];
+  chromeSidecar?: ChromeSidecarConfig;
 }

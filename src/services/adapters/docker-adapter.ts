@@ -23,6 +23,8 @@ import { networkFilterService } from '@/services/network-filter-service';
 import { ProxyClient } from '@/services/proxy-client';
 import { syncRulesForContainer } from '@/lib/proxy-sync';
 import { RegistryFirewallClient } from '@/services/registry-firewall-client';
+import { ChromeSidecarService } from '../chrome-sidecar-service';
+import type { SidecarStartResult } from '../chrome-sidecar-service';
 
 export interface DockerAdapterConfig {
   environmentId: string;
@@ -836,11 +838,42 @@ export class DockerAdapter extends BasePTYAdapter {
       }
     }
 
+    // === サイドカー起動フェーズ ===
+    let sidecarResult: SidecarStartResult | undefined;
+    if (options?.chromeSidecar?.enabled) {
+      const sidecarService = ChromeSidecarService.getInstance();
+      sidecarResult = await sidecarService.startSidecar(
+        sessionId,
+        options.chromeSidecar
+      );
+
+      if (sidecarResult.success) {
+        logger.info('DockerAdapter: Chrome sidecar started', {
+          sessionId,
+          chromeContainer: sidecarResult.containerName,
+          networkName: sidecarResult.networkName,
+          debugPort: sidecarResult.debugPort,
+        });
+      } else {
+        logger.warn('DockerAdapter: Chrome sidecar failed, continuing without sidecar', {
+          sessionId,
+          error: sidecarResult.error,
+        });
+        // graceful degradation: サイドカーなしでClaude Codeを起動
+        sidecarResult = undefined;
+      }
+    }
+
     const { createOptions, containerName } = this.buildContainerOptions(workingDir, {
       ...options,
       filterEnabled,
       registryFirewallEnabled,
     });
+
+    // === .mcp.json注入のためのEntrypoint拡張（サイドカー成功時） ===
+    if (sidecarResult?.success && sidecarResult.browserUrl) {
+      this.injectBrowserUrl(createOptions, sidecarResult.browserUrl);
+    }
 
     // クライアントから渡されたターミナルサイズを使用（未指定時はデフォルト80x24）
     const initialCols = options?.cols ?? 80;
@@ -947,6 +980,71 @@ export class DockerAdapter extends BasePTYAdapter {
         .set({ container_id: containerName, updated_at: new Date() })
         .where(eq(schema.sessions.id, sessionId))
         .run();
+
+      // === サイドカーネットワークへのClaude Code接続 ===
+      if (sidecarResult?.success && sidecarResult.networkName) {
+        let sidecarConnected = false;
+        try {
+          const sidecarService = ChromeSidecarService.getInstance();
+          await sidecarService.connectClaudeContainer(
+            containerName,
+            sidecarResult.networkName
+          );
+          sidecarConnected = true;
+        } catch (error) {
+          logger.warn('DockerAdapter: Failed to connect Claude container to sidecar network, stopping sidecar', {
+            sessionId,
+            networkName: sidecarResult.networkName,
+            error: error instanceof Error ? error.message : 'Unknown',
+          });
+          // 接続失敗時はサイドカーを停止（best-effort）してDB保存しない
+          if (sidecarResult.containerName) {
+            try {
+              const sidecarService = ChromeSidecarService.getInstance();
+              await sidecarService.stopSidecar(sessionId, sidecarResult.containerName, sidecarResult.networkName);
+              logger.info('DockerAdapter: Cleaned up sidecar after connect failure', { sessionId });
+            } catch (cleanupError) {
+              logger.warn('DockerAdapter: Failed to cleanup sidecar after connect failure', {
+                sessionId,
+                error: cleanupError instanceof Error ? cleanupError.message : 'Unknown',
+              });
+            }
+          }
+          // Claude Code自体は起動済みなのでサイドカーなしで続行
+        }
+
+        // DB更新: chrome_container_id, chrome_debug_port（接続成功時のみ）
+        if (sidecarConnected) {
+          try {
+            db.update(schema.sessions)
+              .set({
+                chrome_container_id: sidecarResult.containerName ?? null,
+                chrome_debug_port: sidecarResult.debugPort ?? null,
+                updated_at: new Date(),
+              })
+              .where(eq(schema.sessions.id, sessionId))
+              .run();
+          } catch (error) {
+            logger.warn('DockerAdapter: Failed to update chrome sidecar info in DB', {
+              sessionId,
+              error: error instanceof Error ? error.message : 'Unknown',
+            });
+            // DB保存失敗時、stopSidecarで回収できるようbest-effortでクリーンアップ
+            if (sidecarResult?.containerName) {
+              try {
+                const sidecarService = ChromeSidecarService.getInstance();
+                await sidecarService.stopSidecar(sessionId, sidecarResult.containerName, sidecarResult.networkName);
+                logger.info('DockerAdapter: Cleaned up sidecar after DB write failure', { sessionId });
+              } catch (cleanupError) {
+                logger.warn('DockerAdapter: Failed to cleanup sidecar after DB write failure', {
+                  sessionId,
+                  error: cleanupError instanceof Error ? cleanupError.message : 'Unknown',
+                });
+              }
+            }
+          }
+        }
+      }
 
       // イベント転送
       ptyProcess.onData((data: string) => {
@@ -1100,6 +1198,20 @@ export class DockerAdapter extends BasePTYAdapter {
         }
       }
 
+      // サイドカーが起動していた場合はクリーンアップ
+      if (sidecarResult?.success && sidecarResult.containerName) {
+        try {
+          const sidecarService = ChromeSidecarService.getInstance();
+          await sidecarService.stopSidecar(sessionId, sidecarResult.containerName, sidecarResult.networkName);
+          logger.info('DockerAdapter: Chrome sidecar cleaned up on createSession failure', { sessionId });
+        } catch (sidecarCleanupError) {
+          logger.warn('DockerAdapter: Failed to cleanup Chrome sidecar on createSession failure', {
+            sessionId,
+            error: sidecarCleanupError instanceof Error ? sidecarCleanupError.message : 'Unknown error',
+          });
+        }
+      }
+
       logger.error('DockerAdapter: Failed to create session', {
         sessionId,
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -1173,6 +1285,49 @@ export class DockerAdapter extends BasePTYAdapter {
         });
       }
 
+      // === サイドカーChrome停止（best-effort） ===
+      try {
+        const sessionRecord = db.select({
+          chrome_container_id: schema.sessions.chrome_container_id,
+        }).from(schema.sessions)
+          .where(eq(schema.sessions.id, sessionId))
+          .get();
+
+        if (sessionRecord?.chrome_container_id) {
+          const sidecarService = ChromeSidecarService.getInstance();
+          const stopResult = await sidecarService.stopSidecar(
+            sessionId,
+            sessionRecord.chrome_container_id
+          );
+
+          if (stopResult.success) {
+            // DB更新: chromeカラムをクリア（停止成功時のみ）
+            db.update(schema.sessions)
+              .set({
+                chrome_container_id: null,
+                chrome_debug_port: null,
+                updated_at: new Date(),
+              })
+              .where(eq(schema.sessions.id, sessionId))
+              .run();
+
+            logger.info('DockerAdapter: Chrome sidecar stopped', { sessionId });
+          } else {
+            // 停止失敗時はDB参照を保持（孤立回収のため）
+            logger.warn('DockerAdapter: Chrome sidecar stop failed, keeping DB refs for orphan cleanup', {
+              sessionId,
+              error: stopResult.error,
+            });
+          }
+        }
+      } catch (error) {
+        logger.warn('DockerAdapter: Failed to stop Chrome sidecar', {
+          sessionId,
+          error: error instanceof Error ? error.message : 'Unknown',
+        });
+        // Chrome停止失敗はセッション破棄を妨げない
+      }
+
       // フィルタリングルールのクリーンアップ（コンテナ停止後にbest-effort、ブロックしない）
       if (containerIP) {
         void new ProxyClient().deleteRules(containerIP)
@@ -1188,6 +1343,81 @@ export class DockerAdapter extends BasePTYAdapter {
           });
       }
     }
+  }
+
+  /**
+   * .mcp.jsonにbrowserUrlを注入するためのEntrypoint拡張
+   *
+   * 既存のregistry-firewallパターンと同様に、
+   * Entrypointをshell経由に変更してセットアップスクリプトを挿入する。
+   */
+  private injectBrowserUrl(
+    createOptions: Docker.ContainerCreateOptions,
+    browserUrl: string
+  ): void {
+    // browserUrlを環境変数経由で渡す（シェルインジェクション防止）
+    if (!createOptions.Env) createOptions.Env = [];
+    createOptions.Env.push(`__CHROME_BROWSER_URL=${browserUrl}`);
+
+    // .mcp.json更新スクリプト
+    const mcpPackage = '@anthropic-ai/chrome-devtools-mcp@0.12.1';
+    const mcpInjectScript = [
+      'MCP_FILE="${MCP_FILE:-.mcp.json}"',
+      '[ -f "$MCP_FILE" ] || echo \'{"mcpServers":{}}\' > "$MCP_FILE"',
+      `node -e '` +
+        `const fs = require("fs");` +
+        `const f = process.env.MCP_FILE || ".mcp.json";` +
+        `const url = process.env.__CHROME_BROWSER_URL;` +
+        `if (!url) process.exit(0);` +
+        `let cfg = {};` +
+        `try { cfg = JSON.parse(fs.readFileSync(f, "utf8")); } catch {}` +
+        `if (!cfg.mcpServers) cfg.mcpServers = {};` +
+        `if (!cfg.mcpServers["chrome-devtools"]) {` +
+          `cfg.mcpServers["chrome-devtools"] = {` +
+            `"command": "npx",` +
+            `"args": ["-y", "${mcpPackage}", "--browserUrl=" + url]` +
+          `};` +
+        `} else {` +
+          `const args = cfg.mcpServers["chrome-devtools"].args || [];` +
+          `const idx = args.findIndex(a => a.startsWith("--browserUrl="));` +
+          `if (idx >= 0) args[idx] = "--browserUrl=" + url;` +
+          `else args.push("--browserUrl=" + url);` +
+          `cfg.mcpServers["chrome-devtools"].args = args;` +
+        `}` +
+        `fs.writeFileSync(f, JSON.stringify(cfg, null, 2) + "\\n");` +
+      `'`,
+    ].join(' && ');
+
+    const originalEntrypoint = createOptions.Entrypoint || [];
+    const originalCmd = createOptions.Cmd || [];
+
+    // 既にshell経由の場合（registry-firewall等で変換済み）
+    if (
+      Array.isArray(originalEntrypoint) &&
+      originalEntrypoint.length === 2 &&
+      originalEntrypoint[0] === '/bin/sh' &&
+      originalEntrypoint[1] === '-c' &&
+      Array.isArray(originalCmd) &&
+      originalCmd.length > 0
+    ) {
+      (originalCmd as string[])[0] = mcpInjectScript + ' && ' + (originalCmd as string[])[0];
+    } else {
+      // shell経由に変換
+      const allArgs = [
+        ...(Array.isArray(originalEntrypoint) ? originalEntrypoint : [originalEntrypoint]),
+        ...(Array.isArray(originalCmd) ? originalCmd : []),
+      ].filter(Boolean);
+      createOptions.Entrypoint = ['/bin/sh', '-c'];
+      createOptions.Cmd = [
+        mcpInjectScript + ' && exec "$@"',
+        '--',
+        ...allArgs,
+      ];
+    }
+
+    logger.info('DockerAdapter: Injected browser URL into container entrypoint', {
+      browserUrl,
+    });
   }
 
   /**
