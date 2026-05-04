@@ -52,7 +52,7 @@
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/xterm": "^5.5.0",
     "better-sqlite3": "^12.6.2",
-    "dockerode": "^4.0.9",
+    "dockerode": "^5.0.0",
     "dotenv": "^17.2.3",
     "drizzle-orm": "^0.45.1",
     "iron-session": "^8.0.4",
